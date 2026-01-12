@@ -11,4 +11,9 @@ public class Asset {
     {
         Name = name;
     }
+    
+    static Asset Load(string name)
+    {
+        return null;
+    }
 }
