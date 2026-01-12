@@ -26,7 +26,7 @@ public class WebGLRender : IRender
     public async Task InitAsync(RenderBackendConfig config)
     {
         _config = config;
-        _module = await _js.InvokeAsync<IJSObjectReference>("import", "./js/noz-webgl.js");
+        _module = await _js.InvokeAsync<IJSObjectReference>("import", "./js/noz/noz-webgl.js");
         await _module.InvokeVoidAsync("init");
     }
 
