@@ -4,108 +4,105 @@
 
 using SDL;
 using static SDL.SDL3;
+using System.Numerics;
 
 namespace noz;
 
 public static class Input {
-    private static readonly bool[] _buttonState = new bool[(int)InputCode.Count];
-    private static readonly float[] _axisState = new float[(int)InputCode.Count];
-    private static readonly Stack<InputSet> _inputSetStack = new();
+    private static readonly bool[] ButtonState = new bool[(int)InputCode.Count];
+    private static readonly float[] AxisState = new float[(int)InputCode.Count];
+    private static readonly Stack<InputSet> InputSetStack = new();
 
-    private static float _mouseX;
-    private static float _mouseY;
     private static float _scrollX;
     private static float _scrollY;
 
-    public static InputSet? CurrentInputSet => _inputSetStack.Count > 0 ? _inputSetStack.Peek() : null;
+    public static InputSet? CurrentInputSet => InputSetStack.Count > 0 ? InputSetStack.Peek() : null;
 
     internal static void Init() {
         SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     }
 
     internal static void Shutdown() {
-        _inputSetStack.Clear();
+        InputSetStack.Clear();
     }
 
     public static void PushInputSet(InputSet set, bool inheritState = false) {
-        if (inheritState && _inputSetStack.Count > 0)
-            set.CopyFrom(_inputSetStack.Peek());
+        if (inheritState && InputSetStack.Count > 0)
+            set.CopyFrom(InputSetStack.Peek());
 
         CurrentInputSet?.Reset();
         CurrentInputSet?.SetActive(false);
 
-        _inputSetStack.Push(set);
+        InputSetStack.Push(set);
         set.SetActive(true);
     }
 
     public static void PopInputSet() {
-        if (_inputSetStack.Count == 0)
+        if (InputSetStack.Count == 0)
             return;
 
-        var old = _inputSetStack.Pop();
+        var old = InputSetStack.Pop();
         old.SetActive(false);
 
-        if (_inputSetStack.Count > 0) {
-            var current = _inputSetStack.Peek();
+        if (InputSetStack.Count > 0) {
+            var current = InputSetStack.Peek();
             current.SetActive(true);
             current.Reset();
         }
     }
 
     public static void SetInputSet(InputSet set) {
-        while (_inputSetStack.Count > 0)
-            _inputSetStack.Pop().SetActive(false);
+        while (InputSetStack.Count > 0)
+            InputSetStack.Pop().SetActive(false);
 
-        _inputSetStack.Push(set);
+        InputSetStack.Push(set);
         set.SetActive(true);
     }
 
     public static void Update() {
-        // Clear per-frame scroll values
         _scrollX = 0;
         _scrollY = 0;
 
         CurrentInputSet?.Update();
     }
 
-    public static unsafe void ProcessEvent(SDL_Event evt) {
+    public static void ProcessEvent(SDL_Event evt) {
         switch (evt.Type) {
             case SDL_EventType.SDL_EVENT_KEY_DOWN: {
                 var code = ScancodeToInputCode(evt.key.scancode);
                 if (code != InputCode.None)
-                    _buttonState[(int)code] = true;
+                    ButtonState[(int)code] = true;
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_KEY_UP: {
                 var code = ScancodeToInputCode(evt.key.scancode);
                 if (code != InputCode.None)
-                    _buttonState[(int)code] = false;
+                    ButtonState[(int)code] = false;
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN: {
                 var code = MouseButtonToInputCode(evt.button.button);
                 if (code != InputCode.None)
-                    _buttonState[(int)code] = true;
+                    ButtonState[(int)code] = true;
 
                 if (evt.button.clicks == 2 && evt.button.button == 1)
-                    _buttonState[(int)InputCode.MouseLeftDoubleClick] = true;
+                    ButtonState[(int)InputCode.MouseLeftDoubleClick] = true;
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP: {
                 var code = MouseButtonToInputCode(evt.button.button);
                 if (code != InputCode.None)
-                    _buttonState[(int)code] = false;
+                    ButtonState[(int)code] = false;
 
-                _buttonState[(int)InputCode.MouseLeftDoubleClick] = false;
+                ButtonState[(int)InputCode.MouseLeftDoubleClick] = false;
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
-                _mouseX = evt.motion.x;
-                _mouseY = evt.motion.y;
+                MousePosition = new Vector2(evt.motion.x, evt.motion.y);
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_WHEEL:
@@ -116,14 +113,14 @@ public static class Input {
             case SDL_EventType.SDL_EVENT_GAMEPAD_BUTTON_DOWN: {
                 var code = GamepadButtonToInputCode((SDL_GamepadButton)evt.gbutton.button);
                 if (code != InputCode.None)
-                    _buttonState[(int)code] = true;
+                    ButtonState[(int)code] = true;
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_GAMEPAD_BUTTON_UP: {
                 var code = GamepadButtonToInputCode((SDL_GamepadButton)evt.gbutton.button);
                 if (code != InputCode.None)
-                    _buttonState[(int)code] = false;
+                    ButtonState[(int)code] = false;
                 break;
             }
 
@@ -133,28 +130,28 @@ public static class Input {
 
                 switch (axis) {
                     case SDL_GamepadAxis.SDL_GAMEPAD_AXIS_LEFTX:
-                        _axisState[(int)InputCode.GamepadLeftStickX] = value;
-                        _buttonState[(int)InputCode.GamepadLeftStickLeft] = value < -0.5f;
-                        _buttonState[(int)InputCode.GamepadLeftStickRight] = value > 0.5f;
+                        AxisState[(int)InputCode.GamepadLeftStickX] = value;
+                        ButtonState[(int)InputCode.GamepadLeftStickLeft] = value < -0.5f;
+                        ButtonState[(int)InputCode.GamepadLeftStickRight] = value > 0.5f;
                         break;
                     case SDL_GamepadAxis.SDL_GAMEPAD_AXIS_LEFTY:
-                        _axisState[(int)InputCode.GamepadLeftStickY] = value;
-                        _buttonState[(int)InputCode.GamepadLeftStickUp] = value < -0.5f;
-                        _buttonState[(int)InputCode.GamepadLeftStickDown] = value > 0.5f;
+                        AxisState[(int)InputCode.GamepadLeftStickY] = value;
+                        ButtonState[(int)InputCode.GamepadLeftStickUp] = value < -0.5f;
+                        ButtonState[(int)InputCode.GamepadLeftStickDown] = value > 0.5f;
                         break;
                     case SDL_GamepadAxis.SDL_GAMEPAD_AXIS_RIGHTX:
-                        _axisState[(int)InputCode.GamepadRightStickX] = value;
+                        AxisState[(int)InputCode.GamepadRightStickX] = value;
                         break;
                     case SDL_GamepadAxis.SDL_GAMEPAD_AXIS_RIGHTY:
-                        _axisState[(int)InputCode.GamepadRightStickY] = value;
+                        AxisState[(int)InputCode.GamepadRightStickY] = value;
                         break;
                     case SDL_GamepadAxis.SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
-                        _axisState[(int)InputCode.GamepadLeftTrigger] = (value + 1.0f) / 2.0f;
-                        _buttonState[(int)InputCode.GamepadLeftTriggerButton] = value > 0.5f;
+                        AxisState[(int)InputCode.GamepadLeftTrigger] = (value + 1.0f) / 2.0f;
+                        ButtonState[(int)InputCode.GamepadLeftTriggerButton] = value > 0.5f;
                         break;
                     case SDL_GamepadAxis.SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
-                        _axisState[(int)InputCode.GamepadRightTrigger] = (value + 1.0f) / 2.0f;
-                        _buttonState[(int)InputCode.GamepadRightTriggerButton] = value > 0.5f;
+                        AxisState[(int)InputCode.GamepadRightTrigger] = (value + 1.0f) / 2.0f;
+                        ButtonState[(int)InputCode.GamepadRightTriggerButton] = value > 0.5f;
                         break;
                 }
 
@@ -163,19 +160,18 @@ public static class Input {
         }
     }
 
-    internal static bool IsButtonDownRaw(InputCode code) => _buttonState[(int)code];
+    internal static bool IsButtonDownRaw(InputCode code) => ButtonState[(int)code];
 
     internal static float GetAxisValue(InputCode code) {
         return code switch {
-            InputCode.MouseX => _mouseX,
-            InputCode.MouseY => _mouseY,
+            InputCode.MouseX => MousePosition.X,
+            InputCode.MouseY => MousePosition.Y,
             InputCode.MouseScrollX => _scrollX,
             InputCode.MouseScrollY => _scrollY,
-            _ => _axisState[(int)code]
+            _ => AxisState[(int)code]
         };
     }
 
-    // Convenience methods that delegate to current InputSet
     public static bool IsButtonDown(InputCode code) => CurrentInputSet?.IsButtonDown(code) ?? false;
     public static bool WasButtonPressed(InputCode code) => CurrentInputSet?.WasButtonPressed(code) ?? false;
     public static bool WasButtonReleased(InputCode code) => CurrentInputSet?.WasButtonReleased(code) ?? false;
@@ -186,8 +182,7 @@ public static class Input {
     public static bool IsAltDown() => IsButtonDown(InputCode.KeyLeftAlt) || IsButtonDown(InputCode.KeyRightAlt);
     public static bool IsSuperDown() => IsButtonDown(InputCode.KeyLeftSuper) || IsButtonDown(InputCode.KeyRightSuper);
 
-    public static float MouseX => _mouseX;
-    public static float MouseY => _mouseY;
+    public static Vector2 MousePosition { get; private set; }
 
     private static InputCode ScancodeToInputCode(SDL_Scancode scancode) {
         return scancode switch {

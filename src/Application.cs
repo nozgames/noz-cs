@@ -71,7 +71,10 @@ public static class Application
                     if (evt.Type == SDL_EventType.SDL_EVENT_QUIT)
                     {
                         _running = false;
+                        continue;
                     }
+
+                    Input.ProcessEvent(evt);
                 }
             }
 

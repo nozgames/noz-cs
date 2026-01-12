@@ -11,15 +11,13 @@ internal enum ButtonState : byte
     Pressed = 1 << 0,
     Released = 1 << 1,
     Down = 1 << 2,
-    Reset = 1 << 3,
-    Enabled = 1 << 4
+    Reset = 1 << 3
 }
 
 public class InputSet
 {
     private readonly string _name;
     private readonly ButtonState[] _buttons = new ButtonState[(int)InputCode.Count];
-    private readonly List<InputCode> _enabledCodes = new();
     private bool _active;
 
     public string Name => _name;
@@ -34,46 +32,6 @@ public class InputSet
     public void SetActive(bool active)
     {
         _active = active;
-    }
-
-    public void EnableButton(InputCode code)
-    {
-        if ((_buttons[(int)code] & ButtonState.Enabled) != 0)
-            return;
-
-        _enabledCodes.Add(code);
-        _buttons[(int)code] |= ButtonState.Enabled;
-    }
-
-    public void DisableButton(InputCode code)
-    {
-        if ((_buttons[(int)code] & ButtonState.Enabled) == 0)
-            return;
-
-        _enabledCodes.Remove(code);
-        _buttons[(int)code] = (_buttons[(int)code] & ~ButtonState.Enabled) | ButtonState.Reset;
-    }
-
-    public void EnableCharacters()
-    {
-        for (var i = InputCode.KeyA; i <= InputCode.KeyZ; i++)
-            EnableButton(i);
-
-        for (var i = InputCode.Key0; i <= InputCode.Key9; i++)
-            EnableButton(i);
-
-        EnableButton(InputCode.KeySpace);
-        EnableButton(InputCode.KeyMinus);
-    }
-
-    public void EnableModifiers()
-    {
-        EnableButton(InputCode.KeyLeftShift);
-        EnableButton(InputCode.KeyRightShift);
-        EnableButton(InputCode.KeyLeftCtrl);
-        EnableButton(InputCode.KeyRightCtrl);
-        EnableButton(InputCode.KeyLeftAlt);
-        EnableButton(InputCode.KeyRightAlt);
     }
 
     public bool IsButtonDown(InputCode code)
@@ -103,13 +61,13 @@ public class InputSet
 
     public void ConsumeButton(InputCode code)
     {
-        _buttons[(int)code] = (_buttons[(int)code] & ButtonState.Enabled) | ButtonState.Reset;
+        _buttons[(int)code] = ButtonState.Reset;
     }
 
     public void Reset()
     {
         for (var i = 0; i < (int)InputCode.Count; i++)
-            _buttons[i] = (_buttons[i] & ButtonState.Enabled) | ButtonState.Reset;
+            _buttons[i] = ButtonState.Reset;
 
         UpdateButtonStates(true);
     }
@@ -117,10 +75,7 @@ public class InputSet
     public void CopyFrom(InputSet src)
     {
         for (var i = 0; i < (int)InputCode.Count; i++)
-        {
-            if ((_buttons[i] & ButtonState.Enabled) != 0)
-                _buttons[i] = src._buttons[i] | ButtonState.Enabled;
-        }
+            _buttons[i] = src._buttons[i];
     }
 
     internal void Update()
@@ -134,8 +89,12 @@ public class InputSet
 
     private void UpdateButtonStates(bool reset)
     {
-        foreach (var code in _enabledCodes)
+        for (var i = 1; i < (int)InputCode.Count; i++)
         {
+            var code = (InputCode)i;
+            if (!code.IsButton())
+                continue;
+
             var newState = Input.IsButtonDownRaw(code);
             UpdateButtonState(code, newState, reset);
         }
@@ -144,9 +103,6 @@ public class InputSet
     private void UpdateButtonState(InputCode code, bool newState, bool reset)
     {
         var idx = (int)code;
-        if ((_buttons[idx] & ButtonState.Enabled) == 0)
-            return;
-
         var oldState = (_buttons[idx] & ButtonState.Down) != 0;
 
         if (newState)

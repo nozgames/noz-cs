@@ -11,8 +11,6 @@ internal static class Editor
     internal static void Init()
     {
         _input = new InputSet();
-        _input.EnableButton(InputCode.KeySpace);
-        
         Input.PushInputSet(_input);
     }
 
@@ -23,7 +21,5 @@ internal static class Editor
 
     internal static void Update()
     {
-        if (Input.WasButtonPressed(InputCode.KeySpace))
-            Console.WriteLine("hi!");
     }
 } 

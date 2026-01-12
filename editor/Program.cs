@@ -6,7 +6,7 @@ using noz;
 
 Application.Init(new ApplicationConfig
 {
-    Title = "Noz Editor",
+    Title = "NoZ Editor",
     Width = 1600,
     Height = 900,
     
@@ -24,4 +24,6 @@ Application.Init(new ApplicationConfig
 Editor.Init();
 
 Application.Run();
+
+Editor.Shutdown();
 Application.Shutdown();
