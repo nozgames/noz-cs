@@ -57,6 +57,7 @@ public static class Application
 
         Input.Init();
         Render.Init(Config.Render);
+        Sprite.RegisterDef();
     }
 
     public static void Run()
