@@ -1,0 +1,213 @@
+//
+//  NoZ - Copyright(c) 2026 NoZ Games, LLC
+//
+
+using System.Numerics;
+using Microsoft.JSInterop;
+
+namespace noz;
+
+public class WebPlatform : IPlatform
+{
+    private readonly IJSRuntime _js;
+    private IJSObjectReference? _module;
+    private Vector2 _windowSize;
+    private bool _shouldQuit;
+    private DotNetObjectReference<WebPlatform>? _dotNetRef;
+
+    public Vector2 WindowSize => _windowSize;
+    public event Action<PlatformEvent>? OnEvent;
+
+    public WebPlatform(IJSRuntime js)
+    {
+        _js = js;
+    }
+
+    public void Init(PlatformConfig config)
+    {
+        _windowSize = new Vector2(config.Width, config.Height);
+        // JS module initialization happens async in InitAsync
+    }
+
+    public async Task InitAsync(PlatformConfig config)
+    {
+        _windowSize = new Vector2(config.Width, config.Height);
+        _dotNetRef = DotNetObjectReference.Create(this);
+
+        _module = await _js.InvokeAsync<IJSObjectReference>("import", "./js/noz-platform.js");
+        await _module.InvokeVoidAsync("init", _dotNetRef, config.Width, config.Height);
+    }
+
+    public void Shutdown()
+    {
+        _module?.InvokeVoidAsync("shutdown");
+        _dotNetRef?.Dispose();
+    }
+
+    public bool PollEvents()
+    {
+        // Events are pushed from JS via JSInvokable methods
+        return !_shouldQuit;
+    }
+
+    public void SwapBuffers()
+    {
+        // WebGL automatically presents after draw calls
+        // Nothing to do here
+    }
+
+    public void RequestQuit()
+    {
+        _shouldQuit = true;
+    }
+
+    // Called from JavaScript
+    [JSInvokable]
+    public void OnKeyDown(string key)
+    {
+        var code = KeyToInputCode(key);
+        if (code != InputCode.None)
+            OnEvent?.Invoke(PlatformEvent.KeyDown(code));
+    }
+
+    [JSInvokable]
+    public void OnKeyUp(string key)
+    {
+        var code = KeyToInputCode(key);
+        if (code != InputCode.None)
+            OnEvent?.Invoke(PlatformEvent.KeyUp(code));
+    }
+
+    [JSInvokable]
+    public void OnMouseDown(int button, int clickCount)
+    {
+        var code = MouseButtonToInputCode(button);
+        if (code != InputCode.None)
+            OnEvent?.Invoke(PlatformEvent.MouseDown(code, clickCount));
+    }
+
+    [JSInvokable]
+    public void OnMouseUp(int button)
+    {
+        var code = MouseButtonToInputCode(button);
+        if (code != InputCode.None)
+            OnEvent?.Invoke(PlatformEvent.MouseUp(code));
+    }
+
+    [JSInvokable]
+    public void OnMouseMove(float x, float y)
+    {
+        OnEvent?.Invoke(PlatformEvent.MouseMove(new Vector2(x, y)));
+    }
+
+    [JSInvokable]
+    public void OnMouseWheel(float deltaX, float deltaY)
+    {
+        OnEvent?.Invoke(PlatformEvent.MouseScroll(deltaX, deltaY));
+    }
+
+    [JSInvokable]
+    public void OnResize(int width, int height)
+    {
+        _windowSize = new Vector2(width, height);
+        OnEvent?.Invoke(PlatformEvent.Resize(width, height));
+    }
+
+    private static InputCode KeyToInputCode(string key)
+    {
+        return key.ToLowerInvariant() switch
+        {
+            "a" => InputCode.KeyA,
+            "b" => InputCode.KeyB,
+            "c" => InputCode.KeyC,
+            "d" => InputCode.KeyD,
+            "e" => InputCode.KeyE,
+            "f" => InputCode.KeyF,
+            "g" => InputCode.KeyG,
+            "h" => InputCode.KeyH,
+            "i" => InputCode.KeyI,
+            "j" => InputCode.KeyJ,
+            "k" => InputCode.KeyK,
+            "l" => InputCode.KeyL,
+            "m" => InputCode.KeyM,
+            "n" => InputCode.KeyN,
+            "o" => InputCode.KeyO,
+            "p" => InputCode.KeyP,
+            "q" => InputCode.KeyQ,
+            "r" => InputCode.KeyR,
+            "s" => InputCode.KeyS,
+            "t" => InputCode.KeyT,
+            "u" => InputCode.KeyU,
+            "v" => InputCode.KeyV,
+            "w" => InputCode.KeyW,
+            "x" => InputCode.KeyX,
+            "y" => InputCode.KeyY,
+            "z" => InputCode.KeyZ,
+
+            "1" => InputCode.Key1,
+            "2" => InputCode.Key2,
+            "3" => InputCode.Key3,
+            "4" => InputCode.Key4,
+            "5" => InputCode.Key5,
+            "6" => InputCode.Key6,
+            "7" => InputCode.Key7,
+            "8" => InputCode.Key8,
+            "9" => InputCode.Key9,
+            "0" => InputCode.Key0,
+
+            "enter" => InputCode.KeyEnter,
+            "escape" => InputCode.KeyEscape,
+            "backspace" => InputCode.KeyBackspace,
+            "tab" => InputCode.KeyTab,
+            " " => InputCode.KeySpace,
+
+            "-" => InputCode.KeyMinus,
+            "=" => InputCode.KeyEquals,
+            "[" => InputCode.KeyLeftBracket,
+            "]" => InputCode.KeyRightBracket,
+            ";" => InputCode.KeySemicolon,
+            "'" => InputCode.KeyQuote,
+            "`" => InputCode.KeyTilde,
+            "," => InputCode.KeyComma,
+            "." => InputCode.KeyPeriod,
+
+            "f1" => InputCode.KeyF1,
+            "f2" => InputCode.KeyF2,
+            "f3" => InputCode.KeyF3,
+            "f4" => InputCode.KeyF4,
+            "f5" => InputCode.KeyF5,
+            "f6" => InputCode.KeyF6,
+            "f7" => InputCode.KeyF7,
+            "f8" => InputCode.KeyF8,
+            "f9" => InputCode.KeyF9,
+            "f10" => InputCode.KeyF10,
+            "f11" => InputCode.KeyF11,
+            "f12" => InputCode.KeyF12,
+
+            "arrowright" => InputCode.KeyRight,
+            "arrowleft" => InputCode.KeyLeft,
+            "arrowdown" => InputCode.KeyDown,
+            "arrowup" => InputCode.KeyUp,
+
+            "control" => InputCode.KeyLeftCtrl,
+            "shift" => InputCode.KeyLeftShift,
+            "alt" => InputCode.KeyLeftAlt,
+            "meta" => InputCode.KeyLeftSuper,
+
+            _ => InputCode.None
+        };
+    }
+
+    private static InputCode MouseButtonToInputCode(int button)
+    {
+        return button switch
+        {
+            0 => InputCode.MouseLeft,
+            1 => InputCode.MouseMiddle,
+            2 => InputCode.MouseRight,
+            3 => InputCode.MouseButton4,
+            4 => InputCode.MouseButton5,
+            _ => InputCode.None
+        };
+    }
+}

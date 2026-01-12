@@ -2,8 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using SDL;
-
 namespace noz;
 
 public struct ApplicationVtable
@@ -18,10 +16,18 @@ public class ApplicationConfig
     public int Height { get; set; } = 720;
     public bool VSync { get; set; } = true;
     public bool Resizable { get; set; } = true;
-    public int GLMajorVersion { get; set; } = 4;
-    public int GLMinorVersion { get; set; } = 5;
 
-    public RenderConfig? Render = null;
+    public RenderConfig? Render { get; set; }
 
     public ApplicationVtable Vtable;
+
+    /// <summary>
+    /// Platform implementation. If null, defaults to SDLPlatform.
+    /// </summary>
+    public IPlatform? Platform { get; set; }
+
+    /// <summary>
+    /// Render backend implementation. If null, defaults to OpenGLRender.
+    /// </summary>
+    public IRender? RenderBackend { get; set; }
 }

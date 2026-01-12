@@ -4,9 +4,7 @@
 
 namespace noz;
 
-enum AssetType
+struct SoundHandle
 {
-    Sprite,
-    Sound
+    
 }
-

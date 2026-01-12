@@ -4,7 +4,8 @@
       "Bash(dir:*)",
       "Bash(dotnet build:*)",
       "Bash(git rm:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(dotnet new:*)"
     ]
   }
 }

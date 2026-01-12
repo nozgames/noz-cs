@@ -2,10 +2,14 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\src\noz.csproj" />
+    <ProjectReference Include="..\platform\sdl\noz.platform.sdl.csproj" />
   </ItemGroup>
 
 </Project>

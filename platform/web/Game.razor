@@ -1,0 +1,124 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<canvas id="noz-canvas" width="@_width" height="@_height" tabindex="1"></canvas>
+
+@code {
+    [Parameter] public int Width { get; set; } = 1280;
+    [Parameter] public int Height { get; set; } = 720;
+    [Parameter] public Action? OnUpdate { get; set; }
+    [Parameter] public Func<Task>? OnInitialize { get; set; }
+
+    private int _width;
+    private int _height;
+    private WebPlatform? _platform;
+    private WebGLRender? _render;
+    private IJSObjectReference? _gameLoop;
+    private DotNetObjectReference<Game>? _dotNetRef;
+    private bool _initialized;
+
+    protected override void OnInitialized()
+    {
+        _width = Width;
+        _height = Height;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            await InitializeGame();
+        }
+    }
+
+    private async Task InitializeGame()
+    {
+        // Create platform and render backend
+        _platform = new WebPlatform(JS);
+        _render = new WebGLRender(JS);
+
+        // Initialize platform first (creates canvas events)
+        await _platform.InitAsync(new PlatformConfig
+        {
+            Title = "NoZ Game",
+            Width = _width,
+            Height = _height,
+            VSync = true,
+            Resizable = false
+        });
+
+        // Subscribe to platform events
+        _platform.OnEvent += Input.ProcessEvent;
+
+        // Initialize input
+        Input.Init();
+
+        // Initialize render backend
+        await _render.InitAsync(new RenderBackendConfig
+        {
+            VSync = true,
+            MaxCommands = 1024
+        });
+
+        // Initialize Render static class with backend
+        Render.Init(null, _render);
+
+        // Call user initialization
+        if (OnInitialize != null)
+        {
+            await OnInitialize();
+        }
+
+        // Start game loop
+        _dotNetRef = DotNetObjectReference.Create(this);
+        _gameLoop = await JS.InvokeAsync<IJSObjectReference>("import", "./js/noz-gameloop.js");
+        await _gameLoop.InvokeVoidAsync("start", _dotNetRef);
+    }
+
+    [JSInvokable]
+    public void GameTick(float deltaTime)
+    {
+        if (_platform == null) return;
+
+        // Poll events (events are pushed from JS, this just checks quit flag)
+        if (!_platform.PollEvents())
+        {
+            return;
+        }
+
+        // Update input state
+        Input.Update();
+
+        // Begin frame
+        Render.BeginFrame();
+
+        // Call user update
+        OnUpdate?.Invoke();
+
+        // End frame
+        Render.EndFrame();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_gameLoop != null)
+        {
+            await _gameLoop.InvokeVoidAsync("stop");
+            await _gameLoop.DisposeAsync();
+        }
+
+        _dotNetRef?.Dispose();
+
+        if (_platform != null)
+        {
+            _platform.OnEvent -= Input.ProcessEvent;
+            _platform.Shutdown();
+        }
+
+        _render?.Shutdown();
+        Input.Shutdown();
+        Render.Shutdown();
+    }
+}
