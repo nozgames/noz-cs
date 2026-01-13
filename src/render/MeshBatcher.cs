@@ -52,7 +52,7 @@ public class MeshBatcher
     private RenderStats _stats;
 
     // Stats
-    public ref RenderStats Stats => ref _stats;
+    public ref readonly RenderStats Stats => ref _stats;
     
     public MeshBatcher()
     {

@@ -13,7 +13,7 @@ public static class Render
     public static MeshBatcher Batcher { get; private set; } = null!;
     public static Camera? Camera { get; private set; }
 
-    public static ref RenderStats Stats => ref Batcher.Stats;  
+    public static ref readonly RenderStats Stats => ref Batcher.Stats;  
     
     public static void Init(RenderConfig? config, IRender backend)
     {

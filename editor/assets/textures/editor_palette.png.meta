@@ -1,0 +1,11 @@
+[editor]
+position = (-25.000000,-5.000000)
+scale = 1.000000
+sort_order = 110
+
+[texture]
+clamp = true
+filter = point
+reference = false
+srgb = true
+

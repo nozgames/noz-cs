@@ -1,0 +1,42 @@
+[container]
+background-color=#555558
+margin-left = auto
+margin-top = auto
+margin-right = auto
+margin-bottom = 40
+padding=4
+height = 48
+
+[input]
+flex-direction = column
+width = 600
+
+[input_small]
+flex-direction = column
+width = 200
+
+[colon]
+font=seguisb
+font-size=30
+color = #222222
+margin-left=4
+
+[text]
+font=seguisb
+font-size=30
+color=black
+margin-left=6
+
+[cursor]
+background-color = white
+width = 4
+height=30
+margin-left=6
+margin-top=8
+
+[preview]
+font=seguisb
+font-size=30
+background-color = white
+color=rgba(0,0,0,0.25)
+padding-right=8

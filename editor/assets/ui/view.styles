@@ -1,0 +1,10 @@
+[asset_name_container]
+background-color=rgba(10,10,10,0.2)
+margin=auto
+
+[asset_name]
+font=seguisb
+font-size=12
+color=rgba(200,200,200,1)
+width=auto
+height=auto

@@ -1,0 +1,17 @@
+[colors]
+margin-left=40
+margin-top=auto
+margin-bottom=40
+width=400
+height=400
+
+[color_image]
+width=400
+height=400
+
+[selected_color]
+position=absolute
+width=25
+height=25
+border-width=2
+border-color=#ff7900

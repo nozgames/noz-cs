@@ -6,7 +6,18 @@ namespace noz;
 
 public enum AssetType
 {
+    Unknown,
+    Texture,
     Sprite,
-    Sound
+    Sound,
+    Shader,
+    Font,
+    Animation,
+    Skeleton,
+    Atlas,
+    Vfx,
+    Lua,
+    Event,
+    Bin
 }
 
