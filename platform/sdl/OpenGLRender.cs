@@ -341,7 +341,10 @@ void main()
     public void BindShader(ShaderHandle handle)
     {
         if (!_shaders.TryGetValue(handle.Id, out var program))
+        {
+            Console.WriteLine($"[WARN] BindShader: Shader handle {handle.Id} not found!");
             return;
+        }
 
         if (_boundShader == program)
             return;
@@ -353,11 +356,17 @@ void main()
     public void SetUniformMatrix4x4(string name, in Matrix4x4 value)
     {
         if (_boundShader == 0)
+        {
+            Console.WriteLine($"[WARN] SetUniformMatrix4x4: No shader bound");
             return;
+        }
 
         var location = _gl.GetUniformLocation(_boundShader, name);
         if (location < 0)
+        {
+            Console.WriteLine($"[WARN] SetUniformMatrix4x4: Uniform '{name}' not found in shader {_boundShader}");
             return;
+        }
 
         // Matrix4x4 is row-major in .NET, OpenGL expects column-major
         // We need to transpose
@@ -447,7 +456,7 @@ void main()
             return;
 
         // Wait with a 1 second timeout
-        _gl.ClientWaitSync(glFence, SyncObjectMask.SyncFlushCommandsBit, 1_000_000_000);
+        _gl.ClientWaitSync(glFence, SyncObjectMask.Bit, 1_000_000_000);
     }
 
     public void DeleteFence(FenceHandle fence)

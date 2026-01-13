@@ -7,10 +7,6 @@ using System.Runtime.CompilerServices;
 
 namespace noz;
 
-/// <summary>
-/// Central batching system for efficient 2D rendering.
-/// Collects geometry, sorts by state, and produces minimal draw calls.
-/// </summary>
 public class MeshBatcher
 {
     // Configuration
@@ -53,12 +49,11 @@ public class MeshBatcher
     // GPU resources
     private BufferHandle _vertexBuffer;
     private BufferHandle _indexBuffer;
+    private RenderStats _stats;
 
     // Stats
-    public int DrawCallCount => _batchCount;
-    public int VertexCount => _vertexWriteOffset - _segmentVertexStart[_currentSegment];
-    public int CommandCount => _commandCount;
-
+    public ref RenderStats Stats => ref _stats;
+    
     public MeshBatcher()
     {
         _vertices = new MeshVertex[VerticesPerSegment * BufferSegments];
@@ -106,9 +101,6 @@ public class MeshBatcher
         _backend.DestroyBuffer(_indexBuffer);
     }
 
-    /// <summary>
-    /// Begin collecting draw commands for a new frame.
-    /// </summary>
     public void BeginBatch()
     {
         // Move to next segment
@@ -132,27 +124,17 @@ public class MeshBatcher
         _sortGroupBaseDepth = 0;
     }
 
-    /// <summary>
-    /// Begin a sort group for layered rendering (e.g., character parts).
-    /// All commands in a group are sorted together before mixing with other groups.
-    /// </summary>
     public void BeginSortGroup(ushort groupDepth)
     {
         _currentSortGroup++;
         _sortGroupBaseDepth = groupDepth;
     }
 
-    /// <summary>
-    /// End the current sort group.
-    /// </summary>
     public void EndSortGroup()
     {
         // Group ID stays incremented; next submissions use new group
     }
 
-    /// <summary>
-    /// Submit a quad for rendering. This is the most common operation.
-    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SubmitQuad(
         float x, float y, float width, float height,
@@ -221,9 +203,6 @@ public class MeshBatcher
         _indexWriteOffset += 6;
     }
 
-    /// <summary>
-    /// Submit a mesh for rendering. Transform is baked into vertices on CPU.
-    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SubmitMesh(
         ReadOnlySpan<MeshVertex> vertices,
@@ -239,8 +218,8 @@ public class MeshBatcher
         if (_commandCount >= MaxDrawCommands)
             return;
 
-        int segmentVertexEnd = _segmentVertexStart[_currentSegment] + VerticesPerSegment;
-        int segmentIndexEnd = _segmentIndexStart[_currentSegment] + IndicesPerSegment;
+        var segmentVertexEnd = _segmentVertexStart[_currentSegment] + VerticesPerSegment;
+        var segmentIndexEnd = _segmentIndexStart[_currentSegment] + IndicesPerSegment;
 
         if (_vertexWriteOffset + vertices.Length > segmentVertexEnd ||
             _indexWriteOffset + indices.Length > segmentIndexEnd)
@@ -267,8 +246,8 @@ public class MeshBatcher
         var tintF = new Vector4(tint.R / 255f, tint.G / 255f, tint.B / 255f, tint.A / 255f);
 
         // Transform and copy vertices (indices will be relative to segment start)
-        int segmentVertexStart = _segmentVertexStart[_currentSegment];
-        ushort relativeBaseVertex = (ushort)(_vertexWriteOffset - segmentVertexStart);
+        var segmentVertexStart = _segmentVertexStart[_currentSegment];
+        var relativeBaseVertex = (ushort)(_vertexWriteOffset - segmentVertexStart);
         for (int i = 0; i < vertices.Length; i++)
         {
             ref readonly var src = ref vertices[i];
@@ -289,16 +268,11 @@ public class MeshBatcher
         _vertexWriteOffset += vertices.Length;
 
         // Copy indices (offset by relative base vertex within segment)
-        for (int i = 0; i < indices.Length; i++)
-        {
+        for (var i = 0; i < indices.Length; i++)
             _indices[_indexWriteOffset + i] = (ushort)(indices[i] + relativeBaseVertex);
-        }
         _indexWriteOffset += indices.Length;
     }
 
-    /// <summary>
-    /// Sort commands and build coalesced batches.
-    /// </summary>
     public void BuildBatches()
     {
         if (_commandCount == 0)
@@ -356,9 +330,6 @@ public class MeshBatcher
         }
     }
 
-    /// <summary>
-    /// Upload buffers and execute all batched draw calls.
-    /// </summary>
     public void FlushBatches()
     {
         if (_batchCount == 0)
@@ -426,27 +397,23 @@ public class MeshBatcher
                 currentBlend = batch.Blend;
             }
 
-            // Draw with base vertex offset AND correct index buffer offset
             _backend.DrawIndexedRange(segmentIndexStart + batch.FirstIndex, batch.IndexCount, baseVertex);
         }
 
-        // Create fence for this segment
         _segmentFences[_currentSegment] = _backend.CreateFence();
+
+        _stats.DrawCount = _batchCount;
+        _stats.VertexCount = _vertexWriteOffset - _segmentVertexStart[_currentSegment];
+        _stats.CommandCount = _commandCount;
     }
 
-    /// <summary>
-    /// Sort commands by their sort key using insertion sort.
-    /// Insertion sort is fast for small arrays and nearly-sorted data.
-    /// </summary>
     private void SortCommands()
     {
-        // For small counts, insertion sort is efficient
-        // For larger counts, we could switch to radix sort
-        for (int i = 1; i < _commandCount; i++)
+        for (var i = 1; i < _commandCount; i++)
         {
-            int key = _sortedIndices[i];
+            var key = _sortedIndices[i];
             var keyValue = _commands[key].Key;
-            int j = i - 1;
+            var j = i - 1;
 
             while (j >= 0 && _commands[_sortedIndices[j]].Key > keyValue)
             {

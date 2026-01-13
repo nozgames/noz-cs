@@ -8,83 +8,103 @@ namespace noz;
 
 public static class Render
 {
-    private static RenderConfig _config = null!;
-    private static IRender _backend = null!;
-    private static MeshBatcher _batcher = null!;
-    private static Matrix4x4 _projectionMatrix;
+    public static RenderConfig Config { get; private set; } = null!;
+    public static IRender Backend { get; private set; } = null!;
+    public static MeshBatcher Batcher { get; private set; } = null!;
+    public static Camera? Camera { get; private set; }
 
-    public static IRender Backend => _backend;
-    public static MeshBatcher Batcher => _batcher;
-
-    // Stats
-    public static int DrawCallCount => _batcher?.DrawCallCount ?? 0;
-    public static int VertexCount => _batcher?.VertexCount ?? 0;
-    public static int CommandCount => _batcher?.CommandCount ?? 0;
-
+    public static ref RenderStats Stats => ref Batcher.Stats;  
+    
     public static void Init(RenderConfig? config, IRender backend)
     {
-        _config = config ?? new RenderConfig();
-        _backend = backend;
+        Config = config ?? new RenderConfig();
+        Backend = backend;
 
-        _backend.Init(new RenderBackendConfig
+        Backend.Init(new RenderBackendConfig
         {
-            VSync = _config.Vsync,
-            MaxCommands = _config.MaxCommands
+            VSync = Config.Vsync,
+            MaxCommands = Config.MaxCommands
         });
 
-        // Initialize batcher
-        _batcher = new MeshBatcher();
-        _batcher.Init(_backend);
+        Batcher = new MeshBatcher();
+        Batcher.Init(Backend);
+        Camera = new Camera();
     }
 
     public static void Shutdown()
     {
-        _batcher?.Shutdown();
-        _backend.Shutdown();
+        Batcher?.Shutdown();
+        Backend.Shutdown();
+    }
+
+    /// <summary>
+    /// Bind a camera for rendering. Pass null to use the default screen-space camera.
+    /// </summary>
+    public static void BindCamera(Camera? camera)
+    {
+        Camera = camera;
+        if (camera == null) return;
+
+        var viewport = camera.Viewport;
+        if (viewport is { Width: > 0, Height: > 0 })
+            Backend.SetViewport((int)viewport.X, (int)viewport.Y, (int)viewport.Width, (int)viewport.Height);
+
+        // Convert camera's 3x2 view matrix to 4x4 for the shader
+        var view = camera.ViewMatrix;
+        var projection = new Matrix4x4(
+            view.M11, view.M12, 0, 0,
+            view.M21, view.M22, 0, 0,
+            0, 0, 1, 0,
+            view.M31, view.M32, 0, 1
+        );
+
+        Backend.BindShader(ShaderHandle.Sprite);
+        Backend.SetUniformMatrix4x4("uProjection", projection);
     }
 
     public static void BeginFrame()
     {
-        _backend.BeginFrame();
-        _batcher.BeginBatch();
+        Backend.BeginFrame();
+        Batcher.BeginBatch();
 
-        // Update projection matrix for current window size
+        // Update and apply default camera
         var size = Application.WindowSize;
-        _projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(
-            0, size.X, size.Y, 0, -1000, 1000
-        );
-
-        // Set projection on sprite shader
-        _backend.BindShader(ShaderHandle.Sprite);
-        _backend.SetUniformMatrix4x4("uProjection", _projectionMatrix);
+        Backend.SetViewport(0, 0, (int)size.X, (int)size.Y);
     }
 
     public static void EndFrame()
     {
-        _batcher.BuildBatches();
-        _batcher.FlushBatches();
-        _backend.EndFrame();
+        Batcher.BuildBatches();
+        Batcher.FlushBatches();
+        Backend.EndFrame();
     }
 
     public static void Clear(Color color)
     {
-        _backend.Clear(color);
+        Backend.Clear(color);
     }
 
     public static void SetViewport(int x, int y, int width, int height)
     {
-        _backend.SetViewport(x, y, width, height);
+        Backend.SetViewport(x, y, width, height);
     }
 
     /// <summary>
     /// Draw a colored quad (no texture).
     /// </summary>
-    public static void DrawQuad(float x, float y, float width, float height, Color32 color,
-        byte layer = 128, ushort depth = 0, BlendMode blend = BlendMode.Alpha)
+    public static void DrawQuad(
+        float x,
+        float y,
+        float width,
+        float height,
+        Color32 color,
+        byte layer = 128,
+        ushort depth = 0,
+        BlendMode blend = BlendMode.Alpha)
     {
-        _batcher.SubmitQuad(
+        Batcher.SubmitQuad(
             x, y, width, height,
-            0, 0, 1, 1,  // UV doesn't matter for white texture
+            0, 0, 1, 1, // UV doesn't matter for white texture
             Matrix3x2.Identity,
             TextureHandle.White,
             blend,
@@ -97,10 +117,18 @@ public static class Render
     /// <summary>
     /// Draw a colored quad with transform.
     /// </summary>
-    public static void DrawQuad(float x, float y, float width, float height, in Matrix3x2 transform,
-        Color32 color, byte layer = 128, ushort depth = 0, BlendMode blend = BlendMode.Alpha)
+    public static void DrawQuad(
+        float x,
+        float y,
+        float width,
+        float height,
+        in Matrix3x2 transform,
+        Color32 color,
+        byte layer = 128,
+        ushort depth = 0,
+        BlendMode blend = BlendMode.Alpha)
     {
-        _batcher.SubmitQuad(
+        Batcher.SubmitQuad(
             x, y, width, height,
             0, 0, 1, 1,
             transform,
@@ -115,12 +143,22 @@ public static class Render
     /// <summary>
     /// Draw a textured quad.
     /// </summary>
-    public static void DrawQuad(float x, float y, float width, float height,
-        float u0, float v0, float u1, float v1,
-        TextureHandle texture, Color32 tint,
-        byte layer = 128, ushort depth = 0, BlendMode blend = BlendMode.Alpha)
+    public static void DrawQuad(
+        float x,
+        float y,
+        float width,
+        float height,
+        float u0,
+        float v0,
+        float u1,
+        float v1,
+        TextureHandle texture,
+        Color32 tint,
+        byte layer = 128,
+        ushort depth = 0,
+        BlendMode blend = BlendMode.Alpha)
     {
-        _batcher.SubmitQuad(
+        Batcher.SubmitQuad(
             x, y, width, height,
             u0, v0, u1, v1,
             Matrix3x2.Identity,
@@ -135,12 +173,23 @@ public static class Render
     /// <summary>
     /// Draw a textured quad with transform.
     /// </summary>
-    public static void DrawQuad(float x, float y, float width, float height,
-        float u0, float v0, float u1, float v1,
-        in Matrix3x2 transform, TextureHandle texture, Color32 tint,
-        byte layer = 128, ushort depth = 0, BlendMode blend = BlendMode.Alpha)
+    public static void DrawQuad(
+        float x,
+        float y,
+        float width,
+        float height,
+        float u0,
+        float v0,
+        float u1,
+        float v1,
+        in Matrix3x2 transform,
+        TextureHandle texture,
+        Color32 tint,
+        byte layer = 128,
+        ushort depth = 0,
+        BlendMode blend = BlendMode.Alpha)
     {
-        _batcher.SubmitQuad(
+        Batcher.SubmitQuad(
             x, y, width, height,
             u0, v0, u1, v1,
             transform,
@@ -157,7 +206,7 @@ public static class Render
     /// </summary>
     public static void BeginSortGroup(ushort groupDepth)
     {
-        _batcher.BeginSortGroup(groupDepth);
+        Batcher.BeginSortGroup(groupDepth);
     }
 
     /// <summary>
@@ -165,7 +214,7 @@ public static class Render
     /// </summary>
     public static void EndSortGroup()
     {
-        _batcher.EndSortGroup();
+        Batcher.EndSortGroup();
     }
 
     // Sprite rendering (to be implemented when Sprite is extended)

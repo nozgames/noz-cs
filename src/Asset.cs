@@ -18,7 +18,7 @@ public class Asset {
         Debug.Assert(Def != null);
     }
     
-    static Asset Load(AssetType type, string name)
+    static Asset? Load(AssetType type, string name)
     {
         return null;
     }

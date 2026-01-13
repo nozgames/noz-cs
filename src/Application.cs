@@ -8,28 +8,26 @@ namespace noz;
 
 public static class Application
 {
-    private static IPlatform _platform = null!;
-    private static IRender _renderBackend = null!;
     private static bool _running;
 
     public static ApplicationConfig Config { get; private set; } = null!;
-    public static IPlatform Platform => _platform;
-    public static IRender RenderBackend => _renderBackend;
-    public static Vector2 WindowSize => _platform.WindowSize;
+    public static IPlatform Platform { get; private set; } = null!;
+    public static IRender RenderBackend { get; private set; } = null!;
+    public static Vector2 WindowSize => Platform.WindowSize;
 
     public static void Init(ApplicationConfig config)
     {
         Config = config;
 
         // Platform and render backend must be provided
-        _platform = config.Platform ?? throw new ArgumentNullException(nameof(config.Platform),
+        Platform = config.Platform ?? throw new ArgumentNullException(nameof(config.Platform),
             "Platform must be provided. Use SDLPlatform for desktop or WebPlatform for web.");
 
-        _renderBackend = config.RenderBackend ?? throw new ArgumentNullException(nameof(config.RenderBackend),
+        RenderBackend = config.RenderBackend ?? throw new ArgumentNullException(nameof(config.RenderBackend),
             "RenderBackend must be provided. Use OpenGLRender for desktop or WebGLRender for web.");
 
         // Initialize platform
-        _platform.Init(new PlatformConfig
+        Platform.Init(new PlatformConfig
         {
             Title = config.Title,
             Width = config.Width,
@@ -39,11 +37,12 @@ public static class Application
         });
 
         // Subscribe to platform events
-        _platform.OnEvent += Input.ProcessEvent;
+        Platform.OnEvent += Input.ProcessEvent;
 
         // Initialize subsystems
+        Time.Init();
         Input.Init();
-        Render.Init(config.Render, _renderBackend);
+        Render.Init(config.Render, RenderBackend);
 
         _running = true;
     }
@@ -52,7 +51,9 @@ public static class Application
     {
         while (_running)
         {
-            if (!_platform.PollEvents())
+            Time.Update();
+
+            if (!Platform.PollEvents())
             {
                 _running = false;
                 continue;
@@ -64,7 +65,7 @@ public static class Application
             Config.Vtable.Update?.Invoke();
             Render.EndFrame();
 
-            _platform.SwapBuffers();
+            Platform.SwapBuffers();
         }
     }
 
@@ -72,9 +73,10 @@ public static class Application
     {
         Render.Shutdown();
         Input.Shutdown();
+        Time.Shutdown();
 
-        _platform.OnEvent -= Input.ProcessEvent;
-        _platform.Shutdown();
+        Platform.OnEvent -= Input.ProcessEvent;
+        Platform.Shutdown();
 
         _running = false;
     }

@@ -4,7 +4,7 @@
 
 namespace noz;
 
-enum AssetType
+public enum AssetType
 {
     Sprite,
     Sound

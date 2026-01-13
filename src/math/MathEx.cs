@@ -44,12 +44,9 @@ public static class MathEx
         return n + 1;
     }
 
-    // Rounding
     public static int FloorToInt(float v) => (int)MathF.Floor(v);
     public static int CeilToInt(float v) => (int)MathF.Ceiling(v);
     public static int RoundToInt(float v) => (int)(v + 0.5f);
-
-    // Interpolation
     public static float Lerp(float a, float b, float t) => a + (b - a) * t;
     public static double Lerp(double a, double b, double t) => a + (b - a) * t;
 
@@ -150,7 +147,6 @@ public static class MathEx
         return Lerp(a, b, t);
     }
 
-    // SmoothDamp - critically damped spring for smooth following
     public static float SmoothDamp(
         float current,
         float target,
@@ -197,7 +193,6 @@ public static class MathEx
         return SmoothDamp(current, target, ref currentVelocity, smoothTime, float.PositiveInfinity, deltaTime);
     }
 
-    // FourCC for file format identifiers
     public static uint FourCC(byte a, byte b, byte c, byte d)
     {
         return (uint)d | ((uint)c << 8) | ((uint)b << 16) | ((uint)a << 24);

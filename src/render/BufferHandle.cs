@@ -4,9 +4,6 @@
 
 namespace noz;
 
-/// <summary>
-/// Opaque handle to a GPU buffer (vertex or index).
-/// </summary>
 public readonly struct BufferHandle(uint id) : IEquatable<BufferHandle>
 {
     public readonly uint Id = id;

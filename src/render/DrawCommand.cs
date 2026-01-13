@@ -4,10 +4,6 @@
 
 namespace noz;
 
-/// <summary>
-/// Represents a single mesh submission before batching.
-/// Stored in a flat array and sorted by SortKey.
-/// </summary>
 public struct DrawCommand
 {
     public SortKey Key;

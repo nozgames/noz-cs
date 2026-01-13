@@ -4,9 +4,6 @@
 
 namespace noz;
 
-/// <summary>
-/// Blend modes supported by the renderer. Maps to 4 bits in SortKey.
-/// </summary>
 public enum BlendMode : byte
 {
     None = 0,           // No blending (opaque)
