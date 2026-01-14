@@ -239,9 +239,9 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
         _boundVertexBuffer = glBuffer;
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, glBuffer);
 
-        // Setup vertex attributes for MeshVertex layout (68 bytes total)
-        // Offsets: position(0), uv(8), normal(16), color(24), opacity(40), bone(44), atlas(48),
-        //          frameCount(52), frameWidth(56), frameRate(60), animStartTime(64)
+        // Setup vertex attributes for MeshVertex layout (64 bytes total)
+        // Offsets: position(0), uv(8), normal(16), color(24), bone(40), atlas(44),
+        //          frameCount(48), frameWidth(52), frameRate(56), animStartTime(60)
         uint stride = MeshVertex.SizeInBytes;
 
         // Position: vec2 at offset 0
@@ -260,33 +260,29 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
         _gl.EnableVertexAttribArray(3);
         _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, (void*)24);
 
-        // Opacity: float at offset 40
+        // Bone: int at offset 40
         _gl.EnableVertexAttribArray(4);
-        _gl.VertexAttribPointer(4, 1, VertexAttribPointerType.Float, false, stride, (void*)40);
+        _gl.VertexAttribIPointer(4, 1, VertexAttribIType.Int, stride, (void*)40);
 
-        // Bone: int at offset 44
+        // Atlas: int at offset 44
         _gl.EnableVertexAttribArray(5);
         _gl.VertexAttribIPointer(5, 1, VertexAttribIType.Int, stride, (void*)44);
 
-        // Atlas: int at offset 48
+        // FrameCount: int at offset 48
         _gl.EnableVertexAttribArray(6);
         _gl.VertexAttribIPointer(6, 1, VertexAttribIType.Int, stride, (void*)48);
 
-        // FrameCount: int at offset 52
+        // FrameWidth: float at offset 52
         _gl.EnableVertexAttribArray(7);
-        _gl.VertexAttribIPointer(7, 1, VertexAttribIType.Int, stride, (void*)52);
+        _gl.VertexAttribPointer(7, 1, VertexAttribPointerType.Float, false, stride, (void*)52);
 
-        // FrameWidth: float at offset 56
+        // FrameRate: float at offset 56
         _gl.EnableVertexAttribArray(8);
         _gl.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, (void*)56);
 
-        // FrameRate: float at offset 60
+        // AnimStartTime: float at offset 60
         _gl.EnableVertexAttribArray(9);
         _gl.VertexAttribPointer(9, 1, VertexAttribPointerType.Float, false, stride, (void*)60);
-
-        // AnimStartTime: float at offset 64
-        _gl.EnableVertexAttribArray(10);
-        _gl.VertexAttribPointer(10, 1, VertexAttribPointerType.Float, false, stride, (void*)64);
     }
 
     public void BindIndexBuffer(nuint buffer)

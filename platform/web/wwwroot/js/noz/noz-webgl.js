@@ -2,7 +2,6 @@
 
 let gl = null;
 let canvas = null;
-let isWebGL2 = false;
 
 // Resource tracking
 let nextBufferId = 1;
@@ -27,29 +26,19 @@ export function init() {
         throw new Error('Canvas not found. Make sure platform is initialized first.');
     }
 
-    // Try WebGL2 first, fall back to WebGL1
     gl = canvas.getContext('webgl2');
-    if (gl) {
-        isWebGL2 = true;
-        console.log('NoZ: Using WebGL 2.0');
-    } else {
-        gl = canvas.getContext('webgl');
-        if (!gl) {
-            throw new Error('WebGL not supported');
-        }
-        isWebGL2 = false;
-        console.log('NoZ: Using WebGL 1.0');
+    if (!gl) {
+        throw new Error('WebGL 2.0 not supported');
     }
+    console.log('NoZ: Using WebGL 2.0');
 
     // Set default state
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    // Create VAO for mesh vertex format (WebGL2 only)
-    if (isWebGL2) {
-        meshVao = gl.createVertexArray();
-        gl.bindVertexArray(meshVao);
-    }
+    // Create VAO for mesh vertex format
+    meshVao = gl.createVertexArray();
+    gl.bindVertexArray(meshVao);
 
     // Create built-in white texture (1x1 white pixel)
     const whiteTex = gl.createTexture();
@@ -70,18 +59,14 @@ export function shutdown() {
     textures.clear();
     shaders.forEach((shader) => gl.deleteProgram(shader.program));
     shaders.clear();
-    if (isWebGL2) {
-        fences.forEach((fence) => gl.deleteSync(fence));
-        fences.clear();
-        if (meshVao) gl.deleteVertexArray(meshVao);
-    }
+    fences.forEach((fence) => gl.deleteSync(fence));
+    fences.clear();
+    if (meshVao) gl.deleteVertexArray(meshVao);
     gl = null;
 }
 
 export function beginFrame() {
-    if (isWebGL2 && meshVao) {
-        gl.bindVertexArray(meshVao);
-    }
+    gl.bindVertexArray(meshVao);
 }
 
 export function endFrame() {
@@ -127,7 +112,7 @@ export function destroyBuffer(id) {
     }
 }
 
-export function updateVertexBufferRange(id, offsetBytes, data) {
+export function updateVertexBuffer(id, offsetBytes, data) {
     const buf = buffers.get(id);
     if (!buf) return;
 
@@ -135,7 +120,7 @@ export function updateVertexBufferRange(id, offsetBytes, data) {
     gl.bufferSubData(gl.ARRAY_BUFFER, offsetBytes, data);
 }
 
-export function updateIndexBufferRange(id, offsetBytes, data) {
+export function updateIndexBuffer(id, offsetBytes, data) {
     const buf = buffers.get(id);
     if (!buf) return;
 
@@ -152,54 +137,48 @@ export function bindVertexBuffer(id) {
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buf.glBuffer);
 
-    // Setup vertex attributes for MeshVertex layout (68 bytes total)
-    const stride = 68;
+    // Setup vertex attributes for MeshVertex layout (64 bytes total)
+    const stride = 64;
 
-    // Position: vec2 at offset 0
+    // in_position: vec2 at offset 0
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0);
 
-    // UV: vec2 at offset 8
+    // in_uv: vec2 at offset 8
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 8);
 
-    // Normal: vec2 at offset 16
+    // in_normal: vec2 at offset 16
     gl.enableVertexAttribArray(2);
     gl.vertexAttribPointer(2, 2, gl.FLOAT, false, stride, 16);
 
-    // Color: vec4 at offset 24
+    // in_color: vec4 at offset 24
     gl.enableVertexAttribArray(3);
     gl.vertexAttribPointer(3, 4, gl.FLOAT, false, stride, 24);
 
-    // Opacity: float at offset 40
+    // in_bone: int at offset 40
     gl.enableVertexAttribArray(4);
-    gl.vertexAttribPointer(4, 1, gl.FLOAT, false, stride, 40);
+    gl.vertexAttribIPointer(4, 1, gl.INT, stride, 40);
 
-    if (isWebGL2) {
-        // Bone: int at offset 44
-        gl.enableVertexAttribArray(5);
-        gl.vertexAttribIPointer(5, 1, gl.INT, stride, 44);
+    // in_atlas: int at offset 44
+    gl.enableVertexAttribArray(5);
+    gl.vertexAttribIPointer(5, 1, gl.INT, stride, 44);
 
-        // Atlas: int at offset 48
-        gl.enableVertexAttribArray(6);
-        gl.vertexAttribIPointer(6, 1, gl.INT, stride, 48);
+    // in_frame_count: int at offset 48
+    gl.enableVertexAttribArray(6);
+    gl.vertexAttribIPointer(6, 1, gl.INT, stride, 48);
 
-        // FrameCount: int at offset 52
-        gl.enableVertexAttribArray(7);
-        gl.vertexAttribIPointer(7, 1, gl.INT, stride, 52);
+    // in_frame_width: float at offset 52
+    gl.enableVertexAttribArray(7);
+    gl.vertexAttribPointer(7, 1, gl.FLOAT, false, stride, 52);
 
-        // FrameWidth: float at offset 56
-        gl.enableVertexAttribArray(8);
-        gl.vertexAttribPointer(8, 1, gl.FLOAT, false, stride, 56);
+    // in_frame_rate: float at offset 56
+    gl.enableVertexAttribArray(8);
+    gl.vertexAttribPointer(8, 1, gl.FLOAT, false, stride, 56);
 
-        // FrameRate: float at offset 60
-        gl.enableVertexAttribArray(9);
-        gl.vertexAttribPointer(9, 1, gl.FLOAT, false, stride, 60);
-
-        // AnimStartTime: float at offset 64
-        gl.enableVertexAttribArray(10);
-        gl.vertexAttribPointer(10, 1, gl.FLOAT, false, stride, 64);
-    }
+    // in_frame_time: float at offset 60
+    gl.enableVertexAttribArray(9);
+    gl.vertexAttribPointer(9, 1, gl.FLOAT, false, stride, 60);
 }
 
 export function bindIndexBuffer(id) {
@@ -274,16 +253,6 @@ function createShaderInternal(name, vertexSource, fragmentSource) {
     const program = gl.createProgram();
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
-
-    // Bind attribute locations for WebGL1
-    if (!isWebGL2) {
-        gl.bindAttribLocation(program, 0, 'aPosition');
-        gl.bindAttribLocation(program, 1, 'aUV');
-        gl.bindAttribLocation(program, 2, 'aNormal');
-        gl.bindAttribLocation(program, 3, 'aColor');
-        gl.bindAttribLocation(program, 4, 'aOpacity');
-        gl.bindAttribLocation(program, 5, 'aDepth');
-    }
 
     gl.linkProgram(program);
 
@@ -441,7 +410,7 @@ export function setUniformVec4(name, x, y, z, w) {
 }
 
 export function setBoneTransforms(data) {
-    if (!boundShader || !isWebGL2) return;
+    if (!boundShader) return;
 
     let shader = null;
     for (const [, s] of shaders) {
@@ -452,10 +421,10 @@ export function setBoneTransforms(data) {
     }
     if (!shader) return;
 
-    let location = shader.uniformLocations.get('uBones');
+    let location = shader.uniformLocations.get('u_bones');
     if (location === undefined) {
-        location = gl.getUniformLocation(shader.program, 'uBones');
-        shader.uniformLocations.set('uBones', location);
+        location = gl.getUniformLocation(shader.program, 'u_bones');
+        shader.uniformLocations.set('u_bones', location);
     }
     if (location === null) return;
 
@@ -467,8 +436,6 @@ export function setBoneTransforms(data) {
 let textureArrays = new Map(); // id -> { texture, width, height, layers }
 
 export function createTextureArray(width, height, layers) {
-    if (!isWebGL2) return 0;
-
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture);
     gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA8, width, height, layers);
@@ -483,8 +450,6 @@ export function createTextureArray(width, height, layers) {
 }
 
 export function updateTextureArrayLayer(id, layer, data) {
-    if (!isWebGL2) return;
-
     const arr = textureArrays.get(id);
     if (!arr) return;
 
@@ -493,8 +458,6 @@ export function updateTextureArrayLayer(id, layer, data) {
 }
 
 export function bindTextureArray(slot, id) {
-    if (!isWebGL2) return;
-
     const arr = textureArrays.get(id);
     if (!arr) return;
 
@@ -539,22 +502,13 @@ export function setBlendMode(mode) {
 // === Drawing ===
 
 export function drawIndexedRange(firstIndex, indexCount, baseVertex = 0) {
-    if (baseVertex === 0 || !isWebGL2) {
-        gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, firstIndex * 2);
-    } else {
-        // WebGL2 supports drawElementsBaseVertex via extension
-        // Note: This requires WEBGL_draw_instanced_base_vertex_base_instance extension
-        // For now, fall back to regular drawElements (indices should be adjusted on CPU if needed)
-        // TODO: Use extension if available
-        gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, firstIndex * 2);
-    }
+    // Note: WebGL2 doesn't have native drawElementsBaseVertex - indices are adjusted on CPU if needed
+    gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, firstIndex * 2);
 }
 
 // === Synchronization ===
 
 export function createFence() {
-    if (!isWebGL2) return 0; // No fence support in WebGL1
-
     const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     const id = nextFenceId++;
     fences.set(id, fence);
@@ -562,8 +516,6 @@ export function createFence() {
 }
 
 export function waitFence(id) {
-    if (!isWebGL2) return;
-
     const fence = fences.get(id);
     if (!fence) return;
 
@@ -572,8 +524,6 @@ export function waitFence(id) {
 }
 
 export function deleteFence(id) {
-    if (!isWebGL2) return;
-
     const fence = fences.get(id);
     if (fence) {
         gl.deleteSync(fence);
@@ -598,5 +548,5 @@ export function getContext() {
 }
 
 export function isWebGL2Supported() {
-    return isWebGL2;
+    return true;
 }

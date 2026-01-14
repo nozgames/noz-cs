@@ -7,41 +7,40 @@
 
 //@ VERTEX
 
-layout(location = 0) in vec2 aPosition;
-layout(location = 1) in vec2 aUV;
-layout(location = 2) in vec2 aNormal;
-layout(location = 3) in vec4 aColor;
-layout(location = 4) in float aOpacity;
-layout(location = 5) in int aBone;
-layout(location = 6) in int aAtlas;
-layout(location = 7) in int aFrameCount;
-layout(location = 8) in float aFrameWidth;
-layout(location = 9) in float aFrameRate;
-layout(location = 10) in float aAnimStartTime;
+layout(location = 0) in vec2 in_position;
+layout(location = 1) in vec2 in_uv;
+layout(location = 2) in vec2 in_normal;
+layout(location = 3) in vec4 in_color;
+layout(location = 4) in int in_bone;
+layout(location = 5) in int in_atlas;
+layout(location = 6) in int in_frame_count;
+layout(location = 7) in float in_frame_width;
+layout(location = 8) in float in_frame_rate;
+layout(location = 9) in float in_frame_time;
 
-uniform mat4 uProjection;
+uniform mat4 u_projection;
 
-out vec2 vUV;
-out vec4 vColor;
+out vec2 v_uv;
+out vec4 v_color;
 
 void main() {
-    gl_Position = uProjection * vec4(aPosition, 0.0, 1.0);
-    vUV = aUV;
-    vColor = aColor * aOpacity;
+    gl_Position = u_projection * vec4(in_position, 0.0, 1.0);
+    v_uv = in_uv;
+    v_color = in_color;
 }
 
 //@ END
 
 //@ FRAGMENT
 
-in vec2 vUV;
-in vec4 vColor;
+in vec2 v_uv;
+in vec4 v_color;
 
-uniform sampler2D uFontTexture; // R8 SDF texture
-uniform vec4 uOutlineColor;
-uniform float uOutlineWidth;    // 0 = no outline
+uniform sampler2D sampler_font; // R8 SDF texture
+uniform vec4 u_outline_color;
+uniform float u_outline_width;    // 0 = no outline
 
-out vec4 FragColor;
+out vec4 f_color;
 
 float median(float r, float g, float b) {
     return max(min(r, g), min(max(r, g), b));
@@ -49,7 +48,7 @@ float median(float r, float g, float b) {
 
 void main() {
     // Sample the SDF texture (single channel for basic SDF, or use median for MSDF)
-    float dist = texture(uFontTexture, vUV).r;
+    float dist = texture(sampler_font, v_uv).r;
 
     // Screen-space derivative for anti-aliasing
     float dx = dFdx(dist);
@@ -63,17 +62,17 @@ void main() {
     float textAlpha = smoothstep(threshold - edgeWidth, threshold + edgeWidth, dist);
 
     // Outline
-    vec4 color = vColor;
-    if (uOutlineWidth > 0.0) {
-        float outlineThreshold = threshold - uOutlineWidth;
+    vec4 color = v_color;
+    if (u_outline_width > 0.0) {
+        float outlineThreshold = threshold - u_outline_width;
         float outlineAlpha = smoothstep(outlineThreshold - edgeWidth, outlineThreshold + edgeWidth, dist);
 
         // Blend outline behind text
-        color = mix(uOutlineColor, vColor, textAlpha);
+        color = mix(u_outline_color, v_color, textAlpha);
         textAlpha = outlineAlpha;
     }
 
-    FragColor = vec4(color.rgb, color.a * textAlpha);
+    f_color = vec4(color.rgb, color.a * textAlpha);
 }
 
 //@ END

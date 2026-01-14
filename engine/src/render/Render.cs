@@ -20,6 +20,16 @@ public static unsafe class Render
     private const int GroupShift = sizeof(ushort) * 2;
     private const int LayerShift = sizeof(ushort) * 3;
 
+    private enum UniformType : byte { Float, Vec2, Vec4, Matrix4x4 }
+
+    private struct UniformEntry
+    {
+        public UniformType Type;
+        public string Name;
+        public Vector4 Value;
+        public Matrix4x4 MatrixValue;
+    }
+
     private struct BatchState()
     {
         public nuint Shader;
@@ -70,7 +80,7 @@ public static unsafe class Render
 
     private static State _state;
 
-    # region Batching
+    #region Batching
     private static nuint _vertexBuffer;
     private static nuint _indexBuffer;
     private static int _maxDrawCommands;
@@ -84,6 +94,11 @@ public static unsafe class Render
     private static int _commandCount;
     private static Batch[] _batches = null!;
     private static int _batchCount = 0;
+
+    private const int MaxUniforms = 1024;
+    private static UniformEntry[] _uniforms = null!;
+    private static int _uniformCount = 0;
+    private static int _uniformBatchStart = 0;
     #endregion
     
     public static Color ClearColor { get; set; } = Color.Black;  
@@ -131,6 +146,8 @@ public static unsafe class Render
         _state.Color = Color.White;
         _batchStateCount = 0;
         _batchCount = 0;
+        _uniformCount = 0;
+        _uniformBatchStart = 0;
         for (var boneIndex = 0; boneIndex < MaxBones; boneIndex++)
             _state.Bones[boneIndex] = Matrix3x2.Identity;
     }
@@ -143,6 +160,7 @@ public static unsafe class Render
         _commands = new RenderCommand[_maxDrawCommands];
         _batches = new Batch[_maxBatches];
         _batchStates = new BatchState[_maxBatches];
+        _uniforms = new UniformEntry[MaxUniforms];
 
         _vertexBuffer = Driver.CreateVertexBuffer(
             _vertices.Length * MeshVertex.SizeInBytes,
@@ -190,7 +208,43 @@ public static unsafe class Render
         _state.Textures[slot] = handle;
         _batchStateDirty = true;
     }
-    
+
+    public static void SetUniformFloat(string name, float value)
+    {
+        ref var u = ref _uniforms[_uniformCount++];
+        u.Type = UniformType.Float;
+        u.Name = name;
+        u.Value = new Vector4(value, 0, 0, 0);
+        _batchStateDirty = true;
+    }
+
+    public static void SetUniformVec2(string name, Vector2 value)
+    {
+        ref var u = ref _uniforms[_uniformCount++];
+        u.Type = UniformType.Vec2;
+        u.Name = name;
+        u.Value = new Vector4(value.X, value.Y, 0, 0);
+        _batchStateDirty = true;
+    }
+
+    public static void SetUniformVec4(string name, Vector4 value)
+    {
+        ref var u = ref _uniforms[_uniformCount++];
+        u.Type = UniformType.Vec4;
+        u.Name = name;
+        u.Value = value;
+        _batchStateDirty = true;
+    }
+
+    public static void SetUniformMatrix4x4(string name, Matrix4x4 value)
+    {
+        ref var u = ref _uniforms[_uniformCount++];
+        u.Type = UniformType.Matrix4x4;
+        u.Name = name;
+        u.MatrixValue = value;
+        _batchStateDirty = true;
+    }
+
     public static void SetColor(Color color)
     {
         _state.Color = color;
@@ -198,7 +252,7 @@ public static unsafe class Render
 
     /// <summary>
     /// Bind a camera for rendering. Pass null to use the default screen-space camera.
-    /// Sets viewport and shader uniforms (projection, time, bones) on the currently bound shader.
+    /// Sets viewport and queues projection uniform for batch execution.
     /// </summary>
     public static void SetCamera(Camera? camera)
     {
@@ -219,9 +273,8 @@ public static unsafe class Render
             0, 0, 0, 1
         );
 
-        Driver.SetUniformMatrix4x4("uProjection", projection);
-        Driver.SetUniformFloat("uTime", _time);
-        Driver.SetBoneTransforms(_state.Bones);
+        SetUniformMatrix4x4("u_projection", projection);
+        SetUniformFloat("u_time", _time);
     }
 
     internal static void BeginFrame()
@@ -437,8 +490,13 @@ public static unsafe class Render
         _batchStateDirty = false;
         ref var batchState = ref _batchStates[_batchStateCount++];
         batchState.Shader = _state.Shader?.Handle ?? nuint.Zero;
+        batchState.BlendMode = _state.BlendMode;
         for (var i = 0; i < MaxTextures; i++)
             batchState.Textures[i] = _state.Textures[i];
+
+        batchState.UniformIndex = (ushort)_uniformBatchStart;
+        batchState.UniformCount = (ushort)(_uniformCount - _uniformBatchStart);
+        _uniformBatchStart = _uniformCount;
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -504,7 +562,30 @@ public static unsafe class Render
         batch.IndexCount = indexCount;
         batch.State = batchState;
     }
-    
+
+    private static void ApplyBatchUniforms(ref BatchState state)
+    {
+        for (var i = state.UniformIndex; i < state.UniformIndex + state.UniformCount; i++)
+        {
+            ref var u = ref _uniforms[i];
+            switch (u.Type)
+            {
+                case UniformType.Float:
+                    Driver.SetUniformFloat(u.Name, u.Value.X);
+                    break;
+                case UniformType.Vec2:
+                    Driver.SetUniformVec2(u.Name, new Vector2(u.Value.X, u.Value.Y));
+                    break;
+                case UniformType.Vec4:
+                    Driver.SetUniformVec4(u.Name, u.Value);
+                    break;
+                case UniformType.Matrix4x4:
+                    Driver.SetUniformMatrix4x4(u.Name, u.MatrixValue);
+                    break;
+            }
+        }
+    }
+
     private static void ExecuteCommands()
     {
         if (_commandCount == 0)
@@ -552,12 +633,11 @@ public static unsafe class Render
             ref var batch = ref _batches[batchIndex];
             ref var batchState = ref _batchStates[batch.State];
             Driver.BindShader(batchState.Shader);
+            ApplyBatchUniforms(ref batchState);
             Driver.BindTexture((nuint)batchState.Textures[0], 0);
             Driver.BindTexture((nuint)batchState.Textures[1], 1);
             Driver.SetBlendMode(batchState.BlendMode);
-            
-            // todo: uniforms
-            
+
             Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
         }
 
