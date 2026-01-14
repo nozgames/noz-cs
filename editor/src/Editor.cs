@@ -2,27 +2,25 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using noz.editor;
-
-namespace noz;
+namespace NoZ.Editor;
 
 internal class EditorVtable : IApplicationVtable
 {
-    public void Update() => Editor.Update();
-    public void UpdateUI() => Editor.UpdateUI();
+    public void Update() => EditorApplication.Update();
+    public void UpdateUI() => EditorApplication.UpdateUI();
 
     public void LoadAssets()
     {
         Importer.WaitForAllTasks();
         EditorAssets.LoadAssets();
-        Editor.PostLoadInit();
+        EditorApplication.PostLoadInit();
     }
 
     public void UnloadAssets() => EditorAssets.UnloadAssets();
     public void ReloadAssets() => EditorAssets.ReloadAssets();
 }
 
-public static class Editor
+public static class EditorApplication
 {
     public static EditorConfig? Config { get; private set; }
 

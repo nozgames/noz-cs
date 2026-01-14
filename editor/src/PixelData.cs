@@ -4,7 +4,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public sealed unsafe class PixelData : IDisposable
 {

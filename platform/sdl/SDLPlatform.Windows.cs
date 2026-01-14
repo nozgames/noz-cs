@@ -5,7 +5,7 @@
 using System.Runtime.InteropServices;
 using static SDL.SDL3;
 
-namespace noz.Platform;
+namespace NoZ.Platform;
 
 internal static partial class User32
 {

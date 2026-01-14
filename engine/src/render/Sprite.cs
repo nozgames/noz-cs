@@ -4,13 +4,13 @@
 
 using System.Numerics;
 
-namespace noz;
+namespace NoZ;
 
 public class Sprite : Asset
 {
     public const int Version = 1;
     
-    public TextureHandle Texture { get; private set; }
+    public Texture Texture { get; private set; }
     public int Width { get; private set; }
     public int Height { get; private set; }
     public Vector2 UV0 { get; private set; }
@@ -24,7 +24,7 @@ public class Sprite : Asset
         Pivot = new Vector2(0.5f, 0.5f);
     }
 
-    internal void SetTexture(TextureHandle texture, int width, int height)
+    internal void SetTexture(Texture texture, int width, int height)
     {
         Texture = texture;
         Width = width;

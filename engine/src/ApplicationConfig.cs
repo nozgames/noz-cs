@@ -2,9 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using noz.Platform;
+using NoZ.Platform;
 
-namespace noz;
+namespace NoZ;
 
 public interface IApplicationVtable
 {
@@ -26,7 +26,6 @@ public class ApplicationConfig
     public RenderConfig? Render { get; init; }
     public IApplicationVtable? Vtable { get; init; }
     public IPlatform? Platform { get; init; }
-    public IRender? RenderBackend { get; init; }
-    public IAudio? AudioBackend { get; init; }
+    public IAudioDriver? AudioBackend { get; init; }
     public string AssetPath { get; init; } = "library/";
 }

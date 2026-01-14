@@ -1,6 +1,10 @@
+//
+//  NoZ - Copyright(c) 2026 NoZ Games, LLC
+//
+
 using System.Numerics;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public abstract class Document
 {

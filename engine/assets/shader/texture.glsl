@@ -9,43 +9,36 @@
 
 //@ VERTEX
 
-layout(location = 0) in vec2 aPosition;
-layout(location = 1) in vec2 aUV;
-layout(location = 2) in vec2 aNormal;
-layout(location = 3) in vec4 aColor;
-layout(location = 4) in float aOpacity;
-layout(location = 5) in int aBone;
-layout(location = 6) in int aAtlas;
-layout(location = 7) in int aFrameCount;
-layout(location = 8) in float aFrameWidth;
-layout(location = 9) in float aFrameRate;
-layout(location = 10) in float aAnimStartTime;
+layout(location = 0) in vec2 in_position;
+layout(location = 1) in vec2 in_uv;
+layout(location = 3) in vec4 in_color;
 
-uniform mat4 uProjection;
+uniform mat4 u_projection;
 
-out vec2 vUV;
-out vec4 vColor;
+out vec2 v_uv;
+out vec4 v_color;
 
-void main() {
-    gl_Position = uProjection * vec4(aPosition, 0.0, 1.0);
-    vUV = aUV;
-    vColor = aColor * aOpacity;
+void main() 
+{
+    gl_Position = u_projection * vec4(in_position, 0.0, 1.0);
+    v_uv = in_uv;
+    v_color = in_color;
 }
 
 //@ END
 
 //@ FRAGMENT
 
-in vec2 vUV;
-in vec4 vColor;
+in vec2 v_uv;
+in vec4 v_color;
 
-uniform sampler2D uTexture;
+uniform sampler2D sampler_texture;
 
-out vec4 FragColor;
+out vec4 f_color;
 
-void main() {
-    vec4 texColor = texture(uTexture, vUV);
-    FragColor = texColor * vColor;
+void main() 
+{
+    f_color = texture(sampler_texture, v_uv) * v_color;
 }
 
 //@ END

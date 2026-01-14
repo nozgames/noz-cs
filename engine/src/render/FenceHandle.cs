@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace noz;
+namespace NoZ;
 
 /// <summary>
 /// Opaque handle to a GPU synchronization fence.

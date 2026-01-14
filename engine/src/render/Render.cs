@@ -2,79 +2,212 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Diagnostics;
 using System.Numerics;
-using noz.Platform;
+using System.Runtime.CompilerServices;
+using NoZ.Platform;
 
-namespace noz;
+namespace NoZ;
 
-public static class Render
+public static unsafe class Render
 {
+    private const int MaxSortGroups = 16;
+    private const int MaxVertices = 65536;
+    private const int MaxIndices = 196608;
+    private const int MaxTextures = 2;
+    private const int IndexShift = 0;
+    private const int OrderShift = sizeof(ushort) * 1;
+    private const int GroupShift = sizeof(ushort) * 2;
+    private const int LayerShift = sizeof(ushort) * 3;
+
+    private struct BatchState()
+    {
+        public nuint Shader;
+        public ushort UniformIndex;
+        public ushort UniformCount;
+        public fixed ulong Textures[MaxTextures];
+        public BlendMode BlendMode;
+    }
+
+    private struct Batch
+    {
+        public int IndexOffset;
+        public int IndexCount;
+        public ushort State;
+    }
+    
+    private struct State()
+    {
+        public Color Color = default;
+        public Shader? Shader = null!;
+        public Matrix3x2[]? Bones = null!;
+        public Matrix3x2 Transform;
+        public int BoneCount = 0;
+        public nuint[] Textures = null!;
+        public ushort Layer = 0;
+        public ushort Group = 0;
+        public ushort Index = 0;
+        public BlendMode BlendMode;
+    }
+    
     public static RenderConfig Config { get; private set; } = null!;
-    public static IRender Backend { get; private set; } = null!;
-    public static MeshBatcher Batcher { get; private set; } = null!;
+    public static IRenderDriver Driver { get; private set; } = null!;
     public static Camera? Camera { get; private set; }
 
-    public static ref readonly RenderStats Stats => ref Batcher.Stats;
+    public static ref readonly RenderStats Stats => ref _stats;
 
     private const int MaxBones = 64;
-    private static Matrix3x2[] _boneTransforms = null!;
     private static float _time;
-    private static ShaderHandle _currentShader;
     private static Shader? _compositeShader;
     private static bool _inUIPass;
     private static bool _inScenePass;
+    private static RenderStats _stats;
+    private static ushort[] _sortGroupStack = null!;
+    private static BatchState[] _batchStates = null!;
+    private static ushort _sortGroupStackDepth = 0;
+    private static bool _batchStateDirty = true;
+    private static int _batchStateCount = 0;
 
-    public static ShaderHandle CurrentShader => _currentShader;
+    private static State _state;
+
+    # region Batching
+    private static nuint _vertexBuffer;
+    private static nuint _indexBuffer;
+    private static int _maxDrawCommands;
+    private static int _maxBatches;
+    private static MeshVertex[] _vertices = null!;
+    private static ushort[] _indices = null!;
+    private static ushort[] _sortedIndices = null!;
+    private static int _vertexCount;
+    private static int _indexCount;
+    private static RenderCommand[] _commands = null!;
+    private static int _commandCount;
+    private static Batch[] _batches = null!;
+    private static int _batchCount = 0;
+    #endregion
+    
     public static Color ClearColor { get; set; } = Color.Black;  
     
-    public static void Init(RenderConfig? config, IRender backend)
+    public static void Init(RenderConfig config)
     {
-        Config = config ?? new RenderConfig();
-        Backend = backend;
+        Config = config;
 
-        Backend.Init(new RenderBackendConfig
+        Driver = config.Driver ?? throw new ArgumentNullException(nameof(config.Driver),
+            "RenderBackend must be provided. Use OpenGLRender for desktop or WebGLRender for web.");
+        
+        _maxDrawCommands = Config.MaxDrawCommands;
+        _maxBatches = Config.MaxBatches;
+        _sortGroupStack = new ushort[MaxSortGroups];
+        _sortGroupStackDepth = 0;
+        
+        Driver.Init(new RenderDriverConfig
         {
-            VSync = Config.Vsync
+            VSync = Config.Vsync,
         });
 
-        Batcher = new MeshBatcher(Config);
-        Batcher.Init(Backend);
         Camera = new Camera();
+        Driver = config.Driver;
+        
+        InitBatcher();
+        InitState();
+    }
 
-        // Initialize bone transforms with identity at index 0
-        _boneTransforms = new Matrix3x2[MaxBones];
-        _boneTransforms[0] = Matrix3x2.Identity;
-        for (var i = 1; i < MaxBones; i++)
-            _boneTransforms[i] = Matrix3x2.Identity;
+    private static void InitState()
+    {
+        _state.Bones = new Matrix3x2[MaxBones];
+        _state.Textures = new nuint[MaxTextures];
+        ResetState();
+    }
+
+    private static void ResetState()
+    {
+        Debug.Assert(_state.Bones != null);
+
+        _state.Transform = Matrix3x2.Identity;
+        _state.BoneCount = 0;
+        _state.Group = 0;
+        _state.Layer = 0;
+        _state.Index = 0;
+        _state.Color = Color.White;
+        _batchStateCount = 0;
+        _batchCount = 0;
+        for (var boneIndex = 0; boneIndex < MaxBones; boneIndex++)
+            _state.Bones[boneIndex] = Matrix3x2.Identity;
+    }
+    
+    private static void InitBatcher()
+    {
+        _vertices = new MeshVertex[MaxVertices];
+        _indices = new ushort[MaxIndices];
+        _sortedIndices = new ushort[MaxIndices];
+        _commands = new RenderCommand[_maxDrawCommands];
+        _batches = new Batch[_maxBatches];
+        _batchStates = new BatchState[_maxBatches];
+
+        _vertexBuffer = Driver.CreateVertexBuffer(
+            _vertices.Length * MeshVertex.SizeInBytes,
+            BufferUsage.Dynamic
+        );
+
+        _indexBuffer = Driver.CreateIndexBuffer(
+            _indices.Length * sizeof(ushort),
+            BufferUsage.Dynamic
+        );
     }
 
     public static void Shutdown()
     {
-        Batcher?.Shutdown();
-        Backend.Shutdown();
+        ShutdownBatcher();
+        Driver.Shutdown();
     }
 
-    /// <summary>
-    /// Bind a shader for rendering. Call this before submitting draw commands.
-    /// </summary>
-    public static void BindShader(Shader shader)
+    private static void ShutdownBatcher()
     {
-        _currentShader = shader.Handle;
-        Backend.BindShader(shader.Handle);
+        Driver.DestroyBuffer(_vertexBuffer);
+        Driver.DestroyBuffer(_indexBuffer);
+    }
+
+    public static void SetShader(Shader shader)
+    {
+        if (shader == _state.Shader) return;
+        _state.Shader = shader;
+        _batchStateDirty = true;
+    }
+
+    public static void SetTexture(nuint texture, int slot = 0)
+    {
+        Debug.Assert(slot is >= 0 and < MaxTextures);
+        if (_state.Textures[slot] == texture) return;
+        _state.Textures[slot] = texture;
+        _batchStateDirty = true;
+    }
+    
+    public static void SetTexture(Texture texture, int slot = 0)
+    {
+        Debug.Assert(slot is >= 0 and < MaxTextures);
+        nuint handle = texture?.Handle ?? nuint.Zero;
+        if (_state.Textures[slot] == handle) return;
+        _state.Textures[slot] = handle;
+        _batchStateDirty = true;
+    }
+    
+    public static void SetColor(Color color)
+    {
+        _state.Color = color;
     }
 
     /// <summary>
     /// Bind a camera for rendering. Pass null to use the default screen-space camera.
     /// Sets viewport and shader uniforms (projection, time, bones) on the currently bound shader.
     /// </summary>
-    public static void BindCamera(Camera? camera)
+    public static void SetCamera(Camera? camera)
     {
         Camera = camera;
         if (camera == null) return;
 
         var viewport = camera.Viewport;
         if (viewport is { Width: > 0, Height: > 0 })
-            Backend.SetViewport((int)viewport.X, (int)viewport.Y, (int)viewport.Width, (int)viewport.Height);
+            Driver.SetViewport((int)viewport.X, (int)viewport.Y, (int)viewport.Width, (int)viewport.Height);
 
         // Convert camera's 3x2 view matrix to 4x4 for the shader
         // Translation goes in column 4 (M14, M24) so after transpose it's in the right place
@@ -86,64 +219,61 @@ public static class Render
             0, 0, 0, 1
         );
 
-        Backend.SetUniformMatrix4x4("uProjection", projection);
-        Backend.SetUniformFloat("uTime", _time);
-        Backend.SetBoneTransforms(_boneTransforms);
+        Driver.SetUniformMatrix4x4("uProjection", projection);
+        Driver.SetUniformFloat("uTime", _time);
+        Driver.SetBoneTransforms(_state.Bones);
     }
 
     internal static void BeginFrame()
     {
-        Backend.BeginFrame();
+        ResetState();
+        
+        Driver.BeginFrame();
 
-        // Update time for shader animation
         _time += Time.DeltaTime;
 
         // Ensure offscreen target matches window size
         var size = Application.WindowSize;
-        Backend.ResizeOffscreenTarget((int)size.X, (int)size.Y, Config.MsaaSamples);
+        Driver.ResizeOffscreenTarget((int)size.X, (int)size.Y, Config.MsaaSamples);
 
         _inUIPass = false;
         _inScenePass = true;
 
-        Backend.BeginScenePass(ClearColor);
-        Batcher.BeginBatch();
+        Driver.BeginScenePass(ClearColor);
     }
 
     public static void BeginUI()
     {
         if (_inUIPass) return;
 
-        Batcher.BuildBatches();
-        Batcher.FlushBatches();
+        ExecuteCommands();
 
         if (_inScenePass)
         {
-            Backend.EndScenePass();
+            Driver.EndScenePass();
             _inScenePass = false;
 
             if (_compositeShader != null)
-                Backend.Composite(_compositeShader.Handle);
+                Driver.Composite(_compositeShader.Handle);
         }
 
         _inUIPass = true;
-        Batcher.BeginBatch();
     }
 
     internal static void EndFrame()
     {
-        Batcher.BuildBatches();
-        Batcher.FlushBatches();
+        ExecuteCommands();
 
         if (_inScenePass)
         {
-            Backend.EndScenePass();
+            Driver.EndScenePass();
             _inScenePass = false;
 
             if (_compositeShader != null)
-                Backend.Composite(_compositeShader.Handle);
+                Driver.Composite(_compositeShader.Handle);
         }
 
-        Backend.EndFrame();
+        Driver.EndFrame();
     }
 
     internal static void ResolveAssets()
@@ -152,87 +282,52 @@ public static class Render
         {
             _compositeShader = Asset.Get<Shader>(AssetType.Shader, Config.CompositeShader);
             if (_compositeShader == null)
-                Log.Warning($"Composite shader '{Config.CompositeShader}' not found");
-            else
-                Log.Info($"Composite shader '{Config.CompositeShader}' resolved");
+                throw new ArgumentNullException(nameof(Config.CompositeShader), "Composite shader not found");
         }
-    }
-
-    /// <summary>
-    /// Flush all pending draw commands immediately. Call this before changing cameras
-    /// to ensure previous draws use the correct projection.
-    /// </summary>
-    public static void Flush()
-    {
-        Batcher.BuildBatches();
-        Batcher.FlushBatches();
-        Batcher.BeginBatch();
     }
 
     public static void Clear(Color color)
     {
-        Backend.Clear(color);
+        Driver.Clear(color);
     }
 
     public static void SetViewport(int x, int y, int width, int height)
     {
-        Backend.SetViewport(x, y, width, height);
+        Driver.SetViewport(x, y, width, height);
     }
 
-    /// <summary>
-    /// Draw a colored quad (no texture).
-    /// </summary>
+    #region Draw
+
     public static void DrawQuad(
         float x,
         float y,
         float width,
         float height,
-        Color32 color,
-        byte layer = 128,
-        ushort depth = 0,
-        BlendMode blend = BlendMode.Alpha)
+        ushort order = 0)
     {
-        Batcher.SubmitQuad(
-            x, y, width, height,
-            0, 0, 1, 1, // UV doesn't matter for white texture
-            Matrix3x2.Identity,
-            TextureHandle.White,
-            blend,
-            layer,
-            depth,
-            color
-        );
-    }
-
-    /// <summary>
-    /// Draw a colored quad with transform.
-    /// </summary>
-    public static void DrawQuad(
-        float x,
-        float y,
-        float width,
-        float height,
-        in Matrix3x2 transform,
-        Color32 color,
-        byte layer = 128,
-        ushort depth = 0,
-        BlendMode blend = BlendMode.Alpha)
-    {
-        Batcher.SubmitQuad(
+        AddQuad(
             x, y, width, height,
             0, 0, 1, 1,
-            transform,
-            TextureHandle.White,
-            blend,
-            layer,
-            depth,
-            color
+            order
+        );
+    }
+    
+    public static void DrawQuad(
+        float x,
+        float y,
+        float width,
+        float height,
+        in Matrix3x2 transform,
+        ushort order=0)
+    {
+        BindTransform(transform);
+        AddQuad(
+            x, y, width, height,
+            0, 0, 1, 1,
+            order
         );
     }
 
-    /// <summary>
-    /// Draw a textured quad.
-    /// </summary>
     public static void DrawQuad(
         float x,
         float y,
@@ -242,27 +337,15 @@ public static class Render
         float v0,
         float u1,
         float v1,
-        TextureHandle texture,
-        Color32 tint,
-        byte layer = 128,
-        ushort depth = 0,
-        BlendMode blend = BlendMode.Alpha)
+        ushort order=0)
     {
-        Batcher.SubmitQuad(
+        AddQuad(
             x, y, width, height,
             u0, v0, u1, v1,
-            Matrix3x2.Identity,
-            texture,
-            blend,
-            layer,
-            depth,
-            tint
+            order
         );
     }
 
-    /// <summary>
-    /// Draw a textured quad with transform.
-    /// </summary>
     public static void DrawQuad(
         float x,
         float y,
@@ -273,56 +356,47 @@ public static class Render
         float u1,
         float v1,
         in Matrix3x2 transform,
-        TextureHandle texture,
-        Color32 tint,
-        byte layer = 128,
-        ushort depth = 0,
-        BlendMode blend = BlendMode.Alpha)
+        ushort order=0)
     {
-        Batcher.SubmitQuad(
+        BindTransform(transform);  
+        AddQuad(
             x, y, width, height,
             u0, v0, u1, v1,
-            transform,
-            texture,
-            blend,
-            layer,
-            depth,
-            tint
+            order
         );
     }
 
-    /// <summary>
-    /// Begin a sort group for layered rendering.
-    /// </summary>
-    public static void BeginSortGroup(ushort groupDepth)
+    #endregion
+
+    public static void BindLayer(ushort layer)
     {
-        Batcher.BeginSortGroup(groupDepth);
+        _state.Layer = layer;
     }
 
-    /// <summary>
-    /// End the current sort group.
-    /// </summary>
-    public static void EndSortGroup()
+    public static void BindBlendMode(BlendMode blendMode)
     {
-        Batcher.EndSortGroup();
+        _state.BlendMode = blendMode;
+        _batchStateDirty = true;
+    }
+    
+    public static void BindBones(ReadOnlySpan<Matrix3x2> transforms)
+    {
+        Debug.Assert(_state.Bones != null);
+        Debug.Assert(transforms.Length < MaxBones);
+        for (int i = 0, c = transforms.Length; i < c; i++)
+            _state.Bones[i + 1] = transforms[i];
+
+        _state.BoneCount = 0;
     }
 
-    public static void SetBoneTransform(int index, in Matrix3x2 transform)
+    public static void BindTransform(in Matrix3x2 transform)
     {
-        if (index > 0 && index < MaxBones)
-            _boneTransforms[index] = transform;
+        _state.Transform = transform;
     }
 
-    public static void SetBoneTransforms(ReadOnlySpan<Matrix3x2> transforms, int startIndex = 1)
+    private static void UploadBoneTransforms()
     {
-        var count = Math.Min(transforms.Length, MaxBones - startIndex);
-        for (var i = 0; i < count; i++)
-            _boneTransforms[startIndex + i] = transforms[i];
-    }
-
-    public static void UploadBoneTransforms()
-    {
-        Backend.SetBoneTransforms(_boneTransforms);
+        Driver.SetBoneTransforms(_state.Bones);
     }
 
     // Sprite rendering (to be implemented when Sprite is extended)
@@ -334,5 +408,173 @@ public static class Render
     public static void Draw(Sprite sprite, in Matrix3x2 transform)
     {
         // TODO: Get sprite texture, rect, and UV and submit to batcher with transform
+    }
+    
+    public static void PushSortGroup(ushort group)
+    {
+        _sortGroupStack[_sortGroupStackDepth++] = _state.Group;
+        _state.Group = group;
+    }
+
+    public static void PopSortGroup()
+    {
+        if (_sortGroupStackDepth == 0)
+            return;
+
+        _sortGroupStackDepth--;
+        _state.Group = _sortGroupStack[_sortGroupStackDepth];
+    }
+
+    private static long MakeSortKey(ushort order) =>
+        (((long)_state.Layer) << LayerShift) |
+        (((long)_state.Group) << GroupShift) |
+        (((long)order) << OrderShift) |
+        (((long)_state.Index) << IndexShift);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void AddBatchState()
+    {
+        _batchStateDirty = false;
+        ref var batchState = ref _batchStates[_batchStateCount++];
+        batchState.Shader = _state.Shader?.Handle ?? nuint.Zero;
+        for (var i = 0; i < MaxTextures; i++)
+            batchState.Textures[i] = _state.Textures[i];
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void AddQuad(
+        float x,
+        float y,
+        float width,
+        float height,
+        float u0,
+        float v0,
+        float u1,
+        float v1,
+        ushort order)
+    {
+        if (_state.Shader == null)
+            return;
+        
+        if (_batchStateDirty)
+            AddBatchState();
+        
+        if (_commandCount >= _maxDrawCommands)
+            return;
+
+        if (_vertexCount + 4 > MaxVertices ||
+            _indexCount + 6 > MaxIndices)
+            return;
+
+        ref var cmd = ref _commands[_commandCount++];
+        cmd.SortKey = MakeSortKey(order);
+        cmd.VertexOffset = _vertexCount;
+        cmd.VertexCount = 4;
+        cmd.IndexOffset = _indexCount;
+        cmd.IndexCount = 6;
+        cmd.BatchState = (ushort)(_batchStateCount - 1);
+
+        var p0 = Vector2.Transform(new Vector2(x, y), _state.Transform);
+        var p1 = Vector2.Transform(new Vector2(x + width, y), _state.Transform);
+        var p2 = Vector2.Transform(new Vector2(x + width, y + height), _state.Transform);
+        var p3 = Vector2.Transform(new Vector2(x, y + height), _state.Transform);
+
+        _vertices[_vertexCount + 0] = new MeshVertex { Position = p0, UV = new Vector2(u0, v0), Normal = Vector2.Zero, Color = _state.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 };
+        _vertices[_vertexCount + 1] = new MeshVertex { Position = p1, UV = new Vector2(u1, v0), Normal = Vector2.Zero, Color = _state.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 };
+        _vertices[_vertexCount + 2] = new MeshVertex { Position = p2, UV = new Vector2(u1, v1), Normal = Vector2.Zero, Color = _state.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 };
+        _vertices[_vertexCount + 3] = new MeshVertex { Position = p3, UV = new Vector2(u0, v1), Normal = Vector2.Zero, Color = _state.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 };
+
+        _indices[_indexCount + 0] = (ushort)_vertexCount;
+        _indices[_indexCount + 1] = (ushort)(_vertexCount + 1);
+        _indices[_indexCount + 2] = (ushort)(_vertexCount + 2);
+        _indices[_indexCount + 3] = (ushort)(_vertexCount + 2);
+        _indices[_indexCount + 4] = (ushort)(_vertexCount + 3);
+        _indices[_indexCount + 5] = (ushort)_vertexCount;
+
+        _vertexCount += 4;
+        _indexCount += 6;
+    }
+
+    private static void AddBatch(ushort batchState, int indexOffset, int indexCount)
+    {
+        if (indexCount == 0) return;
+        
+        ref var batch = ref _batches[_batchCount++];
+        batch.IndexOffset = indexOffset;
+        batch.IndexCount = indexCount;
+        batch.State = batchState;
+    }
+    
+    private static void ExecuteCommands()
+    {
+        if (_commandCount == 0)
+            return;
+
+        Driver.UpdateVertexBuffer(
+            _vertexBuffer,
+            0,
+            _vertices.AsSpan(0, _vertexCount)
+        );
+        
+        SortCommands();
+        
+        ushort batchStateIndex = 0xFFFF;
+        var sortedIndexCount = 0;   
+        var sortedIndexOffset = 0;
+        for (var commandIndex = 0; commandIndex < _commandCount; commandIndex++)
+        {
+            ref var cmd = ref _commands[commandIndex];
+            if (batchStateIndex != cmd.BatchState)
+            {
+                AddBatch(cmd.BatchState, sortedIndexOffset, sortedIndexCount - sortedIndexOffset);
+                sortedIndexOffset = sortedIndexCount;
+                batchStateIndex = cmd.BatchState;
+            }
+
+            fixed (ushort* src = &_indices[cmd.IndexOffset])
+            fixed (ushort* dst = &_sortedIndices[sortedIndexCount])
+            {
+                Unsafe.CopyBlock(dst, src, (uint)(cmd.IndexCount * sizeof(ushort)));
+            }
+
+            sortedIndexCount += cmd.IndexCount;
+        }
+        
+        if (sortedIndexOffset != sortedIndexCount)
+            AddBatch(batchStateIndex, sortedIndexOffset, sortedIndexCount - sortedIndexOffset);
+
+        Driver.UpdateIndexBuffer(_indexBuffer, 0, _sortedIndices.AsSpan(0, sortedIndexCount));
+        Driver.BindVertexBuffer(_vertexBuffer);
+        Driver.BindIndexBuffer(_indexBuffer);
+        
+        for (var batchIndex=0; batchIndex < _batchCount; batchIndex++)
+        {
+            ref var batch = ref _batches[batchIndex];
+            ref var batchState = ref _batchStates[batch.State];
+            Driver.BindShader(batchState.Shader);
+            Driver.BindTexture((nuint)batchState.Textures[0], 0);
+            Driver.BindTexture((nuint)batchState.Textures[1], 1);
+            Driver.SetBlendMode(batchState.BlendMode);
+            
+            // todo: uniforms
+            
+            Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
+        }
+
+        _stats.DrawCount += _batchCount;
+        _stats.VertexCount = _vertexCount;
+        _stats.CommandCount = _commandCount;
+
+        _vertexCount = 0;
+        _indexCount = 0;
+        _commandCount = 0;
+        _batchCount = 0;
+        _batchStateCount = 0;
+        _batchStateDirty = true;
+    }
+    
+    private static void SortCommands()
+    {
+        new Span<RenderCommand>(_commands, 0, _commandCount).Sort();
     }
 }

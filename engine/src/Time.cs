@@ -4,7 +4,7 @@
 
 using System.Diagnostics;
 
-namespace noz;
+namespace NoZ;
 
 public static class Time
 {

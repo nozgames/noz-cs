@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace noz;
+namespace NoZ;
 
 public enum TokenType
 {

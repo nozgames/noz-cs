@@ -3,9 +3,9 @@
 //
 
 using System.Numerics;
-using noz.Platform;
+using NoZ.Platform;
 
-namespace noz;
+namespace NoZ;
 
 public static class Input
 {

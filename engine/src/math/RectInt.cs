@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace noz;
+namespace NoZ;
 
 /// <summary>
 /// Integer rectangle with position and size.

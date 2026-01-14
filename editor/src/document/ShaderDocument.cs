@@ -5,7 +5,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public class ShaderDocument : Document
 {

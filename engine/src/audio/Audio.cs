@@ -2,15 +2,15 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using noz.Platform;
+using NoZ.Platform;
 
-namespace noz;
+namespace NoZ;
 
 public static class Audio
 {
-    public static IAudio Backend { get; private set; } = null!;
+    public static IAudioDriver Backend { get; private set; } = null!;
 
-    internal static void Init(IAudio backend)
+    internal static void Init(IAudioDriver backend)
     {
         Backend = backend;
         Backend.Init();

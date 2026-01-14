@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace noz;
+namespace NoZ;
 
 public class Texture : Asset
 {
@@ -15,10 +15,25 @@ public class Texture : Asset
     public TextureClamp Clamp { get; private set; }
     public byte[] Data { get; private init; } = [];
 
-    internal TextureHandle Handle { get; private set; }
+    internal nuint Handle { get; private set; }
 
     private Texture(string name) : base(AssetType.Texture, name)
     {
+    }
+
+    public static Texture Create(int width, int height, ReadOnlySpan<byte> data, string name = "")
+    {
+        var texture = new Texture(name)
+        {
+            Width = width,
+            Height = height,
+            Format = TextureFormat.RGBA8,
+            Filter = TextureFilter.Linear,
+            Clamp = TextureClamp.Clamp,
+            Data = data.ToArray()
+        };
+        texture.Upload();
+        return texture;
     }
 
     private static Texture? Load(Stream stream, string name)
@@ -51,10 +66,9 @@ public class Texture : Asset
 
     public void Upload()
     {
-        if (Handle.IsValid)
-            Application.RenderBackend.DestroyTexture(Handle);
-
-        Handle = Application.RenderBackend.CreateTexture(Width, Height, Data);
+        if (Handle != nuint.Zero)
+            Render.Driver.DestroyTexture(Handle);
+        Handle = Render.Driver.CreateTexture(Width, Height, Data);
     }
 
     internal static void RegisterDef()
@@ -64,10 +78,10 @@ public class Texture : Asset
 
     public override void Dispose()
     {
-        if (Handle.IsValid)
+        if (Handle != nuint.Zero)
         {
-            Application.RenderBackend.DestroyTexture(Handle);
-            Handle = default;
+            Render.Driver.DestroyTexture(Handle);
+            Handle = nuint.Zero;
         }
 
         base.Dispose();

@@ -4,7 +4,7 @@
 
 using StbImageSharp;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public class PaletteDef
 {

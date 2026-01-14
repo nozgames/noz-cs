@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public class Style
 {
@@ -51,8 +51,8 @@ public static class EditorStyle
     public static readonly Color BoneSelected = EdgeSelected;
 
     // Color32 versions for rendering
-    public static readonly Color32 SelectionColor32 = new(0xFF, 0x79, 0x00, 0xFF);
-    public static readonly Color32 EdgeColor = new(0x00, 0x00, 0x00, 0xFF);
+    public static readonly Color SelectionColor32 = new(0xFF, 0x79, 0x00);
+    public static readonly Color EdgeColor = new(0x00, 0x00, 0x00);
 
     // UI Colors
     public static readonly Color UIBackground = Color.FromRgb(0x262525);

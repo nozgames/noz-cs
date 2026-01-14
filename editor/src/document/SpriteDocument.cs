@@ -6,7 +6,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public static class SpriteConstants
 {
@@ -214,12 +214,12 @@ public class SpriteDocument : Document
         if (size.X <= 0 || size.Y <= 0)
             return;
 
+        Render.BindLayer(64);
+        Render.SetColor(new Color(200/255f, 200/255f, 200/255f, 1f));
         Render.DrawQuad(
             Position.X + Bounds.X,
             Position.Y + Bounds.Y,
-            size.X, size.Y,
-            new Color32(200, 200, 200, 255),
-            layer: 64
+            size.X, size.Y
         );
     }
 

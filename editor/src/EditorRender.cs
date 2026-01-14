@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public static class EditorRender
 {
@@ -14,13 +14,13 @@ public static class EditorRender
 
     public static float ZoomRefScale => 1f / Workspace.Zoom;
 
-    public static void DrawBounds(Document doc, Color32 color, float expand = 0f)
+    public static void DrawBounds(Document doc, Color color, float expand = 0f)
     {
         var bounds = doc.Bounds.Expand(expand).Offset(doc.Position);
         DrawBounds(bounds, color);
     }
 
-    public static void DrawBounds(Rect bounds, Color32 color)
+    public static void DrawBounds(Rect bounds, Color color)
     {
         var topLeft = new Vector2(bounds.Left, bounds.Top);
         var topRight = new Vector2(bounds.Right, bounds.Top);
@@ -33,7 +33,7 @@ public static class EditorRender
         DrawLine(bottomLeft, topLeft, color);
     }
 
-    public static void DrawLine(Vector2 v0, Vector2 v1, Color32 color, float width = DefaultLineWidth)
+    public static void DrawLine(Vector2 v0, Vector2 v1, Color color, float width = DefaultLineWidth)
     {
         var delta = v1 - v0;
         var length = delta.Length();
@@ -54,13 +54,16 @@ public static class EditorRender
             mid.X, mid.Y
         );
 
-        Render.DrawQuad(-1, -1, 2, 2, transform, color, BoundsLayer);
+        Render.SetColor(color);
+        Render.DrawQuad(-1, -1, 2, 2, transform);
     }
 
     public static void DrawVertex(Vector2 position, Color32 color, float size = DefaultVertexSize)
     {
         var scaledSize = size * ZoomRefScale;
         var halfSize = scaledSize * 0.5f;
-        Render.DrawQuad(position.X - halfSize, position.Y - halfSize, scaledSize, scaledSize, color, BoundsLayer);
+        Render.BindLayer(BoundsLayer);
+        Render.SetColor(color.ToColor());
+        Render.DrawQuad(position.X - halfSize, position.Y - halfSize, scaledSize, scaledSize);
     }
 }

@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace noz;
+namespace NoZ;
 
 [Flags]
 public enum ElementFlags : uint
@@ -99,9 +99,9 @@ public struct BorderStyle
 {
     public float Radius;
     public float Width;
-    public Color32 Color;
+    public Color Color;
 
-    public static readonly BorderStyle None = new() { Radius = 0, Width = 0, Color = Color32.Transparent };
+    public static readonly BorderStyle None = new() { Radius = 0, Width = 0, Color = Color.Transparent };
 }
 
 // Element-specific data structs
@@ -138,7 +138,7 @@ public struct ContainerData
 public struct LabelData
 {
     public int FontSize;
-    public Color32 Color;
+    public Color Color;
     public Align Align;
     public int TextStart;
     public int TextLength;
@@ -146,7 +146,7 @@ public struct LabelData
     public static LabelData Default => new()
     {
         FontSize = 16,
-        Color = Color32.White,
+        Color = Color.White,
         Align = Align.None,
         TextStart = 0,
         TextLength = 0
@@ -158,8 +158,8 @@ public struct ImageData
     public ImageStretch Stretch;
     public Align Align;
     public float Scale;
-    public Color32 Color;
-    public TextureHandle Texture;
+    public Color Color;
+    public nuint Texture;
     public Vector2 UV0;
     public Vector2 UV1;
     public float Width;
@@ -170,8 +170,8 @@ public struct ImageData
         Stretch = ImageStretch.Uniform,
         Align = Align.None,
         Scale = 1.0f,
-        Color = Color32.White,
-        Texture = TextureHandle.Invalid,
+        Color = Color.White,
+        Texture = nuint.Zero,
         UV0 = Vector2.Zero,
         UV1 = Vector2.One,
         Width = 0,
@@ -339,7 +339,7 @@ public struct ContainerStyle()
 public struct LabelStyle()
 {
     public int FontSize = 16;
-    public Color32 Color = Color32.White;
+    public Color Color = Color.White;
     public Align Align = Align.None;
 }
 
@@ -348,14 +348,14 @@ public struct ImageStyle()
     public ImageStretch Stretch = ImageStretch.Uniform;
     public Align Align = Align.None;
     public float Scale = 1.0f;
-    public Color32 Color = Color32.White;
+    public Color Color = Color.White;
 }
 
 public struct RectangleStyle()
 {
     public float Width = float.MaxValue;
     public float Height = float.MaxValue;
-    public Color32 Color = Color32.White;
+    public Color Color = Color.White;
 }
 
 public struct ExpandedStyle()
@@ -898,7 +898,7 @@ public static class UI
             Align = style.Align,
             Scale = style.Scale,
             Color = style.Color,
-            Texture = sprite.Texture,
+            Texture = nuint.Zero, // sprite.Texture,
             UV0 = sprite.UV0,
             UV1 = sprite.UV1,
             Width = sprite.Width,
@@ -906,7 +906,7 @@ public static class UI
         };
     }
 
-    public static void Image(TextureHandle texture, float width, float height, ImageStyle style = default)
+    public static void Image(Texture texture, float width, float height, ImageStyle style = default)
     {
         ref var e = ref CreateElement(ElementType.Image);
         e.Data.Image = new ImageData
@@ -915,7 +915,7 @@ public static class UI
             Align = style.Align,
             Scale = style.Scale,
             Color = style.Color,
-            Texture = texture,
+            Texture = texture.Handle,
             UV0 = Vector2.Zero,
             UV1 = Vector2.One,
             Width = width,
@@ -943,8 +943,7 @@ public static class UI
         HandleInput();
 
         // Flush any pending world-space rendering before drawing UI
-        Render.Flush();
-        Render.BindCamera(_camera);
+        Render.SetCamera(_camera);
 
         var elementIndex = 0;
         while (elementIndex < _elementCount)
@@ -1616,7 +1615,8 @@ public static class UI
             return;
 
         var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
-        Render.DrawQuad(pos.X, pos.Y, e.Rect.Width, e.Rect.Height, style.Color, layer: 200);
+        Render.SetColor(style.Color);
+        Render.DrawQuad(pos.X, pos.Y, e.Rect.Width, e.Rect.Height);
     }
 
     private static void DrawLabel(ref Element e)
@@ -1629,15 +1629,14 @@ public static class UI
     private static void DrawImage(ref Element e)
     {
         ref var img = ref e.Data.Image;
-        if (!img.Texture.IsValid) return;
+        if (img.Texture == nuint.Zero) return;
 
         var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
+        Render.SetColor(img.Color);
+        Render.SetTexture(img.Texture);
         Render.DrawQuad(
             pos.X, pos.Y, e.Rect.Width, e.Rect.Height,
-            img.UV0.X, img.UV0.Y, img.UV1.X, img.UV1.Y,
-            img.Texture,
-            img.Color,
-            layer: 200
+            img.UV0.X, img.UV0.Y, img.UV1.X, img.UV1.Y
         );
     }
 

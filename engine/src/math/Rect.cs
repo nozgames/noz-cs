@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace noz;
+namespace NoZ;
 
 public struct Rect(float x, float y, float width, float height)
     : IEquatable<Rect>

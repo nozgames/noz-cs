@@ -5,7 +5,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public struct HitResult
 {

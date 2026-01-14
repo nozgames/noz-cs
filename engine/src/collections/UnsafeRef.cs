@@ -5,7 +5,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace noz;
+namespace NoZ;
 
 public readonly unsafe struct UnsafeRef<T> where T : unmanaged
 {

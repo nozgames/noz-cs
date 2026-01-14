@@ -4,7 +4,7 @@
 
 using System.Diagnostics;
 
-namespace noz;
+namespace NoZ;
 
 public class Asset : IDisposable {
     internal AssetDef Def { get; }
@@ -66,7 +66,7 @@ public class Asset : IDisposable {
     {
         var typeName = assetType.ToString().ToLowerInvariant();
         var fileName = assetType == AssetType.Shader
-            ? assetName + Application.RenderBackend.ShaderExtension
+            ? assetName + Render.Driver.ShaderExtension
             : assetName;
 
         var fullPath = Path.Combine(Application.AssetPath, typeName, fileName);

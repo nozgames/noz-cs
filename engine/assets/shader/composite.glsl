@@ -7,29 +7,30 @@
 
 //@ VERTEX
 
-layout(location = 0) in vec2 aPosition;
-layout(location = 1) in vec2 aUV;
+layout(location = 0) in vec2 in_position;
+layout(location = 1) in vec2 in_uv;
 
-out vec2 vUV;
+out vec2 v_uv;
 
-void main() {
-    gl_Position = vec4(aPosition, 0.0, 1.0);
-    // Flip Y: map UV.y from [0,1] to [1,0]
-    vUV = vec2(aUV.x, 1.0 - aUV.y);
+void main() 
+{
+    gl_Position = vec4(in_position, 0.0, 1.0);
+    v_uv = vec2(in_uv.x, 1.0 - in_uv.y);
 }
 
 //@ END
 
 //@ FRAGMENT
 
-in vec2 vUV;
+in vec2 v_uv;
 
-uniform sampler2D uTexture;
+uniform sampler2D sampler_texture;
 
-out vec4 FragColor;
+out vec4 f_color;
 
-void main() {
-    FragColor = texture(uTexture, vUV);
+void main() 
+{
+    f_color = texture(sampler_texture, v_uv);
 }
 
 //@ END

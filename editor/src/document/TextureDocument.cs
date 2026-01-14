@@ -1,7 +1,11 @@
+//
+//  NoZ - Copyright(c) 2026 NoZ Games, LLC
+//
+
 using System.Numerics;
 using StbImageSharp;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public class TextureDocument : Document
 {
@@ -56,19 +60,18 @@ public class TextureDocument : Document
             return;
 
         if (EditorAssets.Shaders.Texture is Shader textureShader)
-            Render.BindShader(textureShader);
+            Render.SetShader(textureShader);
 
-        Render.Backend.BindTexture(0, Texture.Handle);
+        Render.SetTexture(Texture);
+        Render.BindLayer(64);
+        Render.SetColor(Color.White);
 
         var size = Bounds.Size;
         Render.DrawQuad(
             Position.X - size.X * 0.5f,
             Position.Y - size.Y * 0.5f,
             size.X, size.Y,
-            0, 0, 1, 1,
-            Texture.Handle,
-            Color32.White,
-            layer: 64
+            0, 0, 1, 1
         );
     }
 

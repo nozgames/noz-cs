@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace noz;
+namespace NoZ;
 
 [Flags]
 internal enum ButtonState : byte

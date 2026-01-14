@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public enum WorkspaceState
 {
@@ -131,9 +131,9 @@ public static class Workspace
     public static void Draw()
     {
         if (EditorAssets.Shaders.Sprite is Shader spriteShader)
-            Render.BindShader(spriteShader);
+            Render.SetShader(spriteShader);
 
-        Render.BindCamera(_camera);
+        Render.SetCamera(_camera);
 
         if (_showGrid)
             Grid.Draw(_camera);

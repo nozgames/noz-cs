@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public enum SpriteEditorTool
 {
@@ -26,7 +26,7 @@ public class SpriteEditor
 
     // Raster state
     private PixelData? _pixelData;
-    private TextureHandle _rasterTexture;
+    private Texture? _rasterTexture;
     private bool _rasterDirty = true;
 
     // Selection
@@ -76,7 +76,7 @@ public class SpriteEditor
         _rasterDirty = true;
 
         _pixelData = new PixelData(RasterTextureSize, RasterTextureSize);
-        _rasterTexture = Application.RenderBackend.CreateTexture(
+        _rasterTexture = Texture.Create(
             RasterTextureSize, RasterTextureSize, _pixelData.AsBytes());
 
         _input = new InputSet("SpriteEditor");
@@ -89,11 +89,8 @@ public class SpriteEditor
     {
         Input.PopInputSet();
 
-        if (_rasterTexture.IsValid)
-        {
-            Application.RenderBackend.DestroyTexture(_rasterTexture);
-            _rasterTexture = default;
-        }
+        _rasterTexture?.Dispose();
+        _rasterTexture = null;
 
         _pixelData?.Dispose();
         _pixelData = null;
@@ -135,7 +132,7 @@ public class SpriteEditor
         if (_document == null || _pixelData == null)
             return;
 
-        var dpi = Editor.Config?.AtlasDpi ?? 64f;
+        var dpi = EditorApplication.Config?.AtlasDpi ?? 64f;
         var shape = _document.GetFrame(_currentFrame).Shape;
 
         shape.UpdateSamples();
@@ -156,8 +153,8 @@ public class SpriteEditor
             shape.Rasterize(_pixelData, palette.Colors, new Vector2Int(-rb.X, -rb.Y), dpi);
         }
 
-        Application.RenderBackend.UpdateTexture(
-            _rasterTexture,
+        Render.Driver.UpdateTexture(
+            _rasterTexture!.Handle,
             _pixelData.Width, _pixelData.Height,
             _pixelData.AsBytes());
 
@@ -746,7 +743,7 @@ public class SpriteEditor
 
     private void DrawRaster(Shape shape)
     {
-        if (_pixelData == null || !_rasterTexture.IsValid)
+        if (_pixelData == null || _rasterTexture == null)
             return;
 
         var rb = shape.RasterBounds;
@@ -754,11 +751,11 @@ public class SpriteEditor
             return;
 
         if (EditorAssets.Shaders.Texture is Shader textureShader)
-            Render.BindShader(textureShader);
+            Render.SetShader(textureShader);
 
-        Render.Backend.BindTexture(0, _rasterTexture);
+        Render.SetTexture(_rasterTexture);
 
-        var dpi = Editor.Config?.AtlasDpi ?? 64f;
+        var dpi = EditorApplication.Config?.AtlasDpi ?? 64f;
         var invDpi = 1f / dpi;
 
         var quadX = rb.X * invDpi;
@@ -770,13 +767,9 @@ public class SpriteEditor
         var u1 = rb.Width / texSize;
         var v1 = rb.Height / texSize;
 
-        Render.DrawQuad(
-            quadX,quadY, quadW, quadH,
-            0, 0, u1, v1,
-            _rasterTexture,
-            Color32.White,
-            layer: 100
-        );
+        Render.BindLayer(100);
+        Render.SetColor(Color.White);
+        Render.DrawQuad(quadX, quadY, quadW, quadH, 0, 0, u1, v1);
     }
 
     private void DrawShapeEdges(Shape shape, float zoomScale)
@@ -857,7 +850,9 @@ public class SpriteEditor
     private void DrawSelectionBox()
     {
         var color = new Color(EditorStyle.SelectionColor.R, EditorStyle.SelectionColor.G, EditorStyle.SelectionColor.B, 0.2f);
-        Render.DrawQuad(_selectionBox.X, _selectionBox.Y, _selectionBox.Width, _selectionBox.Height, color.ToColor32(), layer: 200);
+        Render.BindLayer(200);
+        Render.SetColor(color);
+        Render.DrawQuad(_selectionBox.X, _selectionBox.Y, _selectionBox.Width, _selectionBox.Height);
 
         var borderColor = EditorStyle.SelectionColor;
         var zoom = Workspace.Zoom;
@@ -889,24 +884,23 @@ public class SpriteEditor
                         Matrix3x2.CreateRotation(MathF.Atan2(dir.Y, dir.X)) *
                         Matrix3x2.CreateTranslation(center);
 
-        Render.DrawQuad(
-            center.X - len * 0.5f, center.Y - width * 0.5f,
-            len, width,
-            transform,
-            color.ToColor32(),
-            layer: 150,
-            depth: 0
-        );
+        Render.BindLayer(150);
+        Render.SetColor(color);
+        Render.DrawQuad(center.X - len * 0.5f, center.Y - width * 0.5f, len, width, transform);
     }
 
     private static void DrawVertex(Vector2 pos, float size, Color color)
     {
         var halfSize = size * 0.5f;
-        Render.DrawQuad(pos.X - halfSize, pos.Y - halfSize, size, size, color.ToColor32(), layer: 160);
+        Render.BindLayer(160);
+        Render.SetColor(color);
+        Render.DrawQuad(pos.X - halfSize, pos.Y - halfSize, size, size);
     }
 
     private static void DrawCircle(Vector2 pos, float radius, Color color)
     {
-        Render.DrawQuad(pos.X - radius, pos.Y - radius, radius * 2, radius * 2, color.ToColor32(), layer: 155);
+        Render.BindLayer(155);
+        Render.SetColor(color);
+        Render.DrawQuad(pos.X - radius, pos.Y - radius, radius * 2, radius * 2);
     }
 }

@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace noz;
+namespace NoZ.Editor;
 
 public class PropertySet
 {

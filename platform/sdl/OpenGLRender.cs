@@ -6,24 +6,24 @@ using System.Numerics;
 using Silk.NET.OpenGL;
 using static SDL.SDL3;
 
-namespace noz.Platform;
+namespace NoZ.Platform;
 
-public unsafe class OpenGLRender : IRender
+public unsafe class OpenGlRenderDriver : IRenderDriver
 {
-    private RenderBackendConfig _config = null!;
+    private RenderDriverConfig _config = null!;
     private GL _gl = null!;
 
     public string ShaderExtension => ".glsl";
 
     // Resource tracking
-    private uint _nextBufferId = 1;
-    private uint _nextTextureId = 2; // 1 is reserved for white texture
-    private byte _nextShaderId = 1;
+    private nuint _nextBufferId = 1;
+    private nuint _nextTextureId = 2; // 1 is reserved for white texture
+    private nuint _nextShaderId = 1;
     private ulong _nextFenceId = 1;
 
-    private readonly Dictionary<uint, uint> _buffers = new();           // Handle -> GL buffer
-    private readonly Dictionary<ushort, uint> _textures = new();        // Handle -> GL texture
-    private readonly Dictionary<byte, uint> _shaders = new();           // Handle -> GL program
+    private readonly Dictionary<nuint, uint> _buffers = new();           // Handle -> GL buffer
+    private readonly Dictionary<nuint, uint> _textures = new();        // Handle -> GL texture
+    private readonly Dictionary<nuint, uint> _shaders = new();           // Handle -> GL program
     private readonly Dictionary<ulong, nint> _fences = new();           // Handle -> GL sync
 
     // VAO for MeshVertex format
@@ -47,41 +47,16 @@ public unsafe class OpenGLRender : IRender
     private uint _fullscreenVao;
     private uint _fullscreenVbo;
 
-    public void Init(RenderBackendConfig config)
+    public void Init(RenderDriverConfig config)
     {
         _config = config;
 
-        // Create GL context using SDL's GetProcAddress
         _gl = GL.GetApi(name => SDL_GL_GetProcAddress(name));
-
-        // Enable standard blend mode
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-
-        // Enable MSAA if available
         _gl.Enable(EnableCap.Multisample);
-
-        // Create VAO for MeshVertex format
         _meshVao = _gl.GenVertexArray();
         _gl.BindVertexArray(_meshVao);
-
-        // Setup vertex attributes (will be bound when vertex buffer is bound)
-        // Position: location 0, vec3, offset 0
-        // UV: location 1, vec2, offset 12
-        // Color: location 2, vec4 (normalized bytes), offset 20
-
-        // Create built-in white texture (1x1 white pixel)
-        byte[] whitePixel = [255, 255, 255, 255];
-        var whiteTex = _gl.GenTexture();
-        _gl.BindTexture(TextureTarget.Texture2D, whiteTex);
-        fixed (byte* p = whitePixel)
-        {
-            _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, 1, 1, 0,
-                PixelFormat.Rgba, PixelType.UnsignedByte, p);
-        }
-        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-        _textures[TextureHandle.White.Id] = whiteTex;
 
         // Create fullscreen quad VAO/VBO
         // Positions and UVs for a fullscreen quad (two triangles)
@@ -102,14 +77,10 @@ public unsafe class OpenGLRender : IRender
         _gl.BindVertexArray(_fullscreenVao);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _fullscreenVbo);
         fixed (float* p = quadVertices)
-        {
             _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(quadVertices.Length * sizeof(float)), p, BufferUsageARB.StaticDraw);
-        }
 
-        // Position attribute
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), (void*)0);
-        // UV attribute
         _gl.EnableVertexAttribArray(1);
         _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 
@@ -171,40 +142,40 @@ public unsafe class OpenGLRender : IRender
 
     // === Buffer Management ===
 
-    public BufferHandle CreateVertexBuffer(int sizeInBytes, BufferUsage usage)
+    public nuint CreateVertexBuffer(int sizeInBytes, BufferUsage usage)
     {
         var glBuffer = _gl.GenBuffer();
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, glBuffer);
         _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)sizeInBytes, null, ToGLUsage(usage));
 
-        var handle = new BufferHandle(_nextBufferId++);
-        _buffers[handle.Id] = glBuffer;
+        var handle = new nuint(_nextBufferId++);
+        _buffers[handle] = glBuffer;
         return handle;
     }
 
-    public BufferHandle CreateIndexBuffer(int sizeInBytes, BufferUsage usage)
+    public nuint CreateIndexBuffer(int sizeInBytes, BufferUsage usage)
     {
         var glBuffer = _gl.GenBuffer();
         _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, glBuffer);
         _gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)sizeInBytes, null, ToGLUsage(usage));
 
-        var handle = new BufferHandle(_nextBufferId++);
-        _buffers[handle.Id] = glBuffer;
+        var handle = new nuint(_nextBufferId++);
+        _buffers[handle] = glBuffer;
         return handle;
     }
 
-    public void DestroyBuffer(BufferHandle handle)
+    public void DestroyBuffer(nuint handle)
     {
-        if (_buffers.TryGetValue(handle.Id, out var glBuffer))
+        if (_buffers.TryGetValue(handle, out var glBuffer))
         {
             _gl.DeleteBuffer(glBuffer);
-            _buffers.Remove(handle.Id);
+            _buffers.Remove(handle);
         }
     }
 
-    public void UpdateVertexBufferRange(BufferHandle buffer, int offsetBytes, ReadOnlySpan<MeshVertex> data)
+    public void UpdateVertexBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<MeshVertex> data)
     {
-        if (!_buffers.TryGetValue(buffer.Id, out var glBuffer))
+        if (!_buffers.TryGetValue(buffer, out var glBuffer))
             return;
 
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, glBuffer);
@@ -214,9 +185,9 @@ public unsafe class OpenGLRender : IRender
         }
     }
 
-    public void UpdateIndexBufferRange(BufferHandle buffer, int offsetBytes, ReadOnlySpan<ushort> data)
+    public void UpdateIndexBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<ushort> data)
     {
-        if (!_buffers.TryGetValue(buffer.Id, out var glBuffer))
+        if (!_buffers.TryGetValue(buffer, out var glBuffer))
             return;
 
         _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, glBuffer);
@@ -226,9 +197,40 @@ public unsafe class OpenGLRender : IRender
         }
     }
 
-    public void BindVertexBuffer(BufferHandle buffer)
+    public nuint CreateUniformBuffer(int sizeInBytes, BufferUsage usage)
     {
-        if (!_buffers.TryGetValue(buffer.Id, out var glBuffer))
+        var glBuffer = _gl.GenBuffer();
+        _gl.BindBuffer(BufferTargetARB.UniformBuffer, glBuffer);
+        _gl.BufferData(BufferTargetARB.UniformBuffer, (nuint)sizeInBytes, null, ToGLUsage(usage));
+
+        var handle = new nuint(_nextBufferId++);
+        _buffers[handle] = glBuffer;
+        return handle;
+    }
+
+    public void UpdateUniformBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<byte> data)
+    {
+        if (!_buffers.TryGetValue(buffer, out var glBuffer))
+            return;
+
+        _gl.BindBuffer(BufferTargetARB.UniformBuffer, glBuffer);
+        fixed (byte* p = data)
+        {
+            _gl.BufferSubData(BufferTargetARB.UniformBuffer, offsetBytes, (nuint)data.Length, p);
+        }
+    }
+
+    public void BindUniformBuffer(nuint buffer, int slot)
+    {
+        if (!_buffers.TryGetValue(buffer, out var glBuffer))
+            return;
+
+        _gl.BindBufferBase(BufferTargetARB.UniformBuffer, (uint)slot, glBuffer);
+    }
+
+    public void BindVertexBuffer(nuint buffer)
+    {
+        if (!_buffers.TryGetValue(buffer, out var glBuffer))
             return;
 
         if (_boundVertexBuffer == glBuffer)
@@ -287,9 +289,9 @@ public unsafe class OpenGLRender : IRender
         _gl.VertexAttribPointer(10, 1, VertexAttribPointerType.Float, false, stride, (void*)64);
     }
 
-    public void BindIndexBuffer(BufferHandle buffer)
+    public void BindIndexBuffer(nuint buffer)
     {
-        if (!_buffers.TryGetValue(buffer.Id, out var glBuffer))
+        if (!_buffers.TryGetValue(buffer, out var glBuffer))
             return;
 
         if (_boundIndexBuffer == glBuffer)
@@ -301,7 +303,7 @@ public unsafe class OpenGLRender : IRender
 
     // === Texture Management ===
 
-    public TextureHandle CreateTexture(int width, int height, ReadOnlySpan<byte> data)
+    public nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data)
     {
         var glTexture = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, glTexture);
@@ -317,14 +319,14 @@ public unsafe class OpenGLRender : IRender
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
-        var handle = new TextureHandle((ushort)_nextTextureId++);
-        _textures[handle.Id] = glTexture;
+        var handle = new nuint((ushort)_nextTextureId++);
+        _textures[handle] = glTexture;
         return handle;
     }
 
-    public void UpdateTexture(TextureHandle handle, int width, int height, ReadOnlySpan<byte> data)
+    public void UpdateTexture(nuint handle, int width, int height, ReadOnlySpan<byte> data)
     {
-        if (!_textures.TryGetValue(handle.Id, out var glTexture))
+        if (!_textures.TryGetValue(handle, out var glTexture))
             return;
 
         _gl.BindTexture(TextureTarget.Texture2D, glTexture);
@@ -335,18 +337,18 @@ public unsafe class OpenGLRender : IRender
         }
     }
 
-    public void DestroyTexture(TextureHandle handle)
+    public void DestroyTexture(nuint handle)
     {
-        if (_textures.TryGetValue(handle.Id, out var glTexture))
+        if (_textures.TryGetValue(handle, out var glTexture))
         {
             _gl.DeleteTexture(glTexture);
-            _textures.Remove(handle.Id);
+            _textures.Remove(handle);
         }
     }
 
-    public void BindTexture(int slot, TextureHandle handle)
+    public void BindTexture(nuint handle, int slot)
     {
-        if (!_textures.TryGetValue(handle.Id, out var glTexture))
+        if (!_textures.TryGetValue(handle, out var glTexture))
             return;
 
         _gl.ActiveTexture(TextureUnit.Texture0 + slot);
@@ -355,9 +357,9 @@ public unsafe class OpenGLRender : IRender
 
     // === Texture Array Management ===
 
-    private readonly Dictionary<ushort, (uint glTexture, int width, int height, int layers)> _textureArrays = new();
+    private readonly Dictionary<nuint, (uint glTexture, int width, int height, int layers)> _textureArrays = new();
 
-    public TextureHandle CreateTextureArray(int width, int height, int layers)
+    public nuint CreateTextureArray(int width, int height, int layers)
     {
         var glTexture = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2DArray, glTexture);
@@ -372,14 +374,14 @@ public unsafe class OpenGLRender : IRender
         _gl.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         _gl.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
-        var handle = new TextureHandle((ushort)_nextTextureId++);
-        _textureArrays[handle.Id] = (glTexture, width, height, layers);
+        var handle = new nuint((ushort)_nextTextureId++);
+        _textureArrays[handle] = (glTexture, width, height, layers);
         return handle;
     }
 
-    public void UpdateTextureArrayLayer(TextureHandle handle, int layer, ReadOnlySpan<byte> data)
+    public void UpdateTextureArrayLayer(nuint handle, int layer, ReadOnlySpan<byte> data)
     {
-        if (!_textureArrays.TryGetValue(handle.Id, out var info))
+        if (!_textureArrays.TryGetValue(handle, out var info))
             return;
 
         _gl.BindTexture(TextureTarget.Texture2DArray, info.glTexture);
@@ -392,9 +394,9 @@ public unsafe class OpenGLRender : IRender
         }
     }
 
-    public void BindTextureArray(int slot, TextureHandle handle)
+    public void BindTextureArray(int slot, nuint handle)
     {
-        if (!_textureArrays.TryGetValue(handle.Id, out var info))
+        if (!_textureArrays.TryGetValue(handle, out var info))
             return;
 
         _gl.ActiveTexture(TextureUnit.Texture0 + slot);
@@ -403,28 +405,28 @@ public unsafe class OpenGLRender : IRender
 
     // === Shader Management ===
 
-    public ShaderHandle CreateShader(string name, string vertexSource, string fragmentSource)
+    public nuint CreateShader(string name, string vertexSource, string fragmentSource)
     {
         var program = CreateShaderProgram(name, vertexSource, fragmentSource);
-        var handle = new ShaderHandle(_nextShaderId++);
-        _shaders[handle.Id] = program;
+        var handle = new nuint(_nextShaderId++);
+        _shaders[handle] = program;
         return handle;
     }
 
-    public void DestroyShader(ShaderHandle handle)
+    public void DestroyShader(nuint handle)
     {
-        if (_shaders.TryGetValue(handle.Id, out var program))
+        if (_shaders.TryGetValue(handle, out var program))
         {
             _gl.DeleteProgram(program);
-            _shaders.Remove(handle.Id);
+            _shaders.Remove(handle);
         }
     }
 
-    public void BindShader(ShaderHandle handle)
+    public void BindShader(nuint handle)
     {
-        if (!_shaders.TryGetValue(handle.Id, out var program))
+        if (!_shaders.TryGetValue(handle, out var program))
         {
-            Console.WriteLine($"[WARN] BindShader: Shader handle {handle.Id} not found!");
+            Console.WriteLine($"[WARN] BindShader: Shader handle {handle} not found!");
             return;
         }
 
@@ -583,7 +585,7 @@ public unsafe class OpenGLRender : IRender
 
     // === Drawing ===
 
-    public void DrawIndexedRange(int firstIndex, int indexCount, int baseVertex = 0)
+    public void DrawElements(int firstIndex, int indexCount, int baseVertex = 0)
     {
         if (baseVertex == 0)
         {
@@ -599,28 +601,28 @@ public unsafe class OpenGLRender : IRender
 
     // === Synchronization ===
 
-    public FenceHandle CreateFence()
+    public nuint CreateFence()
     {
         var fence = _gl.FenceSync(SyncCondition.SyncGpuCommandsComplete, SyncBehaviorFlags.None);
-        var handle = new FenceHandle(_nextFenceId++);
-        _fences[handle.Id] = fence;
+        var handle = new nuint(_nextFenceId++);
+        _fences[handle] = fence;
         return handle;
     }
 
-    public void WaitFence(FenceHandle fence)
+    public void WaitFence(nuint fence)
     {
-        if (!_fences.TryGetValue(fence.Id, out var glFence))
+        if (!_fences.TryGetValue(fence, out var glFence))
             return;
 
         _gl.ClientWaitSync(glFence, SyncObjectMask.Bit, 1_000_000_000);
     }
 
-    public void DeleteFence(FenceHandle fence)
+    public void DeleteFence(nuint fence)
     {
-        if (_fences.TryGetValue(fence.Id, out var glFence))
+        if (_fences.TryGetValue(fence, out var glFence))
         {
             _gl.DeleteSync(glFence);
-            _fences.Remove(fence.Id);
+            _fences.Remove(fence);
         }
     }
 
@@ -821,9 +823,9 @@ public unsafe class OpenGLRender : IRender
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
-    public void Composite(ShaderHandle compositeShader)
+    public void Composite(nuint compositeShader)
     {
-        if (!_shaders.TryGetValue(compositeShader.Id, out var program))
+        if (!_shaders.TryGetValue(compositeShader, out var program))
             return;
 
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);

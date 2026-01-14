@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System;
 using System.Runtime.InteropServices;
 
-namespace noz;
+namespace NoZ;
 
 public unsafe struct UnsafeList<T> : IDisposable where T : unmanaged
 {

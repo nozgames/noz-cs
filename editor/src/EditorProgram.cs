@@ -2,9 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using noz.Platform;
-
-using noz;
+using NoZ;
+using NoZ.Platform;
+using NoZ.Editor;
 
 string? projectPath = null;
 var clean = false;
@@ -17,7 +17,7 @@ for (var i = 0; i < args.Length; i++)
         clean = true;
 }
 
-Editor.Init(projectPath, clean);
+EditorApplication.Init(projectPath, clean);
 
 Application.Init(new ApplicationConfig
 {
@@ -26,17 +26,17 @@ Application.Init(new ApplicationConfig
     Height = 900,
     IconPath = "res/windows/nozed.png",
     Platform = new SDLPlatform(),
-    RenderBackend = new OpenGLRender(),
-    AudioBackend = new SDLAudio(),
+    AudioBackend = new SdlAudioDriver(),
     Vtable = new EditorVtable(),
 
     Render = new RenderConfig
     {
+        Driver = new OpenGlRenderDriver(),
         CompositeShader = "composite"
     }
 });
 
 Application.Run();
 
-Editor.Shutdown();
+EditorApplication.Shutdown();
 Application.Shutdown();

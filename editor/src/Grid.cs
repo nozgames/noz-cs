@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public static class Grid
 {
@@ -78,18 +78,16 @@ public static class Grid
         var spacing3 = pixelSize;
         var alpha3 = pixelGridAlpha * MaxAlpha * 0.5f;
 
-        var gridColor = EditorStyle.GridColor.ToColor32();
-
         // Draw coarse grid
-        DrawGridLines(camera, spacing1, gridColor.WithAlpha(alpha1));
-        DrawGridLines(camera, spacing2, gridColor.WithAlpha(alpha2));
+        DrawGridLines(camera, spacing1, EditorStyle.GridColor.WithAlpha(alpha1));
+        DrawGridLines(camera, spacing2, EditorStyle.GridColor.WithAlpha(alpha2));
 
         // Draw zero lines (origin)
-        DrawZeroLines(camera, gridColor);
+        DrawZeroLines(camera, EditorStyle.GridColor);
 
         // Draw pixel grid when visible
         if (pixelGridAlpha > float.Epsilon)
-            DrawGridLines(camera, spacing3, gridColor.WithAlpha(alpha3 * MaxAlpha * 0.5f));
+            DrawGridLines(camera, spacing3, EditorStyle.GridColor.WithAlpha(alpha3 * MaxAlpha * 0.5f));
     }
 
     public static void DrawPixelGrid(Camera camera)
@@ -106,11 +104,10 @@ public static class Grid
         if (screenPixelsPerWorldPixel > 8f)
             pixelGridAlpha = MathF.Min((screenPixelsPerWorldPixel - 8f) / 32f, 1f);
 
-        var gridColor = EditorStyle.GridColor.ToColor32();
-        DrawGridLines(camera, pixelSize, gridColor.WithAlpha(pixelGridAlpha * MaxAlpha * 0.5f));
+        DrawGridLines(camera, pixelSize, EditorStyle.GridColor.WithAlpha(pixelGridAlpha * MaxAlpha * 0.5f));
     }
 
-    private static void DrawGridLines(Camera camera, float spacing, Color32 color)
+    private static void DrawGridLines(Camera camera, float spacing, Color color)
     {
         if (color.A <= 0) return;
 
@@ -125,15 +122,15 @@ public static class Grid
         var pixelsPerWorldUnit = screenSize.Y / worldHeight;
         var lineThickness = 1f / pixelsPerWorldUnit;
 
+        Render.SetColor(color);
+        
         // Vertical lines
         var startX = MathF.Floor(left / spacing) * spacing;
         for (var x = startX; x <= right + spacing; x += spacing)
         {
             Render.DrawQuad(
                 x - lineThickness, bottom,
-                lineThickness * 2f, top - bottom,
-                color,
-                layer: 10
+                lineThickness * 2f, top - bottom
             );
         }
 
@@ -143,14 +140,12 @@ public static class Grid
         {
             Render.DrawQuad(
                 left, y - lineThickness,
-                right - left, lineThickness * 2f,
-                color,
-                layer: 10
+                right - left, lineThickness * 2f
             );
         }
     }
 
-    private static void DrawZeroLines(Camera camera, Color32 color)
+    private static void DrawZeroLines(Camera camera, Color color)
     {
         var bounds = camera.WorldBounds;
         var left = bounds.Min.X;
@@ -163,20 +158,18 @@ public static class Grid
         var pixelsPerWorldUnit = screenSize.Y / worldHeight;
         var lineThickness = 1.5f / pixelsPerWorldUnit;
 
+        Render.SetColor(color);
+        
         // Vertical zero line (Y axis)
         Render.DrawQuad(
             -lineThickness, bottom,
-            lineThickness * 2f, top - bottom,
-            color,
-            layer: 11
+            lineThickness * 2f, top - bottom
         );
 
         // Horizontal zero line (X axis)
         Render.DrawQuad(
             left, -lineThickness,
-            right - left, lineThickness * 2f,
-            color,
-            layer: 11
+            right - left, lineThickness * 2f
         );
     }
 

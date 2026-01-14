@@ -4,32 +4,7 @@
 
 using System.Numerics;
 
-namespace noz.Platform;
-
-public enum PlatformEventType
-{
-    None,
-
-    // Keyboard
-    KeyDown,
-    KeyUp,
-
-    // Mouse
-    MouseButtonDown,
-    MouseButtonUp,
-    MouseMove,
-    MouseScroll,
-
-    // Gamepad
-    GamepadButtonDown,
-    GamepadButtonUp,
-    GamepadAxis,
-
-    // Window
-    WindowResize,
-    WindowFocus,
-    WindowUnfocus,
-}
+namespace NoZ.Platform;
 
 public struct PlatformEvent
 {

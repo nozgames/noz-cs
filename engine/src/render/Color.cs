@@ -4,7 +4,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace noz;
+namespace NoZ;
 
 [StructLayout(LayoutKind.Sequential)]
 public readonly struct Color32(byte r, byte g, byte b, byte a=255)
@@ -92,6 +92,14 @@ public readonly struct Color(float r, float g, float b, float a = 1f)
     public Color WithAlpha(float alpha) => new(R, G, B, alpha);
     public Color MultiplyAlpha(float multiply) => new(R, G, B, A * multiply);
 
+    public Color(byte r, byte g, byte b, byte a) : this(r / 255f, g / 255f, b / 255f, a / 255f)
+    {
+    }
+
+    public Color(byte r, byte g, byte b) : this(r / 255f, g / 255f, b / 255f, 1.0f)
+    {
+    }
+    
     public Color Clamped() => new(
         Math.Clamp(R, 0f, 1f),
         Math.Clamp(G, 0f, 1f),

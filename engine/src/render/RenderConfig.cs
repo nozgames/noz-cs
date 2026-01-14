@@ -2,12 +2,15 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace noz;
+using NoZ.Platform;
+
+namespace NoZ;
 
 public class RenderConfig {
-    public bool Vsync = true;
-    public int MsaaSamples = 4;
-    public int MaxDrawCommands = 16384;
-    public int MaxBatches = 4096;
-    public string? CompositeShader;
+    public bool Vsync { get; init; } = true;
+    public int MsaaSamples { get; init; } = 4;
+    public int MaxDrawCommands { get; init; } = 16384;
+    public int MaxBatches { get; init; } = 4096;
+    public string CompositeShader { get; init; } = "composite"; 
+    public required IRenderDriver Driver { get; init; }
 }

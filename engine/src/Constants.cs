@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("NoZ.Editor")]
 
-namespace noz;
+namespace NoZ;
 
 internal static class Constants
 {

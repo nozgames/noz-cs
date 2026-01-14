@@ -5,7 +5,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace noz;
+namespace NoZ;
 
 /// <summary>
 /// Vertex format for mesh batching. Must be blittable for GPU upload.
@@ -28,8 +28,7 @@ public struct MeshVertex
     public Vector2 Position;    // 8 bytes
     public Vector2 UV;          // 8 bytes
     public Vector2 Normal;      // 8 bytes
-    public Vector4 Color;       // 16 bytes (RGBA floats 0-1)
-    public float Opacity;       // 4 bytes
+    public Color Color;         // 16 bytes (RGBA floats 0-1)
     public int Bone;            // 4 bytes (bone index for skinning, 0 = identity)
     public int Atlas;           // 4 bytes (texture array index, 0 = white)
     public int FrameCount;      // 4 bytes (animation frame count, 1 = static)
@@ -39,13 +38,12 @@ public struct MeshVertex
 
     public const int SizeInBytes = 68;
 
-    public MeshVertex(Vector2 position, Vector2 uv, Vector4 color, int atlas = 0)
+    public MeshVertex(Vector2 position, Vector2 uv, Color color, int atlas = 0)
     {
         Position = position;
         UV = uv;
         Normal = Vector2.Zero;
         Color = color;
-        Opacity = 1.0f;
         Bone = 0;
         Atlas = atlas;
         FrameCount = 1;
@@ -54,28 +52,12 @@ public struct MeshVertex
         AnimStartTime = 0;
     }
 
-    public MeshVertex(float x, float y, float u, float v, Vector4 color, int atlas = 0)
+    public MeshVertex(float x, float y, float u, float v, Color color, int atlas = 0)
     {
         Position = new Vector2(x, y);
         UV = new Vector2(u, v);
         Normal = Vector2.Zero;
         Color = color;
-        Opacity = 1.0f;
-        Bone = 0;
-        Atlas = atlas;
-        FrameCount = 1;
-        FrameWidth = 0;
-        FrameRate = 0;
-        AnimStartTime = 0;
-    }
-
-    public MeshVertex(float x, float y, float u, float v, Color32 color, int atlas = 0)
-    {
-        Position = new Vector2(x, y);
-        UV = new Vector2(u, v);
-        Normal = Vector2.Zero;
-        Color = new Vector4(color.R / 255f, color.G / 255f, color.B / 255f, color.A / 255f);
-        Opacity = 1.0f;
         Bone = 0;
         Atlas = atlas;
         FrameCount = 1;
@@ -89,8 +71,7 @@ public struct MeshVertex
         Position = Vector2.Zero,
         UV = Vector2.Zero,
         Normal = Vector2.Zero,
-        Color = Vector4.One,
-        Opacity = 1.0f,
+        Color = Color.White,
         Bone = 0,
         Atlas = 0,
         FrameCount = 1,

@@ -7,19 +7,11 @@
 
 //@ VERTEX
 
-layout(location = 0) in vec2 aPosition;
-layout(location = 1) in vec2 aUV;
-layout(location = 2) in vec2 aNormal;
-layout(location = 3) in vec4 aColor;
-layout(location = 4) in float aOpacity;
-layout(location = 5) in int aBone;
-layout(location = 6) in int aAtlas;
-layout(location = 7) in int aFrameCount;
-layout(location = 8) in float aFrameWidth;
-layout(location = 9) in float aFrameRate;
-layout(location = 10) in float aAnimStartTime;
+layout(location = 0) in vec2 in_position;
+layout(location = 1) in vec2 in_uv;
+layout(location = 3) in vec4 in_color;
 
-uniform mat4 uProjection;
+uniform mat4 u_color;
 
 // UI-specific uniforms
 uniform vec2 uBoxSize;      // Size of the box in pixels
@@ -27,23 +19,23 @@ uniform float uBorderRadius; // Corner radius
 uniform float uBorderWidth;  // Border thickness
 uniform vec4 uBorderColor;   // Border color
 
-out vec2 vUV;
-out vec4 vColor;
+out vec2 v_uv;
+out vec4 v_color;
 out vec2 vLocalPos; // Position within box (0-1)
 
 void main() {
-    gl_Position = uProjection * vec4(aPosition, 0.0, 1.0);
-    vUV = aUV;
-    vColor = aColor * aOpacity;
-    vLocalPos = aUV; // UV maps to box position
+    gl_Position = u_color * vec4(in_position, 0.0, 1.0);
+    v_uv = in_uv;
+    v_color = in_color;
+    vLocalPos = in_uv; // UV maps to box position
 }
 
 //@ END
 
 //@ FRAGMENT
 
-in vec2 vUV;
-in vec4 vColor;
+in vec2 v_uv;
+in vec4 v_color;
 in vec2 vLocalPos;
 
 uniform vec2 uBoxSize;
@@ -82,12 +74,12 @@ void main() {
     float borderAlpha = smoothstep(-aa, 0.0, innerDist) * (1.0 - smoothstep(-aa, 0.0, dist));
 
     // Combine fill and border
-    vec4 fillColor = vColor;
+    vec4 fillColor = v_color;
     vec4 finalColor = mix(fillColor, uBorderColor, borderAlpha);
     finalColor.a *= fillAlpha;
 
     // If no fill color (transparent), only show border
-    if (vColor.a < 0.001) {
+    if (v_color.a < 0.001) {
         finalColor = uBorderColor;
         finalColor.a *= borderAlpha;
     }

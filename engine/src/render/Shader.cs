@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace noz;
+namespace NoZ;
 
 [Flags]
 public enum ShaderFlags : byte
@@ -21,7 +21,7 @@ public class Shader : Asset
     internal const byte Version = 2;
 
     public ShaderFlags Flags { get; private set; }
-    internal ShaderHandle Handle { get; private set; }
+    internal nuint Handle { get; private set; }
 
     private Shader(string name) : base(AssetType.Shader, name)
     {
@@ -48,7 +48,7 @@ public class Shader : Asset
         var shader = new Shader(name)
         {
             Flags = flags,
-            Handle = Application.RenderBackend.CreateShader(name, vertexSource, fragmentSource)
+            Handle = Render.Driver.CreateShader(name, vertexSource, fragmentSource)
         };
 
         return shader;
@@ -56,10 +56,10 @@ public class Shader : Asset
 
     public override void Dispose()
     {
-        if (Handle.IsValid)
+        if (Handle != nuint.Zero)
         {
-            Application.RenderBackend.DestroyShader(Handle);
-            Handle = default;
+            Render.Driver.DestroyShader(Handle);
+            Handle = nuint.Zero;
         }
 
         base.Dispose();

@@ -2,9 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using noz.editor;
-
-namespace noz;
+namespace NoZ.Editor;
 
 public static class AssetManifest
 {

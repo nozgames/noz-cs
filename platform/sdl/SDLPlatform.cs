@@ -8,7 +8,7 @@ using SDL;
 using StbImageSharp;
 using static SDL.SDL3;
 
-namespace noz.Platform;
+namespace NoZ.Platform;
 
 public unsafe partial class SDLPlatform : IPlatform
 {

@@ -3,9 +3,9 @@
 //
 
 using System.Numerics;
-using noz.Platform;
+using NoZ.Platform;
 
-namespace noz;
+namespace NoZ;
 
 public static class Application
 {
@@ -15,8 +15,7 @@ public static class Application
 
     public static ApplicationConfig Config { get; private set; } = null!;
     public static IPlatform Platform { get; private set; } = null!;
-    public static IRender RenderBackend { get; private set; } = null!;
-    public static IAudio AudioBackend { get; private set; } = null!;
+    public static IAudioDriver AudioDriverBackend { get; private set; } = null!;
     public static Vector2 WindowSize => Platform.WindowSize;
     public static string AssetPath { get; private set; } = null!;
 
@@ -27,11 +26,8 @@ public static class Application
         // Platform and render backend must be provided
         Platform = config.Platform ?? throw new ArgumentNullException(nameof(config.Platform),
             "Platform must be provided. Use SDLPlatform for desktop or WebPlatform for web.");
-
-        RenderBackend = config.RenderBackend ?? throw new ArgumentNullException(nameof(config.RenderBackend),
-            "RenderBackend must be provided. Use OpenGLRender for desktop or WebGLRender for web.");
-
-        AudioBackend = config.AudioBackend ?? throw new ArgumentNullException(nameof(config.AudioBackend),
+        
+        AudioDriverBackend = config.AudioBackend ?? throw new ArgumentNullException(nameof(config.AudioBackend),
             "AudioBackend must be provided. Use SDLAudio for desktop or WebAudio for web.");
 
         _vtable = config.Vtable ?? throw new ArgumentNullException(nameof(config.Vtable),
@@ -57,8 +53,8 @@ public static class Application
         // Initialize subsystems
         Time.Init();
         Input.Init();
-        Audio.Init(AudioBackend);
-        Render.Init(config.Render, RenderBackend);
+        Audio.Init(AudioDriverBackend);
+        Render.Init(config.Render);
         UI.Init();
 
         // Register asset types and load assets

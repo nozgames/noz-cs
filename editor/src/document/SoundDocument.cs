@@ -4,7 +4,7 @@
 
 using System.Text;
 
-namespace noz.editor;
+namespace NoZ.Editor;
 
 public class SoundDocument : Document
 {
