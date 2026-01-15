@@ -36,6 +36,13 @@ public class Style
 
 public static class EditorStyle
 {
+    #region Canvas
+    public static class CanvasId
+    {
+        public const byte CommandPalette = 1;
+    }
+    #endregion
+    
     private static Style _current = null!;
 
     public static Style Current => _current;
@@ -97,6 +104,13 @@ public static class EditorStyle
     public const float WorkspaceNameFontSize = 0.24f;
     public const float WorkspaceNamePadding = 0.04f;
 
+    public static class CommandPalette
+    {
+        public const float FontSize = 18.0f;
+        public const float Width = 600.0f;
+        public const float Height = 24.0f;
+    }
+    
     // Overlay
     public const int OverlayTextSize = 14;
     public const float OverlayContentBorderRadius = 9f;

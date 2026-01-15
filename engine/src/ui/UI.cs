@@ -138,7 +138,7 @@ public struct ContainerData
 
 public struct LabelData
 {
-    public int FontSize;
+    public float FontSize;
     public Color Color;
     public Align Align;
     public int TextStart;
@@ -257,8 +257,7 @@ public struct PopupData
 public struct TextBoxData
 {
     public float Height;
-    public float Padding;
-    public int FontSize;
+    public float FontSize;
     public Color BackgroundColor;
     public Color TextColor;
     public Color PlaceholderColor;
@@ -271,7 +270,6 @@ public struct TextBoxData
     public static TextBoxData Default => new()
     {
         Height = 28f,
-        Padding = 4f,
         FontSize = 16,
         BackgroundColor = new Color(0.22f, 0.22f, 0.22f, 1f),
         TextColor = Color.White,
@@ -327,6 +325,7 @@ public struct Element
 {
     public ElementType Type;
     public byte Id;
+    public byte CanvasId;
     public int Index;
     public int NextSiblingIndex;
     public int ChildCount;
@@ -450,27 +449,25 @@ public struct CanvasStyle()
 public struct TextBoxStyle()
 {
     public float Height = 28f;
-    public float Padding = 4f;
-    public int FontSize = 16;
+    public float FontSize = 16;
     public Color BackgroundColor = new(0.22f, 0.22f, 0.22f, 1f);
     public Color TextColor = Color.White;
     public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
     public BorderStyle Border = BorderStyle.None;
     public BorderStyle FocusBorder = BorderStyle.None;
-    public bool Password = false;
+    public bool IsPassword = false;
     public byte Id = 0;
 
     public TextBoxData ToData() => new()
     {
         Height = Height,
-        Padding = Padding,
         FontSize = FontSize,
         BackgroundColor = BackgroundColor,
         TextColor = TextColor,
         PlaceholderColor = PlaceholderColor,
         Border = Border,
         FocusBorder = FocusBorder,
-        Password = Password,
+        Password = IsPassword,
         TextStart = 0,
         TextLength = 0
     };
@@ -525,6 +522,13 @@ public static class UI
         public string Text;
     }
 
+    private struct CanvasState
+    {
+        public int ElementIndex;
+        public Rect WorldBounds;
+        public ElementState[]? ElementStates;
+    }
+
     // Element storage
     private static readonly Element[] _elements = new Element[MaxElements];
     private static readonly int[] _elementStack = new int[MaxElementStack];
@@ -532,12 +536,22 @@ public static class UI
     private static readonly ElementState[] _elementStates = new ElementState[ElementIdMax + 1];
     private static readonly char[] _textBuffer = new char[MaxTextBuffer];
 
+    // Canvas state (keyed by canvas ID for persistence across frames)
+    private const int MaxActiveCanvases = 16;
+    private static readonly CanvasState[] _canvasStates = new CanvasState[ElementIdMax + 1];
+    private static readonly byte[] _activeCanvasIds = new byte[MaxActiveCanvases];
+    private static int _activeCanvasCount;
+    private static byte _hotCanvasId;
+    private static byte _currentCanvasId;
+
     private static int _elementCount;
     private static int _elementStackCount;
     private static int _popupCount;
     private static int _textBufferUsed;
     private static byte _focusId;
     private static byte _pendingFocusId;
+    private static byte _focusCanvasId;
+    private static byte _pendingFocusCanvasId;
     private static Vector2 _orthoSize;
     private static Vector2Int _refSize;
     private static Camera _camera = null!;
@@ -545,7 +559,9 @@ public static class UI
     private static float _lastScrollMouseY;
     private static bool _closePopups;
     private static byte _textboxFocusId;
+    private static byte _textboxFocusCanvasId;
     private static bool _textboxVisible;
+    private static bool _textboxRenderedThisFrame;
     public static Vector2 Size => _orthoSize;
 
     public static float UserScale { get; set; } = 1.0f;
@@ -604,6 +620,7 @@ public static class UI
         ref var element = ref _elements[_elementCount];
         element.Type = type;
         element.Id = 0;
+        element.CanvasId = _currentCanvasId;
         element.Index = _elementCount;
         element.NextSiblingIndex = 0;
         element.ChildCount = 0;
@@ -632,6 +649,16 @@ public static class UI
     {
         if (id == ElementIdNone) return;
         e.Id = id;
+
+        // Store in canvas-scoped state if we're inside a canvas
+        if (e.CanvasId != ElementIdNone)
+        {
+            ref var canvasState = ref _canvasStates[e.CanvasId];
+            if (canvasState.ElementStates != null)
+                canvasState.ElementStates[id].Index = e.Index;
+        }
+
+        // Also store in global state for backward compatibility
         _elementStates[id].Index = e.Index;
     }
 
@@ -676,6 +703,16 @@ public static class UI
         if (_elementStackCount <= 0) return false;
         ref var e = ref _elements[_elementStack[_elementStackCount - 1]];
         if (e.Id == ElementIdNone) return false;
+
+        // Use canvas-scoped state if element belongs to a canvas
+        if (e.CanvasId != ElementIdNone)
+        {
+            ref var cs = ref _canvasStates[e.CanvasId];
+            if (cs.ElementStates != null)
+                return (cs.ElementStates[e.Id].Flags & flags) == flags;
+        }
+
+        // Fallback to global state
         return (_elementStates[e.Id].Flags & flags) == flags;
     }
 
@@ -684,8 +721,36 @@ public static class UI
     public static bool IsDown() => CheckElementFlags(ElementFlags.Down);
 
     public static byte GetElementId() => HasCurrentElement() ? GetCurrentElement().Id : (byte)0;
-    public static Rect GetElementRect(byte id) => id == ElementIdNone ? Rect.Zero : _elementStates[id].Rect;
-    public static float GetScrollOffset(byte id) => id == ElementIdNone ? 0 : _elementStates[id].ScrollOffset;
+
+    public static Rect GetElementRect(byte id)
+    {
+        if (id == ElementIdNone) return Rect.Zero;
+
+        // Check canvas-scoped state first if we're in a canvas context
+        if (_currentCanvasId != ElementIdNone)
+        {
+            ref var cs = ref _canvasStates[_currentCanvasId];
+            if (cs.ElementStates != null)
+                return cs.ElementStates[id].Rect;
+        }
+
+        return _elementStates[id].Rect;
+    }
+
+    public static float GetScrollOffset(byte id)
+    {
+        if (id == ElementIdNone) return 0;
+
+        // Check canvas-scoped state first if we're in a canvas context
+        if (_currentCanvasId != ElementIdNone)
+        {
+            ref var cs = ref _canvasStates[_currentCanvasId];
+            if (cs.ElementStates != null)
+                return cs.ElementStates[id].ScrollOffset;
+        }
+
+        return _elementStates[id].ScrollOffset;
+    }
 
     public static Vector2 ScreenToUI(Vector2 screenPos) =>
         screenPos / Application.WindowSize * _orthoSize;
@@ -701,17 +766,49 @@ public static class UI
     {
         if (!HasCurrentElement()) return false;
         ref var e = ref GetCurrentElement();
-        return _focusId != 0 && e.Id == _focusId;
+        return _focusId != 0 && e.Id == _focusId && e.CanvasId == _focusCanvasId;
     }
 
     public static void SetFocus(byte elementId)
     {
         _focusId = elementId;
         _pendingFocusId = elementId;
+
+        // Set canvas ID from current element context
+        if (HasCurrentElement())
+        {
+            ref var e = ref GetCurrentElement();
+            _focusCanvasId = e.CanvasId;
+            _pendingFocusCanvasId = e.CanvasId;
+        }
+    }
+
+    public static void SetFocus(byte elementId, byte canvasId)
+    {
+        _focusId = elementId;
+        _pendingFocusId = elementId;
+        _focusCanvasId = canvasId;
+        _pendingFocusCanvasId = canvasId;
+    }
+    
+    public static void ClearFocus()
+    {
+        UI.SetFocus(0, 0);
     }
 
     public static bool IsClosed() =>
         HasCurrentElement() && GetCurrentElement().Type == ElementType.Popup && _closePopups;
+
+    /// <summary>
+    /// Returns true if the current canvas is the "hot" canvas (topmost under mouse).
+    /// Only the hot canvas receives press/down events.
+    /// </summary>
+    public static bool IsHotCanvas() => _currentCanvasId != ElementIdNone && _currentCanvasId == _hotCanvasId;
+
+    /// <summary>
+    /// Returns the ID of the hot canvas (topmost under mouse), or 0 if none.
+    /// </summary>
+    public static byte GetHotCanvasId() => _hotCanvasId;
 
     // Begin/End methods
     internal static void Begin()
@@ -721,6 +818,11 @@ public static class UI
         _elementCount = 0;
         _popupCount = 0;
         _textBufferUsed = 0;
+
+        // Reset canvas tracking for new frame
+        _activeCanvasCount = 0;
+        _hotCanvasId = ElementIdNone;
+        _currentCanvasId = ElementIdNone;
 
         var screenSize = Application.WindowSize;
         var rw = (float)_refSize.X;
@@ -763,18 +865,35 @@ public static class UI
         _camera.SetExtents(new Rect(0, 0, _orthoSize.X, _orthoSize.Y));
         _camera.Update();
 
-        SetFocus(_pendingFocusId);
+        // Apply pending focus (element ID + canvas ID)
+        _focusId = _pendingFocusId;
+        _focusCanvasId = _pendingFocusCanvasId;
     }
 
     public static void BeginCanvas(CanvasStyle style = default)
     {
         ref var e = ref CreateElement(ElementType.Canvas);
         e.Data.Canvas = style.ToData();
+
+        // Register canvas by ID for input tracking
+        if (style.Id != ElementIdNone && _activeCanvasCount < MaxActiveCanvases)
+        {
+            _currentCanvasId = style.Id;
+            _activeCanvasIds[_activeCanvasCount++] = style.Id;
+            _canvasStates[style.Id].ElementIndex = e.Index;
+            _canvasStates[style.Id].ElementStates ??= new ElementState[ElementIdMax + 1];
+        }
+
+        e.CanvasId = _currentCanvasId;
         SetId(ref e, style.Id);
         PushElement(e.Index);
     }
 
-    public static void EndCanvas() => EndElement(ElementType.Canvas);
+    public static void EndCanvas()
+    {
+        EndElement(ElementType.Canvas);
+        _currentCanvasId = ElementIdNone;
+    }
 
     public static void BeginContainer()
     {
@@ -1093,6 +1212,9 @@ public static class UI
         // Flush any pending world-space rendering before drawing UI
         Render.SetCamera(_camera);
 
+        // Reset textbox tracking before draw pass
+        _textboxRenderedThisFrame = false;
+
         var elementIndex = 0;
         while (elementIndex < _elementCount)
             elementIndex = DrawElement(elementIndex, false);
@@ -1103,6 +1225,15 @@ public static class UI
             ref var p = ref _elements[pIdx];
             for (var idx = pIdx; idx < p.NextSiblingIndex;)
                 idx = DrawElement(idx, true);
+        }
+
+        // Hide textbox if it wasn't rendered this frame (element no longer exists)
+        if (_textboxVisible && !_textboxRenderedThisFrame)
+        {
+            Application.Platform.HideTextbox();
+            _textboxFocusId = 0;
+            _textboxFocusCanvasId = 0;
+            _textboxVisible = false;
         }
     }
 
@@ -1635,8 +1766,23 @@ public static class UI
         var mouse = _camera.ScreenToWorld(Input.MousePosition);
         var mouseLeftPressed = Input.WasButtonPressed(InputCode.MouseLeft);
         var buttonDown = Input.IsButtonDown(InputCode.MouseLeft);
-        var focusElementPressed = false;
 
+        // Update canvas world bounds and find hot canvas (topmost under mouse)
+        _hotCanvasId = ElementIdNone;
+        for (var c = 0; c < _activeCanvasCount; c++)
+        {
+            var canvasId = _activeCanvasIds[c];
+            ref var cs = ref _canvasStates[canvasId];
+            ref var canvasElement = ref _elements[cs.ElementIndex];
+            var pos = Vector2.Transform(Vector2.Zero, canvasElement.LocalToWorld);
+            cs.WorldBounds = new Rect(pos.X, pos.Y, canvasElement.Rect.Width, canvasElement.Rect.Height);
+
+            // Later canvases are on top, so last one containing mouse wins
+            if (cs.WorldBounds.Contains(mouse))
+                _hotCanvasId = canvasId;
+        }
+
+        // Handle popup close detection
         _closePopups = false;
         if (mouseLeftPressed && _popupCount > 0)
         {
@@ -1659,43 +1805,66 @@ public static class UI
             }
         }
 
-        // First pass: set flags for all elements
+        // Process each canvas independently for hover, but only hot canvas gets press/down
+        for (var c = 0; c < _activeCanvasCount; c++)
+        {
+            var canvasId = _activeCanvasIds[c];
+            var isHotCanvas = canvasId == _hotCanvasId;
+            ProcessCanvasInput(canvasId, mouse, mouseLeftPressed, buttonDown, isHotCanvas);
+        }
+
+        // Handle scrollable drag
+        HandleScrollableDrag(mouse, buttonDown, mouseLeftPressed);
+    }
+
+    private static void ProcessCanvasInput(byte canvasId, Vector2 mouse, bool mouseLeftPressed, bool buttonDown, bool isHotCanvas)
+    {
+        ref var cs = ref _canvasStates[canvasId];
+        if (cs.ElementStates == null) return;
+
+        var focusElementPressed = false;
+
+        // Iterate elements belonging to this canvas in reverse order (topmost first)
         for (var idx = _elementCount; idx > 0; idx--)
         {
             ref var e = ref _elements[idx - 1];
+            if (e.CanvasId != canvasId) continue;
             if (e.Id == ElementIdNone) continue;
 
-            ref var state = ref _elementStates[e.Id];
+            ref var state = ref cs.ElementStates[e.Id];
             state.Rect = e.Rect;
             var localMouse = Vector2.Transform(mouse, e.WorldToLocal);
             var mouseOver = new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse);
 
+            // HOVER: Independent per canvas - all canvases track hover
             if (mouseOver)
                 state.Flags |= ElementFlags.Hovered;
             else
                 state.Flags &= ~ElementFlags.Hovered;
 
-            if (mouseOver && mouseLeftPressed && !focusElementPressed)
+            // PRESSED: Only hot canvas receives press events
+            if (isHotCanvas && mouseOver && mouseLeftPressed && !focusElementPressed)
             {
                 state.Flags |= ElementFlags.Pressed;
-                if (e.Id != 0)
-                {
-                    focusElementPressed = true;
-                    _pendingFocusId = e.Id;
-                }
+                focusElementPressed = true;
+                _pendingFocusId = e.Id;
+                _pendingFocusCanvasId = canvasId;
             }
             else
             {
                 state.Flags &= ~ElementFlags.Pressed;
             }
 
-            if (mouseOver && buttonDown)
+            // DOWN: Only hot canvas
+            if (isHotCanvas && mouseOver && buttonDown)
                 state.Flags |= ElementFlags.Down;
             else
                 state.Flags &= ~ElementFlags.Down;
         }
+    }
 
-        // Handle scrollable drag
+    private static void HandleScrollableDrag(Vector2 mouse, bool buttonDown, bool mouseLeftPressed)
+    {
         if (!buttonDown)
         {
             _activeScrollId = ElementIdNone;
@@ -1708,9 +1877,11 @@ public static class UI
             for (var i = 0; i < _elementCount; i++)
             {
                 ref var e = ref _elements[i];
-                if (e.Type == ElementType.Scrollable && e.Id == _activeScrollId)
+                if (e.Type == ElementType.Scrollable && e.Id == _activeScrollId && e.CanvasId != ElementIdNone)
                 {
-                    ref var state = ref _elementStates[e.Id];
+                    ref var cs = ref _canvasStates[e.CanvasId];
+                    if (cs.ElementStates == null) continue;
+                    ref var state = ref cs.ElementStates[e.Id];
 
                     var newOffset = e.Data.Scrollable.Offset + deltaY;
                     var maxScroll = Math.Max(0, e.Data.Scrollable.ContentHeight - e.Rect.Height);
@@ -1727,9 +1898,11 @@ public static class UI
             for (var i = _elementCount; i > 0; i--)
             {
                 ref var e = ref _elements[i - 1];
-                if (e.Type == ElementType.Scrollable && e.Id != ElementIdNone)
+                if (e.Type == ElementType.Scrollable && e.Id != ElementIdNone && e.CanvasId == _hotCanvasId)
                 {
-                    ref var state = ref _elementStates[e.Id];
+                    ref var cs = ref _canvasStates[e.CanvasId];
+                    if (cs.ElementStates == null) continue;
+                    ref var state = ref cs.ElementStates[e.Id];
                     if ((state.Flags & ElementFlags.Pressed) != 0)
                     {
                         _activeScrollId = e.Id;
@@ -1831,7 +2004,8 @@ public static class UI
     private static void DrawTextBox(ref Element e)
     {
         ref var tb = ref e.Data.TextBox;
-        var isFocused = e.Id != 0 && _focusId == e.Id;
+        // Focus requires matching both element ID and canvas ID
+        var isFocused = e.Id != 0 && _focusId == e.Id && _focusCanvasId == e.CanvasId;
         var border = isFocused ? tb.FocusBorder : tb.Border;
 
         // Draw background
@@ -1851,9 +2025,12 @@ public static class UI
 
         var scaledFontSize = (int)(tb.FontSize * scale);
 
+        // Mark that this textbox was rendered this frame (for cleanup detection)
+        _textboxRenderedThisFrame = _textboxRenderedThisFrame || (_textboxFocusId == e.Id && _textboxFocusCanvasId == e.CanvasId);
+
         if (isFocused)
         {
-            if (_textboxFocusId != e.Id)
+            if (_textboxFocusId != e.Id || _textboxFocusCanvasId != e.CanvasId)
             {
                 // Focus just changed to this textbox
                 if (_textboxVisible)
@@ -1871,7 +2048,9 @@ public static class UI
                     Password = tb.Password
                 });
                 _textboxFocusId = e.Id;
+                _textboxFocusCanvasId = e.CanvasId;
                 _textboxVisible = true;
+                _textboxRenderedThisFrame = true;
                 _elementStates[e.Id].Text = initialText;
             }
             else
@@ -1885,11 +2064,12 @@ public static class UI
                     _elementStates[e.Id].Text = currentText;
             }
         }
-        else if (_textboxFocusId == e.Id)
+        else if (_textboxFocusId == e.Id && _textboxFocusCanvasId == e.CanvasId)
         {
             // Lost focus - hide textbox
             Application.Platform.HideTextbox();
             _textboxFocusId = 0;
+            _textboxFocusCanvasId = 0;
             _textboxVisible = false;
         }
     }

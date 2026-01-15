@@ -40,12 +40,6 @@ public struct CommandInputOptions
 
 public static class CommandPalette
 {
-    private const float Width = 600f;
-    private const float Height = 48f;
-    private const float Padding = 8f;
-    private const int FontSize = 24;
-    private const float BottomMargin = 160f;
-    private const byte CanvasId = 200;
     private const byte TextBoxId = 201;
 
     private static CommandHandler[]? _commands;
@@ -80,7 +74,7 @@ public static class CommandPalette
         Input.PushInputSet(_input);
         _popInput = true;
 
-        UI.SetFocus(TextBoxId);
+        UI.SetFocus(TextBoxId, EditorStyle.CanvasId.CommandPalette);
     }
 
     public static void End()
@@ -94,7 +88,7 @@ public static class CommandPalette
             _popInput = false;
         }
 
-        UI.SetFocus(0);
+        UI.ClearFocus();
 
         _enabled = false;
         _commands = null;
@@ -129,12 +123,11 @@ public static class CommandPalette
         if (_hideWhenEmpty && string.IsNullOrEmpty(_text))
             return;
 
-        UI.BeginCanvas(new CanvasStyle { Id = CanvasId });
+        UI.BeginCanvas(new CanvasStyle { Id = EditorStyle.CanvasId.CommandPalette });
         UI.BeginContainer(new ContainerStyle
         {
-            Width = Width,
+            Width = EditorStyle.CommandPalette.Width,
             Align = Align.Center,
-            //Margin = EdgeInsets.BottomOnly(BottomMargin),
             Padding = EdgeInsets.All(10),
             Color = Color.Red
         });
@@ -142,9 +135,8 @@ public static class CommandPalette
         UI.BeginColumn();
         UI.TextBox(ref _text, new TextBoxStyle
         {
-            Height = FontSize,
-            Padding = Padding,
-            FontSize = FontSize,
+            Height = EditorStyle.CommandPalette.Height,
+            FontSize = EditorStyle.CommandPalette.FontSize,
             BackgroundColor = EditorStyle.OverlayBackgroundColor,
             TextColor = EditorStyle.OverlayTextColor,
             Border = new BorderStyle { Radius = 10, Width = 2, Color = EditorStyle.OverlayBackgroundColor },
