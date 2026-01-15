@@ -20,7 +20,10 @@ public static class Workspace
         new() {Name="Frame Selected", Code=InputCode.KeyF, Action=FrameSelected},
         new() {Name="Save All Documents", Code=InputCode.KeyS, Ctrl=true, Action=DocumentManager.SaveAll},
         new() {Name="Toggle Grid", Code=InputCode.KeyQuote, Alt=true, Action=ToggleGrid },
-        new() {Name="Toggle Names", Code=InputCode.KeyN, Alt=true, Action=ToggleNames }
+        new() {Name="Toggle Names", Code=InputCode.KeyN, Alt=true, Action=ToggleNames },
+        new() {Name="Increase UI Scale", Code = InputCode.KeyEquals, Ctrl = true, Action = IncreaseUIScale },
+        new() {Name="Decrease UI Scale", Code = InputCode.KeyMinus, Ctrl = true, Action = DecreaseUIScale },
+        new() {Name="Reset UI Scale", Code = InputCode.Key0, Ctrl = true, Action = ResetUIScale }
     ];
     
     private const float ZoomMin = 0.01f;
@@ -46,19 +49,14 @@ public static class Workspace
     private static Vector2 _mousePosition;
     private static Vector2 _mouseWorldPosition;
     private static Vector2 _dragPosition;
-    private static Vector2 _dragWorldPosition;
     private static Vector2 _panPositionCamera;
-    private static Vector2 _dragDelta;
-    private static Vector2 _dragWorldDelta;
     private static bool _isDragging;
     private static bool _dragStarted;
     private static InputCode _dragButton;
     private static bool _clearSelectionOnRelease;
 
-    private static WorkspaceState _state = WorkspaceState.Default;
     private static Document? _activeDocument;
     private static DocumentEditor? _activeEditor;
-    private static int _selectedCount;
     private static Texture? _whiteTexture;
 
     public static Camera Camera => _camera;
@@ -70,37 +68,28 @@ public static class Workspace
     public static bool IsDragging => _isDragging;
     public static bool DragStarted => _dragStarted;
     public static InputCode DragButton => _dragButton;
-    public static Vector2 DragDelta => _dragDelta;
-    public static Vector2 DragWorldDelta => _dragWorldDelta;
-    public static float UserUIScale => _userUIScale;
-    public static WorkspaceState State => _state;
-    public static int SelectedCount => _selectedCount;
+    public static Vector2 DragDelta { get; private set; }
+    public static Vector2 DragWorldDelta { get; private set; }
+    public static Vector2 DragWorldPosition { get; private set; }
+    public static WorkspaceState State { get; private set; } = WorkspaceState.Default;
+    public static int SelectedCount { get; private set; }
+    public static Tool? ActiveTool { get; private set; }
 
     public static float GetUIScale() => Application.Platform.DisplayScale * _userUIScale;
 
-    public static Vector2Int GetRefSize()
-    {
-        var screenSize = Application.WindowSize;
-        var scale = GetUIScale();
-        return new Vector2Int(
-            (int)(screenSize.X / scale),
-            (int)(screenSize.Y / scale)
-        );
-    }
-
     public static void IncreaseUIScale()
     {
-        _userUIScale = Math.Clamp(_userUIScale + UIScaleStep, UIScaleMin, UIScaleMax);
+        UI.UserScale = Math.Clamp(UI.UserScale + UIScaleStep, UIScaleMin, UIScaleMax);
     }
 
     public static void DecreaseUIScale()
     {
-        _userUIScale = Math.Clamp(_userUIScale - UIScaleStep, UIScaleMin, UIScaleMax);
+        UI.UserScale = Math.Clamp(UI.UserScale - UIScaleStep, UIScaleMin, UIScaleMax);
     }
 
     public static void ResetUIScale()
     {
-        _userUIScale = 1f;
+        UI.UserScale = 1f;
     }
 
     public static void Init()
@@ -154,14 +143,19 @@ public static class Workspace
     public static void Update()
     {
         Shortcut.Update(Shortcuts);
-        
+
         UpdateCamera();
         UpdateMouse();
         UpdatePan();
         UpdateZoom();
 
-        if (_state == WorkspaceState.Default)
+        if (State == WorkspaceState.Default)
+        {
             UpdateDefaultState();
+            UpdateToolAutoStart();
+        }
+
+        ActiveTool?.Update();
 
         UpdateCulling();
 
@@ -180,8 +174,35 @@ public static class Workspace
         if (ShowNames)
             DrawNames();
 
+        ActiveTool?.Draw();
+
         if (Workspace.State == WorkspaceState.Edit && Workspace.ActiveEditor != null)
             Workspace.ActiveEditor.Update();
+    }
+
+    private static void UpdateToolAutoStart()
+    {
+        if (ActiveTool != null)
+            return;
+
+        if (_dragStarted && _dragButton == InputCode.MouseLeft)
+            BeginTool(new BoxSelectTool(CommitBoxSelect));
+    }
+
+    private static void CommitBoxSelect(Rect bounds)
+    {
+        if (!Input.IsShiftDown())
+            ClearSelection();
+
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.Loaded || !doc.PostLoaded)
+                continue;
+
+            var docBounds = doc.Bounds.Offset(doc.Position);
+            if (bounds.Intersects(docBounds))
+                SetSelected(doc, true);
+        }
     }
 
     public static void UpdateUI()
@@ -220,7 +241,9 @@ public static class Workspace
             {
                 Render.PushState();
                 Render.SetLayer(EditorLayer.Selection);
-                Gizmos.DrawBounds(doc);
+                Render.SetColor(EditorStyle.SelectionColor);
+                Render.SetTransform(doc.Transform);
+                Gizmos.DrawRect(doc, EditorStyle.WorkspaceBoundsThickness);
                 Render.PopState();
             }
 
@@ -232,15 +255,16 @@ public static class Workspace
 
     private static void DrawNames()
     {
-        if (EditorAssets.Fonts.Seguisb is not Font font || EditorAssets.Shaders.Text is not Shader textShader)
+        if (EditorAssets.Fonts.Seguisb is not Font font)
             return;
 
         Render.PushState();
         Render.SetLayer(EditorLayer.Names);
         Render.SetColor(EditorStyle.TextColor);
 
-        const float fontSize = 0.14f;
-        const float padding = 0.04f;
+        var scale = 1f / _zoom;
+        var fontSize = EditorStyle.WorkspaceNameFontSize * scale;
+        var padding = EditorStyle.WorkspaceNamePadding * scale;
 
         foreach (var doc in DocumentManager.Documents)
         {
@@ -250,8 +274,9 @@ public static class Workspace
             var bounds = doc.Bounds.Offset(doc.Position);
             var textSize = TextRender.Measure(doc.Name, font, fontSize);
             var textX = bounds.Center.X - textSize.X * 0.5f;
-            var textY = bounds.Y - textSize.Y - padding;
-            TextRender.Draw(doc.Name, font, fontSize, textX, textY);
+            var textY = bounds.Bottom + padding;
+            Render.SetTransform(Matrix3x2.CreateTranslation(textX, textY));
+            TextRender.Draw(doc.Name, font, fontSize);
         }
 
         Render.PopState();
@@ -281,7 +306,7 @@ public static class Workspace
 
     private static void UpdateCamera()
     {
-        var effectiveDpi = _dpi * _uiScale * _zoom;
+        var effectiveDpi = _dpi * _uiScale * _userUIScale * _zoom;
         var screenSize = Application.WindowSize;
         var worldWidth = screenSize.X / effectiveDpi;
         var worldHeight = screenSize.Y / effectiveDpi;
@@ -300,8 +325,8 @@ public static class Workspace
             return;
         }
         
-        _dragDelta = _mousePosition - _dragPosition;
-        _dragWorldDelta = _mouseWorldPosition - _dragWorldPosition;
+        DragDelta = _mousePosition - _dragPosition;
+        DragWorldDelta = _mouseWorldPosition - DragWorldPosition;
     }
     
     private static void UpdateMouse()
@@ -318,7 +343,7 @@ public static class Workspace
         if (Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.MouseRight))
         {
             _dragPosition = _mousePosition;
-            _dragWorldPosition = _mouseWorldPosition;
+            DragWorldPosition = _mouseWorldPosition;
         }
         else if (Input.IsButtonDown(InputCode.MouseLeft) &&
                  Vector2.Distance(_mousePosition, _dragPosition) >= DragMinDistance)
@@ -337,11 +362,11 @@ public static class Workspace
         if (!Input.IsButtonDown(button))
         {
             _dragPosition = _mousePosition;
-            _dragWorldPosition = _mouseWorldPosition;
+            DragWorldPosition = _mouseWorldPosition;
         }
 
-        _dragDelta = _mousePosition - _dragPosition;
-        _dragWorldDelta = _mouseWorldPosition - _dragWorldPosition;
+        DragDelta = _mousePosition - _dragPosition;
+        DragWorldDelta = _mouseWorldPosition - DragWorldPosition;
 
         _isDragging = true;
         _dragStarted = true;
@@ -364,7 +389,7 @@ public static class Workspace
 
         if (_isDragging && _dragButton == InputCode.MouseRight)
         {
-            var worldDelta = _camera.ScreenToWorld(_dragDelta) - _camera.ScreenToWorld(Vector2.Zero);
+            var worldDelta = _camera.ScreenToWorld(DragDelta) - _camera.ScreenToWorld(Vector2.Zero);
             _camera.Position = _panPositionCamera - worldDelta;
         }
     }
@@ -403,7 +428,7 @@ public static class Workspace
 
         var screenSize = Application.WindowSize;
         var targetWorldHeight = maxDimension * frameViewPercentage;
-        _zoom = Math.Clamp(screenSize.Y / (_dpi * _uiScale * targetWorldHeight), ZoomMin, ZoomMax);
+        _zoom = Math.Clamp(screenSize.Y / (_dpi * _uiScale * _userUIScale * targetWorldHeight), ZoomMin, ZoomMax);
 
         _camera.Position = center;
         UpdateCamera();
@@ -418,7 +443,7 @@ public static class Workspace
 
     public static void FrameSelected()
     {
-        if (_selectedCount == 0)
+        if (SelectedCount == 0)
             return;
 
         Rect? bounds = null;
@@ -458,7 +483,7 @@ public static class Workspace
     {
         foreach (var doc in DocumentManager.Documents)
             doc.IsSelected = false;
-        _selectedCount = 0;
+        SelectedCount = 0;
     }
 
     public static void SetSelected(Document doc, bool selected)
@@ -467,13 +492,13 @@ public static class Workspace
             return;
 
         doc.IsSelected = selected;
-        _selectedCount += selected ? 1 : -1;
+        SelectedCount += selected ? 1 : -1;
     }
 
     public static void ToggleSelected(Document doc)
     {
         doc.IsSelected = !doc.IsSelected;
-        _selectedCount += doc.IsSelected ? 1 : -1;
+        SelectedCount += doc.IsSelected ? 1 : -1;
     }
 
     public static Document? GetFirstSelected()
@@ -488,13 +513,13 @@ public static class Workspace
 
     private static void ToggleEdit()
     {
-        if (_state == WorkspaceState.Edit)
+        if (State == WorkspaceState.Edit)
         {
             EndEdit();
             return;
         }
 
-        if (_selectedCount != 1)
+        if (SelectedCount != 1)
             return;
 
         var doc = GetFirstSelected();
@@ -504,7 +529,7 @@ public static class Workspace
         _activeDocument = doc;
         _activeEditor = doc.Def.EditorFactory!(doc);
         doc.IsEditing = true;
-        _state = WorkspaceState.Edit;
+        State = WorkspaceState.Edit;
     }
 
     public static void EndEdit()
@@ -516,12 +541,39 @@ public static class Workspace
         _activeEditor = null;
         _activeDocument.IsEditing = false;
         _activeDocument = null;
-        _state = WorkspaceState.Default;
+        State = WorkspaceState.Default;
 
         DocumentManager.SaveAll();
     }
 
     public static DocumentEditor? ActiveEditor => _activeEditor;
+
+    public static void BeginTool(Tool tool)
+    {
+        if (ActiveTool != null)
+            return;
+
+        ActiveTool = tool;
+        ActiveTool.Begin();
+    }
+
+    public static void EndTool()
+    {
+        if (ActiveTool == null)
+            return;
+
+        ActiveTool.End();
+        ActiveTool = null;
+    }
+
+    public static void CancelTool()
+    {
+        if (ActiveTool == null)
+            return;
+
+        ActiveTool.Cancel();
+        ActiveTool = null;
+    }
 
     public static void UpdateDefaultState()
     {

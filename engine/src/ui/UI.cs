@@ -1658,11 +1658,11 @@ public static class UI
         if (_font == null || _textShader == null)
             return;
 
-        var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
         var text = new string(GetText(e.Data.Label.TextStart, e.Data.Label.TextLength));
 
         Render.SetColor(e.Data.Label.Color);
-        TextRender.Draw(text, _font, e.Data.Label.FontSize, pos.X, pos.Y);
+        Render.SetTransform(e.LocalToWorld);
+        TextRender.Draw(text, _font, e.Data.Label.FontSize);
     }
 
     private static void DrawImage(ref Element e)

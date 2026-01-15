@@ -93,6 +93,9 @@ public static class EditorStyle
 
     // Workspace
     public const float WorkspacePadding = 16f;
+    public const float WorkspaceBoundsThickness = 1.1f;
+    public const float WorkspaceNameFontSize = 0.24f;
+    public const float WorkspaceNamePadding = 0.04f;
 
     // Overlay
     public const int OverlayTextSize = 14;
@@ -176,3 +179,4 @@ public static class EditorStyle
         };
     }
 }
+

@@ -171,6 +171,7 @@ public static class Input
     public static bool WasButtonPressed(InputCode code) => CurrentInputSet?.WasButtonPressed(code) ?? false;
     public static bool WasButtonReleased(InputCode code) => CurrentInputSet?.WasButtonReleased(code) ?? false;
     public static float GetAxis(InputCode code) => CurrentInputSet?.GetAxis(code) ?? 0.0f;
+    public static void ConsumeButton(InputCode code) => CurrentInputSet?.ConsumeButton(code);
 
     public static bool IsShiftDown() => IsButtonDown(InputCode.KeyLeftShift) || IsButtonDown(InputCode.KeyRightShift);
     public static bool IsCtrlDown() => IsButtonDown(InputCode.KeyLeftCtrl) || IsButtonDown(InputCode.KeyRightCtrl);

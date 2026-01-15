@@ -8,8 +8,8 @@ namespace NoZ.Editor;
 
 public static class Grid
 {
-    private const float MaxAlpha = 0.6f;
-    private const float MaxPixelAlpha = 0.5f;
+    private const float MaxAlpha = 0.5f;
+    private const float MaxPixelAlpha = 0.4f;
     public static float SnapSpacing { get; private set; }
     public static bool IsPixelGridVisible { get; private set; }
     
@@ -62,7 +62,7 @@ public static class Grid
         DrawHorizontalLines(camera, world.CoarseSpacing);
         DrawVerticalLines(camera, world.CoarseSpacing);
 
-        Gizmos.SetColor(EditorStyle.GridColor.WithAlpha(world.FineAlpha));
+        Gizmos.SetColor(EditorStyle.GridColor.WithAlpha(world.FineAlpha * MaxAlpha));
         DrawHorizontalLines(camera, world.FineSpacing);
         DrawVerticalLines(camera, world.FineSpacing);
         Render.PopState();

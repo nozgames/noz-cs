@@ -15,26 +15,25 @@ public static class Gizmos
 
     public static void SetColor(Color color) => Render.SetColor(color);
     
-    public static void DrawBounds(Document doc, float expand = 0f)
+    public static void DrawRect(Document doc, float thickness = 1.0f)
     {
-        var bounds = doc.Bounds.Expand(expand).Offset(doc.Position);
-        DrawBounds(bounds);
+        DrawRect(doc.Bounds, thickness);
     }
 
-    public static void DrawBounds(Rect bounds)
+    public static void DrawRect(Rect rect, float thickness = 1.0f)
     {
-        var topLeft = new Vector2(bounds.Left, bounds.Top);
-        var topRight = new Vector2(bounds.Right, bounds.Top);
-        var bottomLeft = new Vector2(bounds.Left, bounds.Bottom);
-        var bottomRight = new Vector2(bounds.Right, bounds.Bottom);
+        var topLeft = new Vector2(rect.Left, rect.Top);
+        var topRight = new Vector2(rect.Right, rect.Top);
+        var bottomLeft = new Vector2(rect.Left, rect.Bottom);
+        var bottomRight = new Vector2(rect.Right, rect.Bottom);
 
-        DrawLine(topLeft, topRight);
-        DrawLine(topRight, bottomRight);
-        DrawLine(bottomRight, bottomLeft);
-        DrawLine(bottomLeft, topLeft);
+        DrawLine(topLeft, topRight, thickness, extendEnds: true);
+        DrawLine(topRight, bottomRight, thickness, extendEnds: true);
+        DrawLine(bottomRight, bottomLeft, thickness, extendEnds: true);
+        DrawLine(bottomLeft, topLeft, thickness, extendEnds: true);
     }
 
-    public static void DrawLine(Vector2 v0, Vector2 v1, float width = 1.0f)
+    public static void DrawLine(Vector2 v0, Vector2 v1, float width = 1.0f, bool extendEnds = false)
     {
         var delta = v1 - v0;
         var length = delta.Length();
@@ -45,10 +44,18 @@ public static class Gizmos
         var perp = new Vector2(-dir.Y, dir.X);
         var halfWidth = DefaultLineWidth * width * ZoomRefScale;
 
-        var p0 = v0 - perp * halfWidth;
-        var p1 = v0 + perp * halfWidth;
-        var p2 = v1 + perp * halfWidth;
-        var p3 = v1 - perp * halfWidth;
+        var start = v0;
+        var end = v1;
+        if (extendEnds)
+        {
+            start -= dir * halfWidth;
+            end += dir * halfWidth;
+        }
+
+        var p0 = start - perp * halfWidth;
+        var p1 = start + perp * halfWidth;
+        var p2 = end + perp * halfWidth;
+        var p3 = end - perp * halfWidth;
 
         Render.DrawQuad(p0, p1, p2, p3);
     }

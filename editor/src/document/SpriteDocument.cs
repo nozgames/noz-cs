@@ -205,7 +205,6 @@ public class SpriteDocument : Document
         if (size.X <= 0 || size.Y <= 0)
             return;
 
-        Render.SetLayer(64);
         Render.SetColor(new Color(200/255f, 200/255f, 200/255f, 1f));
         Render.DrawQuad(
             Position.X + Bounds.X,

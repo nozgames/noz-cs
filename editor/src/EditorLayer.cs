@@ -12,4 +12,5 @@ public static class EditorLayer
     public const int Gizmo = 1100;
     public const int Selection = 1200;
     public const int Names = 1300;
+    public const int Tool = 1400;
 }
