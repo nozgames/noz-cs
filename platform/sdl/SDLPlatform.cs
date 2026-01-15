@@ -73,6 +73,8 @@ public unsafe partial class SDLPlatform : IPlatform
             SetWindowIcon(config.IconPath);
 
         InitNativeTextInput();
+
+        SDL_StartTextInput(_window);
     }
 
     private void SetWindowIcon(string iconPath)
@@ -126,6 +128,8 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public void Shutdown()
     {
+        SDL_StopTextInput(_window);
+
         SDL_RemoveEventWatch(&ResizeEventWatch, nint.Zero);
         _instance = null;
         _resizeCallback = null;
@@ -182,6 +186,14 @@ public unsafe partial class SDLPlatform : IPlatform
                 var code = ScancodeToInputCode(evt.key.scancode);
                 if (code != InputCode.None)
                     OnEvent?.Invoke(PlatformEvent.KeyUp(code));
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_TEXT_INPUT:
+            {
+                var text = Marshal.PtrToStringUTF8((nint)evt.text.text);
+                if (!string.IsNullOrEmpty(text))
+                    OnEvent?.Invoke(PlatformEvent.TextInputEvent(text));
                 break;
             }
 

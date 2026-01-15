@@ -55,6 +55,7 @@ public static class EditorApplication
             return;
 
         EditorStyle.Init();
+        CommandPalette.Init();
         Workspace.Init();
         PaletteManager.Init(Config);
         UserSettings.Load();
@@ -63,8 +64,9 @@ public static class EditorApplication
     public static void Shutdown()
     {
         UserSettings.Save();
-        
+
         Workspace.Shutdown();
+        CommandPalette.Shutdown();
         EditorStyle.Shutdown();
         PaletteManager.Shutdown();
         Importer.Shutdown();
@@ -75,11 +77,13 @@ public static class EditorApplication
 
     public static void Update()
     {
+        CommandPalette.Update();
         Workspace.Update();
     }
 
     public static void UpdateUI()
     {
         Workspace.UpdateUI();
+        CommandPalette.UpdateUI();
     }
 }

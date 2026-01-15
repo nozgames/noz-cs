@@ -25,6 +25,8 @@ public class Camera
 
     public float Rotation { get; set; } = 0;
 
+    public bool FlipY { get; set; } = false;
+
     public Matrix3x2 ViewMatrix => _view;
     public Vector2Int ScreenSize => _screenSize;
     public Rect WorldBounds => _bounds;
@@ -52,9 +54,9 @@ public class Camera
 
     public void SetSize(Vector2 size) => SetSize(size.X, size.Y);
 
-    public void SetExtents(float left, float right, float bottom, float top)
+    public void SetExtents(Rect rect)
     {
-        _extents = new Vector4(left, right, bottom, top);
+        _extents = new Vector4(rect.X, rect.X + rect.Width, rect.Y, rect.Y + rect.Height);
     }
 
     public void SetUpdateFunc(Func<Camera, Vector2Int, Rect>? func)
@@ -153,9 +155,15 @@ public class Camera
         }
 
         // Convert to NDC (-1 to 1)
+        // When FlipY is true, screen Y=0 (top) maps to NDC Y=1
+        // When FlipY is false, screen Y=0 (top) maps to NDC Y=-1
+        float ndcY = FlipY
+            ? 1f - localPos.Y / viewportSize.Y * 2f
+            : localPos.Y / viewportSize.Y * 2f - 1f;
+
         Vector2 ndc = new(
             localPos.X / viewportSize.X * 2f - 1f,
-            localPos.Y / viewportSize.Y * 2f - 1f
+            ndcY
         );
 
         // Transform by inverse view matrix
@@ -181,9 +189,15 @@ public class Camera
         }
 
         // Convert from NDC to screen
+        // When FlipY is true, NDC Y=1 is top of screen (screen Y=0)
+        // When FlipY is false, NDC Y=-1 is top of screen (screen Y=0)
+        float screenY = FlipY
+            ? (1f - ndc.Y) * 0.5f * viewportSize.Y + viewportOffset.Y
+            : (ndc.Y + 1f) * 0.5f * viewportSize.Y + viewportOffset.Y;
+
         return new Vector2(
             (ndc.X + 1f) * 0.5f * viewportSize.X + viewportOffset.X,
-            (ndc.Y + 1f) * 0.5f * viewportSize.Y + viewportOffset.Y
+            screenY
         );
     }
 
@@ -216,12 +230,12 @@ public class Camera
     {
         var zoomX = 2f / MathF.Abs(_bounds.Width);
         var zoomY = 2f / MathF.Abs(_bounds.Height);
+        if (FlipY) zoomY = -zoomY;
+
         var center = _bounds.Center;
         var c = MathF.Cos(Rotation);
         var s = MathF.Sin(Rotation);
 
-        // Matrix3x2 constructor: (m11, m12, m21, m22, m31, m32)
-        // Row 0: (c*zoomX, -s*zoomY)  Row 1: (s*zoomX, c*zoomY)  Row 2: (transX, transY)
         _view = new Matrix3x2(
             c * zoomX, -s * zoomY,
             s * zoomX, c * zoomY,

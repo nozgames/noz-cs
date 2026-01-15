@@ -27,6 +27,9 @@ internal static partial class User32
     public const int GWL_STYLE = -16;
     public const int GWLP_WNDPROC = -4;
     public const int WM_CHAR = 0x0102;
+    public const int WM_KEYDOWN = 0x0100;
+    public const int WM_KEYUP = 0x0101;
+    public const int WM_CTLCOLOREDIT = 0x0133;
     public const int VK_RETURN = 0x0D;
     public const int VK_ESCAPE = 0x1B;
     public const int VK_TAB = 0x09;
@@ -37,6 +40,8 @@ internal static partial class User32
     public const int CLEARTYPE_QUALITY = 5;
     public const int DEFAULT_PITCH = 0;
     public const int FF_DONTCARE = 0;
+
+    public delegate nint WndProc(nint hWnd, uint msg, nint wParam, nint lParam);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     public static partial nint CreateWindowExW(
@@ -169,6 +174,11 @@ public unsafe partial class SDLPlatform
     private uint _editTextColor;
     private uint _editBgColor;
     private string _editLastText = "";
+    private nint _editOriginalWndProc;
+    private nint _parentHwnd;
+    private nint _parentOriginalWndProc;
+    private User32.WndProc? _editWndProcDelegate;
+    private User32.WndProc? _parentWndProcDelegate;
 
     public bool IsTextboxVisible => _editVisible;
 
@@ -177,8 +187,8 @@ public unsafe partial class SDLPlatform
         if (!OperatingSystem.IsWindows()) return;
 
         var props = SDL_GetWindowProperties(_window);
-        var parentHwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nint.Zero);
-        if (parentHwnd == nint.Zero) return;
+        _parentHwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nint.Zero);
+        if (_parentHwnd == nint.Zero) return;
 
         var hInstance = User32.GetModuleHandleW(null);
 
@@ -188,7 +198,7 @@ public unsafe partial class SDLPlatform
             "",
             User32.WS_CHILD | User32.ES_AUTOHSCROLL | User32.ES_LEFT,
             0, 0, 100, 20,
-            parentHwnd,
+            _parentHwnd,
             nint.Zero,
             hInstance,
             nint.Zero
@@ -198,10 +208,79 @@ public unsafe partial class SDLPlatform
 
         User32.SendMessageW(_editHwnd, User32.EM_SETMARGINS,
             User32.EC_LEFTMARGIN | User32.EC_RIGHTMARGIN, 0);
+
+        // Subclass the edit control to intercept Enter/Escape/Tab
+        _editWndProcDelegate = EditSubclassProc;
+        _editOriginalWndProc = User32.SetWindowLongPtrW(_editHwnd, User32.GWLP_WNDPROC,
+            Marshal.GetFunctionPointerForDelegate(_editWndProcDelegate));
+
+        // Subclass the parent window to handle WM_CTLCOLOREDIT
+        _parentWndProcDelegate = ParentSubclassProc;
+        _parentOriginalWndProc = User32.SetWindowLongPtrW(_parentHwnd, User32.GWLP_WNDPROC,
+            Marshal.GetFunctionPointerForDelegate(_parentWndProcDelegate));
+    }
+
+    private nint EditSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam)
+    {
+        // Intercept Enter/Escape/Tab key events and forward them to SDL
+        if (wParam == User32.VK_RETURN || wParam == User32.VK_ESCAPE || wParam == User32.VK_TAB)
+        {
+            if (msg == User32.WM_CHAR)
+                return 0;
+
+            if (msg == User32.WM_KEYDOWN || msg == User32.WM_KEYUP)
+            {
+                var code = wParam switch
+                {
+                    User32.VK_RETURN => InputCode.KeyEnter,
+                    User32.VK_ESCAPE => InputCode.KeyEscape,
+                    User32.VK_TAB => InputCode.KeyTab,
+                    _ => InputCode.None
+                };
+
+                if (code != InputCode.None)
+                {
+                    var evt = msg == User32.WM_KEYDOWN
+                        ? PlatformEvent.KeyDown(code)
+                        : PlatformEvent.KeyUp(code);
+                    OnEvent?.Invoke(evt);
+                }
+                return 0;
+            }
+        }
+
+        return User32.CallWindowProcW(_editOriginalWndProc, hWnd, msg, wParam, lParam);
+    }
+
+    private nint ParentSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam)
+    {
+        // Handle WM_CTLCOLOREDIT to set custom colors
+        if (msg == User32.WM_CTLCOLOREDIT && lParam == _editHwnd)
+        {
+            var hdc = wParam;
+            User32.SetTextColor(hdc, _editTextColor);
+            User32.SetBkColor(hdc, _editBgColor);
+            return _editBgBrush;
+        }
+
+        return User32.CallWindowProcW(_parentOriginalWndProc, hWnd, msg, wParam, lParam);
     }
 
     private void ShutdownNativeTextInput()
     {
+        // Restore original WndProcs before destroying windows
+        if (_editHwnd != nint.Zero && _editOriginalWndProc != nint.Zero)
+        {
+            User32.SetWindowLongPtrW(_editHwnd, User32.GWLP_WNDPROC, _editOriginalWndProc);
+            _editOriginalWndProc = nint.Zero;
+        }
+
+        if (_parentHwnd != nint.Zero && _parentOriginalWndProc != nint.Zero)
+        {
+            User32.SetWindowLongPtrW(_parentHwnd, User32.GWLP_WNDPROC, _parentOriginalWndProc);
+            _parentOriginalWndProc = nint.Zero;
+        }
+
         if (_editHwnd != nint.Zero)
         {
             User32.DestroyWindow(_editHwnd);
@@ -219,6 +298,9 @@ public unsafe partial class SDLPlatform
             User32.DeleteObject(_editBgBrush);
             _editBgBrush = nint.Zero;
         }
+
+        _editWndProcDelegate = null;
+        _parentWndProcDelegate = null;
     }
 
     public void ShowTextbox(Rect rect, string text, NativeTextboxStyle style)

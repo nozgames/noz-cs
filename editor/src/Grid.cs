@@ -28,13 +28,7 @@ public static class Grid
             pixelGridAlpha = MathF.Min((screenPixelsPerWorldPixel - 8f) / 32f, 1f) * MaxPixelAlpha;
 
         IsPixelGridVisible = pixelGridAlpha > float.Epsilon;
-
-        if (IsPixelGridVisible)
-            SnapSpacing = pixelSize;
-        else
-            SnapSpacing = world.FineSpacing * 0.5f;
-        
-        SnapSpacing = IsPixelGridVisible ? pixelSize : world.FineSpacing;
+        SnapSpacing = IsPixelGridVisible ? pixelSize : world.FineSpacing * 0.5f;
 
         DrawZeroLines(camera, EditorStyle.GridColor);
         

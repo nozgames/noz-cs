@@ -18,13 +18,31 @@ public static class Workspace
     [
         new() {Name="Toggle Edit Mode", Code=InputCode.KeyTab, Action=ToggleEdit},
         new() {Name="Frame Selected", Code=InputCode.KeyF, Action=FrameSelected},
+        new() {Name="Move Selected", Code=InputCode.KeyG, Action=BeginMoveTool},
         new() {Name="Save All Documents", Code=InputCode.KeyS, Ctrl=true, Action=DocumentManager.SaveAll},
         new() {Name="Toggle Grid", Code=InputCode.KeyQuote, Alt=true, Action=ToggleGrid },
         new() {Name="Toggle Names", Code=InputCode.KeyN, Alt=true, Action=ToggleNames },
         new() {Name="Increase UI Scale", Code = InputCode.KeyEquals, Ctrl = true, Action = IncreaseUIScale },
         new() {Name="Decrease UI Scale", Code = InputCode.KeyMinus, Ctrl = true, Action = DecreaseUIScale },
-        new() {Name="Reset UI Scale", Code = InputCode.Key0, Ctrl = true, Action = ResetUIScale }
+        new() {Name="Reset UI Scale", Code = InputCode.Key0, Ctrl = true, Action = ResetUIScale },
+        new() {Name="Command Palette", Code=InputCode.KeyP, Ctrl = true, Shift=true, Action=OpenCommandPalette }
     ];
+
+    private static readonly CommandHandler[] Commands =
+    [
+        new() { ShortName = "s", Name = "save", Handler = _ => DocumentManager.SaveAll() },
+        new() { ShortName = "b", Name = "build", Handler = _ => RebuildAll() },
+        new() { ShortName = "g", Name = "grid", Handler = _ => ToggleGrid() },
+        new() { ShortName = "n", Name = "names", Handler = _ => ToggleNames() },
+        new() { ShortName = "f", Name = "frame", Handler = _ => FrameSelected() },
+        new() { ShortName = "o", Name = "origin", Handler = _ => FrameOrigin() }
+    ];
+
+    private static void RebuildAll()
+    {
+        foreach (var doc in DocumentManager.Documents)
+            Importer.QueueImport(doc, true);
+    }
     
     private const float ZoomMin = 0.01f;
     private const float ZoomMax = 200f;
@@ -142,20 +160,23 @@ public static class Workspace
     
     public static void Update()
     {
-        Shortcut.Update(Shortcuts);
-
-        UpdateCamera();
-        UpdateMouse();
-        UpdatePan();
-        UpdateZoom();
-
-        if (State == WorkspaceState.Default)
+        if (!CommandPalette.IsEnabled)
         {
-            UpdateDefaultState();
-            UpdateToolAutoStart();
-        }
+            Shortcut.Update(Shortcuts);
 
-        ActiveTool?.Update();
+            UpdateCamera();
+            UpdateMouse();
+            UpdatePan();
+            UpdateZoom();
+
+            if (State == WorkspaceState.Default)
+            {
+                UpdateDefaultState();
+                UpdateToolAutoStart();
+            }
+
+            ActiveTool?.Update();
+        }
 
         UpdateCulling();
 
@@ -282,6 +303,29 @@ public static class Workspace
         Render.PopState();
     }
 
+    private static void BeginMoveTool()
+    {
+        if (SelectedCount == 0 || ActiveTool != null || State != WorkspaceState.Default)
+            return;
+
+        _dragPosition = _mousePosition;
+        DragWorldPosition = _mouseWorldPosition;
+        BeginTool(new MoveTool());
+    }
+
+    private static void OpenCommandPalette()
+    {
+        if (CommandPalette.IsEnabled)
+            return;
+
+        CommandPalette.Begin(new CommandInputOptions
+        {
+            Commands = Commands,
+            Prefix = ":",
+            Placeholder = "Enter command..."
+        });
+    }
+
     private static void ToggleGrid()
     {
         _showGrid = !_showGrid;
@@ -313,7 +357,7 @@ public static class Workspace
         var halfWidth = worldWidth * 0.5f;
         var halfHeight = worldHeight * 0.5f;
 
-        _camera.SetExtents(-halfWidth, halfWidth, -halfHeight, halfHeight);
+        _camera.SetExtents(new Rect(-halfWidth, -halfHeight, worldWidth, worldHeight));
         _camera.Update();
     }
 

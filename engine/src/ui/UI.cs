@@ -5,6 +5,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using NoZ.Platform;
 
 namespace NoZ;
 
@@ -253,6 +254,36 @@ public struct PopupData
     };
 }
 
+public struct TextBoxData
+{
+    public float Height;
+    public float Padding;
+    public int FontSize;
+    public Color BackgroundColor;
+    public Color TextColor;
+    public Color PlaceholderColor;
+    public BorderStyle Border;
+    public BorderStyle FocusBorder;
+    public bool Password;
+    public int TextStart;
+    public int TextLength;
+
+    public static TextBoxData Default => new()
+    {
+        Height = 28f,
+        Padding = 4f,
+        FontSize = 16,
+        BackgroundColor = new Color(0.22f, 0.22f, 0.22f, 1f),
+        TextColor = Color.White,
+        PlaceholderColor = new Color(0.4f, 0.4f, 0.4f, 1f),
+        Border = BorderStyle.None,
+        FocusBorder = BorderStyle.None,
+        Password = false,
+        TextStart = 0,
+        TextLength = 0
+    };
+}
+
 public struct SpacerData
 {
     public Vector2 Size;
@@ -289,6 +320,7 @@ public struct ElementData
     [FieldOffset(0)] public PopupData Popup;
     [FieldOffset(0)] public SpacerData Spacer;
     [FieldOffset(0)] public CanvasData Canvas;
+    [FieldOffset(0)] public TextBoxData TextBox;
 }
 
 public struct Element
@@ -415,6 +447,35 @@ public struct CanvasStyle()
     };
 }
 
+public struct TextBoxStyle()
+{
+    public float Height = 28f;
+    public float Padding = 4f;
+    public int FontSize = 16;
+    public Color BackgroundColor = new(0.22f, 0.22f, 0.22f, 1f);
+    public Color TextColor = Color.White;
+    public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
+    public BorderStyle Border = BorderStyle.None;
+    public BorderStyle FocusBorder = BorderStyle.None;
+    public bool Password = false;
+    public byte Id = 0;
+
+    public TextBoxData ToData() => new()
+    {
+        Height = Height,
+        Padding = Padding,
+        FontSize = FontSize,
+        BackgroundColor = BackgroundColor,
+        TextColor = TextColor,
+        PlaceholderColor = PlaceholderColor,
+        Border = Border,
+        FocusBorder = FocusBorder,
+        Password = Password,
+        TextStart = 0,
+        TextLength = 0
+    };
+}
+
 public static class UI
 {
     private const int MaxElements = 4096;
@@ -461,6 +522,7 @@ public static class UI
         public int Index;
         public float ScrollOffset;
         public Rect Rect;
+        public string Text;
     }
 
     // Element storage
@@ -482,6 +544,8 @@ public static class UI
     private static byte _activeScrollId;
     private static float _lastScrollMouseY;
     private static bool _closePopups;
+    private static byte _textboxFocusId;
+    private static bool _textboxVisible;
     public static Vector2 Size => _orthoSize;
 
     public static float UserScale { get; set; } = 1.0f;
@@ -501,7 +565,7 @@ public static class UI
     public static void Init(UIConfig? config = null)
     {
         Config = config ?? new UIConfig();
-        _camera = new Camera();
+        _camera = new Camera { FlipY = true };
     }
 
     internal static void ResolveAssets()
@@ -696,7 +760,7 @@ public static class UI
             _orthoSize.Y = sh;
         }
 
-        _camera.SetExtents(0, _orthoSize.X, 0, _orthoSize.Y);
+        _camera.SetExtents(new Rect(0, 0, _orthoSize.X, _orthoSize.Y));
         _camera.Update();
 
         SetFocus(_pendingFocusId);
@@ -712,7 +776,14 @@ public static class UI
 
     public static void EndCanvas() => EndElement(ElementType.Canvas);
 
-    public static void BeginContainer(ContainerStyle style = default)
+    public static void BeginContainer()
+    {
+        ref var e = ref CreateElement(ElementType.Container);
+        e.Data.Container = ContainerData.Default;
+        PushElement(e.Index);
+    }
+
+    public static void BeginContainer(ContainerStyle style)
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = style.ToData();
@@ -722,13 +793,26 @@ public static class UI
 
     public static void EndContainer() => EndElement(ElementType.Container);
 
-    public static void Container(ContainerStyle style = default)
+    public static void Container()
+    {
+        BeginContainer();
+        EndContainer();
+    }
+
+    public static void Container(ContainerStyle style)
     {
         BeginContainer(style);
         EndContainer();
     }
 
-    public static void BeginColumn(ContainerStyle style = default)
+    public static void BeginColumn()
+    {
+        ref var e = ref CreateElement(ElementType.Column);
+        e.Data.Container = ContainerData.Default;
+        PushElement(e.Index);
+    }
+
+    public static void BeginColumn(ContainerStyle style)
     {
         ref var e = ref CreateElement(ElementType.Column);
         e.Data.Container = style.ToData();
@@ -737,7 +821,14 @@ public static class UI
 
     public static void EndColumn() => EndElement(ElementType.Column);
 
-    public static void BeginRow(ContainerStyle style = default)
+    public static void BeginRow()
+    {
+        ref var e = ref CreateElement(ElementType.Row);
+        e.Data.Container = ContainerData.Default;
+        PushElement(e.Index);
+    }
+
+    public static void BeginRow(ContainerStyle style)
     {
         ref var e = ref CreateElement(ElementType.Row);
         e.Data.Container = style.ToData();
@@ -949,6 +1040,37 @@ public static class UI
         };
     }
 
+    public static bool TextBox(ref string text, TextBoxStyle style = default)
+    {
+        ref var e = ref CreateElement(ElementType.TextBox);
+        var textStart = AddText(text);
+        e.Data.TextBox = style.ToData();
+        e.Data.TextBox.TextStart = textStart;
+        e.Data.TextBox.TextLength = text.Length;
+        SetId(ref e, style.Id);
+
+        var textChanged = false;
+        var isFocused = _focusId != 0 && style.Id == _focusId;
+
+        if (isFocused && style.Id != 0)
+        {
+            ref var state = ref _elementStates[style.Id];
+            if (state.Text != null && state.Text != text)
+            {
+                text = state.Text;
+                textChanged = true;
+            }
+        }
+
+        return textChanged;
+    }
+
+    public static string GetTextBoxText(byte id)
+    {
+        if (id == 0) return string.Empty;
+        return _elementStates[id].Text ?? string.Empty;
+    }
+
     internal static void End()
     {
         // Measure pass
@@ -1017,6 +1139,10 @@ public static class UI
 
             case ElementType.Spacer:
                 e.MeasuredSize = e.Data.Spacer.Size;
+                break;
+
+            case ElementType.TextBox:
+                e.MeasuredSize = new Vector2(availableSize.X, e.Data.TextBox.Height);
                 break;
 
             case ElementType.Grid:
@@ -1300,6 +1426,11 @@ public static class UI
                 break;
 
             case ElementType.Spacer:
+                break;
+
+            case ElementType.TextBox:
+                e.Rect.Width = size.X;
+                e.Rect.Height = e.Data.TextBox.Height;
                 break;
 
             case ElementType.Grid:
@@ -1618,6 +1749,9 @@ public static class UI
         switch (e.Type)
         {
             case ElementType.Canvas:
+                DrawCanvas(ref e);
+                break;
+
             case ElementType.Container:
             case ElementType.Column:
             case ElementType.Row:
@@ -1632,6 +1766,10 @@ public static class UI
                 DrawImage(ref e);
                 break;
 
+            case ElementType.TextBox:
+                DrawTextBox(ref e);
+                break;
+
             case ElementType.Popup when !isPopup:
                 return e.NextSiblingIndex;
         }
@@ -1640,6 +1778,17 @@ public static class UI
             elementIndex = DrawElement(elementIndex, false);
 
         return elementIndex;
+    }
+
+    private static void DrawCanvas(ref Element e)
+    {
+        ref var style = ref e.Data.Canvas;
+        if (style.Color.IsTransparent)
+            return;
+
+        var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
+        Render.SetColor(style.Color);
+        Render.DrawQuad(pos.X, pos.Y, e.Rect.Width, e.Rect.Height);
     }
 
     private static void DrawContainer(ref Element e)
@@ -1677,6 +1826,72 @@ public static class UI
             pos.X, pos.Y, e.Rect.Width, e.Rect.Height,
             img.UV0.X, img.UV0.Y, img.UV1.X, img.UV1.Y
         );
+    }
+
+    private static void DrawTextBox(ref Element e)
+    {
+        ref var tb = ref e.Data.TextBox;
+        var isFocused = e.Id != 0 && _focusId == e.Id;
+        var border = isFocused ? tb.FocusBorder : tb.Border;
+
+        // Draw background
+        var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
+        Render.SetColor(tb.BackgroundColor);
+        Render.DrawQuad(pos.X, pos.Y, e.Rect.Width, e.Rect.Height);
+
+        // Convert UI coordinates to screen coordinates for the native textbox
+        var screenPos = _camera.WorldToScreen(pos);
+        var scale = GetUIScale();
+        var screenRect = new Rect(
+            screenPos.X,
+            screenPos.Y,
+            e.Rect.Width * scale,
+            e.Rect.Height * scale
+        );
+
+        var scaledFontSize = (int)(tb.FontSize * scale);
+
+        if (isFocused)
+        {
+            if (_textboxFocusId != e.Id)
+            {
+                // Focus just changed to this textbox
+                if (_textboxVisible)
+                    Application.Platform.HideTextbox();
+
+                var initialText = e.Data.TextBox.TextLength > 0
+                    ? new string(GetText(e.Data.TextBox.TextStart, e.Data.TextBox.TextLength))
+                    : string.Empty;
+
+                Application.Platform.ShowTextbox(screenRect, initialText, new Platform.NativeTextboxStyle
+                {
+                    BackgroundColor = tb.BackgroundColor.ToColor32(),
+                    TextColor = tb.TextColor.ToColor32(),
+                    FontSize = scaledFontSize,
+                    Password = tb.Password
+                });
+                _textboxFocusId = e.Id;
+                _textboxVisible = true;
+                _elementStates[e.Id].Text = initialText;
+            }
+            else
+            {
+                // Update rect position
+                Application.Platform.UpdateTextboxRect(screenRect, scaledFontSize);
+
+                // Get updated text from native textbox
+                var currentText = _elementStates[e.Id].Text ?? string.Empty;
+                if (Application.Platform.UpdateTextboxText(ref currentText))
+                    _elementStates[e.Id].Text = currentText;
+            }
+        }
+        else if (_textboxFocusId == e.Id)
+        {
+            // Lost focus - hide textbox
+            Application.Platform.HideTextbox();
+            _textboxFocusId = 0;
+            _textboxVisible = false;
+        }
     }
 
     // Utility methods

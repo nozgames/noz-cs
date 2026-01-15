@@ -15,6 +15,7 @@ public static class Input
 
     private static float _scrollX;
     private static float _scrollY;
+    private static string _textInput = string.Empty;
 
     public static InputSet? CurrentInputSet => InputSetStack.Count > 0 ? InputSetStack.Peek() : null;
 
@@ -68,6 +69,7 @@ public static class Input
     {
         _scrollX = 0;
         _scrollY = 0;
+        _textInput = string.Empty;
     }
 
     public static void Update()
@@ -87,6 +89,11 @@ public static class Input
             case PlatformEventType.KeyUp:
                 if (evt.KeyCode != InputCode.None)
                     ButtonState[(int)evt.KeyCode] = false;
+                break;
+
+            case PlatformEventType.TextInput:
+                if (!string.IsNullOrEmpty(evt.Text))
+                    _textInput += evt.Text;
                 break;
 
             case PlatformEventType.MouseButtonDown:
@@ -177,6 +184,8 @@ public static class Input
     public static bool IsCtrlDown() => IsButtonDown(InputCode.KeyLeftCtrl) || IsButtonDown(InputCode.KeyRightCtrl);
     public static bool IsAltDown() => IsButtonDown(InputCode.KeyLeftAlt) || IsButtonDown(InputCode.KeyRightAlt);
     public static bool IsSuperDown() => IsButtonDown(InputCode.KeyLeftSuper) || IsButtonDown(InputCode.KeyRightSuper);
+
+    public static string GetTextInput() => _textInput;
 
     public static Vector2 MousePosition { get; private set; }
 }

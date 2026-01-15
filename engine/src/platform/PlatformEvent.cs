@@ -13,6 +13,9 @@ public struct PlatformEvent
     // Keyboard
     public InputCode KeyCode;
 
+    // Text Input
+    public string? Text;
+
     // Mouse
     public InputCode MouseButton;
     public Vector2 MousePosition;
@@ -31,6 +34,7 @@ public struct PlatformEvent
 
     public static PlatformEvent KeyDown(InputCode code) => new() { Type = PlatformEventType.KeyDown, KeyCode = code };
     public static PlatformEvent KeyUp(InputCode code) => new() { Type = PlatformEventType.KeyUp, KeyCode = code };
+    public static PlatformEvent TextInputEvent(string text) => new() { Type = PlatformEventType.TextInput, Text = text };
 
     public static PlatformEvent MouseDown(InputCode button, int clickCount = 1) => new() { Type = PlatformEventType.MouseButtonDown, MouseButton = button, ClickCount = clickCount };
     public static PlatformEvent MouseUp(InputCode button) => new() { Type = PlatformEventType.MouseButtonUp, MouseButton = button };

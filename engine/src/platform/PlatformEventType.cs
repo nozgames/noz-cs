@@ -11,6 +11,7 @@ public enum PlatformEventType
     // Keyboard
     KeyDown,
     KeyUp,
+    TextInput,
 
     // Mouse
     MouseButtonDown,
