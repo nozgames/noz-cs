@@ -14,36 +14,33 @@ public enum WorkspaceState
 
 public static class Workspace
 {
-    private static readonly Shortcut[] Shortcuts =
-    [
-        new() {Name="Toggle Edit Mode", Code=InputCode.KeyTab, Action=ToggleEdit},
-        new() {Name="Frame Selected", Code=InputCode.KeyF, Action=FrameSelected},
-        new() {Name="Move Selected", Code=InputCode.KeyG, Action=BeginMoveTool},
-        new() {Name="Save All Documents", Code=InputCode.KeyS, Ctrl=true, Action=DocumentManager.SaveAll},
-        new() {Name="Toggle Grid", Code=InputCode.KeyQuote, Alt=true, Action=ToggleGrid },
-        new() {Name="Toggle Names", Code=InputCode.KeyN, Alt=true, Action=ToggleNames },
-        new() {Name="Increase UI Scale", Code = InputCode.KeyEquals, Ctrl = true, Action = IncreaseUIScale },
-        new() {Name="Decrease UI Scale", Code = InputCode.KeyMinus, Ctrl = true, Action = DecreaseUIScale },
-        new() {Name="Reset UI Scale", Code = InputCode.Key0, Ctrl = true, Action = ResetUIScale },
-        new() {Name="Command Palette", Code=InputCode.KeyP, Ctrl = true, Shift=true, Action=OpenCommandPalette }
-    ];
-
-    private static readonly CommandHandler[] Commands =
-    [
-        new() { ShortName = "s", Name = "save", Handler = _ => DocumentManager.SaveAll() },
-        new() { ShortName = "b", Name = "build", Handler = _ => RebuildAll() },
-        new() { ShortName = "g", Name = "grid", Handler = _ => ToggleGrid() },
-        new() { ShortName = "n", Name = "names", Handler = _ => ToggleNames() },
-        new() { ShortName = "f", Name = "frame", Handler = _ => FrameSelected() },
-        new() { ShortName = "o", Name = "origin", Handler = _ => FrameOrigin() }
-    ];
-
     private static void RebuildAll()
     {
         foreach (var doc in DocumentManager.Documents)
             Importer.QueueImport(doc, true);
     }
-    
+
+    private static void RegisterCommands()
+    {
+        CommandManager.RegisterCommon([
+            new Command { Name = "Save All", ShortName = "save", Handler = DocumentManager.SaveAll, Key = InputCode.KeyS, Ctrl = true },
+            new Command { Name = "Increase UI Scale", ShortName = "ui+", Handler = IncreaseUIScale, Key = InputCode.KeyEquals, Ctrl = true },
+            new Command { Name = "Decrease UI Scale", ShortName = "ui-", Handler = DecreaseUIScale, Key = InputCode.KeyMinus, Ctrl = true },
+            new Command { Name = "Reset UI Scale", ShortName = "ui0", Handler = ResetUIScale, Key = InputCode.Key0, Ctrl = true },
+            new Command { Name = "Command Palette", ShortName = "palette", Handler = OpenCommandPalette, Key = InputCode.KeyP, Ctrl = true, Shift = true },
+            new Command { Name = "Toggle Edit Mode", ShortName = "edit", Handler = ToggleEdit, Key = InputCode.KeyTab }
+        ]);
+
+        CommandManager.RegisterWorkspace([
+            new Command { Name = "Frame Selected", ShortName = "frame", Handler = FrameSelected, Key = InputCode.KeyF },
+            new Command { Name = "Move Selected", ShortName = "move", Handler = BeginMoveTool, Key = InputCode.KeyG },
+            new Command { Name = "Toggle Grid", ShortName = "grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Alt = true },
+            new Command { Name = "Toggle Names", ShortName = "names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
+            new Command { Name = "Rebuild All", ShortName = "build", Handler = RebuildAll },
+            new Command { Name = "Frame Selected", ShortName = "origin", Handler = FrameOrigin }
+        ]);
+    }
+
     private const float ZoomMin = 0.01f;
     private const float ZoomMax = 200f;
     private const float ZoomStep = 0.1f;
@@ -121,6 +118,7 @@ public static class Workspace
         _input = new InputSet("Workspace");
         Input.PushInputSet(_input);
 
+        RegisterCommands();
         UpdateCamera();
 
         Render.ClearColor = EditorStyle.WorkspaceColor;
@@ -162,7 +160,7 @@ public static class Workspace
     {
         if (!CommandPalette.IsEnabled)
         {
-            Shortcut.Update(Shortcuts);
+            CommandManager.ProcessShortcuts();
 
             UpdateCamera();
             UpdateMouse();
@@ -320,7 +318,6 @@ public static class Workspace
 
         CommandPalette.Begin(new CommandInputOptions
         {
-            Commands = Commands,
             Prefix = ":",
             Placeholder = "Enter command..."
         });
@@ -574,12 +571,16 @@ public static class Workspace
         _activeEditor = doc.Def.EditorFactory!(doc);
         doc.IsEditing = true;
         State = WorkspaceState.Edit;
+
+        CommandManager.RegisterEditor(_activeEditor.GetCommands());
     }
 
     public static void EndEdit()
     {
         if (_activeDocument == null)
             return;
+
+        CommandManager.RegisterEditor(null);
 
         _activeEditor?.Dispose();
         _activeEditor = null;

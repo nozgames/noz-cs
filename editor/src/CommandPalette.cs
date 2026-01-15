@@ -4,7 +4,19 @@
 
 namespace NoZ.Editor;
 
-public readonly struct Command
+public class Command
+{
+    public required string Name { get; init; }
+    public required string ShortName { get; init; }
+    public required Action Handler { get; init; }
+
+    public InputCode Key { get; init; } = InputCode.None;
+    public bool Ctrl { get; init; }
+    public bool Alt { get; init; }
+    public bool Shift { get; init; }
+}
+
+public readonly struct ParsedCommand
 {
     public const int MaxArgs = 4;
     public const int MaxArgSize = 128;
@@ -12,7 +24,7 @@ public readonly struct Command
     public readonly string Name;
     public readonly string[] Args;
 
-    public Command(string name, string[] args)
+    public ParsedCommand(string name, string[] args)
     {
         Name = name;
         Args = args;
@@ -22,16 +34,8 @@ public readonly struct Command
     public int ArgCount => Args.Length;
 }
 
-public class CommandHandler
-{
-    public required string ShortName { get; init; }
-    public required string Name { get; init; }
-    public required Action<Command> Handler { get; init; }
-}
-
 public struct CommandInputOptions
 {
-    public CommandHandler[]? Commands;
     public string? Prefix;
     public string? Placeholder;
     public string? InitialText;
@@ -42,7 +46,6 @@ public static class CommandPalette
 {
     private const byte TextBoxId = 201;
 
-    private static CommandHandler[]? _commands;
     private static string? _prefix;
     private static string? _placeholder;
     private static bool _hideWhenEmpty;
@@ -65,7 +68,6 @@ public static class CommandPalette
     public static void Begin(CommandInputOptions options)
     {
         _enabled = true;
-        _commands = options.Commands;
         _prefix = options.Prefix;
         _placeholder = options.Placeholder;
         _hideWhenEmpty = options.HideWhenEmpty;
@@ -91,7 +93,6 @@ public static class CommandPalette
         UI.ClearFocus();
 
         _enabled = false;
-        _commands = null;
         _prefix = null;
         _placeholder = null;
         _text = string.Empty;
@@ -151,47 +152,29 @@ public static class CommandPalette
 
     private static void ExecuteCommand()
     {
-        if (string.IsNullOrWhiteSpace(_text) || _commands == null)
+        if (string.IsNullOrWhiteSpace(_text))
             return;
 
-        var command = ParseCommand(_text);
-        if (command.Name == null)
+        var parsed = ParseCommand(_text);
+        if (string.IsNullOrEmpty(parsed.Name))
             return;
 
-        var handler = FindHandler(command.Name);
-        if (handler != null)
-            handler.Handler(command);
+        var command = CommandManager.FindCommand(parsed.Name);
+        if (command != null)
+            command.Handler();
         else
-            Log.Error($"Unknown command: {command.Name}");
+            Log.Error($"Unknown command: {parsed.Name}");
     }
 
-    private static Command ParseCommand(string input)
+    private static ParsedCommand ParseCommand(string input)
     {
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
-            return new Command(string.Empty, []);
+            return new ParsedCommand(string.Empty, []);
 
         var name = parts[0].ToLowerInvariant();
         var args = parts.Length > 1 ? parts[1..] : [];
 
-        return new Command(name, args);
-    }
-
-    private static CommandHandler? FindHandler(string name)
-    {
-        if (_commands == null)
-            return null;
-
-        foreach (var cmd in _commands)
-        {
-            if (string.IsNullOrEmpty(cmd.Name))
-                continue;
-
-            if (string.Equals(cmd.Name, name, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(cmd.ShortName, name, StringComparison.OrdinalIgnoreCase))
-                return cmd;
-        }
-
-        return null;
+        return new ParsedCommand(name, args);
     }
 }

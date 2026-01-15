@@ -16,8 +16,6 @@ public enum SpriteEditorTool
 
 public class SpriteEditor : DocumentEditor
 {
-    private readonly Shortcut[] Shortcuts;
-    
     private const int RasterTextureSize = 256;
 
     public new SpriteDocument Document => (SpriteDocument)base.Document;
@@ -32,16 +30,24 @@ public class SpriteEditor : DocumentEditor
     private readonly Texture _rasterTexture;
     private bool _rasterDirty = true;
 
+    private readonly Command[] _commands;
+
     public SpriteEditor(SpriteDocument document) : base(document)
     {
         _rasterTexture = Texture.Create(RasterTextureSize, RasterTextureSize, _pixelData.AsBytes());
         Input.PushInputSet(_input, inheritState: true);
 
-        Shortcuts =
+        _commands =
         [
-            new Shortcut { Name = "Toggle Playback", Code = InputCode.KeySpace, Action = TogglePlayback },
+            new() { Name = "Toggle Playback", ShortName = "play", Handler = TogglePlayback, Key = InputCode.KeySpace },
+            new() { Name = "Previous Frame", ShortName = "prev", Handler = PreviousFrame, Key = InputCode.KeyQ },
+            new() { Name = "Next Frame", ShortName = "next", Handler = NextFrame, Key = InputCode.KeyE },
+            new() { Name = "Delete Selected", ShortName = "delete", Handler = DeleteSelected, Key = InputCode.KeyX },
+            new() { Name = "Toggle Edit Mode", ShortName = "fill", Handler = ToggleEditMode, Key = InputCode.KeyH }
         ];
     }
+
+    public override Command[]? GetCommands() => _commands;
 
     // Selection
     private byte _selectionColor;
@@ -88,8 +94,6 @@ public class SpriteEditor : DocumentEditor
 
     public override void Update()
     {
-        Shortcut.Update(Shortcuts);
-        
         UpdateAnimation();
         UpdateInput();
 
@@ -232,20 +236,8 @@ public class SpriteEditor : DocumentEditor
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeySpace))
-            TogglePlayback();
-
-        if (Input.WasButtonPressed(InputCode.KeyQ))
-            PreviousFrame();
-
-        if (Input.WasButtonPressed(InputCode.KeyE))
-            NextFrame();
-
-        if (Input.WasButtonPressed(InputCode.KeyX) || Input.WasButtonPressed(InputCode.KeyDelete))
+        if (Input.WasButtonPressed(InputCode.KeyDelete))
             DeleteSelected();
-
-        if (Input.WasButtonPressed(InputCode.KeyH))
-            ToggleEditMode();
 
         if (Input.WasButtonPressed(InputCode.MouseLeft))
             HandleLeftClick();

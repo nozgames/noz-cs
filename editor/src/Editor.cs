@@ -44,6 +44,7 @@ public static class EditorApplication
             return;
         }
 
+        AtlasManager.Init();
         DocumentManager.Init(Config.SourcePaths, Config.OutputPath);
         Importer.Init(clean);
         AssetManifest.Generate(Config);
