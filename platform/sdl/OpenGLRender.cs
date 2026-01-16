@@ -134,7 +134,6 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
 
     public void BeginFrame()
     {
-        _activeVertexFormat = 0;
     }
 
     public void EndFrame()
@@ -254,11 +253,7 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
     {
         var glBuffer = _buffers[(int)buffer];
         if (glBuffer == 0) return;
-
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, glBuffer);
-
-        // if (_activeVertexFormat != 0)
-        //     SetupVertexAttributes(_activeVertexFormat);
     }
 
     public void BindIndexBuffer(nuint buffer)
@@ -268,15 +263,10 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
         _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, glBuffer);
     }
 
-    // === Vertex Format Management ===
-
-    private nuint _activeVertexFormat;
-    //private readonly VertexFormatDescriptor[] _vertexFormatDescriptors = new VertexFormatDescriptor[MaxVertexFormats];
-
     public nuint CreateVertexFormat(in VertexFormatDescriptor descriptor)
     {
         var vao = _gl.GenVertexArray();
-
+        _gl.BindVertexArray(vao);
 
         foreach (var attr in descriptor.Attributes)
         {
@@ -311,12 +301,10 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
                     (void*)attr.Offset);
             }
         }
-        
-        //SetupVertexAttributes();
+
         
         var handle = _nextVertexFormatId++;
         _vertexFormats[handle] = (vao, descriptor.Stride);
-        //_vertexFormatDescriptors[handle] = descriptor;
         return (nuint)handle;
     }
 
@@ -335,56 +323,7 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
         ref var f = ref _vertexFormats[(int)format];
         if (f.vao == 0) return;
         _gl.BindVertexArray(f.vao);
-        //_activeVertexFormat = format;
     }
-
-    #if false
-    private void SetupVertexAttributes(nuint format)
-    {
-        ref var descriptor = ref _vertexFormatDescriptors[(int)format];
-        
-        foreach (var attr in descriptor.Attributes)
-        {
-            _gl.EnableVertexAttribArray((uint)attr.Location);
-
-            var glType = attr.Type switch
-            {
-                VertexAttribType.Float => VertexAttribPointerType.Float,
-                VertexAttribType.Int => VertexAttribPointerType.Int,
-                VertexAttribType.UByte => VertexAttribPointerType.UnsignedByte,
-                _ => VertexAttribPointerType.Float
-            };
-
-            if (attr.Type == VertexAttribType.Int)
-            {
-                var glIType = VertexAttribIType.Int;
-                _gl.VertexAttribIPointer(
-                    (uint)attr.Location,
-                    attr.Components,
-                    glIType,
-                    (uint)descriptor.Stride,
-                    (void*)attr.Offset);
-            }
-            else
-            {
-                _gl.VertexAttribPointer(
-                    (uint)attr.Location,
-                    attr.Components,
-                    glType,
-                    attr.Normalized,
-                    (uint)descriptor.Stride,
-                    (void*)attr.Offset);
-            }
-        }
-
-        for (var i = (uint)descriptor.Attributes.Length; i < _lastVertexAttributeCount; i++)
-            _gl.DisableVertexAttribArray(i);
-        
-        _lastVertexAttributeCount = descriptor.Attributes.Length;
-    }
-#endif
-
-    // === Texture Management ===
 
     public nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data, TextureFormat format = TextureFormat.RGBA8)
     {
@@ -856,8 +795,6 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
         _gl.Viewport(0, 0, (uint)_offscreenWidth, (uint)_offscreenHeight);
         _gl.ClearColor(clearColor.R, clearColor.G, clearColor.B, clearColor.A);
         _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
-
-        _activeVertexFormat = 0;
     }
 
     public void EndScenePass()
@@ -900,7 +837,5 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
 
         _gl.BindVertexArray(_fullscreenVao);
         _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
-
-        _activeVertexFormat = 0;
     }
 }

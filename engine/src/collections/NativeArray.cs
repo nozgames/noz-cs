@@ -10,7 +10,7 @@ namespace NoZ;
 public unsafe struct NativeArray<T>(int capacity) : IDisposable
     where T : unmanaged
 {
-    private T* _ptr = (T*)NativeMemory.Alloc((nuint)sizeof(T), (nuint)capacity);
+    private T* _ptr = (T*)NativeMemory.Alloc((nuint)(sizeof(T) * capacity));
     public int Length { get; private set; } = 0;
     public int Capacity { get; private set; } = capacity;
 
