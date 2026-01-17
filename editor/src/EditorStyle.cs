@@ -13,7 +13,7 @@ public class Style
 
     // Workspace
     public Color WorkspaceColor;
-    public Color GridColor;
+    public Color WorkspaceGridColor;
     public Color OverlayBackgroundColor;
     public Color OverlayTextColor;
     public Color OverlayAccentTextColor;
@@ -39,11 +39,22 @@ public class Style
     public Color ShapeAnchorOutlineColor;
     public Color ShapeSelectionColor;
     public Color ShapeHoverColor;
-    public Color ShapeEdgeColor;
+    public Color ShapeSegmentColor;
     
     // Box Select
     public Color BoxSelectLineColor;
     public Color BoxSelectFillColor;
+
+    // Control
+    public Color ControlTextColor;
+    public Color ControlBackgroundColor;
+    public Color ControlIconColor;
+
+    // List
+    public Color ListItemSelectedFillColor;
+    public Color ListItemSelectedTextColor;
+    public Color ListItemTextColor;
+    public Color ListHeaderTextColor;
 }
 
 public static class EditorStyle
@@ -106,6 +117,22 @@ public static class EditorStyle
     public const float ButtonBorderRadius = 8f;
 
     // Workspace
+
+    public static class Control
+    {
+        public static Color TextColor => _current.ControlTextColor;
+        public static Color IconColor => _current.ControlIconColor;
+        public static Color BackgroundColor => _current.ControlBackgroundColor;
+    }
+
+    public static class List
+    {
+        public static Color ItemSelectedFillColor => _current.ListItemSelectedFillColor;
+        public static Color ItemSelectedTextColor => _current.ListItemSelectedTextColor;
+        public static Color ItemTextColor => _current.ListItemTextColor;
+        public static Color HeaderTextColor => _current.ListHeaderTextColor;
+    }
+
     public static class Workspace
     {
         public static Color Color => _current.WorkspaceColor;
@@ -113,8 +140,8 @@ public static class EditorStyle
         public const float BoundsLineWidth = 0.03f;
         public const float NameSize = 0.24f;
         public const float NamePadding = 0.04f;
-        public static Color GridColor => _current.GridColor;
-        public const float GridAlpha = 0.2f;
+        public static Color GridColor => _current.WorkspaceGridColor;
+        public const float GridAlpha = 0.05f;
         public const float GridZeroAlpha = 0.4f;
     }
 
@@ -144,10 +171,10 @@ public static class EditorStyle
     {
         public static Color AnchorColor => _current.ShapeAnchorColor;
         public static Color AnchorOutlineColor => _current.ShapeAnchorOutlineColor;
-        public static Color SegmentColor => _current.ShapeEdgeColor;
+        public static Color SegmentColor => _current.ShapeSegmentColor;
         public const float AnchorSize = 0.18f;
         public const float AnchorSelectedSize = AnchorSize * 1.3f; 
-        public const float SegmentWidth = 0.01f;
+        public const float SegmentWidth = 0.02f;
         public const float SegmentHoverWidth = SegmentWidth * 2.0f;
     }
 
@@ -158,7 +185,7 @@ public static class EditorStyle
         public const float BorderRadius = 16f;
         public const int TextSize = 14;
         public const float ContentBorderRadius = 9f;
-        public static Color BackgroundColor => _current.OverlayBackgroundColor;
+        public static Color FillColor => _current.OverlayBackgroundColor;
         public static Color TextColor => _current.OverlayTextColor;
         public static Color AccentTextColor => _current.OverlayAccentTextColor;
         public static Color DisabledTextColor => _current.OverlayDisabledTextColor;
@@ -219,7 +246,7 @@ public static class EditorStyle
     private static Style CreateDarkStyle()
     {
         var selectionColor = Color.FromRgb(0x0099ff);
-        
+
         return new Style
         {
             BackgroundColor = Color.FromRgb(0x383838),
@@ -232,9 +259,11 @@ public static class EditorStyle
             ButtonCheckedTextColor = Color.FromRgb(0xf0f0f0),
             ButtonDisabledColor = Color.FromRgb(0x2a2a2a),
             ButtonDisabledTextColor = Color.FromRgb(0x636363),
+            
             WorkspaceColor = Color.FromRgb(0x1d1d1d),
-            GridColor = Color.FromRgb(0x3e3e3e),
-            OverlayBackgroundColor = Color.FromRgb(0x0e0e0e),
+            WorkspaceGridColor = new Color(128, 127, 128),
+
+            OverlayBackgroundColor = Color.FromRgb(0x111111),
             OverlayTextColor = Color.FromRgb(0x979797),
             OverlayAccentTextColor = Color.FromRgb(0xd2d2d2),
             OverlayDisabledTextColor = Color.FromRgb(0x4a4a4a),
@@ -242,13 +271,24 @@ public static class EditorStyle
             OverlayContentColor = Color.FromRgb(0x2a2a2a),
             ContextMenuSeparatorColor = Color.FromRgb(0x2a2a2a),
             ContextMenuTitleColor = Color.FromRgb(0x636363),
+
             ShapeAnchorColor = Color.White,
             ShapeAnchorOutlineColor = Color.FromRgb(0x0099ff),
             ShapeSelectionColor = selectionColor,
             ShapeHoverColor = selectionColor,
-            ShapeEdgeColor = Color.FromRgb(0x171717),
+            ShapeSegmentColor = Color.FromRgb(0x111111).WithAlpha(0.5f),
+
             BoxSelectLineColor = selectionColor,
-            BoxSelectFillColor = selectionColor.WithAlpha(0.15f)
+            BoxSelectFillColor = selectionColor.WithAlpha(0.15f),
+
+            ControlTextColor = Color.FromRgb(0xeeeeee),
+            ControlIconColor = Color.FromRgb(0x999999),
+            ControlBackgroundColor = Color.FromRgb(0x2b2b2b),
+
+            ListItemSelectedFillColor = Color.FromRgb(0x2b2b2b),
+            ListItemSelectedTextColor = Color.FromRgb(0xf4f4f4),
+            ListItemTextColor = Color.FromRgb(0x999999),
+            ListHeaderTextColor = Color.FromRgb(0x666666)
         };
     }
 }

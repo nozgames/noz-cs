@@ -2012,7 +2012,6 @@ public static class UI
         var useScissor = e.Type == ElementType.Scrollable;
         if (useScissor)
         {
-            // Flush pending UI draws before changing scissor state
             var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
             var screenPos = Camera.WorldToScreen(pos);
             var scale = Application.WindowSize.Y / _orthoSize.Y;
@@ -2024,7 +2023,7 @@ public static class UI
             var scissorW = (int)(e.Rect.Width * scale);
             var scissorH = (int)(e.Rect.Height * scale);
 
-            Render.Driver.SetScissor(scissorX, scissorY, scissorW, scissorH);
+            Render.SetScissor(scissorX, scissorY, scissorW, scissorH);
         }
 
         for (var i = 0; i < e.ChildCount; i++)
@@ -2032,7 +2031,7 @@ public static class UI
 
         if (useScissor)
         {
-            Render.Driver.DisableScissor();
+            Render.DisableScissor();
         }
 
         return elementIndex;

@@ -30,13 +30,13 @@ public static class Workspace
             new Command { Name = "Decrease UI Scale", ShortName = "ui-", Handler = DecreaseUIScale, Key = InputCode.KeyMinus, Ctrl = true },
             new Command { Name = "Reset UI Scale", ShortName = "ui0", Handler = ResetUIScale, Key = InputCode.Key0, Ctrl = true },
             new Command { Name = "Command Palette", ShortName = "palette", Handler = OpenCommandPalette, Key = InputCode.KeyP, Ctrl = true, Shift = true },
-            new Command { Name = "Toggle Edit Mode", ShortName = "edit", Handler = ToggleEdit, Key = InputCode.KeyTab }
+            new Command { Name = "Toggle Edit Mode", ShortName = "edit", Handler = ToggleEdit, Key = InputCode.KeyTab },
+            new Command { Name = "Toggle Grid", ShortName = "grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Ctrl = true },
         ]);
 
         CommandManager.RegisterWorkspace([
             new Command { Name = "Frame Selected", ShortName = "frame", Handler = FrameSelected, Key = InputCode.KeyF },
             new Command { Name = "Move Selected", ShortName = "move", Handler = BeginMoveTool, Key = InputCode.KeyG },
-            new Command { Name = "Toggle Grid", ShortName = "grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Ctrl = true },
             new Command { Name = "Toggle Names", ShortName = "names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
             new Command { Name = "Rebuild All", ShortName = "build", Handler = RebuildAll },
             new Command { Name = "Frame Selected", ShortName = "origin", Handler = FrameOrigin }

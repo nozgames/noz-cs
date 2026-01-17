@@ -163,10 +163,10 @@ public static class CommandPalette
             Height = EditorStyle.CommandPalette.Height,
             Align = Align.Center,
             Padding = EdgeInsets.All(EditorStyle.CommandPalette.Padding),
-            Color = EditorStyle.Overlay.BackgroundColor,
+            Color = EditorStyle.Overlay.FillColor,
             Border = new BorderStyle 
             { 
-                //Radius = EditorStyle.CommandPalette.BorderRadius
+                Radius = EditorStyle.CommandPalette.BorderRadius
             }
         });
 
@@ -213,15 +213,15 @@ public static class CommandPalette
             {
                 Height = EditorStyle.CommandPalette.ItemHeight,
                 Padding = EdgeInsets.LeftRight(EditorStyle.CommandPalette.ItemPadding),
-                Color = isSelected ? EditorStyle.SelectionColor : Color.Red,
-                //Border = new BorderStyle { Radius = 8 },
+                Color = isSelected ? EditorStyle.List.ItemSelectedFillColor: Color.Transparent,
+                Border = new BorderStyle { Radius = 8 },
                 Id = (byte)(i + 10)
             });
 
             UI.Label(cmd.Name, new LabelStyle
             {
                 FontSize = (int)EditorStyle.CommandPalette.ItemFontSize,
-                Color = isSelected ? EditorStyle.SelectionTextColor : EditorStyle.Overlay.TextColor,
+                Color = isSelected ? EditorStyle.List.ItemSelectedTextColor : EditorStyle.List.ItemTextColor,
                 Align = Align.CenterLeft
             });
 

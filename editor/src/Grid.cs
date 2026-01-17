@@ -34,7 +34,7 @@ public static class Grid
         {
             Render.PushState();
             Render.SetLayer(EditorLayer.Grid);
-            Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha));
+            Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha * EditorStyle.Workspace.GridAlpha));
             DrawHorizontalLines(camera, world.FineSpacing);
             DrawVerticalLines(camera, world.FineSpacing);
             Render.PopState();

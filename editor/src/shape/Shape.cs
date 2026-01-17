@@ -54,6 +54,7 @@ public sealed unsafe class Shape : IDisposable
     {
         None = 0,
         Selected = 1 << 0,
+        Focused = 1 << 1,
     }
 
     public struct Anchor
@@ -72,6 +73,9 @@ public sealed unsafe class Shape : IDisposable
         public ushort AnchorCount;
         public byte FillColor;
         public PathFlags Flags;
+
+        public bool IsSelected => (Flags & PathFlags.Selected) != 0;
+        public bool IsFocused => (Flags & PathFlags.Focused) != 0;
     }
 
     public Shape()
@@ -211,6 +215,9 @@ public sealed unsafe class Shape : IDisposable
         var anchorRadiusSqr = anchorRadius * anchorRadius;
         var segmentRadiusSqr = segmentRadius * segmentRadius;
 
+        // Track the topmost path that contains the point (higher index = drawn on top)
+        var topmostContainingPath = ushort.MaxValue;
+
         for (ushort p = 0; p < PathCount; p++)
         {
             ref var path = ref _paths[p];
@@ -235,7 +242,6 @@ public sealed unsafe class Shape : IDisposable
                 ref var a1 = ref _anchors[a1Idx];
                 var samples = GetSegmentSamples(a0Idx);
 
-                
                 var distSqr = PointToSegmentDistSqr(point, a0.Position, samples[0]);
                 for (var s = 0; s < MaxSegmentSamples - 1; s++)
                     distSqr = MathF.Min(distSqr, PointToSegmentDistSqr(point, samples[s], samples[s + 1]));
@@ -249,9 +255,14 @@ public sealed unsafe class Shape : IDisposable
                     result.PathIndex = p;
             }
 
-            if (result.PathIndex == ushort.MaxValue && IsPointInPath(point, p))
-                result.PathIndex = p;
+            // Track point-in-path, keeping the topmost (last/highest index)
+            if (IsPointInPath(point, p))
+                topmostContainingPath = p;
         }
+
+        // If no anchor/segment was hit, use the topmost containing path
+        if (result.PathIndex == ushort.MaxValue)
+            result.PathIndex = topmostContainingPath;
 
         return result;
     }
@@ -263,6 +274,230 @@ public sealed unsafe class Shape : IDisposable
 
         for (var i = 0; i < PathCount; i++)
             _paths[i].Flags &= ~PathFlags.Selected;
+    }
+
+    public void ClearAnchorSelection()
+    {
+        for (var i = 0; i < AnchorCount; i++)
+            _anchors[i].Flags &= ~AnchorFlags.Selected;
+    }
+
+    public void ClearPathSelection()
+    {
+        for (var i = 0; i < PathCount; i++)
+            _paths[i].Flags &= ~PathFlags.Selected;
+    }
+
+    public void ClearPathFocus()
+    {
+        for (var i = 0; i < PathCount; i++)
+            _paths[i].Flags &= ~PathFlags.Focused;
+    }
+
+    public void SetPathSelected(ushort pathIndex, bool selected)
+    {
+        if (pathIndex >= PathCount)
+            return;
+
+        if (selected)
+            _paths[pathIndex].Flags |= PathFlags.Selected;
+        else
+            _paths[pathIndex].Flags &= ~PathFlags.Selected;
+    }
+
+    public void SetPathFocused(ushort pathIndex, bool focused)
+    {
+        if (pathIndex >= PathCount)
+            return;
+
+        if (focused)
+            _paths[pathIndex].Flags |= PathFlags.Focused;
+        else
+            _paths[pathIndex].Flags &= ~PathFlags.Focused;
+    }
+
+    public bool IsPathSelected(ushort pathIndex) =>
+        pathIndex < PathCount && _paths[pathIndex].IsSelected;
+
+    public bool IsPathFocused(ushort pathIndex) =>
+        pathIndex < PathCount && _paths[pathIndex].IsFocused;
+
+    public bool HasSelectedPaths()
+    {
+        for (ushort i = 0; i < PathCount; i++)
+            if (_paths[i].IsSelected)
+                return true;
+        return false;
+    }
+
+    public bool HasFocusedPaths()
+    {
+        for (ushort i = 0; i < PathCount; i++)
+            if (_paths[i].IsFocused)
+                return true;
+        return false;
+    }
+
+    public void TransferSelectionToFocus()
+    {
+        for (ushort i = 0; i < PathCount; i++)
+        {
+            if (_paths[i].IsSelected)
+                _paths[i].Flags |= PathFlags.Focused;
+            _paths[i].Flags &= ~PathFlags.Selected;
+        }
+    }
+
+    public void TransferFocusToSelection()
+    {
+        for (ushort i = 0; i < PathCount; i++)
+        {
+            if (_paths[i].IsFocused)
+                _paths[i].Flags |= PathFlags.Selected;
+            _paths[i].Flags &= ~PathFlags.Focused;
+        }
+    }
+
+    public Rect? GetPathBounds(ushort pathIndex)
+    {
+        if (pathIndex >= PathCount)
+            return null;
+
+        ref var path = ref _paths[pathIndex];
+        if (path.AnchorCount == 0)
+            return null;
+
+        var min = new Vector2(float.MaxValue, float.MaxValue);
+        var max = new Vector2(float.MinValue, float.MinValue);
+
+        for (ushort a = 0; a < path.AnchorCount; a++)
+        {
+            var anchorIdx = (ushort)(path.AnchorStart + a);
+            ref var anchor = ref _anchors[anchorIdx];
+
+            min = Vector2.Min(min, anchor.Position);
+            max = Vector2.Max(max, anchor.Position);
+
+            if (MathF.Abs(anchor.Curve) > 0.0001f)
+            {
+                var samples = GetSegmentSamples(anchorIdx);
+                for (var s = 0; s < MaxSegmentSamples; s++)
+                {
+                    min = Vector2.Min(min, samples[s]);
+                    max = Vector2.Max(max, samples[s]);
+                }
+            }
+        }
+
+        return Rect.FromMinMax(min, max);
+    }
+
+    public Rect? GetSelectedPathsBounds()
+    {
+        var min = new Vector2(float.MaxValue, float.MaxValue);
+        var max = new Vector2(float.MinValue, float.MinValue);
+        var hasSelected = false;
+
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (!_paths[p].IsSelected)
+                continue;
+
+            var pathBounds = GetPathBounds(p);
+            if (!pathBounds.HasValue)
+                continue;
+
+            hasSelected = true;
+            min = Vector2.Min(min, pathBounds.Value.Min);
+            max = Vector2.Max(max, pathBounds.Value.Max);
+        }
+
+        return hasSelected ? Rect.FromMinMax(min, max) : null;
+    }
+
+    public Rect? GetSelectedAnchorsBounds()
+    {
+        var min = new Vector2(float.MaxValue, float.MaxValue);
+        var max = new Vector2(float.MinValue, float.MinValue);
+        var hasSelected = false;
+
+        for (ushort i = 0; i < AnchorCount; i++)
+        {
+            if (!_anchors[i].IsSelected)
+                continue;
+
+            hasSelected = true;
+            min = Vector2.Min(min, _anchors[i].Position);
+            max = Vector2.Max(max, _anchors[i].Position);
+        }
+
+        return hasSelected ? Rect.FromMinMax(min, max) : null;
+    }
+
+    public Vector2? GetSelectedPathsCentroid()
+    {
+        var sum = Vector2.Zero;
+        var count = 0;
+
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (!_paths[p].IsSelected)
+                continue;
+
+            ref var path = ref _paths[p];
+            for (ushort a = 0; a < path.AnchorCount; a++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + a);
+                sum += _anchors[anchorIdx].Position;
+                count++;
+            }
+        }
+
+        return count > 0 ? sum / count : null;
+    }
+
+    public Vector2? GetSelectedAnchorsCentroid()
+    {
+        var sum = Vector2.Zero;
+        var count = 0;
+
+        for (ushort i = 0; i < AnchorCount; i++)
+        {
+            if (!_anchors[i].IsSelected)
+                continue;
+
+            sum += _anchors[i].Position;
+            count++;
+        }
+
+        return count > 0 ? sum / count : null;
+    }
+
+    public void SelectPathsInRect(Rect rect)
+    {
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            var pathBounds = GetPathBounds(p);
+            if (pathBounds.HasValue && rect.Intersects(pathBounds.Value))
+                _paths[p].Flags |= PathFlags.Selected;
+        }
+    }
+
+    public void SelectAnchorsInFocusedPaths(Rect rect)
+    {
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (!_paths[p].IsFocused)
+                continue;
+
+            ref var path = ref _paths[p];
+            for (ushort a = 0; a < path.AnchorCount; a++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + a);
+                if (rect.Contains(_anchors[anchorIdx].Position))
+                    _anchors[anchorIdx].Flags |= AnchorFlags.Selected;
+            }
+        }
     }
 
     public ushort InsertAnchor(ushort afterAnchorIndex, Vector2 position, float curve = 0f)
@@ -566,6 +801,116 @@ public sealed unsafe class Shape : IDisposable
     {
         for (ushort i = 0; i < AnchorCount; i++)
             _anchors[i].Curve = savedCurves[i];
+    }
+
+    public void MoveAnchorsInSelectedPaths(Vector2 delta, Vector2[] savedPositions, bool snap)
+    {
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (!_paths[p].IsSelected)
+                continue;
+
+            ref var path = ref _paths[p];
+            for (ushort a = 0; a < path.AnchorCount; a++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + a);
+                var newPos = savedPositions[anchorIdx] + delta;
+                if (snap)
+                {
+                    newPos.X = MathF.Round(newPos.X);
+                    newPos.Y = MathF.Round(newPos.Y);
+                }
+                _anchors[anchorIdx].Position = newPos;
+            }
+        }
+    }
+
+    public void RestoreAnchorsInSelectedPaths(Vector2[] savedPositions)
+    {
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (!_paths[p].IsSelected)
+                continue;
+
+            ref var path = ref _paths[p];
+            for (ushort a = 0; a < path.AnchorCount; a++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + a);
+                _anchors[anchorIdx].Position = savedPositions[anchorIdx];
+            }
+        }
+    }
+
+    public void RotateSelectedAnchors(Vector2 pivot, float angle, Vector2[] savedPositions)
+    {
+        var cos = MathF.Cos(angle);
+        var sin = MathF.Sin(angle);
+
+        for (ushort i = 0; i < AnchorCount; i++)
+        {
+            if (!_anchors[i].IsSelected)
+                continue;
+
+            var offset = savedPositions[i] - pivot;
+            var rotated = new Vector2(
+                offset.X * cos - offset.Y * sin,
+                offset.X * sin + offset.Y * cos
+            );
+            _anchors[i].Position = pivot + rotated;
+        }
+    }
+
+    public void RotateAnchorsInSelectedPaths(Vector2 pivot, float angle, Vector2[] savedPositions)
+    {
+        var cos = MathF.Cos(angle);
+        var sin = MathF.Sin(angle);
+
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (!_paths[p].IsSelected)
+                continue;
+
+            ref var path = ref _paths[p];
+            for (ushort a = 0; a < path.AnchorCount; a++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + a);
+                var offset = savedPositions[anchorIdx] - pivot;
+                var rotated = new Vector2(
+                    offset.X * cos - offset.Y * sin,
+                    offset.X * sin + offset.Y * cos
+                );
+                _anchors[anchorIdx].Position = pivot + rotated;
+            }
+        }
+    }
+
+    public void ScaleSelectedAnchors(Vector2 pivot, Vector2 scale, Vector2[] savedPositions)
+    {
+        for (ushort i = 0; i < AnchorCount; i++)
+        {
+            if (!_anchors[i].IsSelected)
+                continue;
+
+            var offset = savedPositions[i] - pivot;
+            _anchors[i].Position = pivot + offset * scale;
+        }
+    }
+
+    public void ScaleAnchorsInSelectedPaths(Vector2 pivot, Vector2 scale, Vector2[] savedPositions)
+    {
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (!_paths[p].IsSelected)
+                continue;
+
+            ref var path = ref _paths[p];
+            for (ushort a = 0; a < path.AnchorCount; a++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + a);
+                var offset = savedPositions[anchorIdx] - pivot;
+                _anchors[anchorIdx].Position = pivot + offset * scale;
+            }
+        }
     }
 
     public void SelectAnchorsInRect(Rect rect)
