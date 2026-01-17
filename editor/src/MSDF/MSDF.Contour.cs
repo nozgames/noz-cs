@@ -11,7 +11,7 @@ namespace NoZ.Editor
     {
         private class Contour
         {
-            public Edge[] edges;
+            public Edge[]? edges = null!;
 
             public void Bounds(ref double l, ref double b, ref double r, ref double t)
             {

@@ -13,19 +13,6 @@ public interface IVertex
 
 public static class VertexFormat<T> where T : unmanaged, IVertex
 {
-    // ReSharper disable once StaticMemberInGenericType
-    public static nuint Handle
-    {
-        get
-        {
-            if (field == nuint.Zero)
-            {
-                field = Render.Driver.CreateVertexFormat(T.GetFormatDescriptor(), name: typeof(T).Name);
-            }
-
-            return field;
-        }
-    }
 }
 
 public enum VertexAttribType

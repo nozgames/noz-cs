@@ -18,7 +18,7 @@ public struct UIVertex : IVertex
     public float BorderRatio;
     public Color BorderColor;
 
-    public const int SizeInBytes = 36;
+    public static readonly int SizeInBytes = Marshal.SizeOf(typeof(UIVertex));
 
     public static VertexFormatDescriptor GetFormatDescriptor() => new()
     {

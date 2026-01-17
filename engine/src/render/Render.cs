@@ -14,7 +14,7 @@ namespace NoZ;
 
 public static unsafe class Render
 {
-    private const int MaxSortGroups = 16;
+    private const int MaxSortGroups = 1526;
     private const int MaxStateStack = 16;
     private const int MaxVertices = 65536;
     private const int MaxIndices = 196608;
@@ -23,6 +23,7 @@ public static unsafe class Render
     private const int OrderShift = 16;
     private const int GroupShift = 32;
     private const int LayerShift = 48;
+    private const long SortKeyMergeMask = 0x7FFFFFFFFFFF0000;
 
     private enum UniformType : byte { Float, Vec2, Vec4, Matrix4x4 }
 
@@ -48,9 +49,7 @@ public static unsafe class Render
         public int ScissorY;
         public int ScissorWidth;
         public int ScissorHeight;
-        public nuint VertexFormat;
-        public nuint VertexBuffer;
-        public nuint IndexBuffer;
+        public nuint Mesh;
         public bool ScissorEnabled;
     }
 
@@ -81,9 +80,7 @@ public static unsafe class Render
         public int ScissorY;
         public int ScissorWidth;
         public int ScissorHeight;
-        public nuint IndexBuffer;
-        public nuint VertexBuffer;
-        public nuint VertexFormat;
+        public nuint Mesh;
     }
 
     private const int MaxBones = 64;
@@ -110,8 +107,7 @@ public static unsafe class Render
     private static ref State CurrentState => ref _stateStack[_stateStackDepth];
     
     #region Batching
-    private static nuint _vertexBuffer;
-    private static nuint _indexBuffer;
+    private static nuint _mesh;
     private static nuint _boneUbo;
     private const int BoneUboBindingPoint = 0;
     private static int _maxDrawCommands;
@@ -133,7 +129,8 @@ public static unsafe class Render
     {
         Config = config;
 
-        Driver = config.Driver ?? throw new ArgumentNullException(nameof(config.Driver),
+        Driver = config.Driver ?? throw new ArgumentNullException(
+            nameof(config.Driver),
             "RenderBackend must be provided. Use OpenGLRender for desktop or WebGLRender for web.");
         
         _maxDrawCommands = Config.MaxDrawCommands;
@@ -149,10 +146,9 @@ public static unsafe class Render
         });
 
         Camera = new Camera();
-        Driver = config.Driver;
-        
-        InitBatcher();
-        InitState();
+         
+         InitBatcher();
+         InitState();
     }
 
     private static void InitState()
@@ -186,9 +182,7 @@ public static unsafe class Render
         CurrentState.ScissorWidth = 0;
         CurrentState.ScissorHeight = 0;
 
-        CurrentState.VertexFormat = VertexFormat<MeshVertex>.Handle;
-        CurrentState.VertexBuffer = _vertexBuffer;
-        CurrentState.IndexBuffer = _indexBuffer;
+        CurrentState.Mesh = _mesh;
 
         _uniforms.Clear();
         _boneCount = 1;
@@ -205,16 +199,11 @@ public static unsafe class Render
         _batchStates = new NativeArray<BatchState>(_maxBatches);
         _uniforms = new Dictionary<string, UniformEntry>();
 
-        _vertexBuffer = Driver.CreateVertexBuffer(
-            MaxVertices * MeshVertex.SizeInBytes,
+        _mesh = Driver.CreateMesh<MeshVertex>(
+            MaxVertices,
+            MaxIndices,
             BufferUsage.Dynamic,
-            "Render.Vertices"
-        );
-
-        _indexBuffer = Driver.CreateIndexBuffer(
-            MaxIndices * sizeof(ushort),
-            BufferUsage.Dynamic,
-            "Render.Indices"
+            "Render.Main"
         );
 
         // Create bone UBO: 64 bones * 2 vec4s per bone (std140 padded) * 16 bytes per vec4
@@ -228,14 +217,12 @@ public static unsafe class Render
         _commands.Dispose();
         _indices.Dispose();
 
-        Driver.DestroyBuffer(_vertexBuffer);
-        Driver.DestroyBuffer(_indexBuffer);
+        Driver.DestroyMesh(_mesh);
         Driver.DestroyBuffer(_boneUbo);
-        
+
         Driver.Shutdown();
 
-        _vertexBuffer = 0;
-        _indexBuffer = 0;
+        _mesh = 0;
         _boneUbo = 0;
     }
     
@@ -608,9 +595,7 @@ public static unsafe class Render
         var scissorY = CurrentState.ScissorY;
         var scissorWidth = CurrentState.ScissorWidth;
         var scissorHeight = CurrentState.ScissorHeight;
-        var vertexFormat = CurrentState.VertexFormat;
-        var vertexBuffer = CurrentState.VertexBuffer;
-        var indexBuffer = CurrentState.IndexBuffer;
+        var vertexArray = CurrentState.Mesh;
 
         for (int i = 0; i < _batchStates.Length; i++)
         {
@@ -628,9 +613,7 @@ public static unsafe class Render
                 existing.ScissorY == scissorY &&
                 existing.ScissorWidth == scissorWidth &&
                 existing.ScissorHeight == scissorHeight &&
-                existing.VertexFormat == vertexFormat &&
-                existing.VertexBuffer == vertexBuffer &&
-                existing.IndexBuffer == indexBuffer)
+                existing.Mesh == vertexArray)
             {
                 _currentBatchState = (ushort)i;
                 return;
@@ -652,11 +635,9 @@ public static unsafe class Render
         batchState.ScissorY = scissorY;
         batchState.ScissorWidth = scissorWidth;
         batchState.ScissorHeight = scissorHeight;
-        batchState.VertexFormat = vertexFormat;
-        batchState.VertexBuffer = vertexBuffer;
-        batchState.IndexBuffer = indexBuffer;
+        batchState.Mesh = vertexArray;
 
-        LogRender($"AddBatchState: Shader=0x{batchState.Shader:X} Texture0=0x{batchState.Texture0:X} Texture1=0x{batchState.Texture1:X} BlendMode={batchState.BlendMode} Viewport=({batchState.ViewportX},{batchState.ViewportY},{batchState.ViewportW},{batchState.ViewportH}) ScissorEnabled={batchState.ScissorEnabled} Scissor=({batchState.ScissorX},{batchState.ScissorY},{batchState.ScissorWidth},{batchState.ScissorHeight}) VertexFormat=0x{batchState.VertexFormat:X} VertexBuffer=0x{batchState.VertexBuffer:X} IndexBuffer=0x{batchState.IndexBuffer:X}");
+        LogRender($"AddBatchState: Shader=0x{batchState.Shader:X} Texture0=0x{batchState.Texture0:X} Texture1=0x{batchState.Texture1:X} BlendMode={batchState.BlendMode} Viewport=({batchState.ViewportX},{batchState.ViewportY},{batchState.ViewportW},{batchState.ViewportH}) ScissorEnabled={batchState.ScissorEnabled} Scissor=({batchState.ScissorX},{batchState.ScissorY},{batchState.ScissorWidth},{batchState.ScissorHeight}) Mesh=0x{batchState.Mesh:X}");
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -675,11 +656,9 @@ public static unsafe class Render
             return;
 
         if (_batchStates.Length == 0 ||
-            _batchStates[^1].VertexBuffer != _vertexBuffer ||
-            _batchStates[^1].VertexFormat != CurrentState.VertexFormat)
+            _batchStates[^1].Mesh != _mesh)
         {
-            SetVertexBuffer<MeshVertex>(_vertexBuffer);
-            SetIndexBuffer(_indexBuffer);
+            SetMesh(_mesh);
         }
         
         if (_batchStateDirty)
@@ -751,18 +730,10 @@ public static unsafe class Render
         }
     }
 
-    public static void SetVertexBuffer<T>(nuint buffer) where T : unmanaged, IVertex
+    public static void SetMesh(nuint vertexArray)
     {
-        if (CurrentState.VertexBuffer == buffer) return;
-        CurrentState.VertexBuffer = buffer;
-        CurrentState.VertexFormat = VertexFormat<T>.Handle;
-        _batchStateDirty = true;
-    }
-
-    public static void SetIndexBuffer(nuint buffer)
-    {
-        if (CurrentState.IndexBuffer == buffer) return;
-        CurrentState.IndexBuffer = buffer;
+        if (CurrentState.Mesh == vertexArray) return;
+        CurrentState.Mesh = vertexArray;
         _batchStateDirty = true;
     }
 
@@ -776,14 +747,20 @@ public static unsafe class Render
         if (_commands.Length > 0)
         {
             ref var lastCommand = ref _commands[^1];
+            bool testa = lastCommand.BatchState == _currentBatchState;
+            bool testb = (lastCommand.SortKey & SortKeyMergeMask) == (sortKey & SortKeyMergeMask);
+            bool testc = lastCommand.IndexOffset + lastCommand.IndexCount == indexOffset;
+
             if (lastCommand.BatchState == _currentBatchState &&
-                lastCommand.SortKey + 1 == sortKey &&
+                (lastCommand.SortKey & SortKeyMergeMask) == (sortKey & SortKeyMergeMask) &&
                 lastCommand.IndexOffset + lastCommand.IndexCount == indexOffset)
             {
                 lastCommand.IndexCount += (ushort)indexCount;
                 LogRenderVerbose($"DrawElements (MERGE): BatchState={lastCommand.BatchState} Count={lastCommand.IndexCount} Offset={indexOffset} Order={order}");
                 return;
             }
+
+            testc = false;
         }
 
         ref var cmd = ref _commands.Add();
@@ -807,11 +784,11 @@ public static unsafe class Render
 
         ref var firstBatch = ref _batches[0];
         ref var firstState = ref _batchStates[_commands[0].BatchState];
-        firstBatch.IndexOffset = firstState.IndexBuffer != _indexBuffer ? _commands[0].IndexOffset : 0;
+        firstBatch.IndexOffset = firstState.Mesh != _mesh ? _commands[0].IndexOffset : 0;
         firstBatch.IndexCount = _commands[0].IndexCount;
         firstBatch.State = _commands[0].BatchState;
-        
-        if (firstState.IndexBuffer == _indexBuffer)
+
+        if (firstState.Mesh == _mesh)
             _sortedIndices.AddRange(
                 _indices.AsReadonlySpan(_commands[0].IndexOffset, _commands[0].IndexCount)
             );
@@ -823,8 +800,8 @@ public static unsafe class Render
             
             LogRenderVerbose($"  Command: Index={commandIndex}  SortKey={cmd.SortKey}  IndexOffset={cmd.IndexOffset} IndexCount={cmd.IndexCount} State={cmd.BatchState}");
 
-            // Always break bach on external vertex and index buffers.
-            if (cmdState.IndexBuffer != _indexBuffer || cmdState.VertexBuffer != _vertexBuffer)
+            // Always break batch on external vertex arrays.
+            if (cmdState.Mesh != _mesh)
             {
                 ref var newBatch = ref _batches.Add();
                 newBatch.IndexOffset = cmd.IndexOffset;
@@ -867,16 +844,6 @@ public static unsafe class Render
         LogRender(
             $"ExecuteCommands: BatchStates={_batchStates.Length} Commands={_commands.Length} Vertices={_vertices.Length} Indices={_indices.Length}");
 
-        Driver.BindVertexFormat(VertexFormat<MeshVertex>.Handle);
-        Driver.BindVertexBuffer(_vertexBuffer);
-        Driver.UpdateVertexBuffer(_vertexBuffer, 0, _vertices.AsByteSpan());
-        Driver.BindIndexBuffer(_indexBuffer);
-        Driver.UpdateIndexBuffer(_indexBuffer, 0, _sortedIndices.AsSpan());
-        Driver.SetBlendMode(BlendMode.None);
-
-        UploadBones();
-        Driver.BindUniformBuffer(_boneUbo, BoneUboBindingPoint);
-
         var lastViewportX = ushort.MaxValue;
         var lastViewportY = ushort.MaxValue;
         var lastViewportW = ushort.MaxValue;
@@ -885,10 +852,19 @@ public static unsafe class Render
         var lastShader = nuint.Zero;
         var lastTexture0 = nuint.Zero;
         var lastTexture1 = nuint.Zero;
-        var lastVertexBuffer = _vertexBuffer;
-        var lastIndexBuffer = _indexBuffer;
-        var lastVertexFormat = VertexFormat<MeshVertex>.Handle;
+        var lastMesh = nuint.Zero;
         var lastBlendMode = BlendMode.None;
+
+        if (_vertices.Length > 0 || _indices.Length > 0)
+        {
+            Driver.BindMesh(_mesh);
+            Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _sortedIndices.AsSpan());
+            Driver.SetBlendMode(BlendMode.None);
+            lastMesh = _mesh;
+        }
+
+        UploadBones();
+        Driver.BindUniformBuffer(_boneUbo, BoneUboBindingPoint);
 
         LogRender($"ExecuteBatches: Batches={_batches.Length} BatchStates={_batchStates.Length} Commands={_commands.Length} Vertices={_vertices.Length} Indices={_indices.Length}");
         
@@ -965,25 +941,11 @@ public static unsafe class Render
                 LogRender($"    SetBlendMode: {batchState.BlendMode}");
             }
 
-            if (lastVertexFormat != batchState.VertexFormat)
+            if (lastMesh != batchState.Mesh)
             {
-                lastVertexFormat = batchState.VertexFormat;
-                Driver.BindVertexFormat(batchState.VertexFormat);
-                LogRender($"    BindVertexFormat: Handle=0x{batchState.VertexFormat:X}");
-            }
-            
-            if (lastVertexBuffer != batchState.VertexBuffer)
-            {
-                lastVertexBuffer = batchState.VertexBuffer;
-                Driver.BindVertexBuffer(batchState.VertexBuffer);
-                LogRender($"    BindVertexBuffer: Handle=0x{batchState.VertexBuffer:X}");
-            }
-            
-            if (lastIndexBuffer != batchState.IndexBuffer)
-            {
-                lastIndexBuffer = batchState.IndexBuffer;
-                Driver.BindIndexBuffer(batchState.IndexBuffer);
-                LogRender($"    BindIndexBuffer: Handle=0x{batchState.IndexBuffer:X}");
+                lastMesh = batchState.Mesh;
+                Driver.BindMesh(batchState.Mesh);
+                LogRender($"    BindMesh: Handle=0x{batchState.Mesh:X}");
             }
             
             ApplyUniforms();

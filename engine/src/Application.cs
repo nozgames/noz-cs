@@ -59,7 +59,6 @@ public static class Application
         Input.Init();
         Audio.Init(AudioDriverBackend);
         Render.Init(Config.Render!);
-        UI.Init(config.UI);
 
         // Register asset types and load assets
         RegisterAssetTypes();

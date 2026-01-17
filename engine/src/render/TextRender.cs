@@ -11,10 +11,9 @@ internal static class TextRender
 {
     private const int MaxVertices = 8192;
     private const int MaxIndices = 8192 / 4 * 6;
-    
+
     private static Shader? _textShader;
-    private static nuint _vertexBuffer;
-    private static nuint _indexBuffer;
+    private static nuint _mesh;
     private static NativeArray<TextVertex> _vertices = new NativeArray<TextVertex>(MaxVertices);
     private static NativeArray<ushort> _indices = new NativeArray<ushort>(MaxIndices);
 
@@ -22,46 +21,31 @@ internal static class TextRender
     {
         _textShader = Asset.Get<Shader>(AssetType.Shader, config.TextShader);
         if (_textShader == null) throw new Exception($"Failed to load text shader '{config.TextShader}'");
-        
+
         _vertices = new NativeArray<TextVertex>(MaxVertices);
-        _vertexBuffer = Render.Driver.CreateVertexBuffer(
-            MaxVertices * TextVertex.SizeInBytes,
-            BufferUsage.Dynamic,
-            "TextRender.Vertices"
-        );
-        
-        _indexBuffer = Render.Driver.CreateIndexBuffer(
+        _mesh = Render.Driver.CreateMesh<TextVertex>(
+            MaxVertices,
             MaxIndices,
             BufferUsage.Dynamic,
-            "TextRender.Indices"
+            "TextRender"
         );
     }
 
     public static void Shutdown()
     {
         _vertices.Dispose();
-        Render.Driver.DestroyBuffer(_vertexBuffer);
-        Render.Driver.DestroyBuffer(_indexBuffer);
-        _vertexBuffer = nuint.Zero;
-        _indexBuffer = nuint.Zero;
+        Render.Driver.DestroyMesh(_mesh);
+        _mesh = nuint.Zero;
         _textShader = null;
     }
     
     public static void Flush()
     {
-        if (_vertices.Length > 0)
-        {
-            Render.Driver.BindVertexFormat(VertexFormat<TextVertex>.Handle);
-            Render.Driver.BindVertexBuffer(_vertexBuffer);
-            Render.Driver.UpdateVertexBuffer(_vertexBuffer, 0, _vertices.AsByteSpan());
-        }
+        if (_vertices.Length == 0 && _indices.Length == 0)
+            return;
 
-        if (_indices.Length > 0)
-        {
-            Render.Driver.BindIndexBuffer(_indexBuffer);
-            Render.Driver.UpdateIndexBuffer(_indexBuffer, 0, _indices.AsSpan());
-        }
-
+        Render.Driver.BindMesh(_mesh);
+        Render.Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _indices.AsSpan());
         _vertices.Clear();
         _indices.Clear();
     }
@@ -97,8 +81,7 @@ internal static class TextRender
 
         Render.SetShader(_textShader);
         Render.SetTexture(atlasTexture);
-        Render.SetVertexBuffer<TextVertex>(_vertexBuffer);
-        Render.SetIndexBuffer(_indexBuffer);
+        Render.SetMesh(_mesh);
 
         var currentX = 0f;
         var baselineY = (font.LineHeight - font.Baseline) * fontSize;

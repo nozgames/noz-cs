@@ -15,3 +15,7 @@ _deps/
 src/game_assets_build.cpp
 
 tmpclaude-*
+
+*.csproj.user
+*.pubxml.user
+.noz/user.cfg

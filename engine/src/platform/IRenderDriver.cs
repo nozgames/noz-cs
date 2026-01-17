@@ -39,21 +39,14 @@ public interface IRenderDriver
     void SetScissor(int x, int y, int width, int height);
     void DisableScissor();
 
-    nuint CreateVertexBuffer(int sizeInBytes, BufferUsage usage, string name = "");
-    nuint CreateIndexBuffer(int sizeInBytes, BufferUsage usage, string name = "");
+    nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex;
+    void DestroyMesh(nuint handle);
+    void BindMesh(nuint handle);
+    void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<ushort> indexData);
+
     nuint CreateUniformBuffer(int sizeInBytes, BufferUsage usage, string name = "");
     void DestroyBuffer(nuint handle);
-
-    void UpdateVertexBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<byte> data);
-    void UpdateIndexBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<ushort> data);
     void UpdateUniformBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<byte> data);
-
-    nuint CreateVertexFormat(in VertexFormatDescriptor descriptor, string? name=null);
-    void DestroyVertexFormat(nuint handle);
-    void BindVertexFormat(nuint format);
-
-    void BindVertexBuffer(nuint buffer);
-    void BindIndexBuffer(nuint buffer);
     void BindUniformBuffer(nuint buffer, int slot);
 
     nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data, TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear);

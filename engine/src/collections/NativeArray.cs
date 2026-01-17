@@ -20,6 +20,12 @@ public unsafe struct NativeArray<T>(int capacity) : IDisposable
     public ReadOnlySpan<T> AsReadonlySpan(int start, int count) => new(_ptr + start, count);
     public ReadOnlySpan<T> AsReadonlyByteSpan() => new(_ptr, Length);
 
+    public bool CheckCapacity(int additionalCount)
+    {
+        Debug.Assert(_ptr != null);
+        return Length + additionalCount <= Capacity;
+    }
+
     public ref T Add()
     {
         Debug.Assert(_ptr != null);

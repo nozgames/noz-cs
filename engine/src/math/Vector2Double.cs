@@ -137,7 +137,8 @@ public struct Vector2Double : IEquatable<Vector2Double>
         return !(lhs.x == rhs.x && lhs.y == rhs.y);
     }
 
-    public override bool Equals(object obj) {
+    public readonly override bool Equals(object? obj)
+    {
         if (obj == null || obj.GetType() != GetType())
             return false;
 

@@ -21,15 +21,14 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
     private const int MaxShaders = 64;
     private const int MaxFences = 16;
     private const int MaxTextureArrays = 32;
-    private const int MaxVertexFormats = 32;
+    private const int MaxMeshes = 32;
 
     private int _nextBufferId = 1;
     private int _nextTextureId = 2; // 1 is reserved for white texture
     private int _nextShaderId = 1;
     private int _nextFenceId = 1;
     private int _nextTextureArrayId = 1;
-    private int _nextVertexFormatId = 1;
-    private int _lastVertexAttributeCount = 0;
+    private int _nextMeshId = 1;
     private uint _boundShader = 0;
 
     private readonly uint[] _buffers = new uint[MaxBuffers];
@@ -37,7 +36,7 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
     private readonly uint[] _shaders = new uint[MaxShaders];
     private readonly nint[] _fences = new nint[MaxFences];
     private readonly (uint glTexture, int width, int height, int layers)[] _textureArrays = new (uint, int, int, int)[MaxTextureArrays];
-    private readonly (uint vao, int stride)[] _vertexFormats = new (uint, int)[MaxVertexFormats];
+    private readonly (uint vao, uint vbo, uint ebo, int stride)[] _meshes = new (uint, uint, uint, int)[MaxMeshes];
 
     // Offscreen render target
     private uint _offscreenFramebuffer;
@@ -124,9 +123,16 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
             if (_textureArrays[i].glTexture != 0)
                 _gl.DeleteTexture(_textureArrays[i].glTexture);
 
-        for (var i = 0; i < MaxVertexFormats; i++)
-            if (_vertexFormats[i].vao != 0)
-                _gl.DeleteVertexArray(_vertexFormats[i].vao);
+        for (var i = 0; i < MaxMeshes; i++)
+        {
+            ref var va = ref _meshes[i];
+            if (va.vao != 0)
+            {
+                _gl.DeleteVertexArray(va.vao);
+                _gl.DeleteBuffer(va.vbo);
+                _gl.DeleteBuffer(va.ebo);
+            }
+        }
 
         _gl.Dispose();
     }
@@ -162,110 +168,23 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
         _gl.Disable(EnableCap.ScissorTest);
     }
 
-    // === Buffer Management ===
+    // === Mesh Management ===
 
-    public nuint CreateVertexBuffer(int sizeInBytes, BufferUsage usage, string name = "")
+    public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex
     {
-        var glBuffer = _gl.GenBuffer();
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, glBuffer);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)sizeInBytes, null, ToGLUsage(usage));
-        SetDebugLabel(ObjectIdentifier.Buffer, glBuffer, name);
+        var descriptor = T.GetFormatDescriptor();
 
-        var handle = _nextBufferId++;
-        _buffers[handle] = glBuffer;
-        return (nuint)handle;
-    }
-
-    public nuint CreateIndexBuffer(int sizeInBytes, BufferUsage usage, string name = "")
-    {
-        var glBuffer = _gl.GenBuffer();
-        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, glBuffer);
-        _gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)sizeInBytes, null, ToGLUsage(usage));
-        SetDebugLabel(ObjectIdentifier.Buffer, glBuffer, name);
-
-        var handle = _nextBufferId++;
-        _buffers[handle] = glBuffer;
-        return (nuint)handle;
-    }
-
-    public void DestroyBuffer(nuint handle)
-    {
-        var glBuffer = _buffers[(int)handle];
-        if (glBuffer != 0)
-        {
-            _gl.DeleteBuffer(glBuffer);
-            _buffers[(int)handle] = 0;
-        }
-    }
-
-    public void UpdateVertexBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<byte> data)
-    {
-        var glBuffer = _buffers[(int)buffer];
-        if (glBuffer == 0) return;
-
-        fixed (byte* p = data)
-            _gl.BufferSubData(BufferTargetARB.ArrayBuffer, offsetBytes, (nuint)data.Length, p);
-    }
-
-    public void UpdateIndexBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<ushort> data)
-    {
-        var glBuffer = _buffers[(int)buffer];
-        if (glBuffer == 0) return;
-
-        fixed (ushort* p = data)
-            _gl.BufferSubData(BufferTargetARB.ElementArrayBuffer, offsetBytes, (nuint)(data.Length * sizeof(ushort)), p);
-    }
-
-    public nuint CreateUniformBuffer(int sizeInBytes, BufferUsage usage, string name = "")
-    {
-        var glBuffer = _gl.GenBuffer();
-        _gl.BindBuffer(BufferTargetARB.UniformBuffer, glBuffer);
-        _gl.BufferData(BufferTargetARB.UniformBuffer, (nuint)sizeInBytes, null, ToGLUsage(usage));
-        SetDebugLabel(ObjectIdentifier.Buffer, glBuffer, name);
-
-        var handle = _nextBufferId++;
-        _buffers[handle] = glBuffer;
-        return (nuint)handle;
-    }
-
-    public void UpdateUniformBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<byte> data)
-    {
-        var glBuffer = _buffers[(int)buffer];
-        if (glBuffer == 0) return;
-
-        _gl.BindBuffer(BufferTargetARB.UniformBuffer, glBuffer);
-        fixed (byte* p = data)
-        {
-            _gl.BufferSubData(BufferTargetARB.UniformBuffer, offsetBytes, (nuint)data.Length, p);
-        }
-    }
-
-    public void BindUniformBuffer(nuint buffer, int slot)
-    {
-        var glBuffer = _buffers[(int)buffer];
-        if (glBuffer == 0) return;
-
-        _gl.BindBufferBase(BufferTargetARB.UniformBuffer, (uint)slot, glBuffer);
-    }
-
-    public void BindVertexBuffer(nuint buffer)
-    {
-        var glBuffer = _buffers[(int)buffer];
-        if (glBuffer == 0) return;
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, glBuffer);
-    }
-
-    public void BindIndexBuffer(nuint buffer)
-    {
-        var glBuffer = _buffers[(int)buffer];
-        if (glBuffer == 0) return;
-        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, glBuffer);
-    }
-
-    public nuint CreateVertexFormat(in VertexFormatDescriptor descriptor, string? name)
-    {
         var vao = _gl.GenVertexArray();
+        var vbo = _gl.GenBuffer();
+        var ebo = _gl.GenBuffer();
+
         _gl.BindVertexArray(vao);
+
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, vbo);
+        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(maxVertices * descriptor.Stride), null, ToGLUsage(usage));
+
+        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, ebo);
+        _gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(maxIndices * sizeof(ushort)), null, ToGLUsage(usage));
 
         foreach (var attr in descriptor.Attributes)
         {
@@ -301,29 +220,101 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
             }
         }
 
-        if (name != null)
+        if (!string.IsNullOrEmpty(name))
+        {
             SetDebugLabel(ObjectIdentifier.VertexArray, vao, name);
-        
-        var handle = _nextVertexFormatId++;
-        _vertexFormats[handle] = (vao, descriptor.Stride);
+            SetDebugLabel(ObjectIdentifier.Buffer, vbo, $"{name}.VBO");
+            SetDebugLabel(ObjectIdentifier.Buffer, ebo, $"{name}.EBO");
+        }
+
+        _gl.BindVertexArray(0);
+
+        var handle = _nextMeshId++;
+        _meshes[handle] = (vao, vbo, ebo, descriptor.Stride);
         return (nuint)handle;
     }
 
-    public void DestroyVertexFormat(nuint handle)
+    public void DestroyMesh(nuint handle)
     {
-        ref var format = ref _vertexFormats[(int)handle];
-        if (format.vao != 0)
+        ref var va = ref _meshes[(int)handle];
+        if (va.vao != 0)
         {
-            _gl.DeleteVertexArray(format.vao);
-            format = (0, 0);
+            _gl.DeleteVertexArray(va.vao);
+            _gl.DeleteBuffer(va.vbo);
+            _gl.DeleteBuffer(va.ebo);
+            va = (0, 0, 0, 0);
         }
     }
 
-    public void BindVertexFormat(nuint format)
+    public void BindMesh(nuint handle)
     {
-        ref var f = ref _vertexFormats[(int)format];
-        if (f.vao == 0) return;
-        _gl.BindVertexArray(f.vao);
+        ref var va = ref _meshes[(int)handle];
+        if (va.vao == 0) return;
+        _gl.BindVertexArray(va.vao);
+    }
+
+    public void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<ushort> indexData)
+    {
+        ref var va = ref _meshes[(int)handle];
+        if (va.vao == 0) return;
+
+        if (vertexData.Length > 0)
+        {
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, va.vbo);
+            fixed (byte* p = vertexData)
+                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)vertexData.Length, p);
+        }
+
+        if (indexData.Length > 0)
+        {
+            _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, va.ebo);
+            fixed (ushort* p = indexData)
+                _gl.BufferSubData(BufferTargetARB.ElementArrayBuffer, 0, (nuint)(indexData.Length * sizeof(ushort)), p);
+        }
+    }
+
+    // === Buffer Management ===
+
+    public void DestroyBuffer(nuint handle)
+    {
+        var glBuffer = _buffers[(int)handle];
+        if (glBuffer != 0)
+        {
+            _gl.DeleteBuffer(glBuffer);
+            _buffers[(int)handle] = 0;
+        }
+    }
+
+    public nuint CreateUniformBuffer(int sizeInBytes, BufferUsage usage, string name = "")
+    {
+        var glBuffer = _gl.GenBuffer();
+        _gl.BindBuffer(BufferTargetARB.UniformBuffer, glBuffer);
+        _gl.BufferData(BufferTargetARB.UniformBuffer, (nuint)sizeInBytes, null, ToGLUsage(usage));
+        SetDebugLabel(ObjectIdentifier.Buffer, glBuffer, name);
+
+        var handle = _nextBufferId++;
+        _buffers[handle] = glBuffer;
+        return (nuint)handle;
+    }
+
+    public void UpdateUniformBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<byte> data)
+    {
+        var glBuffer = _buffers[(int)buffer];
+        if (glBuffer == 0) return;
+
+        _gl.BindBuffer(BufferTargetARB.UniformBuffer, glBuffer);
+        fixed (byte* p = data)
+        {
+            _gl.BufferSubData(BufferTargetARB.UniformBuffer, offsetBytes, (nuint)data.Length, p);
+        }
+    }
+
+    public void BindUniformBuffer(nuint buffer, int slot)
+    {
+        var glBuffer = _buffers[(int)buffer];
+        if (glBuffer == 0) return;
+
+        _gl.BindBufferBase(BufferTargetARB.UniformBuffer, (uint)slot, glBuffer);
     }
 
     public nuint CreateTexture(

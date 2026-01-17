@@ -1259,9 +1259,6 @@ public static class UI
                 idx = DrawElement(idx, true);
         }
 
-        // Flush any remaining UI rendering
-        UIRender.Flush();
-
         // Hide textbox if it wasn't rendered this frame (element no longer exists)
         if (_textboxVisible && !_textboxRenderedThisFrame)
         {
@@ -2016,8 +2013,6 @@ public static class UI
         if (useScissor)
         {
             // Flush pending UI draws before changing scissor state
-            UIRender.Flush();
-
             var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
             var screenPos = Camera.WorldToScreen(pos);
             var scale = Application.WindowSize.Y / _orthoSize.Y;
@@ -2037,7 +2032,6 @@ public static class UI
 
         if (useScissor)
         {
-            UIRender.Flush();
             Render.Driver.DisableScissor();
         }
 
