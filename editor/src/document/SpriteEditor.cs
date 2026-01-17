@@ -81,6 +81,9 @@ public class SpriteEditor : DocumentEditor
     private readonly Vector2[] _savedPathScales = new Vector2[Shape.MaxPaths];
     private readonly Vector2[] _savedPathCentroids = new Vector2[Shape.MaxPaths];
     private bool _isRotating;
+    private float _currentRotationAngle;
+    private Rect _savedRotationBounds;
+    private Vector2 _savedRotationPivot;
 
     // Hover state
     private ushort _hoveredAnchor = ushort.MaxValue;
@@ -339,29 +342,27 @@ public class SpriteEditor : DocumentEditor
         var shape = Document.GetFrame(_currentFrame).Shape;
         var shift = Input.IsShiftDown();
 
-        // Click on anchor (only in focused paths)
-        if (_hoveredAnchor != ushort.MaxValue)
+        // Prioritize anchors/segments in focused paths over path selection
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var focusedHit = shape.HitTest(
+            Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
+            EditorStyle.Shape.AnchorSize * AnchorSelectionSize / Workspace.Zoom,
+            EditorStyle.Shape.SegmentWidth * SegmentSelectionSize / Workspace.Zoom,
+            focusedOnly: true);
+
+        if (focusedHit.AnchorIndex != ushort.MaxValue)
         {
-            var pathIndex = FindPathForAnchor(shape, _hoveredAnchor);
-            if (pathIndex != ushort.MaxValue && shape.IsPathFocused(pathIndex))
-            {
-                SelectAnchor(_hoveredAnchor, shift);
-                return;
-            }
+            SelectAnchor(focusedHit.AnchorIndex, shift);
+            return;
         }
 
-        // Click on segment (only in focused paths)
-        if (_hoveredSegment != ushort.MaxValue)
+        if (focusedHit.SegmentIndex != ushort.MaxValue)
         {
-            var pathIndex = FindPathForAnchor(shape, _hoveredSegment);
-            if (pathIndex != ushort.MaxValue && shape.IsPathFocused(pathIndex))
-            {
-                SelectSegment(_hoveredSegment, shift);
-                return;
-            }
+            SelectSegment(focusedHit.SegmentIndex, shift);
+            return;
         }
 
-        // Click on path changes focus (does not select anchors)
+        // No anchor/segment in focused paths - check if clicking on a path to change focus
         if (_hoveredPath != ushort.MaxValue)
         {
             if (shift)
@@ -374,7 +375,6 @@ public class SpriteEditor : DocumentEditor
                 shape.ClearPathFocus();
                 shape.SetPathFocused(_hoveredPath, true);
             }
-            // Note: changing focus does NOT auto-select anchors
             return;
         }
 
@@ -501,6 +501,9 @@ public class SpriteEditor : DocumentEditor
             shape.SaveSelectedPathTransforms(_savedPathPositions, _savedPathRotations, _savedPathScales);
             shape.SaveSelectedPathCentroids(_savedPathCentroids);
             _isRotating = true;
+            _currentRotationAngle = 0f;
+            _savedRotationBounds = shape.GetSelectedPathsBounds() ?? Rect.Zero;
+            _savedRotationPivot = localPivot.Value;
 
             Workspace.BeginTool(new RotateTool(
                 worldPivot,
@@ -508,6 +511,7 @@ public class SpriteEditor : DocumentEditor
                 invTransform,
                 update: angle =>
                 {
+                    _currentRotationAngle = angle;
                     shape.RotateSelectedPaths(localPivot.Value, angle, _savedPathCentroids, _savedPathRotations);
                     shape.UpdateBounds();
                     MarkRasterDirty();
@@ -515,6 +519,7 @@ public class SpriteEditor : DocumentEditor
                 commit: _ =>
                 {
                     _isRotating = false;
+                    _currentRotationAngle = 0f;
                     Document.MarkModified();
                     Document.UpdateBounds();
                     MarkRasterDirty();
@@ -522,6 +527,7 @@ public class SpriteEditor : DocumentEditor
                 cancel: () =>
                 {
                     _isRotating = false;
+                    _currentRotationAngle = 0f;
                     shape.RestoreSelectedPathTransforms(_savedPathPositions, _savedPathRotations, _savedPathScales);
                     shape.UpdateBounds();
                     Undo.Cancel();
@@ -1056,49 +1062,24 @@ public class SpriteEditor : DocumentEditor
         Render.PushState();
         Render.SetColor(EditorStyle.SelectionColor);
 
-        // Show rotated bounds if all selected paths have the same rotation
         var rotatedBounds = shape.GetSelectedPathsRotatedBounds();
         if (rotatedBounds.HasValue)
         {
             var (localBounds, _, rotation) = rotatedBounds.Value;
-            DrawRotatedRect(localBounds, rotation, lineWidth);
+            Gizmos.DrawRotatedRect(localBounds, rotation, lineWidth, order: 3);
+        }
+        else if (_isRotating)
+        {
+            Gizmos.DrawRotatedRect(_savedRotationBounds, _savedRotationPivot, _currentRotationAngle, lineWidth, order: 3);
         }
         else
         {
-            // Fall back to axis-aligned bounds
             var bounds = shape.GetSelectedPathsBounds();
             if (bounds.HasValue)
                 Gizmos.DrawRect(bounds.Value, lineWidth, order: 3);
         }
 
         Render.PopState();
-    }
-
-    private static void DrawRotatedRect(Rect localBounds, float rotation, float lineWidth)
-    {
-        var cos = MathF.Cos(rotation);
-        var sin = MathF.Sin(rotation);
-
-        var corners = new Vector2[4];
-        corners[0] = new Vector2(localBounds.X, localBounds.Y);
-        corners[1] = new Vector2(localBounds.Right, localBounds.Y);
-        corners[2] = new Vector2(localBounds.Right, localBounds.Bottom);
-        corners[3] = new Vector2(localBounds.X, localBounds.Bottom);
-
-        for (var i = 0; i < 4; i++)
-        {
-            var c = corners[i];
-            corners[i] = new Vector2(
-                c.X * cos - c.Y * sin,
-                c.X * sin + c.Y * cos
-            );
-        }
-
-        for (var i = 0; i < 4; i++)
-        {
-            var next = (i + 1) % 4;
-            Gizmos.DrawLine(corners[i], corners[next], lineWidth, order: 3);
-        }
     }
 
     private void DrawSegmentsForFocusedPaths(Shape shape)

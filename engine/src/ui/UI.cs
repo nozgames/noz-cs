@@ -397,6 +397,7 @@ public static class UI
     public struct AutoColumn : IDisposable { readonly void IDisposable.Dispose() => EndColumn(); }
     public struct AutoRow : IDisposable { readonly void IDisposable.Dispose() => EndRow(); }
     public struct AutoScrollable: IDisposable { readonly void IDisposable.Dispose() => EndScrollable(); }
+    public struct AutoExpanded : IDisposable { readonly void IDisposable.Dispose() => EndExpanded(); }
 
 
     // Element storage
@@ -857,7 +858,9 @@ public static class UI
 
     public static void EndCenter() => EndElement(ElementType.Container);
 
-    public static void BeginExpanded(ExpandedStyle style = default)
+    public static AutoExpanded BeginExpanded() => BeginExpanded(new ExpandedStyle());
+
+    public static AutoExpanded BeginExpanded(ExpandedStyle style)
     {
         if (!HasCurrentElement())
             throw new InvalidOperationException("Expanded must be inside a Row or Column");
@@ -869,11 +872,14 @@ public static class UI
         e.Data.Expanded.Flex = style.Flex;
         e.Data.Expanded.Axis = parent.Type == ElementType.Row ? 0 : 1;
         PushElement(e.Index);
+        return new AutoExpanded();
     }
 
     public static void EndExpanded() => EndElement(ElementType.Expanded);
 
-    public static void Expanded(ExpandedStyle style = default)
+    public static void Expanded() => Expanded(new ExpandedStyle());
+
+    public static void Expanded(in ExpandedStyle style)
     {
         BeginExpanded(style);
         EndExpanded();
@@ -1303,8 +1309,6 @@ public static class UI
                 Math.Max(0, GetComponent(availableSize, axis) - GetComponent(maxContentSize, axis)) -
                 spacing;
 
-            Console.WriteLine($"FLEX: availableSize[{axis}]={GetComponent(availableSize, axis)}, maxContent[{axis}]={GetComponent(maxContentSize, axis)}, spacing={spacing}, flexAvailable={flexAvailable}, flexTotal={flexTotal}");
-
             SetComponent(ref maxContentSize, axis,
                 Math.Max(GetComponent(maxContentSize, axis), GetComponent(availableSize, axis)));
 
@@ -1318,10 +1322,7 @@ public static class UI
                 {
                     var flexSize = child.Data.Expanded.Flex / flexTotal * flexAvailable;
                     SetComponent(ref childAvailSize, axis, flexSize);
-                    Console.WriteLine($"  EXPANDED child#{i} index={childElementIndex}: flex={child.Data.Expanded.Flex}, allocating {flexSize}px on axis {axis}");
-                    Console.WriteLine($"    Before remeasure: MeasuredSize={child.MeasuredSize}");
                     MeasureElement(childElementIndex, childAvailSize);
-                    Console.WriteLine($"    After remeasure: MeasuredSize={child.MeasuredSize}");
                 }
 
                 childElementIndex = child.NextSiblingIndex;

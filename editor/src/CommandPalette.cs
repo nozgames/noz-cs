@@ -173,9 +173,10 @@ public static class CommandPalette
         //var listHeight = Math.Min(_filteredCount * EditorStyle.CommandPalette.ItemHeight, maxListHeight);
         var execute = false;
 
+        using (UI.BeginExpanded())
         using (UI.BeginContainer())
         using (UI.BeginScrollable(offset: 0, id: CommandListId))
-        using (UI.BeginColumn())
+        using (UI.BeginColumn(new ContainerStyle{Color=Color.Red}))
         {
             var selectedIndex = _selectedIndex;
             for (var i = 0; i < _filteredCount; i++)

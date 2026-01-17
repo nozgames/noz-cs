@@ -223,7 +223,7 @@ public sealed unsafe class Shape : IDisposable
         RasterBounds = new RectInt(xMin, yMin, xMax - xMin, yMax - yMin);
     }
 
-    public HitResult HitTest(Vector2 point, float anchorRadius = 5f, float segmentRadius = 3f)
+    public HitResult HitTest(Vector2 point, float anchorRadius = 5f, float segmentRadius = 3f, bool focusedOnly = false)
     {
         var result = HitResult.Empty;
         var anchorRadiusSqr = anchorRadius * anchorRadius;
@@ -236,48 +236,52 @@ public sealed unsafe class Shape : IDisposable
         {
             ref var path = ref _paths[p];
             var transform = GetPathTransform(p);
+            var checkAnchorsSegments = !focusedOnly || path.IsFocused;
 
-            for (ushort a = 0; a < path.AnchorCount; a++)
+            if (checkAnchorsSegments)
             {
-                var anchorIdx = path.AnchorStart + a;
-                ref var anchor = ref _anchors[anchorIdx];
-
-                var worldPos = Vector2.Transform(anchor.Position, transform);
-                var distSqr = Vector2.DistanceSquared(point, worldPos);
-                if (distSqr >= anchorRadiusSqr || distSqr >= result.AnchorDistSqr) continue;
-                result.AnchorIndex = (ushort)anchorIdx;
-                result.AnchorDistSqr = distSqr;
-                result.PathIndex = p;
-            }
-
-            for (ushort a = 0; a < path.AnchorCount; a++)
-            {
-                var a0Idx = (ushort)(path.AnchorStart + a);
-                var a1Idx = (ushort)(path.AnchorStart + ((a + 1) % path.AnchorCount));
-                ref var a0 = ref _anchors[a0Idx];
-                ref var a1 = ref _anchors[a1Idx];
-                var samples = GetSegmentSamples(a0Idx);
-
-                var a0World = Vector2.Transform(a0.Position, transform);
-                var a1World = Vector2.Transform(a1.Position, transform);
-                var sample0World = Vector2.Transform(samples[0], transform);
-
-                var distSqr = PointToSegmentDistSqr(point, a0World, sample0World);
-                for (var s = 0; s < MaxSegmentSamples - 1; s++)
+                for (ushort a = 0; a < path.AnchorCount; a++)
                 {
-                    var sWorld = Vector2.Transform(samples[s], transform);
-                    var sNextWorld = Vector2.Transform(samples[s + 1], transform);
-                    distSqr = MathF.Min(distSqr, PointToSegmentDistSqr(point, sWorld, sNextWorld));
-                }
-                var lastSampleWorld = Vector2.Transform(samples[MaxSegmentSamples - 1], transform);
-                distSqr = MathF.Min(distSqr, PointToSegmentDistSqr(point, lastSampleWorld, a1World));
+                    var anchorIdx = path.AnchorStart + a;
+                    ref var anchor = ref _anchors[anchorIdx];
 
-                if (distSqr >= segmentRadiusSqr || distSqr >= result.SegmentDistSqr) continue;
-
-                result.SegmentIndex = a0Idx;
-                result.SegmentDistSqr = distSqr;
-                if (result.PathIndex == ushort.MaxValue)
+                    var worldPos = Vector2.Transform(anchor.Position, transform);
+                    var distSqr = Vector2.DistanceSquared(point, worldPos);
+                    if (distSqr >= anchorRadiusSqr || distSqr >= result.AnchorDistSqr) continue;
+                    result.AnchorIndex = (ushort)anchorIdx;
+                    result.AnchorDistSqr = distSqr;
                     result.PathIndex = p;
+                }
+
+                for (ushort a = 0; a < path.AnchorCount; a++)
+                {
+                    var a0Idx = (ushort)(path.AnchorStart + a);
+                    var a1Idx = (ushort)(path.AnchorStart + ((a + 1) % path.AnchorCount));
+                    ref var a0 = ref _anchors[a0Idx];
+                    ref var a1 = ref _anchors[a1Idx];
+                    var samples = GetSegmentSamples(a0Idx);
+
+                    var a0World = Vector2.Transform(a0.Position, transform);
+                    var a1World = Vector2.Transform(a1.Position, transform);
+                    var sample0World = Vector2.Transform(samples[0], transform);
+
+                    var distSqr = PointToSegmentDistSqr(point, a0World, sample0World);
+                    for (var s = 0; s < MaxSegmentSamples - 1; s++)
+                    {
+                        var sWorld = Vector2.Transform(samples[s], transform);
+                        var sNextWorld = Vector2.Transform(samples[s + 1], transform);
+                        distSqr = MathF.Min(distSqr, PointToSegmentDistSqr(point, sWorld, sNextWorld));
+                    }
+                    var lastSampleWorld = Vector2.Transform(samples[MaxSegmentSamples - 1], transform);
+                    distSqr = MathF.Min(distSqr, PointToSegmentDistSqr(point, lastSampleWorld, a1World));
+
+                    if (distSqr >= segmentRadiusSqr || distSqr >= result.SegmentDistSqr) continue;
+
+                    result.SegmentIndex = a0Idx;
+                    result.SegmentDistSqr = distSqr;
+                    if (result.PathIndex == ushort.MaxValue)
+                        result.PathIndex = p;
+                }
             }
 
             // Track point-in-path, keeping the topmost (last/highest index)

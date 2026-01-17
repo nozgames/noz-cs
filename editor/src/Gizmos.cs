@@ -33,6 +33,22 @@ public static class Gizmos
         DrawLine(bottomLeft, topLeft, width, extendEnds: true, order: order);
     }
 
+    public static void DrawRotatedRect(Rect bounds, float rotation, float width = 1.0f, ushort order = 0)
+    {
+        Render.PushState();
+        Render.SetTransform(Matrix3x2.CreateRotation(rotation) * Render.Transform);
+        DrawRect(bounds, width, order);
+        Render.PopState();
+    }
+
+    public static void DrawRotatedRect(Rect bounds, Vector2 pivot, float rotation, float width = 1.0f, ushort order = 0)
+    {
+        Render.PushState();
+        Render.SetTransform(Matrix3x2.CreateRotation(rotation, pivot) * Render.Transform);
+        DrawRect(bounds, width, order);
+        Render.PopState();
+    }
+
     public static void DrawLine(Vector2 v0, Vector2 v1, float width, bool extendEnds = false, ushort order=0)
     {
         var delta = v1 - v0;
