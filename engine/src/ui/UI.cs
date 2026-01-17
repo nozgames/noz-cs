@@ -1416,6 +1416,22 @@ public static class UI
         e.MeasuredSize = availableSize;
         e.MeasuredSize.X = maxWidth;
 
+        // Clamp scroll offset to valid range
+        var maxScroll = Math.Max(0, contentHeight - availableSize.Y);
+        e.Data.Scrollable.Offset = Math.Clamp(e.Data.Scrollable.Offset, 0, maxScroll);
+
+        // Update stored scroll offset if element has an ID
+        if (e.Id != ElementIdNone && e.CanvasId != ElementIdNone)
+        {
+            ref var cs = ref _canvasStates[e.CanvasId];
+            if (cs.ElementStates != null)
+                cs.ElementStates[e.Id].ScrollOffset = e.Data.Scrollable.Offset;
+        }
+        else if (e.Id != ElementIdNone)
+        {
+            _elementStates[e.Id].ScrollOffset = e.Data.Scrollable.Offset;
+        }
+
         return elementIndex;
     }
 
