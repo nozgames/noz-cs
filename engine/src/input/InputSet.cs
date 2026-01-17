@@ -47,6 +47,13 @@ public class InputSet
         return (_buttons[(int)code] & ButtonState.Pressed) != 0;
     }
 
+    public bool WasButtonPressed(InputCode code, bool allowRepeat)
+    {
+        if (allowRepeat && Input.WasButtonRepeatRaw(code))
+            return true;
+        return (_buttons[(int)code] & ButtonState.Pressed) != 0;
+    }
+
     public bool WasButtonReleased(InputCode code)
     {
         return (_buttons[(int)code] & ButtonState.Released) != 0;

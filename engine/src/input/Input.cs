@@ -11,7 +11,12 @@ public static class Input
 {
     private static readonly bool[] ButtonState = new bool[(int)InputCode.Count];
     private static readonly bool[] ButtonPressedThisFrame = new bool[(int)InputCode.Count];
+    private static readonly bool[] ButtonRepeatThisFrame = new bool[(int)InputCode.Count];
+    private static readonly float[] ButtonHeldTime = new float[(int)InputCode.Count];
     private static readonly float[] AxisState = new float[(int)InputCode.Count];
+
+    private const float RepeatDelay = 0.4f;
+    private const float RepeatInterval = 0.05f;
     private static readonly Stack<InputSet> InputSetStack = new();
 
     private static float _scrollX;
@@ -72,11 +77,41 @@ public static class Input
         _scrollY = 0;
         _textInput = string.Empty;
         Array.Clear(ButtonPressedThisFrame);
+        Array.Clear(ButtonRepeatThisFrame);
     }
 
     public static void Update()
     {
+        UpdateRepeat();
         CurrentInputSet?.Update();
+    }
+
+    private static void UpdateRepeat()
+    {
+        for (var i = 0; i < (int)InputCode.Count; i++)
+        {
+            if (!ButtonState[i])
+            {
+                ButtonHeldTime[i] = 0;
+                continue;
+            }
+
+            var prevTime = ButtonHeldTime[i];
+            ButtonHeldTime[i] += Time.DeltaTime;
+
+            if (prevTime < RepeatDelay)
+            {
+                if (ButtonHeldTime[i] >= RepeatDelay)
+                    ButtonRepeatThisFrame[i] = true;
+            }
+            else
+            {
+                var prevRepeats = (int)((prevTime - RepeatDelay) / RepeatInterval);
+                var newRepeats = (int)((ButtonHeldTime[i] - RepeatDelay) / RepeatInterval);
+                if (newRepeats > prevRepeats)
+                    ButtonRepeatThisFrame[i] = true;
+            }
+        }
     }
 
     public static void ProcessEvent(PlatformEvent evt)
@@ -172,6 +207,7 @@ public static class Input
 
     internal static bool IsButtonDownRaw(InputCode code) => ButtonState[(int)code];
     internal static bool WasButtonPressedRaw(InputCode code) => ButtonPressedThisFrame[(int)code];
+    internal static bool WasButtonRepeatRaw(InputCode code) => ButtonRepeatThisFrame[(int)code];
 
     internal static float GetAxisValue(InputCode code)
     {
@@ -187,6 +223,7 @@ public static class Input
 
     public static bool IsButtonDown(InputCode code) => CurrentInputSet?.IsButtonDown(code) ?? false;
     public static bool WasButtonPressed(InputCode code) => CurrentInputSet?.WasButtonPressed(code) ?? false;
+    public static bool WasButtonPressed(InputCode code, bool allowRepeat) => CurrentInputSet?.WasButtonPressed(code, allowRepeat) ?? false;
     public static bool WasButtonReleased(InputCode code) => CurrentInputSet?.WasButtonReleased(code) ?? false;
     public static float GetAxis(InputCode code) => CurrentInputSet?.GetAxis(code) ?? 0.0f;
     public static void ConsumeButton(InputCode code) => CurrentInputSet?.ConsumeButton(code);

@@ -129,13 +129,13 @@ public static class CommandPalette
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyUp))
+        if (Input.WasButtonPressed(InputCode.KeyUp, allowRepeat: true))
         {
             _selectedIndex = Math.Max(0, _selectedIndex - 1);
             ScrollToSelection();
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyDown))
+        if (Input.WasButtonPressed(InputCode.KeyDown, allowRepeat: true))
         {
             _selectedIndex = Math.Min(_filteredCount - 1, _selectedIndex + 1);
             ScrollToSelection();

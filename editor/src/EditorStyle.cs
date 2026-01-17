@@ -162,10 +162,10 @@ public static class EditorStyle
         public static readonly ContainerStyle RootContainer = new()
         {
             Width = 600.0f,
-            Height = 200.0f,
+            Height = 500.0f,
             Align = Align.Center,
             Padding = EdgeInsets.All(8.0f),
-            Color = EditorStyle.Overlay.FillColor,
+            Color = Overlay.FillColor,
             Border = new BorderStyle { Radius = 10.0f }
         };
 
