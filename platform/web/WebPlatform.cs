@@ -4,11 +4,13 @@
 
 using System.Numerics;
 using Microsoft.JSInterop;
-using noz.Platform;
+using NoZ;
+using NoZ.Platform;
 
-namespace noz;
+namespace NoZ.Platform.Web;
 
 public class WebPlatform : IPlatform
+
 {
     private readonly IJSRuntime _js;
     private IJSObjectReference? _module;
@@ -90,7 +92,19 @@ public class WebPlatform : IPlatform
         return false;
     }
 
+    public void SetClipboardText(string text)
+    {
+        // TODO: Implement clipboard for web
+    }
+
+    public string? GetClipboardText()
+    {
+        // TODO: Implement clipboard for web
+        return null;
+    }
+
     // Called from JavaScript
+
     [JSInvokable]
     public void OnKeyDown(string key)
     {

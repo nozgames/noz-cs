@@ -271,8 +271,7 @@ public static class Workspace
 
     private static void DrawNames()
     {
-        if (EditorAssets.Fonts.Seguisb is not Font font)
-            return;
+        var font = EditorAssets.Fonts.Seguisb;
 
         Render.PushState();
         Render.SetLayer(EditorLayer.Names);

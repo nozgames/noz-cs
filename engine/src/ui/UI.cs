@@ -112,6 +112,8 @@ public struct ContainerData
     public float Height;
     public float MinWidth;
     public float MinHeight;
+    public float MaxWidth;
+    public float MaxHeight;
     public Align Align;
     public EdgeInsets Margin;
     public EdgeInsets Padding;
@@ -126,6 +128,8 @@ public struct ContainerData
         Height = float.MaxValue,
         MinWidth = 0,
         MinHeight = 0,
+        MaxWidth = float.MaxValue,
+        MaxHeight = float.MaxValue,
         Align = Align.None,
         Margin = EdgeInsets.Zero,
         Padding = EdgeInsets.Zero,
@@ -240,56 +244,25 @@ public struct TransformData
     };
 }
 
-public struct PopupData
-{
-    public Align Anchor;
-    public Align PopupAlign;
-    public EdgeInsets Margin;
-
-    public static PopupData Default => new()
+    public struct PopupData
     {
-        Anchor = Align.TopLeft,
-        PopupAlign = Align.TopLeft,
-        Margin = EdgeInsets.Zero
-    };
-}
+        public Align Anchor;
+        public Align PopupAlign;
+        public EdgeInsets Margin;
 
-public struct TextBoxData
-{
-    public float Height;
-    public float FontSize;
-    public Color BackgroundColor;
-    public Color TextColor;
-    public Color PlaceholderColor;
-    public BorderStyle Border;
-    public BorderStyle FocusBorder;
-    public bool Password;
-    public int TextStart;
-    public int TextLength;
-    public int PlaceholderStart;
-    public int PlaceholderLength;
+        public static PopupData Default => new()
+        {
+            Anchor = Align.TopLeft,
+            PopupAlign = Align.TopLeft,
+            Margin = EdgeInsets.Zero
+        };
+    }
 
-    public static TextBoxData Default => new()
+    public struct SpacerData
     {
-        Height = 28f,
-        FontSize = 16,
-        BackgroundColor = new Color(0.22f, 0.22f, 0.22f, 1f),
-        TextColor = Color.White,
-        PlaceholderColor = new Color(0.4f, 0.4f, 0.4f, 1f),
-        PlaceholderStart = 0,
-        PlaceholderLength = 0,
-        Border = BorderStyle.None,
-        FocusBorder = BorderStyle.None,
-        Password = false,
-        TextStart = 0,
-        TextLength = 0
-    };
-}
+        public Vector2 Size;
+    }
 
-public struct SpacerData
-{
-    public Vector2 Size;
-}
 
 public struct CanvasData
 {
@@ -349,8 +322,6 @@ public static class UI
     private const int MaxTextBuffer = 64 * 1024;
     private const byte ElementIdNone = 0;
     private const byte ElementIdMax = 255;
-    private static readonly string PasswordMask = new('*', 64);
-
     private static Font? _defaultFont;
 
     public static Font? DefaultFont => _defaultFont;
@@ -374,7 +345,7 @@ public static class UI
         new(true, 0.5f, true, 1.0f), // BottomCenter
     ];
 
-    private readonly struct AlignInfo(bool hasX, float x, bool hasY, float y)
+    internal readonly struct AlignInfo(bool hasX, float x, bool hasY, float y)
     {
         public readonly bool HasX = hasX;
         public readonly float X = x;
@@ -382,7 +353,7 @@ public static class UI
         public readonly float Y = y;
     }
 
-    private struct ElementState
+    internal struct ElementState
     {
         public ElementFlags Flags;
         public int Index;
@@ -410,7 +381,7 @@ public static class UI
     private static readonly Element[] _elements = new Element[MaxElements];
     private static readonly int[] _elementStack = new int[MaxElementStack];
     private static readonly int[] _popups = new int[MaxPopups];
-    private static readonly ElementState[] _elementStates = new ElementState[ElementIdMax + 1];
+    internal static readonly ElementState[] _elementStates = new ElementState[ElementIdMax + 1];
     private static readonly char[] _textBuffer = new char[MaxTextBuffer];
 
     // Canvas state (keyed by canvas ID for persistence across frames)
@@ -436,10 +407,6 @@ public static class UI
     private static byte _activeScrollId;
     private static float _lastScrollMouseY;
     private static bool _closePopups;
-    private static byte _textboxFocusId;
-    private static byte _textboxFocusCanvasId;
-    private static bool _textboxVisible;
-    private static bool _textboxRenderedThisFrame;
     public static Vector2 Size => _orthoSize;
 
     public static float UserScale { get; set; } = 1.0f;
@@ -549,7 +516,7 @@ public static class UI
         PopElement();
     }
 
-    private static int AddText(ReadOnlySpan<char> text)
+    internal static int AddText(ReadOnlySpan<char> text)
     {
         if (_textBufferUsed + text.Length > MaxTextBuffer)
             return -1;
@@ -558,6 +525,7 @@ public static class UI
         _textBufferUsed += text.Length;
         return start;
     }
+
 
     public static ReadOnlySpan<char> GetText(int start, int length) =>
         _textBuffer.AsSpan(start, length);
@@ -690,11 +658,19 @@ public static class UI
     public static bool IsClosed() =>
         HasCurrentElement() && GetCurrentElement().Type == ElementType.Popup && _closePopups;
 
+    public static bool IsFocus(byte id, byte canvasId) => _focusId != 0 && _focusId == id && _focusCanvasId == canvasId;
+    public static string? GetElementText(byte id) => id != 0 ? _elementStates[id].Text : null;
+    public static void SetElementText(byte id, string text)
+    {
+        if (id != 0) _elementStates[id].Text = text;
+    }
+
     /// <summary>
     /// Returns true if the current canvas is the "hot" canvas (topmost under mouse).
     /// Only the hot canvas receives press/down events.
     /// </summary>
     public static bool IsHotCanvas() => _currentCanvasId != ElementIdNone && _currentCanvasId == _hotCanvasId;
+
 
     /// <summary>
     /// Returns the ID of the hot canvas (topmost under mouse), or 0 if none.
@@ -1155,7 +1131,7 @@ public static class UI
         Render.SetCamera(Camera);
 
         // Reset textbox tracking before draw pass
-        _textboxRenderedThisFrame = false;
+        // _textboxRenderedThisFrame = false;
 
         var elementIndex = 0;
         while (elementIndex < _elementCount)
@@ -1169,15 +1145,10 @@ public static class UI
                 idx = DrawElement(idx, true);
         }
 
-        // Hide textbox if it wasn't rendered this frame (element no longer exists)
-        if (_textboxVisible && !_textboxRenderedThisFrame)
-        {
-            Application.Platform.HideTextbox();
-            _textboxFocusId = 0;
-            _textboxFocusCanvasId = 0;
-            _textboxVisible = false;
-        }
+        TextBoxElement.EndFrame();
     }
+
+
 
     // Measure pass
     private static int MeasureElement(int elementIndex, Vector2 availableSize)
@@ -1215,10 +1186,12 @@ public static class UI
                 break;
 
             case ElementType.TextBox:
-                e.MeasuredSize = new Vector2(availableSize.X, e.Data.TextBox.Height);
+                TextBoxElement.Measure(ref e, availableSize);
                 break;
 
+
             case ElementType.Grid:
+
                 elementIndex = MeasureGrid(ref e, elementIndex, availableSize);
                 break;
 
@@ -1243,6 +1216,7 @@ public static class UI
         ref var style = ref e.Data.Container;
         var isAutoWidth = IsAuto(style.Width);
         var isAutoHeight = IsAuto(style.Height);
+        var firstChildIndex = elementIndex;
 
         var contentSize = Vector2.Zero;
         if (isAutoWidth)
@@ -1292,8 +1266,38 @@ public static class UI
             e.MeasuredSize.Y = Math.Min(availableSize.Y,
                 maxContentSize.Y + style.Padding.T + style.Padding.B + style.Border.Width * 2 + style.Margin.T + style.Margin.B);
 
-        e.MeasuredSize.X = Math.Max(e.MeasuredSize.X, style.MinWidth);
-        e.MeasuredSize.Y = Math.Max(e.MeasuredSize.Y, style.MinHeight);
+        var preclampX = e.MeasuredSize.X;
+        var preclampY = e.MeasuredSize.Y;
+        e.MeasuredSize.X = Math.Clamp(e.MeasuredSize.X, style.MinWidth, style.MaxWidth);
+        e.MeasuredSize.Y = Math.Clamp(e.MeasuredSize.Y, style.MinHeight, style.MaxHeight);
+
+        // If min/max constraints changed our size, re-measure children with the constrained content size
+        var wasClamped = Math.Abs(e.MeasuredSize.X - preclampX) > 0.001f || Math.Abs(e.MeasuredSize.Y - preclampY) > 0.001f;
+        if (wasClamped && e.ChildCount > 0)
+        {
+            var clampedContentSize = new Vector2(
+                e.MeasuredSize.X - style.Margin.L - style.Margin.R - style.Padding.L - style.Padding.R - style.Border.Width * 2,
+                e.MeasuredSize.Y - style.Margin.T - style.Margin.B - style.Padding.T - style.Padding.B - style.Border.Width * 2
+            );
+
+            var remeasureIndex = firstChildIndex;
+            if (e.Type == ElementType.Container)
+            {
+                for (var i = 0; i < e.ChildCount; i++)
+                {
+                    ref var child = ref _elements[remeasureIndex];
+                    MeasureElement(remeasureIndex, clampedContentSize);
+                    remeasureIndex = child.NextSiblingIndex;
+                }
+            }
+            else
+            {
+                var axis = e.Type == ElementType.Row ? 0 : 1;
+                var crossAxis = 1 - axis;
+                var unused = Vector2.Zero;
+                MeasureRowColumnContent(ref e, firstChildIndex, clampedContentSize, axis, crossAxis, ref unused);
+            }
+        }
 
         return elementIndex;
     }
@@ -1432,14 +1436,19 @@ public static class UI
         }
 
         e.Data.Scrollable.ContentHeight = contentHeight;
-        e.MeasuredSize = availableSize;
         e.MeasuredSize.X = maxWidth;
+        // Report content height as measured size so parent can shrink-wrap or constrain with MaxHeight
+        e.MeasuredSize.Y = Math.Min(contentHeight, availableSize.Y);
 
-        // Clamp scroll offset to valid range
-        var maxScroll = Math.Max(0, contentHeight - availableSize.Y);
+        return elementIndex;
+    }
+
+    private static void FinalizeScrollable(ref Element e)
+    {
+        // Called after layout when final rect size is known
+        var maxScroll = Math.Max(0, e.Data.Scrollable.ContentHeight - e.Rect.Height);
         e.Data.Scrollable.Offset = Math.Clamp(e.Data.Scrollable.Offset, 0, maxScroll);
 
-        // Update stored scroll offset if element has an ID
         if (e.Id != ElementIdNone && e.CanvasId != ElementIdNone)
         {
             ref var cs = ref _canvasStates[e.CanvasId];
@@ -1450,8 +1459,6 @@ public static class UI
         {
             _elementStates[e.Id].ScrollOffset = e.Data.Scrollable.Offset;
         }
-
-        return elementIndex;
     }
 
     private static int MeasureTransform(ref Element e, int elementIndex, Vector2 availableSize)
@@ -1520,17 +1527,19 @@ public static class UI
                 break;
 
             case ElementType.TextBox:
-                e.Rect.Width = size.X;
-                e.Rect.Height = e.Data.TextBox.Height;
+                TextBoxElement.Layout(ref e, size);
                 break;
 
             case ElementType.Grid:
+
+
                 elementIndex = LayoutGrid(ref e, elementIndex, size);
                 break;
 
             case ElementType.Scrollable:
                 e.Rect.Width = size.X;
                 e.Rect.Height = size.Y;
+                FinalizeScrollable(ref e);
                 for (var i = 0; i < e.ChildCount; i++)
                     elementIndex = LayoutElement(elementIndex, e.Rect.Size);
                 break;
@@ -1927,10 +1936,12 @@ public static class UI
                 break;
 
             case ElementType.TextBox:
-                DrawTextBox(ref e);
+                TextBoxElement.Draw(ref e);
                 break;
 
             case ElementType.Popup when !isPopup:
+
+
                 return e.NextSiblingIndex;
         }
 
@@ -2010,9 +2021,10 @@ public static class UI
         return offset;
     }
 
-    private static void DrawText(string text, Font font, float fontSize, Color color, Matrix3x2 localToWorld, Vector2 containerSize, Align align = Align.None)
+    internal static void DrawText(string text, Font font, float fontSize, Color color, Matrix3x2 localToWorld, Vector2 containerSize, Align align = Align.None)
     {
         var offset = GetTextOffset(font, fontSize, containerSize, align);
+
         var transform = localToWorld * Matrix3x2.CreateTranslation(offset);
 
         Render.PushState();
@@ -2043,136 +2055,6 @@ public static class UI
         );
     }
 
-    private static void DrawTextBox(ref Element e)
-    {
-        ref var tb = ref e.Data.TextBox;
-        // Focus requires matching both element ID and canvas ID
-        var isFocused = e.Id != 0 && _focusId == e.Id && _focusCanvasId == e.CanvasId;
-        var border = isFocused ? tb.FocusBorder : tb.Border;
-
-        // Draw background with border
-        var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
-        UIRender.DrawRect(
-            pos.X, pos.Y, e.Rect.Width, e.Rect.Height,
-            tb.BackgroundColor,
-            border.Radius,
-            border.Width,
-            border.Color
-        );
-
-        // Convert UI coordinates to screen coordinates for the native textbox
-        // Use the element's position (same as background), not the text-offset position
-        var scale = GetUIScale();
-        var screenPos = Camera!.WorldToScreen(pos);
-        var screenRect = new Rect(
-            screenPos.X,
-            screenPos.Y,
-            e.Rect.Width * scale,
-            e.Rect.Height * scale
-        );
-
-        var scaledFontSize = (int)(tb.FontSize * scale);
-
-        // Mark that this textbox was rendered this frame (for cleanup detection)
-        _textboxRenderedThisFrame = _textboxRenderedThisFrame || (_textboxFocusId == e.Id && _textboxFocusCanvasId == e.CanvasId);
-
-        var isNativeTextboxActive = _textboxFocusId == e.Id && _textboxFocusCanvasId == e.CanvasId;
-
-        if (isFocused)
-        {
-            if (!isNativeTextboxActive)
-            {
-                // Focus just changed to this textbox
-                if (_textboxVisible)
-                    Application.Platform.HideTextbox();
-
-                var initialText = e.Data.TextBox.TextLength > 0
-                    ? new string(GetText(e.Data.TextBox.TextStart, e.Data.TextBox.TextLength))
-                    : string.Empty;
-
-                var placeholder = tb.PlaceholderLength > 0
-                    ? new string(GetText(tb.PlaceholderStart, tb.PlaceholderLength))
-                    : null;
-
-                Application.Platform.ShowTextbox(screenRect, initialText, new Platform.NativeTextboxStyle
-                {
-                    BackgroundColor = tb.BackgroundColor.ToColor32(),
-                    TextColor = tb.TextColor.ToColor32(),
-                    PlaceholderColor = tb.PlaceholderColor.ToColor32(),
-                    FontSize = scaledFontSize,
-                    Password = tb.Password,
-                    Placeholder = placeholder,
-                    FontFamily = _defaultFont?.FamilyName
-                });
-
-                _textboxFocusId = e.Id;
-                _textboxFocusCanvasId = e.CanvasId;
-                _textboxVisible = true;
-                _textboxRenderedThisFrame = true;
-                _elementStates[e.Id].Text = initialText;
-            }
-            else
-            {
-                // Update rect position
-                Application.Platform.UpdateTextboxRect(screenRect, scaledFontSize);
-
-                // Get updated text from native textbox
-                var currentText = _elementStates[e.Id].Text ?? string.Empty;
-                if (Application.Platform.UpdateTextboxText(ref currentText))
-                    _elementStates[e.Id].Text = currentText;
-            }
-        }
-        else
-        {
-            // Native textbox not active - render text ourselves
-            if (isNativeTextboxActive)
-            {
-                // Lost focus - hide textbox
-                Application.Platform.HideTextbox();
-                _textboxFocusId = 0;
-                _textboxFocusCanvasId = 0;
-                _textboxVisible = false;
-            }
-
-            // Get the current text (from element state if available, otherwise from the buffer)
-            var hasText = false;
-            string displayText;
-
-            if (e.Id != 0 && _elementStates[e.Id].Text != null)
-            {
-                displayText = _elementStates[e.Id].Text;
-                hasText = displayText.Length > 0;
-            }
-            else if (tb.TextLength > 0)
-            {
-                displayText = new string(GetText(tb.TextStart, tb.TextLength));
-                hasText = true;
-            }
-            else
-            {
-                displayText = string.Empty;
-            }
-
-            var font = _defaultFont!;
-            var textColor = tb.TextColor;
-            string? textToRender = null;
-
-            if (hasText)
-            {
-                textToRender = tb.Password
-                    ? PasswordMask[..Math.Min(displayText.Length, PasswordMask.Length)]
-                    : displayText;
-            }
-            else if (tb.PlaceholderLength > 0)
-            {
-                textToRender = new string(GetText(tb.PlaceholderStart, tb.PlaceholderLength));
-                textColor = tb.PlaceholderColor;
-            }
-
-            if (textToRender != null)
-                DrawText(textToRender, font, tb.FontSize, textColor, e.LocalToWorld, e.Rect.Size, Align.CenterLeft);
-        }
-    }
 
     // Utility methods
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

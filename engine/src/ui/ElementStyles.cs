@@ -1,4 +1,4 @@
-﻿//
+//
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
@@ -13,6 +13,8 @@ namespace NoZ
         public float Height = float.MaxValue;
         public float MinWidth = 0;
         public float MinHeight = 0;
+        public float MaxWidth = float.MaxValue;
+        public float MaxHeight = float.MaxValue;
         public Align Align = Align.None;
         public EdgeInsets Margin = EdgeInsets.Zero;
         public EdgeInsets Padding = EdgeInsets.Zero;
@@ -27,6 +29,8 @@ namespace NoZ
             Height = Height,
             MinWidth = MinWidth,
             MinHeight = MinHeight,
+            MaxWidth = MaxWidth,
+            MaxHeight = MaxHeight,
             Align = Align,
             Margin = Margin,
             Padding = Padding,
@@ -122,7 +126,9 @@ namespace NoZ
         public Color BackgroundColor = new(0.22f, 0.22f, 0.22f, 1f);
         public Color TextColor = Color.White;
         public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
+        public Color SelectionColor = new(0.2f, 0.4f, 0.8f, 0.5f);
         public BorderStyle Border = BorderStyle.None;
+
         public BorderStyle FocusBorder = BorderStyle.None;
         public bool IsPassword = false;
 
@@ -133,7 +139,9 @@ namespace NoZ
             BackgroundColor = BackgroundColor,
             TextColor = TextColor,
             PlaceholderColor = PlaceholderColor,
+            SelectionColor = SelectionColor,
             Border = Border,
+
             FocusBorder = FocusBorder,
             Password = IsPassword,
             TextStart = 0,
@@ -149,10 +157,24 @@ namespace NoZ
             return style;
         }
 
-        public static ContainerStyle WithSize(this ContainerStyle style, float width, float height)
+        public static ContainerStyle WithSize(this ContainerStyle style, float width=float.MaxValue, float height=float.MaxValue)
         {
             style.Width = width;
             style.Height = height;
+            return style;
+        }
+
+        public static ContainerStyle WithMinSize(this ContainerStyle style, float minWidth=0, float minHeight=0)
+        {
+            style.MinWidth = minWidth;
+            style.MinHeight = minHeight;
+            return style;
+        }
+
+        public static ContainerStyle WithMaxSize(this ContainerStyle style, float maxWidth=float.MaxValue, float maxHeight=float.MaxValue)
+        {
+            style.MaxWidth = maxWidth;
+            style.MaxHeight = maxHeight;
             return style;
         }
 

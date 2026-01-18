@@ -395,4 +395,19 @@ public unsafe partial class SDLPlatform : IPlatform
             _ => InputCode.None
         };
     }
+
+    public void SetClipboardText(string text)
+    {
+        SDL_SetClipboardText(text);
+    }
+
+    public string? GetClipboardText()
+    {
+        if (SDL_HasClipboardText())
+        {
+            return SDL_GetClipboardText();
+        }
+        return null;
+    }
 }
+

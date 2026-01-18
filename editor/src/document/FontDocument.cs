@@ -112,7 +112,7 @@ public class FontDocument : Document
                 if (glyph.Ttf.contours == null || glyph.Ttf.contours.Length == 0)
                     continue;
 
-                if (packer.Insert(glyph.PackedSize, RectPacker.Method.BestLongSideFit, out var packedRect) == -1)
+                if (packer.Insert(glyph.PackedSize, out var packedRect) == -1)
                 {
                     // Need to resize
                     var size = packer.Size;

@@ -62,7 +62,6 @@ public class Style
     public Color PopupFillColor;
     public Color PopupTextColor;
     public Color PopupSpacerColor;
-    public Color PopupSelectionColor;
 }
 
 public static class EditorStyle
@@ -198,8 +197,10 @@ public static class EditorStyle
     {
         private const float IconSize = 24.0f;
 
-        public static readonly ContainerStyle RootContainer =
-            Popup.RootContainer.WithSize(450.0f, 500.0f);
+        public static readonly ContainerStyle RootContainer = Popup.RootContainer
+            .WithSize(width: 450.0f)
+            .WithMinSize(minHeight: 100)
+            .WithMaxSize(maxHeight: 400);
 
         public static readonly ContainerStyle SearchContainer = Popup.Item;
 
@@ -209,6 +210,7 @@ public static class EditorStyle
             FontSize = Control.TextSize,
             BackgroundColor = RootContainer.Color,
             TextColor = Control.TextColor,
+            SelectionColor = SelectionColor,
             PlaceholderColor = Control.PlaceholderTextColor
         };
 
@@ -374,8 +376,7 @@ public static class EditorStyle
 
             PopupFillColor = Color.FromRgb(0x2b2b2b),
             PopupTextColor = Color.FromRgb(0xFFFFFF),
-            PopupSpacerColor = Color.FromRgb(0x363636),
-            PopupSelectionColor = Color.FromRgb(0x0099ff),
+            PopupSpacerColor = Color.FromRgb(0x363636)
         };
     }
 }

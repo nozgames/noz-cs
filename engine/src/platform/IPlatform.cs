@@ -54,4 +54,8 @@ public interface IPlatform
     void UpdateTextboxRect(Rect rect, int fontSize);
     bool UpdateTextboxText(ref string text);
     bool IsTextboxVisible { get; }
+
+    void SetClipboardText(string text);
+    string? GetClipboardText();
 }
+
