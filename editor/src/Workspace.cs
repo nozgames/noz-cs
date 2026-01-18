@@ -685,7 +685,6 @@ public static class Workspace
 
         if (Input.WasButtonReleased(InputCode.MouseLeft) && _clearSelectionOnRelease)
         {
-            Log.Debug("Workspace: Clearing selection on release");
             ClearSelection();
         }
 

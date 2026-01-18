@@ -18,4 +18,4 @@ tmpclaude-*
 
 *.csproj.user
 *.pubxml.user
-.noz/user.cfg
+editor/.noz/*
