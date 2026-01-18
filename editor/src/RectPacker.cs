@@ -15,6 +15,32 @@ namespace NoZ
             Resize(width, height);
         }
 
+        public static RectPacker FromRects(in Vector2Int size, IEnumerable<RectInt> rects)
+        {
+            var packer = new RectPacker();
+            packer._size = size;
+            packer._free.Add(new RectInt(1, 1, size.X - 2, size.Y - 2));
+
+            foreach (var rect in rects)
+            {
+                packer._used.Add(rect);
+
+                var freeCount = packer._free.Count;
+                for (var i = 0; i < freeCount; ++i)
+                {
+                    if (packer.SplitFreeNode(packer._free[i], rect))
+                    {
+                        packer._free.RemoveAt(i);
+                        --i;
+                        --freeCount;
+                    }
+                }
+            }
+
+            packer.PruneFreeList();
+            return packer;
+        }
+
         public bool IsEmpty => _used.Count == 0;
 
         public Vector2Int Size => _size;

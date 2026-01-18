@@ -41,6 +41,18 @@ public static class Workspace
             new Command { Name = "Rebuild All", ShortName = "build", Handler = RebuildAll },
             new Command { Name = "Frame Selected", ShortName = "origin", Handler = FrameOrigin }
         ]);
+
+        _workspaceContextMenuItems = [
+            ContextMenuItem.Item("Frame Selected", FrameSelected, InputCode.KeyF),
+            ContextMenuItem.Item("Frame Origin", FrameOrigin),
+            ContextMenuItem.Item("Move", BeginMoveTool, InputCode.KeyG),
+            ContextMenuItem.Separator(),
+            ContextMenuItem.Submenu("View"),
+                ContextMenuItem.Item("Toggle Grid", ToggleGrid, InputCode.KeyQuote, ctrl: true, level: 1),
+                ContextMenuItem.Item("Toggle Names", ToggleNames, InputCode.KeyN, alt: true, level: 1),
+            ContextMenuItem.Separator(),
+            ContextMenuItem.Item("Rebuild All", RebuildAll),
+        ];
     }
 
     private const float ZoomMin = 0.01f;
@@ -74,6 +86,8 @@ public static class Workspace
     private static Document? _activeDocument;
     private static DocumentEditor? _activeEditor;
     private static Texture? _whiteTexture;
+    private static ContextMenuItem[]? _contextMenuItems;
+    private static ContextMenuItem[] _workspaceContextMenuItems = [];
 
     public static Camera Camera => _camera;
     public static float Zoom => _zoom;
@@ -156,7 +170,7 @@ public static class Workspace
     {
         UpdateCamera();
 
-        if (!CommandPalette.IsEnabled)
+        if (!CommandPalette.IsEnabled && !ContextMenu.IsVisible)
         {
             CommandManager.ProcessShortcuts();
 
@@ -592,6 +606,7 @@ public static class Workspace
         State = WorkspaceState.Edit;
 
         CommandManager.RegisterEditor(_activeEditor.GetCommands());
+        SetContextMenuItems(_activeEditor.GetContextMenuItems());
     }
 
     public static void EndEdit()
@@ -600,6 +615,7 @@ public static class Workspace
             return;
 
         CommandManager.RegisterEditor(null);
+        SetContextMenuItems(null);
 
         _activeEditor?.Dispose();
         _activeEditor = null;
@@ -663,5 +679,27 @@ public static class Workspace
         {
             ClearSelection();
         }
+
+        if (Input.WasButtonReleased(InputCode.MouseRight) && !_isDragging)
+        {
+            OpenContextMenu();
+        }
+    }
+
+    private static void OpenContextMenu()
+    {
+        var items = GetContextMenuItems();
+        if (items != null && items.Length > 0)
+            ContextMenu.Open(items);
+    }
+
+    public static ContextMenuItem[]? GetContextMenuItems()
+    {
+        return _contextMenuItems ?? _workspaceContextMenuItems;
+    }
+
+    public static void SetContextMenuItems(ContextMenuItem[]? items)
+    {
+        _contextMenuItems = items;
     }
 }

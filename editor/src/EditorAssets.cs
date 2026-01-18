@@ -10,6 +10,7 @@ public static class EditorAssets
     {
         public const string Seguisb = "seguisb";
         public const string Composite = "composite";
+        public const string EditorAtlas00 = "editor_atlas00";
         public const string Sprite = "sprite";
         public const string Text = "text";
         public const string Texture = "texture";
@@ -52,6 +53,7 @@ public static class EditorAssets
     public static class Shaders
     {
         public static Shader? Composite;
+        public static Shader? EditorAtlas00;
         public static Shader? Sprite;
         public static Shader? Text;
         public static Shader? Texture;
@@ -98,6 +100,7 @@ public static class EditorAssets
     {
         Fonts.Seguisb = (Font?)Asset.Load(AssetType.Font, Names.Seguisb);
         Shaders.Composite = (Shader?)Asset.Load(AssetType.Shader, Names.Composite);
+        Shaders.EditorAtlas00 = (Shader?)Asset.Load(AssetType.Shader, Names.EditorAtlas00);
         Shaders.Sprite = (Shader?)Asset.Load(AssetType.Shader, Names.Sprite);
         Shaders.Text = (Shader?)Asset.Load(AssetType.Shader, Names.Text);
         Shaders.Texture = (Shader?)Asset.Load(AssetType.Shader, Names.Texture);
@@ -141,6 +144,7 @@ public static class EditorAssets
     {
         Fonts.Seguisb?.Dispose();
         Shaders.Composite?.Dispose();
+        Shaders.EditorAtlas00?.Dispose();
         Shaders.Sprite?.Dispose();
         Shaders.Text?.Dispose();
         Shaders.Texture?.Dispose();

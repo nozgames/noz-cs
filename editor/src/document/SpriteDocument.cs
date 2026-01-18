@@ -48,12 +48,12 @@ public class SpriteDocument : Document
     {
         var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
-        LoadFromTokenizer(ref tk);
+        Load(ref tk);
         UpdateBounds();
         Loaded = true;
     }
 
-    private void LoadFromTokenizer(ref Tokenizer tk)
+    private void Load(ref Tokenizer tk)
     {
         var f = Frames[FrameCount++];
 

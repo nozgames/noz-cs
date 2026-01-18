@@ -30,6 +30,7 @@ public static class EditorApplication
 
         Application.RegisterAssetTypes();
         
+        AtlasDocument.RegisterDef();
         TextureDocument.RegisterDef();
         ShaderDocument.RegisterDef();
         SoundDocument.RegisterDef();
@@ -59,6 +60,7 @@ public static class EditorApplication
 
         EditorStyle.Init();
         CommandPalette.Init();
+        ContextMenu.Init();
         Workspace.Init();
         PaletteManager.Init(Config);
         UserSettings.Load();
@@ -69,6 +71,7 @@ public static class EditorApplication
         UserSettings.Save();
 
         Workspace.Shutdown();
+        ContextMenu.Shutdown();
         CommandPalette.Shutdown();
         EditorStyle.Shutdown();
         PaletteManager.Shutdown();
@@ -81,12 +84,14 @@ public static class EditorApplication
     public static void Update()
     {
         CommandPalette.Update();
+        ContextMenu.Update();
         Workspace.Update();
     }
 
     public static void UpdateUI()
     {
         Workspace.UpdateUI();
+        ContextMenu.UpdateUI();
         CommandPalette.UpdateUI();
     }
 }

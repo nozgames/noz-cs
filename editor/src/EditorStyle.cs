@@ -70,6 +70,7 @@ public static class EditorStyle
     public static class CanvasId
     {
         public const byte CommandPalette = 1;
+        public const byte ContextMenu = 2;
     }
     #endregion
     

@@ -159,6 +159,11 @@ public ref struct Tokenizer
         return true;
     }
 
+    public string? ExpectQuotedString()
+    {
+        return ExpectQuotedString(out var result) ? result : null;
+    }
+
     public bool ExpectQuotedString(out string value)
     {
         if (_nextToken.Type != TokenType.String)
