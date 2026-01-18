@@ -154,14 +154,14 @@ public static class CommandPalette
                 using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
                     ;
 
-                using (UI.BeginExpanded())
+                using (UI.BeginFlex())
                 using (UI.BeginContainer(EditorStyle.CommandPalette.SearchContainer))
                     UI.TextBox(ref _text, style: EditorStyle.CommandPalette.SearchTextBox, id: SearchId, placeholder: "Search...");
             }
 
             UI.Container(EditorStyle.Popup.Separator);
 
-            using (UI.BeginExpanded())
+            using (UI.BeginFlex())
                 CommandList();
         }
     }
@@ -170,9 +170,9 @@ public static class CommandPalette
     {
         var execute = false;
 
-        using (UI.BeginContainer())
+        using (UI.BeginContainer(ContainerStyle.Default.WithAlign(Align.Min)))
         using (UI.BeginScrollable(offset: 0, id: CommandListId))
-        using (UI.BeginColumn())
+        using (UI.BeginColumn(ContainerStyle.Default.WithAlign(Align.Min)))
         {
             var selectedIndex = _selectedIndex;
             for (var i = 0; i < _filteredCount; i++)

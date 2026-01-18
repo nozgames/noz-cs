@@ -136,6 +136,7 @@ public static class EditorStyle
         public readonly static ContainerStyle Separator = new() { 
             Height = 1,
             Margin = EdgeInsets.TopBottom(6),
+            AlignX = Align.Fill,
             Color = _current.PopupSpacerColor
         };
         public readonly static ContainerStyle RootContainer = new()
@@ -145,6 +146,13 @@ public static class EditorStyle
             Padding = EdgeInsets.All(8.0f),
             Color = Popup.FillColor,
             Border = new BorderStyle { Radius = 10.0f }
+        };
+        public readonly static LabelStyle Text = new()
+        {
+            FontSize = Control.TextSize,
+            Color = Control.TextColor,
+            AlignX = Align.Min,
+            AlignY = Align.Center
         };
     }
 
@@ -220,7 +228,7 @@ public static class EditorStyle
         public static readonly ContainerStyle ListColumn = new()
         {
             Spacing = 0.0f
-        };
+        };       
 
         public static readonly ContainerStyle CommandContainer = new()
         {
@@ -301,6 +309,7 @@ public static class EditorStyle
         public const float ItemHeight = 20f;
         public static Color TitleColor => _current.ContextMenuTitleColor;
         public static Color SeparatorColor => _current.ContextMenuSeparatorColor;
+        public static ContainerStyle Menu = Popup.RootContainer.WithAlign(Align.Min);
     }
 
     // Color Picker

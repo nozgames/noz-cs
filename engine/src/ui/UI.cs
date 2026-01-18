@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-// #define NOZ_UI_DEBUG
+#define NOZ_UI_DEBUG
 
 using System.Diagnostics;
 using System.Numerics;
@@ -95,8 +95,8 @@ public struct ContainerData
         MinHeight = 0,
         MaxWidth = float.MaxValue,
         MaxHeight = float.MaxValue,
-        AlignX = Align.Fill,
-        AlignY = Align.Fill,
+        AlignX = Align.Min,
+        AlignY = Align.Min,
         Margin = EdgeInsets.Zero,
         Padding = EdgeInsets.Zero,
         Color = Color.Transparent,
@@ -323,7 +323,7 @@ public static class UI
     public struct AutoColumn : IDisposable { readonly void IDisposable.Dispose() => EndColumn(); }
     public struct AutoRow : IDisposable { readonly void IDisposable.Dispose() => EndRow(); }
     public struct AutoScrollable: IDisposable { readonly void IDisposable.Dispose() => EndScrollable(); }
-    public struct AutoExpanded : IDisposable { readonly void IDisposable.Dispose() => EndExpanded(); }
+    public struct AutoFlex : IDisposable { readonly void IDisposable.Dispose() => EndFlex(); }
 
 
     // Element storage
@@ -796,9 +796,8 @@ public static class UI
 
     public static void EndCenter() => EndElement(ElementType.Container);
 
-    public static AutoExpanded BeginExpanded() => BeginExpanded(new ExpandedStyle());
-
-    public static AutoExpanded BeginExpanded(ExpandedStyle style)
+    public static AutoFlex BeginFlex() => BeginFlex(1.0f);
+    public static AutoFlex BeginFlex(float flex)
     {
         if (!HasCurrentElement())
             throw new InvalidOperationException("Expanded must be inside a Row or Column");
@@ -807,20 +806,19 @@ public static class UI
             throw new InvalidOperationException("Expanded must be inside a Row or Column");
 
         ref var e = ref CreateElement(ElementType.Expanded);
-        e.Data.Expanded.Flex = style.Flex;
+        e.Data.Expanded.Flex = flex;
         e.Data.Expanded.Axis = parent.Type == ElementType.Row ? 0 : 1;
         PushElement(e.Index);
-        return new AutoExpanded();
+        return new AutoFlex();
     }
 
-    public static void EndExpanded() => EndElement(ElementType.Expanded);
+    public static void EndFlex() => EndElement(ElementType.Expanded);
 
-    public static void Flex() => Expanded(new ExpandedStyle());
-
-    public static void Expanded(in ExpandedStyle style)
+    public static void Flex() => Flex(1.0f);
+    public static void Flex(float flex)
     {
-        BeginExpanded(style);
-        EndExpanded();
+        BeginFlex(flex);
+        EndFlex();
     }
 
     public static void Spacer(float size)
@@ -1214,7 +1212,6 @@ public static class UI
                 MeasureRowColumnContent(ref e, elementIndex, contentSize, axis, crossAxis, ref maxContentSize);
         }
 
-        // During measure, always fit to content - Fill expansion happens during layout
         if (!isAutoWidth)
             e.MeasuredSize.X = style.Width + style.Margin.L + style.Margin.R;
         else

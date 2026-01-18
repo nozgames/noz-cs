@@ -6,7 +6,6 @@ using System.Numerics;
 
 namespace NoZ
 {
-
     public struct ContainerStyle()
     {
         public float Width = float.MaxValue;
@@ -15,8 +14,8 @@ namespace NoZ
         public float MinHeight = 0;
         public float MaxWidth = float.MaxValue;
         public float MaxHeight = float.MaxValue;
-        public Align AlignX = Align.Fill;
-        public Align AlignY = Align.Fill;
+        public Align AlignX = Align.Min;
+        public Align AlignY = Align.Min;
         public EdgeInsets Margin = EdgeInsets.Zero;
         public EdgeInsets Padding = EdgeInsets.Zero;
         public Color Color = Color.Transparent;
@@ -43,6 +42,7 @@ namespace NoZ
         };
 
         public static ContainerStyle Default => new();
+        public static readonly ContainerStyle Fill = new() { AlignX = Align.Fill, AlignY = Align.Fill };
     }
 
     public struct LabelStyle()
@@ -68,11 +68,6 @@ namespace NoZ
         public float Width = float.MaxValue;
         public float Height = float.MaxValue;
         public Color Color = Color.White;
-    }
-
-    public struct ExpandedStyle()
-    {
-        public float Flex = 1.0f;
     }
 
     public struct TransformStyle()
@@ -169,6 +164,13 @@ namespace NoZ
         {
             style.Width = width;
             style.Height = height;
+            return style;
+        }
+
+        public static ContainerStyle WithFill(this ContainerStyle style)
+        {
+            style.AlignX = Align.Fill;
+            style.AlignY = Align.Fill;
             return style;
         }
 

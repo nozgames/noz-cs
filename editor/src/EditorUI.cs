@@ -14,26 +14,29 @@ internal static class EditorUI
     private static void ShortcutText(InputCode code, bool selected = false) =>
         ShortcutText(code.ToDisplayString(), selected: selected);
     
-    public static void Shortcut(Command command, bool selected=false)
+    public static void Shortcut(InputCode code, bool ctrl, bool alt, bool shift, bool selected = false)
     {
         using (UI.BeginRow(EditorStyle.Shortcut.ListContainer))
         {
-            if (command.Ctrl)
+            if (ctrl)
             {
                 ShortcutText(InputCode.KeyLeftCtrl, selected);
                 ShortcutText("+", selected);
             }
-            if (command.Alt)
+            if (alt)
             {
                 ShortcutText(InputCode.KeyLeftAlt, selected);
                 ShortcutText("+", selected);
             }
-            if (command.Shift)
+            if (shift)
             {
                 ShortcutText(InputCode.KeyLeftShift, selected);
                 ShortcutText("+", selected);
             }
-            ShortcutText(command.Key, selected);
+            ShortcutText(code, selected);
         }
     }
+
+    public static void Shortcut(Command command, bool selected=false) =>
+        Shortcut(command.Key, command.Ctrl, command.Alt, command.Shift, selected);
 }

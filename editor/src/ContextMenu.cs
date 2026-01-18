@@ -134,11 +134,10 @@ public static class ContextMenu
 
         using (UI.BeginCanvas(id: EditorStyle.CanvasId.ContextMenu))
         {
-            using (UI.BeginContainer(id: CloseId))
+            using (UI.BeginContainer(style: ContainerStyle.Default.WithFill(), id: CloseId))
                 if (UI.WasPressed())
                     Close();
 
-            // Render root menu
             var menuWidth = RenderMenu(0, -1, _position, ref executed);
 
             // Track menu positions for each level
@@ -205,42 +204,31 @@ public static class ContextMenu
         var parentLevel = level == 0 ? -1 : _items![parentIndex].Level;
 
         using (UI.BeginContainer(
-            style: EditorStyle.Popup.RootContainer
-                .WithAlign(Align.Min)
-                .WithMargin(EdgeInsets.TopLeft(menuPos.Y, menuPos.X)),
+            style: EditorStyle.ContextMenu.Menu.WithMargin(EdgeInsets.TopLeft(menuPos.Y, menuPos.X)),
             id: (byte)(MenuIdStart + level)))
-        using (UI.BeginColumn(ContainerStyle.Default.WithAlignY(Align.Min)))
+        using (UI.BeginColumn())
         {
             if (level == 0 && _title != null)
             {
-                UI.Label(_title, new LabelStyle
-                {
-                    FontSize = EditorStyle.ContextMenu.TextSize,
-                    Color = EditorStyle.ContextMenu.TitleColor
-                });
-                RenderSeparator();
+                UI.Label(_title, EditorStyle.Popup.Text);
+                UI.Container(EditorStyle.Popup.Separator);
             }
 
             for (var index = startIndex; index < _itemCount; index++)
             {
                 ref var item = ref _items![index];
-
                 if (item.Level <= parentLevel) break;
                 if (item.Level != parentLevel + 1) continue;
-
                 if (item.Label == null)
                 {
-                    RenderSeparator();
+                    UI.Container(EditorStyle.Popup.Separator);
                     continue;
                 }
 
                 var hasChildren = HasChildren(index);
                 var isSubmenuOpen = level < MaxSubmenuDepth && _openSubmenu[level] == index;
 
-                using (UI.BeginContainer(new ContainerStyle
-                {
-                    Height = EditorStyle.ContextMenu.ItemHeight
-                }, id: (byte)(ItemIdStart + index)))
+                using (UI.BeginContainer(EditorStyle.Popup.Item, id: (byte)(ItemIdStart + index)))
                 {
                     var hovered = UI.IsHovered() && item.Enabled;
                     if (hovered || isSubmenuOpen)
@@ -264,7 +252,7 @@ public static class ContextMenu
                             AlignY = Align.Center
                         });
 
-                        UI.Flex();
+                        //UI.Flex();
 
                         // Submenu arrow or shortcut
                         using (UI.BeginContainer(new ContainerStyle(){Margin=EdgeInsets.Left(16)}))
@@ -285,7 +273,7 @@ public static class ContextMenu
                             }
                             else if (item.Key != InputCode.None)
                             {
-                                RenderShortcut(item, hovered);
+                                EditorUI.Shortcut(item.Key, item.Ctrl, item.Alt, item.Shift, selected: hovered);
                             }
                         }
                     }
@@ -325,58 +313,8 @@ public static class ContextMenu
         }
 
         var menuRect = UI.GetElementRect((byte)(MenuIdStart + level), EditorStyle.CanvasId.ContextMenu);
-        return menuRect.Width > 0 ? menuRect.Width : EditorStyle.ContextMenu.MinWidth + EditorStyle.Overlay.Padding * 2;
+        return menuRect.Width > 0
+            ? menuRect.Width
+            : EditorStyle.ContextMenu.MinWidth + EditorStyle.Overlay.Padding * 2;
     }
-
-    private static void RenderSeparator()
-    {
-        using (UI.BeginColumn(new ContainerStyle { Height = EditorStyle.ContextMenu.SeparatorSpacing }))
-        {
-            UI.Flex();
-            UI.Container(new ContainerStyle
-            {
-                Height = EditorStyle.ContextMenu.SeparatorHeight,
-                Color = EditorStyle.ContextMenu.SeparatorColor
-            });
-            UI.Flex();
-        }
-    }
-
-    private static void RenderShortcut(in ContextMenuItem item, bool selected)
-    {
-        var text = "";
-        if (item.Ctrl) text += "Ctrl+";
-        if (item.Alt) text += "Alt+";
-        if (item.Shift) text += "Shift+";
-        text += GetKeyName(item.Key);
-
-        UI.Label(text, new LabelStyle
-        {
-            FontSize = EditorStyle.ContextMenu.TextSize - 2,
-            Color = selected ? EditorStyle.Overlay.AccentTextColor : EditorStyle.Control.PlaceholderTextColor,
-            AlignX = Align.Min,
-            AlignY = Align.Center
-        });
-    }
-
-    private static string GetKeyName(InputCode key) => key switch
-    {
-        InputCode.KeySpace => "Space",
-        InputCode.KeyEnter => "Enter",
-        InputCode.KeyTab => "Tab",
-        InputCode.KeyBackspace => "Backspace",
-        InputCode.KeyDelete => "Del",
-        InputCode.KeyEscape => "Esc",
-        InputCode.KeyUp => "Up",
-        InputCode.KeyDown => "Down",
-        InputCode.KeyLeft => "Left",
-        InputCode.KeyRight => "Right",
-        InputCode.KeyQuote => "'",
-        InputCode.KeyMinus => "-",
-        InputCode.KeyEquals => "=",
-        >= InputCode.KeyA and <= InputCode.KeyZ => ((char)('A' + (key - InputCode.KeyA))).ToString(),
-        >= InputCode.Key0 and <= InputCode.Key9 => ((char)('0' + (key - InputCode.Key0))).ToString(),
-        >= InputCode.KeyF1 and <= InputCode.KeyF12 => $"F{1 + key - InputCode.KeyF1}",
-        _ => key.ToString().Replace("Key", "")
-    };
 }
