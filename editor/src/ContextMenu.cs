@@ -35,6 +35,7 @@ public struct ContextMenuItem
 
 public static class ContextMenu
 {
+    private const byte CloseId = 1;
     private const byte MenuIdStart = 10;
     private const byte ItemIdStart = 20;
     private const int MaxItems = 64;
@@ -117,6 +118,11 @@ public static class ContextMenu
             if (!closedSubmenu)
                 Close();
         }
+
+        if (Input.WasButtonPressed(InputCode.MouseRight))
+        {
+            Close();
+        }
     }
 
     public static void UpdateUI()
@@ -125,20 +131,15 @@ public static class ContextMenu
             return;
 
         Action? executed = null;
-        var close = false;
-        var itemPressed = false;
 
         using (UI.BeginCanvas(id: EditorStyle.CanvasId.ContextMenu))
         {
-            // Background click detection
-            using (UI.BeginContainer(id: 1))
-            {
-                if (UI.WasClicked())
-                    close = true;
-            }
+            using (UI.BeginContainer(id: CloseId))
+                if (UI.WasPressed())
+                    Close();
 
             // Render root menu
-            var menuWidth = RenderMenu(0, -1, _position, ref executed, ref itemPressed);
+            var menuWidth = RenderMenu(0, -1, _position, ref executed);
 
             // Track menu positions for each level
             Span<Vector2> menuPositions = stackalloc Vector2[MaxSubmenuDepth + 1];
@@ -181,15 +182,8 @@ public static class ContextMenu
                 // Position submenu to the right of parent menu
                 var submenuPos = new Vector2(parentMenuPos.X + menuWidths[level] + 2, itemY);
                 menuPositions[level + 1] = submenuPos;
-                menuWidths[level + 1] = RenderMenu(level + 1, parentIndex, submenuPos, ref executed, ref itemPressed);
+                menuWidths[level + 1] = RenderMenu(level + 1, parentIndex, submenuPos, ref executed);
             }
-        }
-
-        // Close from background click only if no menu item was pressed
-        if (close && !itemPressed)
-        {
-            Close();
-            return;
         }
 
         if (executed != null)
@@ -205,21 +199,17 @@ public static class ContextMenu
         return _items![index + 1].Level > _items[index].Level;
     }
 
-    private static float RenderMenu(int level, int parentIndex, Vector2 menuPos, ref Action? executed, ref bool itemPressed)
+    private static float RenderMenu(int level, int parentIndex, Vector2 menuPos, ref Action? executed)
     {
         var startIndex = level == 0 ? 0 : parentIndex + 1;
         var parentLevel = level == 0 ? -1 : _items![parentIndex].Level;
 
-        using (UI.BeginContainer(new ContainerStyle
-        {
-            MinWidth = EditorStyle.ContextMenu.MinWidth,
-            Align = Align.TopLeft,
-            Margin = new EdgeInsets(menuPos.Y, menuPos.X, 0, 0),
-            Padding = EdgeInsets.All(EditorStyle.Overlay.Padding),
-            Color = EditorStyle.Overlay.FillColor,
-            Border = new BorderStyle { Radius = EditorStyle.Overlay.BorderRadius }
-        }, id: (byte)(MenuIdStart + level)))
-        using (UI.BeginColumn())
+        using (UI.BeginContainer(
+            style: EditorStyle.Popup.RootContainer
+                .WithAlign(Align.Min)
+                .WithMargin(EdgeInsets.TopLeft(menuPos.Y, menuPos.X)),
+            id: (byte)(MenuIdStart + level)))
+        using (UI.BeginColumn(ContainerStyle.Default.WithAlignY(Align.Min)))
         {
             if (level == 0 && _title != null)
             {
@@ -270,32 +260,38 @@ public static class ContextMenu
                                 : (hovered || isSubmenuOpen)
                                     ? EditorStyle.Overlay.AccentTextColor
                                     : EditorStyle.Overlay.TextColor,
-                            Align = Align.CenterLeft
+                            AlignX = Align.Min,
+                            AlignY = Align.Center
                         });
 
+                        UI.Flex();
+
                         // Submenu arrow or shortcut
-                        if (hasChildren)
+                        using (UI.BeginContainer(new ContainerStyle(){Margin=EdgeInsets.Left(16)}))
                         {
-                            UI.Label("  >", new LabelStyle
+                            if (hasChildren)
                             {
-                                FontSize = EditorStyle.ContextMenu.TextSize,
-                                Color = !item.Enabled
-                                    ? EditorStyle.Overlay.DisabledTextColor
-                                    : (hovered || isSubmenuOpen)
-                                        ? EditorStyle.Overlay.AccentTextColor
-                                        : EditorStyle.Overlay.TextColor,
-                                Align = Align.CenterRight
-                            });
-                        }
-                        else if (item.Key != InputCode.None)
-                        {
-                            RenderShortcut(item, hovered);
+                                UI.Label(">", new LabelStyle
+                                {
+                                    FontSize = EditorStyle.ContextMenu.TextSize,
+                                    Color = !item.Enabled
+                                        ? EditorStyle.Overlay.DisabledTextColor
+                                        : (hovered || isSubmenuOpen)
+                                            ? EditorStyle.Overlay.AccentTextColor
+                                            : EditorStyle.Overlay.TextColor,
+                                    AlignX = Align.Min,
+                                    AlignY = Align.Center
+                                });
+                            }
+                            else if (item.Key != InputCode.None)
+                            {
+                                RenderShortcut(item, hovered);
+                            }
                         }
                     }
 
-                    if (UI.WasClicked() && item.Enabled)
+                    if (UI.WasPressed() && item.Enabled)
                     {
-                        itemPressed = true;
                         if (hasChildren)
                         {
                             // Toggle submenu
@@ -336,13 +332,13 @@ public static class ContextMenu
     {
         using (UI.BeginColumn(new ContainerStyle { Height = EditorStyle.ContextMenu.SeparatorSpacing }))
         {
-            UI.Expanded();
+            UI.Flex();
             UI.Container(new ContainerStyle
             {
                 Height = EditorStyle.ContextMenu.SeparatorHeight,
                 Color = EditorStyle.ContextMenu.SeparatorColor
             });
-            UI.Expanded();
+            UI.Flex();
         }
     }
 
@@ -358,7 +354,8 @@ public static class ContextMenu
         {
             FontSize = EditorStyle.ContextMenu.TextSize - 2,
             Color = selected ? EditorStyle.Overlay.AccentTextColor : EditorStyle.Control.PlaceholderTextColor,
-            Align = Align.CenterRight
+            AlignX = Align.Min,
+            AlignY = Align.Center
         });
     }
 

@@ -140,7 +140,8 @@ public static class EditorStyle
         };
         public readonly static ContainerStyle RootContainer = new()
         {
-            Align = Align.Center,
+            AlignX = Align.Center,
+            AlignY = Align.Center,
             Padding = EdgeInsets.All(8.0f),
             Color = Popup.FillColor,
             Border = new BorderStyle { Radius = 10.0f }
@@ -160,7 +161,8 @@ public static class EditorStyle
         {
             FontSize = TextSize,
             Color = TextColor,
-            Align = Align.CenterLeft
+            AlignX = Align.Min,
+            AlignY = Align.Center
         };
     }
 
@@ -267,14 +269,16 @@ public static class EditorStyle
         public static readonly ContainerStyle ListContainer = new()
         {
             Spacing = 2.0f,
-            Align = Align.CenterLeft
+            AlignX = Align.Min,
+            AlignY = Align.Center
         };
 
         public static readonly ContainerStyle RootContainer = new()
         {
             MinWidth = 24.0f,
             Height = 24.0f,
-            Align = Align.Center,
+            AlignX = Align.Center,
+            AlignY = Align.Center,
             Padding = EdgeInsets.LeftRight(8),
             //Color = Control.FillColor,
             Border = new BorderStyle { Radius = 4f }

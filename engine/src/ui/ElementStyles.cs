@@ -15,7 +15,8 @@ namespace NoZ
         public float MinHeight = 0;
         public float MaxWidth = float.MaxValue;
         public float MaxHeight = float.MaxValue;
-        public Align Align = Align.None;
+        public Align AlignX = Align.Fill;
+        public Align AlignY = Align.Fill;
         public EdgeInsets Margin = EdgeInsets.Zero;
         public EdgeInsets Padding = EdgeInsets.Zero;
         public Color Color = Color.Transparent;
@@ -31,7 +32,8 @@ namespace NoZ
             MinHeight = MinHeight,
             MaxWidth = MaxWidth,
             MaxHeight = MaxHeight,
-            Align = Align,
+            AlignX = AlignX,
+            AlignY = AlignY,
             Margin = Margin,
             Padding = Padding,
             Color = Color,
@@ -39,20 +41,24 @@ namespace NoZ
             Spacing = Spacing,
             Clip = Clip
         };
+
+        public static ContainerStyle Default => new();
     }
 
     public struct LabelStyle()
     {
         public float FontSize = 16;
         public Color Color = Color.White;
-        public Align Align = Align.None;
+        public Align AlignX = Align.Min;
+        public Align AlignY = Align.Center;
         public Font? Font = null;
     }
 
     public struct ImageStyle()
     {
         public ImageStretch Stretch = ImageStretch.Uniform;
-        public Align Align = Align.None;
+        public Align AlignX = Align.Min;
+        public Align AlignY = Align.Min;
         public float Scale = 1.0f;
         public Color Color = Color.White;
     }
@@ -95,8 +101,10 @@ namespace NoZ
 
     public struct PopupStyle()
     {
-        public Align Anchor = Align.TopLeft;
-        public Align PopupAlign = Align.TopLeft;
+        public Align AnchorX = Align.Min;
+        public Align AnchorY = Align.Min;
+        public Align PopupAlignX = Align.Min;
+        public Align PopupAlignY = Align.Min;
         public EdgeInsets Margin = EdgeInsets.Zero;
     }
 
@@ -161,6 +169,31 @@ namespace NoZ
         {
             style.Width = width;
             style.Height = height;
+            return style;
+        }
+
+        public static ContainerStyle WithAlign(this ContainerStyle style, Align align)
+        {
+            style.AlignX = align;
+            style.AlignY = align;
+            return style;
+        }
+
+        public static ContainerStyle WithAlignX(this ContainerStyle style, Align alignX)
+        {
+            style.AlignX = alignX;
+            return style;
+        }
+
+        public static ContainerStyle WithAlignY(this ContainerStyle style, Align alignY)
+        {
+            style.AlignY = alignY;
+            return style;
+        }
+
+        public static ContainerStyle WithMargin(this ContainerStyle style, in EdgeInsets margin)
+            {
+            style.Margin = margin;
             return style;
         }
 

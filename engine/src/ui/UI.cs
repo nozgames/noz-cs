@@ -2,6 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+// #define NOZ_UI_DEBUG
+
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -20,20 +23,10 @@ public enum ElementFlags : uint
 
 public enum Align
 {
-    None,
-    Top,
-    Left,
-    Bottom,
-    Right,
-    TopLeft,
-    TopRight,
-    TopCenter,
-    CenterLeft,
-    CenterRight,
-    Center,
-    BottomLeft,
-    BottomRight,
-    BottomCenter
+    Fill,   // Stretch to fill parent (default)
+    Min,    // Left/Top - fit content, align to start
+    Center, // Fit content, center
+    Max     // Right/Bottom - fit content, align to end
 }
 
 public enum ElementType : byte
@@ -67,35 +60,6 @@ public enum CanvasType : byte
     World
 }
 
-public readonly struct EdgeInsets(float top, float left, float bottom, float right)
-{
-    public readonly float T = top;
-    public readonly float L = left;
-    public readonly float B = bottom;
-    public readonly float R = right;
-
-    public EdgeInsets(float all) : this(all, all, all, all)
-    {
-    }
-
-    public float Horizontal => L + R;
-    public float Vertical => T + B;
-
-    public static EdgeInsets All(float v) => new(v, v, v, v);
-    public static EdgeInsets Top(float v) => new(v, 0, 0, 0);
-    public static EdgeInsets Bottom(float v) => new(0, 0, v, 0);
-    public static EdgeInsets Left(float v) => new(0, v, 0, 0);
-    public static EdgeInsets Right(float v) => new(0, 0, 0, v);
-    public static EdgeInsets TopBottom(float v) => new(v, 0, v, 0);
-    public static EdgeInsets LeftRight(float v) => new(0, v, 0, v);
-    public static EdgeInsets LeftRight(float l, float r) => new(0, l, 0, r);
-
-    public static EdgeInsets Symmetric(float vertical, float horizontal) =>
-        new(vertical, horizontal, vertical, horizontal);
-
-    public static readonly EdgeInsets Zero = new(0, 0, 0, 0);
-}
-
 public struct BorderStyle
 {
     public float Radius;
@@ -114,7 +78,8 @@ public struct ContainerData
     public float MinHeight;
     public float MaxWidth;
     public float MaxHeight;
-    public Align Align;
+    public Align AlignX;
+    public Align AlignY;
     public EdgeInsets Margin;
     public EdgeInsets Padding;
     public Color Color;
@@ -130,7 +95,8 @@ public struct ContainerData
         MinHeight = 0,
         MaxWidth = float.MaxValue,
         MaxHeight = float.MaxValue,
-        Align = Align.None,
+        AlignX = Align.Fill,
+        AlignY = Align.Fill,
         Margin = EdgeInsets.Zero,
         Padding = EdgeInsets.Zero,
         Color = Color.Transparent,
@@ -144,7 +110,8 @@ public struct LabelData
 {
     public float FontSize;
     public Color Color;
-    public Align Align;
+    public Align AlignX;
+    public Align AlignY;
     public int TextStart;
     public int TextLength;
 
@@ -152,7 +119,8 @@ public struct LabelData
     {
         FontSize = 16,
         Color = Color.White,
-        Align = Align.None,
+        AlignX = Align.Min,
+        AlignY = Align.Center,
         TextStart = 0,
         TextLength = 0
     };
@@ -161,7 +129,8 @@ public struct LabelData
 public struct ImageData
 {
     public ImageStretch Stretch;
-    public Align Align;
+    public Align AlignX;
+    public Align AlignY;
     public float Scale;
     public Color Color;
     public nuint Texture;
@@ -173,7 +142,8 @@ public struct ImageData
     public static ImageData Default => new()
     {
         Stretch = ImageStretch.Uniform,
-        Align = Align.None,
+        AlignX = Align.Min,
+        AlignY = Align.Min,
         Scale = 1.0f,
         Color = Color.White,
         Texture = nuint.Zero,
@@ -246,14 +216,18 @@ public struct TransformData
 
     public struct PopupData
     {
-        public Align Anchor;
-        public Align PopupAlign;
+        public Align AnchorX;
+        public Align AnchorY;
+        public Align PopupAlignX;
+        public Align PopupAlignY;
         public EdgeInsets Margin;
 
         public static PopupData Default => new()
         {
-            Anchor = Align.TopLeft,
-            PopupAlign = Align.TopLeft,
+            AnchorX = Align.Min,
+            AnchorY = Align.Min,
+            PopupAlignX = Align.Min,
+            PopupAlignY = Align.Min,
             Margin = EdgeInsets.Zero
         };
     }
@@ -327,31 +301,6 @@ public static class UI
     public static Font? DefaultFont => _defaultFont;
     public static UIConfig Config { get; private set; } = new();
 
-    private static readonly AlignInfo[] AlignInfoTable =
-    [
-        new(false, 0.0f, false, 0.0f), // None
-        new(false, 0.0f, true, 0.0f), // Top
-        new(true, 0.0f, false, 0.0f), // Left
-        new(false, 0.0f, true, 1.0f), // Bottom
-        new(true, 1.0f, false, 0.0f), // Right
-        new(true, 0.0f, true, 0.0f), // TopLeft
-        new(true, 1.0f, true, 0.0f), // TopRight
-        new(true, 0.5f, true, 0.0f), // TopCenter
-        new(true, 0.0f, true, 0.5f), // CenterLeft
-        new(true, 1.0f, true, 0.5f), // CenterRight
-        new(true, 0.5f, true, 0.5f), // Center
-        new(true, 0.0f, true, 1.0f), // BottomLeft
-        new(true, 1.0f, true, 1.0f), // BottomRight
-        new(true, 0.5f, true, 1.0f), // BottomCenter
-    ];
-
-    internal readonly struct AlignInfo(bool hasX, float x, bool hasY, float y)
-    {
-        public readonly bool HasX = hasX;
-        public readonly float X = x;
-        public readonly bool HasY = hasY;
-        public readonly float Y = y;
-    }
 
     internal struct ElementState
     {
@@ -407,6 +356,7 @@ public static class UI
     private static byte _activeScrollId;
     private static float _lastScrollMouseY;
     private static bool _closePopups;
+    private static bool _elementWasPressed;
     public static Vector2 Size => _orthoSize;
 
     public static float UserScale { get; set; } = 1.0f;
@@ -469,8 +419,7 @@ public static class UI
 
     private static ref Element GetCurrentElement()
     {
-        if (_elementStackCount <= 0)
-            throw new InvalidOperationException("No current element");
+        Debug.Assert(_elementStackCount > 0);
         return ref _elements[_elementStack[_elementStackCount - 1]];
     }
 
@@ -552,8 +501,11 @@ public static class UI
     public static bool WasPressed() => CheckElementFlags(ElementFlags.Pressed);
     public static bool IsDown() => CheckElementFlags(ElementFlags.Down);
 
+#if false
     public static bool WasClicked()
     {
+        ref readonly e = ref GetCurrentElement();
+
         if (!_mouseLeftPressed) return false;
         if (_elementStackCount <= 0) return false;
         ref var e = ref _elements[_elementStack[_elementStackCount - 1]];
@@ -561,6 +513,7 @@ public static class UI
         var localMouse = Vector2.Transform(_mousePosition, e.WorldToLocal);
         return new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse);
     }
+#endif
 
     public static byte GetElementId() => HasCurrentElement() ? GetCurrentElement().Id : (byte)0;
 
@@ -735,6 +688,8 @@ public static class UI
         // Apply pending focus (element ID + canvas ID)
         _focusId = _pendingFocusId;
         _focusCanvasId = _pendingFocusCanvasId;
+
+        LogUI("Begin");
     }
 
     public static AutoCanvas BeginCanvas(CanvasStyle style = default, byte id = 0)
@@ -834,7 +789,8 @@ public static class UI
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = ContainerData.Default;
-        e.Data.Container.Align = Align.Center;
+        e.Data.Container.AlignX = Align.Center;
+        e.Data.Container.AlignY = Align.Center;
         PushElement(e.Index);
     }
 
@@ -859,7 +815,7 @@ public static class UI
 
     public static void EndExpanded() => EndElement(ElementType.Expanded);
 
-    public static void Expanded() => Expanded(new ExpandedStyle());
+    public static void Flex() => Expanded(new ExpandedStyle());
 
     public static void Expanded(in ExpandedStyle style)
     {
@@ -986,8 +942,10 @@ public static class UI
         ref var e = ref CreateElement(ElementType.Popup);
         e.Data.Popup = new PopupData
         {
-            Anchor = style.Anchor,
-            PopupAlign = style.PopupAlign,
+            AnchorX = style.AnchorX,
+            AnchorY = style.AnchorY,
+            PopupAlignX = style.PopupAlignX,
+            PopupAlignY = style.PopupAlignY,
             Margin = style.Margin
         };
         PushElement(e.Index);
@@ -1017,7 +975,8 @@ public static class UI
         {
             FontSize = style.FontSize > 0 ? style.FontSize : 16,
             Color = style.Color,
-            Align = style.Align,
+            AlignX = style.AlignX,
+            AlignY = style.AlignY,
             TextStart = textStart,
             TextLength = text.Length
         };
@@ -1032,7 +991,8 @@ public static class UI
         e.Data.Image = new ImageData
         {
             Stretch = style.Stretch,
-            Align = style.Align,
+            AlignX = style.AlignX,
+            AlignY = style.AlignY,
             Scale = style.Scale,
             Color = style.Color,
             Texture = nuint.Zero, // sprite.Texture,
@@ -1052,7 +1012,8 @@ public static class UI
         e.Data.Image = new ImageData
         {
             Stretch = style.Stretch,
-            Align = style.Align,
+            AlignX = style.AlignX,
+            AlignY = style.AlignY,
             Scale = style.Scale,
             Color = style.Color,
             Texture = texture.Handle,
@@ -1218,6 +1179,8 @@ public static class UI
         var isAutoHeight = IsAuto(style.Height);
         var firstChildIndex = elementIndex;
 
+        LogUI($"MeasureContainer: Type={e.Type} Id={e.Id} Available=({availableSize.X:F1},{availableSize.Y:F1}) AutoW={isAutoWidth} AutoH={isAutoHeight} AlignX={style.AlignX} AlignY={style.AlignY}");
+
         var contentSize = Vector2.Zero;
         if (isAutoWidth)
             contentSize.X = availableSize.X - style.Margin.L - style.Margin.R;
@@ -1251,25 +1214,23 @@ public static class UI
                 MeasureRowColumnContent(ref e, elementIndex, contentSize, axis, crossAxis, ref maxContentSize);
         }
 
+        // During measure, always fit to content - Fill expansion happens during layout
         if (!isAutoWidth)
             e.MeasuredSize.X = style.Width + style.Margin.L + style.Margin.R;
-        else if (e.ChildCount == 0 && maxContentSize.X == 0)
-            e.MeasuredSize.X = availableSize.X;
         else
             e.MeasuredSize.X = Math.Min(availableSize.X, maxContentSize.X + style.Padding.L + style.Padding.R + style.Border.Width * 2 + style.Margin.L + style.Margin.R);
 
         if (!isAutoHeight)
             e.MeasuredSize.Y = style.Height + style.Margin.T + style.Margin.B;
-        else if (e.ChildCount == 0 && maxContentSize.Y == 0)
-            e.MeasuredSize.Y = availableSize.Y;
         else
-            e.MeasuredSize.Y = Math.Min(availableSize.Y,
-                maxContentSize.Y + style.Padding.T + style.Padding.B + style.Border.Width * 2 + style.Margin.T + style.Margin.B);
+            e.MeasuredSize.Y = Math.Min(availableSize.Y, maxContentSize.Y + style.Padding.T + style.Padding.B + style.Border.Width * 2 + style.Margin.T + style.Margin.B);
 
         var preclampX = e.MeasuredSize.X;
         var preclampY = e.MeasuredSize.Y;
         e.MeasuredSize.X = Math.Clamp(e.MeasuredSize.X, style.MinWidth, style.MaxWidth);
         e.MeasuredSize.Y = Math.Clamp(e.MeasuredSize.Y, style.MinHeight, style.MaxHeight);
+
+        LogUI($"  -> Measured: Type={e.Type} Id={e.Id} Size=({e.MeasuredSize.X:F1},{e.MeasuredSize.Y:F1}) MaxContent=({maxContentSize.X:F1},{maxContentSize.Y:F1})");
 
         // If min/max constraints changed our size, re-measure children with the constrained content size
         var wasClamped = Math.Abs(e.MeasuredSize.X - preclampX) > 0.001f || Math.Abs(e.MeasuredSize.Y - preclampY) > 0.001f;
@@ -1310,14 +1271,12 @@ public static class UI
         int crossAxis,
         ref Vector2 maxContentSize)
     {
-        var childElementIndex = elementIndex;
-        var flexTotal = 0f;
-
         for (var i = 0; i < e.ChildCount; i++)
         {
             ref var child = ref _elements[elementIndex];
             if (child.Type == ElementType.Expanded)
             {
+                // Expanded elements measure to 0 on flex axis - they expand during layout
                 var childAvail = Vector2.Zero;
                 SetComponent(ref childAvail, crossAxis, GetComponent(availableSize, crossAxis));
                 elementIndex = MeasureElement(elementIndex, childAvail);
@@ -1331,41 +1290,13 @@ public static class UI
                 Math.Max(GetComponent(maxContentSize, crossAxis), GetComponent(child.MeasuredSize, crossAxis)));
             SetComponent(ref maxContentSize, axis,
                 GetComponent(maxContentSize, axis) + GetComponent(child.MeasuredSize, axis));
-
-            if (child.Type == ElementType.Expanded)
-                flexTotal += child.Data.Expanded.Flex;
-        }
-
-        var spacing = e.ChildCount > 1 ? e.Data.Container.Spacing * (e.ChildCount - 1) : 0;
-
-        if (flexTotal >= float.Epsilon)
-        {
-            var flexAvailable =
-                Math.Max(0, GetComponent(availableSize, axis) - GetComponent(maxContentSize, axis)) -
-                spacing;
-
-            SetComponent(ref maxContentSize, axis,
-                Math.Max(GetComponent(maxContentSize, axis), GetComponent(availableSize, axis)));
-
-            var childAvailSize = Vector2.Zero;
-            SetComponent(ref childAvailSize, crossAxis, GetComponent(maxContentSize, crossAxis));
-
-            for (var i = 0; i < e.ChildCount; i++)
-            {
-                ref var child = ref _elements[childElementIndex];
-                if (child.Type == ElementType.Expanded)
-                {
-                    var flexSize = child.Data.Expanded.Flex / flexTotal * flexAvailable;
-                    SetComponent(ref childAvailSize, axis, flexSize);
-                    MeasureElement(childElementIndex, childAvailSize);
-                }
-
-                childElementIndex = child.NextSiblingIndex;
-            }
         }
 
         if (e.ChildCount > 1)
+        {
+            var spacing = e.Data.Container.Spacing * (e.ChildCount - 1);
             SetComponent(ref maxContentSize, axis, GetComponent(maxContentSize, axis) + spacing);
+        }
 
         return elementIndex;
     }
@@ -1380,8 +1311,9 @@ public static class UI
             maxContentSize = Vector2.Max(maxContentSize, child.MeasuredSize);
         }
 
+        // Measure to 0 on flex axis - expansion happens during layout
         e.MeasuredSize = maxContentSize;
-        SetComponent(ref e.MeasuredSize, e.Data.Expanded.Axis, GetComponent(availableSize, e.Data.Expanded.Axis));
+        SetComponent(ref e.MeasuredSize, e.Data.Expanded.Axis, 0);
         return elementIndex;
     }
 
@@ -1562,27 +1494,41 @@ public static class UI
     private static int LayoutContainer(ref Element e, int elementIndex, Vector2 size)
     {
         ref var style = ref e.Data.Container;
-        ref readonly var alignInfo = ref AlignInfoTable[(int)style.Align];
+
+        LogUI($"LayoutContainer: Type={e.Type} Id={e.Id} ParentSize=({size.X:F1},{size.Y:F1}) Measured=({e.MeasuredSize.X:F1},{e.MeasuredSize.Y:F1}) AlignX={style.AlignX} AlignY={style.AlignY}");
 
         // MeasuredSize includes margin, but Rect.Width/Height should not (margin is external)
-        // So we subtract margin from MeasuredSize to get the actual rect size
-        var rectWidth = e.MeasuredSize.X - style.Margin.L - style.Margin.R;
-        var rectHeight = e.MeasuredSize.Y - style.Margin.T - style.Margin.B;
+        var measuredWidth = e.MeasuredSize.X - style.Margin.L - style.Margin.R;
+        var measuredHeight = e.MeasuredSize.Y - style.Margin.T - style.Margin.B;
 
-        e.Rect.Width = rectWidth;
-        e.Rect.Height = rectHeight;
+        // Fill stretches to parent, otherwise use measured (fit to content)
+        e.Rect.Width = style.AlignX == Align.Fill
+            ? size.X - style.Margin.L - style.Margin.R
+            : measuredWidth;
+        e.Rect.Height = style.AlignY == Align.Fill
+            ? size.Y - style.Margin.T - style.Margin.B
+            : measuredHeight;
 
-        if (alignInfo.HasX)
+        LogUI($"  -> Rect: ({e.Rect.X:F1},{e.Rect.Y:F1},{e.Rect.Width:F1},{e.Rect.Height:F1}) MeasuredW={measuredWidth:F1} MeasuredH={measuredHeight:F1}");
+
+        // Position based on alignment
+        var availWidth = size.X - e.Rect.Width - style.Margin.L - style.Margin.R;
+        e.Rect.X = style.AlignX switch
         {
-            var availWidth = size.X - e.Rect.Width - style.Margin.L - style.Margin.R;
-            e.Rect.X = availWidth * alignInfo.X;
-        }
+            Align.Min => 0,
+            Align.Center => availWidth * 0.5f,
+            Align.Max => availWidth,
+            _ => 0 // Fill
+        };
 
-        if (alignInfo.HasY)
+        var availHeight = size.Y - e.Rect.Height - style.Margin.T - style.Margin.B;
+        e.Rect.Y = style.AlignY switch
         {
-            var availHeight = size.Y - e.Rect.Height - style.Margin.T - style.Margin.B;
-            e.Rect.Y = availHeight * alignInfo.Y;
-        }
+            Align.Min => 0,
+            Align.Center => availHeight * 0.5f,
+            Align.Max => availHeight,
+            _ => 0 // Fill
+        };
 
         var childOffset = new Vector2(
             style.Padding.L + style.Border.Width,
@@ -1592,6 +1538,8 @@ public static class UI
         var contentSize = e.Rect.Size;
         contentSize.X -= style.Padding.L + style.Padding.R + style.Border.Width * 2;
         contentSize.Y -= style.Padding.T + style.Padding.B + style.Border.Width * 2;
+
+        LogUI($"  -> ContentSize for children: ({contentSize.X:F1},{contentSize.Y:F1})");
 
         if (e.Type == ElementType.Container)
         {
@@ -1605,26 +1553,84 @@ public static class UI
         }
         else if (e.Type == ElementType.Column)
         {
+            // Calculate flex total and remaining space for Expanded elements
+            var flexTotal = 0f;
+            var fixedHeight = e.ChildCount > 1 ? style.Spacing * (e.ChildCount - 1) : 0f;
+            var childIndex = elementIndex;
+            for (var i = 0; i < e.ChildCount; i++)
+            {
+                ref var child = ref _elements[childIndex];
+                if (child.Type == ElementType.Expanded)
+                    flexTotal += child.Data.Expanded.Flex;
+                else
+                    fixedHeight += child.MeasuredSize.Y;
+                childIndex = child.NextSiblingIndex;
+            }
+            var flexSpace = Math.Max(0, contentSize.Y - fixedHeight);
+
             for (var i = 0; i < e.ChildCount; i++)
             {
                 ref var child = ref _elements[elementIndex];
-                contentSize.Y = child.MeasuredSize.Y;
-                elementIndex = LayoutElement(elementIndex, contentSize);
-                child.Rect.Y += childOffset.Y;
-                child.Rect.X += childOffset.X;
-                childOffset.Y += child.MeasuredSize.Y + style.Spacing;
+                if (child.Type == ElementType.Expanded && flexTotal > 0)
+                {
+                    var flexHeight = child.Data.Expanded.Flex / flexTotal * flexSpace;
+                    contentSize.Y = flexHeight;
+                    LogUI($"  -> Column child {i} (Expanded): contentSize=({contentSize.X:F1},{contentSize.Y:F1})");
+                    elementIndex = LayoutElement(elementIndex, contentSize);
+                    child.Rect.Y += childOffset.Y;
+                    child.Rect.X += childOffset.X;
+                    childOffset.Y += flexHeight + style.Spacing;
+                }
+                else
+                {
+                    contentSize.Y = child.MeasuredSize.Y;
+                    LogUI($"  -> Column child {i}: contentSize=({contentSize.X:F1},{contentSize.Y:F1})");
+                    elementIndex = LayoutElement(elementIndex, contentSize);
+                    child.Rect.Y += childOffset.Y;
+                    child.Rect.X += childOffset.X;
+                    childOffset.Y += child.MeasuredSize.Y + style.Spacing;
+                }
             }
         }
         else if (e.Type == ElementType.Row)
         {
+            // Calculate flex total and remaining space for Expanded elements
+            var flexTotal = 0f;
+            var fixedWidth = e.ChildCount > 1 ? style.Spacing * (e.ChildCount - 1) : 0f;
+            var childIndex = elementIndex;
+            for (var i = 0; i < e.ChildCount; i++)
+            {
+                ref var child = ref _elements[childIndex];
+                if (child.Type == ElementType.Expanded)
+                    flexTotal += child.Data.Expanded.Flex;
+                else
+                    fixedWidth += child.MeasuredSize.X;
+                childIndex = child.NextSiblingIndex;
+            }
+            var flexSpace = Math.Max(0, contentSize.X - fixedWidth);
+
             for (var i = 0; i < e.ChildCount; i++)
             {
                 ref var child = ref _elements[elementIndex];
-                contentSize.X = child.MeasuredSize.X;
-                elementIndex = LayoutElement(elementIndex, contentSize);
-                child.Rect.X += childOffset.X;
-                child.Rect.Y += childOffset.Y;
-                childOffset.X += child.MeasuredSize.X + style.Spacing;
+                if (child.Type == ElementType.Expanded && flexTotal > 0)
+                {
+                    var flexWidth = child.Data.Expanded.Flex / flexTotal * flexSpace;
+                    contentSize.X = flexWidth;
+                    LogUI($"  -> Row child {i} (Expanded): contentSize=({contentSize.X:F1},{contentSize.Y:F1})");
+                    elementIndex = LayoutElement(elementIndex, contentSize);
+                    child.Rect.X += childOffset.X;
+                    child.Rect.Y += childOffset.Y;
+                    childOffset.X += flexWidth + style.Spacing;
+                }
+                else
+                {
+                    contentSize.X = child.MeasuredSize.X;
+                    LogUI($"  -> Row child {i}: contentSize=({contentSize.X:F1},{contentSize.Y:F1})");
+                    elementIndex = LayoutElement(elementIndex, contentSize);
+                    child.Rect.X += childOffset.X;
+                    child.Rect.Y += childOffset.Y;
+                    childOffset.X += child.MeasuredSize.X + style.Spacing;
+                }
             }
         }
 
@@ -1664,20 +1670,26 @@ public static class UI
             elementIndex = LayoutElement(elementIndex, contentSize);
 
         ref var popup = ref e.Data.Popup;
-        ref readonly var anchorInfo = ref AlignInfoTable[(int)popup.Anchor];
-        ref readonly var alignInfo = ref AlignInfoTable[(int)popup.PopupAlign];
 
-        var anchorX = anchorInfo.HasX ? size.X * anchorInfo.X : 0;
-        var anchorY = anchorInfo.HasY ? size.Y * anchorInfo.Y : 0;
+        var anchorX = GetAlignFactor(popup.AnchorX) * size.X;
+        var anchorY = GetAlignFactor(popup.AnchorY) * size.Y;
 
-        var popupOffsetX = alignInfo.HasX ? e.Rect.Width * alignInfo.X : 0;
-        var popupOffsetY = alignInfo.HasY ? e.Rect.Height * alignInfo.Y : 0;
+        var popupOffsetX = GetAlignFactor(popup.PopupAlignX) * e.Rect.Width;
+        var popupOffsetY = GetAlignFactor(popup.PopupAlignY) * e.Rect.Height;
 
         e.Rect.X = anchorX - popupOffsetX + popup.Margin.L;
         e.Rect.Y = anchorY - popupOffsetY + popup.Margin.T;
 
         return elementIndex;
     }
+
+    private static float GetAlignFactor(Align align) => align switch
+    {
+        Align.Min => 0f,
+        Align.Center => 0.5f,
+        Align.Max => 1f,
+        _ => 0f // Fill treated as Min for positioning
+    };
 
     // Transform calculation
     private static int CalculateTransforms(int elementIndex, Matrix3x2 parentTransform)
@@ -1747,6 +1759,7 @@ public static class UI
 
         // Handle popup close detection
         _closePopups = false;
+        _elementWasPressed = false;
         if (mouseLeftPressed && _popupCount > 0)
         {
             var clickInsidePopup = false;
@@ -1775,6 +1788,10 @@ public static class UI
             var isHotCanvas = canvasId == _hotCanvasId;
             ProcessCanvasInput(canvasId, mouse, mouseLeftPressed, buttonDown, isHotCanvas);
         }
+
+        // Consume MouseLeft if any UI element was pressed
+        if (_elementWasPressed)
+            Input.ConsumeButton(InputCode.MouseLeft);
 
         // Handle scrollable drag
         HandleScrollableDrag(mouse, buttonDown, mouseLeftPressed);
@@ -1813,6 +1830,7 @@ public static class UI
             {
                 state.Flags |= ElementFlags.Pressed;
                 focusElementPressed = true;
+                _elementWasPressed = true;
                 _pendingFocusId = e.Id;
                 _pendingFocusCanvasId = canvasId;
             }
@@ -1999,19 +2017,14 @@ public static class UI
         );
     }
 
-    private static Vector2 GetTextOffset(Font font, float fontSize, Vector2 containerSize, Align align)
+    private static Vector2 GetTextOffset(Font font, float fontSize, Vector2 containerSize, Align alignX, Align alignY)
     {
-        var offset = Vector2.Zero;
-        if (align != Align.None)
-        {
-            ref readonly var alignInfo = ref AlignInfoTable[(int)align];
-            var textSize = new Vector2(0, font.LineHeight * fontSize);
+        var textSize = new Vector2(0, font.LineHeight * fontSize);
 
-            if (alignInfo.HasX)
-                offset.X = (containerSize.X - textSize.X) * alignInfo.X;
-            if (alignInfo.HasY)
-                offset.Y = (containerSize.Y - textSize.Y) * alignInfo.Y;
-        }
+        var offset = new Vector2(
+            (containerSize.X - textSize.X) * GetAlignFactor(alignX),
+            (containerSize.Y - textSize.Y) * GetAlignFactor(alignY)
+        );
 
         // Snap to screen pixel boundaries for consistent SDF rendering
         var displayScale = Application.Platform.DisplayScale;
@@ -2021,9 +2034,9 @@ public static class UI
         return offset;
     }
 
-    internal static void DrawText(string text, Font font, float fontSize, Color color, Matrix3x2 localToWorld, Vector2 containerSize, Align align = Align.None)
+    internal static void DrawText(string text, Font font, float fontSize, Color color, Matrix3x2 localToWorld, Vector2 containerSize, Align alignX = Align.Min, Align alignY = Align.Center)
     {
-        var offset = GetTextOffset(font, fontSize, containerSize, align);
+        var offset = GetTextOffset(font, fontSize, containerSize, alignX, alignY);
 
         var transform = localToWorld * Matrix3x2.CreateTranslation(offset);
 
@@ -2038,7 +2051,7 @@ public static class UI
     {
         var font = e.Font ?? _defaultFont!;
         var text = new string(GetText(e.Data.Label.TextStart, e.Data.Label.TextLength));
-        DrawText(text, font, e.Data.Label.FontSize, e.Data.Label.Color, e.LocalToWorld, e.Rect.Size, e.Data.Label.Align);
+        DrawText(text, font, e.Data.Label.FontSize, e.Data.Label.Color, e.LocalToWorld, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
     }
 
     private static void DrawImage(ref Element e)
@@ -2065,5 +2078,11 @@ public static class UI
     {
         if (axis == 0) v.X = value;
         else v.Y = value;
+    }
+
+    [Conditional("NOZ_UI_DEBUG")]
+    private static void LogUI(string msg)
+    {
+        Log.Debug($"[UI] {msg}");
     }
 }

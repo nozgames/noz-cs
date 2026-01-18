@@ -13,6 +13,7 @@ public static class Input
     private static readonly bool[] ButtonPressedThisFrame = new bool[(int)InputCode.Count];
     private static readonly bool[] ButtonReleasedThisFrame = new bool[(int)InputCode.Count];
     private static readonly bool[] ButtonRepeatThisFrame = new bool[(int)InputCode.Count];
+    private static readonly bool[] ButtonConsumed = new bool[(int)InputCode.Count];
     private static readonly float[] ButtonHeldTime = new float[(int)InputCode.Count];
     private static readonly float[] AxisState = new float[(int)InputCode.Count];
 
@@ -79,7 +80,7 @@ public static class Input
         switch (evt.Type)
         {
             case PlatformEventType.KeyDown:
-                if (evt.KeyCode != InputCode.None)
+                if (evt.KeyCode != InputCode.None && !ButtonConsumed[(int)evt.KeyCode])
                 {
                     if (!ButtonState[(int)evt.KeyCode])
                         ButtonPressedThisFrame[(int)evt.KeyCode] = true;
@@ -92,6 +93,7 @@ public static class Input
                 {
                     ButtonState[(int)evt.KeyCode] = false;
                     ButtonReleasedThisFrame[(int)evt.KeyCode] = true;
+                    ButtonConsumed[(int)evt.KeyCode] = false;
                 }
                 break;
 
@@ -101,14 +103,14 @@ public static class Input
                 break;
 
             case PlatformEventType.MouseButtonDown:
-                if (evt.MouseButton != InputCode.None)
+                if (evt.MouseButton != InputCode.None && !ButtonConsumed[(int)evt.MouseButton])
                 {
                     if (!ButtonState[(int)evt.MouseButton])
                         ButtonPressedThisFrame[(int)evt.MouseButton] = true;
                     ButtonState[(int)evt.MouseButton] = true;
                 }
 
-                if (evt.ClickCount == 2 && evt.MouseButton == InputCode.MouseLeft)
+                if (evt.ClickCount == 2 && evt.MouseButton == InputCode.MouseLeft && !ButtonConsumed[(int)InputCode.MouseLeftDoubleClick])
                     ButtonPressedThisFrame[(int)InputCode.MouseLeftDoubleClick] = true;
                 break;
 
@@ -117,9 +119,11 @@ public static class Input
                 {
                     ButtonState[(int)evt.MouseButton] = false;
                     ButtonReleasedThisFrame[(int)evt.MouseButton] = true;
+                    ButtonConsumed[(int)evt.MouseButton] = false;
                 }
 
                 ButtonState[(int)InputCode.MouseLeftDoubleClick] = false;
+                ButtonConsumed[(int)InputCode.MouseLeftDoubleClick] = false;
                 break;
 
             case PlatformEventType.MouseMove:
@@ -167,6 +171,14 @@ public static class Input
                     }
                 }
                 break;
+
+            case PlatformEventType.WindowFocus:
+                for (var i = 0; i < (int)InputCode.Count; i++)
+                {
+                    if (ButtonState[i])
+                        ButtonConsumed[i] = true;
+                }
+                break;
         }
     }
 
@@ -198,6 +210,7 @@ public static class Input
     {
         ButtonPressedThisFrame[(int)code] = false;
         ButtonReleasedThisFrame[(int)code] = false;
+        ButtonState[(int)code] = false;
     }
 
     public static bool IsShiftDown() => IsButtonDown(InputCode.KeyLeftShift) || IsButtonDown(InputCode.KeyRightShift);

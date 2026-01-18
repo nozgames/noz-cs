@@ -80,6 +80,7 @@ public static class Workspace
     private static Vector2 _panPositionCamera;
     private static bool _isDragging;
     private static bool _dragStarted;
+    private static bool _wasDragging;
     private static InputCode _dragButton;
     private static bool _clearSelectionOnRelease;
 
@@ -96,6 +97,7 @@ public static class Workspace
     public static Vector2 MousePosition => _mousePosition;
     public static Vector2 MouseWorldPosition => _mouseWorldPosition;
     public static bool IsDragging => _isDragging;
+    public static bool WasDragging => _wasDragging;
     public static bool DragStarted => _dragStarted;
     public static InputCode DragButton => _dragButton;
     public static Vector2 DragDelta { get; private set; }
@@ -408,6 +410,7 @@ public static class Workspace
         _mousePosition = Input.MousePosition;
         _mouseWorldPosition = _camera.ScreenToWorld(_mousePosition);
         _dragStarted = false;
+        _wasDragging = false;
 
         if (_isDragging) {
             UpdateMouseDrag();
@@ -449,6 +452,7 @@ public static class Workspace
 
     private static void EndDrag()
     {
+        _wasDragging = true;
         _isDragging = false;
         _dragStarted = false;
         _dragButton = InputCode.None;
@@ -492,17 +496,21 @@ public static class Workspace
 
     public static void FrameView(Rect bounds)
     {
-        const float frameViewPercentage = 1f / 0.75f;
+        const float padding = 1.25f;
 
         var center = bounds.Center;
-        var size = bounds.Size;
-        var maxDimension = MathF.Max(size.X, size.Y);
-        if (maxDimension < ZoomMin)
-            maxDimension = ZoomMin;
+        var size = bounds.Size * padding;
+
+        if (size.X < ZoomMin) size.X = ZoomMin;
+        if (size.Y < ZoomMin) size.Y = ZoomMin;
 
         var screenSize = Application.WindowSize;
-        var targetWorldHeight = maxDimension * frameViewPercentage;
-        _zoom = Math.Clamp(screenSize.Y / (_dpi * _uiScale * _userUIScale * targetWorldHeight), ZoomMin, ZoomMax);
+        var scale = _dpi * _uiScale * _userUIScale;
+
+        // Calculate zoom needed to fit width and height, use the smaller one
+        var zoomForWidth = screenSize.X / (scale * size.X);
+        var zoomForHeight = screenSize.Y / (scale * size.Y);
+        _zoom = Math.Clamp(MathF.Min(zoomForWidth, zoomForHeight), ZoomMin, ZoomMax);
 
         _camera.Position = center;
         UpdateCamera();
@@ -680,7 +688,7 @@ public static class Workspace
             ClearSelection();
         }
 
-        if (Input.WasButtonReleased(InputCode.MouseRight) && !_isDragging)
+        if (Input.WasButtonReleased(InputCode.MouseRight) && !_wasDragging)
         {
             OpenContextMenu();
         }

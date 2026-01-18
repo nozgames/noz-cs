@@ -194,13 +194,13 @@ public static class CommandPalette
                             ;
 
                         UI.Label(cmd.Name, style: EditorStyle.Control.Text);
-                        UI.Expanded();
+                        UI.Flex();
 
                         if (cmd.Key != InputCode.None)
                             EditorUI.Shortcut(cmd, selected: isSelected);
                     }
 
-                    if (UI.WasClicked())
+                    if (UI.WasPressed())
                     {
                         selectedIndex = i;
                         execute = true;
