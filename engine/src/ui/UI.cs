@@ -1603,7 +1603,7 @@ public static class UI
                 elementIndex = LayoutElement(elementIndex, contentSize);
                 child.Rect.Y += childOffset.Y;
                 child.Rect.X += childOffset.X;
-                childOffset.Y += child.Rect.Height + style.Spacing;
+                childOffset.Y += child.MeasuredSize.Y + style.Spacing;
             }
         }
         else if (e.Type == ElementType.Row)
@@ -1615,7 +1615,7 @@ public static class UI
                 elementIndex = LayoutElement(elementIndex, contentSize);
                 child.Rect.X += childOffset.X;
                 child.Rect.Y += childOffset.Y;
-                childOffset.X += child.Rect.Width + style.Spacing;
+                childOffset.X += child.MeasuredSize.X + style.Spacing;
             }
         }
 
@@ -1988,29 +1988,45 @@ public static class UI
         );
     }
 
+    private static Vector2 GetTextOffset(Font font, float fontSize, Vector2 containerSize, Align align)
+    {
+        var offset = Vector2.Zero;
+        if (align != Align.None)
+        {
+            ref readonly var alignInfo = ref AlignInfoTable[(int)align];
+            var textSize = new Vector2(0, font.LineHeight * fontSize);
+
+            if (alignInfo.HasX)
+                offset.X = (containerSize.X - textSize.X) * alignInfo.X;
+            if (alignInfo.HasY)
+                offset.Y = (containerSize.Y - textSize.Y) * alignInfo.Y;
+        }
+
+        // Snap to screen pixel boundaries for consistent SDF rendering
+        var displayScale = Application.Platform.DisplayScale;
+        offset.X = MathF.Round(offset.X * displayScale) / displayScale;
+        offset.Y = MathF.Round(offset.Y * displayScale) / displayScale;
+
+        return offset;
+    }
+
+    private static void DrawText(string text, Font font, float fontSize, Color color, Matrix3x2 localToWorld, Vector2 containerSize, Align align = Align.None)
+    {
+        var offset = GetTextOffset(font, fontSize, containerSize, align);
+        var transform = localToWorld * Matrix3x2.CreateTranslation(offset);
+
+        Render.PushState();
+        Render.SetColor(color);
+        Render.SetTransform(transform);
+        TextRender.Draw(text, font, fontSize, GetUIScale());
+        Render.PopState();
+    }
+
     private static void DrawLabel(ref Element e)
     {
         var font = e.Font ?? _defaultFont!;
         var text = new string(GetText(e.Data.Label.TextStart, e.Data.Label.TextLength));
-
-        // Calculate alignment offset
-        var offset = Vector2.Zero;
-        if (e.Data.Label.Align != Align.None)
-        {
-            ref readonly var alignInfo = ref AlignInfoTable[(int)e.Data.Label.Align];
-            var availableSpace = e.Rect.Size - e.MeasuredSize;
-
-            if (alignInfo.HasX)
-                offset.X = availableSpace.X * alignInfo.X;
-            if (alignInfo.HasY)
-                offset.Y = availableSpace.Y * alignInfo.Y;
-        }
-
-        Render.PushState();
-        Render.SetColor(e.Data.Label.Color);
-        Render.SetTransform(e.LocalToWorld * Matrix3x2.CreateTranslation(offset));
-        TextRender.Draw(text, font, e.Data.Label.FontSize, GetUIScale());
-        Render.PopState();
+        DrawText(text, font, e.Data.Label.FontSize, e.Data.Label.Color, e.LocalToWorld, e.Rect.Size, e.Data.Label.Align);
     }
 
     private static void DrawImage(ref Element e)
@@ -2045,8 +2061,9 @@ public static class UI
         );
 
         // Convert UI coordinates to screen coordinates for the native textbox
-        var screenPos = Camera!.WorldToScreen(pos);
+        // Use the element's position (same as background), not the text-offset position
         var scale = GetUIScale();
+        var screenPos = Camera!.WorldToScreen(pos);
         var screenRect = new Rect(
             screenPos.X,
             screenPos.Y,
@@ -2087,6 +2104,7 @@ public static class UI
                     Placeholder = placeholder,
                     FontFamily = _defaultFont?.FamilyName
                 });
+
                 _textboxFocusId = e.Id;
                 _textboxFocusCanvasId = e.CanvasId;
                 _textboxVisible = true;
@@ -2136,10 +2154,6 @@ public static class UI
             }
 
             var font = _defaultFont!;
-            var uiScale = GetUIScale();
-            var textOffsetX = 1f / uiScale;
-            var glyphHeight = (font.Ascent - font.Descent) * tb.FontSize;
-            var textPos = pos + new Vector2(textOffsetX, (e.Rect.Height - glyphHeight) * 0.5f);
             var textColor = tb.TextColor;
             string? textToRender = null;
 
@@ -2156,13 +2170,7 @@ public static class UI
             }
 
             if (textToRender != null)
-            {
-                Render.PushState();
-                Render.SetColor(textColor);
-                Render.SetTransform(Matrix3x2.CreateTranslation(textPos));
-                TextRender.Draw(textToRender, font, tb.FontSize, uiScale);
-                Render.PopState();
-            }
+                DrawText(textToRender, font, tb.FontSize, textColor, e.LocalToWorld, e.Rect.Size, Align.CenterLeft);
         }
     }
 

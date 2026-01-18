@@ -149,6 +149,13 @@ namespace NoZ
             return style;
         }
 
+        public static ContainerStyle WithSize(this ContainerStyle style, float width, float height)
+        {
+            style.Width = width;
+            style.Height = height;
+            return style;
+        }
+
         public static LabelStyle WithColor(this LabelStyle style, Color color)
         {
             style.Color = color;

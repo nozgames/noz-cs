@@ -42,15 +42,22 @@ internal static partial class User32
     public const int OUT_DEFAULT_PRECIS = 0;
     public const int CLIP_DEFAULT_PRECIS = 0;
     public const int ANTIALIASED_QUALITY = 4;
+    public const int DRAFT_QUALITY = 1;
+    public const int PROOF_QUALITY = 2;
     public const int CLEARTYPE_QUALITY = 5;
     public const int DEFAULT_PITCH = 0;
     public const int FF_DONTCARE = 0;
     public const int EM_SETCUEBANNER = 0x1501;
     public const int WM_PAINT = 0x000F;
+    public const int WM_ERASEBKGND = 0x0014;
     public const int DT_SINGLELINE = 0x0020;
     public const int DT_VCENTER = 0x0004;
     public const int DT_LEFT = 0x0000;
+    public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_LBUTTONUP = 0x0202;
     public const int WM_LBUTTONDBLCLK = 0x0203;
+    public const int WS_EX_TRANSPARENT = 0x00000020;
+    public const int WS_CLIPCHILDREN = 0x02000000;
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -128,6 +135,14 @@ internal static partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool UpdateWindow(nint hWnd);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RedrawWindow(nint hWnd, nint lprcUpdate, nint hrgnUpdate, uint flags);
+
+    public const uint RDW_INVALIDATE = 0x0001;
+    public const uint RDW_UPDATENOW = 0x0100;
+    public const uint RDW_ERASE = 0x0004;
+
     [LibraryImport("user32.dll")]
     public static partial nint GetDC(nint hWnd);
 
@@ -163,6 +178,55 @@ internal static partial class User32
     [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
     public static extern bool GetTextMetricsW(nint hdc, out TEXTMETRICW lptm);
 
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    public static extern bool GetCharABCWidthsW(nint hdc, uint first, uint last, [Out] ABC[] abc);
+
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    public static extern bool GetGlyphOutlineW(nint hdc, uint uChar, uint fuFormat, out GLYPHMETRICS lpgm, uint cjBuffer, nint pvBuffer, ref MAT2 lpmat2);
+
+    public const uint GGO_METRICS = 0;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ABC
+    {
+        public int abcA;
+        public uint abcB;
+        public int abcC;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GLYPHMETRICS
+    {
+        public uint gmBlackBoxX;
+        public uint gmBlackBoxY;
+        public POINT gmptGlyphOrigin;
+        public short gmCellIncX;
+        public short gmCellIncY;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MAT2
+    {
+        public FIXED eM11;
+        public FIXED eM12;
+        public FIXED eM21;
+        public FIXED eM22;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FIXED
+    {
+        public short fract;
+        public short value;
+    }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct TEXTMETRICW
     {
@@ -191,15 +255,15 @@ internal static partial class User32
 
 public unsafe partial class SDLPlatform
 {
-    // Native textbox state (Windows-specific)
     private nint _editHwnd;
     private nint _editFont;
     private nint _editBgBrush;
     private bool _editVisible;
     private int _editFontSize = -1;
+    private int _editFontHeight = 0;
     private RectInt _editRect;
     private uint _editTextColor;
-    private uint _editBgColor;
+    private uint _editBgColor = uint.MaxValue;
     private string _editLastText = "";
     private nint _editOriginalWndProc;
     private nint _parentHwnd;
@@ -218,7 +282,7 @@ public unsafe partial class SDLPlatform
 
         var props = SDL_GetWindowProperties(_window);
         _parentHwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nint.Zero);
-        if (_parentHwnd == nint.Zero) return;
+        if (_parentHwnd == nint.Zero) return;        
 
         var hInstance = User32.GetModuleHandleW(null);
 
@@ -227,7 +291,7 @@ public unsafe partial class SDLPlatform
             "EDIT",
             "",
             User32.WS_CHILD | User32.ES_AUTOHSCROLL | User32.ES_LEFT,
-            0, 0, 100, 20,
+            0, 0, 0, 0,
             _parentHwnd,
             nint.Zero,
             hInstance,
@@ -236,18 +300,45 @@ public unsafe partial class SDLPlatform
 
         if (_editHwnd == nint.Zero) return;
 
-        User32.SendMessageW(_editHwnd, User32.EM_SETMARGINS,
-            User32.EC_LEFTMARGIN | User32.EC_RIGHTMARGIN, 0);
+        User32.SendMessageW(_editHwnd, User32.EM_SETMARGINS, User32.EC_LEFTMARGIN | User32.EC_RIGHTMARGIN, 0);
 
-        // Subclass the edit control to intercept Enter/Escape/Tab
         _editWndProcDelegate = EditSubclassProc;
-        _editOriginalWndProc = User32.SetWindowLongPtrW(_editHwnd, User32.GWLP_WNDPROC,
+        _editOriginalWndProc = User32.SetWindowLongPtrW(
+            _editHwnd,
+            User32.GWLP_WNDPROC,
             Marshal.GetFunctionPointerForDelegate(_editWndProcDelegate));
 
-        // Subclass the parent window to handle WM_CTLCOLOREDIT
         _parentWndProcDelegate = ParentSubclassProc;
-        _parentOriginalWndProc = User32.SetWindowLongPtrW(_parentHwnd, User32.GWLP_WNDPROC,
+        _parentOriginalWndProc = User32.SetWindowLongPtrW(
+            _parentHwnd,
+            User32.GWLP_WNDPROC,
             Marshal.GetFunctionPointerForDelegate(_parentWndProcDelegate));
+    }
+
+    private nint HandleEditPaint(nint hWnd, uint msg, nint wParam, nint lParam)
+    {
+        var result = User32.CallWindowProcW(_editOriginalWndProc, hWnd, msg, wParam, lParam);
+        var textLength = User32.GetWindowTextLengthW(hWnd);
+        if (textLength != 0 || _editPlaceholder == null)
+            return result;
+
+        var hdc = User32.GetDC(hWnd);
+        var oldFont = User32.SelectObject(hdc, _editFont);
+        User32.SetTextColor(hdc, _editPlaceholderColor);
+        User32.SetBkColor(hdc, _editBgColor);
+
+        User32.GetClientRect(hWnd, out var rect);
+        rect.Left += 1;
+        User32.DrawTextW(
+            hdc,
+            _editPlaceholder,
+            _editPlaceholder.Length,
+            ref rect,
+            User32.DT_SINGLELINE | User32.DT_LEFT);
+
+        User32.SelectObject(hdc, oldFont);
+        User32.ReleaseDC(hWnd, hdc);
+        return result;
     }
 
     private nint EditSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam)
@@ -277,32 +368,12 @@ public unsafe partial class SDLPlatform
                 return 0;
         }
 
+        //if (msg == User32.WM_ERASEBKGND)
+        //    return 1;
+
         // Handle WM_PAINT to draw placeholder when text is empty
-        if (msg == User32.WM_PAINT && !string.IsNullOrEmpty(_editPlaceholder))
-        {
-            // Let the default paint happen first
-            var result = User32.CallWindowProcW(_editOriginalWndProc, hWnd, msg, wParam, lParam);
-
-            // Check if text is empty
-            var textLength = User32.GetWindowTextLengthW(hWnd);
-            if (textLength == 0)
-            {
-                var hdc = User32.GetDC(hWnd);
-                var oldFont = User32.SelectObject(hdc, _editFont);
-                User32.SetTextColor(hdc, _editPlaceholderColor);
-                User32.SetBkColor(hdc, _editBgColor);
-
-                User32.GetClientRect(hWnd, out var rect);
-                rect.Left += 1; // Match the edit control's internal text offset
-                User32.DrawTextW(hdc, _editPlaceholder, _editPlaceholder.Length, ref rect,
-                    User32.DT_SINGLELINE | User32.DT_VCENTER | User32.DT_LEFT);
-
-                User32.SelectObject(hdc, oldFont);
-                User32.ReleaseDC(hWnd, hdc);
-            }
-
-            return result;
-        }
+        if (msg == User32.WM_PAINT)
+            return HandleEditPaint(hWnd, msg, wParam, lParam);
 
         // Force repaint when text changes (to show/hide placeholder)
         if (msg == User32.WM_CHAR || msg == User32.WM_KEYDOWN)
@@ -315,11 +386,12 @@ public unsafe partial class SDLPlatform
             return result;
         }
 
-        // Force repaint after double-click to ensure placeholder is redrawn
-        if (msg == User32.WM_LBUTTONDBLCLK && !string.IsNullOrEmpty(_editPlaceholder))
+        // Force repaint after mouse clicks to ensure placeholder is redrawn
+        if ((msg == User32.WM_LBUTTONDOWN || msg == User32.WM_LBUTTONUP || msg == User32.WM_LBUTTONDBLCLK) &&
+            !string.IsNullOrEmpty(_editPlaceholder))
         {
             var result = User32.CallWindowProcW(_editOriginalWndProc, hWnd, msg, wParam, lParam);
-            User32.InvalidateRect(hWnd, nint.Zero, true);
+            User32.RedrawWindow(hWnd, nint.Zero, nint.Zero, User32.RDW_INVALIDATE | User32.RDW_UPDATENOW | User32.RDW_ERASE);
             return result;
         }
 
@@ -328,7 +400,6 @@ public unsafe partial class SDLPlatform
 
     private nint ParentSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam)
     {
-        // Handle WM_CTLCOLOREDIT to set custom colors
         if (msg == User32.WM_CTLCOLOREDIT && lParam == _editHwnd)
         {
             var hdc = wParam;
@@ -342,37 +413,26 @@ public unsafe partial class SDLPlatform
 
     private void ShutdownNativeTextInput()
     {
-        // Restore original WndProcs before destroying windows
         if (_editHwnd != nint.Zero && _editOriginalWndProc != nint.Zero)
-        {
             User32.SetWindowLongPtrW(_editHwnd, User32.GWLP_WNDPROC, _editOriginalWndProc);
-            _editOriginalWndProc = nint.Zero;
-        }
 
         if (_parentHwnd != nint.Zero && _parentOriginalWndProc != nint.Zero)
-        {
             User32.SetWindowLongPtrW(_parentHwnd, User32.GWLP_WNDPROC, _parentOriginalWndProc);
-            _parentOriginalWndProc = nint.Zero;
-        }
 
         if (_editHwnd != nint.Zero)
-        {
             User32.DestroyWindow(_editHwnd);
-            _editHwnd = nint.Zero;
-        }
 
         if (_editFont != nint.Zero)
-        {
             User32.DeleteObject(_editFont);
-            _editFont = nint.Zero;
-        }
 
         if (_editBgBrush != nint.Zero)
-        {
             User32.DeleteObject(_editBgBrush);
-            _editBgBrush = nint.Zero;
-        }
 
+        _editOriginalWndProc = nint.Zero;
+        _parentOriginalWndProc = nint.Zero;
+        _editHwnd = nint.Zero;
+        _editFont = nint.Zero;
+        _editBgBrush = nint.Zero;
         _editWndProcDelegate = null;
         _parentWndProcDelegate = null;
     }
@@ -385,12 +445,11 @@ public unsafe partial class SDLPlatform
         _editPlaceholder = style.Placeholder;
         _editPlaceholderColor = ColorToColorRef(style.PlaceholderColor);
 
-        // Update font family if changed
         var fontFamily = string.IsNullOrEmpty(style.FontFamily) ? "Segoe UI" : style.FontFamily;
         if (_editFontFamily != fontFamily)
         {
             _editFontFamily = fontFamily;
-            _editFontSize = -1; // Force font recreation
+            _editFontSize = -1;
         }
 
         var bgColor = ColorToColorRef(style.BackgroundColor);
@@ -415,7 +474,7 @@ public unsafe partial class SDLPlatform
             User32.SendMessageW(_editHwnd, User32.EM_SETPASSWORDCHAR, 0, 0);
         }
 
-        UpdateTextboxRectInternal((int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height, style.FontSize);
+        UpdateTextboxRectInternal(new RectInt((int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height), style.FontSize);
 
         User32.SetWindowTextW(_editHwnd, text ?? "");
         User32.SendMessageW(_editHwnd, User32.EM_SETSEL, 0, -1); // Select all
@@ -445,7 +504,7 @@ public unsafe partial class SDLPlatform
     public void UpdateTextboxRect(Rect rect, int fontSize)
     {
         if (!_editVisible || _editHwnd == nint.Zero) return;
-        UpdateTextboxRectInternal((int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height, fontSize);
+        UpdateTextboxRectInternal(new RectInt((int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height), fontSize);
     }
 
     public bool UpdateTextboxText(ref string text)
@@ -476,17 +535,15 @@ public unsafe partial class SDLPlatform
         return false;
     }
 
-    private void UpdateTextboxRectInternal(int x, int y, int width, int height, int fontSize)
+    private void UpdateTextboxRectInternal(in RectInt rect, int fontSize)
     {
         UpdateEditFont(fontSize);
 
-        var newRect = new RectInt(x, y, width, height);
-        if (_editRect != newRect)
+        if (_editRect != rect)
         {
-            _editRect = newRect;
-            CenterTextbox(x, y, width, height);
-            User32.InvalidateRect(_editHwnd, nint.Zero, true);
-            User32.UpdateWindow(_editHwnd);
+            _editRect = rect;
+            UpdateEditRect(rect);
+            User32.RedrawWindow(_editHwnd, nint.Zero, nint.Zero, User32.RDW_INVALIDATE | User32.RDW_UPDATENOW | User32.RDW_ERASE);
         }
     }
 
@@ -512,29 +569,45 @@ public unsafe partial class SDLPlatform
         // fontSize is already in physical pixels (scaled by UI scale)
         // Use negative height for character cell height
         _editFont = User32.CreateFontW(
-            -fontSize, 0, 0, 0, weight,
-            0, 0, 0, User32.DEFAULT_CHARSET,
-            User32.OUT_DEFAULT_PRECIS, User32.CLIP_DEFAULT_PRECIS, User32.CLEARTYPE_QUALITY,
-            User32.DEFAULT_PITCH | User32.FF_DONTCARE, fontFamily);
+            (int)-(fontSize + (fontSize * 0.03125f * 0.5f)),
+            0,
+            0,
+            0,
+            weight,
+            0,
+            0,
+            0,
+            User32.DEFAULT_CHARSET,
+            User32.OUT_DEFAULT_PRECIS,
+            User32.CLIP_DEFAULT_PRECIS,
+            User32.DRAFT_QUALITY,
+            User32.DEFAULT_PITCH | User32.FF_DONTCARE,
+            fontFamily);
+
+        // Get the actual font height
+        var hdc = User32.GetDC(_editHwnd);
+        var oldFont = User32.SelectObject(hdc, _editFont);
+        User32.GetTextMetricsW(hdc, out var tm);
+        User32.SelectObject(hdc, oldFont);
+        User32.ReleaseDC(_editHwnd, hdc);
+        _editFontHeight = tm.tmHeight;
 
         User32.SendMessageW(_editHwnd, User32.WM_SETFONT, _editFont, 1);
     }
 
-    private void CenterTextbox(int x, int y, int width, int height)
+    private void UpdateEditRect(in RectInt rect)
     {
         var hdc = User32.GetDC(_editHwnd);
         var oldFont = User32.SelectObject(hdc, _editFont);
         User32.GetTextMetricsW(hdc, out var tm);
         User32.SelectObject(hdc, oldFont);
         User32.ReleaseDC(_editHwnd, hdc);
-
-        var fontHeight = tm.tmHeight;
-        var yOffset = (height - fontHeight) / 2;
-        User32.SetWindowPos(_editHwnd, nint.Zero, x, y + yOffset, width, fontHeight, User32.SWP_SHOWWINDOW);
+        User32.SetWindowPos(_editHwnd, nint.Zero, rect.X, rect.Y + (rect.Height - _editFontHeight) / 2 + 1, rect.Width, _editFontHeight, User32.SWP_SHOWWINDOW);
         User32.SendMessageW(_editHwnd, User32.EM_SETMARGINS, User32.EC_LEFTMARGIN | User32.EC_RIGHTMARGIN, 0);
     }
 
     private static uint ColorToColorRef(Color32 c) => (uint)(c.R | (c.G << 8) | (c.B << 16));
+
     private static (string baseName, int weight) ExtractFontWeight(string fontFamily)
     {
         // Common font weight suffixes and their Windows font weight values

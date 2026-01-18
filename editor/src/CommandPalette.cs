@@ -149,10 +149,17 @@ public static class CommandPalette
         using (UI.BeginContainer(EditorStyle.CommandPalette.RootContainer))
         using (UI.BeginColumn(EditorStyle.CommandPalette.ListColumn))
         {
-            using (UI.BeginContainer(EditorStyle.CommandPalette.SearchContainer))
-                UI.TextBox(ref _text, style: EditorStyle.CommandPalette.SearchTextBox, id: SearchId, placeholder: "Search...");
+            using (UI.BeginRow())
+            {
+                using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
+                    ;
 
-            EditorUI.PopupSeparator(16);
+                using (UI.BeginExpanded())
+                using (UI.BeginContainer(EditorStyle.CommandPalette.SearchContainer))
+                    UI.TextBox(ref _text, style: EditorStyle.CommandPalette.SearchTextBox, id: SearchId, placeholder: "Search...");
+            }
+
+            UI.Container(EditorStyle.Popup.Separator);
 
             using (UI.BeginExpanded())
                 CommandList();
@@ -161,12 +168,10 @@ public static class CommandPalette
 
     private static void CommandList()
     {
-        //var maxListHeight = EditorStyle.CommandPalette.Height - EditorStyle.CommandPalette.InputHeight -
-        //                    EditorStyle.CommandPalette.Padding * 2 - EditorStyle.CommandPalette.ListSpacing;
-        //var listHeight = Math.Min(_filteredCount * EditorStyle.CommandPalette.ItemHeight, maxListHeight);
         var execute = false;
 
-        using (UI.BeginContainer())using (UI.BeginScrollable(offset: 0, id: CommandListId))
+        using (UI.BeginContainer())
+        using (UI.BeginScrollable(offset: 0, id: CommandListId))
         using (UI.BeginColumn())
         {
             var selectedIndex = _selectedIndex;
@@ -188,10 +193,7 @@ public static class CommandPalette
                         using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
                             ;
 
-                        UI.Label(cmd.Name, style: isSelected
-                            ? EditorStyle.CommandPalette.SelectedCommandText
-                            : EditorStyle.CommandPalette.CommandText);
-
+                        UI.Label(cmd.Name, style: EditorStyle.Control.Text);
                         UI.Expanded();
 
                         if (cmd.Key != InputCode.None)

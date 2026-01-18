@@ -8,7 +8,7 @@ internal static class EditorUI
 {
     private static void ShortcutText(string text, bool selected = false)
     {
-        UI.Label(text, style: selected ? EditorStyle.Shortcut.SelectedText : EditorStyle.Shortcut.Text);
+        UI.Label(text, style: selected ? EditorStyle.Control.Text : EditorStyle.Shortcut.Text);
     }
 
     private static void ShortcutText(InputCode code, bool selected = false) =>
@@ -35,13 +35,5 @@ internal static class EditorUI
             }
             ShortcutText(command.Key, selected);
         }
-    }
-
-    public static void PopupSeparator(float size = 16)
-    {
-        float spacer = (size - 2) * 0.5f;
-        UI.Spacer(spacer);
-        UI.Container(new ContainerStyle { Height = 2, Color = EditorStyle.Popup.SpacerColor});
-        UI.Spacer(spacer);
     }
 }

@@ -170,12 +170,6 @@ public static unsafe class Render
         for (var i = 0; i < MaxTextures; i++)
             CurrentState.Textures[i] = 0;
 
-        var size = Application.WindowSize;
-        CurrentState.ViewportX = 0;
-        CurrentState.ViewportY = 0;
-        CurrentState.ViewportWidth = (int)size.X;
-        CurrentState.ViewportHeight = (int)size.Y;
-
         CurrentState.ScissorEnabled = false;
         CurrentState.ScissorX = 0;
         CurrentState.ScissorY = 0;
@@ -187,6 +181,13 @@ public static unsafe class Render
         _uniforms.Clear();
         _boneCount = 1;
         _bones[0] = Matrix3x2.Identity;
+
+        CurrentState.ViewportX = -1;
+        CurrentState.ViewportY = -1;
+        CurrentState.ViewportWidth = -1;
+        CurrentState.ViewportHeight = -1;
+        var size = Application.WindowSize;
+        SetViewport(0, 0, (int)size.X, (int)size.Y);
     }
     
     private static void InitBatcher()
