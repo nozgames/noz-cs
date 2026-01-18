@@ -50,7 +50,7 @@ internal static class TextRender
         _indices.Clear();
     }
     
-    public static Vector2 Measure(string text, Font font, float fontSize, float scale = 1f)
+    public static Vector2 Measure(string text, Font font, float fontSize)
     {
         if (string.IsNullOrEmpty(text))
             return Vector2.Zero;
@@ -64,14 +64,14 @@ internal static class TextRender
             if (i + 1 < text.Length)
                 advance += font.GetKerning(text[i], text[i + 1]) * fontSize;
 
-            totalWidth += MathF.Ceiling(advance * scale) / scale;
+            totalWidth += advance;
         }
 
         var totalHeight = font.LineHeight * fontSize;
         return new Vector2(totalWidth, totalHeight);
     }
 
-    public static void Draw(string text, Font font, float fontSize, float scale = 1f, ushort order = 0)
+    public static void Draw(string text, Font font, float fontSize, ushort order = 0)
     {
         if (string.IsNullOrEmpty(text) || _textShader == null)
             return;
@@ -85,9 +85,6 @@ internal static class TextRender
         Render.SetMesh(_mesh);
 
         var currentX = 0f;
-        // Baseline = usWinAscent (includes internal leading)
-        // Add half of internal leading to center text vertically within line height
-        // This matches how Windows GDI positions text within single-line edit controls
         var baselineY = (font.Baseline + font.InternalLeading * 0.5f) * fontSize;
         var baseIndex = _indices.Length;
 
@@ -148,7 +145,7 @@ internal static class TextRender
             if (i + 1 < text.Length)
                 advance += font.GetKerning(ch, text[i + 1]) * fontSize;
 
-            currentX += MathF.Ceiling(advance * scale) / scale;
+            currentX += advance;
         }
     }
 }

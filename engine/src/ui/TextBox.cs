@@ -116,7 +116,6 @@ internal static class TextBoxElement
         var font = UI.DefaultFont;
         if (font == null) return;
         
-        var scale = UI.GetUIScale();
         var fontSize = tb.FontSize;
 
         // Custom TextBox Implementation
@@ -149,7 +148,7 @@ internal static class TextBoxElement
                 Render.PushState();
                 Render.SetColor(tb.PlaceholderColor);
                 Render.SetTransform(transform);
-                TextRender.Draw(placeholder, font, fontSize, scale);
+                TextRender.Draw(placeholder, font, fontSize);
                 Render.PopState();
             }
             
@@ -185,7 +184,7 @@ internal static class TextBoxElement
                 Render.PushState();
                 Render.SetColor(tb.PlaceholderColor);
                 Render.SetTransform(transform);
-                TextRender.Draw(placeholder, font, fontSize, scale);
+                TextRender.Draw(placeholder, font, fontSize);
                 Render.PopState();
             }
             else
@@ -506,7 +505,7 @@ internal static class TextBoxElement
         
         // Scissor
         var scale = UI.GetUIScale();
-        var screenPos = UI.Camera.WorldToScreen(Vector2.Transform(Vector2.Zero, e.LocalToWorld));
+        var screenPos = UI.Camera!.WorldToScreen(Vector2.Transform(Vector2.Zero, e.LocalToWorld));
         var screenHeight = Application.WindowSize.Y;
         var scissorX = (int)screenPos.X;
         var scissorY = (int)(screenHeight - screenPos.Y - e.Rect.Height * scale); // Flip Y
@@ -527,7 +526,7 @@ internal static class TextBoxElement
         Render.PushState();
         Render.SetColor(color);
         Render.SetTransform(transform);
-        TextRender.Draw(textToRender, font, fontSize, scale);
+        TextRender.Draw(textToRender, font, fontSize);
         Render.PopState();
         
         Render.DisableScissor();
@@ -560,7 +559,7 @@ internal static class TextBoxElement
         // Optimization: TextRender.Measure iterates chars.
         // We could optimize this by not creating substring.
         var sub = text.Substring(start, length); 
-        return TextRender.Measure(sub, font, fontSize, UI.GetUIScale()).X;
+        return TextRender.Measure(sub, font, fontSize).X;
     }
 
     private static int GetCharacterIndexAtPosition(ref Element e, State state, string text, Font font, float fontSize, Vector2 worldMousePos)
@@ -571,7 +570,6 @@ internal static class TextBoxElement
         if (x <= 0) return 0;
         
         var currentX = 0f;
-        var scale = UI.GetUIScale();
         
         for (var i = 0; i < text.Length; i++)
         {
@@ -581,12 +579,10 @@ internal static class TextBoxElement
             if (i + 1 < text.Length)
                 advance += font.GetKerning(ch, text[i + 1]) * fontSize;
                 
-            var width = MathF.Ceiling(advance * scale) / scale;
-            
-            if (x < currentX + width * 0.5f)
+            if (x < currentX + advance * 0.5f)
                 return i;
                 
-            currentX += width;
+            currentX += advance;
         }
         
         return text.Length;

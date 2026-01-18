@@ -1322,7 +1322,7 @@ public static class UI
         var fontSize = e.Data.Label.FontSize;
         var font = e.Font ?? _defaultFont!;
         var text = GetText(e.Data.Label.TextStart, e.Data.Label.TextLength);
-        e.MeasuredSize = TextRender.Measure(new string(text), font, fontSize, GetUIScale());
+        e.MeasuredSize = TextRender.Measure(new string(text), font, fontSize);
     }
 
     private static void MeasureImage(ref Element e)
@@ -2043,7 +2043,7 @@ public static class UI
         Render.PushState();
         Render.SetColor(color);
         Render.SetTransform(transform);
-        TextRender.Draw(text, font, fontSize, GetUIScale());
+        TextRender.Draw(text, font, fontSize);
         Render.PopState();
     }
 
