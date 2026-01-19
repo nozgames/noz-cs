@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public struct BorderStyle
 {
@@ -17,8 +17,7 @@ public struct BorderStyle
 
 public struct ContainerStyle()
 {
-    public Size Width = Size.Default;
-    public Size Height = Size.Default;
+    public Size2 Size = new(NoZ.Size.Default, NoZ.Size.Default);
     public float MinWidth = 0;
     public float MinHeight = 0;
     public float MaxWidth = float.MaxValue;
@@ -32,9 +31,12 @@ public struct ContainerStyle()
     public float Spacing = 0;
     public bool Clip = false;
 
+    public Size Width { readonly get => Size.Width; set => Size.Width = value; }
+    public Size Height { readonly get => Size.Height; set => Size.Height = value; }
+
     internal ContainerData ToData() => new()
     {
-        Size = new Size2(Width, Height),
+        Size = Size,
         MinWidth = MinWidth,
         MinHeight = MinHeight,
         MaxWidth = MaxWidth,

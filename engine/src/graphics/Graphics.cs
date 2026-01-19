@@ -9,11 +9,10 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using NoZ.Platform;
-using NoZ.Engine.UI;
 
 namespace NoZ;
 
-public static unsafe class Render
+public static unsafe class Graphics
 {
     private const int MaxSortGroups = 1526;
     private const int MaxStateStack = 16;
@@ -90,7 +89,7 @@ public static unsafe class Render
     private static Shader? _compositeShader;
     private static bool _inUIPass;
     private static bool _inScenePass;
-    private static RenderStats _stats;
+    private static GraphicsStats _stats;
     private static ushort[] _sortGroupStack = null!;
     private static State[] _stateStack = null!;
     private static Matrix3x2[] _bones = null!;
@@ -98,12 +97,12 @@ public static unsafe class Render
     private static int _stateStackDepth = 0;
     private static bool _batchStateDirty = true;
     
-    public static RenderConfig Config { get; private set; } = null!;
+    public static GraphicsConfig Config { get; private set; } = null!;
     public static IRenderDriver Driver { get; private set; } = null!;
     public static Camera? Camera { get; private set; }
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
     public static Color Color => CurrentState.Color;
-    public static ref readonly RenderStats Stats => ref _stats;
+    public static ref readonly GraphicsStats Stats => ref _stats;
 
     private static ref State CurrentState => ref _stateStack[_stateStackDepth];
     
@@ -116,7 +115,7 @@ public static unsafe class Render
     private static NativeArray<MeshVertex> _vertices;
     private static NativeArray<ushort> _indices;
     private static NativeArray<ushort> _sortedIndices;
-    private static NativeArray<RenderCommand> _commands;
+    private static NativeArray<DrawCommand> _commands;
     private static NativeArray<Batch> _batches;
     private static NativeArray<BatchState> _batchStates;
     private static ushort _currentBatchState;
@@ -126,7 +125,7 @@ public static unsafe class Render
     
     public static Color ClearColor { get; set; } = Color.Black;  
     
-    public static void Init(RenderConfig config)
+    public static void Init(GraphicsConfig config)
     {
         Config = config;
 
@@ -196,7 +195,7 @@ public static unsafe class Render
         _vertices = new NativeArray<MeshVertex>(MaxVertices);
         _indices = new NativeArray<ushort>(MaxIndices);
         _sortedIndices = new NativeArray<ushort>(MaxIndices);
-        _commands = new NativeArray<RenderCommand>(_maxDrawCommands);
+        _commands = new NativeArray<DrawCommand>(_maxDrawCommands);
         _batches = new NativeArray<Batch>(_maxBatches);
         _batchStates = new NativeArray<BatchState>(_maxBatches);
         _uniforms = new Dictionary<string, UniformEntry>();
@@ -227,7 +226,9 @@ public static unsafe class Render
         _mesh = 0;
         _boneUbo = 0;
     }
-    
+
+    public static bool IsScissor => CurrentState.ScissorEnabled;
+
     public static void SetShader(Shader shader)
     {
         if (shader == CurrentState.Shader) return;

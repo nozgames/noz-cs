@@ -44,6 +44,20 @@ public struct Rect(float x, float y, float width, float height)
     public Vector2 BottomLeft => new(X, Y + Height);
     public Vector2 BottomRight => new(X + Width, Y + Height);
 
+    public unsafe float this[int index]
+    {
+        get
+        {
+            fixed (float* ptr = &X)
+                return ptr[index];
+        }
+        set
+        {
+            fixed (float* ptr = &X)
+                ptr[index] = value;
+        }
+    }
+
     public unsafe float GetSize(int axis)
     {
         fixed (float* ptr = &Width)

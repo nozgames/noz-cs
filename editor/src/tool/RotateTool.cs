@@ -77,18 +77,18 @@ public class RotateTool : Tool
 
     public override void Draw()
     {
-        Render.PushState();
-        Render.SetLayer(EditorLayer.Tool);
+        Graphics.PushState();
+        Graphics.SetLayer(EditorLayer.Tool);
 
         // Draw pivot point
-        Render.SetColor(EditorStyle.SelectionColor);
+        Graphics.SetColor(EditorStyle.SelectionColor);
         Gizmos.DrawRect(_pivotWorld, EditorStyle.Shape.AnchorSize * 1.5f, order: 10);
 
         // Draw line from pivot to mouse
-        Render.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
+        Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
         Gizmos.DrawLine(_pivotWorld, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentWidth * 2, order: 9);
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     public override void Cancel()

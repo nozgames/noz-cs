@@ -4,17 +4,22 @@
 
 #define NOZ_UI_DEBUG
 
+using System.Diagnostics;
 using System.Numerics;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public static partial class UI
 {
-
     // Draw pass
-    private static int DrawElement(int elementIndex, bool isPopup)
+    private static void DrawElement(int elementIndex, bool isPopup)
     {
-        ref var e = ref _elements[elementIndex++];
+        ref var e = ref _elements[elementIndex];
+
+        LogUI(e, $"{e.Type}:{Log.Params([
+            ("Index", e.Index, true),
+            ("Rect", e.Rect, true)
+        ])}");
 
         switch (e.Type)
         {
@@ -41,35 +46,46 @@ public static partial class UI
                 break;
 
             case ElementType.Popup when !isPopup:
-                return e.NextSiblingIndex;
+                return;
+
+            case ElementType.Scrollable:
+            {
+                var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
+                var screenPos = Camera!.WorldToScreen(pos);
+                var scale = Application.WindowSize.Y / _size.Y;
+                var screenHeight = Application.WindowSize.Y;
+                var scissorX = (int)screenPos.X;
+                var scissorY = (int)(screenHeight - screenPos.Y - e.Rect.Height * scale);
+                var scissorW = (int)(e.Rect.Width * scale);
+                var scissorH = (int)(e.Rect.Height * scale);
+                Graphics.SetScissor(scissorX, scissorY, scissorW, scissorH);
+                break;
+            }
         }
 
-        var useScissor = e.Type == ElementType.Scrollable;
-        if (useScissor)
+        var childElementIndex = elementIndex + 1;
+        for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
         {
-            var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
-            var screenPos = Camera!.WorldToScreen(pos);
-            var scale = Application.WindowSize.Y / _size.Y;
-            var screenHeight = Application.WindowSize.Y;
+            ref var child = ref _elements[childElementIndex];
+            DrawElement(childElementIndex, false);
+            childElementIndex = child.NextSiblingIndex;
+        }            
 
-            // OpenGL scissor Y is from bottom, need to flip
-            var scissorX = (int)screenPos.X;
-            var scissorY = (int)(screenHeight - screenPos.Y - e.Rect.Height * scale);
-            var scissorW = (int)(e.Rect.Width * scale);
-            var scissorH = (int)(e.Rect.Height * scale);
+        if (Graphics.IsScissor)
+            Graphics.DisableScissor();
+    }
 
-            Render.SetScissor(scissorX, scissorY, scissorW, scissorH);
-        }
+    private static void DrawElements() 
+    {
+        LogUI("Draw", condition: () => _elementCount > 0);
 
-        for (var i = 0; i < e.ChildCount; i++)
-            elementIndex = DrawElement(elementIndex, false);
-
-        if (useScissor)
+        for (int elementIndex = 0; elementIndex < _elementCount;)
         {
-            Render.DisableScissor();
-        }
-
-        return elementIndex;
+            ref var canvas = ref _elements[elementIndex];
+            Debug.Assert(canvas.Type == ElementType.Canvas, "Expected canvas element");
+            DrawElement(elementIndex, true);
+            elementIndex = canvas.NextSiblingIndex;
+        }            
     }
 
     private static void DrawCanvas(ref Element e)
@@ -96,8 +112,6 @@ public static partial class UI
             style.Border.Width,
             style.Border.Color
         );
-
-        LogUI(e, $"{e.Type}: Rect={new Rect(pos.X, pos.Y, e.Rect.Width, e.Rect.Height)} Color={e.Data.Container.Color}");
     }
 
     private static Vector2 GetTextOffset(string text, Font font, float fontSize, in Vector2 containerSize, Align alignX, Align alignY)
@@ -120,11 +134,11 @@ public static partial class UI
 
         var transform = localToWorld * Matrix3x2.CreateTranslation(offset);
 
-        Render.PushState();
-        Render.SetColor(color);
-        Render.SetTransform(transform);
+        Graphics.PushState();
+        Graphics.SetColor(color);
+        Graphics.SetTransform(transform);
         TextRender.Draw(text, font, fontSize);
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private static void DrawLabel(ref Element e)
@@ -134,13 +148,11 @@ public static partial class UI
         var offset = GetTextOffset(text, font, e.Data.Label.FontSize, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
         var transform = e.LocalToWorld * Matrix3x2.CreateTranslation(offset);
 
-        LogUI(e, $"{e.Type}: Offset={offset} AlignX={e.Data.Label.AlignX}  AlignY={e.Data.Label.AlignY}");
-
-        Render.PushState();
-        Render.SetColor(e.Data.Label.Color);
-        Render.SetTransform(transform);
+        Graphics.PushState();
+        Graphics.SetColor(e.Data.Label.Color);
+        Graphics.SetTransform(transform);
         TextRender.Draw(text, font, e.Data.Label.FontSize);
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private static void DrawImage(ref Element e)
@@ -149,9 +161,9 @@ public static partial class UI
         if (img.Texture == nuint.Zero) return;
 
         var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
-        Render.SetColor(img.Color);
-        Render.SetTexture(img.Texture);
-        Render.Draw(
+        Graphics.SetColor(img.Color);
+        Graphics.SetTexture(img.Texture);
+        Graphics.Draw(
             pos.X, pos.Y, e.Rect.Width, e.Rect.Height,
             img.UV0.X, img.UV0.Y, img.UV1.X, img.UV1.Y
         );

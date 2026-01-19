@@ -48,7 +48,7 @@ public class Shader : Asset
         var shader = new Shader(name)
         {
             Flags = flags,
-            Handle = Render.Driver.CreateShader(name, vertexSource, fragmentSource)
+            Handle = Graphics.Driver.CreateShader(name, vertexSource, fragmentSource)
         };
 
         return shader;
@@ -58,7 +58,7 @@ public class Shader : Asset
     {
         if (Handle != nuint.Zero)
         {
-            Render.Driver.DestroyShader(Handle);
+            Graphics.Driver.DestroyShader(Handle);
             Handle = nuint.Zero;
         }
 

@@ -2,8 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using NoZ.Engine.UI;
-
 namespace NoZ.Editor;
 
 internal static class EditorUI
@@ -16,9 +14,9 @@ internal static class EditorUI
     private static void ShortcutText(InputCode code, bool selected = false) =>
         ShortcutText(code.ToDisplayString(), selected: selected);
     
-    public static void Shortcut(InputCode code, bool ctrl, bool alt, bool shift, bool selected = false)
+    public static void Shortcut(InputCode code, bool ctrl, bool alt, bool shift, bool selected = false, Align align = Align.Min)
     {
-        using (UI.BeginRow(EditorStyle.Shortcut.ListContainer))
+        using (UI.BeginRow(EditorStyle.Shortcut.ListContainer with { AlignX = align}))
         {
             if (ctrl)
             {

@@ -3,7 +3,6 @@
 //
 
 using System.Numerics;
-using NoZ.Engine.UI;
 
 namespace NoZ.Editor;
 
@@ -44,15 +43,15 @@ public static class Workspace
         ]);
 
         _workspaceContextMenuItems = [
-            ContextMenuItem.Item("Frame Selected", FrameSelected, InputCode.KeyF),
-            ContextMenuItem.Item("Frame Origin", FrameOrigin),
-            ContextMenuItem.Item("Move", BeginMoveTool, InputCode.KeyG),
-            ContextMenuItem.Separator(),
-            ContextMenuItem.Submenu("View"),
-                ContextMenuItem.Item("Toggle Grid", ToggleGrid, InputCode.KeyQuote, ctrl: true, level: 1),
-                ContextMenuItem.Item("Toggle Names", ToggleNames, InputCode.KeyN, alt: true, level: 1),
-            ContextMenuItem.Separator(),
-            ContextMenuItem.Item("Rebuild All", RebuildAll),
+            //ContextMenuItem.Item("Frame Selected", FrameSelected, InputCode.KeyF),
+            //ContextMenuItem.Item("Frame Origin", FrameOrigin),
+            //ContextMenuItem.Item("Move", BeginMoveTool, InputCode.KeyG),
+            //ContextMenuItem.Separator(),
+            //ContextMenuItem.Submenu("View"),
+            //    ContextMenuItem.Item("Toggle Grid", ToggleGrid, InputCode.KeyQuote, ctrl: true, level: 1),
+            //    ContextMenuItem.Item("Toggle Names", ToggleNames, InputCode.KeyN, alt: true, level: 1),
+            //ContextMenuItem.Separator(),
+            ContextMenuItem.Item("Rebuild All", RebuildAll, alt: true, ctrl: true, shift: true, key: InputCode.KeyA),
         ];
     }
 
@@ -136,7 +135,7 @@ public static class Workspace
         RegisterCommands();
         UpdateCamera();
 
-        Render.ClearColor = EditorStyle.Workspace.Color;
+        Graphics.ClearColor = EditorStyle.Workspace.Color;
 
         // Create a 1x1 white texture for untextured draws
         byte[] white = [255, 255, 255, 255];
@@ -193,11 +192,11 @@ public static class Workspace
         UpdateCulling();
 
         if (EditorAssets.Shaders.Sprite is Shader spriteShader)
-            Render.SetShader(spriteShader);
+            Graphics.SetShader(spriteShader);
 
-        Render.SetTexture(_whiteTexture!);
-        Render.SetBlendMode(BlendMode.Alpha);
-        Render.SetCamera(_camera);
+        Graphics.SetTexture(_whiteTexture!);
+        Graphics.SetBlendMode(BlendMode.Alpha);
+        Graphics.SetCamera(_camera);
 
         DrawDocuments();
 
@@ -281,8 +280,8 @@ public static class Workspace
     
     private static void DrawDocuments()
     {
-        Render.PushState();
-        Render.SetLayer(EditorLayer.Document);
+        Graphics.PushState();
+        Graphics.SetLayer(EditorLayer.Document);
 
         foreach (var doc in DocumentManager.Documents)
         {
@@ -294,27 +293,27 @@ public static class Workspace
 
             if (doc.IsSelected)
             {
-                Render.PushState();
-                Render.SetLayer(EditorLayer.Selection);
-                Render.SetColor(EditorStyle.SelectionColor);
-                Render.SetTransform(doc.Transform);
+                Graphics.PushState();
+                Graphics.SetLayer(EditorLayer.Selection);
+                Graphics.SetColor(EditorStyle.SelectionColor);
+                Graphics.SetTransform(doc.Transform);
                 Gizmos.DrawRect(doc, EditorStyle.Workspace.BoundsLineWidth);
-                Render.PopState();
+                Graphics.PopState();
             }
 
             doc.Draw();
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private static void DrawNames()
     {
         var font = EditorAssets.Fonts.Seguisb;
 
-        Render.PushState();
-        Render.SetLayer(EditorLayer.Names);
-        Render.SetColor(EditorStyle.TextColor);
+        Graphics.PushState();
+        Graphics.SetLayer(EditorLayer.Names);
+        Graphics.SetColor(EditorStyle.TextColor);
 
         var scale = 1f / _zoom;
         var fontSize = EditorStyle.Workspace.NameSize * scale;
@@ -329,11 +328,11 @@ public static class Workspace
             var textSize = TextRender.Measure(doc.Name, font, fontSize);
             var textX = bounds.Center.X - textSize.X * 0.5f;
             var textY = bounds.Bottom + padding;
-            Render.SetTransform(Matrix3x2.CreateTranslation(textX, textY));
+            Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY));
             TextRender.Draw(doc.Name, font, fontSize);
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private static void BeginMoveTool()

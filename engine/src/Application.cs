@@ -4,7 +4,6 @@
 
 using System.Numerics;
 using NoZ.Platform;
-using NoZ.Engine.UI;
 
 namespace NoZ;
 
@@ -59,12 +58,12 @@ public static class Application
         Time.Init();
         Input.Init();
         Audio.Init(AudioDriverBackend);
-        Render.Init(Config.Render!);
+        Graphics.Init(Config.Render!);
 
         // Register asset types and load assets
         RegisterAssetTypes();
         _vtable.LoadAssets();
-        Render.ResolveAssets();
+        Graphics.ResolveAssets();
 
         TextRender.Init(config);
         UI.Init(config.UI);
@@ -99,13 +98,13 @@ public static class Application
 
             Input.Update();
 
-            Render.BeginFrame();
+            Graphics.BeginFrame();
             _vtable.Update();
-            Render.BeginUI();
+            Graphics.BeginUI();
             UI.Begin();
             _vtable.UpdateUI();
             UI.End();
-            Render.EndFrame();
+            Graphics.EndFrame();
 
             Platform.SwapBuffers();
         }
@@ -117,7 +116,7 @@ public static class Application
 
         UI.Shutdown();
         TextRender.Shutdown();
-        Render.Shutdown();
+        Graphics.Shutdown();
         Audio.Shutdown();
         Input.Shutdown();
         Time.Shutdown();
@@ -140,12 +139,12 @@ public static class Application
         Input.BeginFrame();
         Input.Update();
 
-        Render.BeginFrame();
+        Graphics.BeginFrame();
         _vtable.Update();
-        Render.BeginUI();
+        Graphics.BeginUI();
         UI.Begin();
         _vtable.UpdateUI();
         UI.End();
-        Render.EndFrame();
+        Graphics.EndFrame();
     }
 }

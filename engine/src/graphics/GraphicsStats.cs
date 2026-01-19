@@ -4,7 +4,7 @@
 
 namespace NoZ;
 
-public struct RenderStats {
+public struct GraphicsStats {
     public int DrawCount;
     public int VertexCount;
     public int CommandCount;

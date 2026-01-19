@@ -5,7 +5,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 internal struct ContainerData
 {

@@ -23,7 +23,7 @@ internal static class TextRender
         if (_textShader == null) throw new Exception($"Failed to load text shader '{config.TextShader}'");
 
         _vertices = new NativeArray<TextVertex>(MaxVertices);
-        _mesh = Render.Driver.CreateMesh<TextVertex>(
+        _mesh = Graphics.Driver.CreateMesh<TextVertex>(
             MaxVertices,
             MaxIndices,
             BufferUsage.Dynamic,
@@ -34,7 +34,7 @@ internal static class TextRender
     public static void Shutdown()
     {
         _vertices.Dispose();
-        Render.Driver.DestroyMesh(_mesh);
+        Graphics.Driver.DestroyMesh(_mesh);
         _mesh = nuint.Zero;
         _textShader = null;
     }
@@ -44,8 +44,8 @@ internal static class TextRender
         if (_vertices.Length == 0 && _indices.Length == 0)
             return;
 
-        Render.Driver.BindMesh(_mesh);
-        Render.Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _indices.AsSpan());
+        Graphics.Driver.BindMesh(_mesh);
+        Graphics.Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _indices.AsSpan());
         _vertices.Clear();
         _indices.Clear();
     }
@@ -100,9 +100,9 @@ internal static class TextRender
         if (atlasTexture == null)
             return;
 
-        Render.SetShader(_textShader);
-        Render.SetTexture(atlasTexture);
-        Render.SetMesh(_mesh);
+        Graphics.SetShader(_textShader);
+        Graphics.SetTexture(atlasTexture);
+        Graphics.SetMesh(_mesh);
 
         var currentX = 0f;
         var baselineY = (font.Baseline + font.InternalLeading * 0.5f) * fontSize;
@@ -124,30 +124,30 @@ internal static class TextRender
 
                 _vertices.Add(new TextVertex
                 {
-                    Position = Vector2.Transform(new Vector2(x0, y0), Render.Transform),
+                    Position = Vector2.Transform(new Vector2(x0, y0), Graphics.Transform),
                     UV = glyph.UVMin,
-                    Color = Render.Color
+                    Color = Graphics.Color
                 });
 
                 _vertices.Add(new TextVertex
                 {
-                    Position = Vector2.Transform(new Vector2(x1, y0), Render.Transform),
+                    Position = Vector2.Transform(new Vector2(x1, y0), Graphics.Transform),
                     UV = new Vector2(glyph.UVMax.X, glyph.UVMin.Y),
-                    Color = Render.Color
+                    Color = Graphics.Color
                 });
 
                 _vertices.Add(new TextVertex
                 {
-                    Position = Vector2.Transform(new Vector2(x1, y1), Render.Transform),
+                    Position = Vector2.Transform(new Vector2(x1, y1), Graphics.Transform),
                     UV = glyph.UVMax,
-                    Color = Render.Color
+                    Color = Graphics.Color
                 });
 
                 _vertices.Add(new TextVertex
                 {
-                    Position = Vector2.Transform(new Vector2(x0, y1), Render.Transform),
+                    Position = Vector2.Transform(new Vector2(x0, y1), Graphics.Transform),
                     UV = new Vector2(glyph.UVMin.X, glyph.UVMax.Y),
-                    Color = Render.Color
+                    Color = Graphics.Color
                 });
 
                 _indices.Add((ushort)(baseVertex + 0));
@@ -156,7 +156,7 @@ internal static class TextRender
                 _indices.Add((ushort)(baseVertex + 2));
                 _indices.Add((ushort)(baseVertex + 3));
                 _indices.Add((ushort)(baseVertex + 0));
-                Render.DrawElements(6, baseIndex, order);
+                Graphics.DrawElements(6, baseIndex, order);
 
                 baseIndex += 6;
             }

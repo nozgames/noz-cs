@@ -29,11 +29,11 @@ Application.Init(new ApplicationConfig
     AudioBackend = new SdlAudioDriver(),
     Vtable = new EditorVtable(),
 
-    UI = new NoZ.Engine.UI.Config()
+    UI = new UIConfig()
     {
         DefaultFont = EditorAssets.Names.Seguisb
     },
-    Render = new RenderConfig
+    Render = new GraphicsConfig
     {
         Driver = new OpenGlRenderDriver(),
         CompositeShader = "composite"

@@ -69,7 +69,7 @@ public class Asset : IDisposable {
     {
         var typeName = assetType.ToString().ToLowerInvariant();
         var fileName = assetType == AssetType.Shader
-            ? assetName + Render.Driver.ShaderExtension
+            ? assetName + Graphics.Driver.ShaderExtension
             : assetName;
 
         var fullPath = Path.Combine(Application.AssetPath, typeName, fileName);

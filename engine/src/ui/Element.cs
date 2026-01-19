@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 internal enum ElementType : byte
 {

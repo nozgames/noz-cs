@@ -5,7 +5,7 @@
 using System.Numerics;
 using NoZ.Platform;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public struct TextBoxData
 {
@@ -145,11 +145,11 @@ internal static class TextBoxElement
                 var placeholderOffset = new Vector2(-state.ScrollOffset, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f);
                 var transform = e.LocalToWorld * Matrix3x2.CreateTranslation(placeholderOffset);
                 
-                Render.PushState();
-                Render.SetColor(tb.PlaceholderColor);
-                Render.SetTransform(transform);
+                Graphics.PushState();
+                Graphics.SetColor(tb.PlaceholderColor);
+                Graphics.SetTransform(transform);
                 TextRender.Draw(placeholder, font, fontSize);
-                Render.PopState();
+                Graphics.PopState();
             }
             
             // Save modified text back
@@ -181,11 +181,11 @@ internal static class TextBoxElement
                 var placeholderOffset = new Vector2(0, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f);
                 var transform = e.LocalToWorld * Matrix3x2.CreateTranslation(placeholderOffset);
                 
-                Render.PushState();
-                Render.SetColor(tb.PlaceholderColor);
-                Render.SetTransform(transform);
+                Graphics.PushState();
+                Graphics.SetColor(tb.PlaceholderColor);
+                Graphics.SetTransform(transform);
                 TextRender.Draw(placeholder, font, fontSize);
-                Render.PopState();
+                Graphics.PopState();
             }
             else
             {
@@ -512,7 +512,7 @@ internal static class TextBoxElement
         var scissorW = (int)(e.Rect.Width * scale);
         var scissorH = (int)(e.Rect.Height * scale);
         
-        Render.SetScissor(scissorX, scissorY, scissorW, scissorH);
+        Graphics.SetScissor(scissorX, scissorY, scissorW, scissorH);
         
         var textToRender = password
              ? PasswordMask[..Math.Min(text.Length, PasswordMask.Length)]
@@ -523,13 +523,13 @@ internal static class TextBoxElement
         
         var transform = e.LocalToWorld * Matrix3x2.CreateTranslation(textOffset);
         
-        Render.PushState();
-        Render.SetColor(color);
-        Render.SetTransform(transform);
+        Graphics.PushState();
+        Graphics.SetColor(color);
+        Graphics.SetTransform(transform);
         TextRender.Draw(textToRender, font, fontSize);
-        Render.PopState();
+        Graphics.PopState();
         
-        Render.DisableScissor();
+        Graphics.DisableScissor();
     }
 
     private static void DrawCursor(ref Element e, State state, string text, Font font, float fontSize)

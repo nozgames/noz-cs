@@ -61,14 +61,14 @@ public class TextureDocument : Document
             return;
 
         if (EditorAssets.Shaders.Texture is Shader textureShader)
-            Render.SetShader(textureShader);
+            Graphics.SetShader(textureShader);
 
-        Render.SetTexture(Texture);
-        Render.SetLayer(64);
-        Render.SetColor(Color.White);
+        Graphics.SetTexture(Texture);
+        Graphics.SetLayer(64);
+        Graphics.SetColor(Color.White);
 
         var size = Bounds.Size;
-        Render.Draw(
+        Graphics.Draw(
             Position.X - size.X * 0.5f,
             Position.Y - size.Y * 0.5f,
             size.X, size.Y,

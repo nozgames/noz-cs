@@ -76,11 +76,11 @@ public class ScaleTool : Tool
 
     public override void Draw()
     {
-        Render.PushState();
-        Render.SetLayer(EditorLayer.Tool);
+        Graphics.PushState();
+        Graphics.SetLayer(EditorLayer.Tool);
 
         // Draw pivot point
-        Render.SetColor(EditorStyle.SelectionColor);
+        Graphics.SetColor(EditorStyle.SelectionColor);
         Gizmos.DrawRect(_pivot, EditorStyle.Shape.AnchorSize * 1.5f, order: 10);
 
         // Draw scale indicator lines
@@ -88,22 +88,22 @@ public class ScaleTool : Tool
 
         if (_scaleConstraint.X == 0 || _scaleConstraint.Y == 0)
         {
-            Render.SetColor(EditorStyle.SelectionColor.WithAlpha(0.5f));
+            Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.5f));
 
             var camera = Workspace.Camera;
             var bounds = camera.WorldBounds;
 
             if (_scaleConstraint.X > 0)
-                Render.Draw(bounds.X, _pivot.Y - thickness, bounds.Width, thickness * 2);
+                Graphics.Draw(bounds.X, _pivot.Y - thickness, bounds.Width, thickness * 2);
             if (_scaleConstraint.Y > 0)
-                Render.Draw(_pivot.X - thickness, bounds.Y, thickness * 2, bounds.Height);
+                Graphics.Draw(_pivot.X - thickness, bounds.Y, thickness * 2, bounds.Height);
         }
 
         // Draw line from pivot to mouse
-        Render.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
+        Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
         Gizmos.DrawLine(_pivot, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentWidth * 2, order: 9);
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     public override void Cancel()

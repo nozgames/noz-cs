@@ -2,8 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using NoZ.Engine.UI;
-
 using System.Numerics;
 
 namespace NoZ.Editor;
@@ -136,7 +134,7 @@ public static class ContextMenu
 
         using (UI.BeginCanvas(id: EditorStyle.CanvasId.ContextMenu))
         {
-            using (UI.BeginContainer(style: ContainerStyle.Default, id: CloseId))
+            using (UI.BeginContainer(id: CloseId))
                 if (UI.WasPressed())
                     Close();
 
@@ -206,9 +204,13 @@ public static class ContextMenu
         var parentLevel = level == 0 ? -1 : _items![parentIndex].Level;
 
         using (UI.BeginContainer(
-            style: EditorStyle.ContextMenu.Menu.WithMargin(EdgeInsets.TopLeft(menuPos.Y, menuPos.X)),
+            style: EditorStyle.ContextMenu.Menu with 
+            { 
+                Margin = EdgeInsets.TopLeft(menuPos.Y, menuPos.X),
+                Size = Size2.Fit
+            },
             id: (byte)(MenuIdStart + level)))
-        using (UI.BeginColumn())
+        using (UI.BeginColumn(new ContainerStyle { Size = Size2.Fit }))
         {
             if (level == 0 && _title != null)
             {
@@ -242,22 +244,23 @@ public static class ContextMenu
 
                     using (UI.BeginRow(ContainerStyle.Default))
                     {
-                        UI.Label(item.Label, new LabelStyle
-                        {
-                            FontSize = EditorStyle.ContextMenu.TextSize,
-                            Color = !item.Enabled
-                                ? EditorStyle.Overlay.DisabledTextColor
-                                : (hovered || isSubmenuOpen)
-                                    ? EditorStyle.Overlay.AccentTextColor
-                                    : EditorStyle.Overlay.TextColor,
-                            AlignX = Align.Min,
-                            AlignY = Align.Center
-                        });
+                        // todo: icon
 
-                        //UI.Flex();
+                        using (UI.BeginContainer(EditorStyle.ContextMenu.ItemLeft))
+                            UI.Label(item.Label, new LabelStyle
+                            {
+                                FontSize = EditorStyle.ContextMenu.TextSize,
+                                Color = !item.Enabled
+                                    ? EditorStyle.Overlay.DisabledTextColor
+                                    : (hovered || isSubmenuOpen)
+                                        ? EditorStyle.Overlay.AccentTextColor
+                                        : EditorStyle.Overlay.TextColor,
+                                AlignX = Align.Min,
+                                AlignY = Align.Center
+                            });
 
                         // Submenu arrow or shortcut
-                        using (UI.BeginContainer(new ContainerStyle(){Margin=EdgeInsets.Left(16)}))
+                        using (UI.BeginContainer(EditorStyle.ContextMenu.ItemRight))
                         {
                             if (hasChildren)
                             {
@@ -275,7 +278,7 @@ public static class ContextMenu
                             }
                             else if (item.Key != InputCode.None)
                             {
-                                EditorUI.Shortcut(item.Key, item.Ctrl, item.Alt, item.Shift, selected: hovered);
+                                EditorUI.Shortcut(item.Key, item.Ctrl, item.Alt, item.Shift, selected: hovered, align: Align.Max);
                             }
                         }
                     }

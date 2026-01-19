@@ -13,7 +13,7 @@ public static class Gizmos
     
     public static float ZoomRefScale => 1f / Workspace.Zoom;
 
-    public static void SetColor(Color color) => Render.SetColor(color);
+    public static void SetColor(Color color) => Graphics.SetColor(color);
     
     public static void DrawRect(Document doc, float width = 1.0f)
     {
@@ -35,18 +35,18 @@ public static class Gizmos
 
     public static void DrawRotatedRect(Rect bounds, float rotation, float width = 1.0f, ushort order = 0)
     {
-        Render.PushState();
-        Render.SetTransform(Matrix3x2.CreateRotation(rotation) * Render.Transform);
+        Graphics.PushState();
+        Graphics.SetTransform(Matrix3x2.CreateRotation(rotation) * Graphics.Transform);
         DrawRect(bounds, width, order);
-        Render.PopState();
+        Graphics.PopState();
     }
 
     public static void DrawRotatedRect(Rect bounds, Vector2 pivot, float rotation, float width = 1.0f, ushort order = 0)
     {
-        Render.PushState();
-        Render.SetTransform(Matrix3x2.CreateRotation(rotation, pivot) * Render.Transform);
+        Graphics.PushState();
+        Graphics.SetTransform(Matrix3x2.CreateRotation(rotation, pivot) * Graphics.Transform);
         DrawRect(bounds, width, order);
-        Render.PopState();
+        Graphics.PopState();
     }
 
     public static void DrawLine(Vector2 v0, Vector2 v1, float width, bool extendEnds = false, ushort order=0)
@@ -73,19 +73,19 @@ public static class Gizmos
         var p2 = end + perp * halfWidth;
         var p3 = end - perp * halfWidth;
 
-        Render.Draw(p0, p1, p2, p3, order);
+        Graphics.Draw(p0, p1, p2, p3, order);
     }
 
     public static void DrawRect(in Vector2 position, float size, ushort order=0)
     {
         var scaledSize = ZoomRefScale * size;
         var halfSize = scaledSize * 0.5f;
-        Render.Draw(position.X - halfSize, position.Y - halfSize, scaledSize, scaledSize, order);
+        Graphics.Draw(position.X - halfSize, position.Y - halfSize, scaledSize, scaledSize, order);
     }
 
     public static void DrawCircle(Vector2 pos, float radius)
     {
-        Render.Draw(pos.X - radius, pos.Y - radius, radius * 2, radius * 2);
+        Graphics.Draw(pos.X - radius, pos.Y - radius, radius * 2, radius * 2);
     }
     
     public static float GetVertexSize(float size=1.0f)

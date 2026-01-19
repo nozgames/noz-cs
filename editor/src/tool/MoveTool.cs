@@ -59,20 +59,20 @@ public class MoveTool : Tool
     {
         if (_deltaScale.X == 0 || _deltaScale.Y == 0)
         {
-            Render.PushState();
-            Render.SetLayer(EditorLayer.Tool);
-            Render.SetColor(EditorStyle.SelectionColor.WithAlpha(0.5f));
+            Graphics.PushState();
+            Graphics.SetLayer(EditorLayer.Tool);
+            Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.5f));
 
             var camera = Workspace.Camera;
             var bounds = camera.WorldBounds;
             var thickness = EditorStyle.Workspace.BoundsLineWidth / Workspace.Zoom;
 
             if (_deltaScale.X > 0)
-                Render.Draw(bounds.X, Workspace.MouseWorldPosition.Y - thickness, bounds.Width, thickness * 2);
+                Graphics.Draw(bounds.X, Workspace.MouseWorldPosition.Y - thickness, bounds.Width, thickness * 2);
             else
-                Render.Draw(Workspace.MouseWorldPosition.X - thickness, bounds.Y, thickness * 2, bounds.Height);
+                Graphics.Draw(Workspace.MouseWorldPosition.X - thickness, bounds.Y, thickness * 2, bounds.Height);
 
-            Render.PopState();
+            Graphics.PopState();
         }
     }
 

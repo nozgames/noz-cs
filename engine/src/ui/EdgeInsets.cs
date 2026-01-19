@@ -4,7 +4,7 @@
 
 using System.Security.Cryptography;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public readonly struct EdgeInsets(float top, float left, float bottom, float right)
 {

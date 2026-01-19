@@ -4,7 +4,7 @@
 
 using System.Numerics;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public static partial class UI
 {
@@ -20,7 +20,9 @@ public static partial class UI
             if (resolveSize.Mode == SizeMode.Default)
             {
                 if (p.Type == ElementType.Column && axis == 1)
-                    resolveSize = Size.Fit();
+                    resolveSize = Size.Fit;
+                else if (p.Type == ElementType.Row && axis == 0)
+                    resolveSize = Size.Fit;
                 else
                     resolveSize = Size.Percent();
             }
@@ -55,13 +57,29 @@ public static partial class UI
         if (e.Data.Container.MaxWidth > 0) size.X = Math.Min(size.X, e.Data.Container.MaxWidth);
         if (e.Data.Container.MaxHeight > 0) size.Y = Math.Min(size.Y, e.Data.Container.MaxHeight);
         return size;    
+    
     }        
+    private static Vector2 MeasureRowFlex(ref readonly Element e, ref readonly Element p)
+    {
+        Vector2 size = ResolveSize(in e, in p, Size2.Default);
+        size.X = 0;
+        return size;
+    }
+
+    private static Vector2 MeasureColumnFlex(ref readonly Element e, ref readonly Element p)
+    {
+        Vector2 size = ResolveSize(in e, in p, Size2.Default);
+        size.Y = 0;
+        return size;
+    }
 
     private static Vector2 MeasureElement(ref readonly Element e, ref readonly Element p) => e.Type switch
     {
         ElementType.Container => MeasureContainer(in e, in p),
         ElementType.Column => MeasureContainer(in e, in p),
         ElementType.Row => MeasureContainer(in e, in p),
+        ElementType.Flex when p.Type is ElementType.Row => MeasureRowFlex(in e, in p),
+        ElementType.Flex when p.Type is ElementType.Column => MeasureColumnFlex(in e, in p),
         _ => ResolveSize(in e, in p, Size2.Default)
     };
 
@@ -73,7 +91,7 @@ public static partial class UI
             e.Data.Label.FontSize);
     }
 
-    private static Vector2 FitContainer(ref readonly Element e, ref readonly Element p)
+    private static Vector2 FitContainer(ref readonly Element e, ref readonly Element p, bool margins=false)
     {
         Vector2 fit = Vector2.Zero;
 
@@ -86,7 +104,7 @@ public static partial class UI
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
             {
                 ref readonly var child = ref GetElement(elementIndex);
-                var childSize = FitElement(in child, in e);
+                var childSize = FitElement(in child, in e, margins :true);
                 fit.X = Math.Max(fit.X, childSize.X);
                 fit.Y = Math.Max(fit.Y, childSize.Y);
                 elementIndex = child.NextSiblingIndex;
@@ -97,7 +115,7 @@ public static partial class UI
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
             {
                 ref readonly var child = ref GetElement(elementIndex);
-                var childSize = FitElement(in child, in e);
+                var childSize = FitElement(in child, in e, margins: true);
                 fit.X = Math.Max(fit.X, childSize.X);
                 fit.Y += childSize.Y;
                 elementIndex = child.NextSiblingIndex;
@@ -108,7 +126,7 @@ public static partial class UI
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
             {
                 ref readonly var child = ref GetElement(elementIndex);
-                var childSize = FitElement(in child, in e);
+                var childSize = FitElement(in child, in e, margins: true);
                 fit.X += childSize.X;
                 fit.Y = Math.Max(fit.Y, childSize.Y);
                 elementIndex = child.NextSiblingIndex;
@@ -121,17 +139,23 @@ public static partial class UI
         if (e.Data.Container.Size.Height.IsFixed)
             fit.Y = e.Data.Container.Size.Height.Value;
 
-        fit.X += e.Data.Container.Margin.Horizontal;
-        fit.Y += e.Data.Container.Margin.Vertical;
+        fit.X += e.Data.Container.Padding.Horizontal;
+        fit.Y += e.Data.Container.Padding.Vertical;
+
+        if (margins)
+        {
+            fit.X += e.Data.Container.Margin.Horizontal;
+            fit.Y += e.Data.Container.Margin.Vertical;
+        }
 
         return fit;
     }
 
-    private static Vector2 FitElement(ref readonly Element e, ref readonly Element p) => e.Type switch
+    private static Vector2 FitElement(ref readonly Element e, ref readonly Element p, bool margins = false) => e.Type switch
     {
-        ElementType.Container => FitContainer(in e, in p),
-        ElementType.Column => FitContainer(in e, in p),
-        ElementType.Row => FitContainer(in e, in p),
+        ElementType.Container => FitContainer(in e, in p, margins),
+        ElementType.Column => FitContainer(in e, in p, margins),
+        ElementType.Row => FitContainer(in e, in p, margins),
         ElementType.Label => FitLabel(in e, in p),
         _ => Vector2.Zero
     };

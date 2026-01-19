@@ -2,8 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using NoZ.Engine.UI;
-
 namespace NoZ.Editor;
 
 public class Style
@@ -280,7 +278,8 @@ public static class EditorStyle
         {
             Spacing = 2.0f,
             AlignX = Align.Min,
-            AlignY = Align.Center
+            AlignY = Align.Center,
+            Width = Size.Fit
         };
 
         public static readonly ContainerStyle RootContainer = new()
@@ -290,7 +289,6 @@ public static class EditorStyle
             AlignX = Align.Center,
             AlignY = Align.Center,
             Padding = EdgeInsets.LeftRight(8),
-            //Color = Control.FillColor,
             Border = new BorderStyle { Radius = 4f }
         };
 
@@ -311,7 +309,23 @@ public static class EditorStyle
         public const float ItemHeight = 20f;
         public static Color TitleColor => _current.ContextMenuTitleColor;
         public static Color SeparatorColor => _current.ContextMenuSeparatorColor;
-        public static ContainerStyle Menu = Popup.RootContainer.WithAlign(Align.Min);
+        public static readonly ContainerStyle Menu = Popup.RootContainer with {
+            AlignX = Align.Min,
+            AlignY = Align.Min
+        };
+
+        public static readonly ContainerStyle ItemLeft = ContainerStyle.Default with 
+        {
+            Width = 120f,
+            Margin = EdgeInsets.Left(40),
+            Color = Color.Red,
+        };
+
+        public static readonly ContainerStyle ItemRight = ContainerStyle.Default with
+        {
+            Width = 120f,
+            Color = Color.Green
+        };
     }
 
     // Color Picker

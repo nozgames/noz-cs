@@ -2,12 +2,12 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-#define NOZ_UI_DEBUG
+// #define NOZ_UI_DEBUG
 
 using System.Diagnostics;
 using System.Numerics;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public static partial class UI
 {
@@ -28,20 +28,61 @@ public static partial class UI
             ResolveAlign(ref e, in p, e.Data.Container.AlignY, 1))
         : Vector2.Zero;
 
-    private static void LayoutColumn(ref Element e, ref readonly Element p)
+    private static void LayoutRowColumn(ref Element e, ref readonly Element p, int axis)
     {
-        var elementIndex = e.Index + 1;
-        var yOffset = 0.0f;
+        var offset = Vector2.Zero;
+        var fixedSize = 0.0f;
+        var flexTotal = 0.0f;
+        var sizeOverride = e.ContentRect.Size;
+        sizeOverride[axis] = AutoSize.X;
 
+        var elementIndex = e.Index + 1;
         for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
         {
             ref var child = ref GetElement(elementIndex);
-            elementIndex = LayoutElement(elementIndex, new Vector2(0, yOffset), new Vector2(e.ContentRect.Width, AutoSize.Y));
-            yOffset += child.Rect.Height;
-        }            
+            if (child.Type == ElementType.Flex)
+            {
+                flexTotal += child.Data.Flex.Flex;
+                elementIndex = child.NextSiblingIndex;
+                continue;
+            }
+
+            LayoutElement(elementIndex, offset, sizeOverride);
+
+            float childSize = child.Rect.Size[axis];
+            fixedSize += childSize;
+            offset[axis] += childSize;
+            elementIndex = child.NextSiblingIndex;
+        }
+
+        if (flexTotal > float.Epsilon && fixedSize < e.ContentRect.Size[axis])
+        {
+            var flexAvailable = e.ContentRect.Size[axis] - fixedSize;
+            var flexOffset = Vector2.Zero;
+            elementIndex = e.Index + 1;
+            for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
+            {
+                ref var child = ref GetElement(elementIndex);
+                if (child.Type != ElementType.Flex)
+                {
+                    child.Rect[axis] += flexOffset[axis];
+                    flexOffset[axis] += child.Rect.Size[axis];
+                }
+                else
+                {
+                    var flex = (child.Data.Flex.Flex / flexTotal) * flexAvailable;
+                    var flexSizeOverride = sizeOverride;
+                    flexSizeOverride[axis] = flex;
+                    LayoutElement(child.Index, flexOffset, flexSizeOverride);
+                    flexOffset[axis] += flex;
+                }
+
+                elementIndex = child.NextSiblingIndex;
+            }
+        }
     }
 
-    private static int LayoutElement(int elementIndex, in Vector2 offset, in Vector2 sizeOverride)
+    private static void LayoutElement(int elementIndex, in Vector2 offset, in Vector2 sizeOverride)
     {
         ref var e = ref _elements[elementIndex++];
         LogUI(e, $"{(e.ChildCount>0?"+":"-")} {e.Type}: Index={e.Index} Parent={e.ParentIndex} Sibling={e.NextSiblingIndex}", depth: -1);
@@ -89,21 +130,24 @@ public static partial class UI
 
         if (e.Type == ElementType.Column)
         {
-            LayoutColumn(ref e, in p);
+            LayoutRowColumn(ref e, in p, 1);
+        }
+        else if (e.Type == ElementType.Row)
+        {
+            LayoutRowColumn(ref e, in p, 0);
         }
         else
         {
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
-                elementIndex = LayoutElement(elementIndex, Vector2.Zero, AutoSize);
+            {
+                ref var child = ref GetElement(elementIndex);
+                LayoutElement(elementIndex, Vector2.Zero, AutoSize);
+                elementIndex = child.NextSiblingIndex;
+            }                
         }
-
-
-        return e.NextSiblingIndex;
-
-        //return elementIndex;
     }
 
-    private static int LayoutCanvas(int elementIndex)
+    private static void LayoutCanvas(int elementIndex)
     {
         ref var e = ref _elements[elementIndex++];
         Debug.Assert(e.Type == ElementType.Canvas);
@@ -115,10 +159,22 @@ public static partial class UI
 
         for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
         {
-            //ref var child = ref _elements[elementIndex];
-            elementIndex = LayoutElement(elementIndex, Vector2.Zero, AutoSize);
+            ref var child = ref _elements[elementIndex];
+            LayoutElement(elementIndex, Vector2.Zero, AutoSize);
+            elementIndex = child.NextSiblingIndex;
         }
+    }
 
-        return elementIndex;
+    private static void LayoutElements()
+    {
+        LogUI("Layout", condition: () => _elementCount > 0);
+
+        for (int elementIndex = 0; elementIndex < _elementCount;)
+        {
+            ref var canvas = ref _elements[elementIndex];
+            Debug.Assert(canvas.Type == ElementType.Canvas);
+            LayoutCanvas(elementIndex);
+            elementIndex = canvas.NextSiblingIndex;
+        }            
     }
 }

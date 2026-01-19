@@ -32,24 +32,24 @@ public static class Grid
         
         if (IsPixelGridVisible)
         {
-            Render.PushState();
-            Render.SetLayer(EditorLayer.Grid);
+            Graphics.PushState();
+            Graphics.SetLayer(EditorLayer.Grid);
             Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha * EditorStyle.Workspace.GridAlpha));
             DrawHorizontalLines(camera, world.FineSpacing);
             DrawVerticalLines(camera, world.FineSpacing);
-            Render.PopState();
+            Graphics.PopState();
 
-            Render.PushState();
-            Render.SetLayer(EditorLayer.PixelGrid);
+            Graphics.PushState();
+            Graphics.SetLayer(EditorLayer.PixelGrid);
             Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(pixelGridAlpha));
             DrawHorizontalLines(camera, pixelSize);
             DrawVerticalLines(camera, pixelSize);
-            Render.PopState();
+            Graphics.PopState();
             return;
         }
 
-        Render.PushState();
-        Render.SetLayer(EditorLayer.Grid);
+        Graphics.PushState();
+        Graphics.SetLayer(EditorLayer.Grid);
         Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha * EditorStyle.Workspace.GridAlpha));
         DrawHorizontalLines(camera, world.CoarseSpacing);
         DrawVerticalLines(camera, world.CoarseSpacing);
@@ -57,7 +57,7 @@ public static class Grid
         Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.FineAlpha * EditorStyle.Workspace.GridAlpha));
         DrawHorizontalLines(camera, world.FineSpacing);
         DrawVerticalLines(camera, world.FineSpacing);
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private static void DrawHorizontalLines(Camera camera, float spacing)
@@ -87,7 +87,7 @@ public static class Grid
         {
             if (y < bottom - lineThickness || y > top + lineThickness)
                 continue;
-            Render.Draw(
+            Graphics.Draw(
                 left, y - lineThickness,
                 right - left, lineThickness * 2f
             );
@@ -120,7 +120,7 @@ public static class Grid
             if (x < left - lineThickness || x > right + lineThickness)
                 continue;
 
-            Render.Draw(
+            Graphics.Draw(
                 x - lineThickness, bottom,
                 lineThickness * 2f, top - bottom
             );
@@ -140,10 +140,10 @@ public static class Grid
         var pixelsPerWorldUnit = screenSize.Y / worldHeight;
         var lineThickness = 1.5f / pixelsPerWorldUnit;
 
-        Render.SetColor(color);
+        Graphics.SetColor(color);
         
         if (left < lineThickness && right > -lineThickness)
-            Render.Draw(
+            Graphics.Draw(
                 -lineThickness,
                 bottom,
                 lineThickness * 2f,
@@ -152,7 +152,7 @@ public static class Grid
             );
 
         if (top < lineThickness && bottom > -lineThickness)
-            Render.Draw(
+            Graphics.Draw(
                 left,
                 -lineThickness,
                 right - left,

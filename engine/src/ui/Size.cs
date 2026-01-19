@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public enum SizeMode : byte
 {
@@ -34,7 +34,7 @@ public struct Size
     public readonly bool IsFit => Mode == SizeMode.Fit;
 
     public static Size Percent(float value=1.0f) => new() { Value = value, Mode = SizeMode.Percent };
-    public static Size Fit() => new() { Value = 0.0f, Mode = SizeMode.Fit };
+    public static readonly Size Fit = new() { Value = 0.0f, Mode = SizeMode.Fit };
 
     public static readonly Size Default = new();
 
@@ -72,4 +72,5 @@ public struct Size2(Size width, Size height)
     public override string ToString() => $"Width: {Width}, Height: {Height}";
 
     public static readonly Size2 Default = new(Size.Default, Size.Default);
+    public static readonly Size2 Fit = new(Size.Fit, Size.Fit);
 }

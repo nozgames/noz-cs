@@ -120,10 +120,10 @@ public class SpriteEditor : DocumentEditor
 
         var shape = Document.GetFrame(_currentFrame).Shape;
 
-        Render.PushState();
-        Render.SetTransform(Document.Transform);
+        Graphics.PushState();
+        Graphics.SetTransform(Document.Transform);
         DrawRaster(shape);
-        Render.SetLayer(EditorLayer.Gizmo);
+        Graphics.SetLayer(EditorLayer.Gizmo);
 
         if (_mode == SpriteEditorMode.Path)
         {
@@ -136,7 +136,7 @@ public class SpriteEditor : DocumentEditor
             DrawAnchorsForFocusedPaths(shape);
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
     
     private void UpdateRaster()
@@ -162,7 +162,7 @@ public class SpriteEditor : DocumentEditor
             shape.Rasterize(_pixelData, palette.Colors, new Vector2Int(-rb.X, -rb.Y), dpi);
         }
 
-        Render.Driver.UpdateTexture(
+        Graphics.Driver.UpdateTexture(
             _rasterTexture!.Handle,
             _pixelData.Width, _pixelData.Height,
             _pixelData.AsBytes());
@@ -919,12 +919,12 @@ public class SpriteEditor : DocumentEditor
         var u1 = rb.Width / texSize;
         var v1 = rb.Height / texSize;
 
-        Render.PushState();
-        Render.SetShader(EditorAssets.Shaders.Texture!);
-        Render.SetTexture(_rasterTexture);
-        Render.SetColor(Color.White);
-        Render.Draw(quadX, quadY, quadW, quadH, 0, 0, u1, v1);
-        Render.PopState();
+        Graphics.PushState();
+        Graphics.SetShader(EditorAssets.Shaders.Texture!);
+        Graphics.SetTexture(_rasterTexture);
+        Graphics.SetColor(Color.White);
+        Graphics.Draw(quadX, quadY, quadW, quadH, 0, 0, u1, v1);
+        Graphics.PopState();
     }
 
     private static void DrawSegment(Shape shape, ushort pathIndex, ushort segmentIndex, float width, ushort order = 0)
@@ -951,16 +951,16 @@ public class SpriteEditor : DocumentEditor
         // hover
         if (_hoveredSegment != ushort.MaxValue)
         {
-            Render.PushState();
+            Graphics.PushState();
             var pathIndex = FindPathForAnchor(shape, _hoveredSegment);
             if (pathIndex != ushort.MaxValue)
                 DrawSegment(shape, pathIndex, _hoveredSegment, EditorStyle.Shape.SegmentHoverWidth, 0);
-            Render.PopState();
+            Graphics.PopState();
         }
 
         // default
-        Render.PushState();
-        Render.SetColor(EditorStyle.Shape.SegmentColor);
+        Graphics.PushState();
+        Graphics.SetColor(EditorStyle.Shape.SegmentColor);
         for (ushort anchorIndex=0; anchorIndex < shape.AnchorCount; anchorIndex++)
         {
             if (!shape.IsSegmentSelected(anchorIndex))
@@ -970,10 +970,10 @@ public class SpriteEditor : DocumentEditor
                     DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentWidth, 1);
             }
         }
-        Render.PopState();
+        Graphics.PopState();
 
         // selected
-        Render.PushState();
+        Graphics.PushState();
         for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
         {
             if (shape.IsSegmentSelected(anchorIndex))
@@ -983,20 +983,20 @@ public class SpriteEditor : DocumentEditor
                     DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentWidth, 2);
             }
         }
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private static void DrawAnchor(Vector2 worldPosition)
     {
         Gizmos.SetColor(EditorStyle.Shape.AnchorColor);
         Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize * 0.85f, order: 5);
-        Render.SetColor(EditorStyle.Shape.AnchorOutlineColor);
+        Graphics.SetColor(EditorStyle.Shape.AnchorOutlineColor);
         Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize, order: 4);
     }
 
     private static void DrawSelectedAnchor(Vector2 worldPosition)
     {
-        Render.SetColor(EditorStyle.Shape.AnchorOutlineColor);
+        Graphics.SetColor(EditorStyle.Shape.AnchorOutlineColor);
         Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize * 0.85f, order: 5);
         Gizmos.SetColor(EditorStyle.Shape.AnchorColor);
         Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize, order: 4);
@@ -1014,7 +1014,7 @@ public class SpriteEditor : DocumentEditor
         }
 
         // default
-        Render.PushState();
+        Graphics.PushState();
 
         for (ushort i = 0; i < shape.AnchorCount; i++)
         {
@@ -1034,13 +1034,13 @@ public class SpriteEditor : DocumentEditor
             DrawSelectedAnchor(worldPos);
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private void DrawSelectedPathsOutline(Shape shape)
     {
-        Render.PushState();
-        Render.SetColor(EditorStyle.Shape.AnchorOutlineColor);
+        Graphics.PushState();
+        Graphics.SetColor(EditorStyle.Shape.AnchorOutlineColor);
 
         for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
         {
@@ -1049,15 +1049,15 @@ public class SpriteEditor : DocumentEditor
                 DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentWidth, 1);
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private void DrawSelectedPathsBounds(Shape shape)
     {
         var lineWidth = EditorStyle.Shape.SegmentWidth * 2f;
 
-        Render.PushState();
-        Render.SetColor(EditorStyle.SelectionColor);
+        Graphics.PushState();
+        Graphics.SetColor(EditorStyle.SelectionColor);
 
         var rotatedBounds = shape.GetSelectedPathsRotatedBounds();
         if (rotatedBounds.HasValue)
@@ -1076,16 +1076,16 @@ public class SpriteEditor : DocumentEditor
                 Gizmos.DrawRect(bounds.Value, lineWidth, order: 3);
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private void DrawSegmentsForFocusedPaths(Shape shape)
     {
         // Draw all segments (dimmed for non-focused paths)
-        Render.PushState();
+        Graphics.PushState();
 
         // Non-focused paths - dimmed
-        Render.SetColor(EditorStyle.Shape.SegmentColor.WithAlpha(0.3f));
+        Graphics.SetColor(EditorStyle.Shape.SegmentColor.WithAlpha(0.3f));
         for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
         {
             var pathIndex = FindPathForAnchor(shape, anchorIndex);
@@ -1094,7 +1094,7 @@ public class SpriteEditor : DocumentEditor
         }
 
         // Focused paths - normal color
-        Render.SetColor(EditorStyle.Shape.SegmentColor);
+        Graphics.SetColor(EditorStyle.Shape.SegmentColor);
         for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
         {
             var pathIndex = FindPathForAnchor(shape, anchorIndex);
@@ -1124,12 +1124,12 @@ public class SpriteEditor : DocumentEditor
                 DrawSegment(shape, pathIndex, _hoveredSegment, EditorStyle.Shape.SegmentHoverWidth, 4);
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
 
     private void DrawAnchorsForFocusedPaths(Shape shape)
     {
-        Render.PushState();
+        Graphics.PushState();
 
         // Only draw anchors for focused paths
         for (ushort p = 0; p < shape.PathCount; p++)
@@ -1166,6 +1166,6 @@ public class SpriteEditor : DocumentEditor
             }
         }
 
-        Render.PopState();
+        Graphics.PopState();
     }
 }

@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using NoZ.Platform;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct UIVertex : IVertex

@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using NoZ.Platform;
 
-namespace NoZ.Engine.UI;
+namespace NoZ;
 
 public static class UIRender
 {
@@ -19,7 +19,7 @@ public static class UIRender
     private static Shader? _shader;
     private static bool _initialized;
 
-    public static void Init(Config config)
+    public static void Init(UIConfig config)
     {
         if (_initialized) return;
 
@@ -27,7 +27,7 @@ public static class UIRender
         _vertices = new NativeArray<UIVertex>(MaxUIVertices);
         _indices = new NativeArray<ushort>(MaxUIIndices);
 
-        _mesh = Render.Driver.CreateMesh<UIVertex>(
+        _mesh = Graphics.Driver.CreateMesh<UIVertex>(
             MaxUIVertices,
             MaxUIIndices,
             BufferUsage.Dynamic,
@@ -44,7 +44,7 @@ public static class UIRender
         _vertices.Dispose();
         _indices.Dispose();
 
-        Render.Driver.DestroyMesh(_mesh);
+        Graphics.Driver.DestroyMesh(_mesh);
         _initialized = false;
     }
 
@@ -78,9 +78,9 @@ public static class UIRender
             _indices.Add((ushort)(vertexOffset + 3));
             _indices.Add((ushort)vertexOffset);
 
-            Render.SetShader(_shader);
-            Render.SetMesh(_mesh);
-            Render.DrawElements(6, indexOffset);
+            Graphics.SetShader(_shader);
+            Graphics.SetMesh(_mesh);
+            Graphics.DrawElements(6, indexOffset);
             return;
         }
 
@@ -143,9 +143,9 @@ public static class UIRender
         AddTriangle(vertexOffset, 10, 11, 14);
         AddTriangle(vertexOffset, 14, 11, 15);
 
-        Render.SetShader(_shader);
-        Render.SetMesh(_mesh);
-        Render.DrawElements(54, indexOffset);
+        Graphics.SetShader(_shader);
+        Graphics.SetMesh(_mesh);
+        Graphics.DrawElements(54, indexOffset);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -161,8 +161,8 @@ public static class UIRender
         if (_indices.Length == 0 || !_initialized || _shader == null)
             return;
 
-        Render.Driver.BindMesh(_mesh);
-        Render.Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _indices.AsSpan());
+        Graphics.Driver.BindMesh(_mesh);
+        Graphics.Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _indices.AsSpan());
         _vertices.Clear();
         _indices.Clear();
     }

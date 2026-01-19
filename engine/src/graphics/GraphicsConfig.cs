@@ -6,7 +6,7 @@ using NoZ.Platform;
 
 namespace NoZ;
 
-public class RenderConfig {
+public class GraphicsConfig {
     public bool Vsync { get; init; } = true;
     public int MsaaSamples { get; init; } = 4;
     public int MaxDrawCommands { get; init; } = 16384;

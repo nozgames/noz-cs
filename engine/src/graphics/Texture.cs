@@ -73,8 +73,8 @@ public class Texture : Asset
     public void Upload()
     {
         if (Handle != nuint.Zero)
-            Render.Driver.DestroyTexture(Handle);
-        Handle = Render.Driver.CreateTexture(Width, Height, Data, Format, Filter);
+            Graphics.Driver.DestroyTexture(Handle);
+        Handle = Graphics.Driver.CreateTexture(Width, Height, Data, Format, Filter);
     }
 
     internal static void RegisterDef()
@@ -86,7 +86,7 @@ public class Texture : Asset
     {
         if (Handle != nuint.Zero)
         {
-            Render.Driver.DestroyTexture(Handle);
+            Graphics.Driver.DestroyTexture(Handle);
             Handle = nuint.Zero;
         }
 

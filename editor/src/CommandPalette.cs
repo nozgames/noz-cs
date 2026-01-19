@@ -2,8 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using NoZ.Engine.UI;
-
 namespace NoZ.Editor;
 
 public class Command
@@ -144,7 +142,7 @@ public static class CommandPalette
         using (UI.BeginCanvas(id:EditorStyle.CanvasId.CommandPalette))
         using (UI.BeginColumn(EditorStyle.CommandPalette.RootContainer))
         {
-            using (UI.BeginRow(EditorStyle.Popup.Item with { Color = Color.Red}))
+            using (UI.BeginRow(EditorStyle.Popup.Item))
             {
                 using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
                     ;
