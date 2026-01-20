@@ -253,8 +253,7 @@ public class FontDocument : Document
             }
         }
 
-        // Write atlas data (R8 format)
-        var bytes = atlas.AsBytes();
+        var bytes = atlas.AsByteSpan();
         writer.Write(bytes);
     }
 

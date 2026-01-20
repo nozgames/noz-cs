@@ -2,6 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
 namespace NoZ.Editor
 {
     internal class AtlasDocument : Document
@@ -9,12 +12,17 @@ namespace NoZ.Editor
         private struct SpriteRect
         {
             public string Name;
+            public SpriteDocument? Sprite;
             public RectInt Rect;
             public int FrameCount;
+            public bool Dirty;
         }
 
         private readonly List<SpriteRect> _rects = new(128);
         private int _dpi;
+        private Texture _texture = null!;
+        private PixelData<Color32> _image = null!;
+        private RectPacker _packer = null!;
 
         public static void RegisterDef()
         {
@@ -55,13 +63,17 @@ namespace NoZ.Editor
                     int frameCount = tk.ExpectInt(1);
 
                     if (!string.IsNullOrEmpty(name))
-                        _rects.Add(new SpriteRect { Name = name, Rect = rect, FrameCount = frameCount });
+                        _rects.Add(new SpriteRect { Name = name, Rect = rect, FrameCount = frameCount, Dirty = true });
                 }
                 else
                 {
                     throw new Exception();
                 }
             }
+
+            _image = new PixelData<Color32>(size.X, size.Y);
+            _packer = RectPacker.FromRects(size, _rects.Select(r => r.Rect));
+            Bounds = new Rect(-size.X * 0.5f, -size.Y * 0.5f, size.X, size.Y).Scale(TextureDocument.PixelsPerUnitInv);
         }
 
         public override void Load()
@@ -79,6 +91,124 @@ namespace NoZ.Editor
             sw.WriteLine();
             foreach (var rect in _rects)
                 sw.WriteLine($"rect \"{rect.Name}\" {rect.Rect.X} {rect.Rect.Y} {rect.Rect.Width} {rect.Rect.Height}");
+        }
+
+        public override void PostLoad()
+        {
+            _texture = Texture.Create(
+                EditorApplication.Config!.AtlasSize,
+                EditorApplication.Config.AtlasSize,
+                _image.AsByteSpan(),
+                TextureFormat.RGBA8,
+                TextureFilter.Nearest,
+                Name);
+
+            UpdateBounds();
+            ResolveSprites();
+
+            base.PostLoad();
+        }
+
+        public void UpdateBounds()
+        {
+        }
+
+        private void ResolveSprites()
+        {
+            var span = CollectionsMarshal.AsSpan(_rects);
+            for (int i = 0; i < span.Length; i++)
+            {
+                ref var rect = ref span[i];
+                rect.Sprite = DocumentManager.Find(AssetType.Sprite, rect.Name) as SpriteDocument;
+                if (rect.Sprite == null) continue;
+                rect.Sprite.Atlas = this;
+                rect.Sprite.AtlasRect = i;
+            }
+
+            _rects.RemoveAll(r => r.Sprite == null);
+        }
+
+        public override void Dispose()
+        {
+            _texture?.Dispose();
+            _image?.Dispose();
+            _texture = null;
+            _image = null!;
+            _rects.Clear();
+            base.Dispose();
+        }
+
+        internal bool TryAddSprite(SpriteDocument sprite)
+        {
+            // Try to reclaim an empty rect
+            var rects = CollectionsMarshal.AsSpan(_rects);
+            for (int i = 0; i < _rects.Count; i++)
+            {
+                ref var rect = ref rects[i]; 
+                if (rect.Sprite != null) continue;
+                if (sprite.Size.X > rect.Rect.Width || sprite.Size.Y > rect.Rect.Height) continue;
+
+                rect.Name = sprite.Name;
+                rect.Sprite = sprite;
+                rect.FrameCount = sprite.FrameCount;
+                return true;
+            }
+
+            // Pack a new one
+            var rectIndex = _packer.Insert(sprite.Size, out var packedRect);
+            if (rectIndex == -1) return false;
+            Debug.Assert(rectIndex == _rects.Count);
+            _rects.Add(new SpriteRect
+            {
+                Name = sprite.Name,
+                Sprite = sprite,
+                Rect = packedRect,
+                FrameCount = sprite.FrameCount
+            });
+
+            sprite.Atlas = this;
+            sprite.AtlasRect = rectIndex;
+
+            return true;
+        }
+
+        public void Update()
+        {
+            var rects = CollectionsMarshal.AsSpan(_rects);
+            for (int i = 0; i < _rects.Count; ++i)
+            {
+                ref var rect = ref rects[i];
+                if (!rect.Dirty || rect.Sprite == null) continue;
+
+                rect.Dirty = false;
+                
+                var palette = PaletteManager.GetPalette(rect.Sprite.Palette);
+                if (palette == null) continue;
+
+                for (int frameIndex = 0; frameIndex < rect.FrameCount; frameIndex++)
+                {
+                    var frame = rect.Sprite.GetFrame((ushort)frameIndex);
+                    frame.Shape.Rasterize(_image, palette.Colors, rect.Rect.Position, _dpi);
+                }
+            }
+
+            _texture.Update(_image.AsByteSpan());
+        }
+
+        public override void Draw()
+        {
+            base.Draw();
+
+            Graphics.SetTexture(_texture);
+            Graphics.SetColor(Color.White);
+
+            var size = Bounds.Size;
+            Graphics.Draw(
+                Position.X - size.X * 0.5f,
+                Position.Y - size.Y * 0.5f,
+                size.X, size.Y,
+                0, 0, 1, 1
+            );
         }
     }
 }

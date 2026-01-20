@@ -62,7 +62,7 @@ public static class AssetManifest
             foreach (var doc in group.OrderBy(d => d.Name))
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"        public static {runtimeType}? {fieldName};");
+                writer.WriteLine($"        public static {runtimeType} {fieldName} = null!;");
             }
             writer.WriteLine("    }");
         }
@@ -78,7 +78,7 @@ public static class AssetManifest
             foreach (var doc in group.OrderBy(d => d.Name))
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"        {typeName}s.{fieldName} = ({runtimeType}?)Asset.Load(AssetType.{group.Key}, Names.{fieldName});");
+                writer.WriteLine($"        {typeName}s.{fieldName} = ({runtimeType})Asset.Load(AssetType.{group.Key}, Names.{fieldName})!;");
             }
         }
         writer.WriteLine("    }");

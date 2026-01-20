@@ -7,7 +7,7 @@ using Silk.NET.Maths;
 
 namespace NoZ.Editor;
 
-public abstract class Document
+public abstract class Document : IDisposable
 {
     public DocumentDef Def { get; internal set; } = null!;
     public string Name { get; set; } = "";
@@ -49,4 +49,6 @@ public abstract class Document
     {
         IsMetaModified = true;
     }
+
+    public virtual void Dispose () { }
 }

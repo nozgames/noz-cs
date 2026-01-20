@@ -107,6 +107,8 @@ public static class Workspace
     public static int SelectedCount { get; private set; }
     public static Tool? ActiveTool { get; private set; }
 
+    public static Texture WhiteTexture => _whiteTexture!;
+
     public static float GetUIScale() => Application.Platform.DisplayScale * _userUIScale;
 
     public static void IncreaseUIScale()
@@ -285,20 +287,19 @@ public static class Workspace
 
         foreach (var doc in DocumentManager.Documents)
         {
-            if (!doc.Loaded || !doc.PostLoaded)
-                continue;
-
-            if (doc.IsEditing || doc.IsClipped)
-                continue;
+            if (!doc.Loaded || !doc.PostLoaded) continue;
+            if (doc.IsEditing || doc.IsClipped) continue;
 
             if (doc.IsSelected)
             {
-                Graphics.PushState();
-                Graphics.SetLayer(EditorLayer.Selection);
-                Graphics.SetColor(EditorStyle.SelectionColor);
-                Graphics.SetTransform(doc.Transform);
-                Gizmos.DrawRect(doc, EditorStyle.Workspace.BoundsLineWidth);
-                Graphics.PopState();
+                using (Graphics.PushState())
+                {
+                    Graphics.SetTexture(WhiteTexture);
+                    Graphics.SetLayer(EditorLayer.Selection);
+                    Graphics.SetTransform(doc.Transform);
+                    Graphics.SetColor(EditorStyle.SelectionColor);
+                    Gizmos.DrawRect(doc.Bounds, EditorStyle.Workspace.BoundsLineWidth);
+                }
             }
 
             doc.Draw();
@@ -516,7 +517,7 @@ public static class Workspace
         UpdateCamera();
     }
 
-    public static void FrameView(Rect bounds)
+    public static void FrameRect(Rect bounds)
     {
         const float padding = 1.25f;
 
@@ -527,11 +528,12 @@ public static class Workspace
         if (size.Y < ZoomMin) size.Y = ZoomMin;
 
         var screenSize = Application.WindowSize;
-        var scale = _dpi * _uiScale * _userUIScale;
+        var baseScale = _dpi * _uiScale * _userUIScale;
 
         // Calculate zoom needed to fit width and height, use the smaller one
-        var zoomForWidth = screenSize.X / (scale * size.X);
-        var zoomForHeight = screenSize.Y / (scale * size.Y);
+        // effectiveDpi = baseScale * zoom, so zoom = screenSize / (size * baseScale)
+        var zoomForWidth = screenSize.X / (size.X * baseScale);
+        var zoomForHeight = screenSize.Y / (size.Y * baseScale);
         _zoom = Math.Clamp(MathF.Min(zoomForWidth, zoomForHeight), ZoomMin, ZoomMax);
 
         _camera.Position = center;
@@ -553,15 +555,13 @@ public static class Workspace
         Rect? bounds = null;
         foreach (var doc in DocumentManager.Documents)
         {
-            if (!doc.IsSelected)
-                continue;
-
+            if (!doc.IsSelected) continue;
             var docBounds = doc.Bounds.Offset(doc.Position);
             bounds = bounds == null ? docBounds : Rect.Union(bounds.Value, docBounds);
         }
 
         if (bounds != null)
-            FrameView(bounds.Value);
+            FrameRect(bounds.Value);
     }
 
     public static Document? HitTestDocuments(Vector2 point)

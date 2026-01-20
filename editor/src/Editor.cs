@@ -13,7 +13,7 @@ internal class EditorVtable : IApplicationVtable
     {
         Importer.WaitForAllTasks();
         EditorAssets.LoadAssets();
-        EditorApplication.PostLoadInit();
+        EditorApplication.PostLoad();
     }
 
     public void UnloadAssets() => EditorAssets.UnloadAssets();
@@ -47,17 +47,18 @@ public static class EditorApplication
             return;
         }
 
-        AtlasManager.Init();
         DocumentManager.Init(Config.SourcePaths, Config.OutputPath);
         Importer.Init(clean);
         AssetManifest.Generate(Config);
     }
 
-    internal static void PostLoadInit()
+    internal static void PostLoad()
     {
         if (Config == null)
             return;
 
+        DocumentManager.PostLoad();
+        AtlasManager.Init();
         EditorStyle.Init();
         CommandPalette.Init();
         ContextMenu.Init();

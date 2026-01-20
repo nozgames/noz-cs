@@ -77,6 +77,13 @@ public class Texture : Asset
         Handle = Graphics.Driver.CreateTexture(Width, Height, Data, Format, Filter);
     }
 
+    public void Update(ReadOnlySpan<byte> data)
+    {
+        if (Handle == nuint.Zero)
+            return;
+        Graphics.Driver.UpdateTexture(Handle, Width, Height, data);
+    }
+
     internal static void RegisterDef()
     {
         RegisterDef(new AssetDef(AssetType.Texture, typeof(Texture), Load));

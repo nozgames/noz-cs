@@ -9,7 +9,8 @@ namespace NoZ.Editor;
 
 public class TextureDocument : Document
 {
-    private const float PixelsPerUnit = 51.2f;
+    public const float PixelsPerUnit = 256.0f;
+    public const float PixelsPerUnitInv = 1.0f / PixelsPerUnit;
 
     public float Scale { get; set; } = 1f;
     public Texture? Texture { get; private set; }
@@ -37,8 +38,7 @@ public class TextureDocument : Document
 
     public override void PostLoad()
     {
-        // todo: dont load the asset, load the texture directly
-        // Texture = Asset.Load(AssetType.Texture, Name) as Texture;
+        Texture = Asset.Load(AssetType.Texture, Name) as Texture;
         UpdateBounds();
     }
 
@@ -47,12 +47,14 @@ public class TextureDocument : Document
         if (Texture != null)
         {
             var tsize = new Vector2(Texture.Width, Texture.Height) / PixelsPerUnit;
-            Bounds = new Rect(-tsize.X * 0.5f * Scale, -tsize.Y * 0.5f * Scale, tsize.X * Scale, tsize.Y * Scale);
+            Bounds = new Rect(-tsize.X * 0.5f, -tsize.Y * 0.5f, tsize.X, tsize.Y);
         }
         else
         {
             Bounds = new Rect(-0.5f * Scale, -0.5f * Scale, Scale, Scale);
         }
+
+        Bounds = Bounds.Scale(Scale);
     }
 
     public override void Draw()
@@ -60,20 +62,20 @@ public class TextureDocument : Document
         if (Texture == null)
             return;
 
-        if (EditorAssets.Shaders.Texture is Shader textureShader)
-            Graphics.SetShader(textureShader);
+        using (Graphics.PushState())
+        {
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetTexture(Texture);
+            Graphics.SetColor(Color.White);
 
-        Graphics.SetTexture(Texture);
-        Graphics.SetLayer(64);
-        Graphics.SetColor(Color.White);
-
-        var size = Bounds.Size;
-        Graphics.Draw(
-            Position.X - size.X * 0.5f,
-            Position.Y - size.Y * 0.5f,
-            size.X, size.Y,
-            0, 0, 1, 1
-        );
+            var size = Bounds.Size;
+            Graphics.Draw(
+                Position.X - size.X * 0.5f,
+                Position.Y - size.Y * 0.5f,
+                size.X, size.Y,
+                0, 0, 1, 1
+            );
+        }
     }
 
     public override void Import(string outputPath, PropertySet config, PropertySet meta)

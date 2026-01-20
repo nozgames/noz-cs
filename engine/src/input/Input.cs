@@ -236,9 +236,9 @@ public static class Input
     }
 
     public static bool IsButtonDown(InputCode code) => Buttons[(int)code].Logical;
-    public static bool WasButtonPressed(InputCode code) => Buttons[(int)code].Pressed;
+    public static bool WasButtonPressed(InputCode code) => Buttons[(int)code].Pressed && !Buttons[(int)code].Consumed;
     public static bool WasButtonPressed(InputCode code, bool allowRepeat) =>
-        Buttons[(int)code].Pressed || (allowRepeat && Buttons[(int)code].Repeat);
+        (Buttons[(int)code].Pressed || (allowRepeat && Buttons[(int)code].Repeat)) && !Buttons[(int)code].Consumed;
     public static bool WasButtonReleased(InputCode code) => Buttons[(int)code].Released && !Buttons[(int)code].Consumed;
     public static float GetAxis(InputCode code) => GetAxisValue(code);
 

@@ -79,5 +79,5 @@ public sealed unsafe class PixelData<T> : IDisposable where T : unmanaged
                 _pixels[y * Size.X + x] = value;
     }
 
-    public ReadOnlySpan<byte> AsBytes() => new(_memory, Size.X * Size.Y * sizeof(T));
+    public ReadOnlySpan<byte> AsByteSpan() => new(_memory, Size.X * Size.Y * sizeof(T));
 }

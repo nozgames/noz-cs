@@ -25,6 +25,10 @@ public class SpriteDocument : Document
     public ushort FrameCount;
     public byte Palette;
     public float Depth;
+    public Vector2Int Size;
+
+    internal AtlasDocument? Atlas;
+    internal int AtlasRect = 0;
 
     public SpriteDocument()
     {
@@ -223,18 +227,20 @@ public class SpriteDocument : Document
 
     public override void Draw()
     {
-        // TODO: Draw from atlas when available
-        // For now, draw a simple placeholder quad at the sprite's bounds
         var size = Bounds.Size;
         if (size.X <= 0 || size.Y <= 0)
             return;
 
-        Graphics.SetColor(new Color(200/255f, 200/255f, 200/255f, 1f));
-        Graphics.Draw(
-            Position.X + Bounds.X,
-            Position.Y + Bounds.Y,
-            size.X, size.Y
-        );
+        using (Graphics.PushState())
+        {
+            Graphics.SetTexture(Workspace.WhiteTexture);
+            Graphics.SetColor(new Color(200 / 255f, 200 / 255f, 200 / 255f, 1f));
+            Graphics.Draw(
+                Position.X + Bounds.X,
+                Position.Y + Bounds.Y,
+                size.X, size.Y
+            );
+        }
     }
 
     public override void Clone(Document source)

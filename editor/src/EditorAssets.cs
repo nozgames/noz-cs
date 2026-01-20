@@ -47,92 +47,92 @@ public static class EditorAssets
 
     public static class Fonts
     {
-        public static Font? Seguisb;
+        public static Font Seguisb = null!;
     }
 
     public static class Shaders
     {
-        public static Shader? Composite;
-        public static Shader? EditorAtlas00;
-        public static Shader? Sprite;
-        public static Shader? Text;
-        public static Shader? Texture;
-        public static Shader? Ui;
+        public static Shader Composite = null!;
+        public static Shader EditorAtlas00 = null!;
+        public static Shader Sprite = null!;
+        public static Shader Text = null!;
+        public static Shader Texture = null!;
+        public static Shader Ui = null!;
     }
 
     public static class Sprites
     {
-        public static Sprite? AssetIconAtlas;
-        public static Sprite? AssetIconBin;
-        public static Sprite? AssetIconEvent;
-        public static Sprite? AssetIconFont;
-        public static Sprite? AssetIconLua;
-        public static Sprite? AssetIconShader;
-        public static Sprite? AssetIconSound;
-        public static Sprite? AssetIconVfx;
-        public static Sprite? IconCircle;
-        public static Sprite? IconClose;
-        public static Sprite? IconDropdown;
-        public static Sprite? IconEdgeMode;
-        public static Sprite? IconExpandDown;
-        public static Sprite? IconExpandUp;
-        public static Sprite? IconFaceMode;
-        public static Sprite? IconLoop;
-        public static Sprite? IconMirror;
-        public static Sprite? IconOnion;
-        public static Sprite? IconOpacity;
-        public static Sprite? IconOpacityOverlay;
-        public static Sprite? IconPalette;
-        public static Sprite? IconPublish;
-        public static Sprite? IconRootMotion;
-        public static Sprite? IconSubmenu;
-        public static Sprite? IconTiling;
-        public static Sprite? IconVertexMode;
-        public static Sprite? IconWeightMode;
+        public static Sprite AssetIconAtlas = null!;
+        public static Sprite AssetIconBin = null!;
+        public static Sprite AssetIconEvent = null!;
+        public static Sprite AssetIconFont = null!;
+        public static Sprite AssetIconLua = null!;
+        public static Sprite AssetIconShader = null!;
+        public static Sprite AssetIconSound = null!;
+        public static Sprite AssetIconVfx = null!;
+        public static Sprite IconCircle = null!;
+        public static Sprite IconClose = null!;
+        public static Sprite IconDropdown = null!;
+        public static Sprite IconEdgeMode = null!;
+        public static Sprite IconExpandDown = null!;
+        public static Sprite IconExpandUp = null!;
+        public static Sprite IconFaceMode = null!;
+        public static Sprite IconLoop = null!;
+        public static Sprite IconMirror = null!;
+        public static Sprite IconOnion = null!;
+        public static Sprite IconOpacity = null!;
+        public static Sprite IconOpacityOverlay = null!;
+        public static Sprite IconPalette = null!;
+        public static Sprite IconPublish = null!;
+        public static Sprite IconRootMotion = null!;
+        public static Sprite IconSubmenu = null!;
+        public static Sprite IconTiling = null!;
+        public static Sprite IconVertexMode = null!;
+        public static Sprite IconWeightMode = null!;
     }
 
     public static class Textures
     {
-        public static Texture? EditorPalette;
+        public static Texture EditorPalette = null!;
     }
 
     public static void LoadAssets()
     {
-        Fonts.Seguisb = (Font?)Asset.Load(AssetType.Font, Names.Seguisb);
-        Shaders.Composite = (Shader?)Asset.Load(AssetType.Shader, Names.Composite);
-        Shaders.EditorAtlas00 = (Shader?)Asset.Load(AssetType.Shader, Names.EditorAtlas00);
-        Shaders.Sprite = (Shader?)Asset.Load(AssetType.Shader, Names.Sprite);
-        Shaders.Text = (Shader?)Asset.Load(AssetType.Shader, Names.Text);
-        Shaders.Texture = (Shader?)Asset.Load(AssetType.Shader, Names.Texture);
-        Shaders.Ui = (Shader?)Asset.Load(AssetType.Shader, Names.Ui);
-        Sprites.AssetIconAtlas = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconAtlas);
-        Sprites.AssetIconBin = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconBin);
-        Sprites.AssetIconEvent = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconEvent);
-        Sprites.AssetIconFont = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconFont);
-        Sprites.AssetIconLua = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconLua);
-        Sprites.AssetIconShader = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconShader);
-        Sprites.AssetIconSound = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconSound);
-        Sprites.AssetIconVfx = (Sprite?)Asset.Load(AssetType.Sprite, Names.AssetIconVfx);
-        Sprites.IconCircle = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconCircle);
-        Sprites.IconClose = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconClose);
-        Sprites.IconDropdown = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconDropdown);
-        Sprites.IconEdgeMode = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconEdgeMode);
-        Sprites.IconExpandDown = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconExpandDown);
-        Sprites.IconExpandUp = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconExpandUp);
-        Sprites.IconFaceMode = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconFaceMode);
-        Sprites.IconLoop = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconLoop);
-        Sprites.IconMirror = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconMirror);
-        Sprites.IconOnion = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconOnion);
-        Sprites.IconOpacity = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconOpacity);
-        Sprites.IconOpacityOverlay = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconOpacityOverlay);
-        Sprites.IconPalette = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconPalette);
-        Sprites.IconPublish = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconPublish);
-        Sprites.IconRootMotion = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconRootMotion);
-        Sprites.IconSubmenu = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconSubmenu);
-        Sprites.IconTiling = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconTiling);
-        Sprites.IconVertexMode = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconVertexMode);
-        Sprites.IconWeightMode = (Sprite?)Asset.Load(AssetType.Sprite, Names.IconWeightMode);
-        Textures.EditorPalette = (Texture?)Asset.Load(AssetType.Texture, Names.EditorPalette);
+        Fonts.Seguisb = (Font)Asset.Load(AssetType.Font, Names.Seguisb)!;
+        Shaders.Composite = (Shader)Asset.Load(AssetType.Shader, Names.Composite)!;
+        Shaders.EditorAtlas00 = (Shader)Asset.Load(AssetType.Shader, Names.EditorAtlas00)!;
+        Shaders.Sprite = (Shader)Asset.Load(AssetType.Shader, Names.Sprite)!;
+        Shaders.Text = (Shader)Asset.Load(AssetType.Shader, Names.Text)!;
+        Shaders.Texture = (Shader)Asset.Load(AssetType.Shader, Names.Texture)!;
+        Shaders.Ui = (Shader)Asset.Load(AssetType.Shader, Names.Ui)!;
+        Sprites.AssetIconAtlas = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconAtlas)!;
+        Sprites.AssetIconBin = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconBin)!;
+        Sprites.AssetIconEvent = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconEvent)!;
+        Sprites.AssetIconFont = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconFont)!;
+        Sprites.AssetIconLua = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconLua)!;
+        Sprites.AssetIconShader = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconShader)!;
+        Sprites.AssetIconSound = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconSound)!;
+        Sprites.AssetIconVfx = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconVfx)!;
+        Sprites.IconCircle = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCircle)!;
+        Sprites.IconClose = (Sprite)Asset.Load(AssetType.Sprite, Names.IconClose)!;
+        Sprites.IconDropdown = (Sprite)Asset.Load(AssetType.Sprite, Names.IconDropdown)!;
+        Sprites.IconEdgeMode = (Sprite)Asset.Load(AssetType.Sprite, Names.IconEdgeMode)!;
+        Sprites.IconExpandDown = (Sprite)Asset.Load(AssetType.Sprite, Names.IconExpandDown)!;
+        Sprites.IconExpandUp = (Sprite)Asset.Load(AssetType.Sprite, Names.IconExpandUp)!;
+        Sprites.IconFaceMode = (Sprite)Asset.Load(AssetType.Sprite, Names.IconFaceMode)!;
+        Sprites.IconLoop = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLoop)!;
+        Sprites.IconMirror = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMirror)!;
+        Sprites.IconOnion = (Sprite)Asset.Load(AssetType.Sprite, Names.IconOnion)!;
+        Sprites.IconOpacity = (Sprite)Asset.Load(AssetType.Sprite, Names.IconOpacity)!;
+        Sprites.IconOpacityOverlay = (Sprite)Asset.Load(AssetType.Sprite, Names.IconOpacityOverlay)!;
+        Sprites.IconPalette = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPalette)!;
+        Sprites.IconPublish = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPublish)!;
+        Sprites.IconRootMotion = (Sprite)Asset.Load(AssetType.Sprite, Names.IconRootMotion)!;
+        Sprites.IconSubmenu = (Sprite)Asset.Load(AssetType.Sprite, Names.IconSubmenu)!;
+        Sprites.IconTiling = (Sprite)Asset.Load(AssetType.Sprite, Names.IconTiling)!;
+        Sprites.IconVertexMode = (Sprite)Asset.Load(AssetType.Sprite, Names.IconVertexMode)!;
+        Sprites.IconWeightMode = (Sprite)Asset.Load(AssetType.Sprite, Names.IconWeightMode)!;
+        Textures.EditorPalette = (Texture)Asset.Load(AssetType.Texture, Names.EditorPalette)!;
     }
 
     public static void ReloadAssets()

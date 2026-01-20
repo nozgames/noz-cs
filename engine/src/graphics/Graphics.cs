@@ -27,6 +27,12 @@ public static unsafe class Graphics
 
     private enum UniformType : byte { Float, Vec2, Vec4, Matrix4x4 }
 
+    public struct AutoState(bool pop) : IDisposable
+    {
+        private bool _pop = pop;
+        readonly void IDisposable.Dispose() { if (_pop) PopState(); }
+    }
+
     private struct UniformEntry
     {
         public UniformType Type;
@@ -467,15 +473,16 @@ public static unsafe class Graphics
         CurrentState.SortLayer = layer;
     }
 
-    public static void PushState()
+    public static AutoState PushState()
     {
         if (_stateStackDepth >= MaxStateStack - 1)
-            return;
+            return new AutoState(false);
 
         ref var current = ref _stateStack[_stateStackDepth];
         ref var next = ref _stateStack[++_stateStackDepth];
 
         next = current;
+        return new AutoState(true);
     }
 
     public static void PopState()

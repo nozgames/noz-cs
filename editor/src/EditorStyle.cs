@@ -188,7 +188,7 @@ public static class EditorStyle
     {
         public static Color Color => _current.WorkspaceColor;
         public const float Padding = 16f;
-        public const float BoundsLineWidth = 0.03f;
+        public const float BoundsLineWidth = 0.015f;
         public const float NameSize = 0.24f;
         public const float NamePadding = 0.04f;
         public static Color GridColor => _current.WorkspaceGridColor;

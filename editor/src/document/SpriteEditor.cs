@@ -41,7 +41,7 @@ public class SpriteEditor : DocumentEditor
         _rasterTexture = Texture.Create(
             _pixelData.Width,
             _pixelData.Height,
-            _pixelData.AsBytes(),
+            _pixelData.AsByteSpan(),
             TextureFormat.RGBA8,
             TextureFilter.Nearest,
             "SpriteEditor");
@@ -165,7 +165,7 @@ public class SpriteEditor : DocumentEditor
         Graphics.Driver.UpdateTexture(
             _rasterTexture!.Handle,
             _pixelData.Width, _pixelData.Height,
-            _pixelData.AsBytes());
+            _pixelData.AsByteSpan());
 
         _rasterDirty = false;
     }

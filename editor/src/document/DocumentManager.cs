@@ -16,7 +16,9 @@ public static class DocumentManager
 
     private static readonly Dictionary<AssetType, DocumentDef> _defsByType = new();
     private static readonly Dictionary<string, DocumentDef> _defsByExtension = new();
-    
+
+    public static int Count => _documents.Count;
+
     public static void Init(string[] sourcePaths, string outputPath)
     {
         _sourcePaths.Clear();
@@ -27,7 +29,6 @@ public static class DocumentManager
 
         InitDocuments();
         LoadAll();
-        PostLoadAll();
     }
 
     public static void Shutdown()
@@ -82,7 +83,7 @@ public static class DocumentManager
         return doc;
     }
 
-    public static Document? FindDocument(AssetType type, string name)
+    public static Document? Find(AssetType type, string name)
     {
         foreach (var doc in _documents)
         {
@@ -92,7 +93,7 @@ public static class DocumentManager
         return null;
     }
 
-    public static Document? FindDocument(string name)
+    public static Document? Find(string name)
     {
         foreach (var doc in _documents)
         {
@@ -114,7 +115,7 @@ public static class DocumentManager
         }
     }
 
-    private static void PostLoadAll()
+    internal static void PostLoad()
     {
         foreach (var doc in _documents)
         {
@@ -191,7 +192,7 @@ public static class DocumentManager
 
                 // Skip if document with this name already exists
                 string name = MakeCanonicalName(filePath);
-                if (FindDocument(name) != null)
+                if (Find(name) != null)
                     continue;
 
                 var doc = CreateDocument(filePath);
@@ -218,4 +219,6 @@ public static class DocumentManager
             .Replace(' ', '_')
             .Replace('-', '_');
     }
+
+    public static Document Get(int index) => _documents[index];
 }

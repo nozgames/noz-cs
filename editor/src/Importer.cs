@@ -89,7 +89,7 @@ public static class Importer
             return;
 
         var name = DocumentManager.MakeCanonicalName(path);
-        var doc = DocumentManager.FindDocument(def.Type, name);
+        var doc = DocumentManager.Find(def.Type, name);
 
         if (doc == null)
         {
