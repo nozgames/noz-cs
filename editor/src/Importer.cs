@@ -96,7 +96,7 @@ public static class Importer
             doc = DocumentManager.CreateDocument(path);
             if (doc == null)
                 return;
-            DocumentManager.LoadMetadata(doc);
+            doc.LoadMetadata();
         }
 
         QueueImport(doc);

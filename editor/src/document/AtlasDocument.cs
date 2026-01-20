@@ -86,14 +86,13 @@ namespace NoZ.Editor
             Load(ref tk);
         }
 
-        public override void Save(string path)
+        public override void Save(StreamWriter writer)
         {
-            using var sw = new StreamWriter(path);
-            sw.WriteLine($"w {EditorApplication.Config!.AtlasSize}");
-            sw.WriteLine($"h {EditorApplication.Config!.AtlasSize}");
-            sw.WriteLine();
+            writer.WriteLine($"w {EditorApplication.Config!.AtlasSize}");
+            writer.WriteLine($"h {EditorApplication.Config!.AtlasSize}");
+            writer.WriteLine();
             foreach (var rect in _rects)
-                sw.WriteLine($"r \"{rect.Name}\" {rect.Rect.X} {rect.Rect.Y} {rect.Rect.Width} {rect.Rect.Height}");
+                writer.WriteLine($"r \"{rect.Name}\" {rect.Rect.X} {rect.Rect.Y} {rect.Rect.Width} {rect.Rect.Height}");
         }
 
         public override void PostLoad()

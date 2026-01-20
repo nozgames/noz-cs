@@ -112,6 +112,8 @@ public static unsafe class Graphics
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
     public static Color Color => CurrentState.Color;
     public static ref readonly GraphicsStats Stats => ref _stats;
+    public static float PixelsPerUnit { get; private set; }
+    public static float PixelsPerUnitInv {  get; private set; }
 
     private static ref State CurrentState => ref _stateStack[_stateStackDepth];
     
@@ -138,13 +140,13 @@ public static unsafe class Graphics
     {
         Config = config;
 
-        var renderConfig = config.Graphics ?? throw new ArgumentNullException(
+        var graphicsConfig = config.Graphics ?? throw new ArgumentNullException(
             nameof(config.Graphics),
             "Render config must be provided.");
 
-        Driver = renderConfig.Driver ?? throw new ArgumentNullException(
-            nameof(renderConfig.Driver),
-            "RenderBackend must be provided. Use OpenGLRender for desktop or WebGLRender for web.");
+        Driver = graphicsConfig.Driver ?? throw new ArgumentNullException(
+            nameof(graphicsConfig.Driver),
+            "Driver must be provided");
 
         _maxDrawCommands = RenderConfig.MaxDrawCommands;
         _maxBatches = RenderConfig.MaxBatches;
@@ -152,6 +154,9 @@ public static unsafe class Graphics
         _stateStack = new State[MaxStateStack];
         _sortGroupStackDepth = 0;
         _stateStackDepth = 0;
+
+        PixelsPerUnit = graphicsConfig.PixelsPerUnit;
+        PixelsPerUnitInv = 1.0f / PixelsPerUnit;
 
         Driver.Init(new GraphicsDriverConfig
         {
@@ -481,7 +486,7 @@ public static unsafe class Graphics
         if (sprite == null || SpriteAtlas == null) return;
 
         var uv = sprite.UV;
-        var bounds = sprite.Bounds;
+        var bounds = sprite.Bounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
         var p0 = new Vector2(bounds.Left, bounds.Top);
         var p1 = new Vector2(bounds.Right, bounds.Top);
         var p2 = new Vector2(bounds.Right, bounds.Bottom);

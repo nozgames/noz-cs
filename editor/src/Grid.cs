@@ -13,7 +13,7 @@ public static class Grid
     
     public static void Draw(Camera camera)
     {
-        var dpi = (float)EditorApplication.Config!.SpriteDpi;
+        var dpi = (float)EditorApplication.Config!.PixelsPerUnit;
         var pixelSize = 1.0f / dpi;
         var bounds = camera.WorldBounds;
         var worldWidth = bounds.Width;
@@ -28,36 +28,35 @@ public static class Grid
         IsPixelGridVisible = pixelGridAlpha > float.Epsilon;
         SnapSpacing = IsPixelGridVisible ? pixelSize : world.FineSpacing * 0.5f;
 
-        DrawZeroLines(camera, EditorStyle.Workspace.GridColor.WithAlpha(EditorStyle.Workspace.GridZeroAlpha));
-        
-        if (IsPixelGridVisible)
+        using (Gizmos.PushState(EditorLayer.Grid))
         {
-            Graphics.PushState();
-            Graphics.SetLayer(EditorLayer.Grid);
-            Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha * EditorStyle.Workspace.GridAlpha));
-            DrawHorizontalLines(camera, world.FineSpacing);
-            DrawVerticalLines(camera, world.FineSpacing);
-            Graphics.PopState();
+            Graphics.SetTexture(Workspace.WhiteTexture);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
 
-            Graphics.PushState();
-            Graphics.SetLayer(EditorLayer.PixelGrid);
-            Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(pixelGridAlpha));
-            DrawHorizontalLines(camera, pixelSize);
-            DrawVerticalLines(camera, pixelSize);
-            Graphics.PopState();
-            return;
+            DrawZeroLines(camera, EditorStyle.Workspace.GridColor.WithAlpha(EditorStyle.Workspace.GridZeroAlpha));
+
+            if (IsPixelGridVisible)
+            {
+                Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha * EditorStyle.Workspace.GridAlpha));
+                DrawHorizontalLines(camera, world.FineSpacing);
+                DrawVerticalLines(camera, world.FineSpacing);
+
+                Graphics.SetLayer(EditorLayer.PixelGrid);
+                Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(pixelGridAlpha));
+                DrawHorizontalLines(camera, pixelSize);
+                DrawVerticalLines(camera, pixelSize);
+            }
+            else
+            {
+                Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha * EditorStyle.Workspace.GridAlpha));
+                DrawHorizontalLines(camera, world.CoarseSpacing);
+                DrawVerticalLines(camera, world.CoarseSpacing);
+
+                Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.FineAlpha * EditorStyle.Workspace.GridAlpha));
+                DrawHorizontalLines(camera, world.FineSpacing);
+                DrawVerticalLines(camera, world.FineSpacing);
+            }
         }
-
-        Graphics.PushState();
-        Graphics.SetLayer(EditorLayer.Grid);
-        Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.CoarseAlpha * EditorStyle.Workspace.GridAlpha));
-        DrawHorizontalLines(camera, world.CoarseSpacing);
-        DrawVerticalLines(camera, world.CoarseSpacing);
-
-        Gizmos.SetColor(EditorStyle.Workspace.GridColor.WithAlpha(world.FineAlpha * EditorStyle.Workspace.GridAlpha));
-        DrawHorizontalLines(camera, world.FineSpacing);
-        DrawVerticalLines(camera, world.FineSpacing);
-        Graphics.PopState();
     }
 
     private static void DrawHorizontalLines(Camera camera, float spacing)
@@ -185,7 +184,7 @@ public static class Grid
 
     public static Vector2 SnapToPixelGrid(Vector2 position)
     {
-        var spacing = 1f / (float)EditorApplication.Config!.SpriteDpi;
+        var spacing = 1f / (float)EditorApplication.Config!.PixelsPerUnit;
         return new Vector2(
             MathF.Round(position.X / spacing) * spacing,
             MathF.Round(position.Y / spacing) * spacing

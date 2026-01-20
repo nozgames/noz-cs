@@ -11,7 +11,7 @@ public class Sprite : Asset
 
     public RectInt Bounds { get; private set; }
     public Rect UV { get; private set;  }
-    public Vector2Int Size { get; private set; }
+    public Vector2Int Size => Bounds.Size;
     public int FrameCount { get; private set; }
     public int AtlasIndex { get; private set; }
 

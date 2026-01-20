@@ -183,7 +183,7 @@ public sealed unsafe class Shape : IDisposable
             return;
         }
 
-        var dpi = EditorApplication.Config.SpriteDpi;
+        var dpi = EditorApplication.Config.PixelsPerUnit;
         var min = new Vector2(float.MaxValue, float.MaxValue);
         var max = new Vector2(float.MinValue, float.MinValue);
 
@@ -216,10 +216,10 @@ public sealed unsafe class Shape : IDisposable
 
         Bounds = Rect.FromMinMax(min, max);
 
-        var xMin = (int)MathF.Floor(min.X * dpi);
-        var yMin = (int)MathF.Floor(min.Y * dpi);
-        var xMax = (int)MathF.Ceiling(max.X * dpi);
-        var yMax = (int)MathF.Ceiling(max.Y * dpi);
+        var xMin = (int)MathF.Floor(min.X * dpi + 0.001f);
+        var yMin = (int)MathF.Floor(min.Y * dpi + 0.001f);
+        var xMax = (int)MathF.Ceiling(max.X * dpi - 0.001f);
+        var yMax = (int)MathF.Ceiling(max.Y * dpi - 0.001f);
 
         RasterBounds = new RectInt(xMin, yMin, xMax - xMin, yMax - yMin);
     }
@@ -1233,7 +1233,7 @@ public sealed unsafe class Shape : IDisposable
 
         const int maxPolyVerts = 256;
         Span<Vector2> polyVerts = stackalloc Vector2[maxPolyVerts];
-        var dpi = EditorApplication.Config.SpriteDpi;
+        var dpi = EditorApplication.Config.PixelsPerUnit;
 
         for (ushort pIdx = 0; pIdx < PathCount; pIdx++)
         {

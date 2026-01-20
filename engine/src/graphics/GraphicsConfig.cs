@@ -14,4 +14,5 @@ public class GraphicsConfig {
     public string CompositeShader { get; init; } = "composite";
     public string SpriteShader { get; init; } = "sprite";
     public required IGraphicsDriver Driver { get; init; }
+    public float PixelsPerUnit { get; init; } = 64.0f;
 }

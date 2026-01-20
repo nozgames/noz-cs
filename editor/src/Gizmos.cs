@@ -15,6 +15,15 @@ public static class Gizmos
 
     public static void SetColor(Color color) => Graphics.SetColor(color);
     
+    public static Graphics.AutoState PushState(ushort layer)
+    {
+        var state = Graphics.PushState();
+        Graphics.SetLayer(layer);
+        Graphics.SetTexture(Workspace.WhiteTexture);
+        Graphics.SetShader(EditorAssets.Shaders.Texture);
+        return state;
+    }
+
     public static void DrawRect(Document doc, float width = 1.0f)
     {
         DrawRect(doc.Bounds, width);

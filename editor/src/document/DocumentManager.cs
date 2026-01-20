@@ -129,41 +129,21 @@ public static class DocumentManager
 
     public static void SaveAll()
     {
+        var count = 0;
         foreach (var doc in _documents)
         {
+            if (doc.IsModified || doc.IsMetaModified)
+                count++;
+
             if (doc.IsModified)
-            {
-                doc.Save(doc.Path);
-                doc.IsModified = false;
-            }
+                doc.Save();
 
             if (doc.IsMetaModified)
-            {
-                SaveMetadata(doc);
-                doc.IsMetaModified = false;
-            }
+                doc.SaveMetadata();
         }
-    }
 
-    public static void LoadMetadata(Document doc)
-    {
-        var props = PropertySet.LoadFile(doc.Path + ".meta");
-        if (props == null)
-            return;
-
-        doc.Position = props.GetVector2("editor", "position", default);
-        doc.LoadMetadata(props);
-    }
-
-    public static void SaveMetadata(Document doc)
-    {
-        var metaPath = doc.Path + ".meta";
-        var props = PropertySet.LoadFile(metaPath) ?? new PropertySet();
-
-        props.SetVec2("editor", "position", doc.Position);
-        doc.SaveMetadata(props);
-
-        props.Save(metaPath);
+        if (count > 0)
+            Notifications.Add($"saved {count} asset(s)");
     }
 
     private static void InitDocuments()
@@ -195,9 +175,7 @@ public static class DocumentManager
                 if (Find(name) != null)
                     continue;
 
-                var doc = CreateDocument(filePath);
-                if (doc != null)
-                    LoadMetadata(doc);
+                CreateDocument(filePath)?.LoadMetadata();
             }
         }
     }

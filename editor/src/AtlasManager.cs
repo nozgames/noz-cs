@@ -64,7 +64,7 @@ public static class AtlasManager
             var atlas = _atlases[i];
             if (atlas.TryAddSprite(sprite))
             {
-                atlas.IsModified = true;
+                atlas.MarkModified();
                 return;
             }
         }

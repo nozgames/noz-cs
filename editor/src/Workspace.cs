@@ -242,19 +242,6 @@ public static class Workspace
     public static void UpdateUI()
     {
         Workspace.ActiveEditor?.UpdateUI();
-
-        using (UI.BeginCanvas())
-        using (UI.BeginContainer(style: ContainerStyle.Default with
-        {
-            Width = Size.Percent(0.5f),
-            Height = Size.Percent(0.5f),
-            Color = Color.Red,
-            AlignX = Align.Center,
-            AlignY = Align.Center,
-        }))
-        {
-            UI.Image(EditorAssets.Sprites.AssetIconAtlas);
-        }
     }
 
     private static void UpdateCulling()

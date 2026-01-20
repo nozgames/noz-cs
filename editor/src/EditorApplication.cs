@@ -63,6 +63,7 @@ public static class EditorApplication
         EditorStyle.Init();
         CommandPalette.Init();
         ContextMenu.Init();
+        Notifications.Init();
         Workspace.Init();
         UserSettings.Load();
 
@@ -72,8 +73,10 @@ public static class EditorApplication
     public static void Shutdown()
     {
         UserSettings.Save();
+        DocumentManager.SaveAll();
 
         Workspace.Shutdown();
+        Notifications.Shutdown();
         ContextMenu.Shutdown();
         CommandPalette.Shutdown();
         EditorStyle.Shutdown();
@@ -88,12 +91,14 @@ public static class EditorApplication
     {
         CommandPalette.Update();
         ContextMenu.Update();
+        Notifications.Update();
         Workspace.Update();
     }
 
     public static void UpdateUI()
     {
         Workspace.UpdateUI();
+        Notifications.UpdateUI();
         ContextMenu.UpdateUI();
         CommandPalette.UpdateUI();
     }

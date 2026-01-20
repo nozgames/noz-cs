@@ -120,11 +120,11 @@ public class SpriteEditor : DocumentEditor
 
         var shape = Document.GetFrame(_currentFrame).Shape;
 
-        using (Graphics.PushState())
+        DrawRaster(shape);
+
+        using (Gizmos.PushState(EditorLayer.Gizmo))
         {
             Graphics.SetTransform(Document.Transform);
-            DrawRaster(shape);
-            Graphics.SetLayer(EditorLayer.Gizmo);
 
             if (_mode == SpriteEditorMode.Path)
             {
@@ -905,7 +905,7 @@ public class SpriteEditor : DocumentEditor
         if (rb.Width <= 0 || rb.Height <= 0)
             return;
 
-        var dpi = EditorApplication.Config.SpriteDpi;
+        var dpi = EditorApplication.Config.PixelsPerUnit;
         var invDpi = 1f / dpi;
         var quadX = rb.X * invDpi;
         var quadY = rb.Y * invDpi;
@@ -917,7 +917,8 @@ public class SpriteEditor : DocumentEditor
 
         using (Graphics.PushState())
         {
-            Graphics.SetShader(EditorAssets.Shaders.Texture!);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(_rasterTexture);
             Graphics.SetColor(Color.White);
             Graphics.Draw(quadX, quadY, quadW, quadH, 0, 0, u1, v1);
@@ -1070,7 +1071,7 @@ public class SpriteEditor : DocumentEditor
         {
             var bounds = shape.GetSelectedPathsBounds();
             if (bounds.HasValue)
-                Gizmos.DrawRect(bounds.Value, lineWidth, order: 3);
+                Gizmos.DrawRect(bounds.Value, lineWidth, order: 3, outside:true);
         }
 
         Graphics.PopState();

@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-#define NOZ_UI_DEBUG
+// #define NOZ_UI_DEBUG
 
 using System.Diagnostics;
 using System.Numerics;
@@ -160,9 +160,38 @@ public static partial class UI
         ref var img = ref e.Data.Image;
         if (e.Sprite == null) return;
 
+        var sprite = e.Sprite;
+        var spriteSize = sprite.Size;
+        var imgSize = e.Rect.Size;
+
+        var scaleX = imgSize.X / spriteSize.X;
+        var scaleY = imgSize.Y / spriteSize.Y;
+
+        switch (img.Stretch)
+        {
+            case ImageStretch.None:
+                scaleX = 1.0f;
+                scaleY = 1.0f;
+                break;
+            case ImageStretch.Uniform:
+                var uniformScale = MathF.Min(scaleX, scaleY);
+                scaleX = uniformScale;
+                scaleY = uniformScale;
+                break;
+            case ImageStretch.Fill:
+                // scaleX and scaleY are already set correctly
+                break;
+        }
+
+        var scaledSize = new Vector2(spriteSize.X * scaleX, spriteSize.Y * scaleY);
+        var offset = new Vector2(
+            (imgSize.X - scaledSize.X) * img.AlignX.ToFactor() - sprite.Bounds.X * scaleX,
+            (imgSize.Y - scaledSize.Y) * img.AlignY.ToFactor() - sprite.Bounds.Y * scaleY
+        );
+
         using (Graphics.PushState())
         {
-            Graphics.SetTransform(e.LocalToWorld);
+            Graphics.SetTransform(Matrix3x2.CreateScale(scaleX, scaleY) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld);
             Graphics.SetColor(img.Color);
             Graphics.Draw(e.Sprite);
         }

@@ -37,7 +37,8 @@ Application.Init(new ApplicationConfig
     {
         //Driver = new DirectX12GraphicsDriver(),
         Driver = new OpenGLGraphicsDriver(),
-        CompositeShader = "composite"
+        CompositeShader = "composite",
+        PixelsPerUnit = EditorApplication.Config.PixelsPerUnit
     }
 });
 

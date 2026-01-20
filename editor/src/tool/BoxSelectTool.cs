@@ -33,13 +33,13 @@ public class BoxSelectTool : Tool
 
     public override void Draw()
     {
-        Graphics.PushState();
-        Graphics.SetLayer(EditorLayer.Tool);
-        Graphics.SetColor(EditorStyle.BoxSelect.FillColor);
-        Graphics.Draw(_selection);
-        Graphics.SetColor(EditorStyle.BoxSelect.LineColor);
-        Gizmos.DrawRect(_selection, EditorStyle.BoxSelect.LineWidth);
-        Graphics.PopState();
+        using (Gizmos.PushState(EditorLayer.Tool))
+        {
+            Graphics.SetColor(EditorStyle.BoxSelect.FillColor);
+            Graphics.Draw(_selection);
+            Graphics.SetColor(EditorStyle.BoxSelect.LineColor);
+            Gizmos.DrawRect(_selection, EditorStyle.BoxSelect.LineWidth);
+        }
     }
 
     private void Commit()

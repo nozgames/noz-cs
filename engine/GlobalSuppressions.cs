@@ -6,3 +6,4 @@
 using System.Diagnostics.CodeAnalysis;
 
 [assembly: SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance", Justification = "<Pending>", Scope = "member", Target = "~M:NoZ.Sprite.Load(System.IO.Stream,System.String)~NoZ.Asset")]
+[assembly: SuppressMessage("Usage", "CA2208:Instantiate argument exceptions correctly", Justification = "<Pending>", Scope = "member", Target = "~M:NoZ.Graphics.Init(NoZ.ApplicationConfig)")]

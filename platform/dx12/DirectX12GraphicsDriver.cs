@@ -2,14 +2,11 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Numerics;
-using System.Runtime.CompilerServices;
 using Silk.NET.Core.Native;
 using Silk.NET.Direct3D12;
 using Silk.NET.DXGI;
 using Silk.NET.Maths;
 using UnmanagedType = System.Runtime.InteropServices.UnmanagedType;
-using Marshal = System.Runtime.InteropServices.Marshal;
 using DllImportAttribute = System.Runtime.InteropServices.DllImportAttribute;
 using MarshalAsAttribute = System.Runtime.InteropServices.MarshalAsAttribute;
 

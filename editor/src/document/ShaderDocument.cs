@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using Silk.NET.Maths;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -63,6 +64,9 @@ public class ShaderDocument : Document
 
         // Write OpenGL ES 3.0 version
         WriteGlsl(outputPath + ".gles", vertexSource, fragmentSource, flags, ConvertToOpenGLES);
+
+        // Write HLSL version for DX12
+        WriteHlsl(outputPath + ".dx12", vertexSource, fragmentSource, flags);
     }
 
     private ShaderFlags GetShaderFlags()
@@ -253,5 +257,33 @@ public class ShaderDocument : Document
         writer.Write((uint)fragmentBytes.Length);
         writer.Write(fragmentBytes);
         writer.Write((byte)flags);
+    }
+
+    private static void WriteHlsl(string path, string vertexSource, string fragmentSource, ShaderFlags flags)
+    {
+        var hlslVertex = HlslConverter.ConvertVertex(vertexSource);
+        var hlslFragment = HlslConverter.ConvertFragment(fragmentSource);
+
+        using var writer = new BinaryWriter(File.Create(path));
+        writer.WriteAssetHeader(AssetType.Shader, Shader.Version);
+
+        var vertexBytes = Encoding.UTF8.GetBytes(hlslVertex);
+        var fragmentBytes = Encoding.UTF8.GetBytes(hlslFragment);
+
+        writer.Write((uint)vertexBytes.Length);
+        writer.Write(vertexBytes);
+        writer.Write((uint)fragmentBytes.Length);
+        writer.Write(fragmentBytes);
+        writer.Write((byte)flags);
+    }
+
+    public override void Draw()
+    {
+        using (Graphics.PushState())
+        {
+            Graphics.SetLayer(EditorLayer.Document);
+            Graphics.SetColor(Color.White);
+            Graphics.Draw(EditorAssets.Sprites.AssetIconShader);
+        }
     }
 }

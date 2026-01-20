@@ -22,23 +22,52 @@ public abstract class Document : IDisposable
     
     public bool IsSelected { get; set; }
     public bool IsEditing { get; set; }
-    public bool IsModified { get; set; }
-    public bool IsMetaModified { get; set; }
+    public bool IsModified { get; private set; }
+    public bool IsMetaModified { get; private set; }
     public bool IsClipped { get; set; }
     public bool Loaded { get; set; }
     public bool PostLoaded { get; set; }
     public bool IsEditorOnly { get; set; }
 
     public virtual void Load() { }
+    public virtual void Save(StreamWriter sw) { }
     public virtual void Reload() { }
     public virtual void PostLoad() { }
-    public virtual void Save(string path) { }
     public virtual void LoadMetadata(PropertySet meta) { }
     public virtual void SaveMetadata(PropertySet meta) { }
     public virtual void Import(string outputPath, PropertySet config, PropertySet meta) { }
     public virtual void Draw() { }
     public virtual void Clone(Document source) { }
     public virtual void OnUndoRedo() { }
+
+    public void SaveMetadata()
+    {
+        var metaPath = Path + ".meta";
+        var props = PropertySet.LoadFile(metaPath) ?? new PropertySet();
+
+        props.SetVec2("editor", "position", Position);
+        SaveMetadata(props);
+        props.Save(metaPath);
+        IsMetaModified = false;
+    }
+
+    public void LoadMetadata() 
+    {
+        var props = PropertySet.LoadFile(Path + ".meta");
+        if (props == null)
+            return;
+
+        Position = props.GetVector2("editor", "position", default);
+        LoadMetadata(props);
+        IsMetaModified = false;
+    }
+
+    public void Save() 
+    {
+        using var sw = new StreamWriter(Path);
+        Save(sw);
+        IsModified = false;
+    }
 
     public void MarkModified()
     {
@@ -54,11 +83,9 @@ public abstract class Document : IDisposable
 
     public void DrawBounds(Color color)
     {
-        using (Graphics.PushState())
+        using (Gizmos.PushState(EditorLayer.Selection))
         {
             Graphics.SetTransform(Transform);
-            Graphics.SetTexture(Workspace.WhiteTexture);
-            Graphics.SetLayer(EditorLayer.Selection);
             Graphics.SetColor(color);
             Gizmos.DrawRect(Bounds, EditorStyle.Workspace.BoundsLineWidth, outside: true);
         }

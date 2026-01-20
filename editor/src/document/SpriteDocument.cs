@@ -170,14 +170,13 @@ public class SpriteDocument : Document
         }
 
 
-        Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.SpriteDpi);
+        Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
     }
 
-    public override void Save(string path)
+    public override void Save(StreamWriter writer)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine($"c {Palette}");
-        sb.AppendLine();
+        writer.WriteLine($"c {Palette}");
+        writer.WriteLine();
 
         for (ushort frameIndex = 0; frameIndex < FrameCount; frameIndex++)
         {
@@ -185,21 +184,20 @@ public class SpriteDocument : Document
 
             if (FrameCount > 1 || f.Hold > 0)
             {
-                sb.Append('f');
+                writer.Write('f');
                 if (f.Hold > 0)
-                    sb.Append($" h {f.Hold}");
-                sb.AppendLine();
+                    writer.Write($" h {f.Hold}");
+                writer.WriteLine();
             }
 
-            SaveFrame(f, sb);
+            SaveFrame(f, writer);
 
             if (frameIndex < FrameCount - 1)
-                sb.AppendLine();
+                writer.WriteLine();
         }        
-        File.WriteAllText(path, sb.ToString());
     }
     
-    private static void SaveFrame(SpriteFrame f, StringBuilder sb)
+    private static void SaveFrame(SpriteFrame f, StreamWriter writer)
     {
         var shape = f.Shape;
 
@@ -207,7 +205,7 @@ public class SpriteDocument : Document
         {
             var path = shape.GetPath(pIdx);
 
-            sb.AppendLine($"p c {path.FillColor}");
+            writer.WriteLine($"p c {path.FillColor}");
 
             // Save transform if not identity
             var hasTransform = path.Position != Vector2.Zero ||
@@ -215,7 +213,7 @@ public class SpriteDocument : Document
                                path.Scale != Vector2.One;
             if (hasTransform)
             {
-                sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "t {0} {1} {2} {3} {4}",
                     path.Position.X, path.Position.Y, path.Rotation, path.Scale.X, path.Scale.Y));
             }
@@ -223,13 +221,13 @@ public class SpriteDocument : Document
             for (ushort aIdx = 0; aIdx < path.AnchorCount; aIdx++)
             {
                 var anchor = shape.GetAnchor((ushort)(path.AnchorStart + aIdx));
-                sb.Append(string.Format(CultureInfo.InvariantCulture, "a {0} {1}", anchor.Position.X, anchor.Position.Y));
+                writer.Write(string.Format(CultureInfo.InvariantCulture, "a {0} {1}", anchor.Position.X, anchor.Position.Y));
                 if (MathF.Abs(anchor.Curve) > float.Epsilon)
-                    sb.Append(string.Format(CultureInfo.InvariantCulture, " {0}", anchor.Curve));
-                sb.AppendLine();
+                    writer.Write(string.Format(CultureInfo.InvariantCulture, " {0}", anchor.Curve));
+                writer.WriteLine();
             }
 
-            sb.AppendLine();
+            writer.WriteLine();
         }
     }
 
@@ -246,7 +244,7 @@ public class SpriteDocument : Document
                 ref var frame0 = ref Frames[0];
                 Graphics.SetTexture(Atlas.Texture);
                 Graphics.SetColor(Color.White);
-                Graphics.Draw(frame0.Shape.RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.SpriteDpi), AtlasRect);
+                Graphics.Draw(frame0.Shape.RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit), AtlasRect);
             }
             else
             {

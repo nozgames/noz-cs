@@ -13,11 +13,8 @@ public class EditorConfig
     public string SavePath { get; }
     public string Palette { get; }
     public int AtlasSize { get; }
-    public int AtlasPadding { get; }
     public string AtlasPrefix { get; }
-    public int SpriteDpi { get; }
-    public bool AtlasAntialias { get; }
-    public string AtlasFilter { get; }
+    public int PixelsPerUnit { get; }
     public int FrameRate { get; }
     public string? GenerateCs { get; }
     public string CsNamespace { get; }
@@ -36,12 +33,9 @@ public class EditorConfig
         SavePath = ResolvePath(props.GetString("editor", "save_path", "./assets"));
         Palette = props.GetString("editor", "palette", "palette");
         AtlasSize = props.GetInt("editor", "atlas_size", props.GetInt("atlas", "size", 2048));
+        PixelsPerUnit = props.GetInt("editor", "pixels_per_unit", 64);
 
-        AtlasPadding = props.GetInt("atlas", "padding", 1);
         AtlasPrefix = props.GetString("atlas", "prefix", "atlas");
-        SpriteDpi = props.GetInt("atlas", "dpi", 64);
-        AtlasAntialias = props.GetBool("atlas", "antialias", false);
-        AtlasFilter = props.GetString("atlas", "filter", "point");
 
         FrameRate = props.GetInt("animation", "frame_rate", 12);
 
