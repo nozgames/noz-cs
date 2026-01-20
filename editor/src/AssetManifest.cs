@@ -74,7 +74,7 @@ public static class AssetManifest
             foreach (var doc in group.OrderBy(d => d.Name))
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"        public static {runtimeType}? {fieldName};");
+                writer.WriteLine($"        public static readonly {runtimeType} {fieldName} = {{ get; private set; }} = null!;");
             }
             writer.WriteLine("    }");
         }

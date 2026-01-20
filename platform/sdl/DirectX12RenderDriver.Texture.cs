@@ -1,0 +1,405 @@
+//
+//  NoZ - Copyright(c) 2026 NoZ Games, LLC
+//
+
+using Silk.NET.Core.Native;
+using Silk.NET.Direct3D12;
+using Silk.NET.DXGI;
+
+namespace NoZ.Platform;
+
+public unsafe partial class DirectX12RenderDriver
+{
+    public nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data, TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear)
+    {
+        var dxgiFormat = ToDxgiFormat(format);
+        var bytesPerPixel = GetBytesPerPixel(format);
+
+        // Create texture resource
+        var heapProps = new HeapProperties
+        {
+            Type = HeapType.Default,
+            CPUPageProperty = CpuPageProperty.Unknown,
+            MemoryPoolPreference = MemoryPool.Unknown,
+            CreationNodeMask = 1,
+            VisibleNodeMask = 1
+        };
+
+        var resourceDesc = new ResourceDesc
+        {
+            Dimension = ResourceDimension.Texture2D,
+            Alignment = 0,
+            Width = (ulong)width,
+            Height = (uint)height,
+            DepthOrArraySize = 1,
+            MipLevels = 1,
+            Format = dxgiFormat,
+            SampleDesc = new SampleDesc { Count = 1, Quality = 0 },
+            Layout = TextureLayout.LayoutUnknown,
+            Flags = ResourceFlags.None
+        };
+
+        ComPtr<ID3D12Resource> resource = default;
+        var hr = _device.CreateCommittedResource(
+            &heapProps,
+            HeapFlags.None,
+            &resourceDesc,
+            ResourceStates.CopyDest,
+            (ClearValue*)null,
+            SilkMarshal.GuidPtrOf<ID3D12Resource>(),
+            (void**)&resource);
+
+        if (hr < 0)
+            throw new Exception($"Failed to create texture: 0x{hr:X8}");
+
+        // Upload texture data
+        if (data.Length > 0)
+        {
+            UploadTextureData(resource, width, height, 0, data, bytesPerPixel, dxgiFormat);
+        }
+
+        // Transition to shader resource state
+        TransitionResource(resource, ResourceStates.CopyDest, ResourceStates.PixelShaderResource);
+
+        // Create SRV
+        var handle = _nextTextureId++;
+        var descriptorIndex = MaxBuffers + handle; // Offset past buffer descriptors
+
+        var srvHandle = _cbvSrvUavHeap.GetCPUDescriptorHandleForHeapStart();
+        srvHandle.Ptr += (nuint)(descriptorIndex * _cbvSrvUavDescriptorSize);
+
+        var srvDesc = new ShaderResourceViewDesc
+        {
+            Format = dxgiFormat,
+            ViewDimension = SrvDimension.Texture2D,
+            Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            Anonymous = new ShaderResourceViewDescUnion
+            {
+                Texture2D = new Tex2DSrv
+                {
+                    MostDetailedMip = 0,
+                    MipLevels = 1,
+                    PlaneSlice = 0,
+                    ResourceMinLODClamp = 0.0f
+                }
+            }
+        };
+        _device.CreateShaderResourceView(resource, &srvDesc, srvHandle);
+
+        _textures[handle] = new TextureInfo
+        {
+            Resource = resource,
+            Width = width,
+            Height = height,
+            DescriptorIndex = descriptorIndex,
+            Format = format
+        };
+
+        return (nuint)handle;
+    }
+
+    public void UpdateTexture(nuint handle, int width, int height, ReadOnlySpan<byte> data)
+    {
+        ref var textureInfo = ref _textures[(int)handle];
+        if (textureInfo.Resource.Handle == null) return;
+
+        var bytesPerPixel = GetBytesPerPixel(textureInfo.Format);
+        var dxgiFormat = ToDxgiFormat(textureInfo.Format);
+
+        // Transition to copy dest
+        TransitionResource(textureInfo.Resource,
+            ResourceStates.PixelShaderResource,
+            ResourceStates.CopyDest);
+
+        // Upload new data
+        UploadTextureData(textureInfo.Resource, width, height, 0, data, bytesPerPixel, dxgiFormat);
+
+        // Transition back to shader resource
+        TransitionResource(textureInfo.Resource,
+            ResourceStates.CopyDest,
+            ResourceStates.PixelShaderResource);
+    }
+
+    public void DestroyTexture(nuint handle)
+    {
+        ref var texture = ref _textures[(int)handle];
+        texture.Resource.Dispose();
+        texture = default;
+    }
+
+    public void BindTexture(nuint handle, int slot)
+    {
+        ref var textureInfo = ref _textures[(int)handle];
+        if (textureInfo.Resource.Handle == null) return;
+
+        // Get GPU handle for the SRV
+        var gpuHandle = _cbvSrvUavHeap.GetGPUDescriptorHandleForHeapStart();
+        gpuHandle.Ptr += (ulong)(textureInfo.DescriptorIndex * _cbvSrvUavDescriptorSize);
+
+        // Set as root descriptor table
+        // Assuming SRV table is at root parameter index 1
+        _commandList.SetGraphicsRootDescriptorTable((uint)(1 + slot), gpuHandle);
+    }
+
+    // === Texture Array Management ===
+
+    public nuint CreateTextureArray(int width, int height, int layers)
+    {
+        return CreateTextureArrayInternal(width, height, layers, null, TextureFormat.RGBA8, TextureFilter.Linear);
+    }
+
+    public nuint CreateTextureArray(int width, int height, byte[][] layerData, TextureFormat format, TextureFilter filter)
+    {
+        return CreateTextureArrayInternal(width, height, layerData.Length, layerData, format, filter);
+    }
+
+    private nuint CreateTextureArrayInternal(int width, int height, int layers, byte[][]? layerData, TextureFormat format, TextureFilter filter)
+    {
+        var dxgiFormat = ToDxgiFormat(format);
+        var bytesPerPixel = GetBytesPerPixel(format);
+
+        // Create texture array resource
+        var heapProps = new HeapProperties
+        {
+            Type = HeapType.Default,
+            CPUPageProperty = CpuPageProperty.Unknown,
+            MemoryPoolPreference = MemoryPool.Unknown,
+            CreationNodeMask = 1,
+            VisibleNodeMask = 1
+        };
+
+        var resourceDesc = new ResourceDesc
+        {
+            Dimension = ResourceDimension.Texture2D,
+            Alignment = 0,
+            Width = (ulong)width,
+            Height = (uint)height,
+            DepthOrArraySize = (ushort)layers,
+            MipLevels = 1,
+            Format = dxgiFormat,
+            SampleDesc = new SampleDesc { Count = 1, Quality = 0 },
+            Layout = TextureLayout.LayoutUnknown,
+            Flags = ResourceFlags.None
+        };
+
+        ComPtr<ID3D12Resource> resource = default;
+        var hr = _device.CreateCommittedResource(
+            &heapProps,
+            HeapFlags.None,
+            &resourceDesc,
+            ResourceStates.CopyDest,
+            (ClearValue*)null,
+            SilkMarshal.GuidPtrOf<ID3D12Resource>(),
+            (void**)&resource);
+
+        if (hr < 0)
+            throw new Exception($"Failed to create texture array: 0x{hr:X8}");
+
+        // Upload layer data if provided
+        if (layerData != null)
+        {
+            for (int i = 0; i < layers; i++)
+            {
+                if (layerData[i] != null && layerData[i].Length > 0)
+                {
+                    UploadTextureData(resource, width, height, i, layerData[i], bytesPerPixel, dxgiFormat);
+                }
+            }
+        }
+
+        // Transition to shader resource state
+        TransitionResource(resource, ResourceStates.CopyDest,
+            ResourceStates.PixelShaderResource);
+
+        // Create SRV for texture array
+        var handle = _nextTextureArrayId++;
+        var descriptorIndex = MaxBuffers + MaxTextures + handle; // Offset past buffer and texture descriptors
+
+        var srvHandle = _cbvSrvUavHeap.GetCPUDescriptorHandleForHeapStart();
+        srvHandle.Ptr += (nuint)(descriptorIndex * _cbvSrvUavDescriptorSize);
+
+        var srvDesc = new ShaderResourceViewDesc
+        {
+            Format = dxgiFormat,
+            ViewDimension = SrvDimension.Texture2Darray,
+            Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            Anonymous = new ShaderResourceViewDescUnion
+            {
+                Texture2DArray = new Tex2DArraySrv
+                {
+                    MostDetailedMip = 0,
+                    MipLevels = 1,
+                    FirstArraySlice = 0,
+                    ArraySize = (uint)layers,
+                    PlaneSlice = 0,
+                    ResourceMinLODClamp = 0.0f
+                }
+            }
+        };
+        _device.CreateShaderResourceView(resource, &srvDesc, srvHandle);
+
+        _textureArrays[handle] = new TextureArrayInfo
+        {
+            Resource = resource,
+            Width = width,
+            Height = height,
+            Layers = layers,
+            DescriptorIndex = descriptorIndex,
+            Format = format
+        };
+
+        return (nuint)handle;
+    }
+
+    public void UpdateTextureArrayLayer(nuint handle, int layer, ReadOnlySpan<byte> data)
+    {
+        ref var arrayInfo = ref _textureArrays[(int)handle];
+        if (arrayInfo.Resource.Handle == null) return;
+
+        var bytesPerPixel = GetBytesPerPixel(arrayInfo.Format);
+        var dxgiFormat = ToDxgiFormat(arrayInfo.Format);
+
+        // Transition to copy dest
+        TransitionResource(arrayInfo.Resource,
+            ResourceStates.PixelShaderResource,
+            ResourceStates.CopyDest);
+
+        // Upload layer data
+        UploadTextureData(arrayInfo.Resource, arrayInfo.Width, arrayInfo.Height, layer, data, bytesPerPixel, dxgiFormat);
+
+        // Transition back to shader resource
+        TransitionResource(arrayInfo.Resource,
+            ResourceStates.CopyDest,
+            ResourceStates.PixelShaderResource);
+    }
+
+    public void BindTextureArray(int slot, nuint handle)
+    {
+        ref var arrayInfo = ref _textureArrays[(int)handle];
+        if (arrayInfo.Resource.Handle == null) return;
+
+        // Get GPU handle for the SRV
+        var gpuHandle = _cbvSrvUavHeap.GetGPUDescriptorHandleForHeapStart();
+        gpuHandle.Ptr += (ulong)(arrayInfo.DescriptorIndex * _cbvSrvUavDescriptorSize);
+
+        // Set as root descriptor table
+        _commandList.SetGraphicsRootDescriptorTable((uint)(1 + slot), gpuHandle);
+    }
+
+    // === Helper Methods ===
+
+    private void UploadTextureData(ComPtr<ID3D12Resource> destResource, int width, int height, int arraySlice,
+        ReadOnlySpan<byte> data, int bytesPerPixel, Format format)
+    {
+        // Calculate row pitch (must be 256-byte aligned for D3D12)
+        var rowPitch = (width * bytesPerPixel + 255) & ~255;
+        var uploadSize = (nuint)(rowPitch * height);
+
+        // Check if we have room in upload heap
+        if (_uploadHeapOffset + uploadSize > UploadHeapSize)
+        {
+            // Need to flush and wait - simple approach
+            WaitForGpu();
+            _uploadHeapOffset = 0;
+        }
+
+        // Copy data to upload heap with proper row pitch
+        var destPtr = _uploadHeapMappedPtr + _uploadHeapOffset;
+        var srcRowPitch = width * bytesPerPixel;
+
+        fixed (byte* srcPtr = data)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                Buffer.MemoryCopy(
+                    srcPtr + y * srcRowPitch,
+                    destPtr + y * rowPitch,
+                    rowPitch,
+                    srcRowPitch);
+            }
+        }
+
+        // Calculate subresource index for array slice
+        var subresourceIndex = (uint)arraySlice;
+
+        // Copy from upload heap to texture
+        var srcLocation = new TextureCopyLocation
+        {
+            PResource = _uploadHeap,
+            Type = TextureCopyType.PlacedFootprint,
+            Anonymous = new TextureCopyLocationUnion
+            {
+                PlacedFootprint = new PlacedSubresourceFootprint
+                {
+                    Offset = _uploadHeapOffset,
+                    Footprint = new SubresourceFootprint
+                    {
+                        Format = format,
+                        Width = (uint)width,
+                        Height = (uint)height,
+                        Depth = 1,
+                        RowPitch = (uint)rowPitch
+                    }
+                }
+            }
+        };
+
+        var dstLocation = new TextureCopyLocation
+        {
+            PResource = destResource,
+            Type = TextureCopyType.SubresourceIndex,
+            Anonymous = new TextureCopyLocationUnion
+            {
+                SubresourceIndex = subresourceIndex
+            }
+        };
+
+        _commandList.CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, (Box*)null);
+
+        _uploadHeapOffset += uploadSize;
+        // Align to 256 bytes for next upload
+        _uploadHeapOffset = (_uploadHeapOffset + 255) & ~(nuint)255;
+    }
+
+    private void TransitionResource(ComPtr<ID3D12Resource> resource, ResourceStates before, ResourceStates after)
+    {
+        var barrier = new ResourceBarrier
+        {
+            Type = ResourceBarrierType.Transition,
+            Flags = ResourceBarrierFlags.None,
+            Anonymous = new ResourceBarrierUnion
+            {
+                Transition = new ResourceTransitionBarrier
+                {
+                    PResource = resource,
+                    StateBefore = before,
+                    StateAfter = after,
+                    Subresource = 0xFFFFFFFF // All subresources
+                }
+            }
+        };
+        _commandList.ResourceBarrier(1, &barrier);
+    }
+
+    private static Format ToDxgiFormat(TextureFormat format) => format switch
+    {
+        TextureFormat.R8 => Format.FormatR8Unorm,
+        TextureFormat.RG8 => Format.FormatR8G8Unorm,
+        TextureFormat.RGB8 => Format.FormatR8G8B8A8Unorm, // No RGB8 in D3D12, use RGBA8
+        TextureFormat.RGBA8 => Format.FormatR8G8B8A8Unorm,
+        _ => Format.FormatR8G8B8A8Unorm
+    };
+
+    private static int GetBytesPerPixel(TextureFormat format) => format switch
+    {
+        TextureFormat.R8 => 1,
+        TextureFormat.RG8 => 2,
+        TextureFormat.RGB8 => 4, // Expanded to RGBA
+        TextureFormat.RGBA8 => 4,
+        _ => 4
+    };
+
+    // D3D12 shader 4 component mapping default
+    private const uint D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING =
+        (0) | (1 << 3) | (2 << 6) | (3 << 9) | (1 << 12);
+}

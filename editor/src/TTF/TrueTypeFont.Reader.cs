@@ -2,15 +2,11 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System;
-using System.IO;
-using System.Collections.Generic;
-
 namespace NoZ.Editor
 {
     partial class TrueTypeFont
     {
-        partial class Reader : IDisposable
+        partial class Reader(Stream stream, int requestedSize, string filter) : IDisposable
         {
             private enum TableName
             {
@@ -27,48 +23,23 @@ namespace NoZ.Editor
                 OS2
             }
 
-            private BinaryReader _reader;
-            private TrueTypeFont _ttf;
+            private BinaryReader _reader = new(stream);
+            private TrueTypeFont _ttf = null!;
             private short _indexToLocFormat;
-            private long[] _tableOffsets;
+            private readonly long[] _tableOffsets = new long[Enum.GetValues<TableName>().Length];
             private Vector2Double _scale;
-            private string _filter;
+            private readonly string _filter = filter;
             private double _unitsPerEm;
-            private int _requestedSize;
-            private Glyph[] _glyphsById;
-
-            public Reader(Stream stream, int requestedSize, string filter)
-            {
-                _requestedSize = requestedSize;
-                _filter = filter;
-                _reader = new BinaryReader(stream);
-                _tableOffsets = new long[Enum.GetValues(typeof(TableName)).Length];
-            }
-
+            private int _requestedSize = requestedSize;
+            private Glyph[] _glyphsById = null!;
             private const double Fixed = 1.0 / (1 << 16);
 
             private bool IsInFilter(char c) => _filter == null || _filter.IndexOf(c) != -1;
 
-
-            public float ReadFixed()
-            {
-                return (float)(ReadInt32() * Fixed);
-            }
-
-            public double ReadFUnit()
-            {
-                return ReadInt16() * _scale.x;
-            }
-
-            public double ReadUFUnit()
-            {
-                return ReadUInt16() * _scale.x;
-            }
-
-            public string ReadString(int length)
-            {
-                return new string(_reader.ReadChars(length));
-            }
+            public float ReadFixed() => (float)(ReadInt32() * Fixed);
+            public double ReadFUnit() => ReadInt16() * _scale.x;
+            public double ReadUFUnit() => ReadUInt16() * _scale.x;
+            public string ReadString(int length) => new(_reader.ReadChars(length));
 
             public void ReadDate()
             {

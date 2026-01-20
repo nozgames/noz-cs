@@ -55,7 +55,12 @@ public static class EditorAssets
 
     public static class Fonts
     {
-        public static Font? Seguisb;
+        public static Font Seguisb { get; private set; } = null!;
+
+        public static void Load()
+        {
+            Seguisb = (Font)Asset.Load(AssetType.Font, Names.Seguisb)!;
+        }
     }
 
     public static class Shaders
@@ -108,8 +113,9 @@ public static class EditorAssets
 
     public static void LoadAssets()
     {
-        Atlases.EditorAtlas00 = (Atlas?)Asset.Load(AssetType.Atlas, Names.EditorAtlas00);
-        Fonts.Seguisb = (Font?)Asset.Load(AssetType.Font, Names.Seguisb);
+        Fonts.Load();
+
+        Atlases.EditorAtlas00 = (Atlas?)Asset.Load(AssetType.Atlas, Names.EditorAtlas00);        
         Shaders.Composite = (Shader?)Asset.Load(AssetType.Shader, Names.Composite);
         Shaders.Sprite = (Shader?)Asset.Load(AssetType.Shader, Names.Sprite);
         Shaders.Text = (Shader?)Asset.Load(AssetType.Shader, Names.Text);

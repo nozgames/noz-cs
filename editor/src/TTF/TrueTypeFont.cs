@@ -2,10 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-
 namespace NoZ.Editor
 {
     partial class TrueTypeFont
@@ -33,8 +29,8 @@ namespace NoZ.Editor
         {
             public ushort id;
             public char ascii;
-            public Point[] points;
-            public Contour[] contours;
+            public Point[] points = null!;
+            public Contour[] contours = null!;
             public double advance;
             public Vector2Double size;
             public Vector2Double bearing;
@@ -47,8 +43,8 @@ namespace NoZ.Editor
         public double InternalLeading { get; internal set; }
         public string FamilyName { get; internal set; } = "";
 
-        private Glyph[] _glyphs;
-        internal List<Tuple<ushort, float>> _kerning;
+        private Glyph[] _glyphs = null!;
+        internal List<Tuple<ushort, float>> _kerning = null!;
 
         private partial class Reader { };
 
@@ -56,18 +52,14 @@ namespace NoZ.Editor
 
         public static TrueTypeFont Load(string path, int requestedSize, string filter)
         {
-            using (var stream = File.OpenRead(path))
-            {
-                return Load(stream, requestedSize, filter);
-            }
+            using var stream = File.OpenRead(path);
+            return Load(stream, requestedSize, filter);
         }
 
         public static TrueTypeFont Load(Stream stream, int requestedSize, string filter)
         {
-            using (var reader = new Reader(stream, requestedSize, filter))
-            {
-                return reader.Read();
-            }
+            using var reader = new Reader(stream, requestedSize, filter);
+            return reader.Read();
         }
     }
 }

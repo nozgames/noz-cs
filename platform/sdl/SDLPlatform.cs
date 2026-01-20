@@ -20,6 +20,8 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public Vector2 WindowSize => _windowSize;
 
+    internal static SDL_Window* Window => _instance?._window;
+
     public float DisplayScale => _window != null ? SDL_GetWindowDisplayScale(_window) : 1.0f;
 
     public event Action<PlatformEvent>? OnEvent;

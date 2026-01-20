@@ -145,7 +145,7 @@ public static class CommandPalette
             using (UI.BeginRow(EditorStyle.Popup.Item))
             {
                 using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
-                    ;
+                    UI.Image(EditorAssets.Sprites.IconSubmenu);
 
                 using (UI.BeginFlex())
                     UI.TextBox(ref _text, style: EditorStyle.CommandPalette.SearchTextBox, id: SearchId, placeholder: "Search...");
@@ -182,7 +182,9 @@ public static class CommandPalette
                     using (UI.BeginRow(ContainerStyle.Default))
                     {
                         using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
-                            ;
+                        {
+                            UI.Image(EditorAssets.Sprites.IconSubmenu);
+                        }                            
 
                         UI.Label(cmd.Name, style: EditorStyle.Control.Text);
                         UI.Flex();
