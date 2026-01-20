@@ -93,6 +93,7 @@ public static unsafe class Graphics
     private static int _boneCount;
     private static float _time;
     private static Shader? _compositeShader;
+    private static Shader? _spriteShader;
     private static bool _inUIPass;
     private static bool _inScenePass;
     private static GraphicsStats _stats;
@@ -106,6 +107,7 @@ public static unsafe class Graphics
     public static GraphicsConfig Config { get; private set; } = null!;
     public static IRenderDriver Driver { get; private set; } = null!;
     public static Camera? Camera { get; private set; }
+    public static Texture? SpriteAtlas { get; set; }
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
     public static Color Color => CurrentState.Color;
     public static ref readonly GraphicsStats Stats => ref _stats;
@@ -368,12 +370,11 @@ public static unsafe class Graphics
 
     internal static void ResolveAssets()
     {
-        if (!string.IsNullOrEmpty(Config.CompositeShader))
-        {
-            _compositeShader = Asset.Get<Shader>(AssetType.Shader, Config.CompositeShader);
-            if (_compositeShader == null)
-                throw new ArgumentNullException(nameof(Config.CompositeShader), "Composite shader not found");
-        }
+        _compositeShader = Asset.Get<Shader>(AssetType.Shader, Config.CompositeShader)
+            ?? throw new ArgumentNullException(nameof(Config.CompositeShader), "Composite shader not found");
+
+        _spriteShader = Asset.Get<Shader>(AssetType.Shader, Config.SpriteShader)
+            ?? throw new ArgumentNullException(nameof(Config.SpriteShader), "Sprite shader not found");
     }
 
     public static void Clear(Color color)
@@ -467,6 +468,26 @@ public static unsafe class Graphics
     public static void Draw(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, ushort order = 0)
     {
         AddQuad(p0, p1, p2, p3, new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), order);
+    }
+
+    public static void Draw(Sprite? sprite, ushort order = 0)
+    {
+        if (sprite == null || SpriteAtlas == null) return;
+
+        var uv = sprite.UV;
+        var bounds = sprite.Bounds;
+        var p0 = new Vector2(bounds.Left, bounds.Top);
+        var p1 = new Vector2(bounds.Right, bounds.Top);
+        var p2 = new Vector2(bounds.Right, bounds.Bottom);
+        var p3 = new Vector2(bounds.Left, bounds.Bottom);
+
+        SetTexture(SpriteAtlas);
+        SetShader(_spriteShader!);
+        AddQuad(
+            p0, p1, p2, p3,
+            uv.TopLeft, new Vector2(uv.Right, uv.Top),
+            uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
+            order, atlasIndex: sprite.AtlasIndex);
     }
 
     #endregion
@@ -663,7 +684,8 @@ public static unsafe class Graphics
         in Vector2 uv1,
         in Vector2 uv2,
         in Vector2 uv3,
-        ushort order)
+        ushort order,
+        int atlasIndex = 0)
     {
         if (CurrentState.Shader == null)
             return;
@@ -696,10 +718,10 @@ public static unsafe class Graphics
         var t3 = Vector2.Transform(p3, CurrentState.Transform);
 
         var baseVertex = _vertices.Length;
-        _vertices.Add(new MeshVertex { Position = t0, UV = uv0, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
-        _vertices.Add(new MeshVertex { Position = t1, UV = uv1, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
-        _vertices.Add(new MeshVertex { Position = t2, UV = uv2, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
-        _vertices.Add(new MeshVertex { Position = t3, UV = uv3, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = 0, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
+        _vertices.Add(new MeshVertex { Position = t0, UV = uv0, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
+        _vertices.Add(new MeshVertex { Position = t1, UV = uv1, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
+        _vertices.Add(new MeshVertex { Position = t2, UV = uv2, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
+        _vertices.Add(new MeshVertex { Position = t3, UV = uv3, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
 
         _indices.Add((ushort)(baseVertex + 0));
         _indices.Add((ushort)(baseVertex + 1));

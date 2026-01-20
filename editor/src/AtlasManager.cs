@@ -31,7 +31,10 @@ public static class AtlasManager
         {
             var doc = DocumentManager.Get(i);
             if (doc is AtlasDocument atlas)
+            {
+                atlas.Index = _atlases.Count;
                 _atlases.Add(atlas);
+            }
             else if (doc is SpriteDocument sprite)
                 _sprites.Add(sprite);
         }
@@ -60,7 +63,10 @@ public static class AtlasManager
         {
             var atlas = _atlases[i];
             if (atlas.TryAddSprite(sprite))
+            {
+                atlas.IsModified = true;
                 return;
+            }
         }
     }
 }

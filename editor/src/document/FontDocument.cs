@@ -176,12 +176,7 @@ public class FontDocument : Document
 
         using var writer = new BinaryWriter(File.Create(outputPath));
 
-        // Asset header
-        writer.Write(Constants.AssetSignature);
-        writer.Write((byte)AssetType.Font);
-        writer.Write(Font.Version);
-        writer.Write((ushort)0); // flags
-
+        writer.WriteAssetHeader(AssetType.Font, Font.Version);
         writer.Write((uint)FontSize);
         writer.Write((uint)atlasSize.X);
         writer.Write((uint)atlasSize.Y);

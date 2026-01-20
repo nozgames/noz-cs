@@ -277,20 +277,19 @@ public class SpriteDocument : Document
 
     public override void Import(string outputPath, PropertySet config, PropertySet meta)
     {
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath) ?? "");
+        UpdateBounds();
 
         using var writer = new BinaryWriter(File.Create(outputPath));
-        writer.WriteAssetHeader(Constants.AssetSignature, AssetType.Sprite, Sprite.Version, 0); 
+        writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
         writer.Write(FrameCount);
-
-        ref readonly var frame0 = ref Frames[0];
-        writer.Write((ushort)RasterBounds.Left);
-        writer.Write((ushort)RasterBounds.Top);
-        writer.Write((ushort)RasterBounds.Right);
-        writer.Write((ushort)RasterBounds.Bottom);
+        writer.Write((ushort)(Atlas?.Index ?? 0));
+        writer.Write((short)RasterBounds.Left);
+        writer.Write((short)RasterBounds.Top);
+        writer.Write((short)RasterBounds.Right);
+        writer.Write((short)RasterBounds.Bottom);
         writer.Write(AtlasRect.Left);
         writer.Write(AtlasRect.Top);
-        writer.Write(AtlasRect.Bottom);
         writer.Write(AtlasRect.Right);
+        writer.Write(AtlasRect.Bottom);
     }
 }

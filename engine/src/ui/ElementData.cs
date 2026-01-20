@@ -73,6 +73,7 @@ internal struct ImageData
     public Vector2 UV1;
     public float Width;
     public float Height;
+    public int AtlasIndex;
 
     public static ImageData Default => new()
     {
@@ -85,7 +86,8 @@ internal struct ImageData
         UV0 = Vector2.Zero,
         UV1 = Vector2.One,
         Width = 0,
-        Height = 0
+        Height = 0,
+        AtlasIndex = -1
     };
 }
 

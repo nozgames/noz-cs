@@ -1,31 +1,33 @@
 w 2048
 h 2048
-d 96
 
 r "asset_icon_atlas" 1 1 96 96
-r "asset_icon_bin" 97 1 72 86 1
+r "asset_icon_bin" 97 1 72 86
 r "asset_icon_event" 169 1 82 100
 r "asset_icon_font" 251 1 96 96
 r "asset_icon_lua" 347 1 97 99
 r "asset_icon_shader" 444 1 94 94
 r "asset_icon_sound" 538 1 74 98
 r "asset_icon_vfx" 612 1 98 98
-r "icon_circle" 710 1 98 98 1
-r "icon_close" 808 1 98 98 1
-r "icon_dropdown" 906 1 98 50 1
-r "icon_loop" 1004 1 98 76 1
-r "icon_mirror" 1102 1 96 82 1
-r "icon_onion" 1198 1 96 64 1
-r "icon_opacity" 1294 1 84 84 1
-r "icon_palette" 1378 1 96 97 1
-r "icon_publish" 1474 1 88 100 1
-r "icon_submenu" 1562 1 66 98 1
-r "icon_tiling" 1628 1 96 96 1
-r "icon_edge_mode" 1724 1 90 99 1
+r "icon_circle" 710 1 98 98
+r "icon_close" 808 1 98 98
+r "icon_dropdown" 906 1 98 50
+r "icon_expand_down" 1004 1 98 76
+r "icon_expand_up" 1102 1 96 82
+r "icon_onion" 1198 1 96 64
+r "icon_opacity" 1294 1 84 84
+r "icon_edge_mode" 1378 1 96 97
+r "icon_face_mode" 1474 1 88 100
+r "icon_submenu" 1562 1 66 98
+r "icon_loop" 1628 1 96 96
+r "icon_mirror" 1724 1 90 99
 r "icon_expand_down" 1814 1 100 32
 r "icon_expand_up" 1914 1 100 32
-r "icon_face_mode" 1814 33 94 97
+r "icon_opacity_overlay" 1814 33 94 97
 r "icon_opacity_overlay" 1908 33 84 84
-r "icon_root_motion" 906 51 90 94
-r "icon_vertex_mode" 1198 65 94 94
-r "icon_weight_mode" 996 77 97 92
+r "icon_palette" 906 51 90 94
+r "icon_publish" 1198 65 94 94
+r "icon_root_motion" 996 77 97 92
+r "icon_tiling" 444 95 88 88
+r "icon_vertex_mode" 1292 85 86 86
+r "icon_weight_mode" 1378 98 89 84

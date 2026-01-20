@@ -17,7 +17,7 @@ public struct FontGlyph
 
 public class Font : Asset
 {
-    internal const byte Version = 3;
+    internal const ushort Version = 3;
     private const int MaxGlyphs = 256;
     private const int MaxKerningPairs = MaxGlyphs * MaxGlyphs;
 

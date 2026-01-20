@@ -152,6 +152,16 @@ public class WebGLRender : IRender
         return new TextureHandle(id);
     }
 
+    public TextureHandle CreateTextureArray(int width, int height, byte[][] layerData, TextureFormat format, TextureFilter filter)
+    {
+        if (_module == null) return TextureHandle.Invalid;
+        var layers = layerData.Length;
+        var handle = CreateTextureArray(width, height, layers);
+        for (int i = 0; i < layers; i++)
+            UpdateTextureArrayLayer(handle, i, layerData[i]);
+        return handle;
+    }
+
     public void UpdateTextureArrayLayer(TextureHandle handle, int layer, ReadOnlySpan<byte> data)
     {
         _module?.InvokeVoidAsync("updateTextureArrayLayer", handle.Id, layer, data.ToArray());

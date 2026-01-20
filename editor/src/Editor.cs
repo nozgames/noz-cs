@@ -65,6 +65,8 @@ public static class EditorApplication
         ContextMenu.Init();
         Workspace.Init();
         UserSettings.Load();
+
+        DocumentManager.SaveAll();
     }
 
     public static void Shutdown()
@@ -79,7 +81,7 @@ public static class EditorApplication
         Importer.Shutdown();
         DocumentManager.Shutdown();
         UserSettings.Save();
-        Config = null;
+        Config = null!;
     }
 
     public static void Update()

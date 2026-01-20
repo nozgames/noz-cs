@@ -242,17 +242,9 @@ public class ShaderDocument : Document
         var glVertex = converter(vertexSource);
         var glFragment = converter(fragmentSource);
 
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path) ?? ".");
-
         using var writer = new BinaryWriter(File.Create(path));
+        writer.WriteAssetHeader(AssetType.Shader, Shader.Version);
 
-        // Asset header
-        writer.Write(Constants.AssetSignature);
-        writer.Write((byte)AssetType.Shader);
-        writer.Write(Shader.Version);
-        writer.Write((ushort)0); // flags in header (unused)
-
-        // Shader data
         var vertexBytes = Encoding.UTF8.GetBytes(glVertex);
         var fragmentBytes = Encoding.UTF8.GetBytes(glFragment);
 

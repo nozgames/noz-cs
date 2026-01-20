@@ -158,14 +158,13 @@ public static partial class UI
     private static void DrawImage(ref Element e)
     {
         ref var img = ref e.Data.Image;
-        if (img.Texture == nuint.Zero) return;
+        if (e.Sprite == null) return;
 
-        var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
-        Graphics.SetColor(img.Color);
-        Graphics.SetTexture(img.Texture);
-        Graphics.Draw(
-            pos.X, pos.Y, e.Rect.Width, e.Rect.Height,
-            img.UV0.X, img.UV0.Y, img.UV1.X, img.UV1.Y
-        );
+        using (Graphics.PushState())
+        {
+            Graphics.SetTransform(e.LocalToWorld);
+            Graphics.SetColor(img.Color);
+            Graphics.Draw(e.Sprite);
+        }
     }
 }

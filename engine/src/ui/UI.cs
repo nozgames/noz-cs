@@ -670,9 +670,12 @@ public static partial class UI
         PopElement();
     }
 
-    public static void Image(Sprite sprite, ImageStyle style = default)
+    public static void Image(Sprite? sprite, ImageStyle style = default)
     {
+        if (sprite == null) return;
+
         ref var e = ref CreateElement(ElementType.Image);
+        e.Sprite = sprite;
         e.Data.Image = new ImageData
         {
             Stretch = style.Stretch,
@@ -680,19 +683,22 @@ public static partial class UI
             AlignY = style.AlignY,
             Scale = style.Scale,
             Color = style.Color,
-            Texture = nuint.Zero, // sprite.Texture,
-            UV0 = sprite.UV0,
-            UV1 = sprite.UV1,
-            Width = sprite.Width,
-            Height = sprite.Height
+            Texture = Graphics.SpriteAtlas?.Handle ?? nuint.Zero,
+            UV0 = sprite.UV.TopLeft,
+            UV1 = sprite.UV.BottomRight,
+            Width = sprite.Bounds.Width,
+            Height = sprite.Bounds.Height,
+            AtlasIndex = sprite.AtlasIndex
         };
 
         PushElement(e.Index);
         PopElement();
     }
 
-    public static void Image(Texture texture, float width, float height, ImageStyle style = default)
+    public static void Image(Texture? texture, float width, float height, ImageStyle style = default)
     {
+        if (texture == null) return;
+
         ref var e = ref CreateElement(ElementType.Image);
         e.Data.Image = new ImageData
         {
@@ -705,7 +711,8 @@ public static partial class UI
             UV0 = Vector2.Zero,
             UV1 = Vector2.One,
             Width = width,
-            Height = height
+            Height = height,
+            AtlasIndex = -1
         };
 
         PushElement(e.Index);

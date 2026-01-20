@@ -79,27 +79,14 @@ public class SoundDocument : Document
         if (dataSize == 0)
             throw new InvalidDataException("No data chunk found in WAV file");
 
-        // Read PCM data
         var pcmData = reader.ReadBytes((int)dataSize);
 
-        // Write output file
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath) ?? "");
-
         using var writer = new BinaryWriter(File.Create(outputPath));
-
-        // Asset header
-        writer.Write(Constants.AssetSignature);
-        writer.Write((byte)AssetType.Sound);
-        writer.Write(Sound.Version);
-        writer.Write((ushort)0);
-
-        // Sound header
+        writer.WriteAssetHeader(AssetType.Sound, Sound.Version);
         writer.Write((int)sampleRate);
         writer.Write((int)numChannels);
         writer.Write((int)bitsPerSample);
         writer.Write((int)dataSize);
-
-        // PCM data
         writer.Write(pcmData);
     }
 }

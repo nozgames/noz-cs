@@ -81,12 +81,7 @@ public class TextureDocument : Document
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath) ?? "");
 
         using var writer = new BinaryWriter(File.Create(outputPath));
-
-        // Asset header
-        writer.Write(Constants.AssetSignature);
-        writer.Write((byte)AssetType.Texture);
-        writer.Write(Texture.Version);
-        writer.Write((ushort)0);
+        writer.WriteAssetHeader(AssetType.Texture, Texture.Version);
 
         // Texture format
         var format = TextureFormat.RGBA8;

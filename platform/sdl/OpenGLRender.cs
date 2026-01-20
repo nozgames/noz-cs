@@ -411,6 +411,60 @@ public unsafe class OpenGlRenderDriver : IRenderDriver
         return (nuint)handle;
     }
 
+    public nuint CreateTextureArray(int width, int height, byte[][] layerData, TextureFormat format, TextureFilter filter)
+    {
+        var layers = layerData.Length;
+        var glTexture = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2DArray, glTexture);
+
+        var internalFormat = format switch
+        {
+            TextureFormat.RGBA8 => InternalFormat.Rgba8,
+            TextureFormat.RGB8 => InternalFormat.Rgb8,
+            TextureFormat.RG8 => InternalFormat.RG8,
+            TextureFormat.R8 => InternalFormat.R8,
+            _ => InternalFormat.Rgba8
+        };
+
+        var pixelFormat = format switch
+        {
+            TextureFormat.RGBA8 => PixelFormat.Rgba,
+            TextureFormat.RGB8 => PixelFormat.Rgb,
+            TextureFormat.RG8 => PixelFormat.RG,
+            TextureFormat.R8 => PixelFormat.Red,
+            _ => PixelFormat.Rgba
+        };
+
+        // Allocate storage for all layers
+        _gl.TexImage3D(TextureTarget.Texture2DArray, 0, internalFormat,
+            (uint)width, (uint)height, (uint)layers, 0,
+            pixelFormat, PixelType.UnsignedByte, null);
+
+        // Upload each layer
+        for (int i = 0; i < layers; i++)
+        {
+            fixed (byte* p = layerData[i])
+            {
+                _gl.TexSubImage3D(TextureTarget.Texture2DArray, 0,
+                    0, 0, i,
+                    (uint)width, (uint)height, 1,
+                    pixelFormat, PixelType.UnsignedByte, p);
+            }
+        }
+
+        var minFilter = filter == TextureFilter.Nearest ? TextureMinFilter.Nearest : TextureMinFilter.Linear;
+        var magFilter = filter == TextureFilter.Nearest ? TextureMagFilter.Nearest : TextureMagFilter.Linear;
+
+        _gl.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)minFilter);
+        _gl.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)magFilter);
+        _gl.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+        var handle = _nextTextureArrayId++;
+        _textureArrays[handle] = (glTexture, width, height, layers);
+        return (nuint)handle;
+    }
+
     public void UpdateTextureArrayLayer(nuint handle, int layer, ReadOnlySpan<byte> data)
     {
         ref var info = ref _textureArrays[(int)handle];

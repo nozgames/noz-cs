@@ -6,7 +6,7 @@ namespace NoZ;
 
 public class Sound : Asset
 {
-    internal const byte Version = 1;
+    internal const ushort Version = 1;
 
     internal nint PlatformHandle { get; private set; }
     public int SampleRate { get; private set; }

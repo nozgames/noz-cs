@@ -88,7 +88,7 @@ public class Asset : IDisposable {
         if (type != expectedType)
             return false;
 
-        reader.ReadByte();   // version
+        reader.ReadUInt16(); // version
         reader.ReadUInt16(); // flags
 
         return true;
@@ -113,9 +113,9 @@ public class Asset : IDisposable {
 
 public static class AssetExtensions
 {
-    public static void WriteAssetHeader(this BinaryWriter writer, uint signature, AssetType type, ushort version, ushort flags)
+    public static void WriteAssetHeader(this BinaryWriter writer, AssetType type, ushort version, ushort flags=0)
     {
-        writer.Write(signature);
+        writer.Write(Constants.AssetSignature);
         writer.Write((byte)type);
         writer.Write(version);
         writer.Write(flags);

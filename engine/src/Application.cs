@@ -77,6 +77,7 @@ public static class Application
         _assetTypesRegistered = true;
         
         Texture.RegisterDef();
+        Atlas.RegisterDef();
         Sprite.RegisterDef();
         Sound.RegisterDef();
         Shader.RegisterDef();

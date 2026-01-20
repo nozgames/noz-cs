@@ -8,24 +8,26 @@ public class Sprite : Asset
 {
     public const ushort Version = 1;
     public const int MaxFrames = 64;
-    
+
     public RectInt Bounds { get; private set; }
     public Rect UV { get; private set;  }
     public Vector2Int Size { get; private set; }
     public int FrameCount { get; private set; }
+    public int AtlasIndex { get; private set; }
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
 
-    private static Asset Load(Stream stream, string name) 
+    private static Asset Load(Stream stream, string name)
     {
         var sprite = new Sprite(name);
         var reader = new BinaryReader(stream);
 
         var frameCount = reader.ReadUInt16();
-        var l = reader.ReadUInt16();
-        var t = reader.ReadUInt16();
-        var r = reader.ReadUInt16();
-        var b = reader.ReadUInt16();
+        var atlasIndex = reader.ReadUInt16();
+        var l = reader.ReadInt16();
+        var t = reader.ReadInt16();
+        var r = reader.ReadInt16();
+        var b = reader.ReadInt16();
         var ul = reader.ReadSingle();
         var ut = reader.ReadSingle();
         var ur = reader.ReadSingle();
@@ -34,6 +36,7 @@ public class Sprite : Asset
         sprite.Bounds = RectInt.FromMinMax(l, t, r, b);
         sprite.UV = Rect.FromMinMax(ul, ut, ur, ub);
         sprite.FrameCount = frameCount;
+        sprite.AtlasIndex = atlasIndex;
 
         return sprite;
     }

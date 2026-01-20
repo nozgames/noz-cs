@@ -243,27 +243,18 @@ public static class Workspace
     {
         Workspace.ActiveEditor?.UpdateUI();
 
-#if false
-        UI.BeginCanvas();
-        UI.BeginContainer(style: ContainerStyle.Default with {
+        using (UI.BeginCanvas())
+        using (UI.BeginContainer(style: ContainerStyle.Default with
+        {
             Width = Size.Percent(0.5f),
-            Height = Size.Fit(),
+            Height = Size.Percent(0.5f),
             Color = Color.Red,
             AlignX = Align.Center,
             AlignY = Align.Center,
-        });
-
-        UI.BeginColumn(new ContainerStyle { Height = Size.Fit(), Color = Color.Yellow});
-        UI.BeginContainer(new ContainerStyle { Color= Color.Blue, Height=100});
-        UI.Label("test1", new LabelStyle { Color=Color.White, FontSize = 40, AlignX = Align.Center, AlignY = Align.Center});
-        UI.EndContainer();
-        UI.Label("test2", new LabelStyle { Color = Color.White, FontSize = 40 });
-        UI.Label("test2", new LabelStyle { Color = Color.White, FontSize = 40, AlignX = Align.Max});
-        UI.EndColumn();
-
-        UI.EndContainer();
-        UI.EndCanvas();
-#endif
+        }))
+        {
+            UI.Image(EditorAssets.Sprites.AssetIconAtlas);
+        }
     }
 
     private static void UpdateCulling()

@@ -24,13 +24,13 @@ namespace NoZ.Editor
         private PixelData<Color32> _image = null!;
         private RectPacker _packer = null!;
         
-        public int Index { get; private set; }  
+        public int Index { get; internal set; }
         public Texture Texture => _texture;
 
         public static void RegisterDef()
         {
             DocumentManager.RegisterDef(new DocumentDef(
-                AssetType.Shader,
+                AssetType.Atlas,
                 ".atlas",
                 () => new AtlasDocument()
             ));
@@ -93,7 +93,7 @@ namespace NoZ.Editor
             sw.WriteLine($"h {EditorApplication.Config!.AtlasSize}");
             sw.WriteLine();
             foreach (var rect in _rects)
-                sw.WriteLine($"rect \"{rect.Name}\" {rect.Rect.X} {rect.Rect.Y} {rect.Rect.Width} {rect.Rect.Height}");
+                sw.WriteLine($"r \"{rect.Name}\" {rect.Rect.X} {rect.Rect.Y} {rect.Rect.Width} {rect.Rect.Height}");
         }
 
         public override void PostLoad()
@@ -239,6 +239,25 @@ namespace NoZ.Editor
                 Graphics.SetColor(Color.White);
                 Graphics.Draw(Bounds);
             }
+        }
+
+        public override void Import(string outputPath, PropertySet config, PropertySet meta)
+        {
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath) ?? "");
+
+            using var writer = new BinaryWriter(File.Create(outputPath));
+            writer.WriteAssetHeader(AssetType.Atlas, Atlas.Version, 0);
+
+            var format = TextureFormat.RGBA8;
+            var filter = TextureFilter.Nearest;
+            var clamp = TextureClamp.Clamp;
+
+            writer.Write((byte)format);
+            writer.Write((byte)filter);
+            writer.Write((byte)clamp);
+            writer.Write((uint)_image.Width);
+            writer.Write((uint)_image.Height);
+            writer.Write(_image.AsByteSpan());
         }
     }
 }

@@ -6,7 +6,7 @@ namespace NoZ;
 
 public class Texture : Asset
 {
-    internal const byte Version = 1;
+    internal const ushort Version = 1;
 
     public int Width { get; private init; }
     public int Height { get; private init; }
@@ -75,6 +75,34 @@ public class Texture : Asset
         if (Handle != nuint.Zero)
             Graphics.Driver.DestroyTexture(Handle);
         Handle = Graphics.Driver.CreateTexture(Width, Height, Data, Format, Filter);
+    }
+
+    public static Texture? CreateArray(params Atlas?[] atlases)
+    {
+        var validAtlases = atlases.Where(a => a != null).ToArray();
+        if (validAtlases.Length == 0)
+            return null;
+
+        var first = validAtlases[0]!;
+        var width = first.Width;
+        var height = first.Height;
+        var format = first.Format;
+        var filter = first.Filter;
+
+        var layerData = validAtlases.Select(a => a!.Data).ToArray();
+        var handle = Graphics.Driver.CreateTextureArray(width, height, layerData, format, filter);
+
+        var texture = new Texture("atlas_array")
+        {
+            Width = width,
+            Height = height,
+            Format = format,
+            Filter = filter,
+            Clamp = TextureClamp.Clamp,
+            Handle = handle
+        };
+
+        return texture;
     }
 
     public void Update(ReadOnlySpan<byte> data)
