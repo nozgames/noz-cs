@@ -8,6 +8,9 @@ namespace NoZ.Editor;
 
 public class SoundDocument : Document
 {
+    private Sound? _sound;
+    private SoundHandle _handle;
+
     public static void RegisterDef()
     {
         DocumentManager.RegisterDef(new DocumentDef(
@@ -88,5 +91,37 @@ public class SoundDocument : Document
         writer.Write((int)bitsPerSample);
         writer.Write((int)dataSize);
         writer.Write(pcmData);
+    }
+
+    public override void Draw()
+    {
+        using (Graphics.PushState())
+        {
+            Graphics.SetLayer(EditorLayer.Document);
+            Graphics.SetColor(Color.White);
+            Graphics.Draw(EditorAssets.Sprites.AssetIconSound);
+        }
+    }
+
+    public override void PostLoad()
+    {
+        _sound = Asset.Load(AssetType.Sound, Name, useRegistry: false, libraryPath: EditorApplication.OutputPath) as Sound;
+        base.PostLoad();
+    }
+
+    public override bool CanPlay => _sound != null;
+    public override bool IsPlaying => Audio.IsPlaying(_handle); 
+
+    public override void Play()
+    {
+        if (_sound == null)
+            return;
+
+        _handle = Audio.Play(_sound);
+    }
+
+    public override void Stop()
+    {
+        Audio.Stop(_handle);
     }
 }

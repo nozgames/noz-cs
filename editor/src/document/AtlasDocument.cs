@@ -116,13 +116,13 @@ namespace NoZ.Editor
             base.PostLoad();
         }
 
-        public Rect ToUV(RectInt rect)
+        public Rect ToUV(RectInt rect, Vector2Int size)
         {
             var ts = (float)EditorApplication.Config.AtlasSize;
             var u = rect.Left / ts;
             var v = rect.Top / ts;
-            var s = rect.Right / ts;
-            var t = rect.Bottom / ts;
+            var s = (rect.Left + size.X) / ts;
+            var t = (rect.Top + size.Y) / ts;
             var hp = 0.1f / ts;
 
             //u += hp;
@@ -155,7 +155,7 @@ namespace NoZ.Editor
                 }
                     
                 rect.Sprite.Atlas = this;
-                rect.Sprite.AtlasRect = ToUV(rect.Rect);
+                rect.Sprite.AtlasRect = ToUV(rect.Rect, rect.Sprite.RasterBounds.Size);
                 rect.Sprite.AtlasRect2 = rect.Rect;
             }
         }
@@ -186,7 +186,7 @@ namespace NoZ.Editor
                 rect.FrameCount = sprite.FrameCount;
 
                 sprite.Atlas = this;
-                sprite.AtlasRect = ToUV(new RectInt(rect.Rect.Position, size));
+                sprite.AtlasRect = ToUV(new RectInt(rect.Rect.Position, size), size);
 
                 return true;
             }
@@ -206,7 +206,7 @@ namespace NoZ.Editor
             });
 
             sprite.Atlas = this;
-            sprite.AtlasRect = ToUV(packedRect);
+            sprite.AtlasRect = ToUV(packedRect, sprite.RasterBounds.Size);
 
             return true;
         }

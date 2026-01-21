@@ -1,20 +1,11 @@
 @using noz
 
-<Game Width="1280" Height="720" OnUpdate="@OnGameUpdate" OnInitialize="@OnGameInitialize" />
+<GameApplication Width="1280" Height="720" OnInitialize="@OnGameInitialize" />
 
 @code {
     private Task OnGameInitialize()
     {
         // Initialize game-specific stuff here
         return Task.CompletedTask;
-    }
-
-    private void OnGameUpdate()
-    {
-        // Game update logic here
-        // Example: clear screen with a color
-        Render.Clear(new Color(0.2f, 0.3f, 0.4f, 1.0f));
-
-        // Your game logic...
     }
 }

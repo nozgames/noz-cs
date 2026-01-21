@@ -1,7 +1,9 @@
 @using Microsoft.JSInterop
+@using System.Runtime.InteropServices.JavaScript
 @using NoZ
 @using NoZ.Platform
 @using NoZ.Platform.Web
+@using noz
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -10,15 +12,17 @@
 @code {
     [Parameter] public int Width { get; set; } = 1280;
     [Parameter] public int Height { get; set; } = 720;
-    [Parameter] public Action? OnUpdate { get; set; }
+    [Parameter] public string Title { get; set; } = "NoZ Game";
+    [Parameter] public IApplicationVtable? Vtable { get; set; }
     [Parameter] public Func<Task>? OnInitialize { get; set; }
 
     private int _width;
     private int _height;
     private WebPlatform? _platform;
     private WebGLGraphicsDriver? _driver;
+    private WebAudio? _audio;
     private IJSObjectReference? _gameLoop;
-    private DotNetObjectReference<Game>? _dotNetRef;
+    private DotNetObjectReference<GameApplication>? _dotNetRef;
     private bool _initialized;
 
     protected override void OnInitialized()
@@ -38,31 +42,40 @@
 
     private async Task InitializeGame()
     {
-        // Create platform and render backend
+        // Register JS module for JSImport
+        await JSHost.ImportAsync("noz-webgl", "/js/noz/noz-webgl.js");
+
+        // Create platform, render backend, and audio driver
         _platform = new WebPlatform(JS);
         _driver = new WebGLGraphicsDriver(JS);
+        _audio = new WebAudio(JS);
 
-        // Initialize platform first (creates canvas events)
+        // Initialize platform, graphics driver, and audio async first (web needs JS modules loaded)
         await _platform.InitAsync(new PlatformConfig
         {
-            Title = "NoZ Game",
+            Title = Title,
             Width = _width,
             Height = _height,
             VSync = true,
             Resizable = false
         });
 
-        // Subscribe to platform events
-        _platform.OnEvent += Input.ProcessEvent;
+        await _driver.InitAsync(new GraphicsDriverConfig { Platform = _platform });
+        await _audio.InitAsync();
 
-        // Initialize input
-        Input.Init();
-
-        // Initialize render backend
-        await _driver.InitAsync(new GraphicsDriverConfig
+        // Initialize Application with config
+        Application.Init(new ApplicationConfig
         {
+            Title = Title,
+            Width = _width,
+            Height = _height,
             Platform = _platform,
-            VSync = true
+            AudioBackend = _audio,
+            Vtable = Vtable,
+            Graphics = new GraphicsConfig
+            {
+                Driver = _driver
+            }
         });
 
         // Call user initialization
@@ -73,26 +86,14 @@
 
         // Start game loop
         _dotNetRef = DotNetObjectReference.Create(this);
-        _gameLoop = await JS.InvokeAsync<IJSObjectReference>("import", "./js/noz/noz-gameloop.js");
+        _gameLoop = await JS.InvokeAsync<IJSObjectReference>("import", "/js/noz/noz-gameloop.js");
         await _gameLoop.InvokeVoidAsync("start", _dotNetRef);
     }
 
     [JSInvokable]
     public void GameTick(float deltaTime)
     {
-        if (_platform == null) return;
-
-        // Poll events (events are pushed from JS, this just checks quit flag)
-        if (!_platform.PollEvents())
-        {
-            return;
-        }
-
-        // Update input state
-        Input.Update();
-
-        // Call user update
-        OnUpdate?.Invoke();
+        Application.RunFrame();
     }
 
     public async ValueTask DisposeAsync()
@@ -105,13 +106,6 @@
 
         _dotNetRef?.Dispose();
 
-        if (_platform != null)
-        {
-            _platform.OnEvent -= Input.ProcessEvent;
-            _platform.Shutdown();
-        }
-
-        _driver?.Shutdown();
-        Input.Shutdown();
+        Application.Shutdown();
     }
 }

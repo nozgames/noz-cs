@@ -39,7 +39,8 @@ public static class Workspace
             new Command { Name = "Move Selected", ShortName = "move", Handler = BeginMoveTool, Key = InputCode.KeyG },
             new Command { Name = "Toggle Names", ShortName = "names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
             new Command { Name = "Rebuild All", ShortName = "build", Handler = RebuildAll },
-            new Command { Name = "Frame Selected", ShortName = "origin", Handler = FrameOrigin }
+            new Command { Name = "Frame Selected", ShortName = "origin", Handler = FrameOrigin },
+            new Command { Name = "Play/Stop", ShortName = "play]", Handler = Play, Key = InputCode.KeySpace },
         ]);
 
         _workspaceContextMenuItems = [
@@ -511,6 +512,13 @@ public static class Workspace
 
         _camera.Position = center;
         UpdateCamera();
+    }
+
+    public static void Play()
+    {
+        foreach (var doc in DocumentManager.Documents)
+            if (doc.IsSelected)
+                doc.TogglePlay();
     }
 
     public static void FrameOrigin()

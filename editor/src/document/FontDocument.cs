@@ -263,4 +263,14 @@ public class FontDocument : Document
         v++;
         return v;
     }
+
+    public override void Draw()
+    {
+        using (Graphics.PushState())
+        {
+            Graphics.SetLayer(EditorLayer.Document);
+            Graphics.SetColor(Color.White);
+            Graphics.Draw(EditorAssets.Sprites.AssetIconFont);
+        }
+    }
 }

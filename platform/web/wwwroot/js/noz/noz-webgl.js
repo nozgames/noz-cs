@@ -66,19 +66,23 @@ export function shutdown() {
 }
 
 export function beginFrame() {
+    console.log('WebGL beginFrame');
     gl.bindVertexArray(meshVao);
 }
 
 export function endFrame() {
+    console.log('WebGL endFrame');
     gl.flush();
 }
 
 export function clear(r, g, b, a) {
+    console.log(`WebGL clear: ${r}, ${g}, ${b}, ${a}`);
     gl.clearColor(r, g, b, a);
     gl.clear(gl.COLOR_BUFFER_BIT);
 }
 
 export function setViewport(x, y, width, height) {
+    console.log(`WebGL setViewport: ${x}, ${y}, ${width}, ${height}`);
     gl.viewport(x, y, width, height);
 }
 
@@ -168,8 +172,12 @@ export function destroyMesh(id) {
 }
 
 export function bindMesh(id) {
+    console.log(`bindMesh(${id})`);
     const mesh = meshes.get(id);
-    if (!mesh) return;
+    if (!mesh) {
+        console.log(`  ERROR: mesh ${id} not found`);
+        return;
+    }
 
     gl.bindVertexArray(mesh.vao);
 }
@@ -414,8 +422,12 @@ export function destroyTexture(id) {
 }
 
 export function bindTexture(slot, id) {
+    console.log(`bindTexture(slot=${slot}, id=${id})`);
     const tex = textures.get(id);
-    if (!tex) return;
+    if (!tex) {
+        console.log(`  ERROR: texture ${id} not found`);
+        return;
+    }
 
     gl.activeTexture(gl.TEXTURE0 + slot);
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -486,8 +498,12 @@ export function destroyShader(id) {
 }
 
 export function bindShader(id) {
+    console.log(`bindShader(${id})`);
     const shader = shaders.get(id);
-    if (!shader) return;
+    if (!shader) {
+        console.log(`  ERROR: shader ${id} not found`);
+        return;
+    }
 
     if (boundShader === shader.program) return;
     boundShader = shader.program;
@@ -601,6 +617,7 @@ export function setBlendMode(mode) {
 // === Drawing ===
 
 export function drawElements(firstIndex, indexCount, baseVertex = 0) {
+    console.log(`WebGL drawElements: firstIndex=${firstIndex}, indexCount=${indexCount}, baseVertex=${baseVertex}`);
     // Note: WebGL2 doesn't have native drawElementsBaseVertex - indices are adjusted on CPU if needed
     void baseVertex; // unused, indices adjusted on CPU
     gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, firstIndex * 2);

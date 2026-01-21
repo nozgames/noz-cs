@@ -54,6 +54,8 @@ public class Asset : IDisposable {
         if (useRegistry && asset != null)
             _registry[(type, name)] = asset;
 
+        Log.Info($"Loaded asset: {type}/{name}");
+
         return asset;
     }
 
@@ -81,24 +83,29 @@ public class Asset : IDisposable {
 
     private static Stream? LoadEmbeddedResource(string resourceSuffix)
     {
-        var assemblies = new[] {
-            Assembly.GetEntryAssembly(),
-            Assembly.GetExecutingAssembly()
-        };
+        // Check all loaded assemblies for embedded resources
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
         foreach (var assembly in assemblies)
         {
-            if (assembly == null) continue;
+            if (assembly == null || assembly.IsDynamic) continue;
 
-            var names = assembly.GetManifestResourceNames();
-            foreach (var name in names)
+            try
             {
-                if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
+                var names = assembly.GetManifestResourceNames();
+                foreach (var name in names)
                 {
-                    var stream = assembly.GetManifestResourceStream(name);
-                    if (stream != null)
-                        return stream;
+                    if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var stream = assembly.GetManifestResourceStream(name);
+                        if (stream != null)
+                            return stream;
+                    }
                 }
+            }
+            catch
+            {
+                // Skip assemblies that don't support GetManifestResourceNames
             }
         }
 

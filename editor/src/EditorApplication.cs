@@ -23,6 +23,7 @@ internal class EditorVtable : IApplicationVtable
 public static class EditorApplication
 {
     public static EditorConfig Config { get; private set; } = null!;
+    public static string OutputPath { get; private set; } = null!;
 
     public static void Init(string? projectPath, bool clean)
     {
@@ -44,6 +45,8 @@ public static class EditorApplication
             Log.Warning("editor.cfg not found");
             return;
         }
+
+        OutputPath = System.IO.Path.Combine(EditorApplication.Config.ProjectPath, EditorApplication.Config.OutputPath);
 
         ShaderCompiler.Initialize();
         DocumentManager.Init(Config.SourcePaths, Config.OutputPath);

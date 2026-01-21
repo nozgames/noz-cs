@@ -13,6 +13,8 @@ public abstract class Document : IDisposable
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
     public int SourcePathIndex { get; set; } = -1;
+    public virtual bool IsPlaying { get; } = false;
+    public virtual bool CanPlay => false;
 
     public Vector2 Position { get; set; }
     public Vector2 SavedPosition { get; set; }
@@ -39,6 +41,18 @@ public abstract class Document : IDisposable
     public virtual void Draw() { }
     public virtual void Clone(Document source) { }
     public virtual void OnUndoRedo() { }
+
+    public virtual void Play() { }
+    public virtual void Stop() { }
+
+    public void TogglePlay()
+    {
+        if (!CanPlay) return;
+        if (IsPlaying)
+            Stop();
+        else
+            Play();
+    }
 
     public void SaveMetadata()
     {

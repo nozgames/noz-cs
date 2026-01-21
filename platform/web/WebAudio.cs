@@ -3,11 +3,11 @@
 //
 
 using Microsoft.JSInterop;
-using noz.Platform;
+using NoZ.Platform;
 
 namespace noz;
 
-public class WebAudio : IAudio
+public class WebAudio : IAudioDriver
 {
     private readonly IJSRuntime _js;
     private IJSObjectReference? _module;
@@ -59,7 +59,7 @@ public class WebAudio : IAudio
 
     public async Task InitAsync()
     {
-        _module = await _js.InvokeAsync<IJSObjectReference>("import", "./js/noz/noz-audio.js");
+        _module = await _js.InvokeAsync<IJSObjectReference>("import", "/js/noz/noz-audio.js");
         await _module.InvokeVoidAsync("init");
     }
 

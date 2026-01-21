@@ -91,7 +91,9 @@ public unsafe partial class DirectX12GraphicsDriver : IGraphicsDriver
     private const nuint UploadHeapSize = 64 * 1024 * 1024; // 64MB
 
     // Fullscreen quad for composite pass
+#pragma warning disable CS0649
     private nuint _fullscreenMesh;
+#pragma warning restore CS0649
 
     // Resource info structs
     private struct BufferInfo

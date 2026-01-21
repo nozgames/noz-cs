@@ -42,7 +42,7 @@ public class TextureDocument : Document
             AssetType.Texture,
             Name,
             useRegistry: false,
-            libraryPath: System.IO.Path.Combine(EditorApplication.Config.ProjectPath, EditorApplication.Config.OutputPath)) as Texture;
+            libraryPath: EditorApplication.OutputPath) as Texture;
         UpdateBounds();
     }
 

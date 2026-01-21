@@ -86,29 +86,37 @@ public static class Application
 
     public static void Run()
     {
-        while (_running)
+        while (RunFrame())
         {
-            Time.Update();
-            Input.BeginFrame();
-
-            if (!Platform.PollEvents())
-            {
-                _running = false;
-                continue;
-            }
-
-            Input.Update();
-
-            Graphics.BeginFrame();
-            _vtable.Update();
-            Graphics.BeginUI();
-            UI.Begin();
-            _vtable.UpdateUI();
-            UI.End();
-            Graphics.EndFrame();
-
             Platform.SwapBuffers();
         }
+    }
+
+    public static bool RunFrame()
+    {
+        if (!_running)
+            return false;
+
+        Time.Update();
+        Input.BeginFrame();
+
+        if (!Platform.PollEvents())
+        {
+            _running = false;
+            return false;
+        }
+
+        Input.Update();
+
+        Graphics.BeginFrame();
+        _vtable.Update();
+        Graphics.BeginUI();
+        UI.Begin();
+        _vtable.UpdateUI();
+        UI.End();
+        Graphics.EndFrame();
+
+        return _running;
     }
 
     public static void Shutdown()

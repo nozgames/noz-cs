@@ -31,7 +31,7 @@ public class Sound : Asset
         };
 
         var pcmData = reader.ReadBytes(sound.DataSize);
-        sound.PlatformHandle = Audio.Backend.CreateSound(pcmData, sound.SampleRate, sound.Channels, sound.BitsPerSample);
+        sound.PlatformHandle = Audio.Driver.CreateSound(pcmData, sound.SampleRate, sound.Channels, sound.BitsPerSample);
 
         return sound;
     }
@@ -40,7 +40,7 @@ public class Sound : Asset
     {
         if (PlatformHandle != 0)
         {
-            Audio.Backend.DestroySound(PlatformHandle);
+            Audio.Driver.DestroySound(PlatformHandle);
             PlatformHandle = 0;
         }
         base.Dispose();

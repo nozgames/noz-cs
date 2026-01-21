@@ -42,7 +42,7 @@ public class WebPlatform : IPlatform
         _windowSize = new Vector2(config.Width, config.Height);
         _dotNetRef = DotNetObjectReference.Create(this);
 
-        _module = await _js.InvokeAsync<IJSObjectReference>("import", "./js/noz/noz-platform.js");
+        _module = await _js.InvokeAsync<IJSObjectReference>("import", "/js/noz/noz-platform.js");
         await _module.InvokeVoidAsync("init", _dotNetRef, config.Width, config.Height);
     }
 
