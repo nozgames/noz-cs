@@ -67,6 +67,9 @@ public class ShaderDocument : Document
 
         // Write HLSL version for DX12
         WriteHlsl(outputPath + ".dx12", vertexSource, fragmentSource, flags);
+
+        // Write WGSL version for WebGPU
+        WriteWgsl(outputPath + ".wgsl", flags);
     }
 
     private ShaderFlags GetShaderFlags()
@@ -277,6 +280,34 @@ public class ShaderDocument : Document
         writer.Write(vertexBytes);
         writer.Write((uint)fragmentBytes.Length);
         writer.Write(fragmentBytes);
+        writer.Write((byte)flags);
+    }
+
+    private void WriteWgsl(string path, ShaderFlags flags)
+    {
+        // Look for .wgsl file alongside the .glsl file
+        var wgslSourcePath = System.IO.Path.ChangeExtension(Path, ".wgsl");
+
+        if (!File.Exists(wgslSourcePath))
+        {
+            Log.Warning($"WGSL shader not found at {wgslSourcePath}, skipping WebGPU output");
+            return;
+        }
+
+        // Read the WGSL source (already in correct format)
+        var wgslSource = File.ReadAllText(wgslSourcePath);
+
+        using var writer = new BinaryWriter(File.Create(path));
+        writer.WriteAssetHeader(AssetType.Shader, Shader.Version);
+
+        // For WGSL, we write the entire source as both vertex and fragment
+        // The shader itself defines the entry points (@vertex and @fragment)
+        var sourceBytes = Encoding.UTF8.GetBytes(wgslSource);
+
+        writer.Write((uint)sourceBytes.Length);
+        writer.Write(sourceBytes);
+        writer.Write((uint)sourceBytes.Length); // Same source for both stages
+        writer.Write(sourceBytes);
         writer.Write((byte)flags);
     }
 

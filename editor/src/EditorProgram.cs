@@ -6,6 +6,7 @@ using System.Reflection;
 using NoZ;
 using NoZ.Platform;
 using NoZ.Editor;
+using NoZ.Platform.WebGPU;
 
 // Find the editor root by walking up from the executable location
 var initialDir = Directory.GetCurrentDirectory();
@@ -64,7 +65,8 @@ Application.Init(new ApplicationConfig
     Graphics = new GraphicsConfig
     {
         //Driver = new DirectX12GraphicsDriver(),
-        Driver = new OpenGLGraphicsDriver(),
+        //Driver = new OpenGLGraphicsDriver(),
+        Driver = new WebGPUGraphicsDriver(),
         CompositeShader = "composite",
         PixelsPerUnit = EditorApplication.Config.PixelsPerUnit
     }
