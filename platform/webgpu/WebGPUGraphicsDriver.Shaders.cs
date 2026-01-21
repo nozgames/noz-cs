@@ -19,20 +19,25 @@ public unsafe partial class WebGPUGraphicsDriver
         // Create fragment shader module
         var fragmentModule = CreateShaderModule(fragmentSource, $"{name}_fragment");
 
-        // Create bind group layout
-        var bindGroupLayout = CreateBindGroupLayout();
+        // Detect shader type from both vertex and fragment source to create appropriate bind group layout
+        int bindingCount;
+        var bindGroupLayout = CreateBindGroupLayoutForShader(vertexSource + fragmentSource, out bindingCount);
 
         // Create pipeline layout
         var pipelineLayout = CreatePipelineLayout(bindGroupLayout);
 
         var handle = (nuint)_nextShaderId++;
+
+        Log.Debug($"CreateShader: name={name}, bindingCount={bindingCount}");
+
         _shaders[(int)handle] = new ShaderInfo
         {
             VertexModule = vertexModule,
             FragmentModule = fragmentModule,
             BindGroupLayout0 = bindGroupLayout,
             PipelineLayout = pipelineLayout,
-            PsoCache = new Dictionary<PsoKey, nint>()
+            PsoCache = new Dictionary<PsoKey, nint>(),
+            BindGroupEntryCount = bindingCount
         };
 
         return handle;
@@ -61,17 +66,38 @@ public unsafe partial class WebGPUGraphicsDriver
         }
     }
 
-    private BindGroupLayout* CreateBindGroupLayout()
+    private enum BindingType
     {
-        // Bind group layout for sprite shader:
-        // @binding(0) - Globals uniform buffer
-        // @binding(1) - Bone texture
-        // @binding(2) - Bone sampler
-        // @binding(3) - Texture array
-        // @binding(4) - Texture sampler
-        var entries = stackalloc BindGroupLayoutEntry[5];
+        UniformBuffer,
+        Texture2D,
+        Texture2DArray,
+        Sampler
+    }
 
-        // Binding 0: Globals uniform buffer
+    private BindGroupLayout* CreateBindGroupLayoutForShader(string shaderSource, out int bindingCount)
+    {
+        // Detect what bindings the shader actually uses
+        bool hasBinding1 = shaderSource.Contains("@binding(1)");
+        bool hasBinding2 = shaderSource.Contains("@binding(2)");
+        bool hasBinding3 = shaderSource.Contains("@binding(3)");
+        bool hasBinding4 = shaderSource.Contains("@binding(4)");
+
+        // Count how many bindings we need
+        bindingCount = 1; // Always have binding 0 (globals)
+        if (hasBinding1) bindingCount = 2;
+        if (hasBinding2) bindingCount = 3;
+        if (hasBinding3) bindingCount = 4;
+        if (hasBinding4) bindingCount = 5;
+
+        // Detect binding types by parsing WGSL declarations
+        var binding1Type = DetectBindingType(shaderSource, 1);
+        var binding2Type = DetectBindingType(shaderSource, 2);
+        var binding3Type = DetectBindingType(shaderSource, 3);
+        var binding4Type = DetectBindingType(shaderSource, 4);
+
+        var entries = stackalloc BindGroupLayoutEntry[bindingCount];
+
+        // Binding 0: Globals uniform buffer (required by all shaders)
         entries[0] = new BindGroupLayoutEntry
         {
             Binding = 0,
@@ -83,59 +109,118 @@ public unsafe partial class WebGPUGraphicsDriver
             },
         };
 
-        // Binding 1: Bone texture
-        entries[1] = new BindGroupLayoutEntry
+        // Binding 1
+        if (bindingCount >= 2)
         {
-            Binding = 1,
-            Visibility = ShaderStage.Vertex,
-            Texture = new TextureBindingLayout
-            {
-                SampleType = TextureSampleType.Float,
-                ViewDimension = TextureViewDimension.Dimension2D,
-            },
-        };
+            entries[1] = CreateBindGroupLayoutEntry(1, binding1Type);
+        }
 
-        // Binding 2: Bone sampler
-        entries[2] = new BindGroupLayoutEntry
+        // Binding 2
+        if (bindingCount >= 3)
         {
-            Binding = 2,
-            Visibility = ShaderStage.Vertex,
-            Sampler = new SamplerBindingLayout
-            {
-                Type = SamplerBindingType.Filtering,
-            },
-        };
+            entries[2] = CreateBindGroupLayoutEntry(2, binding2Type);
+        }
 
-        // Binding 3: Texture array
-        entries[3] = new BindGroupLayoutEntry
+        // Binding 3
+        if (bindingCount >= 4)
         {
-            Binding = 3,
-            Visibility = ShaderStage.Fragment,
-            Texture = new TextureBindingLayout
-            {
-                SampleType = TextureSampleType.Float,
-                ViewDimension = TextureViewDimension.Dimension2DArray,
-            },
-        };
+            entries[3] = CreateBindGroupLayoutEntry(3, binding3Type);
+        }
 
-        // Binding 4: Texture sampler
-        entries[4] = new BindGroupLayoutEntry
+        // Binding 4
+        if (bindingCount >= 5)
         {
-            Binding = 4,
-            Visibility = ShaderStage.Fragment,
-            Sampler = new SamplerBindingLayout
-            {
-                Type = SamplerBindingType.Filtering,
-            },
-        };
+            entries[4] = CreateBindGroupLayoutEntry(4, binding4Type);
+        }
+
+        Log.Debug($"CreateBindGroupLayout: bindingCount={bindingCount}, b1={binding1Type}, b2={binding2Type}, b3={binding3Type}, b4={binding4Type}");
 
         var bindGroupLayoutDesc = new BindGroupLayoutDescriptor
         {
-            EntryCount = 5,
+            EntryCount = (uint)bindingCount,
             Entries = entries,
         };
 
         return _wgpu.DeviceCreateBindGroupLayout(_device, &bindGroupLayoutDesc);
+    }
+
+    private BindGroupLayoutEntry CreateBindGroupLayoutEntry(uint binding, BindingType type)
+    {
+        return type switch
+        {
+            BindingType.UniformBuffer => new BindGroupLayoutEntry
+            {
+                Binding = binding,
+                Visibility = ShaderStage.Vertex | ShaderStage.Fragment,
+                Buffer = new BufferBindingLayout
+                {
+                    Type = BufferBindingType.Uniform,
+                    MinBindingSize = 0,
+                },
+            },
+            BindingType.Texture2D => new BindGroupLayoutEntry
+            {
+                Binding = binding,
+                Visibility = ShaderStage.Vertex | ShaderStage.Fragment,
+                Texture = new TextureBindingLayout
+                {
+                    SampleType = TextureSampleType.Float,
+                    ViewDimension = TextureViewDimension.Dimension2D,
+                },
+            },
+            BindingType.Texture2DArray => new BindGroupLayoutEntry
+            {
+                Binding = binding,
+                Visibility = ShaderStage.Fragment,
+                Texture = new TextureBindingLayout
+                {
+                    SampleType = TextureSampleType.Float,
+                    ViewDimension = TextureViewDimension.Dimension2DArray,
+                },
+            },
+            BindingType.Sampler => new BindGroupLayoutEntry
+            {
+                Binding = binding,
+                Visibility = ShaderStage.Vertex | ShaderStage.Fragment,
+                Sampler = new SamplerBindingLayout
+                {
+                    Type = SamplerBindingType.Filtering,
+                },
+            },
+            _ => throw new NotSupportedException($"Binding type {type} not supported"),
+        };
+    }
+
+    private BindingType DetectBindingType(string shaderSource, int bindingNumber)
+    {
+        var bindingMarker = $"@binding({bindingNumber})";
+        var bindingIndex = shaderSource.IndexOf(bindingMarker);
+
+        if (bindingIndex == -1)
+            return BindingType.UniformBuffer; // Default fallback
+
+        // Find the line containing this binding (search forward until semicolon or newline)
+        var searchStart = bindingIndex;
+        var searchEnd = shaderSource.IndexOf(';', searchStart);
+        if (searchEnd == -1)
+            searchEnd = shaderSource.IndexOf('\n', searchStart);
+        if (searchEnd == -1)
+            searchEnd = shaderSource.Length;
+
+        var bindingDeclaration = shaderSource.Substring(searchStart, searchEnd - searchStart);
+
+        // Detect binding type from declaration
+        if (bindingDeclaration.Contains("texture_2d_array"))
+            return BindingType.Texture2DArray;
+        if (bindingDeclaration.Contains("texture_2d"))
+            return BindingType.Texture2D;
+        if (bindingDeclaration.Contains("sampler"))
+            return BindingType.Sampler;
+        if (bindingDeclaration.Contains("var<uniform>"))
+            return BindingType.UniformBuffer;
+
+        // Default fallback
+        return BindingType.UniformBuffer;
     }
 
     private PipelineLayout* CreatePipelineLayout(BindGroupLayout* bindGroupLayout)
@@ -229,14 +314,6 @@ public unsafe partial class WebGPUGraphicsDriver
             AlphaToCoverageEnabled = false,
         };
 
-        // Depth/stencil state (disabled for sprite rendering)
-        var depthStencilState = new DepthStencilState
-        {
-            Format = Silk.NET.WebGPU.TextureFormat.Depth24PlusStencil8,
-            DepthWriteEnabled = false,
-            DepthCompare = CompareFunction.Always,
-        };
-
         // Create render pipeline
         var pipelineDesc = new RenderPipelineDescriptor
         {
@@ -245,7 +322,7 @@ public unsafe partial class WebGPUGraphicsDriver
             Fragment = &fragmentState,
             Primitive = primitiveState,
             Multisample = multisampleState,
-            DepthStencil = &depthStencilState,
+            DepthStencil = null, // No depth buffer for now
         };
 
         return _wgpu.DeviceCreateRenderPipeline(_device, &pipelineDesc);

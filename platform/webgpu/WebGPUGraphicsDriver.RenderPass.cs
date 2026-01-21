@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Text;
 using Silk.NET.WebGPU;
 using WGPUTexture = Silk.NET.WebGPU.Texture;
 using WGPUTextureFormat = Silk.NET.WebGPU.TextureFormat;
@@ -17,23 +18,10 @@ public unsafe partial class WebGPUGraphicsDriver
 
         _offscreenWidth = width;
         _offscreenHeight = height;
-        _msaaSamples = msaaSamples;
+        _msaaSamples = 1; // Force disable MSAA for now
 
-        // Create MSAA color texture (for rendering)
-        var msaaDesc = new TextureDescriptor
-        {
-            Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
-            MipLevelCount = 1,
-            SampleCount = (uint)msaaSamples,
-            Dimension = TextureDimension.Dimension2D,
-            Format = _surfaceFormat,
-            Usage = TextureUsage.RenderAttachment,
-        };
-        _offscreenMsaaTexture = _wgpu.DeviceCreateTexture(_device, &msaaDesc);
-        _offscreenMsaaTextureView = _wgpu.TextureCreateView(_offscreenMsaaTexture, null);
-
-        // Create resolve texture (for sampling in composite)
-        var resolveDesc = new TextureDescriptor
+        // Create single color texture (no MSAA, no depth for simplicity)
+        var colorDesc = new TextureDescriptor
         {
             Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
             MipLevelCount = 1,
@@ -42,21 +30,27 @@ public unsafe partial class WebGPUGraphicsDriver
             Format = _surfaceFormat,
             Usage = TextureUsage.RenderAttachment | TextureUsage.TextureBinding,
         };
-        _offscreenResolveTexture = _wgpu.DeviceCreateTexture(_device, &resolveDesc);
-        _offscreenResolveTextureView = _wgpu.TextureCreateView(_offscreenResolveTexture, null);
+        _offscreenMsaaTexture = _wgpu.DeviceCreateTexture(_device, &colorDesc);
 
-        // Create depth/stencil texture
-        var depthDesc = new TextureDescriptor
-        {
-            Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
-            MipLevelCount = 1,
-            SampleCount = (uint)msaaSamples,
-            Dimension = TextureDimension.Dimension2D,
-            Format = WGPUTextureFormat.Depth24PlusStencil8,
-            Usage = TextureUsage.RenderAttachment,
-        };
-        _offscreenDepthTexture = _wgpu.DeviceCreateTexture(_device, &depthDesc);
-        _offscreenDepthTextureView = _wgpu.TextureCreateView(_offscreenDepthTexture, null);
+        if (_offscreenMsaaTexture == null)
+            throw new Exception("Failed to create offscreen color texture");
+
+        _offscreenMsaaTextureView = _wgpu.TextureCreateView(_offscreenMsaaTexture, null);
+
+        if (_offscreenMsaaTextureView == null)
+            throw new Exception("Failed to create offscreen color texture view");
+
+        Log.Info($"Created offscreen texture: {width}x{height}, format: {_surfaceFormat}");
+        Log.Info($"  Texture: {(nint)_offscreenMsaaTexture:X}");
+        Log.Info($"  View: {(nint)_offscreenMsaaTextureView:X}");
+
+        // Use same texture as resolve target for composite
+        _offscreenResolveTexture = _offscreenMsaaTexture;
+        _offscreenResolveTextureView = _offscreenMsaaTextureView;
+
+        // No depth buffer for now
+        _offscreenDepthTexture = null;
+        _offscreenDepthTextureView = null;
     }
 
     public void BeginScenePass(Color clearColor)
@@ -64,10 +58,28 @@ public unsafe partial class WebGPUGraphicsDriver
         if (_currentRenderPass != null)
             throw new InvalidOperationException("BeginScenePass called while already in a render pass");
 
+        // Validate state
+        if (_commandEncoder == null)
+            throw new InvalidOperationException("Command encoder is null - BeginFrame not called?");
+
+        // TEST: Render directly to surface instead of offscreen target
+        SurfaceTexture surfaceTexture;
+        _wgpu.SurfaceGetCurrentTexture(_surface, &surfaceTexture);
+
+        if (surfaceTexture.Status != SurfaceGetCurrentTextureStatus.Success)
+            throw new Exception($"Failed to get current surface texture: {surfaceTexture.Status}");
+
+        var surfaceView = _wgpu.TextureCreateView(surfaceTexture.Texture, null);
+
+        if (surfaceView == null)
+            throw new Exception("Failed to create surface texture view");
+
+        Log.Info($"Got surface texture view: {(nint)surfaceView:X}");
+
         var colorAttachment = new RenderPassColorAttachment
         {
-            View = _offscreenMsaaTextureView,
-            ResolveTarget = _offscreenResolveTextureView, // MSAA resolve
+            View = surfaceView,
+            ResolveTarget = null,
             LoadOp = LoadOp.Clear,
             StoreOp = StoreOp.Store,
             ClearValue = new Silk.NET.WebGPU.Color
@@ -79,43 +91,59 @@ public unsafe partial class WebGPUGraphicsDriver
             }
         };
 
-        var depthAttachment = new RenderPassDepthStencilAttachment
-        {
-            View = _offscreenDepthTextureView,
-            DepthLoadOp = LoadOp.Clear,
-            DepthStoreOp = StoreOp.Store,
-            DepthClearValue = 1.0f,
-            StencilLoadOp = LoadOp.Clear,
-            StencilStoreOp = StoreOp.Store,
-            StencilClearValue = 0,
-        };
-
+        // No depth attachment for now
         var desc = new RenderPassDescriptor
         {
-            ColorAttachmentCount = 1,
             ColorAttachments = &colorAttachment,
-            DepthStencilAttachment = &depthAttachment,
+            ColorAttachmentCount = 1,
+            DepthStencilAttachment = null
         };
 
-        _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, &desc);
+        Log.Info("About to call CommandEncoderBeginRenderPass...");
+        _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, in desc);
+        Log.Info($"RenderPass created: {(nint)_currentRenderPass:X}");
+
         _inRenderPass = true;
 
         // Set default viewport and scissor
-        _wgpu.RenderPassEncoderSetViewport(_currentRenderPass, 0, 0, _offscreenWidth, _offscreenHeight, 0, 1);
-        _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)_offscreenWidth, (uint)_offscreenHeight);
+        Log.Info($"Setting viewport: {_surfaceWidth}x{_surfaceHeight}");
+        _wgpu.RenderPassEncoderSetViewport(_currentRenderPass, 0, 0, _surfaceWidth, _surfaceHeight, 0, 1);
+
+        Log.Info("Setting scissor rect");
+        _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)_surfaceWidth, (uint)_surfaceHeight);
+
+        Log.Info("BeginScenePass completed successfully!");
+
+        // DON'T release the view yet - it's still being used by the render pass
+        // We'll release it in EndScenePass
+        // Store it so we can release it later
+        _currentSurfaceView = surfaceView;
     }
 
     public void EndScenePass()
     {
+        Log.Info("EndScenePass called");
+
         if (_currentRenderPass == null)
             throw new InvalidOperationException("EndScenePass called without matching BeginScenePass");
 
+        Log.Info("Ending render pass...");
         _wgpu.RenderPassEncoderEnd(_currentRenderPass);
+
+        Log.Info("Releasing render pass encoder...");
         _wgpu.RenderPassEncoderRelease(_currentRenderPass);
         _currentRenderPass = null;
         _inRenderPass = false;
 
-        // MSAA resolve happens automatically via ResolveTarget
+        // Release the surface view
+        if (_currentSurfaceView != null)
+        {
+            Log.Info("Releasing surface view...");
+            _wgpu.TextureViewRelease(_currentSurfaceView);
+            _currentSurfaceView = null;
+        }
+
+        Log.Info("EndScenePass completed successfully!");
     }
 
     public void Composite(nuint compositeShader)

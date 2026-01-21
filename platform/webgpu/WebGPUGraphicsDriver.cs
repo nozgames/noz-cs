@@ -29,6 +29,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     // Command recording
     private CommandEncoder* _commandEncoder;
     private RenderPassEncoder* _currentRenderPass;
+    private TextureView* _currentSurfaceView;
     private bool _inRenderPass;
 
     // Resource tracking
@@ -119,6 +120,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public BindGroupLayout* BindGroupLayout0;
         public PipelineLayout* PipelineLayout;
         public Dictionary<PsoKey, nint> PsoCache; // Dictionary stores nint pointers, converted to/from RenderPipeline*
+        public int BindGroupEntryCount; // Number of bindings this shader expects
     }
 
     private struct PsoKey : IEquatable<PsoKey>
@@ -165,6 +167,11 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
         // Get queue
         _queue = _wgpu.DeviceGetQueue(_device);
+
+        if (_queue == null)
+            throw new Exception("Failed to get device queue");
+
+        Log.Debug($"WebGPU queue obtained: {(nint)_queue:X}");
 
         // Create swap chain
         CreateSwapChain();
@@ -228,14 +235,18 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
         _device = (Device*)tcs.Task.Result;
 
-        // Set error callback
+        if (_device == null)
+            throw new Exception("Device is null after successful request - this should not happen");
+
+        // Set error callback to catch validation errors
         PfnErrorCallback errorCallback = new((type, message, userdata) =>
         {
             var msg = Marshal.PtrToStringAnsi((nint)message) ?? "Unknown error";
-            Console.WriteLine($"WebGPU Error ({type}): {msg}");
+            Log.Debug($"[WebGPU Error] Type={type}: {msg}");
         });
-
         _wgpu.DeviceSetUncapturedErrorCallback(_device, errorCallback, null);
+
+        Log.Debug($"WebGPU device created successfully: {(nint)_device:X}");
     }
 
     private Surface* CreateSurface()
@@ -388,6 +399,10 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     private void DestroyOffscreenTarget()
     {
+        // Check if resolve and msaa are the same (happens when msaa=1)
+        var sameTexture = _offscreenResolveTexture == _offscreenMsaaTexture;
+        var sameView = _offscreenResolveTextureView == _offscreenMsaaTextureView;
+
         if (_offscreenMsaaTextureView != null)
         {
             _wgpu.TextureViewRelease(_offscreenMsaaTextureView);
@@ -400,17 +415,18 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             _offscreenMsaaTexture = null;
         }
 
-        if (_offscreenResolveTextureView != null)
+        // Only release resolve if it's different from msaa
+        if (_offscreenResolveTextureView != null && !sameView)
         {
             _wgpu.TextureViewRelease(_offscreenResolveTextureView);
-            _offscreenResolveTextureView = null;
         }
+        _offscreenResolveTextureView = null;
 
-        if (_offscreenResolveTexture != null)
+        if (_offscreenResolveTexture != null && !sameTexture)
         {
             _wgpu.TextureRelease(_offscreenResolveTexture);
-            _offscreenResolveTexture = null;
         }
+        _offscreenResolveTexture = null;
 
         if (_offscreenDepthTextureView != null)
         {
@@ -427,15 +443,23 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void BeginFrame()
     {
+        // Validate device
+        if (_device == null)
+            throw new InvalidOperationException("WebGPU device is null - initialization failed or device lost");
+
         // Create command encoder for this frame
-        var encoderDesc = new CommandEncoderDescriptor
-        {
-            Label = (byte*)Marshal.StringToHGlobalAnsi("Frame Command Encoder"),
-        };
-        _commandEncoder = _wgpu.DeviceCreateCommandEncoder(_device, &encoderDesc);
+        var encoderDesc = new CommandEncoderDescriptor();
+        _commandEncoder = _wgpu.DeviceCreateCommandEncoder(_device, ref encoderDesc);
+
+        if (_commandEncoder == null)
+            throw new Exception("Failed to create command encoder - device may be lost");
+
+        Log.Debug($"Command encoder created: {(nint)_commandEncoder:X}");
 
         // Reset state
         _state = default;
+        // Note: BoundBoneTexture defaults to 0 - engine will bind bone texture when needed
+
         if (_currentBindGroup != null)
         {
             _wgpu.BindGroupRelease(_currentBindGroup);
@@ -445,20 +469,30 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void EndFrame()
     {
+        Log.Info("EndFrame called");
+
         // Finish command encoder
+        Log.Info("Finishing command encoder...");
         var commandBufferDesc = new CommandBufferDescriptor();
         var commandBuffer = _wgpu.CommandEncoderFinish(_commandEncoder, &commandBufferDesc);
 
+        Log.Info($"Command buffer created: {(nint)commandBuffer:X}");
+
         // Submit to queue
+        Log.Info("Submitting to queue...");
         _wgpu.QueueSubmit(_queue, 1, &commandBuffer);
 
         // Present surface
+        Log.Info("Presenting surface...");
         _wgpu.SurfacePresent(_surface);
 
         // Cleanup
+        Log.Info("Cleaning up command buffer and encoder...");
         _wgpu.CommandBufferRelease(commandBuffer);
         _wgpu.CommandEncoderRelease(_commandEncoder);
         _commandEncoder = null;
+
+        Log.Info("EndFrame completed successfully!");
     }
 
     public void Clear(Color color)

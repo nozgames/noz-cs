@@ -9,10 +9,9 @@ struct Globals {
 }
 
 @group(0) @binding(0) var<uniform> globals: Globals;
-@group(0) @binding(1) var bone_texture: texture_2d<f32>;
-@group(0) @binding(2) var bone_sampler: sampler;
-@group(0) @binding(3) var texture_array: texture_2d_array<f32>;
-@group(0) @binding(4) var texture_sampler: sampler;
+@group(0) @binding(1) var texture_array: texture_2d_array<f32>;  // Slot 0: Main atlas texture
+@group(0) @binding(2) var texture_sampler: sampler;
+// TODO: Add bone texture (Slot 1) and custom texture (Slot 2) later when needed
 
 // Vertex input
 struct VertexInput {
@@ -40,18 +39,9 @@ struct VertexOutput {
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
 
-    // in_bone is flat index, each row holds 64 bones (128 texels)
-    let row = input.bone / 64;
-    let localBone = input.bone % 64;
-    let texelX = localBone * 2;
-    let row0 = textureLoad(bone_texture, vec2<i32>(texelX, row), 0);
-    let row1 = textureLoad(bone_texture, vec2<i32>(texelX + 1, row), 0);
-
-    // Apply bone transformation
-    let skinnedPos = vec2<f32>(
-        row0.x * input.position.x + row0.y * input.position.y + row0.z,
-        row1.x * input.position.x + row1.y * input.position.y + row1.z
-    );
+    // TODO: Add bone transformations later when slot 1 is bound
+    // For now, just use position directly
+    var pos = input.position;
 
     // Calculate UV with animation
     var uv = input.uv;
@@ -62,7 +52,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
         uv.x += currentFrame * input.frame_width;
     }
 
-    output.position = globals.projection * vec4<f32>(skinnedPos, 0.0, 1.0);
+    output.position = globals.projection * vec4<f32>(pos, 0.0, 1.0);
     output.uv = uv;
     output.color = input.color;
     output.atlas = input.atlas;
