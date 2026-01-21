@@ -243,6 +243,7 @@ public class SpriteDocument : Document
             {
                 ref var frame0 = ref Frames[0];
                 Graphics.SetTexture(Atlas.Texture);
+                Graphics.SetShader(EditorAssets.Shaders.Texture);
                 Graphics.SetColor(Color.White);
                 Graphics.Draw(frame0.Shape.RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit), AtlasRect);
             }

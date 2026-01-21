@@ -32,8 +32,16 @@ namespace NoZ.Editor
             DocumentManager.RegisterDef(new DocumentDef(
                 AssetType.Atlas,
                 ".atlas",
-                () => new AtlasDocument()
+                () => new AtlasDocument(),
+                newFile: NewFile
             ));
+        }
+
+        private static void NewFile(StreamWriter writer)
+        {
+            writer.WriteLine($"w {EditorApplication.Config.AtlasSize}");
+            writer.WriteLine($"h {EditorApplication.Config.AtlasSize}");
+            writer.WriteLine($"d {Graphics.PixelsPerUnit}");
         }
 
         private void Load(ref Tokenizer tk)

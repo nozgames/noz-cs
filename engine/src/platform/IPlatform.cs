@@ -60,5 +60,7 @@ public interface IPlatform
 
     nint WindowHandle { get; }
     nint GetGraphicsProcAddress(string name);
+
+    Stream? OpenAssetStream(AssetType type, string name, string extension, string? libraryPath=null);
 }
 

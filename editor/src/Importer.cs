@@ -93,7 +93,7 @@ public static class Importer
 
         if (doc == null)
         {
-            doc = DocumentManager.CreateDocument(path);
+            doc = DocumentManager.LoadDocument(path);
             if (doc == null)
                 return;
             doc.LoadMetadata();

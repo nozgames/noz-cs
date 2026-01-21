@@ -26,8 +26,6 @@ public static class EditorApplication
 
     public static void Init(string? projectPath, bool clean)
     {
-        Log.Info($"Working Directory: {Environment.CurrentDirectory}");
-
         Application.RegisterAssetTypes();
         
         AtlasDocument.RegisterDef();

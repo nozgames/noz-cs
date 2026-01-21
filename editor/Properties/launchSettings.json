@@ -3,7 +3,12 @@
     "NoZ.Editor": {
       "commandName": "Project",
       "commandLineArgs": "--project ../",
-      "workingDirectory": "D:\\git\\stickcraft\\noz\\editor"
+      "hotReloadEnabled": false
+    },
+    "NoZ.Editor (Game)": {
+      "commandName": "Project",
+      "commandLineArgs": "--project ../../",
+      "hotReloadEnabled": false
     }
   }
 }

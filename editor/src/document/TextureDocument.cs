@@ -38,7 +38,11 @@ public class TextureDocument : Document
 
     public override void PostLoad()
     {
-        Texture = Asset.Load(AssetType.Texture, Name) as Texture;
+        Texture = Asset.Load(
+            AssetType.Texture,
+            Name,
+            useRegistry: false,
+            libraryPath: System.IO.Path.Combine(EditorApplication.Config.ProjectPath, EditorApplication.Config.OutputPath)) as Texture;
         UpdateBounds();
     }
 

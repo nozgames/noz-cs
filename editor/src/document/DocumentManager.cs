@@ -25,6 +25,10 @@ public static class DocumentManager
         _sourcePaths.AddRange(sourcePaths);
         _outputPath = outputPath;
 
+        Log.Info($"Asset output path: {Path.GetFullPath(outputPath)}");
+        foreach (var path in sourcePaths)
+            Log.Info($"Asset source path: {Path.GetFullPath(path)}");
+
         Directory.CreateDirectory(outputPath);
 
         InitDocuments();
@@ -56,7 +60,7 @@ public static class DocumentManager
         return _defsByExtension.TryGetValue(ext, out var def) ? def : null;
     }
     
-    public static Document? CreateDocument(string path)
+    public static Document? LoadDocument(string path)
     {
         string ext = Path.GetExtension(path);
         var def = GetDef(ext);
@@ -68,7 +72,7 @@ public static class DocumentManager
         doc.Path = Path.GetFullPath(path).ToLowerInvariant();
         doc.Name = MakeCanonicalName(path);
         doc.Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
-
+        
         // Find which source path this belongs to
         for (int i = 0; i < _sourcePaths.Count; i++)
         {
@@ -80,6 +84,39 @@ public static class DocumentManager
         }
 
         _documents.Add(doc);
+        return doc;
+    }
+
+    public static Document? NewDocument(AssetType assetType, string name)
+    {
+        var def = GetDef(assetType);
+        if (def == null || def.NewFile == null)
+            return null;
+
+        if (_sourcePaths.Count == 0)
+            return null;
+
+        var canonicalName = MakeCanonicalName(name);
+        if (Find(assetType, canonicalName) != null)
+            return null;
+
+        var typeName = assetType.ToString().ToLowerInvariant();
+        var path = Path.Combine(_sourcePaths[0], typeName, canonicalName + def.Extension);
+        if (File.Exists(path))
+            return null;
+
+        var directory = Path.GetDirectoryName(path);
+        if (directory != null)
+            Directory.CreateDirectory(directory);
+
+        using (var writer = new StreamWriter(path))
+        {
+            def.NewFile(writer);
+        }
+
+        var doc = LoadDocument(path);
+        doc?.LoadMetadata();
+        doc?.Load();
         return doc;
     }
 
@@ -175,7 +212,7 @@ public static class DocumentManager
                 if (Find(name) != null)
                     continue;
 
-                CreateDocument(filePath)?.LoadMetadata();
+                LoadDocument(filePath)?.LoadMetadata();
             }
         }
     }

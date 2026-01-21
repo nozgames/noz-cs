@@ -324,7 +324,8 @@ public unsafe class OpenGLGraphicsDriver : IGraphicsDriver
         int height,
         ReadOnlySpan<byte> data,
         TextureFormat format,
-        TextureFilter filter)
+        TextureFilter filter,
+        string? name)
     {
         var glTexture = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, glTexture);
@@ -365,6 +366,10 @@ public unsafe class OpenGLGraphicsDriver : IGraphicsDriver
             IsArray = false,
             Format = format
         };
+
+        if (!string.IsNullOrEmpty(name))
+            SetDebugLabel(ObjectIdentifier.Texture, glTexture, name);
+
         return (nuint)handle;
     }
 

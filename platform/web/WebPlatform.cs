@@ -256,4 +256,6 @@ public class WebPlatform : IPlatform
             _ => InputCode.None
         };
     }
+
+    public Stream? OpenAssetStream(AssetType type, string name, string extension) => null;
 }

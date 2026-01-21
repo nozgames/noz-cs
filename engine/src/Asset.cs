@@ -3,6 +3,7 @@
 //
 
 using System.Diagnostics;
+using System.Reflection;
 
 namespace NoZ;
 
@@ -19,7 +20,7 @@ public class Asset : IDisposable {
         Debug.Assert(Def != null);
     }
 
-    public static Asset? Load(AssetType type, string name)
+    public static Asset? Load(AssetType type, string name, bool useRegistry=true, string? libraryPath = null)
     {
         if (_registry.TryGetValue((type, name), out var cached))
             return cached;
@@ -31,7 +32,7 @@ public class Asset : IDisposable {
             return null;
         }
 
-        var stream = LoadAssetStream(name, type);
+        var stream = LoadAssetStream(name, type, libraryPath);
         if (stream == null)
         {
             Log.Error($"Asset not found: {type}/{name}");
@@ -50,7 +51,7 @@ public class Asset : IDisposable {
             }
         }
 
-        if (asset != null)
+        if (useRegistry && asset != null)
             _registry[(type, name)] = asset;
 
         return asset;
@@ -65,15 +66,43 @@ public class Asset : IDisposable {
         return asset as T;
     }
 
-    private static Stream? LoadAssetStream(string assetName, AssetType assetType)
+    private static Stream? LoadAssetStream(string assetName, AssetType assetType, string? libraryPath = null)
     {
-        var typeName = assetType.ToString().ToLowerInvariant();
-        var fileName = assetType == AssetType.Shader
-            ? assetName + Graphics.Driver.ShaderExtension
-            : assetName;
+        var extension = assetType == AssetType.Shader ? Graphics.Driver.ShaderExtension : "";
 
-        var fullPath = Path.Combine(Application.AssetPath, typeName, fileName);
-        return File.Exists(fullPath) ? File.OpenRead(fullPath) : null;
+        var stream = Application.Platform?.OpenAssetStream(assetType, assetName, extension, libraryPath);
+        if (stream != null)
+            return stream;
+
+        var typeName = assetType.ToString().ToLowerInvariant();
+        var fileName = string.IsNullOrEmpty(extension) ? assetName : assetName + extension;
+        return LoadEmbeddedResource($"assets.library.{typeName}.{fileName}");
+    }
+
+    private static Stream? LoadEmbeddedResource(string resourceSuffix)
+    {
+        var assemblies = new[] {
+            Assembly.GetEntryAssembly(),
+            Assembly.GetExecutingAssembly()
+        };
+
+        foreach (var assembly in assemblies)
+        {
+            if (assembly == null) continue;
+
+            var names = assembly.GetManifestResourceNames();
+            foreach (var name in names)
+            {
+                if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    var stream = assembly.GetManifestResourceStream(name);
+                    if (stream != null)
+                        return stream;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static bool ValidateAssetHeader(Stream stream, AssetType expectedType)

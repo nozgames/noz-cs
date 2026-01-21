@@ -15,6 +15,7 @@ public static class AtlasManager
     {
         UpdateAssets();
         Update();
+        DocumentManager.SaveAll();
     }
 
     public static void Shutdown()
@@ -22,6 +23,8 @@ public static class AtlasManager
         _atlases.Clear();
         _sprites.Clear();
     }
+
+    private static string GetAtlasName(int index) => $"{EditorApplication.Config.AtlasPrefix}{index:000}.atlas";
 
     private static void UpdateAssets()
     {
@@ -38,6 +41,14 @@ public static class AtlasManager
             }
             else if (doc is SpriteDocument sprite)
                 _sprites.Add(sprite);
+        }
+
+        if (_atlases.Count == 0)
+        {
+            var atlas = DocumentManager.NewDocument(AssetType.Atlas, GetAtlasName(0)) as AtlasDocument;
+            Debug.Assert(atlas != null);
+            atlas.Index = 0;
+            _atlases.Add(atlas);
         }
     }
 

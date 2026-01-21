@@ -50,7 +50,7 @@ public interface IGraphicsDriver
     void UpdateUniformBuffer(nuint buffer, int offsetBytes, ReadOnlySpan<byte> data);
     void BindUniformBuffer(nuint buffer, int slot);
 
-    nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data, TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear);
+    nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data, TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear, string? name=null);
     void UpdateTexture(nuint handle, int width, int height, ReadOnlySpan<byte> data);
     void DestroyTexture(nuint handle);
     void BindTexture(nuint handle, int slot);

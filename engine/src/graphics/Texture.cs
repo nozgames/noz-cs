@@ -76,7 +76,7 @@ public class Texture : Asset
     {
         if (Handle != nuint.Zero)
             Graphics.Driver.DestroyTexture(Handle);
-        Handle = Graphics.Driver.CreateTexture(Width, Height, Data, Format, Filter);
+        Handle = Graphics.Driver.CreateTexture(Width, Height, Data, Format, Filter, name: Name);
     }
 
     public static Texture? CreateArray(string name, params Atlas?[] atlases)

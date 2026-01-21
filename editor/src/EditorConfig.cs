@@ -24,12 +24,14 @@ public class EditorConfig
     public string[] SourcePaths { get; }
     public IEnumerable<string> Names => _props.GetKeys("names");
 
+    public string ProjectPath => _basePath;
+
     public EditorConfig(PropertySet props, string basePath)
     {
         _props = props;
         _basePath = basePath;
 
-        OutputPath = ResolvePath(props.GetString("editor", "output_path", "./build"));
+        OutputPath = ResolvePath(props.GetString("editor", "output_path", "./library"));
         SavePath = ResolvePath(props.GetString("editor", "save_path", "./assets"));
         Palette = props.GetString("editor", "palette", "palette");
         AtlasSize = props.GetInt("editor", "atlas_size", props.GetInt("atlas", "size", 2048));
