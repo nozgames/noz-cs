@@ -92,8 +92,7 @@ public unsafe partial class WebGPUGraphicsDriver
         };
 
         _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, in desc);
-        _inRenderPass = true;
-
+        
         _wgpu.RenderPassEncoderSetViewport(_currentRenderPass, 0, 0, _surfaceWidth, _surfaceHeight, 0, 1);
         _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)_surfaceWidth, (uint)_surfaceHeight);
     }
@@ -106,7 +105,6 @@ public unsafe partial class WebGPUGraphicsDriver
         _wgpu.RenderPassEncoderEnd(_currentRenderPass);
         _wgpu.RenderPassEncoderRelease(_currentRenderPass);
         _currentRenderPass = null;
-        _inRenderPass = false;
 
         if (_bindGroupsToRelease.Count > 0)
         {
@@ -220,9 +218,85 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         _currentBindGroup = _wgpu.DeviceCreateBindGroup(_device, &desc);
 
+        if (_currentBindGroup == null)
+        {
+            Log.Error("Failed to create composite bind group - layout/entries mismatch?");
+            _wgpu.SamplerRelease(sampler);
+            return;
+        }
+
         _wgpu.RenderPassEncoderSetBindGroup(_currentRenderPass, 0, _currentBindGroup, 0, null);
         _state.BindGroupDirty = false;
 
         _wgpu.SamplerRelease(sampler);
+    }
+
+    public void BeginUIPass()
+    {
+        if (_currentRenderPass != null)
+            throw new InvalidOperationException("BeginUIPass called while already in a render pass");
+
+        if (_commandEncoder == null)
+            throw new InvalidOperationException("Command encoder is null - BeginFrame not called?");
+
+        if (_currentSurfaceTexture == null)
+            throw new InvalidOperationException("Surface texture is null - BeginFrame not called?");
+
+        var swapChainView = _wgpu.TextureCreateView(_currentSurfaceTexture, null);
+
+        if (swapChainView == null)
+            throw new Exception("Failed to create surface texture view for UI pass");
+
+        var colorAttachment = new RenderPassColorAttachment
+        {
+            View = swapChainView,
+            LoadOp = LoadOp.Load, // Preserve existing content (the composited scene)
+            StoreOp = StoreOp.Store,
+        };
+
+        var desc = new RenderPassDescriptor
+        {
+            ColorAttachmentCount = 1,
+            ColorAttachments = &colorAttachment,
+        };
+
+        _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, &desc);
+        _inRenderPass = true;
+
+        _wgpu.RenderPassEncoderSetViewport(_currentRenderPass, 0, 0, _surfaceWidth, _surfaceHeight, 0, 1);
+        _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)_surfaceWidth, (uint)_surfaceHeight);
+
+        // Store the view so we can release it in EndUIPass
+        _currentSurfaceView = swapChainView;
+
+        // Force pipeline and bind group to be rebound for the new render pass
+        _state.PipelineDirty = true;
+        _state.BindGroupDirty = true;
+    }
+
+    public void EndUIPass()
+    {
+        if (_currentRenderPass == null)
+            return;
+
+        _wgpu.RenderPassEncoderEnd(_currentRenderPass);
+        _wgpu.RenderPassEncoderRelease(_currentRenderPass);
+        _currentRenderPass = null;
+        _inRenderPass = false;
+
+        if (_bindGroupsToRelease.Count > 0)
+        {
+            foreach (var bindGroup in _bindGroupsToRelease)
+                _wgpu.BindGroupRelease((BindGroup*)bindGroup);
+            _bindGroupsToRelease.Clear();
+        }
+
+        _currentBindGroup = null;
+
+        if (_currentSurfaceView != null)
+        {
+            _wgpu.TextureViewRelease(_currentSurfaceView);
+            _currentSurfaceView = null;
+        }
     }
 }

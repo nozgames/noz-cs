@@ -21,6 +21,8 @@ public static partial class UI
             ("Rect", e.Rect, true)
         ])}");
 
+        var setScissor = false;
+
         switch (e.Type)
         {
             case ElementType.Canvas:
@@ -59,6 +61,7 @@ public static partial class UI
                 var scissorW = (int)(e.Rect.Width * scale);
                 var scissorH = (int)(e.Rect.Height * scale);
                 Graphics.SetScissor(scissorX, scissorY, scissorW, scissorH);
+                setScissor = true;
                 break;
             }
         }
@@ -69,9 +72,9 @@ public static partial class UI
             ref var child = ref _elements[childElementIndex];
             DrawElement(childElementIndex, false);
             childElementIndex = child.NextSiblingIndex;
-        }            
+        }
 
-        if (Graphics.IsScissor)
+        if (setScissor)
             Graphics.DisableScissor();
     }
 
@@ -163,35 +166,39 @@ public static partial class UI
         var sprite = e.Sprite;
         var spriteSize = sprite.Size;
         var imgSize = e.Rect.Size;
-
-        var scaleX = imgSize.X / spriteSize.X;
-        var scaleY = imgSize.Y / spriteSize.Y;
+        var scale = new Vector2(
+            imgSize.X / spriteSize.X,
+            imgSize.Y / spriteSize.Y);
 
         switch (img.Stretch)
         {
             case ImageStretch.None:
-                scaleX = 1.0f;
-                scaleY = 1.0f;
+                scale = Vector2.One;
                 break;
             case ImageStretch.Uniform:
-                var uniformScale = MathF.Min(scaleX, scaleY);
-                scaleX = uniformScale;
-                scaleY = uniformScale;
+                var uniformScale = MathF.Min(scale.X, scale.Y);
+                scale = new Vector2(uniformScale, uniformScale);
                 break;
             case ImageStretch.Fill:
                 // scaleX and scaleY are already set correctly
                 break;
         }
 
-        var scaledSize = new Vector2(spriteSize.X * scaleX, spriteSize.Y * scaleY);
+        var scaledSize = scale * spriteSize;
         var offset = new Vector2(
-            (imgSize.X - scaledSize.X) * img.AlignX.ToFactor() - sprite.Bounds.X * scaleX,
-            (imgSize.Y - scaledSize.Y) * img.AlignY.ToFactor() - sprite.Bounds.Y * scaleY
+            (imgSize.X - scaledSize.X) * img.AlignX.ToFactor() - sprite.Bounds.X * scale.X,
+            (imgSize.Y - scaledSize.Y) * img.AlignY.ToFactor() - sprite.Bounds.Y * scale.Y
         );
+
+        LogUI(e, "      ", values: [
+            ("Scale", scale, true),
+            ("Offset", offset, offset != Vector2.Zero),
+            ("Color", img.Color, img.Color != Color.White),
+            ]);
 
         using (Graphics.PushState())
         {
-            Graphics.SetTransform(Matrix3x2.CreateScale(scaleX, scaleY) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld);
+            Graphics.SetTransform(Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld);
             Graphics.SetColor(img.Color);
             Graphics.Draw(e.Sprite);
         }

@@ -9,11 +9,6 @@ struct Globals {
     time: f32,
 }
 
-struct TextParams {
-    outline_color: vec4<f32>,
-    outline_width: f32,
-}
-
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var font_texture: texture_2d<f32>;
 @group(0) @binding(2) var font_sampler: sampler;

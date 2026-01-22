@@ -10,7 +10,7 @@ public static class EditorAssets
 {
     public static class Names
     {
-        public const string EditorAtlas00 = "editor_atlas00";
+        public const string EditorAtlas000 = "editor_atlas000";
         public const string Seguisb = "seguisb";
         public const string Composite = "composite";
         public const string Sprite = "sprite";
@@ -49,16 +49,16 @@ public static class EditorAssets
 
     public static class Atlases
     {
-        public static Atlas EditorAtlas00 { get; private set; } = null!;
+        public static Atlas EditorAtlas000 { get; private set; } = null!;
 
         public static void Load()
         {
-            EditorAtlas00 = (Atlas)Asset.Load(AssetType.Atlas, Names.EditorAtlas00)!;
+            EditorAtlas000 = (Atlas)Asset.Load(AssetType.Atlas, Names.EditorAtlas000)!;
         }
 
         public static void Unload()
         {
-            EditorAtlas00?.Dispose();
+            EditorAtlas000?.Dispose();
         }
     }
 
@@ -223,7 +223,7 @@ public static class EditorAssets
         Textures.Load();
 
         // Create texture array from all atlases
-        AtlasArray = Texture.CreateArray("SpriteAtlas",Atlases.EditorAtlas00);
+        AtlasArray = Texture.CreateArray("SpriteAtlas",Atlases.EditorAtlas000);
         Graphics.SpriteAtlas = AtlasArray;
     }
 

@@ -174,7 +174,7 @@ public static class ContextMenu
                     {
                         itemY += item.Label == null
                             ? EditorStyle.ContextMenu.SeparatorSpacing
-                            : EditorStyle.ContextMenu.ItemHeight;
+                            : EditorStyle.Popup.Item.Height.Value;
                     }
                 }
 
@@ -244,7 +244,8 @@ public static class ContextMenu
 
                     using (UI.BeginRow(ContainerStyle.Default))
                     {
-                        // todo: icon
+                        using (UI.BeginContainer(EditorStyle.ContextMenu.IconContainer))
+                            UI.Image(EditorAssets.Sprites.AssetIconEvent, ImageStyle.Center);
 
                         using (UI.BeginContainer(EditorStyle.ContextMenu.ItemLeft))
                             UI.Label(item.Label, new LabelStyle

@@ -43,7 +43,7 @@ public class SpriteEditor : DocumentEditor
             _pixelData.Height,
             _pixelData.AsByteSpan(),
             TextureFormat.RGBA8,
-            TextureFilter.Nearest,
+            TextureFilter.Point,
             "SpriteEditor");
 
         _commands =
@@ -156,7 +156,10 @@ public class SpriteEditor : DocumentEditor
 
         var palette = PaletteManager.GetPalette(Document.Palette);
         if (palette != null)
-            shape.Rasterize(_pixelData, palette.Colors, new Vector2Int(-rb.X, -rb.Y));
+            shape.Rasterize(_pixelData, palette.Colors, new Vector2Int(-rb.X, -rb.Y), options: new Shape.RasterizeOptions
+            {
+                AntiAlias = false
+            });
 
         Graphics.Driver.UpdateTexture(
             _rasterTexture!.Handle,

@@ -180,7 +180,7 @@ public unsafe partial class WebGPUGraphicsDriver
     {
         return filter switch
         {
-            TextureFilter.Nearest => FilterMode.Nearest,
+            TextureFilter.Point => FilterMode.Nearest,
             TextureFilter.Linear => FilterMode.Linear,
             _ => FilterMode.Linear,
         };

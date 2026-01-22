@@ -60,7 +60,7 @@ public class WebPlatform : IPlatform
 
     public void SwapBuffers()
     {
-        // WebGL automatically presents after draw calls
+        // WebGPU automatically presents after draw calls
         // Nothing to do here
     }
 

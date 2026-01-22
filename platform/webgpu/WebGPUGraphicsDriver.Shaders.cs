@@ -139,19 +139,33 @@ public unsafe partial class WebGPUGraphicsDriver
     private BindGroupLayout* CreateBindGroupLayoutForShader(string shaderSource, out int bindingCount)
     {
         // Legacy path: Detect what bindings the shader actually uses by parsing
+        bool hasBinding0 = shaderSource.Contains("@binding(0)");
         bool hasBinding1 = shaderSource.Contains("@binding(1)");
         bool hasBinding2 = shaderSource.Contains("@binding(2)");
         bool hasBinding3 = shaderSource.Contains("@binding(3)");
         bool hasBinding4 = shaderSource.Contains("@binding(4)");
 
         // Count how many bindings we need
-        bindingCount = 1; // Always have binding 0 (globals)
+        bindingCount = 0;
+        if (hasBinding0) bindingCount = 1;
         if (hasBinding1) bindingCount = 2;
         if (hasBinding2) bindingCount = 3;
         if (hasBinding3) bindingCount = 4;
         if (hasBinding4) bindingCount = 5;
 
+        if (bindingCount == 0)
+        {
+            // No bindings detected, create empty layout
+            var emptyDesc = new BindGroupLayoutDescriptor
+            {
+                EntryCount = 0,
+                Entries = null,
+            };
+            return _wgpu.DeviceCreateBindGroupLayout(_device, &emptyDesc);
+        }
+
         // Detect binding types by parsing WGSL declarations
+        var binding0Type = DetectBindingType(shaderSource, 0);
         var binding1Type = DetectBindingType(shaderSource, 1);
         var binding2Type = DetectBindingType(shaderSource, 2);
         var binding3Type = DetectBindingType(shaderSource, 3);
@@ -159,17 +173,11 @@ public unsafe partial class WebGPUGraphicsDriver
 
         var entries = stackalloc BindGroupLayoutEntry[bindingCount];
 
-        // Binding 0: Globals uniform buffer (required by all shaders)
-        entries[0] = new BindGroupLayoutEntry
+        // Binding 0: Detect type from shader (not always uniform buffer)
+        if (bindingCount >= 1)
         {
-            Binding = 0,
-            Visibility = ShaderStage.Vertex | ShaderStage.Fragment,
-            Buffer = new BufferBindingLayout
-            {
-                Type = BufferBindingType.Uniform,
-                MinBindingSize = 0,
-            },
-        };
+            entries[0] = CreateBindGroupLayoutEntry(0, binding0Type);
+        }
 
         // Binding 1
         if (bindingCount >= 2)
@@ -300,13 +308,28 @@ public unsafe partial class WebGPUGraphicsDriver
         var key = new PsoKey { ShaderHandle = shaderHandle, BlendMode = blendMode, VertexStride = vertexStride };
 
         if (shaderInfo.PsoCache.TryGetValue(key, out var pipelinePtr))
-            return (RenderPipeline*)pipelinePtr;
+        {
+            var cachedPipeline = (RenderPipeline*)pipelinePtr;
+            if (cachedPipeline == null)
+            {
+                Log.Error($"Cached pipeline is null for shader {shaderHandle}");
+                return null;
+            }
+            return cachedPipeline;
+        }
 
         // Get mesh info for vertex format
         ref var meshInfo = ref _meshes[(int)_state.BoundMesh];
 
         // Create render pipeline
         var pipeline = CreateRenderPipeline(shaderInfo, blendMode, meshInfo.Descriptor);
+
+        if (pipeline == null)
+        {
+            Log.Error($"Failed to create render pipeline for shader {shaderHandle}, blend={blendMode}, stride={vertexStride}");
+            return null;
+        }
+
         shaderInfo.PsoCache[key] = (nint)pipeline;
 
         return pipeline;

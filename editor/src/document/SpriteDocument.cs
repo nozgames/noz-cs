@@ -290,5 +290,7 @@ public class SpriteDocument : Document
         writer.Write(AtlasRect.Top);
         writer.Write(AtlasRect.Right);
         writer.Write(AtlasRect.Bottom);
+        writer.Write((float)EditorApplication.Config.PixelsPerUnit);
+        writer.Write((byte)TextureFilter.Point);
     }
 }

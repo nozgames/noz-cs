@@ -89,7 +89,7 @@ public class TextureDocument : Document
 
         // Texture format
         var format = TextureFormat.RGBA8;
-        var filterEnum = filter is "nearest" or "point" ? TextureFilter.Nearest : TextureFilter.Linear;
+        var filterEnum = filter is "nearest" or "point" ? TextureFilter.Point : TextureFilter.Linear;
         var clampEnum = clamp == "repeat" ? TextureClamp.Repeat : TextureClamp.Clamp;
 
         writer.Write((byte)format);

@@ -50,8 +50,9 @@ public static partial class UI
             LayoutElement(elementIndex, offset, sizeOverride);
 
             float childSize = child.Rect.Size[axis];
-            fixedSize += childSize;
-            offset[axis] += childSize;
+            float childMax = child.Rect.Max[axis] + child.MarginMax[axis];
+            fixedSize += childMax - offset[axis];
+            offset[axis] = childMax;
             elementIndex = child.NextSiblingIndex;
         }
 

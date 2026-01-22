@@ -1,4 +1,3 @@
-//
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
@@ -145,7 +144,7 @@ public static class CommandPalette
             using (UI.BeginRow(EditorStyle.Popup.Item))
             {
                 using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
-                    UI.Image(EditorAssets.Sprites.IconSubmenu);
+                    UI.Image(EditorAssets.Sprites.AssetIconShader);
 
                 using (UI.BeginFlex())
                     UI.TextBox(ref _text, style: EditorStyle.CommandPalette.SearchTextBox, id: SearchId, placeholder: "Search...");
@@ -162,6 +161,7 @@ public static class CommandPalette
     {
         var execute = false;
 
+        using (UI.BeginContainer(new ContainerStyle{Color=Color.Red}))
         using (UI.BeginScrollable(offset: 0, id: CommandListId))
         using (UI.BeginColumn(ContainerStyle.Default.WithAlignY(Align.Min)))
         {
@@ -182,9 +182,7 @@ public static class CommandPalette
                     using (UI.BeginRow(ContainerStyle.Default))
                     {
                         using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
-                        {
-                            UI.Image(EditorAssets.Sprites.IconSubmenu);
-                        }                            
+                            UI.Image(EditorAssets.Sprites.AssetIconShader);
 
                         UI.Label(cmd.Name, style: EditorStyle.Control.Text);
                         UI.Flex();

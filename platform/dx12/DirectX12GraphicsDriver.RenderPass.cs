@@ -449,4 +449,19 @@ public unsafe partial class DirectX12GraphicsDriver
             _commandList.ResourceBarrier(1, &barrier);
         }
     }
+
+    public void BeginUIPass()
+    {
+        // Set back buffer as render target for UI rendering
+        var rtv = GetCurrentRtvHandle();
+        _commandList.OMSetRenderTargets(1, &rtv, 0, (CpuDescriptorHandle*)null);
+
+        SetViewport(0, 0, _offscreenWidth, _offscreenHeight);
+        DisableScissor();
+    }
+
+    public void EndUIPass()
+    {
+        // No-op for DX12 - back buffer remains bound
+    }
 }

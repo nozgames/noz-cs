@@ -4,6 +4,7 @@
 
 using System.Runtime.InteropServices;
 using System.Numerics;
+using Silk.NET.Core.Loader;
 using Silk.NET.WebGPU;
 using WGPUBuffer = Silk.NET.WebGPU.Buffer;
 using WGPUTexture = Silk.NET.WebGPU.Texture;
@@ -98,12 +99,17 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     // Fullscreen quad for composite
     private nuint _fullscreenQuadMesh;
 
+    // Global samplers for per-draw-call filtering
+    private Sampler* _linearSampler;
+    private Sampler* _nearestSampler;
+
     public string ShaderExtension => "";
 
     private struct CachedState
     {
         public nuint BoundShader;
         public BlendMode BlendMode;
+        public TextureFilter TextureFilter;
         public nuint BoundMesh;
         public int VertexStride;
         public fixed ulong BoundTextures[8];
@@ -182,6 +188,12 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     public void Init(GraphicsDriverConfig config)
     {
         _config = config;
+
+        // For browser/WASM, use IOS platform which uses __Internal linking
+        // This allows Emscripten to provide the WebGPU functions
+        if (OperatingSystem.IsBrowser())
+            SearchPathContainer.Platform = UnderlyingPlatform.IOS;
+
         _wgpu = Silk.NET.WebGPU.WebGPU.GetApi();
 
         InitSync();
@@ -207,6 +219,40 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
         CreateSwapChain();
         CreateFullscreenQuad();
+        CreateGlobalSamplers();
+    }
+
+    private void CreateGlobalSamplers()
+    {
+        var linearDesc = new SamplerDescriptor
+        {
+            AddressModeU = AddressMode.ClampToEdge,
+            AddressModeV = AddressMode.ClampToEdge,
+            AddressModeW = AddressMode.ClampToEdge,
+            MagFilter = FilterMode.Linear,
+            MinFilter = FilterMode.Linear,
+            MipmapFilter = MipmapFilterMode.Nearest,
+            LodMinClamp = 0.0f,
+            LodMaxClamp = 32.0f,
+            Compare = CompareFunction.Undefined,
+            MaxAnisotropy = 1,
+        };
+        _linearSampler = _wgpu.DeviceCreateSampler(_device, &linearDesc);
+
+        var nearestDesc = new SamplerDescriptor
+        {
+            AddressModeU = AddressMode.ClampToEdge,
+            AddressModeV = AddressMode.ClampToEdge,
+            AddressModeW = AddressMode.ClampToEdge,
+            MagFilter = FilterMode.Nearest,
+            MinFilter = FilterMode.Nearest,
+            MipmapFilter = MipmapFilterMode.Nearest,
+            LodMinClamp = 0.0f,
+            LodMaxClamp = 32.0f,
+            Compare = CompareFunction.Undefined,
+            MaxAnisotropy = 1,
+        };
+        _nearestSampler = _wgpu.DeviceCreateSampler(_device, &nearestDesc);
     }
 
     private void RequestAdapter()
@@ -398,6 +444,18 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void Shutdown()
     {
+        // Release global samplers
+        if (_linearSampler != null)
+        {
+            _wgpu.SamplerRelease(_linearSampler);
+            _linearSampler = null;
+        }
+        if (_nearestSampler != null)
+        {
+            _wgpu.SamplerRelease(_nearestSampler);
+            _nearestSampler = null;
+        }
+
         // Release offscreen resources
         DestroyOffscreenTarget();
 
@@ -438,60 +496,73 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     private void DestroyOffscreenTarget()
     {
-        // Check if resolve and msaa are the same (happens when msaa=1)
         var sameTexture = _offscreenResolveTexture == _offscreenMsaaTexture;
         var sameView = _offscreenResolveTextureView == _offscreenMsaaTextureView;
 
         if (_offscreenMsaaTextureView != null)
-        {
             _wgpu.TextureViewRelease(_offscreenMsaaTextureView);
-            _offscreenMsaaTextureView = null;
-        }
 
         if (_offscreenMsaaTexture != null)
-        {
             _wgpu.TextureRelease(_offscreenMsaaTexture);
-            _offscreenMsaaTexture = null;
-        }
 
-        // Only release resolve if it's different from msaa
         if (_offscreenResolveTextureView != null && !sameView)
         {
             _wgpu.TextureViewRelease(_offscreenResolveTextureView);
+            _offscreenResolveTextureView = null;
         }
-        _offscreenResolveTextureView = null;
 
         if (_offscreenResolveTexture != null && !sameTexture)
         {
             _wgpu.TextureRelease(_offscreenResolveTexture);
+            _offscreenResolveTexture = null;
         }
-        _offscreenResolveTexture = null;
 
         if (_offscreenDepthTextureView != null)
-        {
             _wgpu.TextureViewRelease(_offscreenDepthTextureView);
-            _offscreenDepthTextureView = null;
-        }
 
         if (_offscreenDepthTexture != null)
-        {
             _wgpu.TextureRelease(_offscreenDepthTexture);
-            _offscreenDepthTexture = null;
-        }
+
+        _offscreenMsaaTextureView = null;
+        _offscreenMsaaTexture = null;
+        _offscreenDepthTextureView = null;
+        _offscreenDepthTexture = null;
     }
 
-    public void BeginFrame()
+    public bool BeginFrame()
     {
         // Validate device
         if (_device == null)
-            throw new InvalidOperationException("WebGPU device is null - initialization failed or device lost");
+            return false;
+
+        // Check for window resize and reconfigure surface if needed
+        var windowSize = _config.Platform.WindowSize;
+        var newWidth = (int)windowSize.X;
+        var newHeight = (int)windowSize.Y;
+        if (newWidth != _surfaceWidth || newHeight != _surfaceHeight)
+        {
+            _surfaceWidth = newWidth;
+            _surfaceHeight = newHeight;
+
+            var surfaceConfig = new SurfaceConfiguration
+            {
+                Device = _device,
+                Format = _surfaceFormat,
+                Usage = TextureUsage.RenderAttachment,
+                Width = (uint)_surfaceWidth,
+                Height = (uint)_surfaceHeight,
+                PresentMode = _presentMode,
+                AlphaMode = CompositeAlphaMode.Auto,
+            };
+            _wgpu.SurfaceConfigure(_surface, &surfaceConfig);
+        }
 
         // Acquire surface texture for this frame
         SurfaceTexture surfaceTexture;
         _wgpu.SurfaceGetCurrentTexture(_surface, &surfaceTexture);
 
         if (surfaceTexture.Status != SurfaceGetCurrentTextureStatus.Success)
-            throw new Exception($"Failed to get current surface texture: {surfaceTexture.Status}");
+            return false;
 
         _currentSurfaceTexture = surfaceTexture.Texture;
 
@@ -499,17 +570,17 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _commandEncoder = _wgpu.DeviceCreateCommandEncoder(_device, ref encoderDesc);
 
         if (_commandEncoder == null)
-            throw new Exception("Failed to create command encoder - device may be lost");
+            return false;
 
-        // Reset state
         _state = default;
-        // Note: BoundBoneTexture defaults to 0 - engine will bind bone texture when needed
 
         if (_currentBindGroup != null)
         {
             _wgpu.BindGroupRelease(_currentBindGroup);
             _currentBindGroup = null;
         }
+
+        return true;
     }
 
     public void EndFrame()
@@ -532,6 +603,12 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void SetViewport(int x, int y, int width, int height)
     {
+        // Clamp viewport to surface bounds (WebGPU requires viewport within render target)
+        width = Math.Min(width, _surfaceWidth - x);
+        height = Math.Min(height, _surfaceHeight - y);
+        if (width <= 0 || height <= 0)
+            return;
+
         if (_state.ViewportX == x && _state.ViewportY == y &&
             _state.ViewportW == width && _state.ViewportH == height)
             return;
@@ -551,15 +628,16 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     public void SetScissor(int x, int y, int width, int height)
     {
         _state.ScissorEnabled = true;
-        _state.ScissorX = x;
-        _state.ScissorY = y;
-        _state.ScissorW = width;
-        _state.ScissorH = height;
+        _state.ScissorX = Math.Max(0, x);
+        _state.ScissorY = Math.Max(0, y);
+        _state.ScissorW = Math.Max(1, width);
+        _state.ScissorH = Math.Max(1, height);
 
         if (_currentRenderPass != null)
         {
             _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass,
-                (uint)x, (uint)y, (uint)width, (uint)height);
+                (uint)_state.ScissorX, (uint)_state.ScissorY,
+                (uint)_state.ScissorW, (uint)_state.ScissorH);
         }
     }
 
@@ -587,10 +665,10 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         vertices[2] = new CompositeVertex { Position = new Vector2(-1, 1), UV = new Vector2(0, 1) };  // Top-left
         vertices[3] = new CompositeVertex { Position = new Vector2(1, 1), UV = new Vector2(1, 1) };   // Top-right
 
-        // Define indices for 2 triangles
+        // Define indices for 2 triangles (CCW winding)
         var indices = new ushort[6];
-        indices[0] = 0; indices[1] = 1; indices[2] = 2; // First triangle
-        indices[3] = 2; indices[4] = 1; indices[5] = 3; // Second triangle
+        indices[0] = 0; indices[1] = 1; indices[2] = 2; // First triangle: bottom-left, bottom-right, top-left
+        indices[3] = 1; indices[4] = 3; indices[5] = 2; // Second triangle: bottom-right, top-right, top-left
 
         // Upload to GPU
         UpdateMesh(_fullscreenQuadMesh,

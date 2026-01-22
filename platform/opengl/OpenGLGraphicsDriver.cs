@@ -873,4 +873,15 @@ public unsafe class OpenGLGraphicsDriver : IGraphicsDriver
         _gl.BindVertexArray(_fullscreenVao);
         _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
     }
+
+    public void BeginUIPass()
+    {
+        // OpenGL doesn't need explicit render passes - already rendering to default framebuffer after Composite
+        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
+
+    public void EndUIPass()
+    {
+        // No-op for OpenGL
+    }
 }

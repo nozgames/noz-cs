@@ -14,6 +14,9 @@ public class Sprite : Asset
     public Vector2Int Size => Bounds.Size;
     public int FrameCount { get; private set; }
     public int AtlasIndex { get; private set; }
+    public float PixelsPerUnit { get; private set; } = 64.0f;
+    public float PixelsPerUnitInv { get; private set; }
+    public TextureFilter TextureFilter { get; set; } = TextureFilter.Point;
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
 
@@ -32,11 +35,16 @@ public class Sprite : Asset
         var ut = reader.ReadSingle();
         var ur = reader.ReadSingle();
         var ub = reader.ReadSingle();
+        var ppu = reader.ReadSingle();
+        var filter = (TextureFilter)reader.ReadByte();
 
         sprite.Bounds = RectInt.FromMinMax(l, t, r, b);
         sprite.UV = Rect.FromMinMax(ul, ut, ur, ub);
         sprite.FrameCount = frameCount;
         sprite.AtlasIndex = atlasIndex;
+        sprite.PixelsPerUnit = ppu;
+        sprite.PixelsPerUnitInv = 1.0f / ppu;
+        sprite.TextureFilter = filter;
 
         return sprite;
     }

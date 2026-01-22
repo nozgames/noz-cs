@@ -306,7 +306,6 @@ public static class EditorStyle
         public const int TextSize = 12;
         public const float SeparatorHeight = 2f;
         public const float SeparatorSpacing = 12f;
-        public const float ItemHeight = 20f;
         public static Color TitleColor => _current.ContextMenuTitleColor;
         public static Color SeparatorColor => _current.ContextMenuSeparatorColor;
         public static readonly ContainerStyle Menu = Popup.RootContainer with {
@@ -317,14 +316,18 @@ public static class EditorStyle
         public static readonly ContainerStyle ItemLeft = ContainerStyle.Default with 
         {
             Width = 120f,
-            Margin = EdgeInsets.Left(40),
-            Color = Color.Red,
         };
 
         public static readonly ContainerStyle ItemRight = ContainerStyle.Default with
         {
-            Width = 120f,
-            Color = Color.Green
+            Width = 120f
+        };
+
+        public static readonly ContainerStyle IconContainer = new()
+        {
+            Width = Popup.Item.Height,
+            Height = Popup.Item.Height,
+            Padding = EdgeInsets.All(4f),
         };
     }
 

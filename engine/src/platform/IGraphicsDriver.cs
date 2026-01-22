@@ -32,7 +32,7 @@ public interface IGraphicsDriver
     void Init(GraphicsDriverConfig config);
     void Shutdown();
 
-    void BeginFrame();
+    bool BeginFrame();
     void EndFrame();
 
     void Clear(Color color);
@@ -64,6 +64,7 @@ public interface IGraphicsDriver
     void BindShader(nuint handle);
 
     void SetBlendMode(BlendMode mode);
+    void SetTextureFilter(TextureFilter filter);
 
     void DrawElements(int firstIndex, int indexCount, int baseVertex = 0);
 
@@ -75,4 +76,6 @@ public interface IGraphicsDriver
     void BeginScenePass(Color clearColor);
     void EndScenePass();
     void Composite(nuint compositeShader);
+    void BeginUIPass();
+    void EndUIPass();
 }

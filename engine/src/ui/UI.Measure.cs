@@ -52,6 +52,9 @@ public static partial class UI
     private static Vector2 MeasureContainer(ref readonly Element e, ref readonly Element p)
     {
         Vector2 size = ResolveSize(in e, in p, e.Data.Container.Size);
+        if (e.Data.Container.Size.Width.Mode is SizeMode.Percent or SizeMode.Default)
+            size.X -= (e.Data.Container.Margin.L + e.Data.Container.Margin.R);
+
         if (e.Data.Container.MinWidth > 0) size.X = Math.Max(size.X, e.Data.Container.MinWidth);
         if (e.Data.Container.MinHeight > 0) size.Y = Math.Max(size.Y, e.Data.Container.MinHeight);
         if (e.Data.Container.MaxWidth > 0) size.X = Math.Min(size.X, e.Data.Container.MaxWidth);

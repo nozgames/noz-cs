@@ -115,4 +115,37 @@ public static class Gizmos
     {
         return DefaultLineWidth * width * ZoomRefScale;
     }
+
+    public static void DrawBone(Vector2 start, Vector2 end, float width, Color color)
+    {
+        Gizmos.SetColor(color);
+        Gizmos.DrawLine(start, end, width);
+    }
+
+    public static void DrawDashedLine(Vector2 start, Vector2 end, float width, float dashLength, Color color)
+    {
+        var delta = end - start;
+        var length = delta.Length();
+        if (length < 0.0001f)
+            return;
+
+        var dir = delta / length;
+        var pos = 0f;
+        var drawing = true;
+
+        SetColor(color);
+
+        while (pos < length)
+        {
+            var segmentEnd = MathF.Min(pos + dashLength, length);
+            if (drawing)
+            {
+                var p0 = start + dir * pos;
+                var p1 = start + dir * segmentEnd;
+                DrawLine(p0, p1, width);
+            }
+            pos = segmentEnd;
+            drawing = !drawing;
+        }
+    }
 }

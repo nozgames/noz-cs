@@ -7,7 +7,6 @@ namespace NoZ.Editor;
 public class EditorConfig
 {
     private readonly PropertySet _props;
-    private readonly string _basePath;
 
     public string OutputPath { get; }
     public string SavePath { get; }

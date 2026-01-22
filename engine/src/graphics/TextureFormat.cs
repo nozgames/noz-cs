@@ -15,7 +15,7 @@ public enum TextureFormat : byte
 
 public enum TextureFilter : byte
 {
-    Nearest = 0,
+    Point = 0,
     Linear = 1,
 }
 

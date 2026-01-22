@@ -110,7 +110,7 @@ namespace NoZ.Editor
                 EditorApplication.Config.AtlasSize,
                 _image.AsByteSpan(),
                 TextureFormat.RGBA8,
-                TextureFilter.Nearest,
+                TextureFilter.Point,
                 Name);
             
             base.PostLoad();
@@ -244,6 +244,7 @@ namespace NoZ.Editor
 
             using (Graphics.PushState())
             {
+                Graphics.SetShader(EditorAssets.Shaders.Texture);
                 Graphics.SetTexture(_texture);
                 Graphics.SetColor(Color.White);
                 Graphics.Draw(Bounds);
@@ -256,7 +257,7 @@ namespace NoZ.Editor
             writer.WriteAssetHeader(AssetType.Atlas, Atlas.Version, 0);
 
             var format = TextureFormat.RGBA8;
-            var filter = TextureFilter.Nearest;
+            var filter = TextureFilter.Point;
             var clamp = TextureClamp.Clamp;
 
             writer.Write((byte)format);

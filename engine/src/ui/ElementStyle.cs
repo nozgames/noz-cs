@@ -70,6 +70,9 @@ public struct ImageStyle()
     public Align AlignY = Align.Min;
     public float Scale = 1.0f;
     public Color Color = Color.White;
+
+    public static readonly ImageStyle Default = new();
+    public static readonly ImageStyle Center = new() { AlignX = Align.Center, AlignY = Align.Center };
 }
 
 public struct RectangleStyle()

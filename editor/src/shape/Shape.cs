@@ -88,6 +88,13 @@ public sealed unsafe class Shape : IDisposable
         };
     }
 
+    public struct RasterizeOptions
+    {
+        public bool AntiAlias;
+
+        public static readonly RasterizeOptions Default = new() { AntiAlias = false };
+    }
+
     public Shape()
     {
         var totalSize =
@@ -1228,6 +1235,9 @@ public sealed unsafe class Shape : IDisposable
     }
 
     public void Rasterize(PixelData<Color32> pixels, Color[] palette, Vector2Int offset)
+        => Rasterize(pixels, palette, offset, RasterizeOptions.Default);
+
+    public void Rasterize(PixelData<Color32> pixels, Color[] palette, Vector2Int offset, RasterizeOptions options)
     {
         if (PathCount == 0) return;
 
@@ -1265,33 +1275,161 @@ public sealed unsafe class Shape : IDisposable
             if (vertexCount < 3) continue;
 
             var fillColor = palette[path.FillColor % palette.Length].ToColor32();
-
             var rb = RasterBounds;
-            for (var y = 0; y < rb.Height; y++)
+
+            if (options.AntiAlias)
             {
-                var py = offset.Y + rb.Y + y;
-                if (py < 0 || py >= pixels.Height) continue;
+                RasterizePathAA(pixels, polyVerts[..vertexCount], fillColor, offset, rb);
+            }
+            else
+            {
+                RasterizePathSimple(pixels, polyVerts[..vertexCount], fillColor, offset, rb);
+            }
+        }
+    }
 
-                var sampleY = rb.Y + y + 0.5f;
+    private static void RasterizePathSimple(PixelData<Color32> pixels, Span<Vector2> polyVerts,
+        Color32 fillColor, Vector2Int offset, RectInt rb)
+    {
+        for (var y = 0; y < rb.Height; y++)
+        {
+            var py = offset.Y + rb.Y + y;
+            if (py < 0 || py >= pixels.Height) continue;
 
-                for (var x = 0; x < rb.Width; x++)
+            var sampleY = rb.Y + y + 0.5f;
+
+            for (var x = 0; x < rb.Width; x++)
+            {
+                var px = offset.X + rb.X + x;
+                if (px < 0 || px >= pixels.Width) continue;
+
+                var sampleX = rb.X + x + 0.5f;
+                if (IsPointInPolygon(new Vector2(sampleX, sampleY), polyVerts))
                 {
-                    var px = offset.X + rb.X + x;
-                    if (px < 0 || px >= pixels.Width) continue;
-
-                    var sampleX = rb.X + x + 0.5f;
-                    if (IsPointInPolygon(new Vector2(sampleX, sampleY), polyVerts[..vertexCount]))
+                    ref var dst = ref pixels[px, py];
+                    if (fillColor.A == 255 || dst.A == 0)
                     {
-                        ref var dst = ref pixels[px, py];
-                        if (fillColor.A == 255 || dst.A == 0)
-                        {
-                            dst = fillColor;
-                        }
-                        else if (fillColor.A > 0)
-                        {
-                            dst = Color32.Blend(dst, fillColor);
-                        }
+                        dst = fillColor;
                     }
+                    else if (fillColor.A > 0)
+                    {
+                        dst = Color32.Blend(dst, fillColor);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void RasterizePathAA(PixelData<Color32> pixels, Span<Vector2> polyVerts,
+        Color32 fillColor, Vector2Int offset, RectInt rb)
+    {
+        const float edgeMarker = -1f;
+        var bufferSize = rb.Width * rb.Height;
+
+        Span<float> coverage = bufferSize <= 4096
+            ? stackalloc float[bufferSize]
+            : new float[bufferSize];
+        coverage.Clear();
+
+        var vertexCount = polyVerts.Length;
+
+        for (var y = 0; y < rb.Height; y++)
+        {
+            var sampleY = rb.Y + y + 0.5f;
+            for (var x = 0; x < rb.Width; x++)
+            {
+                var sampleX = rb.X + x + 0.5f;
+                if (IsPointInPolygon(new Vector2(sampleX, sampleY), polyVerts))
+                    coverage[y * rb.Width + x] = 1f;
+            }
+        }
+
+        for (var i = 0; i < vertexCount; i++)
+        {
+            var p0 = polyVerts[i];
+            var p1 = polyVerts[(i + 1) % vertexCount];
+
+            var minX = (int)MathF.Floor(MathF.Min(p0.X, p1.X));
+            var maxX = (int)MathF.Floor(MathF.Max(p0.X, p1.X));
+            var minY = (int)MathF.Floor(MathF.Min(p0.Y, p1.Y));
+            var maxY = (int)MathF.Floor(MathF.Max(p0.Y, p1.Y));
+
+            for (var py = minY; py <= maxY; py++)
+            {
+                var localY = py - rb.Y;
+                if (localY < 0 || localY >= rb.Height) continue;
+
+                for (var px = minX; px <= maxX; px++)
+                {
+                    var localX = px - rb.X;
+                    if (localX < 0 || localX >= rb.Width) continue;
+
+                    if (LineIntersectsRect(p0, p1, px, py, px + 1, py + 1))
+                        coverage[localY * rb.Width + localX] = edgeMarker;
+                }
+            }
+        }
+
+        const int aaSamples = 4;
+        Span<float> sampleOffsets = [0.125f, 0.375f, 0.625f, 0.875f];
+
+        for (var idx = 0; idx < bufferSize; idx++)
+        {
+            if (coverage[idx] != edgeMarker) continue;
+
+            var localX = idx % rb.Width;
+            var localY = idx / rb.Width;
+            float px = rb.X + localX;
+            float py = rb.Y + localY;
+
+            var insideCount = 0;
+            for (var sy = 0; sy < aaSamples; sy++)
+            {
+                for (var sx = 0; sx < aaSamples; sx++)
+                {
+                    var samplePos = new Vector2(px + sampleOffsets[sx], py + sampleOffsets[sy]);
+                    if (IsPointInPolygon(samplePos, polyVerts))
+                        insideCount++;
+                }
+            }
+
+            coverage[idx] = insideCount / (float)(aaSamples * aaSamples);
+        }
+
+        for (var y = 0; y < rb.Height; y++)
+        {
+            var py = offset.Y + rb.Y + y;
+            if (py < 0 || py >= pixels.Height) continue;
+
+            for (var x = 0; x < rb.Width; x++)
+            {
+                var px = offset.X + rb.X + x;
+                if (px < 0 || px >= pixels.Width) continue;
+
+                var cov = coverage[y * rb.Width + x];
+                if (cov <= 0) continue;
+
+                byte finalAlpha;
+                if (cov >= 0.5f)
+                    finalAlpha = fillColor.A;
+                else
+                    finalAlpha = (byte)(cov * fillColor.A);
+
+                if (finalAlpha == 0) continue;
+
+                ref var dst = ref pixels[px, py];
+                if (dst.A == 0)
+                {
+                    dst = new Color32(fillColor.R, fillColor.G, fillColor.B, finalAlpha);
+                }
+                else if (finalAlpha == 255 && fillColor.A == 255)
+                {
+                    dst = fillColor;
+                }
+                else
+                {
+                    var srcColor = fillColor.WithAlpha(finalAlpha);
+                    dst = Color32.Blend(dst, srcColor);
                 }
             }
         }
@@ -1324,6 +1462,133 @@ public sealed unsafe class Shape : IDisposable
         }
 
         return winding != 0;
+    }
+
+    private static bool LineIntersectsRect(Vector2 p0, Vector2 p1,
+        float xMin, float yMin, float xMax, float yMax)
+    {
+        var dx = p1.X - p0.X;
+        var dy = p1.Y - p0.Y;
+
+        var tMin = 0f;
+        var tMax = 1f;
+
+        Span<float> p = [- dx, dx, -dy, dy];
+        Span<float> q = [p0.X - xMin, xMax - p0.X, p0.Y - yMin, yMax - p0.Y];
+
+        for (var i = 0; i < 4; i++)
+        {
+            if (MathF.Abs(p[i]) < 0.0001f)
+            {
+                if (q[i] < 0)
+                    return false;
+            }
+            else
+            {
+                var t = q[i] / p[i];
+                if (p[i] < 0)
+                    tMin = MathF.Max(tMin, t);
+                else
+                    tMax = MathF.Min(tMax, t);
+            }
+        }
+
+        return tMin <= tMax;
+    }
+
+    private static int ClipPolygonToRect(Span<Vector2> poly, int count,
+        float xMin, float yMin, float xMax, float yMax,
+        Span<Vector2> output)
+    {
+        if (count < 3)
+            return 0;
+
+        Span<Vector2> temp1 = stackalloc Vector2[count + 4];
+        Span<Vector2> temp2 = stackalloc Vector2[count + 4];
+
+        poly[..count].CopyTo(temp1);
+        var currentCount = count;
+
+        currentCount = ClipPolygonAgainstEdge(temp1, currentCount, temp2, xMin, true, true);
+        if (currentCount < 3) return 0;
+
+        currentCount = ClipPolygonAgainstEdge(temp2, currentCount, temp1, xMax, true, false);
+        if (currentCount < 3) return 0;
+
+        currentCount = ClipPolygonAgainstEdge(temp1, currentCount, temp2, yMin, false, true);
+        if (currentCount < 3) return 0;
+
+        currentCount = ClipPolygonAgainstEdge(temp2, currentCount, output, yMax, false, false);
+        return currentCount;
+    }
+
+    private static int ClipPolygonAgainstEdge(Span<Vector2> input, int inputCount,
+        Span<Vector2> output, float edgeValue, bool isVertical, bool isMin)
+    {
+        var outputCount = 0;
+
+        for (var i = 0; i < inputCount; i++)
+        {
+            var current = input[i];
+            var next = input[(i + 1) % inputCount];
+
+            var currentVal = isVertical ? current.X : current.Y;
+            var nextVal = isVertical ? next.X : next.Y;
+
+            var currentInside = isMin ? currentVal >= edgeValue : currentVal <= edgeValue;
+            var nextInside = isMin ? nextVal >= edgeValue : nextVal <= edgeValue;
+
+            if (currentInside)
+            {
+                if (outputCount < output.Length)
+                    output[outputCount++] = current;
+
+                if (!nextInside)
+                {
+                    var intersection = ComputeEdgeIntersection(current, next, edgeValue, isVertical);
+                    if (outputCount < output.Length)
+                        output[outputCount++] = intersection;
+                }
+            }
+            else if (nextInside)
+            {
+                var intersection = ComputeEdgeIntersection(current, next, edgeValue, isVertical);
+                if (outputCount < output.Length)
+                    output[outputCount++] = intersection;
+            }
+        }
+
+        return outputCount;
+    }
+
+    private static Vector2 ComputeEdgeIntersection(Vector2 p0, Vector2 p1, float edgeValue, bool isVertical)
+    {
+        if (isVertical)
+        {
+            var t = (edgeValue - p0.X) / (p1.X - p0.X);
+            return new Vector2(edgeValue, p0.Y + t * (p1.Y - p0.Y));
+        }
+        else
+        {
+            var t = (edgeValue - p0.Y) / (p1.Y - p0.Y);
+            return new Vector2(p0.X + t * (p1.X - p0.X), edgeValue);
+        }
+    }
+
+    private static float CalculatePolygonArea(Span<Vector2> verts, int count)
+    {
+        if (count < 3)
+            return 0f;
+
+        var area = 0f;
+        for (var i = 0; i < count; i++)
+        {
+            var j = (i + 1) % count;
+            area += verts[i].X * verts[j].Y;
+            area -= verts[j].X * verts[i].Y;
+        }
+
+        return MathF.Abs(area) * 0.5f;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

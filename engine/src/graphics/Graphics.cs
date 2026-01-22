@@ -25,7 +25,6 @@ public static unsafe class Graphics
     private const int LayerShift = 48;
     private const long SortKeyMergeMask = 0x7FFFFFFFFFFF0000;
 
-
     public struct AutoState(bool pop) : IDisposable
     {
         private bool _pop = pop;
@@ -37,6 +36,7 @@ public static unsafe class Graphics
         public nuint Shader;
         public fixed ulong Textures[MaxTextures];
         public BlendMode BlendMode;
+        public TextureFilter TextureFilter;
         public int ViewportX;
         public int ViewportY;
         public int ViewportW;
@@ -67,6 +67,7 @@ public static unsafe class Graphics
         public ushort SortIndex;
         public ushort BoneIndex;
         public BlendMode BlendMode;
+        public TextureFilter TextureFilter;
         public int ViewportX;
         public int ViewportY;
         public int ViewportWidth;
@@ -180,6 +181,7 @@ public static unsafe class Graphics
         CurrentState.Color = Color.White;
         CurrentState.Shader = null;
         CurrentState.BlendMode = default;
+        CurrentState.TextureFilter = TextureFilter.Point;
         for (var i = 0; i < MaxTextures; i++)
             CurrentState.Textures[i] = 0;
 
@@ -227,7 +229,7 @@ public static unsafe class Graphics
             BoneTextureWidth, MaxBoneRows,
             ReadOnlySpan<byte>.Empty,
             TextureFormat.RGBA32F,
-            TextureFilter.Nearest);
+            TextureFilter.Point);
     }
 
     public static void Shutdown()
@@ -300,11 +302,13 @@ public static unsafe class Graphics
         );
     }
 
-    internal static void BeginFrame()
+    internal static bool BeginFrame()
     {
         ResetState();
 
-        Driver.BeginFrame();
+        if (!Driver.BeginFrame())
+            return false;
+
         Driver.DisableScissor();
 
         _time += Time.DeltaTime;
@@ -317,6 +321,8 @@ public static unsafe class Graphics
         _inScenePass = true;
 
         Driver.BeginScenePass(ClearColor);
+
+        return true;
     }
 
     public static void BeginUI()
@@ -334,6 +340,7 @@ public static unsafe class Graphics
                 Driver.Composite(_compositeShader.Handle);
         }
 
+        Driver.BeginUIPass();
         _inUIPass = true;
     }
 
@@ -348,6 +355,12 @@ public static unsafe class Graphics
 
             if (_compositeShader != null)
                 Driver.Composite(_compositeShader.Handle);
+        }
+
+        if (_inUIPass)
+        {
+            Driver.EndUIPass();
+            _inUIPass = false;
         }
 
         Driver.EndFrame();
@@ -460,7 +473,7 @@ public static unsafe class Graphics
         if (sprite == null || SpriteAtlas == null) return;
 
         var uv = sprite.UV;
-        var bounds = sprite.Bounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
+        var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
         var p0 = new Vector2(bounds.Left, bounds.Top);
         var p1 = new Vector2(bounds.Right, bounds.Top);
         var p2 = new Vector2(bounds.Right, bounds.Bottom);
@@ -504,6 +517,7 @@ public static unsafe class Graphics
 
         var shaderChanged = current.Shader != prev.Shader;
         var blendChanged = current.BlendMode != prev.BlendMode;
+        var filterChanged = current.TextureFilter != prev.TextureFilter;
         var texturesChanged = false;
         for (var i = 0; i < MaxTextures && !texturesChanged; i++)
             texturesChanged = current.Textures[i] != prev.Textures[i];
@@ -517,7 +531,7 @@ public static unsafe class Graphics
                              current.ScissorWidth != prev.ScissorWidth ||
                              current.ScissorHeight != prev.ScissorHeight;
 
-        if (shaderChanged || blendChanged || texturesChanged || viewportChanged || scissorChanged)
+        if (shaderChanged || blendChanged || filterChanged || texturesChanged || viewportChanged || scissorChanged)
             _batchStateDirty = true;
     }
 
@@ -526,7 +540,13 @@ public static unsafe class Graphics
         CurrentState.BlendMode = blendMode;
         _batchStateDirty = true;
     }
-    
+
+    public static void SetTextureFilter(TextureFilter filter)
+    {
+        CurrentState.TextureFilter = filter;
+        _batchStateDirty = true;
+    }
+
     public const int MaxBoneTransforms = MaxBonesPerEntity;
 
     public static void SetBones(ReadOnlySpan<Matrix3x2> transforms)
@@ -610,6 +630,7 @@ public static unsafe class Graphics
 
         var shader = CurrentState.Shader?.Handle ?? nuint.Zero;
         var blendMode = CurrentState.BlendMode;
+        var textureFilter = CurrentState.TextureFilter;
         var viewportX = CurrentState.ViewportX;
         var viewportY = CurrentState.ViewportY;
         var viewportW = CurrentState.ViewportWidth;
@@ -626,6 +647,7 @@ public static unsafe class Graphics
             ref var existing = ref _batchStates[i];
             if (existing.Shader != shader ||
                 existing.BlendMode != blendMode ||
+                existing.TextureFilter != textureFilter ||
                 existing.ViewportX != viewportX ||
                 existing.ViewportY != viewportY ||
                 existing.ViewportW != viewportW ||
@@ -659,6 +681,7 @@ public static unsafe class Graphics
         ref var batchState = ref _batchStates.Add();
         batchState.Shader = shader;
         batchState.BlendMode = blendMode;
+        batchState.TextureFilter = textureFilter;
         for (int t = 0; t < MaxTextures; t++)
             batchState.Textures[t] = CurrentState.Textures[t];
         batchState.ViewportX = viewportX;
@@ -692,7 +715,7 @@ public static unsafe class Graphics
             return;
 
         if (_batchStates.Length == 0 ||
-            _batchStates[^1].Mesh != _mesh)
+            _batchStates[_currentBatchState].Mesh != _mesh)
         {
             SetMesh(_mesh);
         }
@@ -862,20 +885,28 @@ public static unsafe class Graphics
         var lastViewportW = ushort.MaxValue;
         var lastViewportH = ushort.MaxValue;
         var lastScissorEnabled = false;
+        var lastScissorX = int.MinValue;
+        var lastScissorY = int.MinValue;
+        var lastScissorW = int.MinValue;
+        var lastScissorH = int.MinValue;
         var lastShader = nuint.Zero;
         var lastTextures = stackalloc nuint[MaxTextures];
         for (int i = 0; i < MaxTextures; i++)
             lastTextures[i] = nuint.Zero;
         var lastMesh = nuint.Zero;
         var lastBlendMode = BlendMode.None;
+        var lastTextureFilter = TextureFilter.Point;
 
         if (_vertices.Length > 0 || _indices.Length > 0)
         {
             Driver.BindMesh(_mesh);
             Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _sortedIndices.AsSpan());
             Driver.SetBlendMode(BlendMode.None);
+            Driver.SetTextureFilter(TextureFilter.Linear);
             lastMesh = _mesh;
         }
+
+        Driver.SetTextureFilter(TextureFilter.Point);
 
         UploadGlobals();
         Driver.BindUniformBuffer(_globalsUbo, GlobalsUboBindingPoint);
@@ -910,23 +941,39 @@ public static unsafe class Graphics
                 LogRender($"    SetViewport: X={batchState.ViewportX} Y={batchState.ViewportY} W={batchState.ViewportW} H={batchState.ViewportH}");
             }
 
-            if (lastScissorEnabled != batchState.ScissorEnabled)
+            if (lastScissorEnabled != batchState.ScissorEnabled ||
+                (batchState.ScissorEnabled && (
+                    lastScissorX != batchState.ScissorX ||
+                    lastScissorY != batchState.ScissorY ||
+                    lastScissorW != batchState.ScissorWidth ||
+                    lastScissorH != batchState.ScissorHeight)))
             {
                 lastScissorEnabled = batchState.ScissorEnabled;
                 if (batchState.ScissorEnabled)
                 {
+                    LogRender($"    SetScissor: X={batchState.ScissorX} Y={batchState.ScissorY} W={batchState.ScissorWidth} H={batchState.ScissorHeight}");
+
+                    lastScissorX = batchState.ScissorX;
+                    lastScissorY = batchState.ScissorY;
+                    lastScissorW = batchState.ScissorWidth;
+                    lastScissorH = batchState.ScissorHeight;
                     Driver.SetScissor(
                         batchState.ScissorX,
                         batchState.ScissorY,
                         batchState.ScissorWidth,
                         batchState.ScissorHeight);
-                    
-                    LogRender($"    SetScissor: X={batchState.ScissorX} Y={batchState.ScissorY} W={batchState.ScissorWidth} H={batchState.ScissorHeight}");
+
                 }
                 else
                 {
+                    LogRender($"    DisableScissor");
+
+                    lastScissorX = int.MinValue;
+                    lastScissorY = int.MinValue;
+                    lastScissorW = int.MinValue;
+                    lastScissorH = int.MinValue;
+
                     Driver.DisableScissor();
-                    LogRender($"    DisableScissor:");
                 }
             }
 
@@ -955,6 +1002,13 @@ public static unsafe class Graphics
                 lastBlendMode = batchState.BlendMode;
                 Driver.SetBlendMode(batchState.BlendMode);
                 LogRender($"    SetBlendMode: {batchState.BlendMode}");
+            }
+
+            if (lastTextureFilter != batchState.TextureFilter)
+            {
+                lastTextureFilter = batchState.TextureFilter;
+                Driver.SetTextureFilter(batchState.TextureFilter);
+                LogRender($"    SetTextureFilter: {batchState.TextureFilter}");
             }
 
             if (lastMesh != batchState.Mesh)

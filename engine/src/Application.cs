@@ -52,7 +52,6 @@ public static class Application
 
         // Subscribe to platform events
         Platform.OnEvent += Input.ProcessEvent;
-        Platform.SetResizeCallback(RenderFrame);
 
         // Initialize subsystems
         Time.Init();
@@ -67,7 +66,10 @@ public static class Application
 
         TextRender.Init(config);
         UI.Init(config.UI);
-        
+
+        // Set resize callback after all subsystems are initialized to avoid early resize events
+        Platform.SetResizeCallback(RenderFrame);
+
         _running = true;
     }
 
@@ -108,7 +110,9 @@ public static class Application
 
         Input.Update();
 
-        Graphics.BeginFrame();
+        if (!Graphics.BeginFrame())
+            return _running;
+
         _vtable.Update();
         Graphics.BeginUI();
         UI.Begin();

@@ -29,20 +29,19 @@ public static class EditorApplication
 
     public static void Init(string editorPath, string projectPath, bool clean)
     {
-        Log.Info("Initializing Editor Application");
         EditorPath = editorPath;
         ProjectPath = projectPath;
 
-        Log.Info("RegisterAssetTypes");
         Application.RegisterAssetTypes();
 
-        Log.Info("Register Document Defs");
         AtlasDocument.RegisterDef();
         TextureDocument.RegisterDef();
         ShaderDocument.RegisterDef();
         SoundDocument.RegisterDef();
         SpriteDocument.RegisterDef();
         FontDocument.RegisterDef();
+        SkeletonDocument.RegisterDef();
+        AnimationDocument.RegisterDef();
 
         Config = EditorConfig.Load(Path.Combine(ProjectPath, "editor.cfg"))!;           
         if (Config == null)

@@ -18,6 +18,15 @@ public unsafe partial class WebGPUGraphicsDriver
         _state.PipelineDirty = true;
     }
 
+    public void SetTextureFilter(TextureFilter filter)
+    {
+        if (_state.TextureFilter == filter)
+            return;
+
+        _state.TextureFilter = filter;
+        _state.BindGroupDirty = true;
+    }
+
     public void DrawElements(int firstIndex, int indexCount, int baseVertex = 0)
     {
         if (_currentRenderPass == null)
@@ -31,6 +40,13 @@ public unsafe partial class WebGPUGraphicsDriver
                 _state.BlendMode,
                 _meshes[(int)_state.BoundMesh].Stride
             );
+
+            if (pipeline == null)
+            {
+                Log.Error($"Cannot draw - pipeline is null for shader {_state.BoundShader}");
+                return;
+            }
+
             _wgpu.RenderPassEncoderSetPipeline(_currentRenderPass, pipeline);
             _state.PipelineDirty = false;
         }
@@ -42,6 +58,17 @@ public unsafe partial class WebGPUGraphicsDriver
         ref var mesh = ref _meshes[(int)_state.BoundMesh];
         _wgpu.RenderPassEncoderSetVertexBuffer(_currentRenderPass, 0, mesh.VertexBuffer, 0, (ulong)(mesh.MaxVertices * mesh.Stride));
         _wgpu.RenderPassEncoderSetIndexBuffer(_currentRenderPass, mesh.IndexBuffer, IndexFormat.Uint16, 0, (ulong)(mesh.MaxIndices * sizeof(ushort)));
+
+        // Apply scissor state right before draw
+        if (_state.ScissorEnabled)
+        {            
+            _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass,
+                (uint)_state.ScissorX, (uint)(_state.ViewportH - _state.ScissorY - _state.ScissorH), (uint)_state.ScissorW, (uint)_state.ScissorH);
+        }
+        else
+        {
+            _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)_surfaceWidth, (uint)_surfaceHeight);
+        }
 
         // Draw indexed
         _wgpu.RenderPassEncoderDrawIndexed(
@@ -121,20 +148,11 @@ public unsafe partial class WebGPUGraphicsDriver
 
                 case ShaderBindingType.Sampler:
                 {
-                    int samplerSlot = GetTextureSlotForBinding(binding.Binding, ref shader);
-                    nuint samplerTextureHandle = samplerSlot >= 0 ? (nuint)_state.BoundTextures[samplerSlot] : 0;
-
-                    if (samplerTextureHandle == 0)
-                    {
-                        Log.Error($"Sampler for slot {samplerSlot} (binding {binding.Binding}) not bound!");
-                        _state.BindGroupDirty = false;
-                        return;
-                    }
-
+                    var sampler = _state.TextureFilter == TextureFilter.Point ? _nearestSampler : _linearSampler;
                     entries[validEntryCount++] = new BindGroupEntry
                     {
                         Binding = binding.Binding,
-                        Sampler = _textures[(int)samplerTextureHandle].Sampler,
+                        Sampler = sampler,
                     };
                     break;
                 }

@@ -3,7 +3,6 @@
 //
 
 using System.Numerics;
-using Silk.NET.Maths;
 
 namespace NoZ.Editor;
 
