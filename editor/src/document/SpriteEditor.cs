@@ -81,6 +81,7 @@ public class SpriteEditor : DocumentEditor
 
     public override void Dispose()
     {
+        AtlasManager.UpdateSprite(Document);
         _rasterTexture.Dispose();
         _pixelData.Dispose();
     }

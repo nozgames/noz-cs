@@ -67,6 +67,18 @@ public static class AtlasManager
             _atlases[atlasIndex].Update();
     }
 
+    public static void UpdateSprite(SpriteDocument sprite)
+    {
+        Debug.Assert(sprite.Atlas != null);
+
+        // See if the sprite can remain in its current atlas
+        if (sprite.Atlas.TryUpdate(sprite))
+        {
+            sprite.Atlas.Update();
+            return;
+        }
+    }
+
     private static void AddSprite(SpriteDocument sprite)
     {
         Debug.Assert(sprite.Atlas == null);

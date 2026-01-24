@@ -343,7 +343,10 @@ public unsafe partial class WebGPUGraphicsDriver
                 RowsPerImage = (uint)region.Height,
             };
 
-            var copySize = new Extent3D { Width = (uint)region.Width, Height = (uint)region.Height, DepthOrArrayLayers = 1 };
+            var copySize = new Extent3D { 
+                Width = (uint)region.Width,
+                Height = (uint)region.Height,
+                DepthOrArrayLayers = 1 };
             var destination = new ImageCopyTexture
             {
                 Texture = textureInfo.Texture,
@@ -352,7 +355,13 @@ public unsafe partial class WebGPUGraphicsDriver
                 Aspect = TextureAspect.All,
             };
 
-            _wgpu.QueueWriteTexture(_queue, &destination, dataPtr, (nuint)data.Length, &layout, &copySize);
+            _wgpu.QueueWriteTexture(
+                _queue,
+                &destination,
+                dataPtr + (region.Y * rowWidth + region.X) * bytesPerPixel,
+                (nuint)data.Length,
+                &layout,
+                &copySize);
         }
     }
 

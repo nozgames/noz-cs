@@ -26,6 +26,7 @@ public class SpriteDocument : Document
     public byte Palette;
     public float Depth;
     public RectInt RasterBounds { get; private set; }
+    public Vector2Int AtlasSize => new(RasterBounds.Size.X * FrameCount, RasterBounds.Size.Y);
 
     internal AtlasDocument? Atlas;
     internal Rect AtlasUV;

@@ -31,7 +31,7 @@ namespace NoZ.Editor
 
         public AtlasDocument()
         {
-            IsVisible = false;
+            //IsVisible = false;
         }
 
         public static void RegisterDef()
@@ -178,31 +178,52 @@ namespace NoZ.Editor
             base.Dispose();
         }
 
+        private int GetFreeRectIndex(Vector2Int size)
+        {
+            var rects = CollectionsMarshal.AsSpan(_rects);
+            size += Vector2Int.One * 2;
+            for (int i = 0; i < _rects.Count; i++)
+            {
+                ref var rect = ref rects[i];
+                if (rect.Sprite != null) continue;
+                if (size.X > rect.Rect.Width || size.Y > rect.Rect.Height) continue;
+                return i;
+            }
+            return -1;
+        }
+
+        private int GetRectIndex(SpriteDocument sprite)
+        {
+            var rects = CollectionsMarshal.AsSpan(_rects);
+            for (int i = 0; i < _rects.Count; i++)
+            {
+                ref var rect = ref rects[i];
+                if (rect.Sprite == sprite)
+                    return i;
+            }
+            return -1;
+        }
+
         internal bool TryAddSprite(SpriteDocument sprite)
         {
             // Try to reclaim an empty rect
             var rects = CollectionsMarshal.AsSpan(_rects);
-            var size = sprite.RasterBounds.Size;
-            for (int i = 0; i < _rects.Count; i++)
+            var size = sprite.AtlasSize;
+            var freeRectIndex = GetFreeRectIndex(size);
+            if (freeRectIndex != -1)
             {
-                ref var rect = ref rects[i]; 
-                if (rect.Sprite != null) continue;
-                if (size.X > rect.Rect.Width || size.Y > rect.Rect.Height) continue;
-
+                ref var rect = ref rects[freeRectIndex];
                 rect.Name = sprite.Name;
                 rect.Sprite = sprite;
                 rect.FrameCount = sprite.FrameCount;
-
                 sprite.Atlas = this;
                 sprite.AtlasUV = ToUV(rect);
-
                 return true;
             }
 
             // Pack a new one
             var rectIndex = _packer.Insert(size + Vector2Int.One * 2, out var packedRect);
-            if (rectIndex == -1)
-                return false;
+            if (rectIndex == -1) return false;
             Debug.Assert(rectIndex == _rects.Count);
             _rects.Add(new AtlasSpriteRect
             {
@@ -219,15 +240,45 @@ namespace NoZ.Editor
             return true;
         }
 
+        internal bool TryUpdate(SpriteDocument sprite)
+        { 
+            var rectIndex = GetRectIndex(sprite);
+            if (rectIndex == -1)
+                return false;
+
+            var rects = CollectionsMarshal.AsSpan(_rects);
+            ref var rect = ref rects[rectIndex];
+            var size = sprite.AtlasSize;
+
+            if (size.X > rect.Rect.Width - 2 || size.Y > rect.Rect.Height - 2)
+            {
+                rect.Sprite = null;
+                rect.Dirty = true;
+                return TryAddSprite(sprite);
+            }
+
+            rect.Dirty = true;
+            return true;
+        }
+
         public void Update()
         {
             var rects = CollectionsMarshal.AsSpan(_rects);
+            RectInt? updateRect = null;
             for (int i = 0; i < _rects.Count; ++i)
             {
                 ref var rect = ref rects[i];
-                if (!rect.Dirty || rect.Sprite == null) continue;
+                if (!rect.Dirty) continue;
+
+                updateRect = updateRect.HasValue
+                    ? RectInt.Union(updateRect.Value, rect.Rect)
+                    : rect.Rect;
 
                 rect.Dirty = false;
+
+                _image.Clear(rect.Rect);
+
+                if (rect.Sprite == null) continue;
                 
                 var palette = PaletteManager.GetPalette(rect.Sprite.Palette);
                 if (palette == null) continue;
@@ -240,10 +291,12 @@ namespace NoZ.Editor
                         palette.Colors,
                         rect.Rect.Position + Vector2Int.One - frame.Shape.RasterBounds.Position);
                 }
+
+                rect.Sprite.AtlasUV = ToUV(rect);
             }
 
-            if (_texture != null)
-                _texture.Update(_image.AsByteSpan());
+            if (updateRect != null)
+                _texture?.Update(_image.AsByteSpan(), updateRect.Value, _image.Width);
         }
 
         public void Rebuild()

@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Linq;
 
 namespace NoZ.Editor;
 
@@ -18,6 +19,42 @@ public static class Workspace
     {
         foreach (var doc in DocumentManager.Documents)
             Importer.QueueImport(doc, true);
+    }
+
+    private static ContextMenuItem[] BuildWorkspaceContextMenu()
+    {
+        var items = new List<ContextMenuItem>();
+
+        var creatableDefs = DocumentManager.GetCreatableDefs().ToArray();
+        if (creatableDefs.Length > 0)
+        {
+            items.Add(ContextMenuItem.Submenu("New"));
+            foreach (var def in creatableDefs)
+            {
+                var assetType = def.Type;
+                items.Add(ContextMenuItem.Item(def.Type.ToString(), () => CreateNewDocument(assetType), level: 1));
+            }
+            items.Add(ContextMenuItem.Separator());
+        }
+
+        items.Add(ContextMenuItem.Item("Move", BeginMoveTool, key: InputCode.KeyG));
+        items.Add(ContextMenuItem.Item("Delete", DeleteSelected, key: InputCode.KeyX));
+        items.Add(ContextMenuItem.Separator());
+        items.Add(ContextMenuItem.Item("Rebuild All", RebuildAll, alt: true, ctrl: true, shift: true, key: InputCode.KeyA));
+
+        return items.ToArray();
+    }
+
+    private static void CreateNewDocument(AssetType assetType)
+    {
+        var position = ContextMenu.WorldPosition;        
+        var doc = DocumentManager.New(assetType, null, position);
+        if (doc != null)
+        {
+            ClearSelection();
+            SetSelected(doc, true);
+            Notifications.Add($"created {assetType.ToString().ToLowerInvariant()} '{doc.Name}'");
+        }
     }
 
     private static void RegisterCommands()
@@ -45,12 +82,7 @@ public static class Workspace
             new Command { Name = "Play/Stop", ShortName = "play]", Handler = Play, Key = InputCode.KeySpace },
         ]);
 
-        _workspaceContextMenuItems = [
-            ContextMenuItem.Item("Move", BeginMoveTool, key: InputCode.KeyG),
-            ContextMenuItem.Item("Delete", DeleteSelected, key: InputCode.KeyX),
-            ContextMenuItem.Separator(),
-            ContextMenuItem.Item("Rebuild All", RebuildAll, alt: true, ctrl: true, shift: true, key: InputCode.KeyA),
-        ];
+        _workspaceContextMenuItems = BuildWorkspaceContextMenu();
     }
 
     private const float ZoomMin = 0.01f;

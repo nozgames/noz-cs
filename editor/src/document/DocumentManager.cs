@@ -59,6 +59,13 @@ public static class DocumentManager
             ext = "." + ext;
         return _defsByExtension.TryGetValue(ext, out var def) ? def : null;
     }
+
+    public static IEnumerable<DocumentDef> GetCreatableDefs()
+    {
+        foreach (var def in _defsByType.Values)
+            if (def.NewFile != null)
+                yield return def;
+    }
     
     public static Document? Load(string path)
     {
@@ -87,7 +94,19 @@ public static class DocumentManager
         return doc;
     }
 
-    public static Document? New(AssetType assetType, string name)
+    private static string GenerateUniqueName(AssetType assetType, string baseName)
+    {
+        var name = baseName;
+        var index = 1;
+        while (Find(assetType, name) != null)
+        {
+            name = $"{baseName}{index:D3}";
+            index++;
+        }
+        return name;
+    }
+
+    public static Document? New(AssetType assetType, string? name, System.Numerics.Vector2? position = null)
     {
         var def = GetDef(assetType);
         if (def == null || def.NewFile == null)
@@ -95,6 +114,8 @@ public static class DocumentManager
 
         if (_sourcePaths.Count == 0)
             return null;
+
+        name = GenerateUniqueName(assetType, name ?? "new");
 
         var canonicalName = MakeCanonicalName(name);
         if (Find(assetType, canonicalName) != null)
@@ -117,6 +138,13 @@ public static class DocumentManager
         var doc = Load(path);
         doc?.LoadMetadata();
         doc?.Load();
+
+        if (doc != null && position.HasValue)
+        {
+            doc.Position = position.Value;
+            doc.MarkMetaModified();
+        }
+
         return doc;
     }
 
