@@ -77,7 +77,8 @@ public class EditorColors
     public OverlayColors Overlay;
     public ToolbarColors Toolbar;
 
-    private static readonly Color selectionColor = Color.FromRgb(0x0099ff);
+    private static readonly Color selectionColor = Color.FromRgb(0x4772b3);
+
     public static EditorColors Dark => new()
     {
         BackgroundColor = Color.FromRgb(0x383838),

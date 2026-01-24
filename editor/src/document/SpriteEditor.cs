@@ -161,8 +161,58 @@ public class SpriteEditor : DocumentEditor
         }
     }
 
+    private void GetSelectedColors(Span<bool> selectedColors)
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        var hasSelectedPaths = false;
+
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            var path = shape.GetPath(p);
+            if (!PathHasSelectedAnchor(shape, path))
+                continue;
+
+            hasSelectedPaths = true;
+            if (path.FillColor < PaletteDef.ColorCount)
+                selectedColors[path.FillColor] = true;
+        }
+
+        if (!hasSelectedPaths)
+            selectedColors[_selectionColor] = true;
+    }
+
+    private void UpdateSelectionColorFromSelection()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+
+        for (ushort p = (ushort)(shape.PathCount - 1); p < shape.PathCount; p--)
+        {
+            var path = shape.GetPath(p);
+            if (PathHasSelectedAnchor(shape, path))
+            {
+                _selectionColor = path.FillColor;
+                return;
+            }
+        }
+    }
+
+    private static bool PathHasSelectedAnchor(Shape shape, Shape.Path path)
+    {
+        for (ushort a = 0; a < path.AnchorCount; a++)
+        {
+            var anchor = shape.GetAnchor((ushort)(path.AnchorStart + a));
+            if (anchor.IsSelected)
+                return true;
+        }
+        return false;
+    }
+
     private void PaletteUI(PaletteDef palette, bool showSelection)
     {
+        Span<bool> selectedColors = stackalloc bool[PaletteDef.ColorCount];
+        if (showSelection)
+            GetSelectedColors(selectedColors);
+
         using (UI.BeginColumn(EditorStyle.SpriteEditor.Palette))
         {
             UI.Label(palette.Name, new LabelStyle
@@ -183,7 +233,7 @@ public class SpriteEditor : DocumentEditor
                 for (var col = 0; col < columns; col++)
                 {
                     var colorIndex = row * columns + col;
-                    var isSelected = showSelection && colorIndex == _selectionColor;
+                    var isSelected = showSelection && selectedColors[colorIndex];
                     PaletteColorUI((byte)colorIndex, palette.Colors[colorIndex], isSelected);
                 }
             }
@@ -410,6 +460,13 @@ public class SpriteEditor : DocumentEditor
     private void HandleDoubleClick()
     {
         if (_hoveredPath == ushort.MaxValue)
+            return;
+
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var localPos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+
+        if (!shape.IsPointInPath(localPos, _hoveredPath))
             return;
 
         SelectPath(_hoveredPath, Input.IsShiftDown());
@@ -639,6 +696,8 @@ public class SpriteEditor : DocumentEditor
         var maxLocal = Vector2.Transform(bounds.Max, invTransform);
         var localRect = Rect.FromMinMax(minLocal, maxLocal);
         shape.SelectAnchors(localRect);
+
+        UpdateSelectionColorFromSelection();
     }
 
     private void SelectAnchor(ushort anchorIndex, bool toggle)
@@ -656,6 +715,8 @@ public class SpriteEditor : DocumentEditor
             shape.ClearSelection();
             shape.SetAnchorSelected(anchorIndex, true);
         }
+
+        UpdateSelectionColorFromSelection();
     }
 
     private void SelectSegment(ushort anchorIndex, bool toggle)
@@ -683,6 +744,8 @@ public class SpriteEditor : DocumentEditor
             shape.SetAnchorSelected(anchorIndex, true);
             shape.SetAnchorSelected(nextAnchor, true);
         }
+
+        UpdateSelectionColorFromSelection();
     }
 
     private void SelectPath(ushort pathIndex, bool toggle)
@@ -711,6 +774,8 @@ public class SpriteEditor : DocumentEditor
             for (ushort a = 0; a < path.AnchorCount; a++)
                 shape.SetAnchorSelected((ushort)(path.AnchorStart + a), true);
         }
+
+        UpdateSelectionColorFromSelection();
     }
 
     private void SplitSegment(ushort anchorIndex)

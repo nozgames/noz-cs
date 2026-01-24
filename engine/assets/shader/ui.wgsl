@@ -64,11 +64,11 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let border = (1.0 + edge) - input.border_ratio;
     color = mix(color, border_color, smoothstep(border - edge, border, dist));
-    color.a = 1.0 - smoothstep(1.0 - edge, 1.0, dist);
+    color.a = (1.0 - smoothstep(1.0 - edge, 1.0, dist)) * color.a;
 
     if (color.a < 0.001) {
         discard;
     }
 
-    return vec4<f32>(color.rgb, color.a * input.color.a);
+    return color;
 }

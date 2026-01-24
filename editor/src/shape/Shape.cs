@@ -675,7 +675,7 @@ public sealed unsafe partial class Shape : IDisposable
         return anchorIndex;
     }
 
-    private bool IsPointInPath(Vector2 point, ushort pathIndex)
+    public bool IsPointInPath(Vector2 point, ushort pathIndex)
     {
         ref var path = ref _paths[pathIndex];
         if (path.AnchorCount < 3) return false;

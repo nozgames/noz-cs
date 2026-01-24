@@ -546,7 +546,7 @@ public static class Workspace
         if (SelectedCount == 0)
             return;
 
-        var message = SelectedCount == 1 ? "Delete asset?" : $"Delete {SelectedCount} assets?";
+        var message = SelectedCount == 1 ? "Delete selectd assets?" : $"Delete {SelectedCount} assets?";
         ConfirmDialog.Show(message, () =>
         {
             var toDelete = new List<Document>();
@@ -561,7 +561,9 @@ public static class Workspace
 
             SelectedCount = 0;
             Notifications.Add($"deleted {toDelete.Count} asset(s)");
-        });
+        },
+        yes: "Delete",
+        no: "Cancel");
     }
 
     public static void FrameOrigin()

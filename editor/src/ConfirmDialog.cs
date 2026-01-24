@@ -12,6 +12,8 @@ public static class ConfirmDialog
     private static bool _visible;
     private static string _message = string.Empty;
     private static Action? _onConfirm;
+    private static string _yesText = "Yes";
+    private static string _noText = "No";
 
     public static bool IsVisible => _visible;
 
@@ -26,8 +28,10 @@ public static class ConfirmDialog
         _onConfirm = null;
     }
 
-    public static void Show(string message, Action onConfirm)
+    public static void Show(string message, Action onConfirm, string yes="Yes", string no="No")
     {
+        _yesText = yes;
+        _noText = no; 
         _message = message;
         _onConfirm = onConfirm;
         _visible = true;
@@ -81,12 +85,13 @@ public static class ConfirmDialog
             {
                 UI.Label(_message, EditorStyle.Confirm.MessageLabel);
 
-                using (UI.BeginRow(EditorStyle.Confirm.ButtonRow))
+                using (UI.BeginContainer())
+                using (UI.BeginRow(EditorStyle.Confirm.ButtonContainer))
                 {
-                    if (EditorUI.Button(YesButtonId, "Yes"))
+                    if (EditorUI.Button(YesButtonId, _yesText, selected: true))
                         executed = _onConfirm;
 
-                    if (EditorUI.Button(YesButtonId, "No"))
+                    if (EditorUI.Button(NoButtonId, _noText))
                         Close();
                 }
             }

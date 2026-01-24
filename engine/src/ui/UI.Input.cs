@@ -92,7 +92,7 @@ public static partial class UI
             var mouseOver = new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse);
 
             es.SetFlags(ElementFlags.Hovered, mouseOver ? ElementFlags.Hovered : ElementFlags.None);
-            es.SetFlags(ElementFlags.Hovered, mouseOver && buttonDown ? ElementFlags.Down : ElementFlags.None);
+            es.SetFlags(ElementFlags.Down, mouseOver && buttonDown ? ElementFlags.Down : ElementFlags.None);
 
             if (mouseOver && mouseLeftPressed && _pressedElementId == ElementId.None)
             {

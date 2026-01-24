@@ -40,12 +40,21 @@ internal static class EditorUI
     public static void Shortcut(Command command, bool selected=false) =>
         Shortcut(command.Key, command.Ctrl, command.Alt, command.Shift, selected);
 
-    public static bool Button(byte id, string text, bool selected = false)
+    public static bool Button(ElementId id, string text, bool selected = false)
     {
         bool pressed = false;
         using (UI.BeginContainer(EditorStyle.Confirm.Button, id: id))
         {
-            UI.Container(UI.IsHovered() ? EditorStyle.Button.HoverFill : EditorStyle.Button.Fill);
+            var hovered = UI.IsHovered();
+            if (selected && hovered)
+                UI.Container(EditorStyle.Button.SelectedHoverFill);
+            else if (selected)
+                UI.Container(EditorStyle.Button.SelectedFill);
+            else if (hovered)
+                UI.Container(EditorStyle.Button.HoverFill);
+            else
+                UI.Container(EditorStyle.Button.Fill);
+
             UI.Label(text, EditorStyle.Button.Text);
             pressed = UI.WasPressed();
         }
