@@ -360,7 +360,7 @@ public static class Workspace
         if (CommandPalette.IsEnabled)
             return;
 
-        CommandPalette.Begin(new CommandInputOptions
+        CommandPalette.Open(new CommandInputOptions
         {
             Prefix = ":",
             Placeholder = "Enter command..."

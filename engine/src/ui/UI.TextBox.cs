@@ -7,42 +7,9 @@ using System.Numerics;
 
 namespace NoZ;
 
-public struct TextBoxData
-{
-    public Size Height;
-    public float FontSize;
-    public Color BackgroundColor;
-    public Color TextColor;
-    public Color PlaceholderColor;
-    public Color SelectionColor;
-    public BorderStyle Border;
-    public BorderStyle FocusBorder;
-    public UnsafeSpan<char> Placeholder;
-    public bool Password;
-
-    public static TextBoxData Default => new()
-    {
-        Height = 28f,
-        FontSize = 16,
-        BackgroundColor = new Color(0.22f, 0.22f, 0.22f, 1f),
-        TextColor = Color.White,
-        PlaceholderColor = new Color(0.4f, 0.4f, 0.4f, 1f),
-        SelectionColor = new Color(0.2f, 0.4f, 0.8f, 0.5f),
-        Border = BorderStyle.None,
-        FocusBorder = BorderStyle.None,
-        Password = false,
-        Placeholder = UnsafeSpan<char>.Empty
-    };
-}
-
 public static partial class UI
 {
     private static readonly string PasswordMask = new('*', 64);
-    
-    //private static byte _focusId;
-    //private static byte _focusCanvasId;
-    //private static bool _visible;
-    //private static bool _renderedThisFrame;
 
     private static void DrawTextBox(ref Element e)
     {
@@ -321,11 +288,6 @@ public static partial class UI
             tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
         }
-
-        //// Save modified text back
-        //UI.SetElementText(e.Id, text);
-
-        //_renderedThisFrame = true;
     }
 
     private static int FindPrevWordStart(in ReadOnlySpan<char> text, int index)
@@ -520,18 +482,5 @@ public static partial class UI
 
     public static void TextBoxEndFrame()
     {
-#if false
-        // Hide textbox if it wasn't rendered this frame (element no longer exists)
-        if (_visible && !_renderedThisFrame)
-        {
-            Application.Platform.HideTextbox();
-            _hotElementId = 0;
-            _focusCanvasId = 0;
-            _visible = false;
-        }
-        
-        // Reset for next frame
-        _renderedThisFrame = false;
-#endif
     }
 }

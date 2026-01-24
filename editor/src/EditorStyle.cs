@@ -186,7 +186,8 @@ public static class EditorStyle
         public static readonly ContainerStyle CommandIconContainer = new()
         {
             Width = Popup.Item.Height,
-            Height = Popup.Item.Height
+            Height = Popup.Item.Height,
+            Padding = EdgeInsets.All(6f),
         };
 
         public static readonly ContainerStyle SelectedCommandContainer = 

@@ -66,9 +66,9 @@ public static partial class UI
                 ref var child = ref GetElement(elementIndex);
                 if (child.Type != ElementType.Flex)
                 {
-                    var alignOffset = child.MarginMin[axis];
-                    child.Rect[axis] = e.ContentRect[axis] + flexOffset[axis] + alignOffset;
-                    flexOffset[axis] += alignOffset + child.Rect.GetSize(axis) + child.MarginMax[axis] + e.Data.Container.Spacing;
+                    var align = child.MarginMin[axis];
+                    child.Rect[axis] = e.ContentRect[axis] + flexOffset[axis] + align;
+                    flexOffset[axis] += align + child.Rect.GetSize(axis) + child.MarginMax[axis] + e.Data.Container.Spacing;
                 }
                 else
                 {

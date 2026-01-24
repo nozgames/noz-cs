@@ -192,6 +192,34 @@ internal struct CanvasData
     };
 }
 
+public struct TextBoxData
+{
+    public Size Height;
+    public float FontSize;
+    public Color BackgroundColor;
+    public Color TextColor;
+    public Color PlaceholderColor;
+    public Color SelectionColor;
+    public BorderStyle Border;
+    public BorderStyle FocusBorder;
+    public UnsafeSpan<char> Placeholder;
+    public bool Password;
+
+    public static TextBoxData Default => new()
+    {
+        Height = 28f,
+        FontSize = 16,
+        BackgroundColor = new Color(0.22f, 0.22f, 0.22f, 1f),
+        TextColor = Color.White,
+        PlaceholderColor = new Color(0.4f, 0.4f, 0.4f, 1f),
+        SelectionColor = new Color(0.2f, 0.4f, 0.8f, 0.5f),
+        Border = BorderStyle.None,
+        FocusBorder = BorderStyle.None,
+        Password = false,
+        Placeholder = UnsafeSpan<char>.Empty
+    };
+}
+
 [StructLayout(LayoutKind.Explicit)]
 internal struct ElementData
 {

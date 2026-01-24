@@ -37,8 +37,9 @@ public struct CommandInputOptions
 
 public static class CommandPalette
 {
-    private static readonly ElementId SearchId = new(201);
-    private static readonly ElementId CommandListId = new(202);
+    private static readonly ElementId CloseId = new(1);
+    private static readonly ElementId SearchId = new(2);
+    private static readonly ElementId CommandListId = new(3);
     private const int MaxFilteredCommands = 32;
 
     private static string? _prefix;
@@ -61,7 +62,7 @@ public static class CommandPalette
     {
     }
 
-    public static void Begin(CommandInputOptions options)
+    public static void Open(CommandInputOptions options)
     {
         _enabled = true;
         _prefix = options.Prefix;
@@ -76,7 +77,7 @@ public static class CommandPalette
         UI.SetFocus(SearchId, EditorStyle.CanvasId.CommandPalette);
     }
 
-    public static void End()
+    public static void Close()
     {
         if (!_enabled)
             return;
@@ -100,14 +101,14 @@ public static class CommandPalette
         if (Input.WasButtonPressed(InputCode.KeyEscape))
         {
             Input.ConsumeButton(InputCode.KeyEscape);
-            End();
+            Close();
             return;
         }
 
         if (Input.WasButtonPressed(InputCode.KeyEnter))
         {
             ExecuteSelectedCommand();
-            End();
+            Close();
             return;
         }
 
@@ -139,26 +140,28 @@ public static class CommandPalette
             return;
 
         using (UI.BeginCanvas(id:EditorStyle.CanvasId.CommandPalette))
-        using (UI.BeginColumn(EditorStyle.CommandPalette.Root))
         {
-            using (UI.BeginRow(EditorStyle.Popup.Item))
+            using (UI.BeginContainer(id:CloseId))
+                if (UI.WasPressed())
+                    Close();
+
+            using (UI.BeginColumn(EditorStyle.CommandPalette.Root))
             {
-                using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
-                    UI.Image(EditorAssets.Sprites.AssetIconShader);
+                using (UI.BeginRow(EditorStyle.Popup.Item with { Spacing = 4.0f }))
+                {
+                    using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
+                        UI.Image(EditorAssets.Sprites.AssetIconShader);
+
+                    using (UI.BeginFlex())
+                        if (UI.TextBox(SearchId, style: EditorStyle.CommandPalette.SearchTextBox, placeholder: "Search..."))
+                            _text = new string(UI.GetTextBoxText(EditorStyle.CanvasId.CommandPalette, SearchId));
+                }
+
+                UI.Container(EditorStyle.Popup.Separator);
 
                 using (UI.BeginFlex())
-                {
-                    if (UI.TextBox(SearchId, style: EditorStyle.CommandPalette.SearchTextBox, placeholder: "Search..."))
-                    {
-                        _text = new string(UI.GetTextBoxText(EditorStyle.CanvasId.CommandPalette, SearchId));
-                    }
-                }
+                    CommandList();
             }
-
-            UI.Container(EditorStyle.Popup.Separator);
-
-            using (UI.BeginFlex())
-                CommandList();
         }
     }
 
