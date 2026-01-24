@@ -52,6 +52,7 @@ public static class PaletteManager
     private static readonly List<PaletteDef> _palettes = [];
     private static readonly Dictionary<int, int> _paletteMap = [];
     private static string? _paletteTextureName;
+    private static TextureDocument? _paletteTexture;
 
     public static IReadOnlyList<PaletteDef> Palettes => _palettes;
 
@@ -69,7 +70,7 @@ public static class PaletteManager
             _palettes.Add(new PaletteDef(name, id));
         }
 
-        LoadPaletteColors();
+        ReloadPaletteColors();
     }
 
     public static void Shutdown()
@@ -77,6 +78,7 @@ public static class PaletteManager
         _palettes.Clear();
         _paletteMap.Clear();
         _paletteTextureName = null;
+        _paletteTexture = null;
     }
 
     public static PaletteDef? GetPalette(int id)
@@ -91,51 +93,31 @@ public static class PaletteManager
 
     public static void ReloadPaletteColors()
     {
-        LoadPaletteColors();
-    }
-
-    private static void LoadPaletteColors()
-    {
         if (string.IsNullOrEmpty(_paletteTextureName))
             return;
 
-        var path = FindPaletteTexture(_paletteTextureName);
-        if (path == null)
+        _paletteTexture = DocumentManager.Find(AssetType.Texture, _paletteTextureName) as TextureDocument;
+        if (_paletteTexture == null)
         {
-            Log.Warning($"Palette texture not found: {_paletteTextureName}.png");
+            Log.Error($"Palette texture not found: {_paletteTextureName}.png");
             return;
         }
 
+        _paletteTexture.IsVisible = false;
+
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = File.OpenRead(_paletteTexture.Path);
             var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
 
             foreach (var palette in _palettes)
                 palette.SampleColors(image.Data, image.Width, image.Height);
 
-            Log.Info($"Loaded palette colors from {path}");
+            Log.Info($"Loaded palette {_paletteTexture.Path}");
         }
         catch (Exception ex)
         {
             Log.Error($"Failed to load palette texture: {ex.Message}");
         }
-    }
-
-    private static string? FindPaletteTexture(string name)
-    {
-        string[] subdirs = ["", "textures", "texture", "reference"];
-
-        foreach (var sourcePath in DocumentManager.SourcePaths)
-        {
-            foreach (var subdir in subdirs)
-            {
-                var path = Path.Combine(sourcePath, subdir, name + ".png");
-                if (File.Exists(path))
-                    return path;
-            }
-        }
-
-        return null;
     }
 }

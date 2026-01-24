@@ -55,6 +55,7 @@ public class SpriteEditor : DocumentEditor
             new Command { Name = "Rotate", ShortName = "rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
             new Command { Name = "Scale", ShortName = "scale", Handler = BeginScaleTool, Key = InputCode.KeyS },
             new Command { Name = "Insert Anchor", ShortName = "insert", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
+            new Command { Name = "Pen Tool", ShortName = "pen", Handler = BeginPenTool, Key = InputCode.KeyP },
         ];
     }
 
@@ -752,6 +753,12 @@ public class SpriteEditor : DocumentEditor
         Document.MarkModified();
         Document.UpdateBounds();
         MarkRasterDirty();
+    }
+
+    private void BeginPenTool()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        Workspace.BeginTool(new PenTool(this, shape, _selectionColor));
     }
 
     private void InsertAnchorAtHover()

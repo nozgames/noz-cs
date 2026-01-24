@@ -35,8 +35,10 @@ public static class AtlasManager
             var doc = DocumentManager.Get(i);
             if (doc is AtlasDocument atlas)
             {
+                if (!atlas.Name.StartsWith(EditorApplication.Config.AtlasPrefix)) continue;
                 atlas.Index = _atlases.Count;
                 atlas.ResolveSprites();
+                atlas.IsVisible = false;
                 _atlases.Add(atlas);
             }
             else if (doc is SpriteDocument sprite)
@@ -48,6 +50,7 @@ public static class AtlasManager
             var atlas = DocumentManager.New(AssetType.Atlas, GetAtlasName(0)) as AtlasDocument;
             Debug.Assert(atlas != null);
             atlas.Index = 0;
+            atlas.IsVisible = false;
             _atlases.Add(atlas);
         }
     }
