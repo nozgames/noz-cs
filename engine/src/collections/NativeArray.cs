@@ -14,11 +14,14 @@ public unsafe struct NativeArray<T>(int capacity, int length=0) : IDisposable
     public int Length { get; private set; } = length;
     public int Capacity { get; private set; } = capacity;
 
-    public Span<T> AsSpan() => new(_ptr, Length);
-    public Span<byte> AsByteSpan() => new((byte*)_ptr, Length * sizeof(T));
-    public ReadOnlySpan<T> AsReadonlySpan() => new(_ptr, Length);
-    public ReadOnlySpan<T> AsReadonlySpan(int start, int count) => new(_ptr + start, count);
-    public ReadOnlySpan<T> AsReadonlyByteSpan() => new(_ptr, Length);
+    public readonly Span<T> AsSpan() => new(_ptr, Length);
+    public readonly Span<T> AsSpan(int start, int count) => new(_ptr + start, count);
+    public readonly Span<byte> AsByteSpan() => new((byte*)_ptr, Length * sizeof(T));
+    public readonly ReadOnlySpan<T> AsReadonlySpan() => new(_ptr, Length);
+    public readonly ReadOnlySpan<T> AsReadonlySpan(int start, int count) => new(_ptr + start, count);
+    public readonly ReadOnlySpan<T> AsReadonlyByteSpan() => new(_ptr, Length);
+    
+    public readonly UnsafeSpan<T> AsUnsafeSpan(int start, int count) => new(_ptr + start, count);
 
     public bool CheckCapacity(int additionalCount)
     {
@@ -40,13 +43,24 @@ public unsafe struct NativeArray<T>(int capacity, int length=0) : IDisposable
         _ptr[Length++] = item;
     }
 
-    public void AddRange(in ReadOnlySpan<T> elements)
+    public UnsafeSpan<T> AddRange(in ReadOnlySpan<T> elements)
     {
         Debug.Assert(_ptr != null);
         Debug.Assert(Length + elements.Length <= Capacity, "UnsafeList has reached its capacity.");
         fixed(T* elementsPtr = elements)
             NativeMemory.Copy(elementsPtr, _ptr + Length, (nuint)(elements.Length * sizeof(T)));
+        var span = new UnsafeSpan<T>(_ptr + Length, elements.Length);
         Length += elements.Length;
+        return span;
+    }
+
+    public UnsafeSpan<T> AddRange(int count)
+    {
+        Debug.Assert(_ptr != null);
+        Debug.Assert(Length + count <= Capacity, "UnsafeList has reached its capacity.");
+        var span = new UnsafeSpan<T>(_ptr + Length, count);
+        Length += count;
+        return span;
     }
 
     public void RemoveAt(int index)

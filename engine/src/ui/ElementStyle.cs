@@ -90,10 +90,6 @@ public struct TransformStyle()
     public Vector2 Scale = Vector2.One;
 }
 
-public struct ScrollableStyle()
-{
-}
-
 public struct GridStyle()
 {
     public float Spacing = 0;
@@ -157,8 +153,7 @@ public struct TextBoxStyle()
 
         FocusBorder = FocusBorder,
         Password = IsPassword,
-        TextStart = 0,
-        TextLength = 0
+        Text = UnsafeSpan<char>.Empty,
     };
 }
 

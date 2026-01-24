@@ -4,6 +4,7 @@
 
 // #define NOZ_UI_DEBUG
 
+using System.Diagnostics;
 using System.Numerics;
 
 namespace NoZ;
@@ -82,31 +83,38 @@ public static partial class UI
 
     private static void ProcessCanvasInput(byte canvasId, Vector2 mouse, bool mouseLeftPressed, bool buttonDown, bool isHotCanvas)
     {
-        ref var cs = ref _canvasStates[canvasId];
-        if (cs.ElementStates == null) return;
+        ref var canvasState = ref _canvasStates[canvasId];
+        ref var canvas = ref _elements[canvasState.ElementIndex];
+        if (canvasState.ElementStates == null) return;
 
         var focusElementPressed = false;
 
         // Iterate elements belonging to this canvas in reverse order (topmost first)
-        for (var idx = _elementCount; idx > 0; idx--)
+        for (var elementIndex=canvas.NextSiblingIndex - 1; elementIndex > canvas.Index; elementIndex--)
         {
-            ref var e = ref _elements[idx - 1];
-            if (e.CanvasId != canvasId) continue;
+            ref var e = ref _elements[elementIndex];
+            Debug.Assert(e.CanvasId == canvas.Id);
             if (e.Id == ElementIdNone) continue;
 
-            ref var state = ref cs.ElementStates[e.Id];
+            if (e.Type == ElementType.TextBox)
+            {
+                HandleTextBoxInput(ref e);
+            }
+
+
+            ref var state = ref canvasState.ElementStates[e.Id];
             state.Rect = e.Rect;
             var localMouse = Vector2.Transform(mouse, e.WorldToLocal);
             var mouseOver = new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse);
 
             // HOVER: Independent per canvas - all canvases track hover
-            if (mouseOver)
+            if (mouseOver) 
                 state.Flags |= ElementFlags.Hovered;
             else
                 state.Flags &= ~ElementFlags.Hovered;
 
             // PRESSED: Only hot canvas receives press events
-            if (isHotCanvas && mouseOver && mouseLeftPressed && !focusElementPressed)
+            if (isHotCanvas && mouseOver && mouseLeftPressed && !focusElementPressed && e.Type != ElementType.Canvas)
             {
                 state.Flags |= ElementFlags.Pressed;
                 focusElementPressed = true;

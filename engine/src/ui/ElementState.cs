@@ -2,6 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Numerics;
+using System.Runtime.InteropServices;
+
 namespace NoZ;
 
 [Flags]
@@ -10,21 +13,51 @@ internal enum ElementFlags : uint
     None = 0,
     Hovered = 1 << 0,
     Pressed = 1 << 1,
-    Down = 1 << 2
+    Down = 1 << 2,
+    Focus = 1 << 3,
+    Dragging = 1 << 4
+}
+
+internal struct TextBoxState
+{
+    public int CursorIndex;
+    public int SelectionStart;
+    public float ScrollOffset;
+    public float BlinkTimer;
+    public int TextHash;
+}
+
+internal struct ScrollableState
+{
+    public float ScrollOffset;
+}
+
+[StructLayout(LayoutKind.Explicit)]
+internal struct ElementStateData
+{
+    [FieldOffset(0)] public TextBoxState TextBox;
+    [FieldOffset(0)] public ScrollableData Scrollable;
 }
 
 internal struct ElementState
 {
     public ElementFlags Flags;
     public int Index;
-    public float ScrollOffset;
     public Rect Rect;
-    public string Text;
+    public ElementStateData Data;
+
+    public readonly bool HasFocus => (Flags & ElementFlags.Focus) != 0;
+    public readonly bool IsHovered => (Flags & ElementFlags.Hovered) != 0;
+    public readonly bool IsPressed => (Flags & ElementFlags.Pressed) != 0;
+    public readonly bool IsDown => (Flags & ElementFlags.Down) != 0;
+    public readonly bool IsDragging => (Flags & ElementFlags.Dragging) != 0;
+    public void SetFlags(ElementFlags mask, ElementFlags flags) =>
+        Flags = (Flags & ~mask) | (flags & mask);
 }
 
 internal struct CanvasState
 {
     public int ElementIndex;
     public Rect WorldBounds;
-    public ElementState[]? ElementStates;
+    public UnsafeSpan<ElementState> ElementStates;
 }

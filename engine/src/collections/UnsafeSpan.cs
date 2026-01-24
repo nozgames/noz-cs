@@ -8,6 +8,8 @@ namespace NoZ;
 
 public readonly unsafe struct UnsafeSpan<T> where T : unmanaged
 {
+    public static readonly UnsafeSpan<T> Empty = new (null, 0);
+
     private readonly T* _ptr;
 
     public int Length { get; }
@@ -15,6 +17,8 @@ public readonly unsafe struct UnsafeSpan<T> where T : unmanaged
     public ref T this[int index] => ref *(_ptr + index);
 
     public T* GetUnsafePtr() => _ptr;
+
+    public ReadOnlySpan<T> AsReadonlySpan() => new(_ptr, Length);
 
     public UnsafeSpan(in UnsafeSpan<T> span, int start, int length)
     {

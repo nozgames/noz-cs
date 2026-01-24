@@ -44,7 +44,7 @@ public static partial class UI
                 break;
 
             case ElementType.TextBox:
-                TextBoxElement.Draw(ref e);
+                DrawTextBox(ref e);
                 break;
 
             case ElementType.Popup when !isPopup:

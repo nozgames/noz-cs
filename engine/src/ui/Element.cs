@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ;
 
-internal enum ElementType : byte
+internal enum ElementType : ushort
 {
     None = 0,
     Canvas,
@@ -27,12 +27,12 @@ internal enum ElementType : byte
 internal struct Element
 {
     public ElementType Type;
-    public byte Id;
-    public byte CanvasId;
-    public int Index;
-    public int ParentIndex;
-    public int NextSiblingIndex;
-    public int ChildCount;
+    public ElementId Id;
+    public CanvasId CanvasId;
+    public short Index;
+    public short ParentIndex;
+    public short NextSiblingIndex;
+    public short ChildCount;
     public Rect Rect;
     public Rect ContentRect;
     public Vector2 MeasuredSize;

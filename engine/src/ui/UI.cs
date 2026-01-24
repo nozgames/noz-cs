@@ -6,7 +6,6 @@
 
 using System.Diagnostics;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace NoZ;
 
@@ -17,47 +16,88 @@ public enum ImageStretch : byte
     Uniform
 }
 
+public struct CanvasId : IEquatable<CanvasId>
+{
+    public byte Value;
+
+    public CanvasId(byte value)
+    {
+        Debug.Assert(value <= MaxValue, "CanvasId value exceeds maximum");
+        Value = value;
+    }
+
+    public readonly bool Equals(CanvasId other) => other.Value == Value;
+    public override readonly bool Equals(object? obj) =>
+        obj is CanvasId canvasId && Equals(canvasId);
+
+    public static bool operator ==(CanvasId a, CanvasId b) => a.Value == b.Value;
+    public static bool operator !=(CanvasId a, CanvasId b) => a.Value != b.Value;
+    public readonly override int GetHashCode() => Value;
+    public static implicit operator byte(CanvasId id) => id.Value;
+    public static implicit operator CanvasId(byte value) => new(value);
+
+    public const byte None = 0;
+    public const byte MaxValue = 64;
+}
+
+public struct ElementId : IEquatable<ElementId>
+{
+    public byte Value;
+
+    public ElementId(byte value)
+    {
+        Debug.Assert(value <= MaxValue, "ElementId value exceeds maximum");
+        Value = value;
+    }
+
+    public readonly bool Equals(ElementId other) => other.Value == Value;
+    public override readonly bool Equals(object? obj) =>
+        obj is ElementId elementId && Equals(elementId);
+
+    public static bool operator ==(ElementId a, ElementId b) => a.Value == b.Value;
+    public static bool operator !=(ElementId a, ElementId b) => a.Value != b.Value;
+    public readonly override int GetHashCode() => Value;
+    public static implicit operator byte(ElementId id) => id.Value;
+    public static implicit operator ElementId(byte value) => new(value);
+    public const byte None = 0;
+    public const byte MaxValue = 255;
+}
+
 public static partial class UI
 {
     private const int MaxElements = 4096;
     private const int MaxElementStack = 128;
     private const int MaxPopups = 4;
     private const int MaxTextBuffer = 64 * 1024;
-    private const byte ElementIdNone = 0;
-    private const byte ElementIdMax = 255;
-    private static Font? _defaultFont;
-
-    public static Font? DefaultFont => _defaultFont;
-    public static UIConfig Config { get; private set; } = new();
-
+    
     public struct AutoCanvas : IDisposable { readonly void IDisposable.Dispose() => EndCanvas(); }
     public struct AutoContainer : IDisposable { readonly void IDisposable.Dispose() => EndContainer(); }
     public struct AutoColumn : IDisposable { readonly void IDisposable.Dispose() => EndColumn(); }
     public struct AutoRow : IDisposable { readonly void IDisposable.Dispose() => EndRow(); }
-    public struct AutoScrollable: IDisposable { readonly void IDisposable.Dispose() => EndScrollable(); }
+    public struct AutoScrollable : IDisposable { readonly void IDisposable.Dispose() => EndScrollable(); }
     public struct AutoFlex : IDisposable { readonly void IDisposable.Dispose() => EndFlex(); }
 
-    // Element storage
-    private static readonly Element[] _elements = new Element[MaxElements];
-    private static readonly int[] _elementStack = new int[MaxElementStack];
-    private static readonly int[] _popups = new int[MaxPopups];
-    internal static readonly ElementState[] _elementStates = new ElementState[ElementIdMax + 1];
-    private static readonly char[] _textBuffer = new char[MaxTextBuffer];
+    private static Font? _defaultFont;
+    public static Font? DefaultFont => _defaultFont;
+    public static UIConfig Config { get; private set; } = new();
 
-    // Canvas state (keyed by canvas ID for persistence across frames)
-    private const int MaxActiveCanvases = 16;
-    private static readonly CanvasState[] _canvasStates = new CanvasState[ElementIdMax + 1];
-    private static readonly byte[] _activeCanvasIds = new byte[MaxActiveCanvases];
-    private static int _activeCanvasCount;
-    private static byte _hotCanvasId;
-    private static byte _currentCanvasId;
+
+    private static readonly Element[] _elements = new Element[MaxElements];
+    private static readonly short[] _elementStack = new short[MaxElementStack];
+    private static readonly short[] _popups = new short[MaxPopups];
+    private static readonly NativeArray<ElementState> _elementStates = new(CanvasId.MaxValue * (ElementId.MaxValue + 1));
+    private static readonly NativeArray<char>[] _textBuffers = [new(MaxTextBuffer), new(MaxTextBuffer)];
+    private static readonly NativeArray<CanvasState> _canvasStates = new(CanvasId.MaxValue, CanvasId.MaxValue);
+
+    private static int _currentTextBuffer;
+    private static CanvasId _currentCanvasId;
+    private static CanvasId _hotCanvasId;
     private static bool _mouseLeftPressed;
     private static Vector2 _mousePosition;
 
-    private static int _elementCount;
+    private static short _elementCount;
     private static int _elementStackCount;
     private static int _popupCount;
-    private static int _textBufferUsed;
     private static byte _focusId;
     private static byte _pendingFocusId;
     private static byte _focusCanvasId;
@@ -76,6 +116,9 @@ public static partial class UI
 
     public static Camera? Camera { get; private set; } = null!;
 
+    public static bool IsHotCanvas =>
+        _currentCanvasId != CanvasId.None && _currentCanvasId == _hotCanvasId;
+
     public static Vector2Int GetRefSize()
     {
         var screenSize = Application.WindowSize;
@@ -90,6 +133,13 @@ public static partial class UI
     {
         Config = config ?? new UIConfig();
         Camera = new Camera { FlipY = true };
+        
+        for (int canvasStateIndex=0; canvasStateIndex <= ElementId.MaxValue; canvasStateIndex++)
+            _canvasStates[canvasStateIndex] = new CanvasState
+            {
+                ElementIndex = -1,
+                ElementStates = _elementStates.AsUnsafeSpan(canvasStateIndex * (ElementId.MaxValue + 1), ElementId.MaxValue + 1)
+            };
 
         UIRender.Init(Config);
 
@@ -98,6 +148,8 @@ public static partial class UI
 
     public static void Shutdown()
     {
+        _textBuffers[0].Dispose();
+        _textBuffers[1].Dispose();
     }
 
     private static ref Element CreateElement(ElementType type)
@@ -108,7 +160,7 @@ public static partial class UI
         element.CanvasId = _currentCanvasId;
         element.Index = _elementCount;
         element.NextSiblingIndex = 0;
-        element.ParentIndex = _elementStackCount > 0 ? _elementStack[_elementStackCount - 1] : -1;
+        element.ParentIndex = _elementStackCount > 0 ? _elementStack[_elementStackCount - 1] : (short)-1;
         element.ChildCount = 0;
         element.Rect = Rect.Zero;
         element.MeasuredSize = Vector2.Zero;
@@ -146,43 +198,41 @@ public static partial class UI
     private static ref Element GetElement(int index) =>
         ref _elements[index];
 
+    private static ref ElementState GetElementState(ref Element e) =>
+        ref _canvasStates[e.Id].ElementStates[e.Id];
+
+    private static ref ElementState GetElementState(CanvasId canvasId, ElementId elementId) =>
+        ref _canvasStates[canvasId].ElementStates[elementId];
+
+    private static ref CanvasState GetCanvasState(CanvasId canvasId) =>
+        ref _canvasStates[canvasId];
+
+    private static NativeArray<char> GetTextBuffer() => _textBuffers[_currentTextBuffer];
+
     public static byte GetElementId() => HasCurrentElement() ? GetSelf().Id : (byte)0;
 
-    public static Rect GetElementRect(byte id, byte canvasId = ElementIdNone)
+    public static Rect GetElementRect(CanvasId canvasId, ElementId id)
     {
-        if (id == ElementIdNone) return Rect.Zero;
-
-        var effectiveCanvasId = canvasId != ElementIdNone ? canvasId : _currentCanvasId;
-        if (effectiveCanvasId != ElementIdNone)
-        {
-            ref var cs = ref _canvasStates[effectiveCanvasId];
-            if (cs.ElementStates != null)
-                return cs.ElementStates[id].Rect;
-        }
-
-        return _elementStates[id].Rect;
+        if (id == ElementId.None) return Rect.Zero;
+        if (canvasId == CanvasId.None) return Rect.Zero;
+        return GetElementState(canvasId, id).Rect;
     }
 
     private static bool HasCurrentElement() => _elementStackCount > 0;
 
-    private static void SetId(ref Element e, byte id)
+    private static void SetId(ref Element e, CanvasId canvasId, ElementId elementId)
     {
-        if (id == ElementIdNone) return;
-        e.Id = id;
+        if (elementId == ElementId.None) return;
+        if (canvasId == CanvasId.None) return;
+        
+        e.Id = elementId;
+        e.CanvasId = canvasId;
 
-        // Store in canvas-scoped state if we're inside a canvas
-        if (e.CanvasId != ElementIdNone)
-        {
-            ref var canvasState = ref _canvasStates[e.CanvasId];
-            if (canvasState.ElementStates != null)
-                canvasState.ElementStates[id].Index = e.Index;
-        }
-
-        // Also store in global state for backward compatibility
-        _elementStates[id].Index = e.Index;
+        ref var es = ref GetElementState(canvasId, elementId);
+        es.Index = e.Index;
     }
 
-    private static void PushElement(int index)
+    private static void PushElement(short index)
     {
         if (_elementStackCount >= MaxElementStack) return;
         _elementStack[_elementStackCount++] = index;
@@ -205,71 +255,36 @@ public static partial class UI
         PopElement();
     }
 
-    internal static int AddText(ReadOnlySpan<char> text)
+    internal static UnsafeSpan<char> AddText(ReadOnlySpan<char> text)
     {
-        if (_textBufferUsed + text.Length > MaxTextBuffer)
-            return -1;
-        var start = _textBufferUsed;
-        text.CopyTo(_textBuffer.AsSpan(_textBufferUsed));
-        _textBufferUsed += text.Length;
-        return start;
+        var tb = GetTextBuffer();
+        if (tb.Length + text.Length > tb.Capacity)
+            return UnsafeSpan<char>.Empty;
+        return tb.AddRange(text);
     }
 
-    public static ReadOnlySpan<char> GetText(int start, int length) =>
-        _textBuffer.AsSpan(start, length);
+    public static bool IsHovered() => GetElementState(ref GetSelf()).IsHovered;
+    public static bool WasPressed() => GetElementState(ref GetSelf()).IsPressed;
+    public static bool IsDown() => GetElementState(ref GetSelf()).IsDown;
 
-    internal static bool CheckElementFlags(ElementFlags flags)
+    public static float GetScrollOffset(CanvasId canvasId, ElementId elementId)
     {
-        if (_elementStackCount <= 0) return false;
-        ref var e = ref _elements[_elementStack[_elementStackCount - 1]];
-        if (e.Id == ElementIdNone) return false;
-
-        // Use canvas-scoped state if element belongs to a canvas
-        if (e.CanvasId != ElementIdNone)
-        {
-            ref var cs = ref _canvasStates[e.CanvasId];
-            if (cs.ElementStates != null)
-                return (cs.ElementStates[e.Id].Flags & flags) == flags;
-        }
-
-        // Fallback to global state
-        return (_elementStates[e.Id].Flags & flags) == flags;
+        if (canvasId == CanvasId.None) return 0;
+        if (elementId == CanvasId.None) return 0;
+        ref var es = ref GetElementState(canvasId, elementId);
+        ref var e = ref GetElement(es.Index);
+        Debug.Assert(e.Type == ElementType.Scrollable, "GetScrollOffset called on non-scrollable element");
+        return es.Data.Scrollable.Offset;
     }
 
-    public static bool IsHovered() => CheckElementFlags(ElementFlags.Hovered);
-    public static bool WasPressed() => CheckElementFlags(ElementFlags.Pressed);
-    public static bool IsDown() => CheckElementFlags(ElementFlags.Down);
-
-    public static float GetScrollOffset(byte id, byte canvasId = ElementIdNone)
+    public static void SetScrollOffset(CanvasId canvasId, ElementId elementId, float offset)
     {
-        if (id == ElementIdNone) return 0;
-
-        var effectiveCanvasId = canvasId != ElementIdNone ? canvasId : _currentCanvasId;
-        if (effectiveCanvasId != ElementIdNone)
-        {
-            ref var cs = ref _canvasStates[effectiveCanvasId];
-            if (cs.ElementStates != null)
-                return cs.ElementStates[id].ScrollOffset;
-        }
-
-        return _elementStates[id].ScrollOffset;
-    }
-
-    public static void SetScrollOffset(byte id, float offset, byte canvasId = ElementIdNone)
-    {
-        if (id == ElementIdNone) return;
-
-        if (canvasId != ElementIdNone)
-        {
-            ref var cs = ref _canvasStates[canvasId];
-            if (cs.ElementStates != null)
-            {
-                cs.ElementStates[id].ScrollOffset = offset;
-                return;
-            }
-        }
-
-        _elementStates[id].ScrollOffset = offset;
+        if (canvasId == CanvasId.None) return;
+        if (elementId == CanvasId.None) return;
+        ref var es = ref GetElementState(canvasId, elementId);
+        ref var e = ref GetElement(es.Index);
+        Debug.Assert(e.Type == ElementType.Scrollable, "SetScrollOffset called on non-scrollable element");
+        es.Data.Scrollable.Offset = offset;
     }
 
     public static Vector2 ScreenToUI(Vector2 screenPos) =>
@@ -319,16 +334,12 @@ public static partial class UI
     public static bool IsClosed() =>
         HasCurrentElement() && GetSelf().Type == ElementType.Popup && _closePopups;
 
-    public static bool IsFocus(byte id, byte canvasId) => _focusId != 0 && _focusId == id && _focusCanvasId == canvasId;
-    public static string? GetElementText(byte id) => id != 0 ? _elementStates[id].Text : null;
-    public static void SetElementText(byte id, string text)
-    {
-        if (id != 0) _elementStates[id].Text = text;
-    }
+    public static bool IsFocus(byte id, byte canvasId) => 
+        id != 0 &&
+        _focusId != 0 &&
+        _focusId == id &&
+        _focusCanvasId == canvasId;
 
-    public static bool IsHotCanvas() => _currentCanvasId != ElementIdNone && _currentCanvasId == _hotCanvasId;
-
-    public static byte GetHotCanvasId() => _hotCanvasId;
 
     internal static void Begin()
     {
@@ -336,12 +347,11 @@ public static partial class UI
         _elementStackCount = 0;
         _elementCount = 0;
         _popupCount = 0;
-        _textBufferUsed = 0;
+        _currentTextBuffer = 1 - _currentTextBuffer;
+        GetTextBuffer().Clear();
 
-        // Reset canvas tracking for new frame
-        _activeCanvasCount = 0;
-        _hotCanvasId = ElementIdNone;
-        _currentCanvasId = ElementIdNone;
+        _hotCanvasId = CanvasId.None;
+        _currentCanvasId = CanvasId.None;
 
         var screenSize = Application.WindowSize;
         var rw = (float)_refSize.X;
@@ -389,21 +399,18 @@ public static partial class UI
         _focusCanvasId = _pendingFocusCanvasId;
     }
 
-    public static AutoCanvas BeginCanvas(CanvasStyle style = default, byte id = 0)
+    public static AutoCanvas BeginCanvas(CanvasStyle style = default, CanvasId id = default)
     {
         ref var e = ref CreateElement(ElementType.Canvas);
         e.Data.Canvas = style.ToData();
 
-        if (id != ElementIdNone && _activeCanvasCount < MaxActiveCanvases)
+        if (id != CanvasId.None)
         {
             _currentCanvasId = id;
-            _activeCanvasIds[_activeCanvasCount++] = id;
-            _canvasStates[id].ElementIndex = e.Index;
-            _canvasStates[id].ElementStates ??= new ElementState[ElementIdMax + 1];
+            ref var cs = ref GetCanvasState(id);
+            cs.ElementIndex = e.Index;
         }
 
-        e.CanvasId = _currentCanvasId;
-        SetId(ref e, id);
         PushElement(e.Index);
         return new AutoCanvas();
     }
@@ -411,23 +418,23 @@ public static partial class UI
     public static void EndCanvas()
     {
         EndElement(ElementType.Canvas);
-        _currentCanvasId = ElementIdNone;
+        _currentCanvasId = CanvasId.None;
     }
 
-    public static AutoContainer BeginContainer(byte id=0)
+    public static AutoContainer BeginContainer(ElementId id=default)
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = ContainerData.Default;
-        SetId(ref e, id);
+        SetId(ref e, _currentCanvasId, id);
         PushElement(e.Index);
         return new AutoContainer();
     }
 
-    public static AutoContainer BeginContainer(in ContainerStyle style, byte id=0)
+    public static AutoContainer BeginContainer(in ContainerStyle style, ElementId id = default)
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = style.ToData();
-        SetId(ref e, id);
+        SetId(ref e, _currentCanvasId, id);
         PushElement(e.Index);
         return new AutoContainer();
     }
@@ -440,42 +447,46 @@ public static partial class UI
         EndContainer();
     }
 
-    public static void Container(ContainerStyle style, byte id=0)
+    public static void Container(ContainerStyle style, ElementId id = default)
     {
         BeginContainer(style, id:id);
         EndContainer();
     }
 
-    public static AutoColumn BeginColumn()
+    public static AutoColumn BeginColumn(ElementId id = default)
     {
         ref var e = ref CreateElement(ElementType.Column);
         e.Data.Container = ContainerData.Default;
+        SetId(ref e, _currentCanvasId, id);
         PushElement(e.Index);
         return new AutoColumn();
     }
 
-    public static AutoColumn BeginColumn(ContainerStyle style)
+    public static AutoColumn BeginColumn(ContainerStyle style, ElementId id = default)
     {
         ref var e = ref CreateElement(ElementType.Column);
         e.Data.Container = style.ToData();
+        SetId(ref e, _currentCanvasId, id);
         PushElement(e.Index);
         return new AutoColumn();
     }
 
     public static void EndColumn() => EndElement(ElementType.Column);
 
-    public static AutoRow BeginRow()
+    public static AutoRow BeginRow(ElementId id = default)
     {
         ref var e = ref CreateElement(ElementType.Row);
         e.Data.Container = ContainerData.Default;
+        SetId(ref e, _currentCanvasId, id);
         PushElement(e.Index);
         return new AutoRow();
     }
 
-    public static AutoRow BeginRow(ContainerStyle style)
+    public static AutoRow BeginRow(ContainerStyle style, ElementId id = default)
     {
         ref var e = ref CreateElement(ElementType.Row);
         e.Data.Container = style.ToData();
+        SetId(ref e, _currentCanvasId, id);
         PushElement(e.Index);
         return new AutoRow();
     }
@@ -558,32 +569,12 @@ public static partial class UI
 
     public static void EndTransformed() => EndElement(ElementType.Transform);
 
-    public static AutoScrollable BeginScrollable(float offset = 0, byte id = 0, ScrollableStyle style = default)
+    public static AutoScrollable BeginScrollable(ElementId id)
     {
+        Debug.Assert(id != ElementId.None);
         ref var e = ref CreateElement(ElementType.Scrollable);
         e.Data.Scrollable.ContentHeight = 0;
-        SetId(ref e, id);
-
-        if (id != ElementIdNone)
-        {
-            if (_currentCanvasId != ElementIdNone)
-            {
-                ref var cs = ref _canvasStates[_currentCanvasId];
-                if (cs.ElementStates != null)
-                    e.Data.Scrollable.Offset = cs.ElementStates[id].ScrollOffset;
-                else
-                    e.Data.Scrollable.Offset = _elementStates[id].ScrollOffset;
-            }
-            else
-            {
-                e.Data.Scrollable.Offset = _elementStates[id].ScrollOffset;
-            }
-        }
-        else
-        {
-            e.Data.Scrollable.Offset = offset;
-        }
-
+        SetId(ref e, _currentCanvasId, id);
         PushElement(e.Index);
         return new AutoScrollable();
     }
@@ -654,7 +645,6 @@ public static partial class UI
     public static void Label(string text, LabelStyle style = default)
     {
         ref var e = ref CreateElement(ElementType.Label);
-        var textStart = AddText(text);
         e.Font = style.Font ?? _defaultFont;
         e.Data.Label = new LabelData
         {
@@ -662,8 +652,7 @@ public static partial class UI
             Color = style.Color,
             AlignX = style.AlignX,
             AlignY = style.AlignY,
-            TextStart = textStart,
-            TextLength = text.Length
+            Text = GetTextBuffer().AddRange(text)
         };
 
         PushElement(e.Index);
@@ -721,33 +710,28 @@ public static partial class UI
         PopElement();
     }
 
-    public static bool TextBox(ref string text, TextBoxStyle style = default, byte id = 0, string? placeholder = null)
+    public static bool TextBox(
+        ElementId id,
+        ref string text,
+        TextBoxStyle style = default,
+        string? placeholder = null)
     {
         ref var e = ref CreateElement(ElementType.TextBox);
-        var textStart = AddText(text);
         e.Data.TextBox = style.ToData();
-        e.Data.TextBox.TextStart = textStart;
-        e.Data.TextBox.TextLength = text.Length;
+        e.Data.TextBox.Text = AddText(text);
 
         if (!string.IsNullOrEmpty(placeholder))
-        {
-            e.Data.TextBox.PlaceholderStart = AddText(placeholder);
-            e.Data.TextBox.PlaceholderLength = placeholder.Length;
-        }
-
-        SetId(ref e, id);
+            e.Data.TextBox.Placeholder = AddText(placeholder);
+        
+        SetId(ref e, _currentCanvasId, id);
 
         var textChanged = false;
         var isFocused = _focusId != 0 && id == _focusId;
-
         if (isFocused && id != 0)
         {
+            var textHash = text.GetHashCode();
             ref var state = ref _elementStates[id];
-            if (state.Text != null && state.Text != text)
-            {
-                text = state.Text;
-                textChanged = true;
-            }
+            textChanged = state.Data.TextBox.TextHash != textHash;
         }
 
         PushElement(e.Index);
@@ -756,10 +740,16 @@ public static partial class UI
         return textChanged;
     }
 
-    public static string GetTextBoxText(byte id)
+    public static ReadOnlySpan<char> GetElementText(byte id)
     {
-        if (id == 0) return string.Empty;
-        return _elementStates[id].Text ?? string.Empty;
+        if (id == 0) return [];
+        ref var e = ref _elements[_elementStates[id].Index];
+        if (e.Type == ElementType.TextBox)
+            return e.Data.TextBox.Text.AsReadonlySpan();
+        if (e.Type == ElementType.Label)
+            return e.Data.Label.Text.AsReadonlySpan();
+
+        return [];
     }
 
     internal static void End()
@@ -787,7 +777,7 @@ public static partial class UI
         //        idx = DrawElement(idx, true);
         //}
 
-        TextBoxElement.EndFrame();
+        TextBoxEndFrame();
     }
 
     // Transform calculation

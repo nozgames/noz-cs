@@ -50,8 +50,7 @@ internal struct LabelData
     public Color Color;
     public Align AlignX;
     public Align AlignY;
-    public int TextStart;
-    public int TextLength;
+    public UnsafeSpan<char> Text;
 
     public static LabelData Default => new()
     {
@@ -59,8 +58,7 @@ internal struct LabelData
         Color = Color.White,
         AlignX = Align.Min,
         AlignY = Align.Center,
-        TextStart = 0,
-        TextLength = 0
+        Text = new UnsafeSpan<char>(),
     };
 }
 

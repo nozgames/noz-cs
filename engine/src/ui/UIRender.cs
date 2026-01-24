@@ -49,7 +49,7 @@ public static class UIRender
     }
 
     public static void DrawRect(
-        float x, float y, float width, float height,
+        in Rect rect,
         Color color,
         float borderRadius = 0,
         float borderWidth = 0,
@@ -61,15 +61,20 @@ public static class UIRender
         var vertexOffset = _vertices.Length;
         var indexOffset = _indices.Length;
 
+        var x = rect.X;
+        var y = rect.Y;
+        var w = rect.Width;
+        var h = rect.Height;            
+
         if (borderRadius <= 0)
         {
             if (!_vertices.CheckCapacity(4) || !_indices.CheckCapacity(6))
                 return;
 
             _vertices.Add(new UIVertex { Position = new Vector2(x, y), UV = new Vector2(1, 1), Normal = Vector2.Zero, Color = color, BorderRatio = -1f, BorderColor = borderColor });
-            _vertices.Add(new UIVertex { Position = new Vector2(x + width, y), UV = new Vector2(1, 1), Normal = Vector2.Zero, Color = color, BorderRatio = -1f, BorderColor = borderColor });
-            _vertices.Add(new UIVertex { Position = new Vector2(x + width, y + height), UV = new Vector2(1, 1), Normal = Vector2.Zero, Color = color, BorderRatio = -1f, BorderColor = borderColor });
-            _vertices.Add(new UIVertex { Position = new Vector2(x, y + height), UV = new Vector2(1, 1), Normal = Vector2.Zero, Color = color, BorderRatio = -1f, BorderColor = borderColor });
+            _vertices.Add(new UIVertex { Position = new Vector2(x + w, y), UV = new Vector2(1, 1), Normal = Vector2.Zero, Color = color, BorderRatio = -1f, BorderColor = borderColor });
+            _vertices.Add(new UIVertex { Position = new Vector2(x + w, y + h), UV = new Vector2(1, 1), Normal = Vector2.Zero, Color = color, BorderRatio = -1f, BorderColor = borderColor });
+            _vertices.Add(new UIVertex { Position = new Vector2(x, y + h), UV = new Vector2(1, 1), Normal = Vector2.Zero, Color = color, BorderRatio = -1f, BorderColor = borderColor });
 
             _indices.Add((ushort)vertexOffset);
             _indices.Add((ushort)(vertexOffset + 1));
@@ -90,9 +95,9 @@ public static class UIRender
 
         var borderRatio = borderWidth / borderRadius;
         var x0 = x;
-        var x1 = x + width;
+        var x1 = x + w;
         var y0 = y;
-        var y1 = y + height;
+        var y1 = y + h;
         var r = borderRadius;
         
         // 0-3 (top row, inner edge)

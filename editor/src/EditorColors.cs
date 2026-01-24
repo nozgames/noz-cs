@@ -77,11 +77,20 @@ public class EditorColors
         public Color Content;
     }
 
+    public struct ToolbarColors
+    {
+        public Color ButtonFill;
+        public Color ButtonHoverFill;
+        public Color ButtonCheckedFill;
+        public Color ButtonDisabledFill;
+    }
+
     public WorkspaceColors Workspace;
     public SpriteEditorColors SpriteEditor;
     public ShapeColors Shape;
     public PopupColors Popup;
     public OverlayColors Overlay;
+    public ToolbarColors Toolbar;
 
     private static readonly Color selectionColor = Color.FromRgb(0x0099ff);
     public static EditorColors Dark => new()
@@ -139,12 +148,17 @@ public class EditorColors
 
         Overlay = new()
         {
-            Fill = Color.FromRgb(0x111111),
-            Text = Color.FromRgb(0x979797),
+            Fill = Color.FromRgb(0x303030),
+            Text = Color.FromRgb(0xe5e5e5),
             AccentText = Color.FromRgb(0xd2d2d2),
             DisabledText = Color.FromRgb(0x4a4a4a),
             Icon = Color.FromRgb(0x585858),
             Content = Color.FromRgb(0x2a2a2a),
+        },
+
+        Toolbar = new()
+        {
+            ButtonFill = Color.FromRgb(0x545454)
         },
 
         SpriteEditor = new()

@@ -141,8 +141,8 @@ public static class EditorStyle
         public const float NameSize = 0.24f;
         public const float NamePadding = 0.04f;
         public static Color GridColor => _colors.Workspace.Grid;
-        public const float GridAlpha = 0.5f;
-        public const float GridZeroAlpha = 0.6f;
+        public const float GridAlpha = 0.3f;
+        public const float GridZeroAlpha = 0.4f;
     }
     
     public static class BoxSelect 
@@ -220,6 +220,31 @@ public static class EditorStyle
             Color = FillColor,
             Padding = EdgeInsets.All(16),
             Border = new BorderStyle { Radius = 16 }
+        };
+    }
+
+    public static class Toolbar
+    {
+        public const float ButtonSize = 40f;
+
+        public static readonly ContainerStyle Root = new()
+        {
+            Height = ButtonSize,
+            Spacing = 8.0f
+        };
+
+        public static ContainerStyle Button => new()
+        {
+            Width = ButtonSize,
+            Height = ButtonSize,
+            Padding = EdgeInsets.All(6f),
+            Color = _colors.Toolbar.ButtonFill,
+            Border = new BorderStyle { Radius = 4.0f }
+        };
+
+        public static readonly ContainerStyle ButtonChecked = Button with
+        {
+            Color = _colors.Toolbar.ButtonCheckedFill
         };
     }
 
@@ -382,9 +407,6 @@ public static class EditorStyle
         public const float FrameDotSize = 5f;
         public const float TickHeight = FrameHeight * 0.4f;
         public const float ShortTickHeight = TickHeight;
-        public const float ButtonSize = FrameHeight;
-        public const float ButtonMarginY = 6f;
-        public const float ButtonSpacing = 8f;
 
         public static readonly Color BorderColor = Color.FromGrayscale(10);
         public static readonly Color FrameColor = Color.FromGrayscale(100);
@@ -477,26 +499,6 @@ public static class EditorStyle
             Color = FrameDotColor
         };
 
-        public static readonly ContainerStyle Button = new()
-        {
-            Width = ButtonSize,
-            Height = ButtonSize,
-            Padding = EdgeInsets.All(6f),
-            Color = ButtonColor,
-            Border = new BorderStyle { Width = 1f, Color = ButtonBorderColor }
-        };
-
-        public static readonly ContainerStyle ButtonChecked = Button with
-        {
-            Color = ButtonCheckedColor
-        };
-
-        public static readonly ContainerStyle ButtonRow = new()
-        {
-            Height = ButtonSize,
-            Spacing = ButtonSpacing
-        };
-
         public static readonly LabelStyle FrameLabel = new()
         {
             FontSize = 10f,
@@ -507,7 +509,7 @@ public static class EditorStyle
     }
 
     public static class SpriteEditor
-    {
+    { 
         public const float ButtonSize = 40f;
         public const float ButtonSpacing = 8f;
         public const float ButtonMarginY = 6f;
@@ -553,8 +555,6 @@ public static class EditorStyle
             AlignY = Align.Center
         };
     }
-
-
 
     // Color Picker
     public const float ColorPickerBorderWidth = 2.5f;

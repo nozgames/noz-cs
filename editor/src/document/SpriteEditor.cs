@@ -14,8 +14,13 @@ public enum SpriteEditorTool
 
 public class SpriteEditor : DocumentEditor
 {
-    private const float AnchorSelectionSize = 2.0f;
-    private const float SegmentSelectionSize = 6.0f;
+    private const float AnchorHitScale = 2.0f;
+    private const float SegmentHitScale = 6.0f;
+
+    private static class ElementId
+    {
+        public const byte Root = 1;
+    }
 
     public new SpriteDocument Document => (SpriteDocument)base.Document;
 
@@ -109,29 +114,18 @@ public class SpriteEditor : DocumentEditor
     public override void UpdateUI()
     {
         using (UI.BeginCanvas(id: EditorStyle.CanvasId.DocumentEditor))
-        using (UI.BeginColumn(EditorStyle.SpriteEditor.Root))
+        using (UI.BeginColumn(EditorStyle.SpriteEditor.Root, id: ElementId.Root))
         {
-            // Button row
-            using (UI.BeginRow(EditorStyle.SpriteEditor.ButtonRow))
+            // Toobar
+            using (UI.BeginRow(EditorStyle.Toolbar.Root))
             {
-                ToolbarButton("P", _isPlaying, TogglePlayback);
+                EditorUI.ToolbarButton(EditorAssets.Sprites.IconPalette, _isPlaying);
                 UI.Flex();
             }
 
             UI.Spacer(EditorStyle.SpriteEditor.ButtonMarginY);
 
             ColorPicker();
-        }
-    }
-
-    private static void ToolbarButton(string label, bool isChecked, Action onClick)
-    {
-        var style = isChecked ? EditorStyle.SpriteEditor.ButtonChecked : EditorStyle.SpriteEditor.Button;
-        using (UI.BeginContainer(style))
-        {
-            if (UI.WasPressed())
-                onClick();
-            UI.Label(label, EditorStyle.SpriteEditor.ButtonLabel);
         }
     }
 
@@ -401,8 +395,8 @@ public class SpriteEditor : DocumentEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
             Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
-            EditorStyle.Shape.AnchorSize * AnchorSelectionSize / Workspace.Zoom,
-            EditorStyle.Shape.SegmentWidth * SegmentSelectionSize / Workspace.Zoom);
+            EditorStyle.Shape.AnchorSize * AnchorHitScale / Workspace.Zoom,
+            EditorStyle.Shape.SegmentWidth * SegmentHitScale / Workspace.Zoom);
 
         _hoveredAnchor = hit.AnchorIndex;
         _hoveredSegment = hit.SegmentIndex;
@@ -418,8 +412,8 @@ public class SpriteEditor : DocumentEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var focusedHit = shape.HitTest(
             Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
-            EditorStyle.Shape.AnchorSize * AnchorSelectionSize / Workspace.Zoom,
-            EditorStyle.Shape.SegmentWidth * SegmentSelectionSize / Workspace.Zoom);
+            EditorStyle.Shape.AnchorSize * AnchorHitScale / Workspace.Zoom,
+            EditorStyle.Shape.SegmentWidth * SegmentHitScale / Workspace.Zoom);
 
         if (focusedHit.AnchorIndex != ushort.MaxValue)
         {
@@ -894,7 +888,7 @@ public class SpriteEditor : DocumentEditor
         Gizmos.DrawLine(prev, nextAnchor.Position, width, order: order);
     }
 
-    private void DrawSegments(Shape shape)
+    private static void DrawSegments(Shape shape)
     {
         using (Gizmos.PushState(EditorLayer.Tool))
         {
@@ -931,28 +925,27 @@ public class SpriteEditor : DocumentEditor
     private static void DrawSelectedAnchor(Vector2 worldPosition)
     {
         Gizmos.SetColor(EditorStyle.Shape.SelectedAnchorColor);
-        Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize, order: 4);
+        Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize, order: 5);
     }
 
-    private void DrawAnchors(Shape shape)
+    private static void DrawAnchors(Shape shape)
     {
         // default
-        Graphics.PushState();
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
+        using (Gizmos.PushState(EditorLayer.Tool))
         {
-            ref readonly var anchor = ref shape.GetAnchor(i);
-            if (anchor.IsSelected) continue;
-            DrawAnchor(anchor.Position);
-        }
+            for (ushort i = 0; i < shape.AnchorCount; i++)
+            {
+                ref readonly var anchor = ref shape.GetAnchor(i);
+                if (anchor.IsSelected) continue;
+                DrawAnchor(anchor.Position);
+            }
 
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-        {
-            ref readonly var anchor = ref shape.GetAnchor(i);
-            if (!anchor.IsSelected) continue;
-            DrawSelectedAnchor(anchor.Position);
+            for (ushort i = 0; i < shape.AnchorCount; i++)
+            {
+                ref readonly var anchor = ref shape.GetAnchor(i);
+                if (!anchor.IsSelected) continue;
+                DrawSelectedAnchor(anchor.Position);
+            }
         }
-
-        Graphics.PopState();
     }
 }

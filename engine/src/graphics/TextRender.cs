@@ -91,9 +91,9 @@ internal static class TextRender
         return new Vector2(totalWidth, totalHeight);
     }
 
-    public static void Draw(string text, Font font, float fontSize, ushort order = 0)
+    public static void Draw(in ReadOnlySpan<char> text, Font font, float fontSize, ushort order = 0)
     {
-        if (string.IsNullOrEmpty(text) || _textShader == null)
+        if (text.Length == 0 || _textShader == null)
             return;
 
         var atlasTexture = font.AtlasTexture;

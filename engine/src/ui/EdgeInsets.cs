@@ -48,7 +48,7 @@ public readonly struct EdgeInsets(float top, float left, float bottom, float rig
     public static EdgeInsets BottomRight(float v) => new(0, 0, v, v);
     public static EdgeInsets LeftRight(float v) => new(0, v, 0, v);
     public static EdgeInsets LeftRight(float l, float r) => new(0, l, 0, r);
-    public static EdgeInsets TopLeft(float t, float l) => new(t, 0, l, 0);
+    public static EdgeInsets TopLeft(float t, float l) => new(t, l, 0, 0);
 
     public static EdgeInsets Symmetric(float vertical, float horizontal) =>
         new(horizontal, horizontal, vertical, vertical);

@@ -141,14 +141,14 @@ public static class CommandPalette
         using (UI.BeginCanvas(id:EditorStyle.CanvasId.CommandPalette))
         using (UI.BeginColumn(EditorStyle.CommandPalette.Root))
         {
-            //using (UI.BeginRow(EditorStyle.Popup.Item))
-            //{
-            //    using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
-            //        UI.Image(EditorAssets.Sprites.AssetIconShader);
+            using (UI.BeginRow(EditorStyle.Popup.Item))
+            {
+                using (UI.BeginContainer(EditorStyle.CommandPalette.CommandIconContainer))
+                    UI.Image(EditorAssets.Sprites.AssetIconShader);
 
-            //    using (UI.BeginFlex())
-            //        UI.TextBox(ref _text, style: EditorStyle.CommandPalette.SearchTextBox, id: SearchId, placeholder: "Search...");
-            //}
+                using (UI.BeginFlex())
+                    UI.TextBox(ref _text, style: EditorStyle.CommandPalette.SearchTextBox, id: SearchId, placeholder: "Search...");
+            }
 
             //UI.Container(EditorStyle.Popup.Separator);
 

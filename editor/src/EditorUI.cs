@@ -52,4 +52,17 @@ internal static class EditorUI
 
         return pressed;
     }
+
+    public static bool ToolbarButton(Sprite icon, bool isChecked)
+    {
+        var style = isChecked ? EditorStyle.SpriteEditor.ButtonChecked : EditorStyle.SpriteEditor.Button;
+        var pressed = false;
+        using (UI.BeginContainer(style))
+        {
+            pressed = UI.WasPressed();
+            UI.Image(icon, ImageStyle.Center);
+        }
+
+        return pressed;
+    }
 }

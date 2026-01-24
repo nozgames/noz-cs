@@ -88,14 +88,13 @@ internal class AnimationEditor : DocumentEditor
         using (UI.BeginContainer(EditorStyle.AnimationEditor.Panel with { Width = panelWidth }))
         using (UI.BeginColumn())
         {
-            // Button row
-            using (UI.BeginRow(EditorStyle.AnimationEditor.ButtonRow))
+            using (UI.BeginRow(EditorStyle.Toolbar.Root))
             {
-                DopeSheetButton("M", false, MirrorPose);
-                UI.Flex();
-                DopeSheetButton("L", Document.IsLooping, ToggleLoop);
-                DopeSheetButton("R", _rootMotion, ToggleRootMotion);
-                DopeSheetButton("O", _onionSkin, ToggleOnionSkin);
+                //DopeSheetButton("M", false, MirrorPose);
+                //UI.Flex();
+                //DopeSheetButton("L", Document.IsLooping, ToggleLoop);
+                //DopeSheetButton("R", _rootMotion, ToggleRootMotion);
+                //DopeSheetButton("O", _onionSkin, ToggleOnionSkin);
             }
 
             UI.Container(EditorStyle.AnimationEditor.HorizontalBorder);
@@ -208,7 +207,7 @@ internal class AnimationEditor : DocumentEditor
             }
 
             UI.Container(EditorStyle.AnimationEditor.HorizontalBorder);
-            UI.Spacer(EditorStyle.AnimationEditor.ButtonMarginY);
+            //UI.Spacer(EditorStyle.AnimationEditor.ButtonMarginY);
 
 
         }
@@ -826,17 +825,6 @@ internal class AnimationEditor : DocumentEditor
 
     private void DrawDopeSheet()
     {
-    }
-
-    private static void DopeSheetButton(string label, bool isChecked, Action onClick)
-    {
-        var style = isChecked ? EditorStyle.AnimationEditor.ButtonChecked : EditorStyle.AnimationEditor.Button;
-        using (UI.BeginContainer(style))
-        {
-            if (UI.WasPressed())
-                onClick();
-            UI.Label(label, EditorStyle.AnimationEditor.FrameLabel with { AlignX = Align.Center, AlignY = Align.Center });
-        }
     }
 
     private void DrawOnionSkin()
