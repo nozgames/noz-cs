@@ -779,7 +779,7 @@ internal class AnimationEditor : DocumentEditor
 
         var baseTransform = GetBaseTransform();
 
-        using (Gizmos.PushState(EditorLayer.Gizmo))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(baseTransform);
 

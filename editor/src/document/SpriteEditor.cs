@@ -16,12 +16,9 @@ public class SpriteEditor : DocumentEditor
 {
     private const float AnchorHitScale = 2.0f;
     private const float SegmentHitScale = 6.0f;
-
-    private static class ElementId
-    {
-        public const byte Root = 1;
-    }
-
+    private const byte RootId = 1;
+    private const byte FirstPaletteColorId = 64;
+   
     public new SpriteDocument Document => (SpriteDocument)base.Document;
 
     private ushort _currentFrame;
@@ -56,6 +53,7 @@ public class SpriteEditor : DocumentEditor
             new Command { Name = "Scale", ShortName = "scale", Handler = BeginScaleTool, Key = InputCode.KeyS },
             new Command { Name = "Insert Anchor", ShortName = "insert", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
             new Command { Name = "Pen Tool", ShortName = "pen", Handler = BeginPenTool, Key = InputCode.KeyP },
+            new Command { Name = "Knife Tool", ShortName = "knife", Handler = BeginKnifeTool, Key = InputCode.KeyK },
         ];
     }
 
@@ -85,6 +83,7 @@ public class SpriteEditor : DocumentEditor
         AtlasManager.UpdateSprite(Document);
         _rasterTexture.Dispose();
         _pixelData.Dispose();
+        base.Dispose();
     }
 
     public override void OnUndoRedo()
@@ -105,7 +104,7 @@ public class SpriteEditor : DocumentEditor
 
         DrawRaster(shape);
 
-        using (Gizmos.PushState(EditorLayer.Gizmo))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
             DrawSegments(shape);
@@ -116,7 +115,7 @@ public class SpriteEditor : DocumentEditor
     public override void UpdateUI()
     {
         using (UI.BeginCanvas(id: EditorStyle.CanvasId.DocumentEditor))
-        using (UI.BeginColumn(EditorStyle.SpriteEditor.Root, id: ElementId.Root))
+        using (UI.BeginColumn(EditorStyle.SpriteEditor.Root, id: RootId))
         {
             // Toobar
             using (UI.BeginRow(EditorStyle.Toolbar.Root))
@@ -127,11 +126,11 @@ public class SpriteEditor : DocumentEditor
 
             UI.Spacer(EditorStyle.SpriteEditor.ButtonMarginY);
 
-            ColorPicker();
+            ColorPickerUI();
         }
     }
 
-    private void ColorPicker()
+    private void ColorPickerUI()
     {
         var palette = PaletteManager.GetPalette(Document.Palette);
         if (palette == null)
@@ -147,7 +146,7 @@ public class SpriteEditor : DocumentEditor
         {
             using (UI.BeginRow())
             {
-                DrawPalette(palette, showSelection: !_isPlaying);
+                PaletteUI(palette, showSelection: !_isPlaying);
 
                 using (UI.BeginContainer(ContainerStyle.Default with
                 {
@@ -156,19 +155,15 @@ public class SpriteEditor : DocumentEditor
                     Margin = EdgeInsets.All(4f)
                 }))
                 {
-                    OpacityButton();
+                    OpacityButtonUI();
                 }
             }
         }
     }
 
-    private void DrawPalette(PaletteDef palette, bool showSelection)
+    private void PaletteUI(PaletteDef palette, bool showSelection)
     {
-        using (UI.BeginContainer(ContainerStyle.Default with
-        {
-            Padding = EdgeInsets.All(EditorStyle.ColorPickerBorderWidth)
-        }))
-        using (UI.BeginColumn())
+        using (UI.BeginColumn(EditorStyle.SpriteEditor.Palette))
         {
             UI.Label(palette.Name, new LabelStyle
             {
@@ -184,50 +179,28 @@ public class SpriteEditor : DocumentEditor
 
             for (var row = 0; row < rowCount; row++)
             {
-                using (UI.BeginRow(ContainerStyle.Default with { Spacing = 0f }))
+                using var _ = UI.BeginRow();
+                for (var col = 0; col < columns; col++)
                 {
-                    for (var col = 0; col < columns; col++)
-                    {
-                        var colorIndex = row * columns + col;
-                        if (colorIndex >= PaletteDef.ColorCount)
-                            break;
-
-                        var isSelected = showSelection && colorIndex == _selectionColor;
-                        DrawColorCell((byte)colorIndex, palette.Colors[colorIndex], isSelected);
-                    }
+                    var colorIndex = row * columns + col;
+                    var isSelected = showSelection && colorIndex == _selectionColor;
+                    PaletteColorUI((byte)colorIndex, palette.Colors[colorIndex], isSelected);
                 }
             }
         }
     }
 
-    private void DrawColorCell(byte colorIndex, Color color, bool selected)
+    private void PaletteColorUI(byte colorIndex, Color color, bool selected)
     {
-        using (UI.BeginContainer(ContainerStyle.Default with
+        using (UI.BeginContainer(
+            selected
+                ? EditorStyle.SpriteEditor.SelectedPaletteColor
+                : EditorStyle.SpriteEditor.PaletteColor,
+            id: (byte)(FirstPaletteColorId + colorIndex)))
         {
-            Width = EditorStyle.ColorPickerColorSize,
-            Height = EditorStyle.ColorPickerColorSize
-        }, id: (byte)(colorIndex + 1)))
-        {
-            if (selected)
-            {
-                UI.Container(ContainerStyle.Default with
-                {
-                    Width = EditorStyle.ColorPickerColorSize + 2,
-                    Height = EditorStyle.ColorPickerColorSize + 2,
-                    AlignX = Align.Center,
-                    AlignY = Align.Center,
-                    Margin = EdgeInsets.All(-2f),
-                    Border = new BorderStyle { Radius = 8f, Width = EditorStyle.ColorPickerSelectionBorderWidth, Color = EditorStyle.SelectionColor }
-                });
-            }
-
-            var displayColor = color.A > 0 ? color : new Color(0f, 0f, 0f, 0.1f);
+            var displayColor = color.A > 0 ? color : EditorStyle.SpriteEditor.UndefinedColor;
             UI.Container(ContainerStyle.Default with
             {
-                Width = EditorStyle.ColorPickerColorSize - 4,
-                Height = EditorStyle.ColorPickerColorSize - 4,
-                AlignX = Align.Center,
-                AlignY = Align.Center,
                 Color = displayColor,
                 Border = new BorderStyle { Radius = 6f }
             });
@@ -237,9 +210,9 @@ public class SpriteEditor : DocumentEditor
         }
     }
 
-    private void OpacityButton()
+    private void OpacityButtonUI()
     {
-        var buttonSize = EditorStyle.ColorPickerColorSize * 2;
+        var buttonSize = 24.0f; //  EditorStyle.ColorPickerColorSize * 2;
         using (UI.BeginContainer(ContainerStyle.Default with
         {
             Width = buttonSize,
@@ -398,7 +371,7 @@ public class SpriteEditor : DocumentEditor
         var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
             Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
             EditorStyle.Shape.AnchorSize * AnchorHitScale / Workspace.Zoom,
-            EditorStyle.Shape.SegmentWidth * SegmentHitScale / Workspace.Zoom);
+            EditorStyle.Shape.SegmentLineWidth * SegmentHitScale / Workspace.Zoom);
 
         _hoveredAnchor = hit.AnchorIndex;
         _hoveredSegment = hit.SegmentIndex;
@@ -415,7 +388,7 @@ public class SpriteEditor : DocumentEditor
         var focusedHit = shape.HitTest(
             Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
             EditorStyle.Shape.AnchorSize * AnchorHitScale / Workspace.Zoom,
-            EditorStyle.Shape.SegmentWidth * SegmentHitScale / Workspace.Zoom);
+            EditorStyle.Shape.SegmentLineWidth * SegmentHitScale / Workspace.Zoom);
 
         if (focusedHit.AnchorIndex != ushort.MaxValue)
         {
@@ -761,6 +734,12 @@ public class SpriteEditor : DocumentEditor
         Workspace.BeginTool(new PenTool(this, shape, _selectionColor));
     }
 
+    private void BeginKnifeTool()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        Workspace.BeginTool(new KnifeTool(this, shape));
+    }
+
     private void InsertAnchorAtHover()
     {
         if (_hoveredSegment == ushort.MaxValue)
@@ -900,27 +879,27 @@ public class SpriteEditor : DocumentEditor
 
     private static void DrawSegments(Shape shape)
     {
-        using (Gizmos.PushState(EditorLayer.Tool))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
-            Graphics.SetColor(EditorStyle.Shape.SegmentColor);
+            Gizmos.SetColor(EditorStyle.Shape.SegmentColor);
             for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
             {
                 if (!shape.IsSegmentSelected(anchorIndex))
                 {
                     var pathIndex = FindPathForAnchor(shape, anchorIndex);
                     if (pathIndex != ushort.MaxValue)
-                        DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentWidth, 1);
+                        DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentLineWidth, 1);
                 }
             }
 
-            Graphics.SetColor(EditorStyle.Shape.SelectedSegmentColor);
+            Gizmos.SetColor(EditorStyle.Shape.SelectedSegmentColor);
             for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
             {
                 if (shape.IsSegmentSelected(anchorIndex))
                 {
                     var pathIndex = FindPathForAnchor(shape, anchorIndex);
                     if (pathIndex != ushort.MaxValue)
-                        DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentWidth, 2);
+                        DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentLineWidth, 2);
                 }
             }
         }
@@ -941,7 +920,7 @@ public class SpriteEditor : DocumentEditor
     private static void DrawAnchors(Shape shape)
     {
         // default
-        using (Gizmos.PushState(EditorLayer.Tool))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             for (ushort i = 0; i < shape.AnchorCount; i++)
             {

@@ -114,7 +114,6 @@ public static unsafe class Graphics
     private const int BoneTextureSlot = 1;
     private static byte _currentPass;
     private static byte _activeDriverPass;
-    private static Matrix4x4 _projection;
     private static Matrix4x4 _sceneProjection;
     private static Matrix4x4 _uiProjection;
     private static NativeArray<float> _boneData;
@@ -563,11 +562,6 @@ public static unsafe class Graphics
 
     private static void UploadGlobals()
     {
-        // Globals UBO layout (std140):
-        // offset 0: mat4 u_projection (64 bytes, column-major)
-        // offset 64: float u_time (4 bytes, padded to 16)
-        // Total: 80 bytes per snapshot
-
         var count = _globalsSnapshots.Length;
         if (count == 0)
             return;
@@ -905,6 +899,8 @@ public static unsafe class Graphics
                         Driver.Composite(_compositeShader.Handle);
                     Driver.BeginUIPass();
                     _activeDriverPass = 1;
+
+                    SetBlendMode(BlendMode.Alpha);
 
                     // Reset all tracking state to force rebinding in new render pass
                     lastScissor = RectInt.Zero;

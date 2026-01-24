@@ -67,7 +67,7 @@ internal class AtlasEditor : DocumentEditor
 
     private void DrawOutlines()
     {
-        using (Gizmos.PushState(EditorLayer.Gizmo))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
             Gizmos.SetColor(Color.Yellow);

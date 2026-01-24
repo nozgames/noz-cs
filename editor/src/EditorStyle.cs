@@ -203,7 +203,7 @@ public static class EditorStyle
         public static Color AnchorColor => _colors.Shape.Anchor;
         public static Color SelectedAnchorColor => _colors.Shape.SelectedAnchor;
         public const float AnchorSize = 0.10f;
-        public const float SegmentWidth = 0.015f;
+        public const float SegmentLineWidth = 0.015f;
     }
 
     public static class Overlay
@@ -222,7 +222,7 @@ public static class EditorStyle
         {
             Color = FillColor,
             Padding = EdgeInsets.All(16),
-            Border = new BorderStyle { Radius = 16 }
+            Border = new BorderStyle { Radius = 16, Width = 2, Color = Color.FromRgb(0x3d3d3d) }
         };
     }
 
@@ -321,16 +321,12 @@ public static class EditorStyle
         {
             Height = Popup.Item.Height,
             Padding = EdgeInsets.All(Overlay.Padding),
-            Color = Overlay.FillColor,
+            Color = Popup.FillColor,
             Border = new BorderStyle { Radius = Overlay.BorderRadius }
         };
 
-        public readonly static LabelStyle NotificationText = new()
-        {
-            FontSize = Overlay.TextSize,
-            AlignX = Align.Min,
-            AlignY = Align.Center
-        };
+        public readonly static LabelStyle NotificationText = EditorStyle.Popup.Text;
+        public readonly static LabelStyle NotificationErrorText = Popup.Text with { Color = EditorStyle.ErrorColor };
     }
 
     public static class Button
@@ -513,14 +509,15 @@ public static class EditorStyle
 
     // :spriteeditor
     public static class SpriteEditor
-    { 
+    {
+        public static readonly Color UndefinedColor = new(0f, 0f, 0f, 0.1f);
         public const float ButtonSize = 40f;
-        public const float ButtonSpacing = 8f;
         public const float ButtonMarginY = 6f;
-
-        public static readonly Color ButtonColor = Color.FromGrayscale(100);
-        public static readonly Color ButtonCheckedColor = SelectionColor;
-        public static readonly Color ButtonBorderColor = Color.FromGrayscale(10);
+        public const float ColorPickerBorderWidth = 2.5f;
+        public const float ColorSize = 26f;
+        public const float ColorPickerWidth = ColorSize * 64 + ColorPickerBorderWidth * 2;
+        public const float ColorPickerHeight = ColorSize + ColorPickerBorderWidth * 2;
+        public const float ColorPickerSelectionBorderWidth = 3f;
 
         public static readonly ContainerStyle Root = Overlay.Root with
         {
@@ -531,32 +528,26 @@ public static class EditorStyle
             Margin = EdgeInsets.Bottom(Workspace.Padding)
         };
 
-        public static readonly ContainerStyle Button = new()
+        public static readonly ContainerStyle Palette = new()
         {
-            Width = ButtonSize,
-            Height = ButtonSize,
-            Padding = EdgeInsets.All(6f),
-            Color = ButtonColor,
-            Border = new BorderStyle { Width = 1f, Color = ButtonBorderColor }
+
         };
 
-        public static readonly ContainerStyle ButtonChecked = Button with
+        public static readonly ContainerStyle PaletteColor = new()
         {
-            Color = ButtonCheckedColor
+            Width = ColorSize,
+            Height = ColorSize,
+            Padding = EdgeInsets.All(2.0f),
+            Border = new BorderStyle { Radius = 8f }
         };
 
-        public static readonly ContainerStyle ButtonRow = new()
+        public static readonly ContainerStyle SelectedPaletteColor = PaletteColor with
         {
-            Height = ButtonSize,
-            Spacing = ButtonSpacing
-        };
-
-        public static readonly LabelStyle ButtonLabel = new()
-        {
-            FontSize = 10f,
-            Color = Control.TextColor,
-            AlignX = Align.Center,
-            AlignY = Align.Center
+            Border = new BorderStyle {
+                Radius = 8f,
+                Width = 2.0f,
+                Color = SelectionColor,
+            }
         };
     }
 
@@ -573,12 +564,14 @@ public static class EditorStyle
         };
     }
 
-    // Color Picker
-    public const float ColorPickerBorderWidth = 2.5f;
-    public const float ColorPickerColorSize = 26f;
-    public const float ColorPickerWidth = ColorPickerColorSize * 64 + ColorPickerBorderWidth * 2;
-    public const float ColorPickerHeight = ColorPickerColorSize + ColorPickerBorderWidth * 2;
-    public const float ColorPickerSelectionBorderWidth = 3f;
+    // :knifetool
+    public static class KnifeTool
+    {
+        public static readonly Color AnchorColor = Color.FromRgb(0x000000);
+        public static readonly Color SegmentColor = Color.FromRgb(0xf5f04e);
+        public static readonly Color IntersectionColor = Color.FromRgb(0x4ea64e);
+        public const float IntersectionAnchorScale = 1.2f;
+    }
 
     // Style accessors
     public static Color SelectionColor => _colors.SelectionColor;

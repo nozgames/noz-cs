@@ -77,7 +77,7 @@ public class RotateTool(
             Graphics.SetColor(EditorStyle.SelectionColor);
             Gizmos.DrawRect(_pivotWorld, EditorStyle.Shape.AnchorSize * 1.5f, order: 10);
             Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
-            Gizmos.DrawLine(_pivotWorld, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentWidth * 2, order: 9);
+            Gizmos.DrawLine(_pivotWorld, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentLineWidth * 2, order: 9);
         }
     }
 

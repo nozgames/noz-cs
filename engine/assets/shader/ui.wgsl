@@ -70,5 +70,5 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    return color;
+    return vec4<f32>(color.rgb, color.a * input.color.a);
 }

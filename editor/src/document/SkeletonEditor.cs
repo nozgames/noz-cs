@@ -601,7 +601,7 @@ internal class SkeletonEditor : DocumentEditor
 
     private void DrawSkeleton()
     {
-        using (Gizmos.PushState(EditorLayer.Gizmo))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
 

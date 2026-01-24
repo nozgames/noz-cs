@@ -55,7 +55,7 @@ internal static class EditorUI
 
     public static bool ToolbarButton(Sprite icon, bool isChecked)
     {
-        var style = isChecked ? EditorStyle.SpriteEditor.ButtonChecked : EditorStyle.SpriteEditor.Button;
+        var style = isChecked ? EditorStyle.Toolbar.ButtonChecked : EditorStyle.Toolbar.Button;
         var pressed = false;
         using (UI.BeginContainer(style))
         {

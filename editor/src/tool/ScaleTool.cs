@@ -101,7 +101,7 @@ public class ScaleTool : Tool
 
         // Draw line from pivot to mouse
         Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
-        Gizmos.DrawLine(_pivot, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentWidth * 2, order: 9);
+        Gizmos.DrawLine(_pivot, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentLineWidth * 2, order: 9);
 
         Graphics.PopState();
     }

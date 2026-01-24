@@ -104,14 +104,13 @@ public static class Notifications
             for (var i = 0; i < _count; i++)
             {
                 var index = (_head + i) % MaxNotifications;
-                ref var n = ref _notifications[index];
-
-                var color = n.Type == NotificationType.Error
-                    ? EditorStyle.ErrorColor
-                    : EditorStyle.Overlay.AccentTextColor;
-
+                ref var n = ref _notifications[index];                
                 using (UI.BeginContainer(EditorStyle.Notifications.Notification))
-                    UI.Label(n.Text, EditorStyle.Notifications.NotificationText with { Color = color });
+                    UI.Label(
+                        n.Text,
+                        n.Type == NotificationType.Error
+                            ? EditorStyle.Notifications.NotificationErrorText
+                            : EditorStyle.Notifications.NotificationText);
             }
         }
     }

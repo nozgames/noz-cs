@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-namespace NoZ
+namespace NoZ.Editor
 {
     public class RectPacker()
     {
