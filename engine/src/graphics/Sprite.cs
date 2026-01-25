@@ -25,18 +25,16 @@ public class Sprite : Asset
         var sprite = new Sprite(name);
         var reader = new BinaryReader(stream);
 
-        var xx = 0.25f / 2048.0f;
-
         var frameCount = reader.ReadUInt16();
         var atlasIndex = reader.ReadUInt16();
         var l = reader.ReadInt16();
         var t = reader.ReadInt16();
         var r = reader.ReadInt16();
         var b = reader.ReadInt16();
-        var ul = reader.ReadSingle() + xx;
-        var ut = reader.ReadSingle() + xx;
-        var ur = reader.ReadSingle() - xx;
-        var ub = reader.ReadSingle() - xx;
+        var ul = reader.ReadSingle();
+        var ut = reader.ReadSingle();
+        var ur = reader.ReadSingle();
+        var ub = reader.ReadSingle();
         var ppu = reader.ReadSingle();
         var filter = (TextureFilter)reader.ReadByte();
 

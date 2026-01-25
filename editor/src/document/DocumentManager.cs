@@ -208,7 +208,10 @@ public static class DocumentManager
         }
 
         if (count > 0)
+        {
+            Log.Info($"Saved {count} asset(s)");
             Notifications.Add($"saved {count} asset(s)");
+        }            
     }
 
     public static void Delete(Document doc)

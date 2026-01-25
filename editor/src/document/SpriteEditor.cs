@@ -956,6 +956,24 @@ public class SpriteEditor : DocumentEditor
                 var tileSize = new Vector2(rb.Width * invDpi, rb.Height * invDpi);
                 ReadOnlySpan<Vector2> offsets =
                 [
+                    // Outer ring (5x5)
+                    new(-2 * tileSize.X, -2 * tileSize.Y),
+                    new(-tileSize.X, -2 * tileSize.Y),
+                    new(0f, -2 * tileSize.Y),
+                    new(tileSize.X, -2 * tileSize.Y),
+                    new(2 * tileSize.X, -2 * tileSize.Y),
+                    new(-2 * tileSize.X, -tileSize.Y),
+                    new(2 * tileSize.X, -tileSize.Y),
+                    new(-2 * tileSize.X, 0f),
+                    new(2 * tileSize.X, 0f),
+                    new(-2 * tileSize.X, tileSize.Y),
+                    new(2 * tileSize.X, tileSize.Y),
+                    new(-2 * tileSize.X, 2 * tileSize.Y),
+                    new(-tileSize.X, 2 * tileSize.Y),
+                    new(0f, 2 * tileSize.Y),
+                    new(tileSize.X, 2 * tileSize.Y),
+                    new(2 * tileSize.X, 2 * tileSize.Y),
+                    // Inner ring (3x3)
                     new(-tileSize.X, -tileSize.Y),
                     new(0f, -tileSize.Y),
                     new(tileSize.X, -tileSize.Y),

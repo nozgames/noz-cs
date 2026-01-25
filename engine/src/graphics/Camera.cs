@@ -27,6 +27,8 @@ public class Camera
 
     public bool FlipY { get; set; } = false;
 
+    public bool IsPixelPerfect { get; set; } = false;
+
     public Matrix3x2 ViewMatrix => _view;
     public Vector2Int ScreenSize => _screenSize;
     public Rect WorldBounds => _bounds;
@@ -228,11 +230,22 @@ public class Camera
 
     private void UpdateViewMatrix()
     {
+        var center = _bounds.Center;
+
+        if (IsPixelPerfect && _screenSize.X > 0 && _screenSize.Y > 0)
+        {
+            var pixelWidth = _bounds.Width / _screenSize.X;
+            var pixelHeight = _bounds.Height / _screenSize.Y;
+            center = new Vector2(
+                MathF.Round(center.X / pixelWidth) * pixelWidth,
+                MathF.Round(center.Y / pixelHeight) * pixelHeight
+            );
+        }
+
         var zoomX = 2f / MathF.Abs(_bounds.Width);
         var zoomY = 2f / MathF.Abs(_bounds.Height);
         if (FlipY) zoomY = -zoomY;
 
-        var center = _bounds.Center;
         var c = MathF.Cos(Rotation);
         var s = MathF.Sin(Rotation);
 

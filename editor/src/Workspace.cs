@@ -56,6 +56,12 @@ public static class Workspace
         }
     }
 
+    private static void RebuildAtlas()
+    {
+        AtlasManager.Rebuild();
+        DocumentManager.SaveAll();
+    }
+
     private static void RegisterCommands()
     {
         CommandManager.RegisterCommon([
@@ -69,13 +75,13 @@ public static class Workspace
             new Command { Name = "Toggle Edit Mode", ShortName = "edit", Handler = ToggleEdit, Key = InputCode.KeyTab },
             new Command { Name = "Toggle Grid", ShortName = "grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Ctrl = true },
             new Command { Name = "Frame Selected", ShortName = "frame", Handler = FrameSelected, Key = InputCode.KeyF },
-            new Command { Name = "Rebuild Atlas", ShortName = "rebuild", Handler = AtlasManager.Rebuild },
+            new Command { Name = "Rebuild Atlas", ShortName = "rebuild", Handler = RebuildAtlas },
+            new Command { Name = "Toggle Names", ShortName = "names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
         ]);
 
         CommandManager.RegisterWorkspace([
             new Command { Name = "Move Selected", ShortName = "move", Handler = BeginMoveTool, Key = InputCode.KeyG },
             new Command { Name = "Delete Selected", ShortName = "delete", Handler = DeleteSelected, Key = InputCode.KeyX },
-            new Command { Name = "Toggle Names", ShortName = "names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
             new Command { Name = "Rebuild All", ShortName = "build", Handler = RebuildAll },
             new Command { Name = "Frame Selected", ShortName = "origin", Handler = FrameOrigin },
             new Command { Name = "Play/Stop", ShortName = "play]", Handler = Play, Key = InputCode.KeySpace },
@@ -122,7 +128,7 @@ public static class Workspace
     public static Camera Camera => _camera;
     public static float Zoom => _zoom;
     public static bool ShowGrid => _showGrid;
-    public static bool ShowNames => _showNames || Input.IsAltDown();
+    public static bool ShowNames => _showNames;
     public static Vector2 MousePosition => _mousePosition;
     public static Vector2 MouseWorldPosition => _mouseWorldPosition;
     public static bool IsDragging => _isDragging;

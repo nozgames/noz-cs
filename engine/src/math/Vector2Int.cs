@@ -39,6 +39,9 @@ public struct Vector2Int : IEquatable<Vector2Int>
     public static bool operator !=(Vector2Int left, Vector2Int right) => !left.Equals(right);
 
     public override string ToString() => $"({X}, {Y})";
+
+    public static Vector2Int Min(Vector2Int a, Vector2Int b) => new(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y));
+    public static Vector2Int Max(Vector2Int a, Vector2Int b) => new(Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
 }
 
 /// <summary>
