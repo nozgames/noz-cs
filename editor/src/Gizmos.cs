@@ -150,4 +150,13 @@ public static class Gizmos
             drawing = !drawing;
         }
     }
+
+    public static void DrawOrigin(Color color, ushort order=0)
+    {
+        using (Gizmos.PushState(EditorLayer.Document))
+        {
+            SetColor(color);
+            DrawRect(Vector2.Zero, EditorStyle.Workspace.OriginSize, order);
+        }
+    }
 }

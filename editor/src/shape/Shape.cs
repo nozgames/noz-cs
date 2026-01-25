@@ -16,7 +16,7 @@ public struct HitResult
     public float AnchorDistSqr;
     public float SegmentDistSqr;
     public Vector2 AnchorPoint;
-    public Vector2 SegmentPoint;
+    public Vector2 SegmentPosition;
 
     public static HitResult Empty => new()
     {
@@ -35,9 +35,10 @@ public sealed unsafe partial class Shape : IDisposable
     public const int MaxSegmentSamples = 8;
     
     private void* _memory;
-    private readonly UnsafeSpan<Anchor> _anchors;
-    private readonly UnsafeSpan<Vector2> _samples;
-    private readonly UnsafeSpan<Path> _paths;
+    private UnsafeSpan<Anchor> _anchors;
+    private UnsafeSpan<Vector2> _samples;
+    private UnsafeSpan<Path> _paths;
+    private bool _editing;
 
     public ushort AnchorCount { get; private set; }
     public ushort PathCount { get; private set; }
@@ -55,7 +56,8 @@ public sealed unsafe partial class Shape : IDisposable
     public enum PathFlags : ushort
     {
         None = 0,
-        Selected = 1 << 0
+        Selected = 1 << 0,
+        Dirty = 1 << 1
     }
 
     public struct Anchor
@@ -276,7 +278,7 @@ public sealed unsafe partial class Shape : IDisposable
 
                 result.SegmentIndex = a0Idx;
                 result.SegmentDistSqr = bestDistSqr;
-                result.SegmentPoint = bestClosest;
+                result.SegmentPosition = bestClosest;
                 if (result.PathIndex == ushort.MaxValue)
                     result.PathIndex = p;
             }
@@ -291,6 +293,76 @@ public sealed unsafe partial class Shape : IDisposable
             result.PathIndex = topmostContainingPath;
 
         return result;
+    }
+
+    public int HitTestAll(Vector2 point, Span<HitResult> results, float anchorRadius = 5f, float segmentRadius = 3f)
+    {
+        var count = 0;
+        var anchorRadiusSqr = anchorRadius * anchorRadius;
+        var segmentRadiusSqr = segmentRadius * segmentRadius;
+
+        for (ushort p = 0; p < PathCount && count < results.Length; p++)
+        {
+            ref var path = ref _paths[p];
+
+            for (ushort a = 0; a < path.AnchorCount && count < results.Length; a++)
+            {
+                var a0Idx = (ushort)(path.AnchorStart + a);
+                ref var a0 = ref _anchors[a0Idx];
+                var adistSqr = Vector2.DistanceSquared(a0.Position, point);
+                if (adistSqr <= anchorRadiusSqr)
+                {
+                    results[count++] = new HitResult
+                    {
+                        SegmentIndex = a0Idx,
+                        SegmentDistSqr = adistSqr,
+                        SegmentPosition = a0.Position,
+                        PathIndex = p,
+                        AnchorIndex = a0Idx,
+                        AnchorDistSqr = adistSqr,
+                        AnchorPoint = a0.Position
+                    };
+                    continue;
+                }
+
+                ref var a1 = ref _anchors[GetNextAnchorIndex(a0Idx)];
+                var samples = GetSegmentSamples(a0Idx);
+                var a0World = a0.Position;
+                var a1World = a1.Position;
+
+                var bestDistSqr = PointToSegmentDistSqr(point, a0World, samples[0], out var bestClosest);
+                for (var s = 0; s < MaxSegmentSamples - 1; s++)
+                {
+                    var distSqr = PointToSegmentDistSqr(point, samples[s], samples[s + 1], out var closest);
+                    if (distSqr < bestDistSqr)
+                    {
+                        bestDistSqr = distSqr;
+                        bestClosest = closest;
+                    }
+                }
+                var lastDistSqr = PointToSegmentDistSqr(point, samples[MaxSegmentSamples - 1], a1World, out var lastClosest);
+                if (lastDistSqr < bestDistSqr)
+                {
+                    bestDistSqr = lastDistSqr;
+                    bestClosest = lastClosest;
+                }
+
+                if (bestDistSqr >= segmentRadiusSqr)
+                    continue;
+
+                results[count++] = new HitResult
+                {
+                    SegmentIndex = a0Idx,
+                    SegmentDistSqr = bestDistSqr,
+                    SegmentPosition = bestClosest,
+                    PathIndex = p,
+                    AnchorIndex = ushort.MaxValue,
+                    AnchorDistSqr = float.MaxValue,
+                };
+            }
+        }
+
+        return count;
     }
 
     public void ClearSelection()
@@ -652,6 +724,27 @@ public sealed unsafe partial class Shape : IDisposable
         return pathIndex;
     }
 
+    public void BeginEdit()
+    {
+        _editing = true;
+    }
+
+    public void EndEdit()
+    {
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            ref var path = ref _paths[p];
+            if ((path.Flags & PathFlags.Dirty) != 0) continue;
+            path.Flags &= ~PathFlags.Dirty;
+
+            for (ushort a = 0; a < path.AnchorCount; a++)
+                UpdateSamples(p, a);
+        }
+
+        UpdateBounds();
+        _editing = false;
+    }
+
     public ushort AddAnchor(ushort pathIndex, Vector2 position, float curve = 0f)
     {
         if (pathIndex >= PathCount || AnchorCount >= MaxAnchors) return ushort.MaxValue;
@@ -668,6 +761,9 @@ public sealed unsafe partial class Shape : IDisposable
                 _paths[p].AnchorStart++;
         }
 
+        if (path.AnchorCount > 0 && _anchors[path.AnchorStart + path.AnchorCount - 1].Position == position)
+            return ushort.MaxValue;
+
         _anchors[anchorIndex] = new Anchor
         {
             Position = position,
@@ -679,14 +775,29 @@ public sealed unsafe partial class Shape : IDisposable
         path.AnchorCount++;
         AnchorCount++;
 
-        if (path.AnchorCount > 1)
+        if (_editing)
         {
-            UpdateSamples(pathIndex, (ushort)(path.AnchorCount - 2));
-            UpdateSamples(pathIndex, (ushort)(path.AnchorCount - 1));
+            path.Flags |= PathFlags.Dirty;
+        }
+        else
+        {
+            if (path.AnchorCount > 1)
+            {
+                UpdateSamples(pathIndex, (ushort)(path.AnchorCount - 2));
+                UpdateSamples(pathIndex, (ushort)(path.AnchorCount - 1));
+            }
+
+            UpdateBounds();
         }
 
-        UpdateBounds();
         return anchorIndex;
+    }
+
+
+    public void AddAnchors(ushort pathIndex, ReadOnlySpan<Vector2> positions)
+    {
+        for (var i = 0; i < positions.Length; i++)
+            AddAnchor(pathIndex, positions[i]);
     }
 
     public bool IsPointInPath(Vector2 point, ushort pathIndex)
@@ -747,6 +858,12 @@ public sealed unsafe partial class Shape : IDisposable
     {
         var ab = b - a;
         var ap = point - a;
+        var dot = Vector2.Dot(ab, ab);
+        if (MathEx.Approximately(dot, 0))
+        {
+            closest = point;
+            return float.MaxValue;
+        }
         var t = Vector2.Dot(ap, ab) / Vector2.Dot(ab, ab);
         t = MathF.Max(0, MathF.Min(1, t));
         closest = a + ab * t;
@@ -935,5 +1052,175 @@ public sealed unsafe partial class Shape : IDisposable
         PathCount = 0;
         Bounds = Rect.Zero;
         RasterBounds = RectInt.Zero;
+    }
+
+    public void InsertAnchorsRaw(ushort afterAnchorIndex, ReadOnlySpan<Vector2> positions)
+    {
+        for (var j = 0; j < positions.Length; j++)
+        {
+            afterAnchorIndex = InsertAnchorRaw(afterAnchorIndex, positions[j]);
+            if (afterAnchorIndex == ushort.MaxValue) return;
+        }
+    }
+
+    public ushort InsertAnchorRaw(ushort afterAnchorIndex, Vector2 position, float curve = 0f)
+    {
+        if (AnchorCount >= MaxAnchors) return ushort.MaxValue;
+
+        ushort pathIndex = ushort.MaxValue;
+        ushort localIndex = 0;
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            ref var path = ref _paths[p];
+            if (afterAnchorIndex >= path.AnchorStart && afterAnchorIndex < path.AnchorStart + path.AnchorCount)
+            {
+                pathIndex = p;
+                localIndex = (ushort)(afterAnchorIndex - path.AnchorStart + 1);
+                break;
+            }
+        }
+
+        if (pathIndex == ushort.MaxValue) return ushort.MaxValue;
+
+        var insertIndex = (ushort)(_paths[pathIndex].AnchorStart + localIndex);
+
+        for (var i = AnchorCount; i > insertIndex; i--)
+            _anchors[i] = _anchors[i - 1];
+
+        _anchors[insertIndex] = new Anchor
+        {
+            Position = position,
+            Curve = curve,
+            Flags = AnchorFlags.None,
+            Path = pathIndex
+        };
+
+        AnchorCount++;
+        _paths[pathIndex].AnchorCount++;
+
+        for (var p = pathIndex + 1; p < PathCount; p++)
+            _paths[p].AnchorStart++;
+
+        return insertIndex;
+    }
+
+    public void SplitPathAtAnchors(
+        ushort pathIndex,
+        ushort anchor1,
+        ushort anchor2,
+        ReadOnlySpan<Vector2> intermediatePoints = default,
+        bool reverseIntermediates = false)
+    {
+        if (PathCount >= MaxPaths) return;
+
+        ref var srcPath = ref _paths[pathIndex];
+
+        // Ensure anchor1 < anchor2
+        if (anchor1 > anchor2)
+            (anchor1, anchor2) = (anchor2, anchor1);
+
+        // Calculate local indices within the path
+        var local1 = (ushort)(anchor1 - srcPath.AnchorStart);
+        var local2 = (ushort)(anchor2 - srcPath.AnchorStart);
+
+        // Path 1: anchor1 to anchor2, plus intermediate points (reversed) on closing edge
+        // Path 2: anchor2 to anchor1 (wrapping), plus intermediate points on closing edge
+        var baseCount1 = local2 - local1 + 1;
+        var baseCount2 = srcPath.AnchorCount - baseCount1 + 2;
+        var path1Count = baseCount1 + intermediatePoints.Length;
+        var path2Count = baseCount2 + intermediatePoints.Length;
+
+        if (baseCount1 < 2 || baseCount2 < 2)
+            return; // Would create invalid paths (need at least the two endpoints)
+
+        // Store path2's anchors in temp storage (from anchor2 to end, then start to anchor1, then intermediates)
+        Span<Anchor> path2Anchors = stackalloc Anchor[path2Count];
+        var writeIdx = 0;
+        for (var i = local2; i < srcPath.AnchorCount; i++)
+            path2Anchors[writeIdx++] = _anchors[srcPath.AnchorStart + i];
+        for (var i = 0; i <= local1; i++)
+            path2Anchors[writeIdx++] = _anchors[srcPath.AnchorStart + i];
+        // Add intermediate points (they go on the closing edge from anchor1 back to anchor2)
+        if (reverseIntermediates)
+        {
+            for (var i = intermediatePoints.Length - 1; i >= 0; i--)
+                path2Anchors[writeIdx++] = new Anchor { Position = intermediatePoints[i], Curve = 0, Flags = AnchorFlags.None };
+        }
+        else
+        {
+            for (var i = 0; i < intermediatePoints.Length; i++)
+                path2Anchors[writeIdx++] = new Anchor { Position = intermediatePoints[i], Curve = 0, Flags = AnchorFlags.None };
+        }
+
+        // Store path1's anchors (from anchor1 to anchor2, then intermediates reversed)
+        Span<Anchor> path1Anchors = stackalloc Anchor[path1Count];
+        for (var i = 0; i < baseCount1; i++)
+            path1Anchors[i] = _anchors[srcPath.AnchorStart + local1 + i];
+        // Add intermediate points reversed (they go on the closing edge from anchor2 back to anchor1)
+        if (reverseIntermediates)
+        {
+            for (var i = 0; i < intermediatePoints.Length; i++)
+                path1Anchors[baseCount1 + i] = new Anchor { Position = intermediatePoints[i], Curve = 0, Flags = AnchorFlags.None };
+        }
+        else
+        {
+            for (var i = 0; i < intermediatePoints.Length; i++)
+                path1Anchors[baseCount1 + i] = new Anchor { Position = intermediatePoints[intermediatePoints.Length - 1 - i], Curve = 0, Flags = AnchorFlags.None };
+        }
+
+        // Calculate how many anchors to remove from the middle of the array
+        var anchorsToRemove = srcPath.AnchorCount - path1Count;
+        var shiftStart = srcPath.AnchorStart + path1Count;
+        var shiftAmount = anchorsToRemove;
+
+        // Only shift if we're removing anchors
+        if (shiftAmount > 0)
+        {
+            for (var i = shiftStart; i < AnchorCount - shiftAmount; i++)
+                _anchors[i] = _anchors[i + shiftAmount];
+
+            for (var p = pathIndex + 1; p < PathCount; p++)
+                _paths[p].AnchorStart -= (ushort)shiftAmount;
+
+            AnchorCount -= (ushort)shiftAmount;
+        }
+        else if (shiftAmount < 0)
+        {
+            // We're adding anchors, need to make room
+            var addCount = -shiftAmount;
+            for (var i = AnchorCount - 1 + addCount; i >= shiftStart + addCount; i--)
+                _anchors[i] = _anchors[i - addCount];
+
+            for (var p = pathIndex + 1; p < PathCount; p++)
+                _paths[p].AnchorStart += (ushort)addCount;
+
+            AnchorCount += (ushort)addCount;
+        }
+
+        // Write path1 anchors back
+        for (var i = 0; i < path1Count; i++)
+        {
+            _anchors[srcPath.AnchorStart + i] = path1Anchors[i];
+            _anchors[srcPath.AnchorStart + i].Path = pathIndex;
+        }
+        srcPath.AnchorCount = (ushort)path1Count;
+
+        // Add the new path at the end
+        var newPathIndex = PathCount++;
+        _paths[newPathIndex] = new Path
+        {
+            AnchorStart = AnchorCount,
+            AnchorCount = (ushort)path2Count,
+            FillColor = srcPath.FillColor,
+            Flags = PathFlags.None
+        };
+
+        // Copy path2 anchors to the end
+        for (var i = 0; i < path2Count; i++)
+        {
+            _anchors[AnchorCount] = path2Anchors[i];
+            _anchors[AnchorCount].Path = newPathIndex;
+            AnchorCount++;
+        }
     }
 }

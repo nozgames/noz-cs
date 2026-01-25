@@ -62,11 +62,11 @@ internal static class EditorUI
         return pressed;
     }
 
-    public static bool ToolbarButton(Sprite icon, bool isChecked)
+    public static bool ToolbarButton(ElementId id, Sprite icon, bool isChecked)
     {
         var style = isChecked ? EditorStyle.Toolbar.ButtonChecked : EditorStyle.Toolbar.Button;
         var pressed = false;
-        using (UI.BeginContainer(style))
+        using (UI.BeginContainer(style, id: id))
         {
             pressed = UI.WasPressed();
             UI.Image(icon, ImageStyle.Center);

@@ -14,9 +14,8 @@ public enum SpriteEditorTool
 
 public class SpriteEditor : DocumentEditor
 {
-    private const float AnchorHitScale = 2.0f;
-    private const float SegmentHitScale = 6.0f;
     private const byte RootId = 1;
+    private const byte TileButtonId = 2;
     private const byte FirstPaletteColorId = 64;
    
     public new SpriteDocument Document => (SpriteDocument)base.Document;
@@ -121,9 +120,9 @@ public class SpriteEditor : DocumentEditor
             // Toobar
             using (UI.BeginRow(EditorStyle.Toolbar.Root))
             {
-                EditorUI.ToolbarButton(EditorAssets.Sprites.IconPalette, _isPlaying);
+                //EditorUI.ToolbarButton( EditorAssets.Sprites.IconPalette, _isPlaying);
                 UI.Flex();
-                if (EditorUI.ToolbarButton(EditorAssets.Sprites.IconTiling, _showTiling))
+                if (EditorUI.ToolbarButton(TileButtonId, EditorAssets.Sprites.IconTiling, _showTiling))
                     _showTiling = !_showTiling;
             }
 
@@ -423,8 +422,8 @@ public class SpriteEditor : DocumentEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
             Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
-            EditorStyle.Shape.AnchorSize * AnchorHitScale / Workspace.Zoom,
-            EditorStyle.Shape.SegmentLineWidth * SegmentHitScale / Workspace.Zoom);
+            EditorStyle.Shape.AnchorHitSize / Workspace.Zoom,
+            EditorStyle.Shape.SegmentHitSize / Workspace.Zoom);
 
         _hoveredAnchor = hit.AnchorIndex;
         _hoveredSegment = hit.SegmentIndex;
@@ -438,20 +437,20 @@ public class SpriteEditor : DocumentEditor
 
         // Prioritize anchors/segments in focused paths over path selection
         Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var focusedHit = shape.HitTest(
+        var hit = shape.HitTest(
             Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
-            EditorStyle.Shape.AnchorSize * AnchorHitScale / Workspace.Zoom,
-            EditorStyle.Shape.SegmentLineWidth * SegmentHitScale / Workspace.Zoom);
+            EditorStyle.Shape.AnchorHitSize / Workspace.Zoom,
+            EditorStyle.Shape.SegmentHitSize / Workspace.Zoom);
 
-        if (focusedHit.AnchorIndex != ushort.MaxValue)
+        if (hit.AnchorIndex != ushort.MaxValue)
         {
-            SelectAnchor(focusedHit.AnchorIndex, shift);
+            SelectAnchor(hit.AnchorIndex, shift);
             return;
         }
 
-        if (focusedHit.SegmentIndex != ushort.MaxValue)
+        if (hit.SegmentIndex != ushort.MaxValue)
         {
-            SelectSegment(focusedHit.SegmentIndex, shift);
+            SelectSegment(hit.SegmentIndex, shift);
             return;
         }
 
@@ -805,7 +804,12 @@ public class SpriteEditor : DocumentEditor
     private void BeginKnifeTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new KnifeTool(this, shape));
+        Workspace.BeginTool(new KnifeTool(this, shape, commit: () =>
+        {
+            shape.UpdateSamples();
+            shape.UpdateBounds();
+            MarkRasterDirty();
+        }));
     }
 
     private void InsertAnchorAtHover()
@@ -921,6 +925,7 @@ public class SpriteEditor : DocumentEditor
 
         using (Graphics.PushState())
         {
+            Graphics.SetLayer(EditorLayer.DocumentEditor);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(_rasterTexture);
@@ -942,12 +947,9 @@ public class SpriteEditor : DocumentEditor
                     new(tileSize.X, tileSize.Y),
                 ];
 
-                Graphics.SetColor(Color.White.WithAlpha(0.5f));
+                Graphics.SetColor(Color.White.WithAlpha(0.85f));
                 foreach (var offset in offsets)
-                {
-                    var tiledQuad = new Rect(quad.X + offset.X, quad.Y + offset.Y, quad.Width, quad.Height);
-                    Graphics.Draw(tiledQuad, uv);
-                }
+                    Graphics.Draw(new Rect(quad.X + offset.X, quad.Y + offset.Y, quad.Width, quad.Height), uv, order: 2);
             }
         }
     }

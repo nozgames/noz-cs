@@ -80,6 +80,8 @@ public static class EditorStyle
         public static readonly Color GridColor = Color.FromRgb(0x4e4e4e);
         public static readonly Color DocumentBoundsColor = Color.FromRgb(0x212121);
         public static readonly Color SelectedDocumentBoundsColor = Color.FromRgb(0xfd970e);
+        public static readonly Color OriginColor = Color.FromRgb(0xff9f2c);
+        public const float OriginSize = 0.06f;
         public const float DocumentBoundsLineWidth = 0.015f;
         public const float Padding = 16f;
         public const float NameSize = 0.24f;
@@ -236,7 +238,9 @@ public static class EditorStyle
         public static Color AnchorColor => _colors.Shape.Anchor;
         public static Color SelectedAnchorColor => _colors.Shape.SelectedAnchor;
         public const float AnchorSize = 0.10f;
+        public const float AnchorHitSize = AnchorSize * 2.0f;        
         public const float SegmentLineWidth = 0.015f;
+        public const float SegmentHitSize = SegmentLineWidth * 6.0f;
     }
 
     public static class Overlay
