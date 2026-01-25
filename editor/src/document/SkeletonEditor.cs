@@ -605,29 +605,27 @@ internal class SkeletonEditor : DocumentEditor
         {
             Graphics.SetTransform(Document.Transform);
 
-            var lineWidth = EditorStyle.SkeletonBoneWidth * Gizmos.ZoomRefScale;
-            var originSize = EditorStyle.SkeletonBoneRadius * Gizmos.ZoomRefScale;
-            var dashLength = EditorStyle.SkeletonParentDash * Gizmos.ZoomRefScale;
+            var lineWidth = EditorStyle.Skeleton.BoneWidth * Gizmos.ZoomRefScale;
+            var originSize = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
 
             for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
             {
                 var b = Document.Bones[boneIndex];
                 var selected = b.Selected;
-                var boneColor = selected ? EditorStyle.SelectionColor : EditorStyle.SkeletonBoneColor;
+                var boneColor = selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.BoneColor;
 
                 var p0 = Vector2.Transform(Vector2.Zero, b.LocalToWorld);
                 var p1 = Vector2.Transform(new Vector2(b.Length, 0), b.LocalToWorld);
 
+                Gizmos.SetColor(boneColor);
                 if (b.ParentIndex >= 0)
                 {
                     var parentTransform = Document.GetParentLocalToWorld(b, b.LocalToWorld);
                     var pp = Vector2.Transform(Vector2.Zero, parentTransform);
-                    Gizmos.DrawDashedLine(pp, p0, lineWidth, dashLength, boneColor);
+                    Gizmos.DrawDashedLine(pp, p0);
                 }
 
                 Gizmos.DrawBone(p0, p1, lineWidth, boneColor);
-                Gizmos.SetColor(boneColor);
-                Gizmos.DrawCircle(p0, originSize);
             }
         }
     }

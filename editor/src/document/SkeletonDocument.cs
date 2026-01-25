@@ -313,7 +313,7 @@ public class SkeletonDocument : Document
             var boneStart = Vector2.Transform(Vector2.Zero, localToWorld);
             var boneEnd = Vector2.Transform(new Vector2(b.Length, 0), localToWorld);
 
-            if (!PointNearLine(position, boneStart, boneEnd, EditorStyle.SkeletonBoneRadius * Gizmos.ZoomRefScale * 2f))
+            if (!PointNearLine(position, boneStart, boneEnd, EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale * 2f))
                 continue;
 
             bones[hitCount++] = boneIndex;
@@ -547,9 +547,8 @@ public class SkeletonDocument : Document
         {
             Graphics.SetTransform(Transform);
 
-            var lineWidth = EditorStyle.SkeletonBoneWidth * Gizmos.ZoomRefScale;
-            var boneRadius = EditorStyle.SkeletonBoneRadius * Gizmos.ZoomRefScale;
-            var dashLength = EditorStyle.SkeletonParentDash * Gizmos.ZoomRefScale;
+            var lineWidth = EditorStyle.Skeleton.BoneWidth * Gizmos.ZoomRefScale;
+            var boneRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
 
             for (var boneIndex = 0; boneIndex < BoneCount; boneIndex++)
             {
@@ -561,12 +560,11 @@ public class SkeletonDocument : Document
                 {
                     var parentTransform = GetParentLocalToWorld(b, b.LocalToWorld);
                     var pp = Vector2.Transform(Vector2.Zero, parentTransform);
-                    Gizmos.DrawDashedLine(pp, p0, lineWidth, dashLength, EditorStyle.SkeletonBoneColor);
+                    Gizmos.SetColor(EditorStyle.Skeleton.BoneColor);
+                    Gizmos.DrawDashedLine(pp, p0);
                 }
 
-                Gizmos.DrawBone(p0, p1, lineWidth, EditorStyle.SkeletonBoneColor);
-                Gizmos.SetColor(EditorStyle.SkeletonBoneColor);
-                Gizmos.DrawCircle(p0, boneRadius);
+                Gizmos.DrawBone(p0, p1, lineWidth, EditorStyle.Skeleton.BoneColor);
             }
         }
     }

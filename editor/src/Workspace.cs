@@ -314,11 +314,6 @@ public static class Workspace
 
             Graphics.SetTransform(doc.Transform);
             doc.Draw();
-
-            if (doc.IsSelected || doc.IsEditing)
-                Gizmos.DrawOrigin(EditorStyle.Workspace.OriginColor, order: 1);
-            else
-                Gizmos.DrawOrigin(EditorStyle.Workspace.DocumentBoundsColor, order: 1);
         }
 
         ActiveEditor?.Document.DrawBounds();

@@ -76,14 +76,11 @@ public class ScaleTool : Tool
 
     public override void Draw()
     {
-        Graphics.PushState();
-        Graphics.SetLayer(EditorLayer.Tool);
+        using var _ = Gizmos.PushState(EditorLayer.Tool);
 
-        // Draw pivot point
-        Graphics.SetColor(EditorStyle.SelectionColor);
-        Gizmos.DrawRect(_pivot, EditorStyle.Shape.AnchorSize * 1.5f, order: 10);
+        Gizmos.SetColor(EditorStyle.Tool.PointColor);
+        Gizmos.DrawCircle(_pivot, EditorStyle.Tool.PointSize, order: 10);
 
-        // Draw scale indicator lines
         var thickness = EditorStyle.Workspace.DocumentBoundsLineWidth / Workspace.Zoom;
 
         if (_scaleConstraint.X == 0 || _scaleConstraint.Y == 0)
@@ -99,11 +96,8 @@ public class ScaleTool : Tool
                 Graphics.Draw(_pivot.X - thickness, bounds.Y, thickness * 2, bounds.Height);
         }
 
-        // Draw line from pivot to mouse
-        Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
-        Gizmos.DrawLine(_pivot, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentLineWidth * 2, order: 9);
-
-        Graphics.PopState();
+        Gizmos.SetColor(EditorStyle.Tool.LineColor);
+        Gizmos.DrawDashedLine(_pivot, Workspace.MouseWorldPosition);
     }
 
     public override void Cancel()

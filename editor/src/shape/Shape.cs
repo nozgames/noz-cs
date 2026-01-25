@@ -487,25 +487,8 @@ public sealed unsafe partial class Shape : IDisposable
 
     public void SplitSegment(ushort anchorIndex)
     {
-        ushort pathIndex = ushort.MaxValue;
-        for (ushort p = 0; p < PathCount; p++)
-        {
-            ref var path = ref _paths[p];
-            if (anchorIndex >= path.AnchorStart && anchorIndex < path.AnchorStart + path.AnchorCount)
-            {
-                pathIndex = p;
-                break;
-            }
-        }
-
-        if (pathIndex == ushort.MaxValue) return;
-
-        ref var pathRef = ref _paths[pathIndex];
-        var nextLocalIdx = (anchorIndex - pathRef.AnchorStart + 1) % pathRef.AnchorCount;
-        var nextAnchorIdx = (ushort)(pathRef.AnchorStart + nextLocalIdx);
-
-        ref var a0 = ref _anchors[anchorIndex];
-        ref var a1 = ref _anchors[nextAnchorIdx];
+        ref readonly var a0 = ref GetAnchor(anchorIndex);
+        ref readonly var a1 = ref GetNextAnchor(anchorIndex);
 
         var p0 = a0.Position;
         var p1 = a1.Position;
@@ -518,13 +501,8 @@ public sealed unsafe partial class Shape : IDisposable
 
         var perp = new Vector2(-dir.Y, dir.X) / dirLen;
         var midpoint = mid + perp * (a0.Curve * 0.5f);
-        var newCurve = a0.Curve * 0.5f;
 
-        a0.Curve = newCurve;
-        InsertAnchor(anchorIndex, midpoint, newCurve);
-
-        UpdateSamples();
-        UpdateBounds();
+        SplitSegmentAtPoint(anchorIndex, midpoint);
     }
 
     public void SplitSegmentAtPoint(ushort anchorIndex, Vector2 targetPoint)
@@ -592,30 +570,74 @@ public sealed unsafe partial class Shape : IDisposable
         var oneMinusT = 1f - bestT;
         var splitPoint = oneMinusT * oneMinusT * p0 + 2f * oneMinusT * bestT * cp + bestT * bestT * p1;
 
-        // Calculate new control points for each half (de Casteljau)
-        var cp1 = oneMinusT * p0 + bestT * cp;
-        var cp2 = oneMinusT * cp + bestT * p1;
-
-        // Calculate new curve values for first segment (p0 to splitPoint)
+        // Calculate new curve values using least-squares fit to original samples
         var mid1 = (p0 + splitPoint) * 0.5f;
         var dir1 = splitPoint - p0;
         var dir1Len = dir1.Length();
         var newCurve1 = 0f;
+
         if (dir1Len > 0.0001f)
         {
             var perp1 = new Vector2(-dir1.Y, dir1.X) / dir1Len;
-            newCurve1 = Vector2.Dot(cp1 - mid1, perp1);
+            var numerator = 0f;
+            var denominator = 0f;
+
+            for (var i = 0; i < MaxSegmentSamples; i++)
+            {
+                var ti = (i + 1) / (float)(MaxSegmentSamples + 1);
+                var origT = bestT * ti;
+
+                // Point on original curve at origT
+                var oneMinusOrigT = 1f - origT;
+                var target = oneMinusOrigT * oneMinusOrigT * p0 + 2f * oneMinusOrigT * origT * cp + origT * origT * p1;
+
+                // Point on new segment with curve = 0
+                var oneMinusTi = 1f - ti;
+                var weight = 2f * oneMinusTi * ti;
+                var basePoint = oneMinusTi * oneMinusTi * p0 + weight * mid1 + ti * ti * splitPoint;
+
+                var proj = Vector2.Dot(target - basePoint, perp1);
+                numerator += weight * proj;
+                denominator += weight * weight;
+            }
+
+            if (denominator > 0.0001f)
+                newCurve1 = numerator / denominator;
         }
 
-        // Calculate new curve values for second segment (splitPoint to p1)
+        // Calculate new curve value for second segment (splitPoint to p1)
         var mid2 = (splitPoint + p1) * 0.5f;
         var dir2 = p1 - splitPoint;
         var dir2Len = dir2.Length();
         var newCurve2 = 0f;
+
         if (dir2Len > 0.0001f)
         {
             var perp2 = new Vector2(-dir2.Y, dir2.X) / dir2Len;
-            newCurve2 = Vector2.Dot(cp2 - mid2, perp2);
+            var numerator = 0f;
+            var denominator = 0f;
+
+            for (var i = 0; i < MaxSegmentSamples; i++)
+            {
+                var ti = (i + 1) / (float)(MaxSegmentSamples + 1);
+                var origT = bestT + (1f - bestT) * ti;
+
+                // Point on original curve at origT
+                var oneMinusOrigT = 1f - origT;
+                var target = oneMinusOrigT * oneMinusOrigT * p0 + 2f * oneMinusOrigT * origT * cp + origT * origT * p1;
+
+                // Point on new segment with curve = 0
+                var oneMinusTi = 1f - ti;
+                var weight = 2f * oneMinusTi * ti;
+                var basePoint = oneMinusTi * oneMinusTi * splitPoint + weight * mid2 + ti * ti * p1;
+
+                var proj = Vector2.Dot(target - basePoint, perp2);
+                numerator += weight * proj;
+                denominator += weight * weight;
+            }
+
+            if (denominator > 0.0001f)
+                newCurve2 = numerator / denominator;
         }
 
         a0.Curve = newCurve1;

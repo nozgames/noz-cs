@@ -245,9 +245,10 @@ public class SpriteDocument : Document
             return;
         }
 
+        DrawOrigin();
+
         using (Graphics.PushState())
-        {
-            
+        {            
             Graphics.SetTexture(Atlas.Texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetColor(Color.White);

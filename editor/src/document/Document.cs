@@ -106,4 +106,14 @@ public abstract class Document : IDisposable
             Gizmos.DrawRect(Bounds, EditorStyle.Workspace.DocumentBoundsLineWidth, outside: true);
         }
     }
+
+    public void DrawOrigin()
+    {
+        var selected = IsSelected || IsEditing;
+        using (Gizmos.PushState(selected ? EditorLayer.Selection : EditorLayer.Document))
+            Gizmos.DrawOrigin(selected
+                ? EditorStyle.Workspace.OriginColor
+                : EditorStyle.Workspace.DocumentBoundsColor,
+                order: 1);
+    }
 }

@@ -74,10 +74,10 @@ public class RotateTool(
         using (Gizmos.PushState(EditorLayer.Tool))
         {
             Graphics.SetTransform(Matrix3x2.Identity);
-            Graphics.SetColor(EditorStyle.SelectionColor);
-            Gizmos.DrawRect(_pivotWorld, EditorStyle.Shape.AnchorSize * 1.5f, order: 10);
-            Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.7f));
-            Gizmos.DrawLine(_pivotWorld, Workspace.MouseWorldPosition, EditorStyle.Shape.SegmentLineWidth * 2, order: 9);
+            Graphics.SetColor(EditorStyle.Tool.PointColor);
+            Gizmos.DrawCircle(_pivotWorld, EditorStyle.Tool.PointSize, order: 2);
+            Graphics.SetColor(EditorStyle.Tool.LineColor);
+            Gizmos.DrawDashedLine(_pivotWorld, Workspace.MouseWorldPosition, order: 1);
         }
     }
 

@@ -61,11 +61,6 @@ public static class EditorStyle
     public const float MeshWeightOutlineSize = 0.20f;
     public const float MeshWeightSize = 0.19f;
 
-    // Skeleton
-    public const float SkeletonBoneWidth = 0.02f;
-    public const float SkeletonBoneRadius = 0.06f;
-    public static readonly Color SkeletonBoneColor = Color.Black;
-    public const float SkeletonParentDash = 0.1f;
 
     // Button
     public const float ButtonPadding = 8f;
@@ -248,6 +243,7 @@ public static class EditorStyle
             Command with { Color = Control.SelectedFillColor };
     }
 
+    // :shape
     public static class Shape
     {
         public static Color SegmentColor => _colors.Shape.Segment;
@@ -255,9 +251,25 @@ public static class EditorStyle
         public static Color AnchorColor => _colors.Shape.Anchor;
         public static Color SelectedAnchorColor => _colors.Shape.SelectedAnchor;
         public const float AnchorSize = 0.10f;
-        public const float AnchorHitSize = AnchorSize * 2.0f;        
+        public const float AnchorHitSize = AnchorSize * 2.0f;
         public const float SegmentLineWidth = 0.015f;
-        public const float SegmentHitSize = SegmentLineWidth * 6.0f;
+        public const float SegmentHitSize = SegmentLineWidth * 8.0f;
+
+        public static Color ControlPointColor => _colors.Shape.SelectedAnchor;
+        public static Color ControlPointLineColor => _colors.Shape.SelectedSegment;
+        public const float ControlPointSize = 0.06f;
+        public const float ControlPointLineWidth = 0.01f;
+    }
+
+    // :skeleton
+    public static class Skeleton
+    {
+        public static readonly Color BoneColor = Color.White;
+        public static readonly Color BoneOriginColor = Color.Black;
+        public static readonly Color SelectedBoneColor = Color.FromRgb(0xfd970e);
+        public const float BoneWidth = 0.14f;
+        public const float BoneSize = 0.12f;
+        public const float BoneOriginSize = 0.11f;
     }
 
     // :overlay
@@ -581,14 +593,20 @@ public static class EditorStyle
         };
     }
 
+    // :tool
+    public static class Tool
+    {
+        public static readonly Color LineColor = Color.FromRgba(0xf5f04e, 0.7f);
+        public static readonly Color PointColor = Color.FromRgb(0x63ffff);
+        public const float PointSize = Shape.AnchorSize * 1.5f;
+    }
+
     // :knifetool
     public static class KnifeTool
     {
         public static readonly Color AnchorColor = Color.FromRgb(0x000000);
-        public static readonly Color SegmentColor = Color.FromRgb(0xf5f04e);
         public static readonly Color IntersectionColor = Color.FromRgb(0x4ea64e);
         public static readonly Color InvalidSegmentColor = Color.FromRgb(0x953d49);
-        public static readonly Color HoverColor = Color.FromRgb(0x63ffff);
         public const float IntersectionAnchorScale = 1.2f;
     }
 

@@ -159,7 +159,7 @@ public readonly struct Color(float r, float g, float b, float a)
         (rgba & 0xFF) / 255f
     );
 
-    public static Color FromRgb(uint rgb, float alpha) => new(
+    public static Color FromRgba(uint rgb, float alpha) => new(
         ((rgb >> 16) & 0xFF) / 255f,
         ((rgb >> 8) & 0xFF) / 255f,
         (rgb & 0xFF) / 255f,

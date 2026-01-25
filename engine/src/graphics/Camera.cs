@@ -172,6 +172,13 @@ public class Camera
         return Vector2.Transform(ndc, _invView);
     }
 
+    public float WorldToScreen(float size)
+    {
+        var screenA = WorldToScreen(new Vector2(0,0));
+        var screenB = WorldToScreen(new Vector2(size, 0));
+        return float.Abs(screenB.X - screenA.X);
+    }
+
     public Vector2 WorldToScreen(Vector2 worldPos)
     {
         // Transform by view matrix

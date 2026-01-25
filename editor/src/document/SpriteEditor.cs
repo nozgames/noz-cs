@@ -6,12 +6,6 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public enum SpriteEditorTool
-{
-    None,
-    Curve
-}
-
 public class SpriteEditor : DocumentEditor
 {
     private const byte RootId = 1;
@@ -53,6 +47,7 @@ public class SpriteEditor : DocumentEditor
             new Command { Name = "Move", ShortName = "move", Handler = BeginMoveTool, Key = InputCode.KeyG },
             new Command { Name = "Rotate", ShortName = "rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
             new Command { Name = "Scale", ShortName = "scale", Handler = BeginScaleTool, Key = InputCode.KeyS },
+            new Command { Name = "Curve", ShortName = "curve", Handler = BeginCurveTool, Key = InputCode.KeyC },
             new Command { Name = "Insert Anchor", ShortName = "insert", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
             new Command { Name = "Pen Tool", ShortName = "pen", Handler = BeginPenTool, Key = InputCode.KeyP },
             new Command { Name = "Knife Tool", ShortName = "knife", Handler = BeginKnifeTool, Key = InputCode.KeyK },
@@ -66,14 +61,8 @@ public class SpriteEditor : DocumentEditor
     private byte _selectionOpacity = 10;
 
     // Tool state
-    private SpriteEditorTool _activeTool = SpriteEditorTool.None;
     private readonly Vector2[] _savedPositions = new Vector2[Shape.MaxAnchors];
     private readonly float[] _savedCurves = new float[Shape.MaxAnchors];
-    private ushort _curveAnchor = ushort.MaxValue;
-
-    private ushort _hoveredAnchor = ushort.MaxValue;
-    private ushort _hoveredSegment = ushort.MaxValue;
-    private ushort _hoveredPath = ushort.MaxValue;
 
     public ushort CurrentFrame => _currentFrame;
     public bool IsPlaying => _isPlaying;
@@ -109,6 +98,7 @@ public class SpriteEditor : DocumentEditor
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
+            Document.DrawOrigin();
             DrawSegments(shape);
             DrawAnchors(shape);
         }
@@ -424,29 +414,8 @@ public class SpriteEditor : DocumentEditor
 
     private void UpdateInput()
     {
-        UpdateHover();
-
-        if (_activeTool != SpriteEditorTool.None)
-        {
-            UpdateActiveTool();
-            return;
-        }
-
         if (Input.WasButtonPressed(InputCode.KeyDelete))
             DeleteSelected();
-    }
-
-    private void UpdateHover()
-    {
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
-            Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
-            EditorStyle.Shape.AnchorHitSize / Workspace.Zoom,
-            EditorStyle.Shape.SegmentHitSize / Workspace.Zoom);
-
-        _hoveredAnchor = hit.AnchorIndex;
-        _hoveredSegment = hit.SegmentIndex;
-        _hoveredPath = hit.PathIndex;
     }
 
     private void HandleLeftClick()
@@ -480,28 +449,17 @@ public class SpriteEditor : DocumentEditor
 
     private void HandleDoubleClick()
     {
-        if (_hoveredPath == ushort.MaxValue)
-            return;
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
         Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var localPos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+        var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
+            Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
+            EditorStyle.Shape.AnchorHitSize / Workspace.Zoom,
+            EditorStyle.Shape.SegmentHitSize / Workspace.Zoom);
 
-        if (!shape.IsPointInPath(localPos, _hoveredPath))
+        if (hit.PathIndex == ushort.MaxValue)
             return;
 
-        SelectPath(_hoveredPath, Input.IsShiftDown());
+        SelectPath(hit.PathIndex, Input.IsShiftDown());
         Input.ConsumeButton(InputCode.MouseLeft);
-    }
-
-    private void UpdateActiveTool()
-    {
-        switch (_activeTool)
-        {
-            case SpriteEditorTool.Curve:
-                UpdateCurveTool();
-                break;
-        }
     }
 
     private void BeginMoveTool()
@@ -626,82 +584,50 @@ public class SpriteEditor : DocumentEditor
         return shape.GetSelectedAnchorsCentroid();
     }
 
-    private void BeginCurveTool(ushort anchorIndex)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-        {
-            var anchor = shape.GetAnchor(i);
-            _savedCurves[i] = anchor.Curve;
-        }
-
-        _curveAnchor = anchorIndex;
-        _activeTool = SpriteEditorTool.Curve;
-    }
-
-    private void UpdateCurveTool()
-    {
-        if (_curveAnchor == ushort.MaxValue)
-            return;
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        var anchor = shape.GetAnchor(_curveAnchor);
-        var pathIdx = FindPathForAnchor(shape, _curveAnchor);
-        if (pathIdx == ushort.MaxValue)
-            return;
-
-        var path = shape.GetPath(pathIdx);
-        var nextAnchorIdx = path.AnchorStart + ((_curveAnchor - path.AnchorStart + 1) % path.AnchorCount);
-        var nextAnchor = shape.GetAnchor((ushort)nextAnchorIdx);
-
-        var p0 = anchor.Position;
-        var p1 = nextAnchor.Position;
-        var dir = p1 - p0;
-        var perp = Vector2.Normalize(new Vector2(-dir.Y, dir.X));
-
-        var mouseWorld = Workspace.MouseWorldPosition;
-        var midpoint = (p0 + p1) * 0.5f;
-        var offset = mouseWorld - midpoint;
-        var newCurve = Vector2.Dot(offset, perp);
-
-        shape.SetAnchorCurve(_curveAnchor, newCurve);
-        shape.UpdateSamples();
-        shape.UpdateBounds();
-
-        if (Input.WasButtonReleased(InputCode.MouseLeft))
-        {
-            CommitCurveTool();
-        }
-        else if (Input.WasButtonPressed(InputCode.KeyEscape))
-        {
-            CancelCurveTool();
-        }
-    }
-
-    private void CommitCurveTool()
-    {
-        _activeTool = SpriteEditorTool.None;
-        _curveAnchor = ushort.MaxValue;
-        Document.MarkModified();
-        Document.UpdateBounds();
-        MarkRasterDirty();
-    }
-
-    private void CancelCurveTool()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        shape.RestoreAnchorCurves(_savedCurves);
-        shape.UpdateSamples();
-        shape.UpdateBounds();
-
-        _activeTool = SpriteEditorTool.None;
-        _curveAnchor = ushort.MaxValue;
-    }
-
     private void HandleDragStart()
     {
         Workspace.BeginTool(new BoxSelectTool(CommitBoxSelectAnchors));
+    }
+
+    private void BeginCurveTool()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+
+        var hasSelectedSegment = false;
+        for (ushort i = 0; i < shape.AnchorCount; i++)
+        {
+            if (shape.IsSegmentSelected(i))
+            {
+                hasSelectedSegment = true;
+                break;
+            }
+        }
+
+        if (!hasSelectedSegment)
+            return;
+
+        for (ushort i = 0; i < shape.AnchorCount; i++)
+            _savedCurves[i] = shape.GetAnchor(i).Curve;
+
+        Undo.Record(Document);
+
+        Workspace.BeginTool(new CurveTool(
+            shape,
+            Document.Transform,
+            _savedCurves,
+            update: () => MarkRasterDirty(),
+            commit: () =>
+            {
+                Document.MarkModified();
+                Document.UpdateBounds();
+                MarkRasterDirty();
+            },
+            cancel: () =>
+            {
+                Undo.Cancel();
+                MarkRasterDirty();
+            }
+        ));
     }
 
     private void CommitBoxSelectAnchors(Rect bounds)
@@ -833,19 +759,23 @@ public class SpriteEditor : DocumentEditor
 
     private void InsertAnchorAtHover()
     {
-        if (_hoveredSegment == ushort.MaxValue)
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
+            Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
+            EditorStyle.Shape.AnchorHitSize / Workspace.Zoom,
+            EditorStyle.Shape.SegmentHitSize / Workspace.Zoom);
+
+        if (hit.SegmentIndex == ushort.MaxValue)
             return;
 
         Undo.Record(Document);
 
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
-
         var shape = Document.GetFrame(_currentFrame).Shape;
         shape.ClearSelection();
-        shape.SplitSegmentAtPoint(_hoveredSegment, localMousePos);
+        shape.SplitSegmentAtPoint(hit.SegmentIndex, localMousePos);
 
-        var newAnchorIdx = (ushort)(_hoveredSegment + 1);
+        var newAnchorIdx = (ushort)(hit.SegmentIndex + 1);
         if (newAnchorIdx < shape.AnchorCount)
             shape.SetAnchorSelected(newAnchorIdx, true);
 

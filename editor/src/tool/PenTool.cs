@@ -221,7 +221,7 @@ public class PenTool : Tool
             var lineWidth = Gizmos.GetLineWidth();
             var vertexSize = Gizmos.GetVertexSize();
 
-            Gizmos.SetColor(EditorStyle.Shape.SelectedSegmentColor);
+            Gizmos.SetColor(EditorStyle.Tool.LineColor);
             for (var i = 0; i < _pointCount - 1; i++)
                 Gizmos.DrawLine(_points[i].Position, _points[i + 1].Position, lineWidth);
 
@@ -229,8 +229,6 @@ public class PenTool : Tool
             {
                 var lastPoint = _points[_pointCount - 1].Position;
                 var target = GetCurrentTarget();
-
-                Gizmos.SetColor(EditorStyle.Shape.SelectedSegmentColor.WithAlpha(0.5f));
                 Gizmos.DrawLine(lastPoint, target, lineWidth);
             }
 
@@ -239,7 +237,7 @@ public class PenTool : Tool
                 var lastPoint = _points[_pointCount - 1].Position;
                 var firstPoint = _points[0].Position;
                 Gizmos.SetColor(EditorStyle.Shape.SegmentColor.WithAlpha(0.3f));
-                Gizmos.DrawDashedLine(lastPoint, firstPoint, lineWidth, 0.1f, EditorStyle.Shape.SegmentColor.WithAlpha(0.3f));
+                Gizmos.DrawDashedLine(lastPoint, firstPoint);
             }
 
             Gizmos.SetColor(EditorStyle.Shape.SelectedAnchorColor);

@@ -682,14 +682,23 @@ public static unsafe class Graphics
         ushort order,
         int atlasIndex = 0)
     {
+        Span<MeshVertex> verts = stackalloc MeshVertex[4];
+        verts[0] = new MeshVertex { Position = p0, UV = uv0, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
+        verts[1] = new MeshVertex { Position = p1, UV = uv1, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
+        verts[2] = new MeshVertex { Position = p2, UV = uv2, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
+        verts[3] = new MeshVertex { Position = p3, UV = uv3, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
+
+        ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+        AddTriangles(verts, indices, order);
+    }
+
+    public static void AddTriangles(ReadOnlySpan<MeshVertex> vertices, ReadOnlySpan<ushort> indices, ushort order = 0)
+    {
         if (CurrentState.Shader == null)
             return;
 
-        if (_batchStates.Length == 0 ||
-            _batchStates[_currentBatchState].Mesh != _mesh)
-        {
+        if (_batchStates.Length == 0 || _batchStates[_currentBatchState].Mesh != _mesh)
             SetMesh(_mesh);
-        }
 
         if (_batchStateDirty)
             AddBatchState();
@@ -697,33 +706,27 @@ public static unsafe class Graphics
         if (_commands.Length >= _maxDrawCommands)
             return;
 
-        if (_vertices.Length + 4 > MaxVertices ||
-            _indices.Length + 6 > MaxIndices)
+        if (_vertices.Length + vertices.Length > MaxVertices ||
+            _indices.Length + indices.Length > MaxIndices)
             return;
 
         ref var cmd = ref _commands.Add();
         cmd.SortKey = MakeSortKey(order);
         cmd.IndexOffset = _indices.Length;
-        cmd.IndexCount = 6;
+        cmd.IndexCount = indices.Length;
         cmd.BatchState = _currentBatchState;
 
-        var t0 = Vector2.Transform(p0, CurrentState.Transform);
-        var t1 = Vector2.Transform(p1, CurrentState.Transform);
-        var t2 = Vector2.Transform(p2, CurrentState.Transform);
-        var t3 = Vector2.Transform(p3, CurrentState.Transform);
-
         var baseVertex = _vertices.Length;
-        _vertices.Add(new MeshVertex { Position = t0, UV = uv0, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
-        _vertices.Add(new MeshVertex { Position = t1, UV = uv1, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
-        _vertices.Add(new MeshVertex { Position = t2, UV = uv2, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
-        _vertices.Add(new MeshVertex { Position = t3, UV = uv3, Normal = Vector2.Zero, Color = CurrentState.Color, Bone = 0, Atlas = atlasIndex, FrameCount = 1, FrameWidth = 0, FrameRate = 0, AnimStartTime = 0 });
+        foreach (var v in vertices)
+        {
+            var transformed = v;
+            transformed.Position = Vector2.Transform(v.Position, CurrentState.Transform);
+            transformed.Color = CurrentState.Color;
+            _vertices.Add(transformed);
+        }
 
-        _indices.Add((ushort)(baseVertex + 0));
-        _indices.Add((ushort)(baseVertex + 1));
-        _indices.Add((ushort)(baseVertex + 2));
-        _indices.Add((ushort)(baseVertex + 2));
-        _indices.Add((ushort)(baseVertex + 3));
-        _indices.Add((ushort)(baseVertex + 0));
+        foreach (var idx in indices)
+            _indices.Add((ushort)(baseVertex + idx));
     }
 
     private static void AddBatch(ushort batchState, int indexOffset, int indexCount)
@@ -865,6 +868,10 @@ public static unsafe class Graphics
 
         if (_vertices.Length > 0 || _indices.Length > 0)
         {
+            // Pad indices to 4-byte alignment for WebGPU
+            if ((_sortedIndices.Length & 1) != 0)
+                _sortedIndices.Add(0);
+
             Driver.BindMesh(_mesh);
             Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _sortedIndices.AsSpan());
             Driver.SetBlendMode(BlendMode.None);

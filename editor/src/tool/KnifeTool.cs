@@ -344,7 +344,7 @@ public class KnifeTool : Tool
         if (tailAnchorIndex == ushort.MaxValue)
             tailAnchorIndex = _shape.InsertAnchorRaw(tailHit.SegmentIndex, tailHit.SegmentPosition);
 
-        Span<Vector2> intermediatePositions = stackalloc Vector2[0]; //  intermediatePoints.Length];
+        Span<Vector2> intermediatePositions = stackalloc Vector2[intermediatePoints.Length];
         for (var i = 0; i < intermediatePoints.Length; i++)
             intermediatePositions[i] = intermediatePoints[i].Position;
         _shape.SplitPathAtAnchors(pathIndex, headAnchorIndex, tailAnchorIndex, intermediatePositions, reverseIntermediates);
@@ -396,14 +396,14 @@ public class KnifeTool : Tool
         {
             Graphics.SetTransform(_editor.Document.Transform);
 
-            Gizmos.SetColor(EditorStyle.KnifeTool.SegmentColor);
+            Gizmos.SetColor(EditorStyle.Tool.LineColor);
             for (var i = 0; i < _points.Length - 1; i++)
                 Gizmos.DrawLine(_points[i].Position, _points[i + 1].Position, EditorStyle.Shape.SegmentLineWidth);
 
             if (_points.Length > 0)
             {
                 Gizmos.SetColor(_hoverPositionValid
-                    ? EditorStyle.KnifeTool.SegmentColor
+                    ? EditorStyle.Tool.LineColor
                     : EditorStyle.KnifeTool.InvalidSegmentColor);
                 Gizmos.DrawLine(_points[^1].Position, _hoverPosition, EditorStyle.Shape.SegmentLineWidth);
             }
@@ -417,8 +417,8 @@ public class KnifeTool : Tool
                 Gizmos.DrawRect(point.Position, EditorStyle.Shape.AnchorSize * IntersectionAnchorScale);
             }
 
-            Gizmos.SetColor(EditorStyle.KnifeTool.HoverColor);
-            Gizmos.DrawRect(_hoverPosition, EditorStyle.Shape.AnchorSize * HoverAnchorScale);
+            Gizmos.SetColor(EditorStyle.Tool.PointColor);
+            Gizmos.DrawCircle(_hoverPosition, EditorStyle.Shape.AnchorSize * HoverAnchorScale);
         }
     }
 
