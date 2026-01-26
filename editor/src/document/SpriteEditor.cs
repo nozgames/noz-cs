@@ -598,13 +598,16 @@ public class SpriteEditor : DocumentEditor
         Undo.Record(Document);
 
         for (ushort i = 0; i < shape.AnchorCount; i++)
+        {
             _savedPositions[i] = shape.GetAnchor(i).Position;
+            _savedCurves[i] = shape.GetAnchor(i).Curve;
+        }
 
         Workspace.BeginTool(new ScaleTool(
             worldPivot,
             update: scale =>
             {
-                shape.ScaleAnchors(localPivot.Value, scale, _savedPositions);
+                shape.ScaleAnchors(localPivot.Value, scale, _savedPositions, _savedCurves);
                 shape.UpdateSamples();
                 shape.UpdateBounds();
                 MarkRasterDirty();
@@ -618,6 +621,7 @@ public class SpriteEditor : DocumentEditor
             cancel: () =>
             {
                 shape.RestoreAnchorPositions(_savedPositions);
+                shape.RestoreAnchorCurves(_savedCurves);
                 shape.UpdateSamples();
                 shape.UpdateBounds();
                 Undo.Cancel();

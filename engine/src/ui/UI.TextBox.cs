@@ -80,8 +80,9 @@ public static partial class UI
 
     private static void HandleTextBoxInput(ref Element e)
     {
-        var control = Input.IsCtrlDown();
-        var shift = Input.IsShiftDown();
+        var scope = e.Data.TextBox.Scope;
+        var control = Input.IsCtrlDown(scope);
+        var shift = Input.IsShiftDown(scope);
         var mousePos = UI.Camera!.ScreenToWorld(Input.MousePosition);
         var localMouse = Vector2.Transform(mousePos, e.WorldToLocal);
         var isMouseOver = new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse);
@@ -99,7 +100,7 @@ public static partial class UI
             // If mouse is down inside, start dragging immediately
             // We verify hot canvas to ensure we don't steal focus/drag if obscured, 
             // though UI system usually handles the focus switch.
-            if (isMouseOver && Input.IsButtonDown(InputCode.MouseLeft) && isHotCanvas)
+            if (isMouseOver && Input.IsButtonDown(InputCode.MouseLeft, scope) && isHotCanvas)
             {
                 var mouseIndex = GetTextBoxPosition(ref e, tb.Text.AsReadOnlySpan(), font, fontSize, mousePos);
                 tb.CursorIndex = mouseIndex;
@@ -110,7 +111,7 @@ public static partial class UI
         }
 
         // Double Click to Select All
-        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeftDoubleClick) && isHotCanvas)
+        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeftDoubleClick, scope) && isHotCanvas)
         {
             tb.SelectionStart = 0;
             tb.CursorIndex = tb.Text.AsReadOnlySpan().Length;
@@ -120,7 +121,7 @@ public static partial class UI
         }
 
         // Standard Mouse Input
-        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeft) && isHotCanvas)
+        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeft, scope) && isHotCanvas)
         {
             var mouseIndex = GetTextBoxPosition(ref e, tb.Text.AsReadOnlySpan(), font, fontSize, mousePos);
             tb.CursorIndex = mouseIndex;
@@ -130,7 +131,7 @@ public static partial class UI
         }
         else if (es.IsDragging)
         {
-            if (Input.IsButtonDown(InputCode.MouseLeft))
+            if (Input.IsButtonDown(InputCode.MouseLeft, scope))
             {
                 var mouseIndex = GetTextBoxPosition(ref e, tb.Text.AsReadOnlySpan(), font, fontSize, mousePos);
                 tb.CursorIndex = mouseIndex;
@@ -144,7 +145,7 @@ public static partial class UI
         }
 
         // Keyboard Navigation
-        if (Input.WasButtonPressed(InputCode.KeyLeft, true))
+        if (Input.WasButtonPressed(InputCode.KeyLeft, true, scope))
         {
             if (control)
             {
@@ -164,7 +165,7 @@ public static partial class UI
             if (!shift) tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
         }
-        else if (Input.WasButtonPressed(InputCode.KeyRight, true))
+        else if (Input.WasButtonPressed(InputCode.KeyRight, true, scope))
         {
             if (control)
             {
@@ -184,24 +185,24 @@ public static partial class UI
             if (!shift) tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
         }
-        else if (Input.WasButtonPressed(InputCode.KeyHome))
+        else if (Input.WasButtonPressed(InputCode.KeyHome, scope))
         {
             tb.CursorIndex = 0;
             if (!shift) tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
         }
-        else if (Input.WasButtonPressed(InputCode.KeyEnd))
+        else if (Input.WasButtonPressed(InputCode.KeyEnd, scope))
         {
             tb.CursorIndex = tb.Text.AsReadOnlySpan().Length;
             if (!shift) tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
         }
-        else if (control && Input.WasButtonPressed(InputCode.KeyA))
+        else if (control && Input.WasButtonPressed(InputCode.KeyA, scope))
         {
             tb.SelectionStart = 0;
             tb.CursorIndex = tb.Text.AsReadOnlySpan().Length;
         }
-        else if (control && Input.WasButtonPressed(InputCode.KeyC))
+        else if (control && Input.WasButtonPressed(InputCode.KeyC, scope))
         {
             if (tb.CursorIndex != tb.SelectionStart)
             {
@@ -210,7 +211,7 @@ public static partial class UI
                 Application.Platform.SetClipboardText(new string(tb.Text.AsReadOnlySpan().Slice(start, length)));
             }
         }
-        else if (control && Input.WasButtonPressed(InputCode.KeyV))
+        else if (control && Input.WasButtonPressed(InputCode.KeyV, scope))
         {
             var clipboard = Application.Platform.GetClipboardText();
             if (!string.IsNullOrEmpty(clipboard))
@@ -222,7 +223,7 @@ public static partial class UI
                 tb.BlinkTimer = 0;
             }
         }
-        else if (control && Input.WasButtonPressed(InputCode.KeyX))
+        else if (control && Input.WasButtonPressed(InputCode.KeyX, scope))
         {
             if (tb.CursorIndex != tb.SelectionStart)
             {
@@ -233,7 +234,7 @@ public static partial class UI
                 tb.BlinkTimer = 0;
             }
         }
-        else if (Input.WasButtonPressed(InputCode.KeyBackspace, true))
+        else if (Input.WasButtonPressed(InputCode.KeyBackspace, true, scope))
         {
             if (tb.CursorIndex != tb.SelectionStart)
             {
@@ -254,7 +255,7 @@ public static partial class UI
             }
             tb.BlinkTimer = 0;
         }
-        else if (Input.WasButtonPressed(InputCode.KeyDelete, true))
+        else if (Input.WasButtonPressed(InputCode.KeyDelete, true, scope))
         {
             if (tb.CursorIndex != tb.SelectionStart)
             {
@@ -272,14 +273,14 @@ public static partial class UI
             }
             tb.BlinkTimer = 0;
         }
-        else if (Input.WasButtonPressed(InputCode.KeyEnter) || Input.WasButtonPressed(InputCode.KeyEscape))
+        else if (Input.WasButtonPressed(InputCode.KeyEnter, scope) || Input.WasButtonPressed(InputCode.KeyEscape, scope))
         {
             UI.ClearFocus();
             return;
         }
 
         // Character Input
-        var input = Input.GetTextInput();
+        var input = Input.GetTextInput(scope);
         if (!string.IsNullOrEmpty(input))
         {
             RemoveSelectedTextBoxText(ref es);
@@ -478,6 +479,25 @@ public static partial class UI
         ref var e = ref GetElement(es.Index);
         Debug.Assert(e.Type == ElementType.TextBox, "Element is not a TextBox");
         return es.Data.TextBox.Text.AsReadOnlySpan();
+    }
+
+    public static void SetTextBoxText(CanvasId canvasId, ElementId elementId, string text, bool selectAll = false)
+    {
+        ref var es = ref GetElementState(canvasId, elementId);
+        ref var tb = ref es.Data.TextBox;
+        tb.Text = AddText(text);
+        tb.TextHash = string.GetHashCode(text);
+
+        if (selectAll)
+        {
+            tb.SelectionStart = 0;
+            tb.CursorIndex = text.Length;
+        }
+        else
+        {
+            tb.CursorIndex = text.Length;
+            tb.SelectionStart = text.Length;
+        }
     }
 
     public static void TextBoxEndFrame()

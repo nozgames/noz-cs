@@ -14,6 +14,7 @@ public static class EditorStyle
         public const byte ContextMenu = 2;
         public const byte Confirm = 3;
         public const byte DocumentEditor = 4;
+        public const byte Workspace = 5;
     }
     #endregion
 
@@ -78,7 +79,7 @@ public static class EditorStyle
         public const float DocumentBoundsLineWidth = 0.015f;
         public const float Padding = 16f;
         public const float NameSize = 0.24f;
-        public const float NamePadding = 0.04f;
+        public const float NamePadding = 0.26f;
         public const float GridAlpha = 0.3f;
         public const float GridZeroAlpha = 0.4f;
     }
@@ -87,13 +88,14 @@ public static class EditorStyle
     public static class Popup
     {
         public static readonly Color FillColor = Color.FromRgb(0x181818);
+        public static readonly Color BorderColor = Color.FromRgb(0x272727);
         public readonly static ContainerStyle Root = new()
         {
             AlignX = Align.Center,
             AlignY = Align.Center,
             Padding = EdgeInsets.Symmetric(8.0f, 4.0f),
             Color = Popup.FillColor,
-            Border = new BorderStyle { Radius = 10.0f, Width = 1.0f, Color = Color.FromRgb(0x272727) }
+            Border = new BorderStyle { Radius = 10.0f, Width = 1.0f, Color = BorderColor }
         };
         public readonly static ContainerStyle Item = new()
         {
@@ -634,6 +636,37 @@ public static class EditorStyle
         public static readonly Color IntersectionColor = Color.FromRgb(0x4ea64e);
         public static readonly Color InvalidSegmentColor = Color.FromRgb(0x953d49);
         public const float IntersectionAnchorScale = 1.2f;
+    }
+
+    // :renametool
+    public static class RenameTool
+    {
+        public static readonly ContainerStyle Root = new()
+        {
+            AlignX = Align.Min,
+            AlignY = Align.Min,
+            Width = 200.0f,
+            Height = 60.0f
+        };
+
+        public static readonly ContainerStyle TextContainer = new()
+        {
+            Width = Size.Fit,
+            Height = Control.Height + 4f,
+            AlignX = Align.Center,
+            AlignY = Align.Center,
+            Border = new BorderStyle { Radius = Control.BorderRadius, Width = 1f, Color = Popup.BorderColor },
+            Padding = EdgeInsets.Symmetric(2f, 8f),
+            Color = Popup.FillColor,
+        };
+
+        public static readonly TextBoxStyle Text = new()
+        {
+            FontSize = Control.TextSize,
+            TextColor = Control.TextColor,
+            SelectionColor = SelectionColor,
+            Height = Control.Height
+        };
     }
 
     // Style accessors

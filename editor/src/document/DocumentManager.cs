@@ -6,8 +6,8 @@ namespace NoZ.Editor;
 
 public static class DocumentManager
 {
-    private static readonly List<Document> _documents = new();
-    private static readonly List<string> _sourcePaths = new();
+    private static readonly List<Document> _documents = [];
+    private static readonly List<string> _sourcePaths = [];
     private static string _outputPath = "";
 
     public static IReadOnlyList<Document> Documents => _documents;
@@ -225,6 +225,34 @@ public static class DocumentManager
             Log.Info($"Saved {count} asset(s)");
             Notifications.Add($"saved {count} asset(s)");
         }            
+    }
+
+    public static bool Rename(Document doc, string name)
+    {
+        var canonicalName = MakeCanonicalName(name);
+        if (Find(doc.Def.Type, canonicalName) != null)
+            return false;
+
+        var directory = Path.GetDirectoryName(doc.Path);
+        if (directory == null)
+            return false;
+
+        var newPath = Path.Combine(directory, canonicalName + doc.Def.Extension);
+        if (File.Exists(newPath))
+            return false;
+
+        var oldMetaPath = doc.Path + ".meta";
+        var newMetaPath = newPath + ".meta";
+
+        File.Move(doc.Path, newPath);
+
+        if (File.Exists(oldMetaPath))
+            File.Move(oldMetaPath, newMetaPath);
+
+        doc.Path = Path.GetFullPath(newPath).ToLowerInvariant();
+        doc.Name = canonicalName;
+
+        return true;
     }
 
     public static void Delete(Document doc)

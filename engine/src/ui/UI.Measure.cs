@@ -92,10 +92,17 @@ public static partial class UI
         ElementType.Column => MeasureContainer(in e, in p),
         ElementType.Row => MeasureContainer(in e, in p),
         ElementType.Popup => MeasurePopup(in e, in p),
+        ElementType.TextBox => MeasureTextBox(in e, in p),
         ElementType.Flex when p.Type is ElementType.Row => MeasureRowFlex(in e, in p),
         ElementType.Flex when p.Type is ElementType.Column => MeasureColumnFlex(in e, in p),
         _ => ResolveSize(in e, in p, Size2.Default)
     };
+
+    private static Vector2 MeasureTextBox(ref readonly Element e, ref readonly Element p)
+    {
+        var widthMode = p.Type == ElementType.Row ? Size.Fit : Size.Percent();
+        return ResolveSize(in e, in p, new Size2(widthMode, e.Data.TextBox.Height));
+    }
 
     private static Vector2 MeasurePopup(ref readonly Element e, ref readonly Element p)
     {
@@ -124,6 +131,30 @@ public static partial class UI
             e.Data.Label.Text.AsReadOnlySpan(),
             e.Font!,
             e.Data.Label.FontSize);
+    }
+
+    private static Vector2 FitTextBox(ref readonly Element e, ref readonly Element p)
+    {
+        var font = e.Font ?? DefaultFont;
+        if (font == null)
+            return Vector2.Zero;
+
+        var fontSize = e.Data.TextBox.FontSize;
+        var height = font.LineHeight * fontSize;
+
+        // Use actual text if available, otherwise placeholder
+        var text = e.Id != ElementId.None
+            ? GetElementState(e.CanvasId, e.Id).Data.TextBox.Text.AsReadOnlySpan()
+            : ReadOnlySpan<char>.Empty;
+
+        if (text.Length == 0)
+            text = e.Data.TextBox.Placeholder.AsReadOnlySpan();
+
+        var width = text.Length > 0
+            ? TextRender.Measure(text, font, fontSize).X
+            : 0;
+
+        return new Vector2(width, height);
     }
 
     private static Vector2 GetOuterSize(ref readonly Element e, in Vector2 intrinsicSize)
@@ -226,6 +257,7 @@ public static partial class UI
         ElementType.Row => FitContainer(in e, in p),
         ElementType.Popup => FitPopup(in e, in p),
         ElementType.Label => FitLabel(in e, in p),
+        ElementType.TextBox => FitTextBox(in e, in p),
         ElementType.Spacer => e.Data.Spacer.Size,
         _ => Vector2.Zero
     };

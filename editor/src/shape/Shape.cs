@@ -993,8 +993,9 @@ public sealed unsafe partial class Shape : IDisposable
         }
     }
 
-    public void ScaleAnchors(Vector2 pivot, Vector2 scale, Vector2[] savedPositions)
+    public void ScaleAnchors(Vector2 pivot, Vector2 scale, Vector2[] savedPositions, float[] savedCurves)
     {
+        var curveScale = (MathF.Abs(scale.X) + MathF.Abs(scale.Y)) * 0.5f;
         for (ushort i = 0; i < AnchorCount; i++)
         {
             if (!_anchors[i].IsSelected)
@@ -1002,6 +1003,7 @@ public sealed unsafe partial class Shape : IDisposable
 
             var offset = savedPositions[i] - pivot;
             _anchors[i].Position = pivot + offset * scale;
+            _anchors[i].Curve = savedCurves[i] * curveScale;
         }
     }
 
@@ -1096,10 +1098,10 @@ public sealed unsafe partial class Shape : IDisposable
         var min = new Vector2(float.MaxValue, float.MaxValue);
         var max = new Vector2(float.MinValue, float.MinValue);
 
-        for (ushort i = 0; i < AnchorCount; i++)
+        for (var i = 0; i < AnchorCount * MaxSegmentSamples; i++)
         {
-            min = Vector2.Min(min, _anchors[i].Position);
-            max = Vector2.Max(max, _anchors[i].Position);
+            min = Vector2.Min(min, _samples[i]);
+            max = Vector2.Max(max, _samples[i]);
         }
 
         var center = (min + max) * 0.5f;

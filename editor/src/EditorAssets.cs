@@ -40,6 +40,7 @@ public static class EditorAssets
         public const string IconPalette = "icon_palette";
         public const string IconPublish = "icon_publish";
         public const string IconRootMotion = "icon_root_motion";
+        public const string IconSearch = "icon_search";
         public const string IconSubmenu = "icon_submenu";
         public const string IconTiling = "icon_tiling";
         public const string IconVertexMode = "icon_vertex_mode";
@@ -130,6 +131,7 @@ public static class EditorAssets
         public static Sprite IconPalette { get; private set; } = null!;
         public static Sprite IconPublish { get; private set; } = null!;
         public static Sprite IconRootMotion { get; private set; } = null!;
+        public static Sprite IconSearch { get; private set; } = null!;
         public static Sprite IconSubmenu { get; private set; } = null!;
         public static Sprite IconTiling { get; private set; } = null!;
         public static Sprite IconVertexMode { get; private set; } = null!;
@@ -161,6 +163,7 @@ public static class EditorAssets
             IconPalette = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPalette)!;
             IconPublish = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPublish)!;
             IconRootMotion = (Sprite)Asset.Load(AssetType.Sprite, Names.IconRootMotion)!;
+            IconSearch = (Sprite)Asset.Load(AssetType.Sprite, Names.IconSearch)!;
             IconSubmenu = (Sprite)Asset.Load(AssetType.Sprite, Names.IconSubmenu)!;
             IconTiling = (Sprite)Asset.Load(AssetType.Sprite, Names.IconTiling)!;
             IconVertexMode = (Sprite)Asset.Load(AssetType.Sprite, Names.IconVertexMode)!;
@@ -193,6 +196,7 @@ public static class EditorAssets
             IconPalette?.Dispose();
             IconPublish?.Dispose();
             IconRootMotion?.Dispose();
+            IconSearch?.Dispose();
             IconSubmenu?.Dispose();
             IconTiling?.Dispose();
             IconVertexMode?.Dispose();

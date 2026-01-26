@@ -144,6 +144,7 @@ public struct TextBoxStyle()
 
     public BorderStyle FocusBorder = BorderStyle.None;
     public bool IsPassword = false;
+    public InputScope Scope = InputScope.All;
 
     internal TextBoxData ToData() => new()
     {
@@ -155,7 +156,8 @@ public struct TextBoxStyle()
         SelectionColor = SelectionColor,
         Border = Border,
         FocusBorder = FocusBorder,
-        Password = IsPassword
+        Password = IsPassword,
+        Scope = Scope
     };
 }
 

@@ -82,6 +82,7 @@ public static class Workspace
 
         CommandManager.RegisterWorkspace([
             new Command { Name = "Move Selected", ShortName = "move", Handler = BeginMoveTool, Key = InputCode.KeyG },
+            new Command { Name = "Rename", ShortName = "rename", Handler = BeginRenameTool, Key = InputCode.KeyF2 },
             new Command { Name = "Duplicate Selected", ShortName = "duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
             new Command { Name = "Delete Selected", ShortName = "delete", Handler = DeleteSelected, Key = InputCode.KeyX },
             new Command { Name = "Rebuild All", ShortName = "build", Handler = RebuildAll },
@@ -281,6 +282,7 @@ public static class Workspace
     public static void UpdateUI()
     {
         Workspace.ActiveEditor?.UpdateUI();
+        ActiveTool?.UpdateUI();
     }
 
     public static void LateUpdate()
@@ -330,6 +332,9 @@ public static class Workspace
 
     private static void DrawNames()
     {
+        // Get document being renamed (if any)
+        var renamingDoc = (ActiveTool as RenameTool)?.Document;
+
         using (Graphics.PushState())
         {
             var font = EditorAssets.Fonts.Seguisb;
@@ -345,10 +350,14 @@ public static class Workspace
                 if (!doc.Loaded || !doc.PostLoaded || doc.IsClipped || !doc.IsVisible)
                     continue;
 
+                // Skip if this document is being renamed (TextBox will show instead)
+                if (doc == renamingDoc)
+                    continue;
+
                 var bounds = doc.Bounds.Translate(doc.Position);
                 var textSize = TextRender.Measure(doc.Name, font, fontSize);
                 var textX = bounds.Center.X - textSize.X * 0.5f;
-                var textY = bounds.Bottom + padding;
+                var textY = bounds.Bottom + padding - textSize.Y * 0.5f;
                 Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY));
                 TextRender.Draw(doc.Name, font, fontSize);
             }
@@ -413,6 +422,18 @@ public static class Workspace
     private static void ToggleNames()
     {
         _showNames = !_showNames;
+    }
+
+    private static void BeginRenameTool()
+    {
+        if (SelectedCount != 1 || ActiveTool != null || State != WorkspaceState.Default)
+            return;
+
+        var doc = GetFirstSelected();
+        if (doc == null)
+            return;
+
+        BeginTool(new RenameTool(doc));
     }
 
     private static void UpdateCamera()
@@ -660,6 +681,34 @@ public static class Workspace
         return firstHit;
     }
 
+    public static Document? HitTestDocumentNames(Vector2 point)
+    {
+        if (!ShowNames)
+            return null;
+
+        var font = EditorAssets.Fonts.Seguisb;
+        var scale = 1f / _zoom;
+        var fontSize = EditorStyle.Workspace.NameSize * scale;
+        var padding = EditorStyle.Workspace.NamePadding * scale;
+
+        for (var i = DocumentManager.Documents.Count - 1; i >= 0; i--)
+        {
+            var doc = DocumentManager.Documents[i];
+            if (!doc.Loaded || !doc.PostLoaded || doc.IsClipped || !doc.IsVisible)
+                continue;
+
+            var bounds = doc.Bounds.Translate(doc.Position);
+            var textSize = TextRender.Measure(doc.Name, font, fontSize);
+            var textX = bounds.Center.X - textSize.X * 0.5f;
+            var textY = bounds.Bottom + padding - textSize.Y * 0.5f;
+
+            var nameRect = new Rect(textX, textY, textSize.X, textSize.Y);
+            if (nameRect.Contains(point))
+                return doc;
+        }
+        return null;
+    }
+
     public static void ClearSelection()
     {
         foreach (var doc in DocumentManager.Documents)
@@ -764,6 +813,29 @@ public static class Workspace
 
     public static void UpdateDefaultState()
     {
+        // Double-click on name to rename
+        if (Input.WasButtonPressed(InputCode.MouseLeftDoubleClick))
+        {
+            var hitDoc = HitTestDocumentNames(_mouseWorldPosition);
+            if (hitDoc != null)
+            {
+                ClearSelection();
+                SetSelected(hitDoc, true);
+                BeginTool(new RenameTool(hitDoc));
+                return;
+            }
+
+            // Double-click on asset to enter edit mode
+            hitDoc = HitTestDocuments(_mouseWorldPosition);
+            if (hitDoc != null && hitDoc.Def.CanEdit)
+            {
+                ClearSelection();
+                SetSelected(hitDoc, true);
+                ToggleEdit();
+                return;
+            }
+        }
+
         if (Input.WasButtonPressed(InputCode.MouseLeft))
         {
             var hitDoc = HitTestDocuments(_mouseWorldPosition);

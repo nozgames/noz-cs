@@ -208,6 +208,7 @@ public struct TextBoxData
     public BorderStyle FocusBorder;
     public UnsafeSpan<char> Placeholder;
     public bool Password;
+    public InputScope Scope;
 
     public static TextBoxData Default => new()
     {

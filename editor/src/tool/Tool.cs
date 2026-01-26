@@ -11,6 +11,7 @@ public abstract class Tool : IDisposable
     public virtual void Begin() { }
     public virtual void Cancel() => Dispose();
     public virtual void Update() { }
+    public virtual void UpdateUI() { }
     public virtual void Draw() { }
 
     public virtual void Dispose() { }
