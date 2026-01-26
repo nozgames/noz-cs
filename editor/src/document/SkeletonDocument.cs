@@ -314,7 +314,7 @@ public class SkeletonDocument : Document
             var boneStart = Vector2.Transform(Vector2.Zero, localToWorld);
             var boneEnd = Vector2.Transform(new Vector2(b.Length, 0), localToWorld);
 
-            if (!PointNearLine(position, boneStart, boneEnd, EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale * 2f))
+            if (!HitTestBoneShape(position, boneStart, boneEnd))
                 continue;
 
             bones[hitCount++] = boneIndex;
@@ -356,9 +356,28 @@ public class SkeletonDocument : Document
         return HitTestBone(Matrix3x2.CreateTranslation(Position), worldPos);
     }
 
-    private static bool PointNearLine(Vector2 point, Vector2 lineStart, Vector2 lineEnd, float threshold)
+    private static bool HitTestBoneShape(Vector2 point, Vector2 boneStart, Vector2 boneEnd)
     {
-        return DistanceFromLine(lineStart, lineEnd, point) <= threshold;
+        var circleRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
+
+        // Check if within the origin circle
+        if (Vector2.Distance(point, boneStart) <= circleRadius)
+            return true;
+
+        // Check if within the tapered body
+        var line = boneEnd - boneStart;
+        var lineLength = line.Length();
+        if (lineLength < 0.0001f)
+            return false;
+
+        var t = Vector2.Dot(point - boneStart, line) / (lineLength * lineLength);
+        if (t < 0 || t > 1)
+            return false;
+
+        // Threshold tapers from circleRadius at start to 0 at end
+        var threshold = circleRadius * (1f - t);
+        var projection = boneStart + t * line;
+        return Vector2.Distance(point, projection) <= threshold;
     }
 
     private static float DistanceFromLine(Vector2 lineStart, Vector2 lineEnd, Vector2 point)
@@ -548,9 +567,6 @@ public class SkeletonDocument : Document
         {
             Graphics.SetTransform(Transform);
 
-            var lineWidth = EditorStyle.Skeleton.BoneWidth * Gizmos.ZoomRefScale;
-            var boneRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
-
             for (var boneIndex = 0; boneIndex < BoneCount; boneIndex++)
             {
                 var b = Bones[boneIndex];
@@ -566,7 +582,7 @@ public class SkeletonDocument : Document
                 }
 
                 Graphics.SetSortGroup((ushort)(b.IsSelected ? 1 : 0));
-                Gizmos.DrawBone(p0, p1, lineWidth, EditorStyle.Skeleton.BoneColor, order: (ushort)(boneIndex * 2 + 1));
+                Gizmos.DrawBone(p0, p1, EditorStyle.Skeleton.BoneColor, order: (ushort)(boneIndex * 2 + 1));
             }
         }
 

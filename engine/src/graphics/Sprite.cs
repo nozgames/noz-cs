@@ -6,7 +6,7 @@ namespace NoZ;
 
 public class Sprite : Asset
 {
-    public const ushort Version = 1;
+    public const ushort Version = 2;
     public const int MaxFrames = 64;
 
     public RectInt Bounds { get; private set; }
@@ -17,6 +17,7 @@ public class Sprite : Asset
     public float PixelsPerUnit { get; private set; } = 64.0f;
     public float PixelsPerUnitInv { get; private set; }
     public TextureFilter TextureFilter { get; set; } = TextureFilter.Point;
+    public ushort Order { get; private set; }
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
 
@@ -38,6 +39,11 @@ public class Sprite : Asset
         var ppu = reader.ReadSingle();
         var filter = (TextureFilter)reader.ReadByte();
 
+        // Version 2+: read Order (backwards compatible - check if more data available)
+        ushort order = 0;
+        if (stream.Position + 2 <= stream.Length)
+            order = reader.ReadUInt16();
+
         sprite.Bounds = RectInt.FromMinMax(l, t, r, b);
         sprite.UV = Rect.FromMinMax(ul, ut, ur, ub);
         sprite.FrameCount = frameCount;
@@ -45,6 +51,7 @@ public class Sprite : Asset
         sprite.PixelsPerUnit = ppu;
         sprite.PixelsPerUnitInv = 1.0f / ppu;
         sprite.TextureFilter = filter;
+        sprite.Order = order;
 
         return sprite;
     }

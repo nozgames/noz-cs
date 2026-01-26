@@ -670,7 +670,7 @@ internal class AnimationDocument : Document
                     Gizmos.DrawDashedLine(pp, p0);
                 }
 
-                Gizmos.DrawBone(p0, p1, lineWidth, EditorStyle.Skeleton.BoneColor);
+                Gizmos.DrawBone(p0, p1, EditorStyle.Skeleton.BoneColor);
                 Gizmos.SetColor(EditorStyle.Skeleton.BoneColor);
                 Gizmos.DrawCircle(p0, boneRadius);
             }

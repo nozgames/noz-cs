@@ -790,7 +790,6 @@ internal class AnimationEditor : DocumentEditor
                 DrawOnionSkin();
             }
 
-            var lineWidth = EditorStyle.Skeleton.BoneWidth * Gizmos.ZoomRefScale;
             var boneRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
 
             for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
@@ -803,7 +802,7 @@ internal class AnimationEditor : DocumentEditor
                 var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
                 var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
-                Gizmos.DrawBone(p0, p1, lineWidth, EditorStyle.Skeleton.BoneColor);
+                Gizmos.DrawBone(p0, p1, EditorStyle.Skeleton.BoneColor);
                 Gizmos.SetColor(EditorStyle.Skeleton.BoneColor);
                 Gizmos.DrawCircle(p0, boneRadius);
             }
@@ -818,7 +817,7 @@ internal class AnimationEditor : DocumentEditor
                 var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
                 var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
-                Gizmos.DrawBone(p0, p1, lineWidth, EditorStyle.SelectionColor);
+                Gizmos.DrawBone(p0, p1, EditorStyle.SelectionColor);
                 Gizmos.SetColor(EditorStyle.SelectionColor);
                 Gizmos.DrawCircle(p0, boneRadius);
             }
@@ -838,7 +837,6 @@ internal class AnimationEditor : DocumentEditor
         if (skeleton == null)
             return;
 
-        var lineWidth = EditorStyle.Skeleton.BoneWidth * Gizmos.ZoomRefScale;
         var boneRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
 
         var prevFrame = (Document.CurrentFrame - 1 + Document.FrameCount) % Document.FrameCount;
@@ -852,7 +850,7 @@ internal class AnimationEditor : DocumentEditor
             var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
             var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
-            Gizmos.DrawBone(p0, p1, lineWidth, prevColor);
+            Gizmos.DrawBone(p0, p1, prevColor);
             Gizmos.SetColor(prevColor);
             Gizmos.DrawCircle(p0, boneRadius);
         }
@@ -868,7 +866,7 @@ internal class AnimationEditor : DocumentEditor
             var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
             var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
-            Gizmos.DrawBone(p0, p1, lineWidth, nextColor);
+            Gizmos.DrawBone(p0, p1, nextColor);
             Gizmos.SetColor(nextColor);
             Gizmos.DrawCircle(p0, boneRadius);
         }

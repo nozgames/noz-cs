@@ -635,9 +635,6 @@ internal class SkeletonEditor : DocumentEditor
         {
             Graphics.SetTransform(Document.Transform);
 
-            var lineWidth = EditorStyle.Skeleton.BoneWidth * Gizmos.ZoomRefScale;
-            var originSize = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
-
             for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
             {
                 var b = Document.Bones[boneIndex];
@@ -655,7 +652,7 @@ internal class SkeletonEditor : DocumentEditor
                     Gizmos.DrawDashedLine(pp, p0, order: 1);
                 }
 
-                Gizmos.DrawBone(p0, p1, lineWidth, boneColor, order: 1);
+                Gizmos.DrawBone(p0, p1, boneColor, order: 1);
             }
         }
     }

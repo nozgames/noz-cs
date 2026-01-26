@@ -84,6 +84,7 @@ public class SpriteDocument : Document
     public ushort FrameCount;
     public byte Palette;
     public float Depth;
+    public ushort Order;
     public RectInt RasterBounds { get; private set; }
     public Vector2Int AtlasSize => new(RasterBounds.Size.X * FrameCount, RasterBounds.Size.Y);
 
@@ -139,6 +140,10 @@ public class SpriteDocument : Document
             {
                 Palette = (byte)tk.ExpectInt();
                 IsAntiAliased = tk.ExpectIdentifier("a");
+            }
+            else if (tk.ExpectIdentifier("o"))
+            {
+                Order = (ushort)tk.ExpectInt();
             }
             else if (tk.ExpectIdentifier("f"))
             {
@@ -244,6 +249,8 @@ public class SpriteDocument : Document
         writer.WriteLine($"c {Palette}");
         if (IsAntiAliased)
             writer.WriteLine(" a");
+        if (Order > 0)
+            writer.WriteLine($"o {Order}");
         writer.WriteLine();
 
         for (ushort frameIndex = 0; frameIndex < FrameCount; frameIndex++)
@@ -319,7 +326,7 @@ public class SpriteDocument : Document
             Graphics.SetTextureFilter(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point);
             Graphics.Draw(
                 RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv),
-                AtlasUV);
+                AtlasUV, order: Order);
         }
     }
 
@@ -329,6 +336,7 @@ public class SpriteDocument : Document
         FrameCount = src.FrameCount;
         Palette = src.Palette;
         Depth = src.Depth;
+        Order = src.Order;
         Bounds = src.Bounds;
         Binding.CopyFrom(src.Binding);
 
@@ -396,6 +404,7 @@ public class SpriteDocument : Document
         writer.Write(AtlasUV.Bottom);
         writer.Write((float)EditorApplication.Config.PixelsPerUnit);
         writer.Write((byte)(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point));
+        writer.Write(Order);
     }
 
     public override void OnUndoRedo()

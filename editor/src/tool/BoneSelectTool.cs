@@ -80,7 +80,7 @@ public class BoneSelectTool : Tool
                 var p1 = Vector2.Transform(new Vector2(bone.Length, 0), bone.LocalToWorld * transform);
 
                 var lineWidth = EditorStyle.Skeleton.BoneWidth * Gizmos.ZoomRefScale;
-                Gizmos.DrawBone(p0, p1, lineWidth, EditorStyle.SelectionColor, order: 100);
+                Gizmos.DrawBone(p0, p1, EditorStyle.SelectionColor, order: 100);
             }
             else
             {

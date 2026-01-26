@@ -69,6 +69,8 @@ public static class Workspace
             new Command { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
             new Command { Name = "Show/Hide Hidden Assets", Handler = ToggleShowHidden },
             new Command { Name = "Rebuild Atlas", Handler = RebuildAtlas },
+            new Command { Name = "Bring Forward", Handler = BringForward, Key = InputCode.KeyRightBracket },
+            new Command { Name = "Send Backward", Handler = SendBackward, Key = InputCode.KeyLeftBracket },
         ]);
 
         var items = new List<ContextMenuItem>();
@@ -636,6 +638,32 @@ public static class Workspace
         no: "Cancel");
     }
 
+    private static void BringForward()
+    {
+        if (SelectedCount == 0) return;
+
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected || doc is not SpriteDocument sprite) continue;
+            if (sprite.Order == ushort.MaxValue) continue;
+            sprite.Order++;
+            sprite.MarkModified();
+        }
+    }
+
+    private static void SendBackward()
+    {
+        if (SelectedCount == 0) return;
+
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected || doc is not SpriteDocument sprite) continue;
+            if (sprite.Order == 0) continue;
+            sprite.Order--;
+            sprite.MarkModified();
+        }
+    }
+
     public static void FrameSelected()
     {
         if (ActiveEditor != null)
@@ -842,6 +870,8 @@ public static class Workspace
             hitDoc = HitTestDocuments(_mouseWorldPosition);
             if (hitDoc != null && hitDoc.Def.CanEdit)
             {
+                Input.ConsumeButton(InputCode.MouseLeft);
+                Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
                 ClearSelection();
                 SetSelected(hitDoc, true);
                 ToggleEdit();

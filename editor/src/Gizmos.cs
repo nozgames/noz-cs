@@ -152,12 +152,10 @@ public static class Gizmos
     public static void DrawBone(
         Vector2 start,
         Vector2 end,
-        float width,
         Color color,
         ushort order = 0)
     {
         const int CircleSegments = 16;
-        
 
         var delta = end - start;
         var length = delta.Length();
