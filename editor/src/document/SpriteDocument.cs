@@ -406,7 +406,7 @@ public class SpriteDocument : Document
         writer.Write(AtlasUV.Right);
         writer.Write(AtlasUV.Bottom);
         writer.Write((float)EditorApplication.Config.PixelsPerUnit);
-        writer.Write((byte)TextureFilter.Point);
+        writer.Write((byte)(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point));
     }
 
     public override void OnUndoRedo()

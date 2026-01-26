@@ -152,10 +152,10 @@ public class SpriteEditor : DocumentEditor
                     Document.IsAntiAliased = !Document.IsAntiAliased;
                 }
                     
-                if (EditorUI.Button(TileButtonId, EditorAssets.Sprites.IconTiling, _showTiling))
+                if (EditorUI.Button(TileButtonId, EditorAssets.Sprites.IconSearch, _showTiling))
                     _showTiling = !_showTiling;
-                if (EditorUI.Button(PaletteButtonId, EditorAssets.Sprites.IconPalette, _showPalettes, disabled: PaletteManager.Palettes.Count < 2))
-                    _showPalettes = !_showPalettes;
+                //if (EditorUI.Button(PaletteButtonId, EditorAssets.Sprites.IconPalette, _showPalettes, disabled: PaletteManager.Palettes.Count < 2))
+                //    _showPalettes = !_showPalettes;
             }
 
             using (UI.BeginContainer(EditorStyle.Overlay.Content))
@@ -368,7 +368,13 @@ public class SpriteEditor : DocumentEditor
             using (UI.BeginContainer(EditorStyle.Popup.Root with { Width = Size.Fit }))
             using (UI.BeginColumn(ContainerStyle.Fit with { Spacing = EditorStyle.Control.Spacing }))
             {
-                HoleToggleUI();
+                using (UI.BeginRow(EditorStyle.Popup.Item))
+                {
+                    using (UI.BeginContainer(EditorStyle.Popup.IconContainer))
+                        UI.Image(EditorAssets.Sprites.IconSubtract);
+
+                    UI.Label("Subtract", EditorStyle.Popup.Text);
+                }
             }
         }
     }
@@ -463,8 +469,6 @@ public class SpriteEditor : DocumentEditor
                 palette.Colors,
                 offset,
                 options: new Shape.RasterizeOptions { AntiAlias = Document.IsAntiAliased });
-
-        Log.Info($"Rasterized sprite frame {_currentFrame} in {sw.ElapsedMilliseconds} ms");
 
         _rasterTexture.Update(_pixelData.AsByteSpan(), new RectInt(0, 0, size.X + 2, size.Y +2), _pixelData.Width);
         _rasterDirty = false;

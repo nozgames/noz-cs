@@ -445,7 +445,7 @@ public static unsafe class Graphics
         AddQuad(p0, p1, p2, p3, new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), order);
     }
 
-    public static void Draw(Sprite? sprite, ushort order = 0)
+    public static void Draw(Sprite sprite, ushort order = 0)
     {
         if (sprite == null || SpriteAtlas == null) return;
 
@@ -456,13 +456,17 @@ public static unsafe class Graphics
         var p2 = new Vector2(bounds.Right, bounds.Bottom);
         var p3 = new Vector2(bounds.Left, bounds.Bottom);
 
-        SetTexture(SpriteAtlas);
-        SetShader(_spriteShader!);
-        AddQuad(
-            p0, p1, p2, p3,
-            uv.TopLeft, new Vector2(uv.Right, uv.Top),
-            uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-            order, atlasIndex: sprite.AtlasIndex);
+        using (PushState())
+        {
+            SetTexture(SpriteAtlas);
+            SetShader(_spriteShader!);
+            SetTextureFilter(sprite.TextureFilter);
+            AddQuad(
+                p0, p1, p2, p3,
+                uv.TopLeft, new Vector2(uv.Right, uv.Top),
+                uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
+                order, atlasIndex: sprite.AtlasIndex);
+        }
     }
 
     #endregion

@@ -168,40 +168,173 @@ public sealed partial class Shape
 
     private void RasterizeAA(PixelData<Color32> pixels, Color[] palette, Vector2Int offset)
     {
+        if (PathCount == 0) return;
+
         var dpi = EditorApplication.Config.PixelsPerUnit;
         var rb = RasterBounds;
+        var rbWidth = rb.Width;
+        var rbHeight = rb.Height;
 
-        for (var y = 0; y < rb.Height; y++)
+        // Pre-build polygon data for all paths to avoid repeated allocations
+        const int maxPolyVerts = 256;
+        Span<int> pathVertCounts = stackalloc int[PathCount];
+        Span<Vector2> allPolyVerts = stackalloc Vector2[PathCount * maxPolyVerts];
+
+        for (ushort pIdx = 0; pIdx < PathCount; pIdx++)
+        {
+            ref var path = ref _paths[pIdx];
+            if (path.AnchorCount < 3)
+            {
+                pathVertCounts[pIdx] = 0;
+                continue;
+            }
+
+            var vertOffset = pIdx * maxPolyVerts;
+            var vertCount = 0;
+
+            for (ushort aIdx = 0; aIdx < path.AnchorCount && vertCount < maxPolyVerts; aIdx++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + aIdx);
+                ref var anchor = ref _anchors[anchorIdx];
+                allPolyVerts[vertOffset + vertCount++] = anchor.Position;
+
+                if (MathF.Abs(anchor.Curve) > 0.0001f)
+                {
+                    var samples = GetSegmentSamples(anchorIdx);
+                    for (var s = 0; s < MaxSegmentSamples && vertCount < maxPolyVerts; s++)
+                        allPolyVerts[vertOffset + vertCount++] = samples[s];
+                }
+            }
+            pathVertCounts[pIdx] = vertCount;
+        }
+
+        // Allocate coverage buffer for edge detection
+        var coverageSize = rbWidth * rbHeight;
+        Span<byte> insideMask = coverageSize <= 4096
+            ? stackalloc byte[coverageSize]
+            : new byte[coverageSize];
+        insideMask.Clear();
+
+        // First pass: mark interior pixels using fast point-in-polygon
+        for (var y = 0; y < rbHeight; y++)
+        {
+            var pixelY = (rb.Y + y + 0.5f) / dpi;
+
+            for (var x = 0; x < rbWidth; x++)
+            {
+                var pixelX = (rb.X + x + 0.5f) / dpi;
+                var worldPoint = new Vector2(pixelX, pixelY);
+                var maskIdx = y * rbWidth + x;
+                byte inside = 0;
+
+                for (ushort pIdx = 0; pIdx < PathCount; pIdx++)
+                {
+                    var vertCount = pathVertCounts[pIdx];
+                    if (vertCount < 3) continue;
+
+                    var vertOffset = pIdx * maxPolyVerts;
+                    var polyVerts = allPolyVerts.Slice(vertOffset, vertCount);
+
+                    if (IsPointInPolygonFast(worldPoint, polyVerts))
+                    {
+                        ref var path = ref _paths[pIdx];
+                        var isHole = (path.Flags & PathFlags.Hole) != 0;
+                        inside = isHole ? (byte)0 : (byte)(pIdx + 1);
+                    }
+                }
+                insideMask[maskIdx] = inside;
+            }
+        }
+
+        // Second pass: render with AA only on edge pixels
+        for (var y = 0; y < rbHeight; y++)
         {
             var py = offset.Y + rb.Y + y;
             if (py < 0 || py >= pixels.Height) continue;
 
-            for (var x = 0; x < rb.Width; x++)
+            for (var x = 0; x < rbWidth; x++)
             {
                 var px = offset.X + rb.X + x;
                 if (px < 0 || px >= pixels.Width) continue;
 
-                var pixelX = rb.X + x + 0.5f;
-                var pixelY = rb.Y + y + 0.5f;
-                var worldPoint = new Vector2(pixelX / dpi, pixelY / dpi);
+                var maskIdx = y * rbWidth + x;
+                var currentMask = insideMask[maskIdx];
 
-                var (fillColor, alpha) = ComputePixelCoverage(worldPoint, palette, dpi);
+                // Check if this is an edge pixel (any 8-connected neighbor has different mask value)
+                var isEdge = false;
+                var hasLeft = x > 0;
+                var hasRight = x < rbWidth - 1;
+                var hasUp = y > 0;
+                var hasDown = y < rbHeight - 1;
 
-                if (alpha <= 0f) continue;
+                if (hasLeft && insideMask[maskIdx - 1] != currentMask) isEdge = true;
+                else if (hasRight && insideMask[maskIdx + 1] != currentMask) isEdge = true;
+                else if (hasUp && insideMask[maskIdx - rbWidth] != currentMask) isEdge = true;
+                else if (hasDown && insideMask[maskIdx + rbWidth] != currentMask) isEdge = true;
+                else if (hasLeft && hasUp && insideMask[maskIdx - rbWidth - 1] != currentMask) isEdge = true;
+                else if (hasRight && hasUp && insideMask[maskIdx - rbWidth + 1] != currentMask) isEdge = true;
+                else if (hasLeft && hasDown && insideMask[maskIdx + rbWidth - 1] != currentMask) isEdge = true;
+                else if (hasRight && hasDown && insideMask[maskIdx + rbWidth + 1] != currentMask) isEdge = true;
 
                 ref var dst = ref pixels[px, py];
-                var srcAlpha = (byte)(fillColor.A * alpha);
-                var srcColor = new Color32(fillColor.R, fillColor.G, fillColor.B, srcAlpha);
 
-                if (srcAlpha == 255 || dst.A == 0)
-                    dst = srcColor;
-                else if (srcAlpha > 0)
-                    dst = Color32.Blend(dst, srcColor);
+                if (!isEdge)
+                {
+                    // Interior or exterior pixel - no AA needed
+                    if (currentMask > 0)
+                    {
+                        var pathIdx = (ushort)(currentMask - 1);
+                        ref var path = ref _paths[pathIdx];
+                        var fillColor = palette[path.FillColor % palette.Length].ToColor32();
+
+                        if (fillColor.A == 255 || dst.A == 0)
+                            dst = fillColor;
+                        else if (fillColor.A > 0)
+                            dst = Color32.Blend(dst, fillColor);
+                    }
+                }
+                else
+                {
+                    // Edge pixel - compute accurate SDF coverage
+                    var pixelX = rb.X + x + 0.5f;
+                    var pixelY = rb.Y + y + 0.5f;
+                    var worldPoint = new Vector2(pixelX / dpi, pixelY / dpi);
+
+                    // For inside edge pixels, we want full coverage to avoid dark fringes
+                    // Only compute partial alpha for outside edge pixels
+                    if (currentMask > 0)
+                    {
+                        // Inside edge pixel - use full coverage with the stored path color
+                        var pathIdx = (ushort)(currentMask - 1);
+                        ref var path = ref _paths[pathIdx];
+                        var fillColor = palette[path.FillColor % palette.Length].ToColor32();
+
+                        if (fillColor.A == 255 || dst.A == 0)
+                            dst = fillColor;
+                        else if (fillColor.A > 0)
+                            dst = Color32.Blend(dst, fillColor);
+                    }
+                    else
+                    {
+                        // Outside edge pixel - compute partial coverage for AA
+                        var (fillColor, alpha) = ComputePixelCoverageOptimized(
+                            worldPoint, palette, dpi, allPolyVerts, pathVertCounts, maxPolyVerts);
+
+                        if (alpha <= 0f) continue;
+
+                        // Write the fill color with partial alpha - direct overwrite
+                        // The alpha channel handles compositing at display time
+                        var srcAlpha = (byte)(fillColor.A * alpha);
+                        dst = new Color32(fillColor.R, fillColor.G, fillColor.B, srcAlpha);
+                    }
+                }
             }
         }
     }
 
-    private (Color32 fillColor, float alpha) ComputePixelCoverage(Vector2 worldPoint, Color[] palette, float dpi)
+    private (Color32 fillColor, float alpha) ComputePixelCoverageOptimized(
+        Vector2 worldPoint, Color[] palette, float dpi,
+        Span<Vector2> allPolyVerts, Span<int> pathVertCounts, int maxPolyVerts)
     {
         var resultAlpha = 0f;
         var resultColor = Color32.Transparent;
@@ -209,9 +342,14 @@ public sealed partial class Shape
         for (ushort pIdx = 0; pIdx < PathCount; pIdx++)
         {
             ref var path = ref _paths[pIdx];
-            if (path.AnchorCount < 3) continue;
+            var vertCount = pathVertCounts[pIdx];
+            if (vertCount < 3) continue;
 
-            var signedDist = GetPathSignedDistance(worldPoint, pIdx);
+            var vertOffset = pIdx * maxPolyVerts;
+            var polyVerts = allPolyVerts.Slice(vertOffset, vertCount);
+
+            // Compute signed distance using pre-built polygon
+            var signedDist = GetPathSignedDistanceFast(worldPoint, pIdx, polyVerts);
             var pixelDist = signedDist * dpi;
             var pathAlpha = DistanceToAlpha(pixelDist);
 
@@ -251,6 +389,84 @@ public sealed partial class Shape
         }
 
         return (resultColor, Math.Clamp(resultAlpha, 0f, 1f));
+    }
+
+    private float GetPathSignedDistanceFast(Vector2 point, ushort pathIndex, Span<Vector2> polyVerts)
+    {
+        ref var path = ref _paths[pathIndex];
+        var vertCount = polyVerts.Length;
+        if (vertCount < 3) return float.MaxValue;
+
+        // Find minimum distance to polygon edges
+        var minDistSqr = float.MaxValue;
+
+        for (var i = 0; i < vertCount; i++)
+        {
+            var p0 = polyVerts[i];
+            var p1 = polyVerts[(i + 1) % vertCount];
+
+            var distSqr = PointToSegmentDistSqrFast(point, p0, p1);
+            if (distSqr < minDistSqr)
+                minDistSqr = distSqr;
+        }
+
+        // Determine inside/outside using winding number
+        var inside = IsPointInPolygonFast(point, polyVerts);
+        return inside ? -MathF.Sqrt(minDistSqr) : MathF.Sqrt(minDistSqr);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private static float PointToSegmentDistSqrFast(Vector2 point, Vector2 a, Vector2 b)
+    {
+        var abX = b.X - a.X;
+        var abY = b.Y - a.Y;
+        var apX = point.X - a.X;
+        var apY = point.Y - a.Y;
+
+        var abLenSqr = abX * abX + abY * abY;
+        if (abLenSqr < 0.0001f)
+            return apX * apX + apY * apY;
+
+        var t = (apX * abX + apY * abY) / abLenSqr;
+        t = t < 0f ? 0f : (t > 1f ? 1f : t);
+
+        var closestX = a.X + abX * t;
+        var closestY = a.Y + abY * t;
+        var dx = point.X - closestX;
+        var dy = point.Y - closestY;
+
+        return dx * dx + dy * dy;
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private static bool IsPointInPolygonFast(Vector2 point, Span<Vector2> verts)
+    {
+        var winding = 0;
+        var count = verts.Length;
+        var pointX = point.X;
+        var pointY = point.Y;
+
+        for (var i = 0; i < count; i++)
+        {
+            var p0 = verts[i];
+            var p1 = verts[(i + 1) % count];
+
+            if (p0.Y <= pointY)
+            {
+                if (p1.Y > pointY)
+                {
+                    var cross = (p1.X - p0.X) * (pointY - p0.Y) - (pointX - p0.X) * (p1.Y - p0.Y);
+                    if (cross >= 0) winding++;
+                }
+            }
+            else if (p1.Y <= pointY)
+            {
+                var cross = (p1.X - p0.X) * (pointY - p0.Y) - (pointX - p0.X) * (p1.Y - p0.Y);
+                if (cross < 0) winding--;
+            }
+        }
+
+        return winding != 0;
     }
 
     private static float DistanceToAlpha(float signedDistancePixels)

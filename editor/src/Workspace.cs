@@ -86,7 +86,6 @@ public static class Workspace
             new Command { Name = "Duplicate Selected", ShortName = "duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
             new Command { Name = "Delete Selected", ShortName = "delete", Handler = DeleteSelected, Key = InputCode.KeyX },
             new Command { Name = "Rebuild All", ShortName = "build", Handler = RebuildAll },
-            new Command { Name = "Frame Selected", ShortName = "origin", Handler = FrameOrigin },
             new Command { Name = "Play/Stop", ShortName = "play]", Handler = Play, Key = InputCode.KeySpace },
             new Command { Name = "Show/Hide Hidden Assets", ShortName = "hidden", Handler = ToggleShowHidden },
         ]);
@@ -633,13 +632,6 @@ public static class Workspace
         },
         yes: "Delete",
         no: "Cancel");
-    }
-
-    public static void FrameOrigin()
-    {
-        _camera.Position = Vector2.Zero;
-        _zoom = ZoomDefault;
-        UpdateCamera();
     }
 
     public static void FrameSelected()

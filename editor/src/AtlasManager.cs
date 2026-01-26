@@ -61,6 +61,8 @@ public static class AtlasManager
                 LogAtlas($"Rebuild: {atlas.Name} Rect Count 0", () => atlas.RectCount == 0);
                 rebuild |= atlas.RectCount == 0;
                 atlas.ResolveSprites();
+                LogAtlas($"Rebuild: {atlas.Name} Atlas Modified", () => atlas.IsModified);
+                rebuild |= atlas.IsModified;
                 minIndex = Math.Min(minIndex, atlas.Index);
                 maxIndex = Math.Max(maxIndex, atlas.Index);
                 atlas.IsVisible = false;
@@ -68,6 +70,14 @@ public static class AtlasManager
             }
             else if (doc is SpriteDocument sprite)
                 _sprites.Add(sprite);
+        }
+
+        if (!rebuild)
+        {
+            for (int i = 0, c = _sprites.Count; !rebuild && i < c; i++)
+                rebuild = _sprites[i].Atlas == null;
+
+            LogAtlas($"Rebuild: One or more unatlased sprites", () => rebuild);
         }
 
         if (!rebuild && (minIndex != 0 || maxIndex != _atlases.Count - 1))

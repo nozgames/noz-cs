@@ -120,3 +120,73 @@ public sealed unsafe class PixelData<T> : IDisposable where T : unmanaged
         this[x1 + 1, y1 + 1] = this[x1, y1];
     }
 }
+
+public static class PixelDataExtensions
+{
+    /// <summary>
+    /// Bleeds RGB color from non-transparent pixels into neighboring transparent pixels.
+    /// This prevents black fringing when using linear filtering with anti-aliased sprites.
+    /// Call this BEFORE ExtrudeEdges for proper atlas padding.
+    /// </summary>
+    public static void BleedColors(this PixelData<Color32> pixels, in RectInt rect, int iterations = 8)
+    {
+        var x0 = rect.X;
+        var y0 = rect.Y;
+        var x1 = rect.X + rect.Width;
+        var y1 = rect.Y + rect.Height;
+
+        for (var iter = 0; iter < iterations; iter++)
+        {
+            var changed = false;
+
+            for (var y = y0; y < y1; y++)
+            {
+                for (var x = x0; x < x1; x++)
+                {
+                    ref var pixel = ref pixels[x, y];
+                    if (pixel.A != 0) continue;
+
+                    // Find a neighboring pixel with alpha > 0 and copy its RGB
+                    var sumR = 0;
+                    var sumG = 0;
+                    var sumB = 0;
+                    var count = 0;
+
+                    // Check 8-connected neighbors
+                    for (var dy = -1; dy <= 1; dy++)
+                    {
+                        var ny = y + dy;
+                        if (ny < y0 || ny >= y1) continue;
+
+                        for (var dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dy == 0) continue;
+                            var nx = x + dx;
+                            if (nx < x0 || nx >= x1) continue;
+
+                            ref var neighbor = ref pixels[nx, ny];
+                            if (neighbor.A == 0) continue;
+
+                            sumR += neighbor.R;
+                            sumG += neighbor.G;
+                            sumB += neighbor.B;
+                            count++;
+                        }
+                    }
+
+                    if (count > 0)
+                    {
+                        pixel = new Color32(
+                            (byte)(sumR / count),
+                            (byte)(sumG / count),
+                            (byte)(sumB / count),
+                            0);
+                        changed = true;
+                    }
+                }
+            }
+
+            if (!changed) break;
+        }
+    }
+}

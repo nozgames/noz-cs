@@ -183,6 +183,9 @@ internal class AtlasDocument : Document
             if (rect.Sprite != null)
                 continue;
 
+            if (string.IsNullOrEmpty(rect.Name))
+                continue;
+
             rect.Sprite = DocumentManager.Find(AssetType.Sprite, rect.Name) as SpriteDocument;
             if (rect.Sprite == null)
                 continue;
@@ -191,7 +194,9 @@ internal class AtlasDocument : Document
             if (rasterBounds.Size.X > rect.Rect.Size.X ||
                 rasterBounds.Size.Y > rect.Rect.Size.Y )
             {
+                rect.Name = "";
                 rect.Sprite = null;
+                MarkModified();
                 continue;
             }
                 
@@ -342,6 +347,12 @@ internal class AtlasDocument : Document
             var innerRect = new RectInt(
                 rect.Rect.Position + Vector2Int.One,
                 innerSize);
+
+            // Bleed colors from non-transparent pixels into transparent neighbors
+            // This prevents black fringing with linear filtering on AA sprites
+            if (rect.Sprite.IsAntiAliased)
+                _image.BleedColors(innerRect);
+
             _image.ExtrudeEdges(innerRect);
 
             rect.Sprite.AtlasUV = ToUV(rect);

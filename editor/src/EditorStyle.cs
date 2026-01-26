@@ -634,7 +634,7 @@ public static class EditorStyle
         {
             AnchorY = Align.Min,
             PopupAlignY = Align.Max,
-            Spacing = Control.Spacing,
+            Spacing = Control.Spacing,  
             ClampToScreen = true
         };
     }
