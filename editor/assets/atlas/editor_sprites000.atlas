@@ -44,3 +44,7 @@ r "icon_palette" 240 520 92 93
 r "icon_circle" 320 298 103 95
 r "icon_circle" 320 393 169 97
 r "icon_circle" 343 170 94 94
+r "icon_search" 91 1022 79 82
+r "icon_search" 423 264 103 84
+r "icon_close" 420 1 94 94
+r "icon_close" 437 95 94 94

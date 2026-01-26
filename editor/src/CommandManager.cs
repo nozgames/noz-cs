@@ -70,6 +70,26 @@ public static class CommandManager
             if (cmd.Ctrl != ctrl || cmd.Alt != alt || cmd.Shift != shift)
                 continue;
 
+            if (cmd.Ctrl)
+            {
+                Input.ConsumeButton(InputCode.KeyLeftCtrl);
+                Input.ConsumeButton(InputCode.KeyRightCtrl);
+            }
+
+            if (cmd.Alt)
+            {
+                Input.ConsumeButton(InputCode.KeyLeftAlt);
+                Input.ConsumeButton(InputCode.KeyRightAlt);
+            }
+
+            if (cmd.Shift)
+            {
+                Input.ConsumeButton(InputCode.KeyLeftShift);
+                Input.ConsumeButton(InputCode.KeyRightShift);
+            }
+
+            Input.ConsumeButton(cmd.Key);
+
             cmd.Handler();
             return true;
         }

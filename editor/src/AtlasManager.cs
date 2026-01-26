@@ -2,7 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-// #define NOZ_ATLAS_DEBUG
+#define NOZ_ATLAS_DEBUG
 
 using System.Diagnostics;
 

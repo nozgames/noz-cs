@@ -187,9 +187,9 @@ internal class AtlasDocument : Document
             if (rect.Sprite == null)
                 continue;
             
-            ref var frame0 = ref rect.Sprite.Frames[0];
-            if (frame0.Shape.RasterBounds.Size.X > rect.Rect.Size.X ||
-                frame0.Shape.RasterBounds.Size.Y > rect.Rect.Size.Y )
+            var rasterBounds = rect.Sprite.RasterBounds;
+            if (rasterBounds.Size.X > rect.Rect.Size.X ||
+                rasterBounds.Size.Y > rect.Rect.Size.Y )
             {
                 rect.Sprite = null;
                 continue;
@@ -197,7 +197,6 @@ internal class AtlasDocument : Document
                 
             rect.Sprite.Atlas = this;
             rect.Sprite.AtlasUV = ToUV(rect);
-            rect.Sprite.Reimport();
         }
     }
 

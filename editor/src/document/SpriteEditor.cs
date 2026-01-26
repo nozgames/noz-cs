@@ -60,6 +60,9 @@ public class SpriteEditor : DocumentEditor
             new Command { Name = "Insert Anchor", ShortName = "insert", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
             new Command { Name = "Pen Tool", ShortName = "pen", Handler = BeginPenTool, Key = InputCode.KeyP },
             new Command { Name = "Knife Tool", ShortName = "knife", Handler = BeginKnifeTool, Key = InputCode.KeyK },
+            new Command { Name = "Rectangle Tool", ShortName = "rect", Handler = BeginRectangleTool, Key = InputCode.KeyR, Ctrl = true },
+            new Command { Name = "Circle Tool", ShortName = "circle", Handler = BeginCircleTool, Key = InputCode.KeyO, Ctrl = true },
+            new Command { Name = "Duplicate", ShortName = "dup", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
             new Command { Name = "Parent to Bone", ShortName = "parent", Handler = BeginParentTool, Key = InputCode.KeyB },
             new Command { Name = "Clear Parent", ShortName = "unparent", Handler = ClearParent, Key = InputCode.KeyB, Alt = true },
         ];
@@ -449,6 +452,8 @@ public class SpriteEditor : DocumentEditor
             return;
         }
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
         var offset = new Vector2Int(-bounds.X, -bounds.Y) + Vector2Int.One;
         _pixelData.Clear(new RectInt(0,0,size.X+2, size.Y + 2));
         var palette = PaletteManager.GetPalette(Document.Palette);
@@ -458,6 +463,8 @@ public class SpriteEditor : DocumentEditor
                 palette.Colors,
                 offset,
                 options: new Shape.RasterizeOptions { AntiAlias = Document.IsAntiAliased });
+
+        Log.Info($"Rasterized sprite frame {_currentFrame} in {sw.ElapsedMilliseconds} ms");
 
         _rasterTexture.Update(_pixelData.AsByteSpan(), new RectInt(0, 0, size.X + 2, size.Y +2), _pixelData.Width);
         _rasterDirty = false;
@@ -521,6 +528,59 @@ public class SpriteEditor : DocumentEditor
         Document.MarkModified();
         Document.UpdateBounds();
         MarkRasterDirty();
+    }
+
+    private void DuplicateSelected()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        if (!shape.HasSelection())
+            return;
+
+        Undo.Record(Document);
+
+        Span<ushort> pathsToDuplicate = stackalloc ushort[Shape.MaxPaths];
+        var pathCount = 0;
+
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            if (PathHasSelectedAnchor(shape, shape.GetPath(p)))
+                pathsToDuplicate[pathCount++] = p;
+        }
+
+        if (pathCount == 0)
+            return;
+
+        shape.ClearAnchorSelection();
+
+        var firstNewAnchor = shape.AnchorCount;
+
+        for (var i = 0; i < pathCount; i++)
+        {
+            var srcPath = shape.GetPath(pathsToDuplicate[i]);
+            var newPathIndex = shape.AddPath(srcPath.FillColor);
+            if (newPathIndex == ushort.MaxValue)
+                break;
+
+            if (srcPath.IsHole)
+                shape.SetPathHole(newPathIndex, true);
+
+            for (ushort a = 0; a < srcPath.AnchorCount; a++)
+            {
+                var srcAnchor = shape.GetAnchor((ushort)(srcPath.AnchorStart + a));
+                shape.AddAnchor(newPathIndex, srcAnchor.Position, srcAnchor.Curve);
+            }
+        }
+
+        for (var i = firstNewAnchor; i < shape.AnchorCount; i++)
+            shape.SetAnchorSelected((ushort)i, true);
+
+        shape.UpdateSamples();
+        shape.UpdateBounds();
+        Document.MarkModified();
+        Document.UpdateBounds();
+        MarkRasterDirty();
+
+        BeginMoveTool();
     }
 
     private void CenterShape()
@@ -907,6 +967,18 @@ public class SpriteEditor : DocumentEditor
             shape.UpdateBounds();
             MarkRasterDirty();
         }));
+    }
+
+    private void BeginRectangleTool()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        Workspace.BeginTool(new ShapeTool(this, shape, _selectionColor, ShapeType.Rectangle));
+    }
+
+    private void BeginCircleTool()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        Workspace.BeginTool(new ShapeTool(this, shape, _selectionColor, ShapeType.Circle));
     }
 
     private void InsertAnchorAtHover()
