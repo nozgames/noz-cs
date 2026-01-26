@@ -353,6 +353,12 @@ public static class EditorStyle
             Margin = EdgeInsets.TopBottom(VerticalSpacing),
             Padding = EdgeInsets.All(Control.Spacing)
         };
+
+        public static readonly ContainerStyle UnpaddedContent = Content with
+        {
+            Padding = EdgeInsets.Zero
+        };
+
     }
 
     public static class Shortcut
@@ -458,11 +464,13 @@ public static class EditorStyle
         };
     }
 
+    // :animationeditor
     public static class AnimationEditor
     {
         public const int MinFrames = 24;
-        public const float FrameWidth = 20f;
-        public const float FrameHeight = 40f;
+        public const float FrameWidth = 11;
+        public const float FrameHeight = 20f;
+        public const float FrameSpacerWidth = 1.0f;
         public const float Padding = 8f;
         public const float BorderWidth = 1f;
         public const float FrameDotSize = 5f;
@@ -488,33 +496,10 @@ public static class EditorStyle
             AlignX = Align.Center,
             AlignY = Align.Max,
             Height = Size.Fit,
-            Margin = EdgeInsets.Bottom(20f)
+            Width = Size.Fit,
+            Margin = EdgeInsets.Bottom(Workspace.Padding)
         };
 
-        public static readonly ContainerStyle Panel = new()
-        {
-            AlignX = Align.Center,
-            AlignY = Align.Min,
-            Padding = EdgeInsets.All(Padding),
-            Color = Overlay.FillColor
-        };
-
-        public static readonly ContainerStyle Frame = new()
-        {
-            Width = FrameWidth,
-            Height = FrameHeight,
-            Color = FrameColor
-        };
-
-        public static readonly ContainerStyle SelectedFrame = Frame with
-        {
-            Color = SelectedFrameColor
-        };
-
-        public static readonly ContainerStyle EmptyFrame = Frame with
-        {
-            Color = EmptyFrameColor
-        };
 
         public static readonly ContainerStyle Tick = new()
         {
@@ -566,6 +551,48 @@ public static class EditorStyle
             Color = Control.TextColor,
             AlignX = Align.Center,
             AlignY = Align.Center
+        };
+
+        public static readonly ContainerStyle TickContainer = new()
+        {
+            Color = Color.FromRgb(0x1d1d1d),
+            Height = Control.Height
+        };
+
+        public static readonly ContainerStyle FrameContainer = new()
+        {
+            Color = Color.FromRgb(0x282828),
+            Width = Size.Fit,
+            Height = 20.0f
+        };
+
+
+        public static readonly ContainerStyle Frame = new()
+        {
+            Width = FrameWidth,
+            Color = Button.Fill.Color
+        };
+
+        public static readonly ContainerStyle EmptyFrame = Frame with
+        {
+            Color = Color.Transparent
+        };
+
+        public static readonly ContainerStyle FourthFrame = EmptyFrame with 
+        {
+            Color = Color.FromRgb(0x2b2b2b)
+        };
+
+        public static readonly ContainerStyle FrameSeparator = new()
+        {
+            Width = 1,
+            Color = Color.FromRgb(0x262626)
+        };
+
+        public static readonly ContainerStyle LayerSeparator = new()
+        {
+            Height = 1,
+            Color = Color.FromRgb(0x262626)
         };
     }
 

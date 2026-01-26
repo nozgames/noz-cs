@@ -44,12 +44,12 @@ public class AnimationFrameData
 
 internal class AnimationDocument : Document
 {
-    public const int MaxAnimationFrames = 256;
+    public const int MaxFrames = 32;
     private const float BoundsPadding = 0.1f;
     private const float BoneWidth = 0.15f;
 
     public readonly AnimationBoneData[] Bones = new AnimationBoneData[SkeletonDocument.MaxBones];
-    public readonly AnimationFrameData[] Frames = new AnimationFrameData[MaxAnimationFrames];
+    public readonly AnimationFrameData[] Frames = new AnimationFrameData[MaxFrames];
     public readonly Matrix3x2[] AnimatorBones = new Matrix3x2[SkeletonDocument.MaxBones];
 
     public string? SkeletonName;
@@ -77,7 +77,7 @@ internal class AnimationDocument : Document
             AnimatorBones[i] = Matrix3x2.Identity;
         }
 
-        for (var i = 0; i < MaxAnimationFrames; i++)
+        for (var i = 0; i < MaxFrames; i++)
             Frames[i] = new AnimationFrameData();
     }
 
@@ -228,7 +228,7 @@ internal class AnimationDocument : Document
 
     public int InsertFrame(int insertAt)
     {
-        if (FrameCount >= MaxAnimationFrames)
+        if (FrameCount >= MaxFrames)
             return -1;
 
         FrameCount++;
@@ -392,7 +392,7 @@ internal class AnimationDocument : Document
 
         BoneCount = Skeleton.BoneCount;
 
-        for (var frameIndex = 0; frameIndex < MaxAnimationFrames; frameIndex++)
+        for (var frameIndex = 0; frameIndex < MaxFrames; frameIndex++)
             for (var boneIndex = 0; boneIndex < SkeletonDocument.MaxBones; boneIndex++)
                 Frames[frameIndex].Transforms[boneIndex] = BoneTransform.Identity;
 
@@ -616,7 +616,7 @@ internal class AnimationDocument : Document
             AnimatorBones[i] = src.AnimatorBones[i];
         }
 
-        for (var i = 0; i < MaxAnimationFrames; i++)
+        for (var i = 0; i < MaxFrames; i++)
         {
             Frames[i].Hold = src.Frames[i].Hold;
             Frames[i].EventName = src.Frames[i].EventName;
@@ -675,7 +675,13 @@ internal class AnimationDocument : Document
         {
             Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetTransform(Transform);
-            Graphics.SetBones(AnimatorBones);
+
+            // Multiply animated bone transforms by bind pose (world_to_local)
+            // This transforms vertices from bind pose space to animated world space
+            Span<Matrix3x2> boneTransforms = stackalloc Matrix3x2[SkeletonDocument.MaxBones];
+            for (var i = 0; i < Skeleton.BoneCount; i++)
+                boneTransforms[i] = AnimatorBones[i] * Skeleton.Bones[i].WorldToLocal;
+            Graphics.SetBones(boneTransforms.Slice(0, Skeleton.BoneCount));
 
             for (var i = 0; i < Skeleton.Sprites.Count; i++)
             {

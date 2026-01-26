@@ -165,24 +165,31 @@ public class SpriteEditor : DocumentEditor
             // Toolbar
             using (UI.BeginRow(EditorStyle.Overlay.Toolbar))
             {
+                UI.Flex();
+
                 BoneBindingUI();
 
-                UI.Flex();
-                if (EditorUI.Button(
-                    AntiAliasButtonId,
-                    Document.IsAntiAliased ? EditorAssets.Sprites.IconAntialiasOn : EditorAssets.Sprites.IconAntialiasOff,
-                    Document.IsAntiAliased))
+                using (UI.BeginFlex())
+                using (UI.BeginRow())
                 {
-                    Undo.Record(Document);
-                    MarkRasterDirty();
-                    Document.MarkModified();
-                    Document.IsAntiAliased = !Document.IsAntiAliased;
+                    UI.Flex();
+
+                    if (EditorUI.Button(
+                        AntiAliasButtonId,
+                        Document.IsAntiAliased ? EditorAssets.Sprites.IconAntialiasOn : EditorAssets.Sprites.IconAntialiasOff,
+                        Document.IsAntiAliased))
+                    {
+                        Undo.Record(Document);
+                        MarkRasterDirty();
+                        Document.MarkModified();
+                        Document.IsAntiAliased = !Document.IsAntiAliased;
+                    }
+
+                    if (EditorUI.Button(TileButtonId, EditorAssets.Sprites.IconTiling, _showTiling))
+                        _showTiling = !_showTiling;
+                    if (EditorUI.Button(PaletteButtonId, EditorAssets.Sprites.IconPalette, _showPalettes, disabled: PaletteManager.Palettes.Count < 2))
+                        _showPalettes = !_showPalettes;
                 }
-                    
-                if (EditorUI.Button(TileButtonId, EditorAssets.Sprites.IconTiling, _showTiling))
-                    _showTiling = !_showTiling;
-                if (EditorUI.Button(PaletteButtonId, EditorAssets.Sprites.IconPalette, _showPalettes, disabled: PaletteManager.Palettes.Count < 2))
-                    _showPalettes = !_showPalettes;
             }
 
             using (UI.BeginContainer(EditorStyle.Overlay.Content))
@@ -230,7 +237,7 @@ public class SpriteEditor : DocumentEditor
                     UI.Spacer(EditorStyle.Control.Spacing);
                 }                
             }
-        }))
+        }, selected: Workspace.ActiveTool is BoneSelectTool))
             HandleSelectBone();
 
         if (EditorUI.Button(PreviewButtonId, EditorAssets.Sprites.IconPreview, selected: Document.ShowInSkeleton, disabled: !Document.Binding.IsBound))
@@ -238,6 +245,7 @@ public class SpriteEditor : DocumentEditor
             Undo.Record(Document);
             Document.ShowInSkeleton = !Document.ShowInSkeleton;
             Document.Binding.Skeleton?.UpdateSprites();
+            Document.MarkMetaModified();
         }
     }
 

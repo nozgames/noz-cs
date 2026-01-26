@@ -28,7 +28,7 @@ r "icon_onion" 288 151 55 33
 r "icon_opacity" 338 35 115 115
 r "icon_opacity_overlay" 1 722 115 115
 r "icon_palette" 210 299 40 41
-r "icon_preview" 93 570 63 29
+r "icon_preview" 361 1 63 31
 r "icon_publish" 1 837 108 126
 r "icon_root_motion" 1 963 112 116
 r "icon_search" 235 35 38 41

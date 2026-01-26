@@ -549,9 +549,11 @@ public class SkeletonDocument : Document
             Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetTransform(Transform);
 
+            // Multiply LocalToWorld by WorldToLocal (bind pose) to get identity transforms
+            // when viewing the skeleton in its bind/rest pose
             Span<Matrix3x2> boneTransforms = stackalloc Matrix3x2[MaxBones];
             for (var i = 0; i < BoneCount; i++)
-                boneTransforms[i] = Bones[i].LocalToWorld;
+                boneTransforms[i] = Bones[i].LocalToWorld * Bones[i].WorldToLocal;
             Graphics.SetBones(boneTransforms);
 
             for (var i = 0; i < Sprites.Count; i++)
@@ -607,6 +609,9 @@ public class SkeletonDocument : Document
 
     public void UpdateSprites()
     {
+        for (int i=0; i<DocumentManager.Documents.Count; i++)
+            (DocumentManager.Documents[i] as SpriteDocument)?.PostLoad();
+
         Sprites = [.. DocumentManager.Documents
             .OfType<SpriteDocument>()
             .Where(d => d.Binding.IsBoundTo(this) && d.ShowInSkeleton)];
