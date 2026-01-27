@@ -359,7 +359,7 @@ internal class AnimationEditor : DocumentEditor
 
     private bool TrySelectBone()
     {
-        var bones = new int[SkeletonDocument.MaxBones];
+        Span<int> bones = stackalloc int[Skeleton.MaxBones];
         var hitCount = Document.HitTestBones(GetBaseTransform(), Workspace.MouseWorldPosition, bones);
         if (hitCount == 0)
         {
@@ -751,7 +751,7 @@ internal class AnimationEditor : DocumentEditor
 
     private void CopyKeys()
     {
-        for (var boneIndex = 0; boneIndex < SkeletonDocument.MaxBones; boneIndex++)
+        for (var boneIndex = 0; boneIndex < Skeleton.MaxBones; boneIndex++)
             _clipboard.Transforms[boneIndex] = Document.Frames[Document.CurrentFrame].Transforms[boneIndex];
     }
 
@@ -759,7 +759,7 @@ internal class AnimationEditor : DocumentEditor
     {
         Undo.Record(Document);
 
-        for (var boneIndex = 0; boneIndex < SkeletonDocument.MaxBones; boneIndex++)
+        for (var boneIndex = 0; boneIndex < Skeleton.MaxBones; boneIndex++)
         {
             if (!IsBoneSelected(boneIndex))
                 continue;
@@ -808,7 +808,7 @@ internal class AnimationEditor : DocumentEditor
 
         Undo.Record(Document);
 
-        var savedWorldTransforms = new Matrix3x2[SkeletonDocument.MaxBones];
+        var savedWorldTransforms = new Matrix3x2[Skeleton.MaxBones];
         for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
             savedWorldTransforms[boneIndex] = Document.LocalToWorld[boneIndex];
 

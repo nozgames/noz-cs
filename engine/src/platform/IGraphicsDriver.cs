@@ -78,7 +78,7 @@ public interface IGraphicsDriver
     void WaitFence(nuint fence);
     void DeleteFence(nuint fence);
 
-    void ResizeOffscreenTarget(int width, int height, int msaaSamples);
+    void ResizeOffscreenTarget(Vector2Int size, int msaaSamples);
     void BeginScenePass(Color clearColor);
     void EndScenePass();
     void Composite(nuint compositeShader);

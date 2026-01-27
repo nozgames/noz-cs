@@ -31,7 +31,7 @@ public class AnimationBoneData
 
 public class AnimationFrameData
 {
-    public BoneTransform[] Transforms = new BoneTransform[SkeletonDocument.MaxBones];
+    public BoneTransform[] Transforms = new BoneTransform[NoZ.Skeleton.MaxBones];
     public string? EventName;
     public int Hold;
 
@@ -48,7 +48,7 @@ internal class AnimationDocument : Document
     private const float BoundsPadding = 0.1f;
     private const float BoneWidth = 0.15f;
 
-    public readonly AnimationBoneData[] Bones = new AnimationBoneData[SkeletonDocument.MaxBones];
+    public readonly AnimationBoneData[] Bones = new AnimationBoneData[NoZ.Skeleton.MaxBones];
     public readonly AnimationFrameData[] Frames = new AnimationFrameData[MaxFrames];
     
     public NativeArray<Matrix3x2> LocalToWorld { get; private set; }
@@ -72,9 +72,9 @@ internal class AnimationDocument : Document
 
     public AnimationDocument()
     {
-        LocalToWorld = new NativeArray<Matrix3x2>(SkeletonDocument.MaxBones);
+        LocalToWorld = new NativeArray<Matrix3x2>(NoZ.Skeleton.MaxBones);
 
-        for (var i = 0; i < SkeletonDocument.MaxBones; i++)
+        for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
             Bones[i] = new AnimationBoneData();
 
         for (var i = 0; i < MaxFrames; i++)
@@ -206,8 +206,8 @@ internal class AnimationDocument : Document
         if (Skeleton == null)
             return;
 
-        var boneMap = new int[SkeletonDocument.MaxBones];
-        for (var i = 0; i < SkeletonDocument.MaxBones; i++)
+        var boneMap = new int[NoZ.Skeleton.MaxBones];
+        for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
             boneMap[i] = -1;
 
         for (var i = 0; i < BoneCount; i++)
@@ -241,7 +241,7 @@ internal class AnimationDocument : Document
         {
             Frames[frameIndex].Hold = Frames[frameIndex - 1].Hold;
             Frames[frameIndex].EventName = Frames[frameIndex - 1].EventName;
-            for (var boneIndex = 0; boneIndex < SkeletonDocument.MaxBones; boneIndex++)
+            for (var boneIndex = 0; boneIndex < NoZ.Skeleton.MaxBones; boneIndex++)
                 Frames[frameIndex].Transforms[boneIndex] = Frames[frameIndex - 1].Transforms[boneIndex];
         }
 
@@ -266,7 +266,7 @@ internal class AnimationDocument : Document
         {
             Frames[i].Hold = Frames[i + 1].Hold;
             Frames[i].EventName = Frames[i + 1].EventName;
-            for (var boneIndex = 0; boneIndex < SkeletonDocument.MaxBones; boneIndex++)
+            for (var boneIndex = 0; boneIndex < NoZ.Skeleton.MaxBones; boneIndex++)
                 Frames[i].Transforms[boneIndex] = Frames[i + 1].Transforms[boneIndex];
         }
 
@@ -292,7 +292,11 @@ internal class AnimationDocument : Document
         MarkMetaModified();
     }
 
-    public int HitTestBones(Matrix3x2 transform, Vector2 position, int[] bones, int maxBones = SkeletonDocument.MaxBones)
+    public int HitTestBones(
+        Matrix3x2 transform,
+        Vector2 position,
+        Span<int> bones,
+        int maxBones = NoZ.Skeleton.MaxBones)
     {
         if (Skeleton == null)
             return 0;
@@ -345,8 +349,8 @@ internal class AnimationDocument : Document
         var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
 
-        var boneMap = new int[SkeletonDocument.MaxBones];
-        for (var i = 0; i < SkeletonDocument.MaxBones; i++)
+        var boneMap = new int[NoZ.Skeleton.MaxBones];
+        for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
             boneMap[i] = -1;
 
         while (!tk.IsEOF)
@@ -361,7 +365,7 @@ internal class AnimationDocument : Document
 
         if (FrameCount == 0)
         {
-            for (var i = 0; i < SkeletonDocument.MaxBones; i++)
+            for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
                 Frames[0].Transforms[i] = BoneTransform.Identity;
             FrameCount = 1;
         }
@@ -396,7 +400,7 @@ internal class AnimationDocument : Document
         BoneCount = Skeleton.BoneCount;
 
         for (var frameIndex = 0; frameIndex < MaxFrames; frameIndex++)
-            for (var boneIndex = 0; boneIndex < SkeletonDocument.MaxBones; boneIndex++)
+            for (var boneIndex = 0; boneIndex < NoZ.Skeleton.MaxBones; boneIndex++)
                 Frames[frameIndex].Transforms[boneIndex] = BoneTransform.Identity;
 
         var boneIndex2 = 0;
@@ -613,7 +617,7 @@ internal class AnimationDocument : Document
         LocalToWorld.Dispose();
         LocalToWorld = new NativeArray<Matrix3x2>(src.LocalToWorld);
 
-        for (var i = 0; i < SkeletonDocument.MaxBones; i++)
+        for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
         {
             Bones[i].Name = src.Bones[i].Name;
             Bones[i].Index = src.Bones[i].Index;
@@ -626,7 +630,7 @@ internal class AnimationDocument : Document
         {
             Frames[i].Hold = src.Frames[i].Hold;
             Frames[i].EventName = src.Frames[i].EventName;
-            for (var j = 0; j < SkeletonDocument.MaxBones; j++)
+            for (var j = 0; j < NoZ.Skeleton.MaxBones; j++)
                 Frames[i].Transforms[j] = src.Frames[i].Transforms[j];
         }
 

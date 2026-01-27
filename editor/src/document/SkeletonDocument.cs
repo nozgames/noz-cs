@@ -25,22 +25,21 @@ public class BoneData
 
 public class SkeletonDocument : Document
 {
-    public const int MaxBones = 64;
     private const float BoneWidth = 0.15f;
     private const float BoundsPadding = 0.1f;
 
     public List<SpriteDocument> Sprites = [];
 
-    public readonly BoneData[] Bones = new BoneData[MaxBones];
-    public NativeArray<Matrix3x2> LocalToWorld = new(MaxBones);
-    public NativeArray<Matrix3x2> WorldToLocal = new(MaxBones);
+    public readonly BoneData[] Bones = new BoneData[Skeleton.MaxBones];
+    public NativeArray<Matrix3x2> LocalToWorld = new(Skeleton.MaxBones);
+    public NativeArray<Matrix3x2> WorldToLocal = new(Skeleton.MaxBones);
     public int BoneCount;
     public int SelectedBoneCount;
     public float Opacity = 1f;
 
     public SkeletonDocument()
     {
-        for (var i = 0; i < MaxBones; i++)
+        for (var i = 0; i < Skeleton.MaxBones; i++)
             Bones[i] = new BoneData();
     }
 
@@ -269,7 +268,7 @@ public class SkeletonDocument : Document
         return -1;
     }
 
-    public int HitTestBones(Matrix3x2 transform, Vector2 position, int[] bones, int maxBones = MaxBones)
+    public int HitTestBones(Matrix3x2 transform, Vector2 position, Span<int> bones, int maxBones = Skeleton.MaxBones)
     {
         var hitCount = 0;
         for (var boneIndex = BoneCount - 1; boneIndex >= 0 && hitCount < maxBones; boneIndex--)
@@ -290,7 +289,7 @@ public class SkeletonDocument : Document
 
     public int HitTestBone(Matrix3x2 transform, Vector2 position, bool cycle = false)
     {
-        var bones = new int[MaxBones];
+        Span<int> bones = stackalloc int[Skeleton.MaxBones];
         var boneCount = HitTestBones(transform, position, bones);
         if (boneCount == 0)
             return -1;
@@ -375,7 +374,7 @@ public class SkeletonDocument : Document
 
         Array.Sort(Bones, 0, BoneCount, Comparer<BoneData>.Create((a, b) => a.ParentIndex.CompareTo(b.ParentIndex)));
 
-        var boneMap = new int[MaxBones];
+        Span<int> boneMap = stackalloc int[Skeleton.MaxBones];
         for (var i = 0; i < BoneCount; i++)
             boneMap[Bones[i].Index] = i;
 

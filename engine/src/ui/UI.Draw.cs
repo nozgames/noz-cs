@@ -75,7 +75,7 @@ public static partial class UI
         }
 
         if (setScissor)
-            Graphics.DisableScissor();
+            Graphics.ClearScissor();
     }
 
     private static void DrawElements() 

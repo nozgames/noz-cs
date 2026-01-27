@@ -13,7 +13,7 @@ using NoZ.Platform;
 
 namespace NoZ;
 
-public static unsafe class Graphics
+public static unsafe partial class Graphics
 {
     private const int MaxSortGroups = 1526;
     private const int MaxStateStack = 16;
@@ -27,11 +27,7 @@ public static unsafe class Graphics
     private const int PassShift = 60;   // bits 60-63 (4 bits)
     private const long SortKeyMergeMask = 0x7FFFFFFFFFFF0000;
 
-    public struct AutoState(bool pop) : IDisposable
-    {
-        private bool _pop = pop;
-        readonly void IDisposable.Dispose() { if (_pop) PopState(); }
-    }
+
 
     private struct BatchState()
     {
@@ -54,23 +50,7 @@ public static unsafe class Graphics
         public ushort State;
     }
     
-    private struct State
-    {
-        public Color Color;
-        public Shader? Shader;
-        public Matrix3x2 Transform;
-        public fixed ulong Textures[MaxTextures];
-        public ushort SortLayer;
-        public ushort SortGroup;
-        public ushort SortIndex;
-        public ushort BoneIndex;
-        public BlendMode BlendMode;
-        public TextureFilter TextureFilter;
-        public RectInt Viewport;
-        public bool ScissorEnabled;
-        public RectInt Scissor;
-        public nuint Mesh;
-    }
+
 
     [StructLayout(LayoutKind.Sequential)]
     private struct GlobalsSnapshot
@@ -79,7 +59,6 @@ public static unsafe class Graphics
         public float Time;
     }
 
-    private const int MaxBonesPerEntity = 64;
     private const int MaxBoneRows = 1024;
     private const int BoneTextureWidth = 128; // 64 bones * 2 texels per bone
     private static int _boneRow;
@@ -87,9 +66,7 @@ public static unsafe class Graphics
     private static Shader? _compositeShader;
     private static Shader? _spriteShader;
     private static bool _inUIPass;
-    private static GraphicsStats _stats;
     private static State[] _stateStack = null!;
-    private static Matrix3x2[] _bones = null!;
     private static int _stateStackDepth = 0;
     private static bool _batchStateDirty = true;
     
@@ -100,13 +77,12 @@ public static unsafe class Graphics
     public static Texture? SpriteAtlas { get; set; }
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
     public static Color Color => CurrentState.Color;
-    public static ref readonly GraphicsStats Stats => ref _stats;
     public static float PixelsPerUnit { get; private set; }
     public static float PixelsPerUnitInv {  get; private set; }
+    public static bool IsScissor => CurrentState.ScissorEnabled;
 
     private static ref State CurrentState => ref _stateStack[_stateStackDepth];
     
-    #region Batching
     private static nuint _mesh;
     private static nuint _boneTexture;
     private const int BoneTextureSlot = 1;
@@ -125,7 +101,6 @@ public static unsafe class Graphics
     private static NativeArray<BatchState> _batchStates;
     private static NativeArray<GlobalsSnapshot> _globalsSnapshots;
     private static ushort _currentBatchState;
-    #endregion
     
     public static Color ClearColor { get; set; } = Color.Black;  
     
@@ -157,45 +132,6 @@ public static unsafe class Graphics
 
         Camera = new Camera();
 
-         InitBatcher();
-         InitState();
-    }
-
-    private static void InitState()
-    {
-        _bones = new Matrix3x2[MaxBonesPerEntity];
-        ResetState();
-    }
-
-    private static void ResetState()
-    {
-        _stateStackDepth = 0;
-        _currentBatchState = 0;
-        CurrentState.Transform = Matrix3x2.Identity;
-        CurrentState.SortGroup = 0;
-        CurrentState.SortLayer = 0;
-        CurrentState.Color = Color.White;
-        CurrentState.Shader = null;
-        CurrentState.BlendMode = default;
-        CurrentState.TextureFilter = TextureFilter.Point;
-        CurrentState.BoneIndex = 0;
-        for (var i = 0; i < MaxTextures; i++)
-            CurrentState.Textures[i] = 0;
-
-        CurrentState.ScissorEnabled = false;
-        CurrentState.Scissor = RectInt.Zero;
-        CurrentState.Viewport = RectInt.Zero;
-        CurrentState.Mesh = _mesh;
-
-        _currentPass = 0;
-        _boneRow = 1;
-
-        var size = Application.WindowSize;
-        SetViewport(0, 0, (int)size.X, (int)size.Y);
-    }
-    
-    private static void InitBatcher()
-    {
         _vertices = new NativeArray<MeshVertex>(MaxVertices);
         _indices = new NativeArray<ushort>(MaxIndices);
         _sortedIndices = new NativeArray<ushort>(MaxIndices);
@@ -221,6 +157,8 @@ public static unsafe class Graphics
             TextureFormat.RGBA32F,
             TextureFilter.Point,
             name: "Bones");
+
+        ResetState();
     }
 
     public static void Shutdown()
@@ -240,61 +178,6 @@ public static unsafe class Graphics
         _boneTexture = 0;
     }
 
-    public static bool IsScissor => CurrentState.ScissorEnabled;
-
-    public static void SetShader(Shader shader)
-    {
-        if (shader == CurrentState.Shader) return;
-        CurrentState.Shader = shader;
-        _batchStateDirty = true;
-    }
-
-    public static void SetTexture(nuint texture, int slot = 0)
-    {
-        Debug.Assert(slot is >= 0 and < MaxTextures);
-        if (CurrentState.Textures[slot] == texture) return;
-        CurrentState.Textures[slot] = texture;
-        _batchStateDirty = true;
-    }
-    
-    public static void SetTexture(Texture texture, int slot = 0)
-    {
-        Debug.Assert(slot is >= 0 and < MaxTextures);
-        var handle = texture?.Handle ?? nuint.Zero;
-        if (CurrentState.Textures[slot] == handle) return;
-        CurrentState.Textures[slot] = handle;
-        _batchStateDirty = true;
-    }
-
-    public static void SetColor(Color color)
-    {
-        CurrentState.Color = color;
-    }
-
-    public static void SetCamera(Camera? camera)
-    {
-        Camera = camera;
-        _batchStateDirty = true;
-        if (camera == null) return;
-
-        var viewport = camera.Viewport;
-        if (viewport is { Width: > 0, Height: > 0 })
-            SetViewport((int)viewport.X, (int)viewport.Y, (int)viewport.Width, (int)viewport.Height);
-
-        var view = camera.ViewMatrix;
-        var projection = new Matrix4x4(
-            view.M11, view.M12, 0, view.M31,
-            view.M21, view.M22, 0, view.M32,
-            0, 0, 1, 0,
-            0, 0, 0, 1
-        );
-
-        if (_currentPass == 0)
-            _sceneProjection = projection;
-        else
-            _uiProjection = projection;
-    }
-
     internal static bool BeginFrame()
     {
         ResetState();
@@ -306,9 +189,7 @@ public static unsafe class Graphics
 
         _time += Time.DeltaTime;
 
-        // Ensure offscreen target matches window size
-        var size = Application.WindowSize;
-        Driver.ResizeOffscreenTarget((int)size.X, (int)size.Y, RenderConfig.MsaaSamples);
+        Driver.ResizeOffscreenTarget(Application.WindowSize, RenderConfig.MsaaSamples);
 
         _inUIPass = false;
         _activeDriverPass = 0;
@@ -361,245 +242,17 @@ public static unsafe class Graphics
         Driver.Clear(color);
     }
 
-    public static void SetViewport(int x, int y, int width, int height) =>
-        SetViewport(new RectInt(x, y, width, height));
 
-    public static void SetViewport(in RectInt viewport)
-    {
-        if (CurrentState.Viewport == viewport)
-            return;
 
-        CurrentState.Viewport = viewport;
-        _batchStateDirty = true;
-    }
 
-    public static void SetScissor(int x, int y, int width, int height) =>
-        SetScissor(new RectInt(x, y, width, height));
 
-    public static void SetScissor(in RectInt scissor)
-    {
-        if (CurrentState.ScissorEnabled && CurrentState.Scissor == scissor)
-            return;
 
-        CurrentState.ScissorEnabled = true;
-        CurrentState.Scissor = scissor;
-        _batchStateDirty = true;
-    }
 
-    public static void DisableScissor()
-    {
-        if (!CurrentState.ScissorEnabled)
-            return;
+    
 
-        CurrentState.ScissorEnabled = false;
-        _batchStateDirty = true;
-    }
 
-    #region Draw
 
-    public static void Draw(in Rect rect, ushort order = 0, int bone = 0) =>
-        Draw(rect.X, rect.Y, rect.Width, rect.Height, order: order, bone: bone);
 
-    public static void Draw(in Rect rect, in Rect uv, ushort order = 0, int bone = 0) =>
-        Draw(rect.X, rect.Y, rect.Width, rect.Height, uv.Left, uv.Top, uv.Right, uv.Bottom, order:order, bone:bone);
-
-    public static void Draw(float x, float y, float width, float height, ushort order = 0, int bone = 0)
-    {
-        var p0 = new Vector2(x, y);
-        var p1 = new Vector2(x + width, y);
-        var p2 = new Vector2(x + width, y + height);
-        var p3 = new Vector2(x, y + height);
-        AddQuad(p0, p1, p2, p3, new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), order: order, bone: bone);
-    }
-
-    public static void Draw(float x, float y, float width, float height, in Matrix3x2 transform, ushort order = 0, int bone = 0)
-    {
-        CurrentState.Transform = transform;
-        var p0 = new Vector2(x, y);
-        var p1 = new Vector2(x + width, y);
-        var p2 = new Vector2(x + width, y + height);
-        var p3 = new Vector2(x, y + height);
-        AddQuad(p0, p1, p2, p3, new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), order: order, bone: bone);
-    }
-
-    public static void Draw(float x, float y, float width, float height, float u0, float v0, float u1, float v1, ushort order = 0, int bone = 0)
-    {
-        var p0 = new Vector2(x, y);
-        var p1 = new Vector2(x + width, y);
-        var p2 = new Vector2(x + width, y + height);
-        var p3 = new Vector2(x, y + height);
-        AddQuad(p0, p1, p2, p3, new Vector2(u0, v0), new Vector2(u1, v0), new Vector2(u1, v1), new Vector2(u0, v1), order: order, bone: bone);
-    }
-
-    public static void Draw(float x, float y, float width, float height, float u0, float v0, float u1, float v1, in Matrix3x2 transform, ushort order = 0, int bone = 0)
-    {
-        CurrentState.Transform = transform;
-        var p0 = new Vector2(x, y);
-        var p1 = new Vector2(x + width, y);
-        var p2 = new Vector2(x + width, y + height);
-        var p3 = new Vector2(x, y + height);
-        AddQuad(p0, p1, p2, p3, new Vector2(u0, v0), new Vector2(u1, v0), new Vector2(u1, v1), new Vector2(u0, v1), order: order, bone: bone);
-    }
-
-    public static void Draw(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, ushort order = 0, int bone = 0)
-    {
-        AddQuad(p0, p1, p2, p3, new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), order: order, bone: bone);
-    }
-
-    public static void Draw(Sprite sprite) => Draw(sprite, order: sprite.Order, bone: 0);
-
-    public static void Draw(Sprite sprite, ushort order, int bone = 0)
-    {
-        if (sprite == null || SpriteAtlas == null) return;
-
-        var uv = sprite.UV;
-        var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
-        var p0 = new Vector2(bounds.Left, bounds.Top);
-        var p1 = new Vector2(bounds.Right, bounds.Top);
-        var p2 = new Vector2(bounds.Right, bounds.Bottom);
-        var p3 = new Vector2(bounds.Left, bounds.Bottom);
-
-        using (PushState())
-        {
-            SetTexture(SpriteAtlas);
-            SetShader(_spriteShader!);
-            SetTextureFilter(sprite.TextureFilter);
-            AddQuad(
-                p0, p1, p2, p3,
-                uv.TopLeft, new Vector2(uv.Right, uv.Top),
-                uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-                order: order,
-                atlasIndex: sprite.AtlasIndex,
-                bone: bone);
-        }
-    }
-
-    #endregion
-
-    public static void SetSortGroup(int group)
-    {
-        Debug.Assert((group & 0xFFFF) == group);
-        CurrentState.SortGroup = (ushort)group;
-    }
-
-    public static void SetLayer(ushort layer)
-    {
-        Debug.Assert((layer & 0xFFF) == layer);
-        CurrentState.SortLayer = layer;
-    }
-
-    public static AutoState PushState()
-    {
-        if (_stateStackDepth >= MaxStateStack - 1)
-            return new AutoState(false);
-
-        ref var current = ref _stateStack[_stateStackDepth];
-        ref var next = ref _stateStack[++_stateStackDepth];
-
-        next = current;
-        return new AutoState(true);
-    }
-
-    public static void PopState()
-    {
-        if (_stateStackDepth == 0)
-            return;
-
-        ref var current = ref _stateStack[_stateStackDepth];
-        ref var prev = ref _stateStack[--_stateStackDepth];
-
-        var shaderChanged = current.Shader != prev.Shader;
-        var blendChanged = current.BlendMode != prev.BlendMode;
-        var filterChanged = current.TextureFilter != prev.TextureFilter;
-        var texturesChanged = false;
-        for (var i = 0; i < MaxTextures && !texturesChanged; i++)
-            texturesChanged = current.Textures[i] != prev.Textures[i];
-        var viewportChanged = current.Viewport != prev.Viewport;
-        var scissorChanged = current.ScissorEnabled != prev.ScissorEnabled ||
-                             current.Scissor != prev.Scissor;
-        var meshChanged = current.Mesh != prev.Mesh;
-
-        if (shaderChanged || blendChanged || filterChanged || texturesChanged || viewportChanged || scissorChanged || meshChanged)
-            _batchStateDirty = true;
-    }
-
-    public static void SetBlendMode(BlendMode blendMode)
-    {
-        CurrentState.BlendMode = blendMode;
-        _batchStateDirty = true;
-    }
-
-    public static void SetTextureFilter(TextureFilter filter)
-    {
-        CurrentState.TextureFilter = filter;
-        _batchStateDirty = true;
-    }
-
-    public const int MaxBoneTransforms = MaxBonesPerEntity;
-
-    public static void SetBones(Skeleton skeleton, ReadOnlySpan<Matrix3x2> transforms) =>
-        SetBones(skeleton.BindPoses.AsReadonlySpan(), transforms);
-
-    public static void SetBones(ReadOnlySpan<Matrix3x2> skeleton, ReadOnlySpan<Matrix3x2> transforms)
-    {
-        Debug.Assert(skeleton.Length <= MaxBonesPerEntity);
-        Debug.Assert(transforms.Length == skeleton.Length);
-
-        // BoneIndex is flat index: row * 64, so vertex bone index + BoneIndex = flat index
-        CurrentState.BoneIndex = (ushort)(_boneRow * MaxBonesPerEntity);
-
-        // Write transforms to the current row in _boneData
-        // Each bone is 2 texels (8 floats): [M11,M12,M31,0], [M21,M22,M32,0]
-        var rowOffset = _boneRow * BoneTextureWidth * 4;
-        for (var i = 0; i < transforms.Length; i++)
-        {
-            ref readonly var mm = ref transforms[i];
-            var m = mm * skeleton[i];
-            var texelOffset = rowOffset + i * 8;
-            // Texel 0: M11, M12, M31, 0
-            _boneData[texelOffset + 0] = m.M11;
-            _boneData[texelOffset + 1] = m.M12;
-            _boneData[texelOffset + 2] = m.M31;
-            _boneData[texelOffset + 3] = 0;
-            // Texel 1: M21, M22, M32, 0
-            _boneData[texelOffset + 4] = m.M21;
-            _boneData[texelOffset + 5] = m.M22;
-            _boneData[texelOffset + 6] = m.M32;
-            _boneData[texelOffset + 7] = 0;
-        }
-
-        _boneRow++;
-    }
-
-    public static void SetBones(ReadOnlySpan<Matrix3x2> transforms)
-    {
-        Debug.Assert(transforms.Length <= MaxBonesPerEntity);
-        Debug.Assert(_boneRow < MaxBoneRows);
-
-        // BoneIndex is flat index: row * 64, so vertex bone index + BoneIndex = flat index
-        CurrentState.BoneIndex = (ushort)(_boneRow * MaxBonesPerEntity);
-
-        // Write transforms to the current row in _boneData
-        // Each bone is 2 texels (8 floats): [M11,M12,M31,0], [M21,M22,M32,0]
-        var rowOffset = _boneRow * BoneTextureWidth * 4;
-        for (var i = 0; i < transforms.Length; i++)
-        {
-            ref readonly var m = ref transforms[i];
-            var texelOffset = rowOffset + i * 8;
-            // Texel 0: M11, M12, M31, 0
-            _boneData[texelOffset + 0] = m.M11;
-            _boneData[texelOffset + 1] = m.M12;
-            _boneData[texelOffset + 2] = m.M31;
-            _boneData[texelOffset + 3] = 0;
-            // Texel 1: M21, M22, M32, 0
-            _boneData[texelOffset + 4] = m.M21;
-            _boneData[texelOffset + 5] = m.M22;
-            _boneData[texelOffset + 6] = m.M32;
-            _boneData[texelOffset + 7] = 0;
-        }
-
-        _boneRow++;
-    }
 
     private static void UploadBones()
     {
@@ -627,11 +280,6 @@ public static unsafe class Graphics
             *(float*)(data + 64) = snapshot.Time;
             Driver.SetGlobals(i, new ReadOnlySpan<byte>(data, 80));
         }
-    }
-
-    public static void SetTransform(in Matrix3x2 transform)
-    {
-        CurrentState.Transform = transform;
     }
 
     private static long MakeSortKey(ushort order) =>
@@ -716,19 +364,23 @@ public static unsafe class Graphics
         in Vector2 uv3,
         ushort order,
         int atlasIndex = 0,
-        int bone = 0)
+        int bone = -1)
     {
         Span<MeshVertex> verts = stackalloc MeshVertex[4];
-        verts[0] = new MeshVertex { Position = p0, UV = uv0, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Bone = bone };
-        verts[1] = new MeshVertex { Position = p1, UV = uv1, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Bone = bone };
-        verts[2] = new MeshVertex { Position = p2, UV = uv2, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Bone = bone };
-        verts[3] = new MeshVertex { Position = p3, UV = uv3, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Bone = bone };
+        verts[0] = new MeshVertex { Position = p0, UV = uv0, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
+        verts[1] = new MeshVertex { Position = p1, UV = uv1, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
+        verts[2] = new MeshVertex { Position = p2, UV = uv2, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
+        verts[3] = new MeshVertex { Position = p3, UV = uv3, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 };
 
         ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
-        AddTriangles(verts, indices, order);
+        AddTriangles(verts, indices, order: order, bone: bone);
     }
 
-    public static void AddTriangles(ReadOnlySpan<MeshVertex> vertices, ReadOnlySpan<ushort> indices, ushort order = 0)
+    private static void AddTriangles(
+        ReadOnlySpan<MeshVertex> vertices,
+        ReadOnlySpan<ushort> indices,
+        ushort order,
+        int bone)
     {
         if (CurrentState.Shader == null)
             return;
@@ -752,14 +404,18 @@ public static unsafe class Graphics
         cmd.BatchState = _currentBatchState;
 
         var baseVertex = _vertices.Length;
-        var boneOffset = CurrentState.BoneIndex;
+
+        if (bone == -1)
+            bone = 0;
+        else
+            bone += CurrentState.BoneIndex;
+
         foreach (var v in vertices)
         {
             var transformed = v;
             transformed.Position = Vector2.Transform(v.Position, CurrentState.Transform);
             transformed.Color = CurrentState.Color;
-            if (v.Bone != 0)
-                transformed.Bone = v.Bone + boneOffset;
+            transformed.Bone = bone;
             _vertices.Add(transformed);
         }
 
@@ -776,13 +432,6 @@ public static unsafe class Graphics
         batch.IndexOffset = indexOffset;
         batch.IndexCount = indexCount;
         batch.State = batchState;
-    }
-
-    public static void SetMesh(nuint vertexArray)
-    {
-        if (CurrentState.Mesh == vertexArray) return;
-        CurrentState.Mesh = vertexArray;
-        _batchStateDirty = true;
     }
 
     public static void DrawElements(int indexCount, int indexOffset = 0, ushort order=0)
@@ -1037,10 +686,6 @@ public static unsafe class Graphics
             LogGraphics($"    DrawElements: IndexCount={batch.IndexCount} IndexOffset={batch.IndexOffset}");
             Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
         }
-
-        _stats.DrawCount += _batches.Length;
-        _stats.VertexCount = _vertices.Length;
-        _stats.CommandCount = _commands.Length;
 
         _commands.Clear();
         _vertices.Clear();

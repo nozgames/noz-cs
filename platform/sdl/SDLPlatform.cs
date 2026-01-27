@@ -14,14 +14,13 @@ public unsafe partial class SDLPlatform : IPlatform
 {
     private SDL_Window* _window;
     private SDL_GLContextState* _glContext;
-    private Vector2 _windowSize;
     private Action? _resizeCallback;
     private static SDLPlatform? _instance;
 
     private readonly SDL_Cursor*[] _cursors = new SDL_Cursor*[Enum.GetValues<SystemCursor>().Length];
     private SystemCursor _currentCursor = SystemCursor.Default;
 
-    public Vector2 WindowSize => _windowSize;
+    public Vector2Int WindowSize { get; private set; }
 
     internal static SDL_Window* Window => _instance != null ? _instance._window : null;
 
@@ -70,7 +69,7 @@ public unsafe partial class SDLPlatform : IPlatform
         SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
         SDL_SetHint(SDL_HINT_MOUSE_DOUBLE_CLICK_RADIUS, "4");  // Windows default ~4px
 
-        _windowSize = new Vector2(config.Width, config.Height);
+        WindowSize = new Vector2Int(config.Width, config.Height);
 
         _instance = this;
         SDL_AddEventWatch(&ResizeEventWatch, nint.Zero);
@@ -121,7 +120,7 @@ public unsafe partial class SDLPlatform : IPlatform
         {
             if (evt->Type == SDL_EventType.SDL_EVENT_WINDOW_RESIZED)
             {
-                _instance._windowSize = new Vector2(evt->window.data1, evt->window.data2);
+                _instance.WindowSize = new Vector2Int(evt->window.data1, evt->window.data2);
                 _instance.OnEvent?.Invoke(PlatformEvent.Resize(evt->window.data1, evt->window.data2));
             }
 
@@ -274,7 +273,7 @@ public unsafe partial class SDLPlatform : IPlatform
             }
 
             case SDL_EventType.SDL_EVENT_WINDOW_RESIZED:
-                _windowSize = new Vector2(evt.window.data1, evt.window.data2);
+                WindowSize = new Vector2Int(evt.window.data1, evt.window.data2);
                 OnEvent?.Invoke(PlatformEvent.Resize(evt.window.data1, evt.window.data2));
                 break;
         }

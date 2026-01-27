@@ -136,7 +136,7 @@ public static class Gizmos
             indices[i * 3 + 2] = (ushort)((i + 1) % segments + 1);
         }
 
-        Graphics.AddTriangles(verts, indices, order);
+        Graphics.Draw(verts, indices, order);
     }
     
     public static float GetVertexSize(float size=1.0f)
@@ -227,7 +227,7 @@ public static class Gizmos
         indices[baseIdx + 5] = (ushort)(botIdx + 1);
 
         Graphics.SetColor(color);
-        Graphics.AddTriangles(verts, indices, (ushort)(order + 1));
+        Graphics.Draw(verts, indices, (ushort)(order + 1));
         Graphics.PopState();
 
         Graphics.SetColor(EditorStyle.Skeleton.BoneOriginColor);

@@ -30,7 +30,7 @@ public interface IPlatform
 
     void SwapBuffers();
 
-    Vector2 WindowSize { get; }
+    Vector2Int WindowSize { get; }
 
     /// <summary>
     /// Gets the display scale factor (DPI scale) for the window.

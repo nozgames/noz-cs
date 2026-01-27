@@ -386,7 +386,7 @@ public static partial class UI
             Graphics.SetColor(color);
             Graphics.SetTransform(e.LocalToWorld * Matrix3x2.CreateTranslation(textOffset));
             TextRender.Draw(textToRender, font, fontSize);
-            Graphics.DisableScissor();
+            Graphics.ClearScissor();
         }
     }
 

@@ -12,8 +12,10 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver
 {
-    public void ResizeOffscreenTarget(int width, int height, int msaaSamples)
+    public void ResizeOffscreenTarget(Vector2Int size, int msaaSamples)
     {
+        var width = size.X;
+        var height = size.Y;
         if (_offscreenWidth == width && _offscreenHeight == height && _msaaSamples == msaaSamples && _offscreenMsaaTexture != null)
             return;
 

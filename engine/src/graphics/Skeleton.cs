@@ -32,6 +32,8 @@ public struct Bone
 
 public class Skeleton : Asset
 {
+    public const int MaxBones = 64;
+
     public int BoneCount { get; private set; }
     public Bone[] Bones { get; private set; } = [];
     public NativeArray<Matrix3x2> BindPoses { get; private set; }

@@ -21,7 +21,7 @@ internal class SkeletonEditor : DocumentEditor
 
     public new SkeletonDocument Document => (SkeletonDocument)base.Document;
 
-    private readonly SavedBone[] _savedBones = new SavedBone[SkeletonDocument.MaxBones];
+    private readonly SavedBone[] _savedBones = new SavedBone[Skeleton.MaxBones];
     private Vector2 _selectionCenter;
     private Vector2 _selectionCenterWorld;
     private bool _clearSelectionOnUp;
@@ -453,7 +453,7 @@ internal class SkeletonEditor : DocumentEditor
         if (Document.SelectedBoneCount != 1)
             return;
 
-        if (Document.BoneCount >= SkeletonDocument.MaxBones)
+        if (Document.BoneCount >= Skeleton.MaxBones)
             return;
 
         var parentBoneIndex = GetFirstSelectedBoneIndex();

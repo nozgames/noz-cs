@@ -17,7 +17,7 @@ public static class Application
     public static ApplicationConfig Config { get; private set; } = null!;
     public static IPlatform Platform { get; private set; } = null!;
     public static IAudioDriver AudioDriverBackend { get; private set; } = null!;
-    public static Vector2 WindowSize => Platform.WindowSize;
+    public static Vector2Int WindowSize => Platform.WindowSize;
     public static string AssetPath { get; private set; } = null!;
 
     public static void Init(ApplicationConfig config)

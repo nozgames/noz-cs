@@ -81,7 +81,7 @@ public class Camera
 
     public void Update()
     {
-        Update(Application.WindowSize.ToVector2Int());
+        Update(Application.WindowSize);
     }
 
     public void Update(Vector2Int availableSize)
