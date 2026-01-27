@@ -431,7 +431,7 @@ internal class AnimationEditor : DocumentEditor
         return true;
     }
 
-    private bool IsBoneSelected(int boneIndex) => Document.Bones[boneIndex].Selected;
+    private bool IsBoneSelected(int boneIndex) => Document.Bones[boneIndex].IsSelected;
 
     private bool IsAncestorSelected(int boneIndex)
     {
@@ -454,7 +454,7 @@ internal class AnimationEditor : DocumentEditor
         if (IsBoneSelected(boneIndex) == selected)
             return;
 
-        Document.Bones[boneIndex].Selected = selected;
+        Document.Bones[boneIndex].IsSelected = selected;
         Document.SelectedBoneCount += selected ? 1 : -1;
     }
 
@@ -900,6 +900,26 @@ internal class AnimationEditor : DocumentEditor
         return MathF.Atan2(transform.M12, transform.M11) * 180f / MathF.PI;
     }
 
+    private void DrawBones()
+    {
+        if (Document.Skeleton == null) return; 
+
+        for (var boneIndex = 0; boneIndex < Document.Skeleton.BoneCount; boneIndex++)
+        {
+            var bone = Document.Skeleton.Bones[boneIndex];
+            var animationBone = Document.Bones[boneIndex];
+            var boneTransform = Document.LocalToWorld[boneIndex];
+            var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
+            var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
+
+            Graphics.SetSortGroup((ushort)(animationBone.IsSelected ? 2 : 1));
+            var boneColor = animationBone.IsSelected
+                ? EditorStyle.Skeleton.SelectedBoneColor
+                : EditorStyle.Skeleton.BoneColor; 
+            Gizmos.DrawBone(p0, p1, boneColor, order: (ushort)(boneIndex * 2 + 1));
+        }
+    }
+
     private void DrawEditor()
     {
         var skeleton = Document.Skeleton;
@@ -908,51 +928,13 @@ internal class AnimationEditor : DocumentEditor
 
         var baseTransform = GetBaseTransform();
 
-        Document.Draw();
-
-#if false
-        using (Gizmos.PushState(EditorLayer.DocumentEditor))
+        using (Gizmos.PushState(EditorLayer.Document))
         {
             Graphics.SetTransform(baseTransform);
-
-            if (_state != AnimationEditorState.Play)
-            {
-                DrawOnionSkin();
-            }
-
-            var boneRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
-
-            for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
-            {
-                if (IsBoneSelected(boneIndex))
-                    continue;
-
-                var bone = skeleton.Bones[boneIndex];
-                var boneTransform = Document.LocalToWorld[boneIndex];
-                var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
-                var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
-
-                Gizmos.DrawBone(p0, p1, EditorStyle.Skeleton.BoneColor);
-                Gizmos.SetColor(EditorStyle.Skeleton.BoneColor);
-                Gizmos.DrawCircle(p0, boneRadius);
-            }
-
-            for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
-            {
-                if (!IsBoneSelected(boneIndex))
-                    continue;
-
-                var bone = skeleton.Bones[boneIndex];
-                var boneTransform = Document.LocalToWorld[boneIndex];
-                var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
-                var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
-
-                Gizmos.DrawBone(p0, p1, EditorStyle.SelectionColor);
-                Gizmos.SetColor(EditorStyle.SelectionColor);
-                Gizmos.DrawCircle(p0, boneRadius);
-            }
+            DrawBones();
+            Graphics.SetSortGroup(0);
+            Document.DrawSprites();
         }
-#endif
     }
 
     private void DrawDopeSheet()

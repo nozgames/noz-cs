@@ -337,6 +337,7 @@ public static class EditorStyle
     {
         public static readonly Color BoneColor = Color.White;
         public static readonly Color BoneOriginColor = Color.Black;
+        public static readonly Color BoneOutlineColor = Color.Black10Pct;
         public static readonly Color SelectedBoneColor = Color.FromRgb(0xfd970e);
         public static readonly Color ParentLineColor = Color.FromRgb(0x212121);
         public const float BoneWidth = 0.14f;

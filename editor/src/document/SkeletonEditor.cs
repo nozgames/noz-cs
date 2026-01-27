@@ -205,7 +205,7 @@ internal class SkeletonEditor : DocumentEditor
 
     private void UpdateDefaultState()
     {
-        if (Workspace.ActiveTool == null && Workspace.DragStarted)
+        if (Workspace.ActiveTool == null && Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
         {
             Workspace.BeginTool(new BoxSelectTool(HandleBoxSelect));
             return;
@@ -545,7 +545,9 @@ internal class SkeletonEditor : DocumentEditor
             {
                 var b = Document.Bones[boneIndex];
                 var selected = b.IsSelected;
-                var boneColor = selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.BoneColor;
+                var boneColor = selected
+                    ? EditorStyle.Skeleton.SelectedBoneColor
+                    : EditorStyle.Skeleton.BoneColor;
 
                 ref readonly var boneLocalToWorld = ref Document.LocalToWorld[boneIndex];
                 var p0 = Vector2.Transform(Vector2.Zero, boneLocalToWorld);

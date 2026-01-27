@@ -20,7 +20,7 @@ public class AnimationBoneData
 {
     public string Name = "";
     public int Index;
-    public bool Selected;
+    public bool IsSelected;
     public BoneTransform SavedTransform;
 
     public AnimationBoneData()
@@ -189,6 +189,18 @@ internal class AnimationDocument : Document
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(bone.Length, 0), boneTransform));
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(boneWidth, boneWidth), boneTransform));
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(boneWidth, -boneWidth), boneTransform));
+        }
+
+        var sprites = Skeleton.Sprites;
+        for (var i = 0; i < sprites.Count; i++)
+        {
+            var sprite = sprites[i];
+            var spriteBounds = sprite.Bounds;
+            var boneTransform = Skeleton.WorldToLocal[sprite.Binding.BoneIndex] * LocalToWorld[sprite.Binding.BoneIndex];
+            bounds = ExpandBounds(bounds, Vector2.Transform(spriteBounds.TopLeft, boneTransform));
+            bounds = ExpandBounds(bounds, Vector2.Transform(spriteBounds.TopRight, boneTransform));
+            bounds = ExpandBounds(bounds, Vector2.Transform(spriteBounds.BottomLeft, boneTransform));
+            bounds = ExpandBounds(bounds, Vector2.Transform(spriteBounds.BottomRight, boneTransform));
         }
 
         Bounds = bounds.Expand(BoundsPadding);
@@ -631,7 +643,7 @@ internal class AnimationDocument : Document
         {
             Bones[i].Name = src.Bones[i].Name;
             Bones[i].Index = src.Bones[i].Index;
-            Bones[i].Selected = src.Bones[i].Selected;
+            Bones[i].IsSelected = src.Bones[i].IsSelected;
             Bones[i].SavedTransform = src.Bones[i].SavedTransform;
             LocalToWorld[i] = src.LocalToWorld[i];
         }
@@ -675,11 +687,11 @@ internal class AnimationDocument : Document
         if (Skeleton == null) return;
 
         var transform = Transform;
-        if (!IsEditing)
-        {
-            ref var rootTransform = ref GetFrameTransform(0, CurrentFrame);
-            transform = Matrix3x2.CreateTranslation(-rootTransform.Position) * transform;
-        }
+        //if (!IsEditing)
+        //{
+        //    ref var rootTransform = ref GetFrameTransform(0, CurrentFrame);
+        //    transform = Matrix3x2.CreateTranslation(-rootTransform.Position) * transform;
+        //}
 
         Graphics.SetTransform(transform);
         Graphics.SetSortGroup(1);

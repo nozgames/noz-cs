@@ -542,8 +542,11 @@ public class SkeletonDocument : Document
                     Gizmos.DrawDashedLine(pp, p0, order: 1);
                 }
 
+                var boneColor = b.IsSelected
+                    ? EditorStyle.Skeleton.SelectedBoneColor
+                    : EditorStyle.Skeleton.BoneColor;
                 Graphics.SetSortGroup((ushort)(b.IsSelected ? 1 : 0));
-                Gizmos.DrawBone(p0, p1, EditorStyle.Skeleton.BoneColor, order: (ushort)(boneIndex * 2 + 1));
+                Gizmos.DrawBone(p0, p1, boneColor, order: (ushort)(boneIndex * 2 + 1));
             }
         }
 

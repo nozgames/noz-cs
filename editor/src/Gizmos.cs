@@ -182,7 +182,7 @@ public static class Gizmos
 
         // Draw outline - circle arc from top to bottom (front half)
         var lineOrder = (ushort)(order + 1);
-        Graphics.SetColor(EditorStyle.Skeleton.BoneOriginColor);
+        Graphics.SetColor(EditorStyle.Skeleton.BoneOutlineColor);
         for (var i = topIdx; i != botIdx; i = (i + 1) % CircleSegments)
         {
             var next = (i + 1) % CircleSegments;
