@@ -317,7 +317,7 @@ public class SpriteDocument : Document
         DrawSprite();
     }
 
-    public void DrawSprite(int bone=0)
+    public void DrawSprite(int bone=-1)
     {
         if (Atlas == null) return;
 

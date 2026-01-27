@@ -201,10 +201,11 @@ public static unsafe partial class Graphics
         // Write transforms to the current row in _boneData
         // Each bone is 2 texels (8 floats): [M11,M12,M31,0], [M21,M22,M32,0]
         var rowOffset = _boneRow * BoneTextureWidth * 4;
+        ref readonly var viewTransform = ref CurrentState.Transform;
         for (var i = 0; i < transforms.Length; i++)
         {
             ref readonly var mm = ref transforms[i];
-            var m = mm * skeleton[i];
+            var m = skeleton[i] * mm * viewTransform;
             var texelOffset = rowOffset + i * 8;
             // Texel 0: M11, M12, M31, 0
             _boneData[texelOffset + 0] = m.M11;

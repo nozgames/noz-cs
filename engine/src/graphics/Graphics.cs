@@ -406,17 +406,28 @@ public static unsafe partial class Graphics
         var baseVertex = _vertices.Length;
 
         if (bone == -1)
-            bone = 0;
-        else
-            bone += CurrentState.BoneIndex;
-
-        foreach (var v in vertices)
         {
-            var transformed = v;
-            transformed.Position = Vector2.Transform(v.Position, CurrentState.Transform);
-            transformed.Color = CurrentState.Color;
-            transformed.Bone = bone;
-            _vertices.Add(transformed);
+            foreach (var v in vertices)
+            {
+                _vertices.Add(v with
+                {
+                    Position = Vector2.Transform(v.Position, CurrentState.Transform),
+                    Color = CurrentState.Color,
+                    Bone = 0
+                });
+            }
+        }
+        else
+        {
+            bone += CurrentState.BoneIndex;
+            foreach (var v in vertices)
+            {
+                _vertices.Add(v with
+                {
+                    Color = CurrentState.Color,
+                    Bone = bone
+                });
+            }
         }
 
         foreach (var idx in indices)

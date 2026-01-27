@@ -72,7 +72,18 @@ public static partial class Graphics
         AddQuad(p0, p1, p2, p3, new Vector2(u0, v0), new Vector2(u1, v0), new Vector2(u1, v1), new Vector2(u0, v1), order: order, bone: bone);
     }
 
-    public static void Draw(float x, float y, float width, float height, float u0, float v0, float u1, float v1, in Matrix3x2 transform, ushort order = 0, int bone = -1)
+    public static void Draw(
+        float x,
+        float y,
+        float width,
+        float height,
+        float u0,
+        float v0,
+        float u1,
+        float v1,
+        in Matrix3x2 transform,
+        ushort order = 0,
+        int bone = -1)
     {
         CurrentState.Transform = transform;
         var p0 = new Vector2(x, y);
@@ -82,7 +93,13 @@ public static partial class Graphics
         AddQuad(p0, p1, p2, p3, new Vector2(u0, v0), new Vector2(u1, v0), new Vector2(u1, v1), new Vector2(u0, v1), order: order, bone: bone);
     }
 
-    public static void Draw(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, ushort order = 0, int bone = -1)
+    public static void Draw(
+        Vector2 p0,
+        Vector2 p1,
+        Vector2 p2,
+        Vector2 p3,
+        ushort order = 0,
+        int bone = -1)
     {
         AddQuad(p0, p1, p2, p3, new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), order: order, bone: bone);
     }

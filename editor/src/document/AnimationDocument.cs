@@ -617,7 +617,7 @@ internal class AnimationDocument : Document
         LocalToWorld.Dispose();
         LocalToWorld = new NativeArray<Matrix3x2>(src.LocalToWorld);
 
-        for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
+        for (var i = 0; i < BoneCount; i++)
         {
             Bones[i].Name = src.Bones[i].Name;
             Bones[i].Index = src.Bones[i].Index;
@@ -626,11 +626,11 @@ internal class AnimationDocument : Document
             LocalToWorld[i] = src.LocalToWorld[i];
         }
 
-        for (var i = 0; i < MaxFrames; i++)
+        for (var i = 0; i < FrameCount; i++)
         {
             Frames[i].Hold = src.Frames[i].Hold;
             Frames[i].EventName = src.Frames[i].EventName;
-            for (var j = 0; j < NoZ.Skeleton.MaxBones; j++)
+            for (var j = 0; j < BoneCount; j++)
                 Frames[i].Transforms[j] = src.Frames[i].Transforms[j];
         }
 
