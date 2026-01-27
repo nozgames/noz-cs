@@ -264,4 +264,22 @@ public static unsafe partial class Graphics
         CurrentState.Viewport = viewport;
         _batchStateDirty = true;
     }
+
+    public static void SetUniform(string name, ReadOnlySpan<byte> data)
+    {
+        Driver.SetUniform(name, data);
+        _batchStateDirty = true;
+    }
+
+    public static void SetUniform<T>(string name, in T data) where T : unmanaged
+    {
+        unsafe
+        {
+            fixed (T* ptr = &data)
+            {
+                Driver.SetUniform(name, new ReadOnlySpan<byte>(ptr, sizeof(T)));
+            }
+        }
+        _batchStateDirty = true;
+    }
 }

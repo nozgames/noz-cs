@@ -132,6 +132,30 @@ public static partial class Graphics
         }
     }
 
+    /// <summary>
+    /// Draw a sprite using the currently bound shader (does not override shader/texture).
+    /// Requires SetTexture and SetShader to be called before this.
+    /// </summary>
+    public static void DrawRaw(Sprite sprite, ushort order = 0, int bone = -1)
+    {
+        if (sprite == null) return;
+
+        var uv = sprite.UV;
+        var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
+        var p0 = new Vector2(bounds.Left, bounds.Top);
+        var p1 = new Vector2(bounds.Right, bounds.Top);
+        var p2 = new Vector2(bounds.Right, bounds.Bottom);
+        var p3 = new Vector2(bounds.Left, bounds.Bottom);
+
+        AddQuad(
+            p0, p1, p2, p3,
+            uv.TopLeft, new Vector2(uv.Right, uv.Top),
+            uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
+            order: order,
+            atlasIndex: sprite.AtlasIndex,
+            bone: bone);
+    }
+
     public static void Draw(
         ReadOnlySpan<MeshVertex> vertices,
         ReadOnlySpan<ushort> indices,

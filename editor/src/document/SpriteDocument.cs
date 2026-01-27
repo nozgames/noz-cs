@@ -389,7 +389,9 @@ public class SpriteDocument : Document
 
     public void ClearBoneBinding()
     {
+        var skeleton = Binding.Skeleton;
         Binding.Clear();
+        skeleton?.UpdateSprites();
         MarkMetaModified();
     }
 

@@ -1379,6 +1379,7 @@ public class SpriteEditor : DocumentEditor
     {
         Undo.Record(Document);
         Document.SetBoneBinding(skeleton, boneIndex);
+        skeleton.UpdateSprites();
         var boneName = skeleton.Bones[boneIndex].Name;
         Notifications.Add($"bound to {skeleton.Name}:{boneName}");
     }
@@ -1390,7 +1391,7 @@ public class SpriteEditor : DocumentEditor
             Notifications.Add("sprite has no bone binding");
             return;
         }
-
+        
         Undo.Record(Document); 
         Document.ClearBoneBinding();
         Notifications.Add("bone binding cleared");
