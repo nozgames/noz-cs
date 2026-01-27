@@ -342,7 +342,7 @@ internal class AnimationEditor : DocumentEditor
         for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
         {
             var bone = skeleton.Bones[boneIndex];
-            var boneTransform = Document.AnimatorBones[boneIndex] * baseTransform;
+            var boneTransform = Document.LocalToWorld[boneIndex] * baseTransform;
             var boneStart = Vector2.Transform(Vector2.Zero, boneTransform);
             var boneEnd = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
@@ -353,7 +353,7 @@ internal class AnimationEditor : DocumentEditor
 
     private Matrix3x2 GetBaseTransform()
     {
-        var offset = _rootMotion ? Vector2.Zero : new Vector2(-Vector2.Transform(Vector2.Zero, Document.AnimatorBones[0]).X, 0);
+        var offset = _rootMotion ? Vector2.Zero : new Vector2(-Vector2.Transform(Vector2.Zero, Document.LocalToWorld[0]).X, 0);
         return Matrix3x2.CreateTranslation(Document.Position + offset + _rootMotionDelta);
     }
 
@@ -437,7 +437,7 @@ internal class AnimationEditor : DocumentEditor
         {
             if (!IsBoneSelected(boneIndex))
                 continue;
-            center += Vector2.Transform(Vector2.Zero, Document.AnimatorBones[boneIndex]);
+            center += Vector2.Transform(Vector2.Zero, Document.LocalToWorld[boneIndex]);
             centerCount += 1f;
         }
 
@@ -528,7 +528,7 @@ internal class AnimationEditor : DocumentEditor
             }
             else
             {
-                Matrix3x2.Invert(Document.AnimatorBones[parentIndex], out var invParent);
+                Matrix3x2.Invert(Document.LocalToWorld[parentIndex], out var invParent);
                 var rotatedDelta = Vector2.TransformNormal(delta, invParent);
                 frame.Position = bone.SavedTransform.Position + rotatedDelta;
             }
@@ -810,7 +810,7 @@ internal class AnimationEditor : DocumentEditor
 
         var savedWorldTransforms = new Matrix3x2[SkeletonDocument.MaxBones];
         for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
-            savedWorldTransforms[boneIndex] = Document.AnimatorBones[boneIndex];
+            savedWorldTransforms[boneIndex] = Document.LocalToWorld[boneIndex];
 
         for (var boneIndex = 1; boneIndex < skeleton.BoneCount; boneIndex++)
         {
@@ -826,7 +826,7 @@ internal class AnimationEditor : DocumentEditor
             var desiredWorldRot = GetRotation(savedWorldTransforms[mirrorIndex]);
 
             var parentWorld = bone.ParentIndex >= 0
-                ? Document.AnimatorBones[bone.ParentIndex]
+                ? Document.LocalToWorld[bone.ParentIndex]
                 : Matrix3x2.Identity;
 
             Matrix3x2.Invert(parentWorld, out var invParent);
@@ -876,7 +876,7 @@ internal class AnimationEditor : DocumentEditor
                     continue;
 
                 var bone = skeleton.Bones[boneIndex];
-                var boneTransform = Document.AnimatorBones[boneIndex];
+                var boneTransform = Document.LocalToWorld[boneIndex];
                 var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
                 var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
@@ -891,7 +891,7 @@ internal class AnimationEditor : DocumentEditor
                     continue;
 
                 var bone = skeleton.Bones[boneIndex];
-                var boneTransform = Document.AnimatorBones[boneIndex];
+                var boneTransform = Document.LocalToWorld[boneIndex];
                 var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
                 var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
@@ -924,7 +924,7 @@ internal class AnimationEditor : DocumentEditor
         for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
         {
             var bone = skeleton.Bones[boneIndex];
-            var boneTransform = Document.AnimatorBones[boneIndex];
+            var boneTransform = Document.LocalToWorld[boneIndex];
             var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
             var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 
@@ -940,7 +940,7 @@ internal class AnimationEditor : DocumentEditor
         for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
         {
             var bone = skeleton.Bones[boneIndex];
-            var boneTransform = Document.AnimatorBones[boneIndex];
+            var boneTransform = Document.LocalToWorld[boneIndex];
             var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
             var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
 

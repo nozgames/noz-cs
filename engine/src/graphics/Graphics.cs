@@ -537,6 +537,40 @@ public static unsafe class Graphics
 
     public const int MaxBoneTransforms = MaxBonesPerEntity;
 
+    public static void SetBones(Skeleton skeleton, ReadOnlySpan<Matrix3x2> transforms) =>
+        SetBones(skeleton.BindPoses.AsReadonlySpan(), transforms);
+
+    public static void SetBones(ReadOnlySpan<Matrix3x2> skeleton, ReadOnlySpan<Matrix3x2> transforms)
+    {
+        Debug.Assert(skeleton.Length <= MaxBonesPerEntity);
+        Debug.Assert(transforms.Length == skeleton.Length);
+
+        // BoneIndex is flat index: row * 64, so vertex bone index + BoneIndex = flat index
+        CurrentState.BoneIndex = (ushort)(_boneRow * MaxBonesPerEntity);
+
+        // Write transforms to the current row in _boneData
+        // Each bone is 2 texels (8 floats): [M11,M12,M31,0], [M21,M22,M32,0]
+        var rowOffset = _boneRow * BoneTextureWidth * 4;
+        for (var i = 0; i < transforms.Length; i++)
+        {
+            ref readonly var mm = ref transforms[i];
+            var m = mm * skeleton[i];
+            var texelOffset = rowOffset + i * 8;
+            // Texel 0: M11, M12, M31, 0
+            _boneData[texelOffset + 0] = m.M11;
+            _boneData[texelOffset + 1] = m.M12;
+            _boneData[texelOffset + 2] = m.M31;
+            _boneData[texelOffset + 3] = 0;
+            // Texel 1: M21, M22, M32, 0
+            _boneData[texelOffset + 4] = m.M21;
+            _boneData[texelOffset + 5] = m.M22;
+            _boneData[texelOffset + 6] = m.M32;
+            _boneData[texelOffset + 7] = 0;
+        }
+
+        _boneRow++;
+    }
+
     public static void SetBones(ReadOnlySpan<Matrix3x2> transforms)
     {
         Debug.Assert(transforms.Length <= MaxBonesPerEntity);
@@ -569,7 +603,11 @@ public static unsafe class Graphics
 
     private static void UploadBones()
     {
-        Driver.UpdateTextureRegion(_boneTexture, new RectInt(0,0,BoneTextureWidth,_boneRow), _boneData.AsByteSpan(), BoneTextureWidth);
+        Driver.UpdateTextureRegion(
+            _boneTexture,
+            new RectInt(0,0,BoneTextureWidth,_boneRow),
+            _boneData.AsByteSpan(),
+            BoneTextureWidth);
     }
 
     private static void UploadGlobals()

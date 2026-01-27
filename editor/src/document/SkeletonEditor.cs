@@ -8,13 +8,20 @@ namespace NoZ.Editor;
 
 internal class SkeletonEditor : DocumentEditor
 {
+    private struct SavedBone
+    {
+        public BoneTransform Transform;
+        public Matrix3x2 LocalToWorld;
+        public float Length;
+    }
+
     private const int SortGroupSkin = 0;
     private const int SortGroupBones = 1;
     private const int SortGroupSelectedBones = 2;
 
     public new SkeletonDocument Document => (SkeletonDocument)base.Document;
 
-    private readonly BoneData[] _savedBones = new BoneData[SkeletonDocument.MaxBones];
+    private readonly SavedBone[] _savedBones = new SavedBone[SkeletonDocument.MaxBones];
     private Vector2 _selectionCenter;
     private Vector2 _selectionCenterWorld;
     private bool _clearSelectionOnUp;
@@ -24,9 +31,6 @@ internal class SkeletonEditor : DocumentEditor
 
     public SkeletonEditor(SkeletonDocument document) : base(document)
     {
-        for (var i = 0; i < SkeletonDocument.MaxBones; i++)
-            _savedBones[i] = new BoneData();
-
         var exitEditCommand = new Command { Name = "Exit Edit Mode", Handler = Workspace.ToggleEdit, Key = InputCode.KeyTab };
         var deleteCommand = new Command { Name = "Delete", Handler = HandleDelete, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete };
         var moveCommand = new Command { Name = "Move", Handler = HanleMove, Key = InputCode.KeyG, Icon = EditorAssets.Sprites.IconMove };
@@ -79,7 +83,7 @@ internal class SkeletonEditor : DocumentEditor
         using (Graphics.PushState())
         {
             Graphics.SetSortGroup(SortGroupSkin);
-            Document.DrawSkin();
+            Document.DrawSprites();
         }            
         UpdateBoneNames();
     }
@@ -131,8 +135,7 @@ internal class SkeletonEditor : DocumentEditor
             if (!IsBoneSelected(i))
                 continue;
 
-            var bone = Document.Bones[i];
-            center += Vector2.Transform(Vector2.Zero, bone.LocalToWorld);
+            center += Vector2.Transform(Vector2.Zero, Document.LocalToWorld[i]);
             centerCount += 1f;
         }
 
@@ -146,14 +149,9 @@ internal class SkeletonEditor : DocumentEditor
         {
             var src = Document.Bones[boneIndex];
             var dst = _savedBones[boneIndex];
-            dst.Name = src.Name;
-            dst.Index = src.Index;
-            dst.ParentIndex = src.ParentIndex;
             dst.Transform = src.Transform;
-            dst.LocalToWorld = src.LocalToWorld;
-            dst.WorldToLocal = src.WorldToLocal;
             dst.Length = src.Length;
-            dst.IsSelected = src.IsSelected;
+            dst.LocalToWorld = Document.LocalToWorld[boneIndex];
         }
     }
 
@@ -163,14 +161,8 @@ internal class SkeletonEditor : DocumentEditor
         {
             var src = _savedBones[boneIndex];
             var dst = Document.Bones[boneIndex];
-            dst.Name = src.Name;
-            dst.Index = src.Index;
-            dst.ParentIndex = src.ParentIndex;
             dst.Transform = src.Transform;
-            dst.LocalToWorld = src.LocalToWorld;
-            dst.WorldToLocal = src.WorldToLocal;
             dst.Length = src.Length;
-            dst.IsSelected = src.IsSelected;
         }
 
         Document.UpdateTransforms();
@@ -203,9 +195,9 @@ internal class SkeletonEditor : DocumentEditor
         for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
         {
             var b = Document.Bones[boneIndex];
-            var boneStart = Vector2.Transform(Vector2.Zero, b.LocalToWorld) + Document.Position;
-            var boneEnd = Vector2.Transform(new Vector2(b.Length, 0), b.LocalToWorld) + Document.Position;
-
+            ref readonly var m = ref Document.LocalToWorld[boneIndex];
+            var boneStart = Vector2.Transform(Vector2.Zero, m) + Document.Position;
+            var boneEnd = Vector2.Transform(new Vector2(b.Length, 0), m) + Document.Position;
             if (bounds.Contains(boneStart) || bounds.Contains(boneEnd))
                 SetBoneSelected(boneIndex, true);
         }
@@ -251,7 +243,7 @@ internal class SkeletonEditor : DocumentEditor
             for (var i = 0; i < Document.BoneCount; i++)
             {
                 var b = Document.Bones[i];
-                var p = Vector2.Transform(new Vector2(b.Length * 0.5f, 0), b.LocalToWorld) + Document.Position;
+                var p = Vector2.Transform(new Vector2(b.Length * 0.5f, 0), Document.LocalToWorld[i]) + Document.Position;
 
                 var textSize = TextRender.Measure(b.Name, font, fontSize);
                 var textX = p.X - textSize.X * 0.5f;
@@ -267,6 +259,7 @@ internal class SkeletonEditor : DocumentEditor
     private void CounterActParentTransform(int parentIndex)
     {
         var parent = Document.Bones[parentIndex];
+        ref readonly var parentWorldToLocal = ref Document.WorldToLocal[parentIndex];
 
         for (var childIndex = 0; childIndex < Document.BoneCount; childIndex++)
         {
@@ -275,7 +268,7 @@ internal class SkeletonEditor : DocumentEditor
                 continue;
 
             var savedChild = _savedBones[childIndex];
-            var newLocal = savedChild.LocalToWorld * parent.WorldToLocal;
+            var newLocal = savedChild.LocalToWorld * parentWorldToLocal;
 
             child.Transform.Position = new Vector2(newLocal.M31, newLocal.M32);
             child.Transform.Rotation = GetRotation(newLocal);
@@ -331,9 +324,9 @@ internal class SkeletonEditor : DocumentEditor
             var b = Document.Bones[boneIndex];
             var p = boneIndex > 0 ? Document.Bones[b.ParentIndex] : Document.Bones[0];
             var sb = _savedBones[boneIndex];
-
-            var worldPos = Vector2.Transform(Vector2.Zero, sb.LocalToWorld) + delta;
-            b.Transform.Position = Vector2.Transform(worldPos, p.WorldToLocal);
+            b.Transform.Position = Vector2.Transform(
+                Vector2.Transform(Vector2.Zero, sb.LocalToWorld) + delta,
+                Document.WorldToLocal[int.Max(b.ParentIndex, 0)]);
         }
 
         Document.UpdateTransforms();
@@ -535,47 +528,6 @@ internal class SkeletonEditor : DocumentEditor
 
     #endregion
 
-    #region Reset
-
-    private void ResetRotation()
-    {
-        Undo.Record(Document);
-
-        for (var boneIndex = 1; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            if (!IsBoneSelected(boneIndex))
-                continue;
-
-            Document.Bones[boneIndex].Transform.Rotation = 0;
-        }
-
-        Document.UpdateTransforms();
-        Document.MarkModified();
-    }
-
-    private void ResetTranslation()
-    {
-        Undo.Record(Document);
-
-        if (IsBoneSelected(0))
-            Document.Bones[0].Transform.Position = Vector2.Zero;
-
-        for (var boneIndex = 1; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            if (!IsBoneSelected(boneIndex))
-                continue;
-
-            var b = Document.Bones[boneIndex];
-            var p = Document.Bones[b.ParentIndex];
-            b.Transform.Position = new Vector2(p.Length, 0);
-        }
-
-        Document.UpdateTransforms();
-        Document.MarkModified();
-    }
-
-    #endregion
-
     private void CancelTool()
     {
         Undo.Cancel();
@@ -595,12 +547,13 @@ internal class SkeletonEditor : DocumentEditor
                 var selected = b.IsSelected;
                 var boneColor = selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.BoneColor;
 
-                var p0 = Vector2.Transform(Vector2.Zero, b.LocalToWorld);
-                var p1 = Vector2.Transform(new Vector2(b.Length, 0), b.LocalToWorld);
+                ref readonly var boneLocalToWorld = ref Document.LocalToWorld[boneIndex];
+                var p0 = Vector2.Transform(Vector2.Zero, boneLocalToWorld);
+                var p1 = Vector2.Transform(new Vector2(b.Length, 0), boneLocalToWorld);
 
                 if (b.ParentIndex >= 0)
                 {
-                    var parentTransform = Document.GetParentLocalToWorld(b, b.LocalToWorld);
+                    var parentTransform = Document.GetParentLocalToWorld(b, boneLocalToWorld);
                     var pp = Vector2.Transform(Vector2.Zero, parentTransform);
                     Graphics.SetSortGroup(SortGroupBones);
                     Gizmos.SetColor(EditorStyle.Skeleton.ParentLineColor);

@@ -28,13 +28,13 @@ public struct Bone
     public int Index;
     public int ParentIndex;
     public BoneTransform Transform;
-    public Matrix3x2 BindPose;
 }
 
 public class Skeleton : Asset
 {
     public int BoneCount { get; private set; }
     public Bone[] Bones { get; private set; } = [];
+    public NativeArray<Matrix3x2> BindPoses { get; private set; }
 
     private Skeleton(string name) : base(AssetType.Skeleton, name)
     {
@@ -54,6 +54,8 @@ public class Skeleton : Asset
         skeleton.BoneCount = boneCount;
         skeleton.Bones = new Bone[boneCount];
 
+        skeleton.BindPoses = new NativeArray<Matrix3x2>(boneCount, boneCount);
+
         for (var i = 0; i < boneCount; i++)
         {
             ref var bone = ref skeleton.Bones[i];
@@ -64,7 +66,7 @@ public class Skeleton : Asset
             bone.Transform.Rotation = reader.ReadSingle();
             bone.Transform.Scale = new Vector2(reader.ReadSingle(), reader.ReadSingle());
 
-            bone.BindPose = new Matrix3x2(
+            skeleton.BindPoses[i] = new Matrix3x2(
                 reader.ReadSingle(), reader.ReadSingle(),
                 reader.ReadSingle(), reader.ReadSingle(),
                 reader.ReadSingle(), reader.ReadSingle()
@@ -96,10 +98,5 @@ public class Skeleton : Asset
     public ref Bone GetBone(int boneIndex)
     {
         return ref Bones[boneIndex];
-    }
-
-    public ref Matrix3x2 GetBindPose(int boneIndex)
-    {
-        return ref Bones[boneIndex].BindPose;
     }
 }

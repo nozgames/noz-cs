@@ -50,7 +50,8 @@ internal class AnimationDocument : Document
 
     public readonly AnimationBoneData[] Bones = new AnimationBoneData[SkeletonDocument.MaxBones];
     public readonly AnimationFrameData[] Frames = new AnimationFrameData[MaxFrames];
-    public readonly Matrix3x2[] AnimatorBones = new Matrix3x2[SkeletonDocument.MaxBones];
+    
+    public NativeArray<Matrix3x2> LocalToWorld { get; private set; }
 
     public string? SkeletonName;
     public SkeletonDocument? Skeleton;
@@ -71,11 +72,10 @@ internal class AnimationDocument : Document
 
     public AnimationDocument()
     {
+        LocalToWorld = new NativeArray<Matrix3x2>(SkeletonDocument.MaxBones);
+
         for (var i = 0; i < SkeletonDocument.MaxBones; i++)
-        {
             Bones[i] = new AnimationBoneData();
-            AnimatorBones[i] = Matrix3x2.Identity;
-        }
 
         for (var i = 0; i < MaxFrames; i++)
             Frames[i] = new AnimationFrameData();
@@ -139,12 +139,15 @@ internal class AnimationDocument : Document
         if (Skeleton == null || frameIndex < 0 || frameIndex >= FrameCount)
             return;
 
+        LocalToWorld.Clear();
+        LocalToWorld.AddRange(Skeleton.BoneCount);
+
         for (var boneIndex = 0; boneIndex < Skeleton.BoneCount; boneIndex++)
         {
             var bone = Skeleton.Bones[boneIndex];
             ref var frame = ref GetFrameTransform(boneIndex, frameIndex);
 
-            AnimatorBones[boneIndex] = CreateTRS(
+            LocalToWorld[boneIndex] = CreateTRS(
                 bone.Transform.Position + frame.Position,
                 bone.Transform.Rotation + frame.Rotation,
                 Vector2.One
@@ -154,7 +157,7 @@ internal class AnimationDocument : Document
         for (var boneIndex = 1; boneIndex < Skeleton.BoneCount; boneIndex++)
         {
             var parentIndex = Skeleton.Bones[boneIndex].ParentIndex;
-            AnimatorBones[boneIndex] = AnimatorBones[boneIndex] * AnimatorBones[parentIndex];
+            LocalToWorld[boneIndex] = LocalToWorld[boneIndex] * LocalToWorld[parentIndex];
         }
     }
 
@@ -163,14 +166,14 @@ internal class AnimationDocument : Document
         if (Skeleton == null)
             return;
 
-        var rootPosition = Vector2.Transform(Vector2.Zero, AnimatorBones[0]);
+        var rootPosition = Vector2.Transform(Vector2.Zero, LocalToWorld[0]);
         var bounds = new Rect(rootPosition.X, rootPosition.Y, 0, 0);
 
         for (var boneIndex = 0; boneIndex < BoneCount; boneIndex++)
         {
             var bone = Skeleton.Bones[boneIndex];
             var boneWidth = bone.Length * BoneWidth;
-            var boneTransform = AnimatorBones[boneIndex];
+            var boneTransform = LocalToWorld[boneIndex];
 
             bounds = ExpandBounds(bounds, Vector2.Transform(Vector2.Zero, boneTransform));
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(bone.Length, 0), boneTransform));
@@ -298,7 +301,7 @@ internal class AnimationDocument : Document
         for (var boneIndex = Skeleton.BoneCount - 1; boneIndex >= 0 && hitCount < maxBones; boneIndex--)
         {
             var bone = Skeleton.Bones[boneIndex];
-            var localToWorld = AnimatorBones[boneIndex] * transform;
+            var localToWorld = LocalToWorld[boneIndex] * transform;
             var boneStart = Vector2.Transform(Vector2.Zero, localToWorld);
             var boneEnd = Vector2.Transform(new Vector2(bone.Length, 0), localToWorld);
 
@@ -607,13 +610,16 @@ internal class AnimationDocument : Document
         SelectedBoneCount = src.SelectedBoneCount;
         Flags = src.Flags;
 
+        LocalToWorld.Dispose();
+        LocalToWorld = new NativeArray<Matrix3x2>(src.LocalToWorld);
+
         for (var i = 0; i < SkeletonDocument.MaxBones; i++)
         {
             Bones[i].Name = src.Bones[i].Name;
             Bones[i].Index = src.Bones[i].Index;
             Bones[i].Selected = src.Bones[i].Selected;
             Bones[i].SavedTransform = src.Bones[i].SavedTransform;
-            AnimatorBones[i] = src.AnimatorBones[i];
+            LocalToWorld[i] = src.LocalToWorld[i];
         }
 
         for (var i = 0; i < MaxFrames; i++)
@@ -657,7 +663,7 @@ internal class AnimationDocument : Document
             for (var boneIndex = 0; boneIndex < Skeleton.BoneCount; boneIndex++)
             {
                 var b = Skeleton.Bones[boneIndex];
-                var boneTransform = AnimatorBones[boneIndex];
+                ref readonly var boneTransform = ref LocalToWorld[boneIndex];
                 var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
                 var p1 = Vector2.Transform(new Vector2(b.Length, 0), boneTransform);
                 Gizmos.DrawBone(p0, p1, EditorStyle.Skeleton.BoneColor);
@@ -675,13 +681,7 @@ internal class AnimationDocument : Document
         {
             Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetTransform(Transform);
-
-            // Multiply animated bone transforms by bind pose (world_to_local)
-            // This transforms vertices from bind pose space to animated world space
-            Span<Matrix3x2> boneTransforms = stackalloc Matrix3x2[SkeletonDocument.MaxBones];
-            for (var i = 0; i < Skeleton.BoneCount; i++)
-                boneTransforms[i] = AnimatorBones[i] * Skeleton.Bones[i].WorldToLocal;
-            Graphics.SetBones(boneTransforms.Slice(0, Skeleton.BoneCount));
+            Graphics.SetBones(Skeleton.WorldToLocal, LocalToWorld);
 
             for (var i = 0; i < Skeleton.Sprites.Count; i++)
             {

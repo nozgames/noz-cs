@@ -14,16 +14,12 @@ public class BoneData
     public int Index;
     public int ParentIndex = -1;
     public BoneTransform Transform;
-    public Matrix3x2 LocalToWorld;
-    public Matrix3x2 WorldToLocal;
     public float Length = 0.25f;
     public bool IsSelected;
 
     public BoneData()
     {
         Transform = BoneTransform.Identity;
-        LocalToWorld = Matrix3x2.Identity;
-        WorldToLocal = Matrix3x2.Identity;
     }
 }
 
@@ -36,6 +32,8 @@ public class SkeletonDocument : Document
     public List<SpriteDocument> Sprites = [];
 
     public readonly BoneData[] Bones = new BoneData[MaxBones];
+    public NativeArray<Matrix3x2> LocalToWorld = new(MaxBones);
+    public NativeArray<Matrix3x2> WorldToLocal = new(MaxBones);
     public int BoneCount;
     public int SelectedBoneCount;
     public float Opacity = 1f;
@@ -63,7 +61,7 @@ public class SkeletonDocument : Document
 
     public Matrix3x2 GetParentLocalToWorld(BoneData bone, Matrix3x2 defaultTransform)
     {
-        return bone.ParentIndex >= 0 ? Bones[bone.ParentIndex].LocalToWorld : defaultTransform;
+        return bone.ParentIndex >= 0 ? LocalToWorld[bone.ParentIndex] : defaultTransform;
     }
 
     public override void Load()
@@ -182,14 +180,17 @@ public class SkeletonDocument : Document
         BoneCount = src.BoneCount;
         Opacity = src.Opacity;
 
+        LocalToWorld.Dispose();
+        WorldToLocal.Dispose();
+        LocalToWorld = new NativeArray<Matrix3x2>(src.LocalToWorld);
+        WorldToLocal = new NativeArray<Matrix3x2>(src.WorldToLocal);
+
         for (var i = 0; i < src.BoneCount; i++)
         {
             Bones[i].Name = src.Bones[i].Name;
             Bones[i].Index = src.Bones[i].Index;
             Bones[i].ParentIndex = src.Bones[i].ParentIndex;
-            Bones[i].Transform = src.Bones[i].Transform;
-            Bones[i].LocalToWorld = src.Bones[i].LocalToWorld;
-            Bones[i].WorldToLocal = src.Bones[i].WorldToLocal;
+            Bones[i].Transform = src.Bones[i].Transform;            
             Bones[i].Length = src.Bones[i].Length;
             Bones[i].IsSelected = src.Bones[i].IsSelected;
         }
@@ -202,26 +203,34 @@ public class SkeletonDocument : Document
         if (BoneCount <= 0)
             return;
 
+        LocalToWorld.Clear();
+        WorldToLocal.Clear();
+        LocalToWorld.AddRange(BoneCount);
+        WorldToLocal.AddRange(BoneCount);
+
         var root = Bones[0];
-        root.LocalToWorld = CreateTRS(root.Transform.Position, root.Transform.Rotation, Vector2.One);
-        Matrix3x2.Invert(root.LocalToWorld, out root.WorldToLocal);
+        LocalToWorld[0] = CreateTRS(root.Transform.Position, root.Transform.Rotation, Vector2.One);
+        Matrix3x2.Invert(LocalToWorld[0], out WorldToLocal[0]);
 
         for (var boneIndex = 1; boneIndex < BoneCount; boneIndex++)
         {
-            var bone = Bones[boneIndex];
+            ref var bone = ref Bones[boneIndex];
             var parent = Bones[bone.ParentIndex];
-            bone.LocalToWorld = CreateTRS(bone.Transform.Position, bone.Transform.Rotation, Vector2.One) * parent.LocalToWorld;
-            Matrix3x2.Invert(bone.LocalToWorld, out bone.WorldToLocal);
+            LocalToWorld[boneIndex] = CreateTRS(
+                bone.Transform.Position,
+                bone.Transform.Rotation,
+                Vector2.One) * LocalToWorld[bone.ParentIndex];
+            Matrix3x2.Invert(LocalToWorld[boneIndex], out WorldToLocal[boneIndex]);
         }
 
-        var rootPosition = Vector2.Transform(Vector2.Zero, Bones[0].LocalToWorld);
+        var rootPosition = Vector2.Transform(Vector2.Zero, LocalToWorld[0]);
         var bounds = new Rect(rootPosition.X, rootPosition.Y, 0, 0);
 
         for (var i = 0; i < BoneCount; i++)
         {
             var b = Bones[i];
             var boneWidth = b.Length * BoneWidth;
-            var boneTransform = b.LocalToWorld;
+            var boneTransform = LocalToWorld[i];
 
             bounds = ExpandBounds(bounds, Vector2.Transform(Vector2.Zero, boneTransform));
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(b.Length, 0), boneTransform));
@@ -266,7 +275,7 @@ public class SkeletonDocument : Document
         for (var boneIndex = BoneCount - 1; boneIndex >= 0 && hitCount < maxBones; boneIndex--)
         {
             var b = Bones[boneIndex];
-            var localToWorld = b.LocalToWorld * transform;
+            var localToWorld = LocalToWorld[boneIndex] * transform;
             var boneStart = Vector2.Transform(Vector2.Zero, localToWorld);
             var boneEnd = Vector2.Transform(new Vector2(b.Length, 0), localToWorld);
 
@@ -345,10 +354,11 @@ public class SkeletonDocument : Document
         return Vector2.Distance(point, projection);
     }
 
-    private static void ReparentBoneTransform(BoneData bone, BoneData parent)
+    private void ReparentBoneTransform(int boneIndex, int parentIndex)
     {
-        var newLocal = bone.LocalToWorld * parent.WorldToLocal;
+        var newLocal = LocalToWorld[boneIndex] * WorldToLocal[parentIndex];
 
+        ref var bone = ref Bones[boneIndex];
         bone.Transform.Position.X = newLocal.M31;
         bone.Transform.Position.Y = newLocal.M32;
 
@@ -375,7 +385,7 @@ public class SkeletonDocument : Document
             Bones[i].Index = i;
         }
 
-        ReparentBoneTransform(Bones[boneMap[boneIndex]], Bones[boneMap[parentIndex]]);
+        ReparentBoneTransform(boneMap[boneIndex], boneMap[parentIndex]);
         UpdateTransforms();
 
         return boneMap[boneIndex];
@@ -393,7 +403,7 @@ public class SkeletonDocument : Document
             if (Bones[childIndex].ParentIndex == boneIndex)
             {
                 Bones[childIndex].ParentIndex = parentIndex;
-                ReparentBoneTransform(Bones[childIndex], Bones[parentIndex]);
+                ReparentBoneTransform(childIndex, parentIndex);
             }
         }
 
@@ -405,8 +415,6 @@ public class SkeletonDocument : Document
             Bones[i].Name = nextBone.Name;
             Bones[i].Index = i;
             Bones[i].Transform = nextBone.Transform;
-            Bones[i].LocalToWorld = nextBone.LocalToWorld;
-            Bones[i].WorldToLocal = nextBone.WorldToLocal;
             Bones[i].Length = nextBone.Length;
             Bones[i].IsSelected = nextBone.IsSelected;
 
@@ -522,13 +530,14 @@ public class SkeletonDocument : Document
 
             for (var boneIndex = 0; boneIndex < BoneCount; boneIndex++)
             {
+                ref var m = ref LocalToWorld[boneIndex];
                 var b = Bones[boneIndex];
-                var p0 = Vector2.Transform(Vector2.Zero, b.LocalToWorld);
-                var p1 = Vector2.Transform(new Vector2(b.Length, 0), b.LocalToWorld);
+                var p0 = Vector2.Transform(Vector2.Zero, m);
+                var p1 = Vector2.Transform(new Vector2(b.Length, 0), m);
 
                 if (b.ParentIndex >= 0)
                 {
-                    var parentTransform = GetParentLocalToWorld(b, b.LocalToWorld);
+                    var parentTransform = GetParentLocalToWorld(b, m);
                     var pp = Vector2.Transform(Vector2.Zero, parentTransform);
                     Gizmos.SetColor(EditorStyle.Skeleton.ParentLineColor);
                     Gizmos.DrawDashedLine(pp, p0, order: 1);
@@ -539,28 +548,21 @@ public class SkeletonDocument : Document
             }
         }
 
-        DrawSkin();
+        DrawSprites();
     }
 
-    public void DrawSkin()
+    public void DrawSprites()
     {
         using (Graphics.PushState())
         {
             Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetTransform(Transform);
 
-            // Multiply LocalToWorld by WorldToLocal (bind pose) to get identity transforms
-            // when viewing the skeleton in its bind/rest pose
-            Span<Matrix3x2> boneTransforms = stackalloc Matrix3x2[MaxBones];
-            for (var i = 0; i < BoneCount; i++)
-                boneTransforms[i] = Bones[i].LocalToWorld * Bones[i].WorldToLocal;
-            Graphics.SetBones(boneTransforms);
-
             for (var i = 0; i < Sprites.Count; i++)
             {
                 Debug.Assert(Sprites[i] != null);
                 Debug.Assert(Sprites[i].Binding.IsBoundTo(this));
-                Sprites[i].DrawSprite(bone: Sprites[i].Binding.BoneIndex);
+                Sprites[i].DrawSprite(bone: 0);
             }
         }
     }
@@ -583,12 +585,13 @@ public class SkeletonDocument : Document
             writer.Write(bone.Transform.Scale.X);
             writer.Write(bone.Transform.Scale.Y);
 
-            writer.Write(bone.WorldToLocal.M11);
-            writer.Write(bone.WorldToLocal.M12);
-            writer.Write(bone.WorldToLocal.M21);
-            writer.Write(bone.WorldToLocal.M22);
-            writer.Write(bone.WorldToLocal.M31);
-            writer.Write(bone.WorldToLocal.M32);
+            ref var w = ref WorldToLocal[i];
+            writer.Write(w.M11);
+            writer.Write(w.M12);
+            writer.Write(w.M21);
+            writer.Write(w.M22);
+            writer.Write(w.M31);
+            writer.Write(w.M32);
         }
     }
 
@@ -615,5 +618,13 @@ public class SkeletonDocument : Document
         Sprites = [.. DocumentManager.Documents
             .OfType<SpriteDocument>()
             .Where(d => d.Binding.IsBoundTo(this) && d.ShowInSkeleton)];
+    }
+
+    public override void Dispose()
+    {
+        GC.SuppressFinalize(this);
+        LocalToWorld.Dispose();
+        WorldToLocal.Dispose();
+        base.Dispose();
     }
 }

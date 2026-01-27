@@ -84,9 +84,10 @@ public class BoneSelectTool : Tool
             if (_hoverBoneIndex >= 0)
             {
                 var bone = _hoverSkeleton!.Bones[_hoverBoneIndex];
+                ref readonly var boneLocalToWorld = ref _hoverSkeleton.LocalToWorld[_hoverBoneIndex];
                 var transform = Matrix3x2.CreateTranslation(_hoverSkeleton.Position);
-                var p0 = Vector2.Transform(Vector2.Zero, bone.LocalToWorld * transform);
-                var p1 = Vector2.Transform(new Vector2(bone.Length, 0), bone.LocalToWorld * transform);
+                var p0 = Vector2.Transform(Vector2.Zero, boneLocalToWorld * transform);
+                var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneLocalToWorld * transform);
                 Gizmos.DrawBone(p0, p1, EditorStyle.Skeleton.SelectedBoneColor, order: 100);
             }
         }
