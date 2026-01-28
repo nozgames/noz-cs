@@ -67,6 +67,7 @@ public static class Workspace
             deleteCommand,
             duplicateCommand,
             moveCommand,
+            new() { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new() { Name = "Frame", Handler = FrameSelected, Key = InputCode.KeyF },
             new() { Name = "Reimport All", Handler = ReimportAll },
             new() { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
@@ -117,7 +118,7 @@ public static class Workspace
         _workspaceContextMenu = new ContextMenuDef([.. items], "Asset");
     }
 
-    private const float ZoomMin = 0.01f;
+    private const float ZoomMin = 0.2f;
     private const float ZoomMax = 200f;
     private const float ZoomStep = 0.1f;
     private const float ZoomDefault = 1f;
@@ -815,6 +816,21 @@ public static class Workspace
                 return doc;
         }
         return null;
+    }
+
+    private static void SelectAll()
+    {
+        ClearSelection();
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.Loaded || !doc.PostLoaded)
+                continue;
+            if (!doc.IsVisible && !ShowHidden)
+                continue;
+            if (!CollectionManager.IsDocumentVisible(doc))
+                continue;
+            SetSelected(doc, true);
+        }
     }
 
     private static void ToggleShowHidden()

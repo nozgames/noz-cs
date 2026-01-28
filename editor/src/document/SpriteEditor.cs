@@ -8,6 +8,8 @@ namespace NoZ.Editor;
 
 public class SpriteEditor : DocumentEditor
 {
+    private const int Padding = 8;
+
     private const byte RootId = 1;
     private const byte PaletteButtonId = 2;
     private const byte TileButtonId = 3;
@@ -30,7 +32,7 @@ public class SpriteEditor : DocumentEditor
     private ushort _currentFrame;
     private bool _isPlaying;
     private float _playTimer;
-    private readonly PixelData<Color32> _pixelData = new(
+    private readonly PixelData<Color32> _image = new(
         EditorApplication.Config!.AtlasSize,
         EditorApplication.Config!.AtlasSize);
     private readonly Texture _rasterTexture;
@@ -41,9 +43,9 @@ public class SpriteEditor : DocumentEditor
     public SpriteEditor(SpriteDocument document) : base(document)
     {
         _rasterTexture = Texture.Create(
-            _pixelData.Width,
-            _pixelData.Height,
-            _pixelData.AsByteSpan(),
+            _image.Width,
+            _image.Height,
+            _image.AsByteSpan(),
             TextureFormat.RGBA8,
             TextureFilter.Point,
             "SpriteEditor");
@@ -149,7 +151,7 @@ public class SpriteEditor : DocumentEditor
             AtlasManager.UpdateSprite(Document);
 
         _rasterTexture.Dispose();
-        _pixelData.Dispose();
+        _image.Dispose();
         base.Dispose();
     }
 
@@ -169,16 +171,15 @@ public class SpriteEditor : DocumentEditor
 
         var shape = Document.GetFrame(_currentFrame).Shape;
 
-        Graphics.SetSortGroup(0);
         DrawRaster(shape);
 
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
-            Graphics.SetSortGroup(2);
+            Graphics.SetSortGroup(5);
             Document.DrawOrigin();
             DrawBoneOrigin();
-            Graphics.SetSortGroup(1);
+            Graphics.SetSortGroup(4);
             DrawSegments(shape);
             DrawAnchors(shape);
         }
@@ -595,17 +596,23 @@ public class SpriteEditor : DocumentEditor
             return;
         }
 
-        var offset = new Vector2Int(-bounds.X, -bounds.Y) + Vector2Int.One;
-        _pixelData.Clear(new RectInt(0,0,size.X+2, size.Y + 2));
+        var textureRect = new RectInt(0, 0, size.X + Padding * 2, size.Y + Padding * 2);
+        _image.Clear(textureRect);
         var palette = PaletteManager.GetPalette(Document.Palette);
         if (palette != null)
             shape.Rasterize(
-                _pixelData,
+                _image,
                 palette.Colors,
-                offset,
+                new Vector2Int(-bounds.X, -bounds.Y) + new Vector2Int(Padding, Padding),
                 options: new Shape.RasterizeOptions { AntiAlias = Document.IsAntiAliased });
 
-        _rasterTexture.Update(_pixelData.AsByteSpan(), new RectInt(0, 0, size.X + 2, size.Y +2), _pixelData.Width);
+        for (int p = Padding - 1; p >= 0; p--)
+            _image.ExtrudeEdges(new RectInt(
+                p,
+                p,
+                size.X + (Padding - p) * 2, size.Y + (Padding - p) * 2));
+
+        _rasterTexture.Update(_image.AsByteSpan(), textureRect, _image.Width);
         _rasterDirty = false;
     }
 
@@ -1336,16 +1343,17 @@ public class SpriteEditor : DocumentEditor
             rb.Width * invDpi,
             rb.Height * invDpi);
 
-        var texSizeInv = 1.0f / (float)_pixelData.Width;
+        var texSizeInv = 1.0f / (float)_image.Width;
 
         var uv = new Rect(
-            1.0f * texSizeInv,
-            1.0f * texSizeInv,
+            Padding * texSizeInv,
+            Padding * texSizeInv,
             rb.Width * texSizeInv,
             rb.Height * texSizeInv);
 
         using (Graphics.PushState())
         {
+            Graphics.SetSortGroup(3);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetTransform(Document.Transform);
@@ -1386,6 +1394,7 @@ public class SpriteEditor : DocumentEditor
                     new(tileSize.X, tileSize.Y),
                 ];
 
+                Graphics.SetTextureFilter(TextureFilter.Point);
                 Graphics.SetColor(Color.White.WithAlpha(0.85f));
                 foreach (var offset in offsets)
                     Graphics.Draw(new Rect(quad.X + offset.X, quad.Y + offset.Y, quad.Width, quad.Height), uv, order: 2);
@@ -1481,18 +1490,20 @@ public class SpriteEditor : DocumentEditor
 
         using (Graphics.PushState())
         {
+            Graphics.SetSortGroup(0);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
             foreach (var sprite in skeleton.Sprites)
             {
                 if (sprite == Document) continue;
+                Graphics.SetBlendMode(BlendMode.Alpha);
                 Graphics.SetTransform(Matrix3x2.CreateTranslation(skeletonOffset - sprite.Binding.Offset) * Document.Transform);
-                Graphics.SetColor(Color.White.WithAlpha(0.3f));
-                sprite.DrawSprite();
+                sprite.DrawSprite(alpha: 0.3f);
             }
         }
 
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
+            Graphics.SetSortGroup(6);
             Graphics.SetTransform(Document.Transform * Matrix3x2.CreateTranslation(skeletonOffset));
 
             for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)

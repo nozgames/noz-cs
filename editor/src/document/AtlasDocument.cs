@@ -26,6 +26,7 @@ internal class AtlasDocument : Document
     private RectPacker _packer = null!;
     
     public float PixelsPerUnit { get; private set; }
+    public int Padding { get; private set; }
     public Texture Texture => _texture;
     public int RectCount => _rects.Count;
     public int Index { get; private set;  }
@@ -51,6 +52,7 @@ internal class AtlasDocument : Document
         writer.WriteLine($"w {EditorApplication.Config.AtlasSize}");
         writer.WriteLine($"h {EditorApplication.Config.AtlasSize}");
         writer.WriteLine($"d {Graphics.PixelsPerUnit}");
+        writer.WriteLine($"p {EditorApplication.Config.AtlasPadding}");
     }
 
     private void Load(ref Tokenizer tk)
@@ -69,6 +71,10 @@ internal class AtlasDocument : Document
             else if (tk.ExpectIdentifier("d"))
             {
                 PixelsPerUnit = tk.ExpectInt();
+            }
+            else if (tk.ExpectIdentifier("p"))
+            {
+                Padding = tk.ExpectInt();
             }
             else if (tk.ExpectIdentifier("r"))
             {
@@ -94,12 +100,16 @@ internal class AtlasDocument : Document
         }
 
         var atlasSize = EditorApplication.Config.AtlasSize;
-        if (size.X != atlasSize || size.Y != atlasSize || PixelsPerUnit != EditorApplication.Config.PixelsPerUnit)
+        var configPadding = EditorApplication.Config.AtlasPadding;
+        if (size.X != atlasSize || size.Y != atlasSize ||
+            PixelsPerUnit != EditorApplication.Config.PixelsPerUnit ||
+            Padding != configPadding)
         {
             Clear();
             size.X = atlasSize;
             size.Y = atlasSize;
             PixelsPerUnit = EditorApplication.Config.PixelsPerUnit;
+            Padding = configPadding;
             MarkModified();
         }
 
@@ -125,6 +135,7 @@ internal class AtlasDocument : Document
         writer.WriteLine($"w {_image.Width}");
         writer.WriteLine($"h {_image.Height}");
         writer.WriteLine($"d {PixelsPerUnit}");
+        writer.WriteLine($"p {Padding}");
         writer.WriteLine();
         foreach (var rect in _rects)
             writer.WriteLine($"r \"{rect.Name}\" {rect.Rect.X} {rect.Rect.Y} {rect.Rect.Width} {rect.Rect.Height}");
@@ -158,17 +169,18 @@ internal class AtlasDocument : Document
         _rects.Clear();
         var atlasSize = EditorApplication.Config!.AtlasSize;
         _packer = new RectPacker(atlasSize, atlasSize);
+        Padding = EditorApplication.Config.AtlasPadding;
     }
 
-    private static Rect ToUV(in AtlasSpriteRect rect)
+    private Rect ToUV(in AtlasSpriteRect rect)
     {
         if (rect.Sprite == null)
             return Rect.Zero;
 
         var size = rect.Sprite.RasterBounds.Size;
         var ts = (float)EditorApplication.Config.AtlasSize;
-        var u = (rect.Rect.Left + 1) / ts;
-        var v = (rect.Rect.Top + 1) / ts;
+        var u = (rect.Rect.Left + Padding) / ts;
+        var v = (rect.Rect.Top + Padding) / ts;
         var s = u + size.X / ts;
         var t = v + size.Y / ts;
         return Rect.FromMinMax(u, v, s, t);
@@ -218,7 +230,6 @@ internal class AtlasDocument : Document
     private int GetFreeRectIndex(Vector2Int size)
     {
         var rects = CollectionsMarshal.AsSpan(_rects);
-        size += Vector2Int.One * 2;
         for (int i = 0; i < _rects.Count; i++)
         {
             ref var rect = ref rects[i];
@@ -260,8 +271,8 @@ internal class AtlasDocument : Document
             return true;
         }
 
-        // Pack a new one
-        var rectIndex = _packer.Insert(size + Vector2Int.One * 2, out var packedRect);
+        // Pack a new one (AtlasSize already includes per-frame padding)
+        var rectIndex = _packer.Insert(size, out var packedRect);
         if (rectIndex == -1) return false;
         Debug.Assert(rectIndex == _rects.Count);
         _rects.Add(new AtlasSpriteRect
@@ -290,7 +301,7 @@ internal class AtlasDocument : Document
         ref var rect = ref rects[rectIndex];
         var size = sprite.AtlasSize;
 
-        if (size.X > rect.Rect.Width - 2 || size.Y > rect.Rect.Height - 2)
+        if (size.X > rect.Rect.Width || size.Y > rect.Rect.Height)
         {
             rect.Sprite = null;
             rect.Dirty = true;
@@ -331,33 +342,28 @@ internal class AtlasDocument : Document
                 AtlasManager.LogAtlas($"Rasterize: Name={rect.Name} Rect={rect.Rect} Size={rect.Sprite.AtlasSize}");
 
                 var rasterBounds = rect.Sprite.RasterBounds;
-                var frameOffset = new Vector2Int(frameIndex * rasterBounds.Size.X, 0);
+                var padding2 = Padding * 2;
+                var frameStride = rasterBounds.Size.X + padding2;
+                var outerRect = new RectInt(
+                    rect.Rect.Position + new Vector2Int(frameIndex * frameStride, 0),
+                    new Vector2Int(frameStride, rasterBounds.Size.Y + padding2));
+                var rasterRect = new RectInt(
+                    outerRect.Position + new Vector2Int(Padding, Padding),
+                    rasterBounds.Size);
                 frame.Shape.Rasterize(
                     _image,
                     palette.Colors,
-                    rect.Rect.Position + Vector2Int.One + frameOffset - rasterBounds.Position,
-                    new Shape.RasterizeOptions
-                    {
-                        AntiAlias = rect.Sprite.IsAntiAliased
-                    });
-            }
+                    rasterRect.Position - rasterBounds.Position,
+                    new Shape.RasterizeOptions { AntiAlias = rect.Sprite.IsAntiAliased });
 
-            var maxSize = rect.Rect.Size - Vector2Int.One * 2;
-            var innerSize = Vector2Int.Min(rect.Sprite.AtlasSize, maxSize);
-            var innerRect = new RectInt(
-                rect.Rect.Position + Vector2Int.One,
-                innerSize);
-
-            // Bleed colors from non-transparent pixels into transparent neighbors
-            // This prevents black fringing with linear filtering on AA sprites
-            if (rect.Sprite.IsAntiAliased)
-            {
-                _image.BleedColors(innerRect);
-                _image.ExtrudeEdges(innerRect.Expand(-1));
-            }
-            else
-            {
-                _image.ExtrudeEdges(innerRect);
+                _image.BleedColors(rasterRect);
+                for (int p = Padding - 1; p >= 0; p--)
+                {
+                    var padRect = new RectInt(
+                        outerRect.Position + new Vector2Int(p, p),
+                        outerRect.Size - new Vector2Int(p * 2, p * 2));
+                    _image.ExtrudeEdges(padRect);
+                }
             }
 
             rect.Sprite.AtlasUV = ToUV(rect);
@@ -388,6 +394,7 @@ internal class AtlasDocument : Document
         _rects.Clear();
         var atlasSize = EditorApplication.Config!.AtlasSize;
         _packer = new RectPacker(atlasSize, atlasSize);
+        Padding = EditorApplication.Config.AtlasPadding;
         _image.Clear();
 
         // Re-add all sprites

@@ -92,32 +92,32 @@ public sealed unsafe class PixelData<T> : IDisposable where T : unmanaged
     /// Extrudes edge pixels into a 1-pixel padding around the given inner rect.
     /// Used for texture atlases to prevent seams with point filtering.
     /// </summary>
-    public void ExtrudeEdges(in RectInt inner)
+    public void ExtrudeEdges(in RectInt rect)
     {
-        var x0 = inner.X;
-        var y0 = inner.Y;
-        var x1 = inner.X + inner.Width - 1;
-        var y1 = inner.Y + inner.Height - 1;
+        var x0 = rect.X;
+        var y0 = rect.Y;
+        var x1 = rect.X + rect.Width - 1;
+        var y1 = rect.Y + rect.Height - 1;
 
         // Top and bottom edges
         for (var x = x0; x <= x1; x++)
         {
-            this[x, y0 - 1] = this[x, y0];
-            this[x, y1 + 1] = this[x, y1];
+            this[x, y0] = this[x, y0 + 1];
+            this[x, y1] = this[x, y1 - 1];
         }
 
         // Left and right edges
         for (var y = y0; y <= y1; y++)
         {
-            this[x0 - 1, y] = this[x0, y];
-            this[x1 + 1, y] = this[x1, y];
+            this[x0, y] = this[x0 + 1, y];
+            this[x1, y] = this[x1 - 1, y];
         }
 
         // Corners
-        this[x0 - 1, y0 - 1] = this[x0, y0];
-        this[x1 + 1, y0 - 1] = this[x1, y0];
-        this[x0 - 1, y1 + 1] = this[x0, y1];
-        this[x1 + 1, y1 + 1] = this[x1, y1];
+        this[x0, y0] = this[x0 + 1, y0 + 1];
+        this[x1, y0] = this[x1 - 1, y0 + 1];
+        this[x0, y1] = this[x0 + 1, y1 - 1];
+        this[x1, y1] = this[x1 - 1, y1 - 1];
     }
 }
 

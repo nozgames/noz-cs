@@ -12,6 +12,7 @@ public class EditorConfig
     public string SavePath { get; }
     public string Palette { get; }
     public int AtlasSize { get; }
+    public int AtlasPadding { get; }
     public string AtlasPrefix { get; }
     public int PixelsPerUnit { get; }
     public int FrameRate { get; }
@@ -31,6 +32,7 @@ public class EditorConfig
         SavePath = ResolvePath(props.GetString("editor", "save_path", "./assets"));
         Palette = props.GetString("editor", "palette", "palette");
         AtlasSize = props.GetInt("atlas", "size", 2048);
+        AtlasPadding = props.GetInt("atlas", "padding", 2);
         AtlasPrefix = props.GetString("atlas", "prefix", "sprites");
         PixelsPerUnit = props.GetInt("editor", "pixels_per_unit", 64);
         FrameRate = props.GetInt("animation", "frame_rate", 12);

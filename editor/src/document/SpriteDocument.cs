@@ -91,7 +91,14 @@ public class SpriteDocument : Document
     public float Depth;
     public ushort Order;
     public RectInt RasterBounds { get; private set; }
-    public Vector2Int AtlasSize => new(RasterBounds.Size.X * FrameCount, RasterBounds.Size.Y);
+    public Vector2Int AtlasSize
+    {
+        get
+        {
+            var padding2 = EditorApplication.Config.AtlasPadding * 2;
+            return new((RasterBounds.Size.X + padding2) * FrameCount, RasterBounds.Size.Y + padding2);
+        }
+    }
     public bool ShowInSkeleton { get; set; }
     public bool ShowTiling { get; set; }
     public bool ShowSkeletonOverlay { get; set; }
@@ -245,9 +252,6 @@ public class SpriteDocument : Document
             RasterBounds = RasterBounds.Union(Frames[fi].Shape.RasterBounds);
         }
 
-        if (IsAntiAliased)
-            RasterBounds = RasterBounds.Expand(1);
-
         Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
     }
 
@@ -322,7 +326,7 @@ public class SpriteDocument : Document
         DrawSprite();
     }
 
-    public void DrawSprite(in Vector2 offset = default)
+    public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f)
     {
         if (Atlas == null) return;
 
@@ -330,10 +334,8 @@ public class SpriteDocument : Document
         {
             Graphics.SetTexture(Atlas.Texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetColor(Color.White);
-            // todo: fix
-            //Graphics.SetTextureFilter(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point);
-            Graphics.SetTextureFilter(TextureFilter.Point);
+            Graphics.SetColor(Color.White.WithAlpha(alpha));
+            Graphics.SetTextureFilter(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point);
             var bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
             Graphics.Draw(
                 bounds.Translate(offset),
