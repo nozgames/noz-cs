@@ -12,6 +12,7 @@ public abstract class Document : IDisposable
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
     public int SourcePathIndex { get; set; } = -1;
+    public string CollectionId { get; set; } = "";
     public virtual bool IsPlaying { get; } = false;
     public virtual bool CanPlay => false;
 
@@ -61,18 +62,22 @@ public abstract class Document : IDisposable
         var props = PropertySet.LoadFile(metaPath) ?? new PropertySet();
 
         props.SetVec2("editor", "position", Position);
+        if (!string.IsNullOrEmpty(CollectionId))
+            props.SetString("editor", "collection", CollectionId);
         SaveMetadata(props);
         props.Save(metaPath);
         IsMetaModified = false;
     }
 
-    public void LoadMetadata() 
+    public void LoadMetadata()
     {
         var props = PropertySet.LoadFile(Path + ".meta");
         if (props == null)
             return;
 
         Position = props.GetVector2("editor", "position", default);
+        var collectionId = props.GetString("editor", "collection", "");
+        CollectionId = CollectionManager.GetIdOrDefault(collectionId);
         LoadMetadata(props);
         IsMetaModified = false;
     }

@@ -90,6 +90,8 @@ public class SpriteDocument : Document
     public RectInt RasterBounds { get; private set; }
     public Vector2Int AtlasSize => new(RasterBounds.Size.X * FrameCount, RasterBounds.Size.Y);
     public bool ShowInSkeleton { get; set; }
+    public bool ShowTiling { get; set; }
+    public bool ShowSkeletonOverlay { get; set; }
 
     internal AtlasDocument? Atlas;
     internal Rect AtlasUV;
@@ -360,11 +362,15 @@ public class SpriteDocument : Document
         Binding.SkeletonName = meta.GetString("bone", "skeleton", "");
         Binding.BoneName = meta.GetString("bone", "name", "");
         ShowInSkeleton = meta.GetBool("sprite", "show_in_skeleton", false);
+        ShowTiling = meta.GetBool("sprite", "show_tiling", false);
+        ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
     }
 
     public override void SaveMetadata(PropertySet meta)
     {
         meta.SetBool("sprite", "show_in_skeleton", ShowInSkeleton);
+        meta.SetBool("sprite", "show_tiling", ShowTiling);
+        meta.SetBool("sprite", "show_skeleton_overlay", ShowSkeletonOverlay);
         if (Binding.IsBound)
         {
             meta.SetString("bone", "skeleton", Binding.SkeletonName);

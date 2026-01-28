@@ -51,6 +51,10 @@ public class EditorConfig
 
     public IEnumerable<string> GetPaletteNames() => _props.GetKeys("palettes");
 
+    public string GetCollectionName(string id) => _props.GetString("collections", id, id);
+
+    public IEnumerable<string> GetCollectionIds() => _props.GetKeys("collections");
+
     private string ResolvePath(string path)
     {
         if (Path.IsPathRooted(path))

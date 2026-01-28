@@ -20,6 +20,7 @@ public class SpriteEditor : DocumentEditor
     private const byte FirstOpacityId = 10;
     private const byte PreviewButtonId = 11;
     private const byte PalettePopupId = 12;
+    private const byte SkeletonOverlayButtonId = 13;
     private const byte FirstPaletteId = 64;
     private const byte FirstPaletteColorId = 128;
     private static readonly string[] OpacityStrings = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"];
@@ -34,7 +35,6 @@ public class SpriteEditor : DocumentEditor
         EditorApplication.Config!.AtlasSize);
     private readonly Texture _rasterTexture;
     private bool _rasterDirty = true;
-    private bool _showTiling;
     private bool _showOpacityPopup;
     private bool _showPalettePopup;
 
@@ -149,6 +149,9 @@ public class SpriteEditor : DocumentEditor
             DrawSegments(shape);
             DrawAnchors(shape);
         }
+
+        if (Document.ShowSkeletonOverlay)
+            DrawSkeletonOverlay();
     }
 
     public override void LateUpdate()
@@ -190,8 +193,11 @@ public class SpriteEditor : DocumentEditor
                         Document.IsAntiAliased = !Document.IsAntiAliased;
                     }
 
-                    if (EditorUI.Button(TileButtonId, EditorAssets.Sprites.IconTiling, _showTiling, toolbar: true))
-                        _showTiling = !_showTiling;
+                    if (EditorUI.Button(TileButtonId, EditorAssets.Sprites.IconTiling, Document.ShowTiling, toolbar: true))
+                    {
+                        Document.ShowTiling = !Document.ShowTiling;
+                        Document.MarkMetaModified();
+                    }
 
                     using (UI.BeginContainer(ContainerStyle.Fit))
                     {
@@ -253,6 +259,12 @@ public class SpriteEditor : DocumentEditor
             Undo.Record(Document);
             Document.ShowInSkeleton = !Document.ShowInSkeleton;
             Document.Binding.Skeleton?.UpdateSprites();
+            Document.MarkMetaModified();
+        }
+
+        if (EditorUI.Button(SkeletonOverlayButtonId, EditorAssets.Sprites.IconBone, selected: Document.ShowSkeletonOverlay, disabled: !Document.Binding.IsBound, toolbar: true))
+        {
+            Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
             Document.MarkMetaModified();
         }
     }
@@ -1249,7 +1261,7 @@ public class SpriteEditor : DocumentEditor
             Graphics.SetColor(Color.White);
             Graphics.Draw(quad, uv);
 
-            if (_showTiling)
+            if (Document.ShowTiling)
             {
                 var tileSize = new Vector2(rb.Width * invDpi, rb.Height * invDpi);
                 ReadOnlySpan<Vector2> offsets =
@@ -1362,6 +1374,48 @@ public class SpriteEditor : DocumentEditor
                 ref readonly var anchor = ref shape.GetAnchor(i);
                 if (!anchor.IsSelected) continue;
                 DrawSelectedAnchor(anchor.Position);
+            }
+        }
+    }
+
+    private void DrawSkeletonOverlay()
+    {
+        var skeleton = Document.Binding.Skeleton;
+        if (skeleton == null)
+            return;
+
+        using (Graphics.PushState())
+        {
+            Graphics.SetLayer(EditorLayer.DocumentEditor);
+            Graphics.SetTransform(Document.Transform);
+
+            foreach (var sprite in skeleton.Sprites)
+            {
+                if (sprite == Document)
+                    continue;
+
+                Graphics.SetColor(Color.White.WithAlpha(0.3f));
+                sprite.DrawSprite();
+            }
+        }
+
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
+        {
+            Graphics.SetTransform(Document.Transform);
+
+            for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
+            {
+                ref var m = ref skeleton.LocalToWorld[boneIndex];
+                var bone = skeleton.Bones[boneIndex];
+                var p0 = Vector2.Transform(Vector2.Zero, m);
+                var p1 = Vector2.Transform(new Vector2(bone.Length, 0), m);
+
+                var isBoundBone = boneIndex == Document.Binding.BoneIndex;
+                var boneColor = isBoundBone
+                    ? EditorStyle.Skeleton.BoneColor.WithAlpha(0.4f)
+                    : Color.Transparent;
+
+                Gizmos.DrawBone(p0, p1, boneColor, order: 200);
             }
         }
     }

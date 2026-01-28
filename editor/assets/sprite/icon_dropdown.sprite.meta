@@ -1,6 +1,12 @@
 [editor]
-position = (-1.328125,-4.015625)
+position = (-3.171875,-3.882812)
+collection = icons
 
 [mesh]
 palette = 0
+
+[sprite]
+show_in_skeleton = false
+show_tiling = false
+show_skeleton_overlay = false
 

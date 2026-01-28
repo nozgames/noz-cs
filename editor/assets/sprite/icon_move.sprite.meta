@@ -1,3 +1,9 @@
 [editor]
-position = (-2.820312,-4.828125)
+position = (-4.664062,-4.695312)
+collection = icons
+
+[sprite]
+show_in_skeleton = false
+show_tiling = false
+show_skeleton_overlay = false
 

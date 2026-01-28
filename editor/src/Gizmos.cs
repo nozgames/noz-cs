@@ -193,45 +193,48 @@ public static class Gizmos
         DrawLine(circlePoints[topIdx], end, EditorStyle.Skeleton.BoneOutlineWidth, order: lineOrder);
         DrawLine(circlePoints[botIdx], end, EditorStyle.Skeleton.BoneOutlineWidth, order: lineOrder);
 
-        // Build fill mesh
-        Span<MeshVertex> verts = stackalloc MeshVertex[vertCount];
-        Span<ushort> indices = stackalloc ushort[triCount * 3];
-
-        Graphics.PushState();
-        Graphics.SetTransform(Matrix3x2.CreateRotation(angle, start) * Graphics.Transform);
-
-        verts[0] = new MeshVertex { Position = start };
-        for (var i = 0; i < CircleSegments; i++)
+        if (color.A > 0)
         {
-            var a = i * angleStep;
-            verts[i + 1] = new MeshVertex
+            // Build fill mesh
+            Span<MeshVertex> verts = stackalloc MeshVertex[vertCount];
+            Span<ushort> indices = stackalloc ushort[triCount * 3];
+
+            Graphics.PushState();
+            Graphics.SetTransform(Matrix3x2.CreateRotation(angle, start) * Graphics.Transform);
+
+            verts[0] = new MeshVertex { Position = start };
+            for (var i = 0; i < CircleSegments; i++)
             {
-                Position = start + new Vector2(MathF.Cos(a) * circleRadius, MathF.Sin(a) * circleRadius)
-            };
+                var a = i * angleStep;
+                verts[i + 1] = new MeshVertex
+                {
+                    Position = start + new Vector2(MathF.Cos(a) * circleRadius, MathF.Sin(a) * circleRadius)
+                };
+            }
+            verts[vertCount - 1] = new MeshVertex { Position = start + new Vector2(length, 0) };
+
+            for (var i = 0; i < CircleSegments; i++)
+            {
+                indices[i * 3 + 0] = 0;
+                indices[i * 3 + 1] = (ushort)(i + 1);
+                indices[i * 3 + 2] = (ushort)((i + 1) % CircleSegments + 1);
+            }
+
+            var baseIdx = CircleSegments * 3;
+            indices[baseIdx + 0] = (ushort)(topIdx + 1);
+            indices[baseIdx + 1] = (ushort)(vertCount - 1);
+            indices[baseIdx + 2] = 0;
+            indices[baseIdx + 3] = 0;
+            indices[baseIdx + 4] = (ushort)(vertCount - 1);
+            indices[baseIdx + 5] = (ushort)(botIdx + 1);
+
+            Graphics.SetColor(color);
+            Graphics.Draw(verts, indices, (ushort)(order + 1));
+            Graphics.PopState();
+
+            Graphics.SetColor(EditorStyle.Skeleton.BoneOriginColor);
+            DrawCircle(start, EditorStyle.Skeleton.BoneOriginSize, (ushort)(order + 1));
         }
-        verts[vertCount - 1] = new MeshVertex { Position = start + new Vector2(length, 0) };
-
-        for (var i = 0; i < CircleSegments; i++)
-        {
-            indices[i * 3 + 0] = 0;
-            indices[i * 3 + 1] = (ushort)(i + 1);
-            indices[i * 3 + 2] = (ushort)((i + 1) % CircleSegments + 1);
-        }
-
-        var baseIdx = CircleSegments * 3;
-        indices[baseIdx + 0] = (ushort)(topIdx + 1);
-        indices[baseIdx + 1] = (ushort)(vertCount - 1);
-        indices[baseIdx + 2] = 0;
-        indices[baseIdx + 3] = 0;
-        indices[baseIdx + 4] = (ushort)(vertCount - 1);
-        indices[baseIdx + 5] = (ushort)(botIdx + 1);
-
-        Graphics.SetColor(color);
-        Graphics.Draw(verts, indices, (ushort)(order + 1));
-        Graphics.PopState();
-
-        Graphics.SetColor(EditorStyle.Skeleton.BoneOriginColor);
-        DrawCircle(start, EditorStyle.Skeleton.BoneOriginSize, (ushort)(order + 1));
     }
 
     public static void DrawDashedLine(Vector2 start, Vector2 end, ushort order=0)

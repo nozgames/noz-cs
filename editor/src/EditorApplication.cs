@@ -56,6 +56,7 @@ public static class EditorApplication
         Log.Info($"OutputPath: {OutputPath}");
 
         ShaderCompiler.Init();
+        CollectionManager.Init(Config);
         DocumentManager.Init(Config.SourcePaths, Config.OutputPath);
         PaletteManager.Init(Config);
         AtlasManager.Init();
@@ -89,11 +90,11 @@ public static class EditorApplication
         ConfirmDialog.Shutdown();
         ContextMenu.Shutdown();
         EditorStyle.Shutdown();
+        CollectionManager.Shutdown();
         PaletteManager.Shutdown();
         Importer.Shutdown();
         DocumentManager.Shutdown();
         ShaderCompiler.Shutdown();
-        UserSettings.Save();
         Config = null!;
     }
 

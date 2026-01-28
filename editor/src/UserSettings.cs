@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 public static class UserSettings
 {
-    private const string UserConfigPath = "./.noz/user.cfg";
+    private static string UserConfigPath => Path.Combine(EditorApplication.ProjectPath, ".noz", "user.cfg");
 
     public static void Load()
     {
@@ -17,6 +17,7 @@ public static class UserSettings
             return;
 
         Workspace.LoadUserSettings(props);
+        CollectionManager.LoadUserSettings(props);
     }
 
     public static void Save()
@@ -27,6 +28,7 @@ public static class UserSettings
 
         var props = new PropertySet();
         Workspace.SaveUserSettings(props);
+        CollectionManager.SaveUserSettings(props);
         props.Save(UserConfigPath);
     }
 }

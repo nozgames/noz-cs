@@ -22,10 +22,12 @@ public static class Workspace
 
     private static void CreateNewDocument(AssetType assetType)
     {
-        var position = ContextMenu.WorldPosition;        
+        var position = ContextMenu.WorldPosition;
         var doc = DocumentManager.New(assetType, null, position);
         if (doc != null)
         {
+            doc.CollectionId = CollectionManager.GetFirstVisibleId();
+            doc.MarkMetaModified();
             ClearSelection();
             SetSelected(doc, true);
             Notifications.Add($"created {assetType.ToString().ToLowerInvariant()} '{doc.Name}'");
@@ -58,7 +60,8 @@ public static class Workspace
             new Command { Name = "Toggle Names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
         ]);
 
-        CommandManager.RegisterWorkspace([
+        var workspaceCommands = new List<Command>
+        {
             editCommand,
             renameCommand,
             deleteCommand,
@@ -71,7 +74,17 @@ public static class Workspace
             new Command { Name = "Rebuild Atlas", Handler = RebuildAtlas },
             new Command { Name = "Bring Forward", Handler = BringForward, Key = InputCode.KeyRightBracket },
             new Command { Name = "Send Backward", Handler = SendBackward, Key = InputCode.KeyLeftBracket },
-        ]);
+        };
+
+        for (var i = 1; i <= 9; i++)
+        {
+            var index = i;
+            workspaceCommands.Add(new Command { Name = $"Collection {i}", Handler = () => SetCollectionExclusive(index), Key = InputCode.Key0 + i });
+            workspaceCommands.Add(new Command { Name = $"Toggle Collection {i}", Handler = () => ToggleCollection(index), Key = InputCode.Key0 + i, Shift = true });
+            workspaceCommands.Add(new Command { Name = $"Move to Collection {i}", Handler = () => MoveSelectedToCollection(index), Key = InputCode.Key0 + i, Ctrl = true });
+        }
+
+        CommandManager.RegisterWorkspace([.. workspaceCommands]);
 
         var items = new List<ContextMenuItem>();
         var creatableDefs = DocumentManager.GetCreatableDefs().ToArray();
@@ -82,6 +95,17 @@ public static class Workspace
             {
                 var assetType = def.Type;
                 items.Add(ContextMenuItem.Item(def.Type.ToString(), () => CreateNewDocument(assetType), level: 1));
+            }
+            items.Add(ContextMenuItem.Separator());
+        }
+
+        if (CollectionManager.Collections.Count > 0)
+        {
+            items.Add(ContextMenuItem.Submenu("Move to Collection"));
+            foreach (var collection in CollectionManager.Collections)
+            {
+                var idx = collection.Index;
+                items.Add(ContextMenuItem.Item(collection.Name, () => MoveSelectedToCollection(idx), level: 1));
             }
             items.Add(ContextMenuItem.Separator());
         }
@@ -193,21 +217,22 @@ public static class Workspace
 
     public static void LoadUserSettings(PropertySet props)
     {
-        _camera.Position = props.GetVector2("view", "camera_position", Vector2.Zero);
-        _zoom = props.GetFloat("view", "camera_zoom", ZoomDefault);
-        _showGrid = props.GetBool("view", "show_grid", true);
-        _showNames = props.GetBool("view", "show_names", false);
-        _userUIScale = props.GetFloat("view", "ui_scale", 1f);
+        _camera.Position = props.GetVector2("workspace", "camera_position", Vector2.Zero);
+        _zoom = props.GetFloat("workspace", "camera_zoom", ZoomDefault);
+        _showGrid = props.GetBool("workspace", "show_grid", true);
+        _showNames = props.GetBool("workspace", "show_names", false);
+        _userUIScale = props.GetFloat("workspace", "ui_scale", 1f);
+
         UpdateCamera();
     }
 
     public static void SaveUserSettings(PropertySet props)
     {
-        props.SetVec2("view", "camera_position", _camera.Position);
-        props.SetFloat("view", "camera_zoom", _zoom);
-        props.SetBool("view", "show_grid", _showGrid);
-        props.SetBool("view", "show_names", _showNames);
-        props.SetFloat("view", "ui_scale", _userUIScale);
+        props.SetVec2("workspace", "camera_position", _camera.Position);
+        props.SetFloat("workspace", "camera_zoom", _zoom);
+        props.SetBool("workspace", "show_grid", _showGrid);
+        props.SetBool("workspace", "show_names", _showNames);
+        props.SetFloat("workspace", "ui_scale", _userUIScale);
     }
 
     
@@ -277,6 +302,8 @@ public static class Workspace
         {
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
+            if (!CollectionManager.IsDocumentVisible(doc))
+                continue;
 
             var docBounds = doc.Bounds.Translate(doc.Position);
             if (bounds.Intersects(docBounds))
@@ -300,6 +327,12 @@ public static class Workspace
         var cameraBounds = _camera.WorldBounds;
         foreach (var doc in DocumentManager.Documents)
         {
+            if (!CollectionManager.IsDocumentVisible(doc))
+            {
+                doc.IsClipped = true;
+                continue;
+            }
+
             var docBounds = new Rect(
                 doc.Position.X + doc.Bounds.X,
                 doc.Position.Y + doc.Bounds.Y,
@@ -321,6 +354,8 @@ public static class Workspace
             if (doc.IsEditing || doc.IsClipped)
                 continue;
             if (!ShowHidden && !doc.IsVisible)
+                continue;
+            if (!CollectionManager.IsDocumentVisible(doc))
                 continue;
 
             if (doc.IsSelected)
@@ -353,6 +388,8 @@ public static class Workspace
             foreach (var doc in DocumentManager.Documents)
             {
                 if (!doc.Loaded || !doc.PostLoaded || doc.IsClipped || (!ShowHidden && !doc.IsVisible))
+                    continue;
+                if (!CollectionManager.IsDocumentVisible(doc))
                     continue;
 
                 // Skip if this document is being renamed (TextBox will show instead)
@@ -694,6 +731,8 @@ public static class Workspace
             var doc = DocumentManager.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
+            if (!CollectionManager.IsDocumentVisible(doc))
+                continue;
 
             if (!doc.Bounds.Translate(doc.Position).Contains(point))
                 continue;
@@ -719,6 +758,8 @@ public static class Workspace
         {
             var doc = DocumentManager.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded || doc.IsClipped || !doc.IsVisible)
+                continue;
+            if (!CollectionManager.IsDocumentVisible(doc))
                 continue;
 
             var bounds = doc.Bounds.Translate(doc.Position);
@@ -766,8 +807,60 @@ public static class Workspace
     }
 
     private static void ToggleShowHidden()
-    { 
-        ShowHidden = !ShowHidden; 
+    {
+        ShowHidden = !ShowHidden;
+    }
+
+    private static void SetCollectionExclusive(int index)
+    {
+        var collection = CollectionManager.GetByIndex(index);
+        if (collection == null)
+        {
+            Notifications.AddError($"Collection {index} not defined");
+            return;
+        }
+        CollectionManager.SetExclusive(index);
+        Notifications.Add($"Collection: {collection.Name}");
+    }
+
+    private static void ToggleCollection(int index)
+    {
+        var collection = CollectionManager.GetByIndex(index);
+        if (collection == null)
+        {
+            Notifications.AddError($"Collection {index} not defined");
+            return;
+        }
+        CollectionManager.Toggle(index);
+        var visible = CollectionManager.IsVisible(index);
+        Notifications.Add($"{collection.Name}: {(visible ? "visible" : "hidden")}");
+    }
+
+    private static void MoveSelectedToCollection(int index)
+    {
+        var collection = CollectionManager.GetByIndex(index);
+        if (collection == null)
+        {
+            Notifications.AddError($"Collection {index} not defined");
+            return;
+        }
+
+        var count = 0;
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected || doc.CollectionId == collection.Id)
+                continue;
+            doc.CollectionId = collection.Id;
+            doc.MarkMetaModified();
+            count++;
+        }
+
+        if (count > 0)
+        {
+            Notifications.Add($"Moved {count} asset(s) to '{collection.Name}'");
+            if (!CollectionManager.IsVisible(index))
+                ClearSelection();
+        }
     }
 
     public static void ToggleEdit()
@@ -810,6 +903,7 @@ public static class Workspace
         if (_activeDocument == null)
             return;
 
+        CancelTool();
         CommandManager.RegisterEditor(null);
 
         _activeEditor?.Dispose();

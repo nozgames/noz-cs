@@ -20,6 +20,12 @@ public class BoneSelectTool : Tool
     public override void Begin()
     {
         Cursor.Set(SystemCursor.Crosshair);
+        CollectionManager.ShowAlways(typeof(SkeletonDocument), true);
+    }
+
+    public override void Dispose()
+    {
+        CollectionManager.ShowAlways(typeof(SkeletonDocument), false);
     }
 
     public override void Update()
