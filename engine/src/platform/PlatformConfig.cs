@@ -6,9 +6,13 @@ namespace NoZ.Platform;
 
 public class PlatformConfig
 {
+    public const int WindowPositionCentered = int.MinValue;
+
     public string Title { get; init; } = "Noz";
     public int Width { get; init; } = 1280;
     public int Height { get; init; } = 720;
+    public int X { get; init; } = WindowPositionCentered;
+    public int Y { get; init; } = WindowPositionCentered;
     public bool VSync { get; init; } = true;
     public bool Resizable { get; init; } = true;
     public string? IconPath { get; init; }

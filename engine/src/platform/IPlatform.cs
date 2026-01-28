@@ -31,6 +31,10 @@ public interface IPlatform
     void SwapBuffers();
 
     Vector2Int WindowSize { get; }
+    Vector2Int WindowPosition { get; }
+
+    void SetWindowSize(int width, int height);
+    void SetWindowPosition(int x, int y);
 
     /// <summary>
     /// Gets the display scale factor (DPI scale) for the window.
@@ -64,5 +68,8 @@ public interface IPlatform
     nint GetGraphicsProcAddress(string name);
 
     Stream? OpenAssetStream(AssetType type, string name, string extension, string? libraryPath = null) => null;
+
+    Stream? LoadPersistentData(string name, string? appName = null);
+    void SavePersistentData(string name, Stream data, string? appName = null);
 }
 

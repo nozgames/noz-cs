@@ -86,7 +86,8 @@ Application.Init(new ApplicationConfig
 
     UI = new UIConfig()
     {
-        DefaultFont = EditorAssets.Names.Seguisb
+        DefaultFont = EditorAssets.Names.Seguisb,
+        ScaleMode = UIScaleMode.ConstantPixelSize,
     },
     Graphics = new GraphicsConfig
     {

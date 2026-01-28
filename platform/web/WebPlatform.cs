@@ -18,11 +18,16 @@ public class WebPlatform : IPlatform
     private bool _shouldQuit;
     private DotNetObjectReference<WebPlatform>? _dotNetRef;
 
+    Vector2Int IPlatform.WindowSize => new((int)_windowSize.X, (int)_windowSize.Y);
     public Vector2 WindowSize => _windowSize;
+    public Vector2Int WindowPosition => Vector2Int.Zero; // Not applicable for web
     public float DisplayScale => 1.0f; // TODO: Get from browser
     public bool IsTextboxVisible => false; // TODO: Implement
     public nint WindowHandle => nint.Zero; // Not applicable for web
     public event Action<PlatformEvent>? OnEvent;
+
+    public void SetWindowSize(int width, int height) { } // Not applicable for web
+    public void SetWindowPosition(int x, int y) { } // Not applicable for web
 
     public nint GetGraphicsProcAddress(string name) => nint.Zero; // Not applicable for web
 
@@ -272,4 +277,7 @@ public class WebPlatform : IPlatform
     }
 
     public Stream? OpenAssetStream(AssetType type, string name, string extension) => null;
+
+    public Stream? LoadPersistentData(string name, string? appName = null) => null; // TODO: Use localStorage
+    public void SavePersistentData(string name, Stream data, string? appName = null) { } // TODO: Use localStorage
 }

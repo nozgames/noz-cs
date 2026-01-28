@@ -138,14 +138,14 @@ internal struct GridData
 
 internal struct TransformData
 {
-    public Vector2 Origin;
+    public Vector2 Pivot;
     public Vector2 Translate;
     public float Rotate;
     public Vector2 Scale;
 
     public static TransformData Default => new()
     {
-        Origin = new Vector2(0.5f, 0.5f),
+        Pivot = new Vector2(0.5f, 0.5f),
         Translate = Vector2.Zero,
         Rotate = 0,
         Scale = Vector2.One

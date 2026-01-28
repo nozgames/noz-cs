@@ -44,7 +44,8 @@ public static partial class UI
             {
                 ref var popup = ref _elements[_popups[i]];
                 var localMouse = Vector2.Transform(mouse, popup.WorldToLocal);
-                if (new Rect(0, 0, popup.Rect.Width, popup.Rect.Height).Contains(localMouse))
+                var halfSize = new Vector2(popup.Rect.Width * 0.5f, popup.Rect.Height * 0.5f);
+                if (new Rect(-halfSize.X, -halfSize.Y, popup.Rect.Width, popup.Rect.Height).Contains(localMouse))
                 {
                     clickInsidePopup = true;
                     break;
@@ -98,7 +99,8 @@ public static partial class UI
             es.Rect = e.Rect;
             es.LocalToWorld = e.LocalToWorld;
             var localMouse = Vector2.Transform(mouse, e.WorldToLocal);
-            var mouseOver = new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse);
+            var halfSize = new Vector2(e.Rect.Width * 0.5f, e.Rect.Height * 0.5f);
+            var mouseOver = new Rect(-halfSize.X, -halfSize.Y, e.Rect.Width, e.Rect.Height).Contains(localMouse);
 
             es.SetFlags(ElementFlags.Hovered, mouseOver ? ElementFlags.Hovered : ElementFlags.None);
             es.SetFlags(ElementFlags.Down, mouseOver && _mouseLeftDown ? ElementFlags.Down : ElementFlags.None);
@@ -197,7 +199,8 @@ public static partial class UI
                 continue;
 
             var localMouse = Vector2.Transform(mouse, e.WorldToLocal);
-            if (!new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse))
+            var halfSize = new Vector2(e.Rect.Width * 0.5f, e.Rect.Height * 0.5f);
+            if (!new Rect(-halfSize.X, -halfSize.Y, e.Rect.Width, e.Rect.Height).Contains(localMouse))
                 continue;
 
             ref var cs = ref _canvasStates[e.CanvasId];

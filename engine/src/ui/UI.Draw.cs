@@ -52,7 +52,7 @@ public static partial class UI
 
             case ElementType.Scrollable:
             {
-                var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
+                var pos = Vector2.Transform(new Vector2(-e.Rect.Width * 0.5f, -e.Rect.Height * 0.5f), e.LocalToWorld);
                 var screenPos = Camera!.WorldToScreen(pos);
                 var scale = Application.WindowSize.Y / _size.Y;
                 var screenHeight = Application.WindowSize.Y;
@@ -97,7 +97,7 @@ public static partial class UI
         if (style.Color.IsTransparent)
             return;
 
-        var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
+        var pos = Vector2.Transform(new Vector2(-e.Rect.Width * 0.5f, -e.Rect.Height * 0.5f), e.LocalToWorld);
         UIRender.DrawRect(new Rect(pos.X, pos.Y, e.Rect.Width, e.Rect.Height), style.Color);
     }
 
@@ -107,7 +107,7 @@ public static partial class UI
         if (style.Color.IsTransparent && style.Border.Width <= 0)
             return;
 
-        var pos = Vector2.Transform(Vector2.Zero, e.LocalToWorld);
+        var pos = Vector2.Transform(new Vector2(-e.Rect.Width * 0.5f, -e.Rect.Height * 0.5f), e.LocalToWorld);
         UIRender.DrawRect(
             new Rect(pos.X, pos.Y, e.Rect.Width, e.Rect.Height),
             style.Color,
@@ -149,8 +149,9 @@ public static partial class UI
     {
         var font = e.Font ?? _defaultFont!;
         var text = e.Data.Label.Text.AsReadOnlySpan();
-        var offset = GetTextOffset(text, font, e.Data.Label.FontSize, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
-        var transform = e.LocalToWorld * Matrix3x2.CreateTranslation(offset);
+        var centerOffset = new Vector2(-e.Rect.Width * 0.5f, -e.Rect.Height * 0.5f);
+        var textOffset = GetTextOffset(text, font, e.Data.Label.FontSize, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
+        var transform = Matrix3x2.CreateTranslation(centerOffset + textOffset) * e.LocalToWorld;
 
         using (Graphics.PushState())
         {
@@ -187,9 +188,15 @@ public static partial class UI
         }
 
         var scaledSize = scale * spriteSize;
+
+        // For center-origin: offset by bounds CENTER (not top-left) to center the visual content
+        var boundsCenter = new Vector2(
+            sprite.Bounds.X + sprite.Bounds.Width * 0.5f,
+            sprite.Bounds.Y + sprite.Bounds.Height * 0.5f
+        );
         var offset = new Vector2(
-            (imgSize.X - scaledSize.X) * img.AlignX.ToFactor() - sprite.Bounds.X * scale.X,
-            (imgSize.Y - scaledSize.Y) * img.AlignY.ToFactor() - sprite.Bounds.Y * scale.Y
+            (imgSize.X - scaledSize.X) * (img.AlignX.ToFactor() - 0.5f) - boundsCenter.X * scale.X,
+            (imgSize.Y - scaledSize.Y) * (img.AlignY.ToFactor() - 0.5f) - boundsCenter.Y * scale.Y
         );
 
         LogUI(e, "      ", values: [
@@ -200,7 +207,8 @@ public static partial class UI
 
         using (Graphics.PushState())
         {
-            Graphics.SetTransform(Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld);
+            var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld;
+            Graphics.SetTransform(transform);
             Graphics.SetColor(img.Color);
             Graphics.Draw(e.Sprite);
         }

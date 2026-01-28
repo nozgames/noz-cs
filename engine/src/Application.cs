@@ -18,7 +18,14 @@ public static class Application
     public static IPlatform Platform { get; private set; } = null!;
     public static IAudioDriver AudioDriverBackend { get; private set; } = null!;
     public static Vector2Int WindowSize => Platform.WindowSize;
+    public static Vector2Int WindowPosition => Platform.WindowPosition;
     public static string AssetPath { get; private set; } = null!;
+
+    public static void SetWindowSize(int width, int height) => Platform.SetWindowSize(width, height);
+    public static void SetWindowPosition(int x, int y) => Platform.SetWindowPosition(x, y);
+
+    public static Stream? LoadPersistentData(string name, string? appName = null) => Platform.LoadPersistentData(name, appName);
+    public static void SavePersistentData(string name, Stream data, string? appName = null) => Platform.SavePersistentData(name, data, appName);
 
     public static void Init(ApplicationConfig config)
     {
@@ -39,12 +46,17 @@ public static class Application
 
         AssetPath = config.AssetPath ?? Path.Combine(Directory.GetCurrentDirectory(), "library");
 
+        // Allow game to load config (window size/position) before platform init
+        _instance.LoadConfig(config);
+
         // Initialize platform
         Platform.Init(new PlatformConfig
         {
             Title = config.Title,
             Width = config.Width,
             Height = config.Height,
+            X = config.X,
+            Y = config.Y,
             VSync = config.VSync,
             Resizable = config.Resizable,
             IconPath = config.IconPath
@@ -128,6 +140,7 @@ public static class Application
 
     public static void Shutdown()
     {
+        _instance.SaveConfig();
         _instance.UnloadAssets();
 
         UI.Shutdown();

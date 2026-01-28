@@ -28,6 +28,26 @@ public static partial class UI
             ResolveAlign(ref e, in p, e.Data.Container.AlignY, 1))
         : Vector2.Zero;
 
+    private static void LayoutGrid(ref Element e)
+    {
+        ref readonly var grid = ref e.Data.Grid;
+        var cellSize = new Vector2(grid.CellWidth, grid.CellHeight);
+        var elementIndex = e.Index + 1;
+
+        for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
+        {
+            var col = childIndex % grid.Columns;
+            var row = childIndex / grid.Columns;
+            var offset = new Vector2(
+                col * (grid.CellWidth + grid.Spacing),
+                row * (grid.CellHeight + grid.Spacing));
+
+            ref var child = ref GetElement(elementIndex);
+            LayoutElement(elementIndex, offset, cellSize);
+            elementIndex = child.NextSiblingIndex;
+        }
+    }
+
     private static void LayoutRowColumn(ref Element e, ref readonly Element p, int axis)
     {
         var offset = Vector2.Zero;
@@ -171,6 +191,10 @@ public static partial class UI
         {
             LayoutRowColumn(ref e, in p, 0);
         }
+        else if (e.Type == ElementType.Grid)
+        {
+            LayoutGrid(ref e);
+        }
         else
         {
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
@@ -178,13 +202,34 @@ public static partial class UI
                 ref var child = ref GetElement(elementIndex);
                 LayoutElement(elementIndex, Vector2.Zero, AutoSize);
                 elementIndex = child.NextSiblingIndex;
-            }                
+            }
         }
     }
 
     private static void UpdateTransforms(ref Element e, ref readonly Element p)
     {
-        e.LocalToWorld = p.LocalToWorld * Matrix3x2.CreateTranslation(e.Rect.X, e.Rect.Y);
+        Matrix3x2 localTransform;
+
+        // Child rect is relative to parent's top-left, but parent's LocalToWorld is at parent's center
+        // So offset child's center by half parent size to get position relative to parent's center
+        var childCenter = new Vector2(e.Rect.X + e.Rect.Width * 0.5f, e.Rect.Y + e.Rect.Height * 0.5f);
+        var parentHalfSize = new Vector2(p.Rect.Width * 0.5f, p.Rect.Height * 0.5f);
+        var offset = childCenter - parentHalfSize;
+
+        if (e.Type == ElementType.Transform)
+        {
+            ref var t = ref e.Data.Transform;
+            localTransform =
+                Matrix3x2.CreateScale(t.Scale) *
+                Matrix3x2.CreateRotation(MathEx.Deg2Rad * t.Rotate) *
+                Matrix3x2.CreateTranslation(t.Translate + offset);
+        }
+        else
+        {
+            localTransform = Matrix3x2.CreateTranslation(offset);
+        }
+
+        e.LocalToWorld = localTransform * p.LocalToWorld;
         Matrix3x2.Invert(e.LocalToWorld, out e.WorldToLocal);
 
         var elementIndex = e.Index + 1;
@@ -194,15 +239,6 @@ public static partial class UI
             UpdateTransforms(ref child, in e);
             elementIndex = child.NextSiblingIndex;
         }
-
-        //e.LocalToWorld = p.LocalToWorld * Matrix3x2.CreateTranslation(e.Rect.X, e.Rect.Y);
-        //Matrix3x2.Invert(e.LocalToWorld, out e.WorldToLocal);
-        //var localTransform =
-        //    Matrix3x2.CreateTranslation(t.Translate + new Vector2(e.Rect.X, e.Rect.Y)) *
-        //    Matrix3x2.CreateTranslation(pivot) *
-        //    Matrix3x2.CreateRotation(t.Rotate) *
-        //    Matrix3x2.CreateScale(t.Scale) *
-        //    Matrix3x2.CreateTranslation(-pivot);
     }
 
     private static void LayoutCanvas(int elementIndex)
@@ -214,8 +250,8 @@ public static partial class UI
 
         e.Rect = new Rect(0, 0, ScreenSize.X, ScreenSize.Y);
         e.ContentRect = e.Rect;
-        e.LocalToWorld = Matrix3x2.Identity;
-        e.WorldToLocal = Matrix3x2.Identity;
+        e.LocalToWorld = Matrix3x2.CreateTranslation(ScreenSize * 0.5f);
+        Matrix3x2.Invert(e.LocalToWorld, out e.WorldToLocal);
 
         for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
         {

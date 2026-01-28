@@ -91,12 +91,22 @@ public static partial class UI
         ElementType.Container => MeasureContainer(in e, in p),
         ElementType.Column => MeasureContainer(in e, in p),
         ElementType.Row => MeasureContainer(in e, in p),
+        ElementType.Grid => MeasureGrid(in e, in p),
         ElementType.Popup => MeasurePopup(in e, in p),
         ElementType.TextBox => MeasureTextBox(in e, in p),
         ElementType.Flex when p.Type is ElementType.Row => MeasureRowFlex(in e, in p),
         ElementType.Flex when p.Type is ElementType.Column => MeasureColumnFlex(in e, in p),
         _ => ResolveSize(in e, in p, Size2.Default)
     };
+
+    private static Vector2 MeasureGrid(ref readonly Element e, ref readonly Element p)
+    {
+        ref readonly var grid = ref e.Data.Grid;
+        var rowCount = (e.ChildCount + grid.Columns - 1) / grid.Columns;
+        var width = grid.Columns * grid.CellWidth + (grid.Columns - 1) * grid.Spacing;
+        var height = rowCount * grid.CellHeight + Math.Max(0, rowCount - 1) * grid.Spacing;
+        return new Vector2(width, height);
+    }
 
     private static Vector2 MeasureTextBox(ref readonly Element e, ref readonly Element p)
     {
@@ -111,6 +121,21 @@ public static partial class UI
     }
 
     private static Vector2 FitPopup(ref readonly Element e, ref readonly Element p)
+    {
+        var fit = Vector2.Zero;
+        var elementIndex = e.Index + 1;
+        for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
+        {
+            ref readonly var child = ref GetElement(elementIndex);
+            var childFit = FitElement(in child, in e);
+            fit.X = Math.Max(fit.X, childFit.X);
+            fit.Y = Math.Max(fit.Y, childFit.Y);
+            elementIndex = child.NextSiblingIndex;
+        }
+        return fit;
+    }
+
+    private static Vector2 FitTransform(ref readonly Element e, ref readonly Element p)
     {
         var fit = Vector2.Zero;
         var elementIndex = e.Index + 1;
@@ -256,12 +281,18 @@ public static partial class UI
         return fit;
     }
 
+    private static Vector2 FitImage(ref readonly Element e) =>
+        new(e.Data.Image.Width * e.Data.Image.Scale, e.Data.Image.Height * e.Data.Image.Scale);
+
     private static Vector2 FitElement(ref readonly Element e, ref readonly Element p) => e.Type switch
     {
         ElementType.Container => FitContainer(in e, in p),
         ElementType.Column => FitContainer(in e, in p),
         ElementType.Row => FitContainer(in e, in p),
+        ElementType.Grid => MeasureGrid(in e, in p),
         ElementType.Popup => FitPopup(in e, in p),
+        ElementType.Transform => FitTransform(in e, in p),
+        ElementType.Image => FitImage(in e),
         ElementType.Label => FitLabel(in e, in p),
         ElementType.TextBox => FitTextBox(in e, in p),
         ElementType.Spacer => e.Data.Spacer.Size,

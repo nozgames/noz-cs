@@ -30,6 +30,8 @@ public static partial class UI
     public struct AutoScrollable : IDisposable { readonly void IDisposable.Dispose() => EndScrollable(); }
     public struct AutoFlex : IDisposable { readonly void IDisposable.Dispose() => EndFlex(); }
     public struct AutoPopup : IDisposable { readonly void IDisposable.Dispose() => EndPopup(); }
+    public struct AutoGrid : IDisposable { readonly void IDisposable.Dispose() => EndGrid(); }
+    public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
 
     private static Font? _defaultFont;
     public static Font? DefaultFont => _defaultFont;
@@ -74,11 +76,45 @@ public static partial class UI
     public static Vector2Int GetRefSize()
     {
         var screenSize = Application.WindowSize.ToVector2();
-        var scale = GetUIScale();
-        return new Vector2Int(
-            (int)(screenSize.X / scale),
-            (int)(screenSize.Y / scale)
-        );
+        var displayScale = Application.Platform.DisplayScale;
+
+        switch (Config.ScaleMode)
+        {
+            case UIScaleMode.ConstantPixelSize:
+                return new Vector2Int(
+                    (int)(screenSize.X / displayScale / UserScale),
+                    (int)(screenSize.Y / displayScale / UserScale)
+                );
+
+            case UIScaleMode.ScaleWithScreenSize:
+            default:
+                var refRes = Config.ReferenceResolution;
+                var logWidth = MathF.Log2(screenSize.X / refRes.X);
+                var logHeight = MathF.Log2(screenSize.Y / refRes.Y);
+
+                float scaleFactor;
+                switch (Config.ScreenMatchMode)
+                {
+                    case ScreenMatchMode.Expand:
+                        scaleFactor = MathF.Pow(2, MathF.Min(logWidth, logHeight));
+                        break;
+                    case ScreenMatchMode.Shrink:
+                        scaleFactor = MathF.Pow(2, MathF.Max(logWidth, logHeight));
+                        break;
+                    case ScreenMatchMode.MatchWidthOrHeight:
+                    default:
+                        var logInterp = MathEx.Mix(logWidth, logHeight, Config.MatchWidthOrHeight);
+                        scaleFactor = MathF.Pow(2, logInterp);
+                        break;
+                }
+
+                scaleFactor *= UserScale;
+
+                return new Vector2Int(
+                    (int)(screenSize.X / scaleFactor),
+                    (int)(screenSize.Y / scaleFactor)
+                );
+        }
     }
 
     public static void Init(UIConfig? config = null)
@@ -201,9 +237,10 @@ public static partial class UI
 
         ref var state = ref GetElementState(canvasId, elementId);
 
-        // Transform local rect corners (0,0 to Width,Height) to canvas/world space using cached transform
-        var topLeft = Vector2.Transform(Vector2.Zero, state.LocalToWorld);
-        var bottomRight = Vector2.Transform(new Vector2(state.Rect.Width, state.Rect.Height), state.LocalToWorld);
+        // LocalToWorld positions at center - transform corners relative to center
+        var halfSize = new Vector2(state.Rect.Width * 0.5f, state.Rect.Height * 0.5f);
+        var topLeft = Vector2.Transform(-halfSize, state.LocalToWorld);
+        var bottomRight = Vector2.Transform(halfSize, state.LocalToWorld);
 
         return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
     }
@@ -219,9 +256,10 @@ public static partial class UI
 
         ref var sourceState = ref GetElementState(canvasId, elementId);
 
-        // Transform local rect corners (0,0 to Width,Height) to canvas/world space using cached transform
-        var topLeft = Vector2.Transform(Vector2.Zero, sourceState.LocalToWorld);
-        var bottomRight = Vector2.Transform(new Vector2(sourceState.Rect.Width, sourceState.Rect.Height), sourceState.LocalToWorld);
+        // LocalToWorld positions at center - transform corners relative to center
+        var halfSize = new Vector2(sourceState.Rect.Width * 0.5f, sourceState.Rect.Height * 0.5f);
+        var topLeft = Vector2.Transform(-halfSize, sourceState.LocalToWorld);
+        var bottomRight = Vector2.Transform(halfSize, sourceState.LocalToWorld);
 
         // If no relative element specified, return canvas-space rect
         if (relativeToElementId == ElementId.None || relativeToCanvasId == CanvasId.None)
@@ -629,17 +667,18 @@ public static partial class UI
 
     public static void EndBorder() => EndElement(ElementType.Container);
 
-    public static void BeginTransformed(TransformStyle style)
+    public static AutoTransformed BeginTransformed(TransformStyle style)
     {
         ref var e = ref CreateElement(ElementType.Transform);
         e.Data.Transform = new TransformData
         {
-            Origin = style.Origin,
+            Pivot = style.Origin,
             Translate = style.Translate,
             Rotate = style.Rotate,
             Scale = style.Scale
         };
         PushElement(e.Index);
+        return new AutoTransformed();
     }
 
     public static void EndTransformed() => EndElement(ElementType.Transform);
@@ -656,9 +695,8 @@ public static partial class UI
 
     public static void EndScrollable() => EndElement(ElementType.Scrollable);
 
-    public static void BeginGrid(GridStyle style)
+    public static AutoGrid BeginGrid(GridStyle style)
     {
-#if false
         ref var e = ref CreateElement(ElementType.Grid);
         e.Data.Grid = new GridData
         {
@@ -670,32 +708,7 @@ public static partial class UI
             StartRow = 0
         };
         PushElement(e.Index);
-
-        if (style.VirtualCount == 0) return;
-
-        var containerHeight = GetFixedParentHeight();
-        if (IsAuto(containerHeight)) return;
-
-        var rowHeight = style.CellHeight + style.Spacing;
-        var scrollOffset = GetScrollOffset(style.ScrollId);
-
-        var startRow = Math.Max(0, (int)MathF.Floor(scrollOffset / rowHeight));
-        var visibleRows = (int)MathF.Ceiling(containerHeight / rowHeight) + 1;
-        var endRow = startRow + visibleRows;
-
-        var startIndex = startRow * style.Columns;
-        var endIndex = Math.Min(endRow * style.Columns, style.VirtualCount);
-
-        e.Data.Grid.StartRow = startRow;
-
-        style.VirtualRangeFunc?.Invoke(startIndex, endIndex);
-
-        for (var virtualIndex = startIndex; virtualIndex < endIndex; virtualIndex++)
-        {
-            var cellIndex = virtualIndex - startIndex;
-            style.VirtualCellFunc?.Invoke(cellIndex, virtualIndex);
-        }
-#endif
+        return new AutoGrid();
     }
 
     public static void EndGrid() => EndElement(ElementType.Grid);
@@ -849,28 +862,27 @@ public static partial class UI
     }
 
 #if false
-    // Transform calculation
+    // Transform calculation - LocalToWorld positions at center of rect
     private static int UpdateTransforms(int elementIndex, Matrix3x2 parentTransform)
     {
         ref var e = ref _elements[elementIndex++];
 
+        // Center of this element's rect in parent-local space
+        var center = new Vector2(e.Rect.X + e.Rect.Width * 0.5f, e.Rect.Y + e.Rect.Height * 0.5f);
+
         if (e.Type == ElementType.Transform)
         {
             ref var t = ref e.Data.Transform;
-            var pivot = new Vector2(e.Rect.Width * t.Origin.X, e.Rect.Height * t.Origin.Y);
-
             var localTransform =
-                Matrix3x2.CreateTranslation(t.Translate + new Vector2(e.Rect.X, e.Rect.Y)) *
-                Matrix3x2.CreateTranslation(pivot) *
-                Matrix3x2.CreateRotation(t.Rotate) *
                 Matrix3x2.CreateScale(t.Scale) *
-                Matrix3x2.CreateTranslation(-pivot);
+                Matrix3x2.CreateRotation(t.Rotate) *
+                Matrix3x2.CreateTranslation(t.Translate + center);
 
-            e.LocalToWorld = parentTransform * localTransform;
+            e.LocalToWorld = localTransform * parentTransform;
         }
         else
         {
-            e.LocalToWorld = parentTransform * Matrix3x2.CreateTranslation(e.Rect.X, e.Rect.Y);
+            e.LocalToWorld = Matrix3x2.CreateTranslation(center) * parentTransform;
         }
 
         Matrix3x2.Invert(e.LocalToWorld, out e.WorldToLocal);

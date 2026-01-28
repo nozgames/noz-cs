@@ -19,8 +19,9 @@ public static partial class UI
         var isHot = e.Id != 0 && IsHotElement(ref e);
         var border = isHot ? data.FocusBorder : data.Border;
 
+        var topLeft = new Vector2(-e.Rect.Width * 0.5f, -e.Rect.Height * 0.5f);
         UIRender.DrawRect(
-            new Rect(Vector2.Transform(Vector2.Zero, e.LocalToWorld), e.Rect.Size),
+            new Rect(Vector2.Transform(topLeft, e.LocalToWorld), e.Rect.Size),
             data.BackgroundColor,
             border.Radius,
             border.Width,
@@ -85,7 +86,8 @@ public static partial class UI
         var shift = Input.IsShiftDown(scope);
         var mousePos = UI.Camera!.ScreenToWorld(Input.MousePosition);
         var localMouse = Vector2.Transform(mousePos, e.WorldToLocal);
-        var isMouseOver = new Rect(0, 0, e.Rect.Width, e.Rect.Height).Contains(localMouse);
+        var halfSize = new Vector2(e.Rect.Width * 0.5f, e.Rect.Height * 0.5f);
+        var isMouseOver = new Rect(-halfSize.X, -halfSize.Y, e.Rect.Width, e.Rect.Height).Contains(localMouse);
         var isHotCanvas = e.CanvasId == _hotCanvasId;
         var fontSize = e.Data.TextBox.FontSize;
         var font = e.Font!;
@@ -349,7 +351,8 @@ public static partial class UI
 
         if (drawW <= 0) return;
 
-        var pos = Vector2.Transform(new Vector2(drawX, 0), e.LocalToWorld);
+        var halfSize = new Vector2(e.Rect.Width * 0.5f, e.Rect.Height * 0.5f);
+        var pos = Vector2.Transform(new Vector2(drawX - halfSize.X, -halfSize.Y), e.LocalToWorld);
         UIRender.DrawRect(new Rect(pos.X, pos.Y, drawW, e.Rect.Height), e.Data.TextBox.SelectionColor);
     }
 
@@ -367,7 +370,8 @@ public static partial class UI
         ref var tb = ref es.Data.TextBox;
 
         var scale = UI.GetUIScale();
-        var screenPos = UI.Camera!.WorldToScreen(Vector2.Transform(Vector2.Zero, e.LocalToWorld));
+        var halfSize = new Vector2(e.Rect.Width * 0.5f, e.Rect.Height * 0.5f);
+        var screenPos = UI.Camera!.WorldToScreen(Vector2.Transform(-halfSize, e.LocalToWorld));
         var screenHeight = Application.WindowSize.Y;
         var scissor = new RectInt(
             (int)screenPos.X,
@@ -375,7 +379,7 @@ public static partial class UI
             (int)(e.Rect.Width * scale),
             (int)(e.Rect.Height * scale));
 
-        var textOffset = new Vector2(-tb.ScrollOffset, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f);
+        var textOffset = new Vector2(-tb.ScrollOffset - halfSize.X, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f - halfSize.Y);
         var textToRender = password
              ? PasswordMask.AsSpan()[..Math.Min(text.Length, PasswordMask!.Length)]
              : text;
@@ -384,7 +388,7 @@ public static partial class UI
         {
             Graphics.SetScissor(scissor);
             Graphics.SetColor(color);
-            Graphics.SetTransform(e.LocalToWorld * Matrix3x2.CreateTranslation(textOffset));
+            Graphics.SetTransform(Matrix3x2.CreateTranslation(textOffset) * e.LocalToWorld);
             TextRender.Draw(textToRender, font, fontSize);
             Graphics.ClearScissor();
         }
@@ -399,8 +403,9 @@ public static partial class UI
         ref var state = ref GetElementState(ref e).Data.TextBox;
         var fontSize = e.Data.TextBox.FontSize;
         var placeholder = new string(data.Placeholder.AsReadOnlySpan());
-        var placeholderOffset = new Vector2(-state.ScrollOffset, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f);
-        var transform = e.LocalToWorld * Matrix3x2.CreateTranslation(placeholderOffset);
+        var halfSize = new Vector2(e.Rect.Width * 0.5f, e.Rect.Height * 0.5f);
+        var placeholderOffset = new Vector2(-state.ScrollOffset - halfSize.X, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f - halfSize.Y);
+        var transform = Matrix3x2.CreateTranslation(placeholderOffset) * e.LocalToWorld;
 
         using (Graphics.PushState())
         {
@@ -430,7 +435,8 @@ public static partial class UI
         var cursorH = font.LineHeight * fontSize;
         var cursorY = (e.Rect.Height - cursorH) * 0.5f;
 
-        var pos = Vector2.Transform(new Vector2(cursorX, cursorY), e.LocalToWorld);        
+        var halfSize = new Vector2(e.Rect.Width * 0.5f, e.Rect.Height * 0.5f);
+        var pos = Vector2.Transform(new Vector2(cursorX - halfSize.X, cursorY - halfSize.Y), e.LocalToWorld);
         UIRender.DrawRect(new Rect(pos.X, pos.Y, cursorW, cursorH), Color.White);
     }
 
@@ -450,7 +456,7 @@ public static partial class UI
         ref var es = ref GetElementState(ref e);
         ref var tb = ref es.Data.TextBox;
         var localMouse = Vector2.Transform(worldMousePos, e.WorldToLocal);
-        var x = localMouse.X + tb.ScrollOffset;
+        var x = localMouse.X + e.Rect.Width * 0.5f + tb.ScrollOffset;
         
         if (x <= 0) return 0;
         

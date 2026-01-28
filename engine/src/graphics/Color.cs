@@ -199,6 +199,7 @@ public readonly struct Color(float r, float g, float b, float a)
     public static readonly Color White2Pct = new(1f, 1f, 1f, 0.02f);
     public static readonly Color White5Pct = new(1f, 1f, 1f, 0.05f);
     public static readonly Color White10Pct = new(1f, 1f, 1f, 0.1f);
+    public static readonly Color White50Pct = new(1f, 1f, 1f, 0.5f);
 
     public override string ToString()
     {

@@ -22,6 +22,31 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public Vector2Int WindowSize { get; private set; }
 
+    public Vector2Int WindowPosition
+    {
+        get
+        {
+            if (_window == null)
+                return Vector2Int.Zero;
+            int x, y;
+            SDL_GetWindowPosition(_window, &x, &y);
+            return new Vector2Int(x, y);
+        }
+    }
+
+    public void SetWindowSize(int width, int height)
+    {
+        if (_window == null) return;
+        SDL_SetWindowSize(_window, width, height);
+        WindowSize = new Vector2Int(width, height);
+    }
+
+    public void SetWindowPosition(int x, int y)
+    {
+        if (_window == null) return;
+        SDL_SetWindowPosition(_window, x, y);
+    }
+
     internal static SDL_Window* Window => _instance != null ? _instance._window : null;
 
     public float DisplayScale => _window != null ? SDL_GetWindowDisplayScale(_window) : 1.0f;
@@ -55,6 +80,13 @@ public unsafe partial class SDLPlatform : IPlatform
         if (_window == null)
         {
             throw new Exception($"Failed to create window: {SDL_GetError()}");
+        }
+
+        if (config.X != PlatformConfig.WindowPositionCentered || config.Y != PlatformConfig.WindowPositionCentered)
+        {
+            var x = config.X == PlatformConfig.WindowPositionCentered ? (int)SDL_WINDOWPOS_CENTERED : config.X;
+            var y = config.Y == PlatformConfig.WindowPositionCentered ? (int)SDL_WINDOWPOS_CENTERED : config.Y;
+            SDL_SetWindowPosition(_window, x, y);
         }
 
         _glContext = SDL_GL_CreateContext(_window);
@@ -479,6 +511,30 @@ public unsafe partial class SDLPlatform : IPlatform
         var fileName = string.IsNullOrEmpty(extension) ? name : name + extension;
         var fullPath = Path.Combine(libraryPath ?? Application.AssetPath, typeName, fileName);
         return File.Exists(fullPath) ? File.OpenRead(fullPath) : null;
+    }
+
+    private static string GetPersistentDataPath(string name, string? appName)
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        appName ??= Application.Config?.Title ?? "NoZ";
+        return Path.Combine(appData, appName, name);
+    }
+
+    public Stream? LoadPersistentData(string name, string? appName = null)
+    {
+        var path = GetPersistentDataPath(name, appName);
+        return File.Exists(path) ? File.OpenRead(path) : null;
+    }
+
+    public void SavePersistentData(string name, Stream data, string? appName = null)
+    {
+        var path = GetPersistentDataPath(name, appName);
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
+        using var file = File.Create(path);
+        data.CopyTo(file);
     }
 }
 
