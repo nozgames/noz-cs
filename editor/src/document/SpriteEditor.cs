@@ -65,6 +65,8 @@ public class SpriteEditor : DocumentEditor
         var bindCommand = new Command { Name = "Select Bone", Handler = HandleSelectBone, Key = InputCode.KeyB };
         var copyCommand = new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true };
         var pasteCommand = new Command { Name = "Paste", Handler = PasteSelected, Key = InputCode.KeyV, Ctrl = true };
+        var bringForwardCommand = new Command { Name = "Bring Forward", Handler = MovePathUp, Key = InputCode.KeyLeftBracket };
+        var sendBackwardCommand = new Command { Name = "Send Backwar", Handler = MovePathDown, Key = InputCode.KeyRightBracket };
 
         Commands =
         [
@@ -83,6 +85,8 @@ public class SpriteEditor : DocumentEditor
             bindCommand,
             copyCommand,
             pasteCommand,
+            bringForwardCommand,
+            sendBackwardCommand,
             new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
             new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
             new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
@@ -115,6 +119,10 @@ public class SpriteEditor : DocumentEditor
                 ContextMenuItem.FromCommand(flipHorizontalCommand, enabled: HasSelectedPaths),
                 ContextMenuItem.FromCommand(flipVerticalCommand, enabled: HasSelectedPaths),
                 ContextMenuItem.Separator(),
+
+                ContextMenuItem.Submenu("Arrange"),
+                ContextMenuItem.FromCommand(bringForwardCommand, enabled: HasSelectedPaths, level: 1),
+                ContextMenuItem.FromCommand(sendBackwardCommand, enabled: HasSelectedPaths, level: 1),
 
                 ContextMenuItem.Submenu("Set Origin"),
                 ContextMenuItem.FromCommand(originToCenterCommand, level: 1),
@@ -606,6 +614,8 @@ public class SpriteEditor : DocumentEditor
                 new Vector2Int(-bounds.X, -bounds.Y) + new Vector2Int(Padding, Padding),
                 options: new Shape.RasterizeOptions { AntiAlias = Document.IsAntiAliased });
 
+        _image.BleedColors(textureRect);
+
         for (int p = Padding - 1; p >= 0; p--)
             _image.ExtrudeEdges(new RectInt(
                 p,
@@ -806,6 +816,34 @@ public class SpriteEditor : DocumentEditor
         MarkRasterDirty();
     }
 
+    private void MovePathUp()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        if (!shape.HasSelectedPaths())
+            return;
+
+        Undo.Record(Document);
+        if (!shape.MoveSelectedPathUp())
+            return;
+
+        Document.MarkModified();
+        MarkRasterDirty();
+    }
+
+    private void MovePathDown()
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        if (!shape.HasSelectedPaths())
+            return;
+
+        Undo.Record(Document);
+        if (!shape.MoveSelectedPathDown())
+            return;
+
+        Document.MarkModified();
+        MarkRasterDirty();
+    }
+
     private void SelectAll()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
@@ -861,23 +899,37 @@ public class SpriteEditor : DocumentEditor
             return;
         }
 
+        if (hit.PathIndex != ushort.MaxValue)
+            return;
+
         if (!shift)
             shape.ClearAnchorSelection();
     }
 
     private void HandleDoubleClick()
     {
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
-            Vector2.Transform(Workspace.MouseWorldPosition, invTransform),
-            EditorStyle.Shape.AnchorHitSize / Workspace.Zoom,
-            EditorStyle.Shape.SegmentHitSize / Workspace.Zoom);
-
-        if (hit.PathIndex == ushort.MaxValue)
-            return;
-
-        SelectPath(hit.PathIndex, Input.IsShiftDown());
         Input.ConsumeButton(InputCode.MouseLeft);
+
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var localPoint = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+
+        Span<ushort> containingPaths = stackalloc ushort[Shape.MaxPaths];
+        var count = shape.GetPathsContainingPoint(localPoint, containingPaths);
+
+        if (count == 0)
+            return;
+        
+        for (int i=0; i<count; i++)
+        {
+            if (shape.IsPathSelected(containingPaths[i]))
+            {
+                SelectPath(containingPaths[((i - 1) + count) % count], false);
+                return;
+            }
+        }
+
+        SelectPath(containingPaths[count-1], false);        
     }
 
     private void BeginMoveTool()

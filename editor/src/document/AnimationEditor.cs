@@ -52,7 +52,9 @@ internal class AnimationEditor : DocumentEditor
             new Command { Name = "Move", Handler = BeginMoveTool, Key = InputCode.KeyG },
             new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
             new Command { Name = "Reset Rotation", Handler = ResetRotation, Key = InputCode.KeyR, Shift = true },
+            new Command { Name = "Reset Rotation", Handler = ResetRotation, Key = InputCode.KeyR, Alt = true },
             new Command { Name = "Reset Position", Handler = ResetPosition, Key = InputCode.KeyG, Shift = true },
+            new Command { Name = "Reset Position", Handler = ResetPosition, Key = InputCode.KeyG, Alt = true },
             new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI },
             new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO },
@@ -315,10 +317,17 @@ internal class AnimationEditor : DocumentEditor
                     if (EditorUI.Button(LoopButtonId, EditorAssets.Sprites.IconLoop, selected: Document.IsLooping, toolbar: true))
                     {
                         Undo.Record(Document);
+                        Document.MarkMetaModified();
                         Document.IsLooping = !Document.IsLooping;
                     }
 
-                    EditorUI.Button(RootMotionButtonId, EditorAssets.Sprites.IconRootMotion, selected: Document.IsRootMotion, toolbar: true);
+                    if (EditorUI.Button(RootMotionButtonId, EditorAssets.Sprites.IconRootMotion, selected: Document.IsRootMotion, toolbar: true))
+                    {
+                        Undo.Record(Document);
+                        Document.MarkMetaModified();
+                        Document.IsRootMotion = !Document.IsRootMotion;
+                        _rootMotion = Document.IsRootMotion;
+                    }                        
 
                     if (EditorUI.Button(OnionSkinButtonId, EditorAssets.Sprites.IconOnion, selected: _onionSkin, toolbar: true))
                         _onionSkin = !_onionSkin;
@@ -575,6 +584,12 @@ internal class AnimationEditor : DocumentEditor
                 var rotatedDelta = Vector2.TransformNormal(delta, invParent);
                 frame.Position = bone.SavedTransform.Position + rotatedDelta;
             }
+
+            if (Input.IsCtrlDown())
+                frame.Position = Grid.SnapToGrid(frame.Position);
+
+            if (parentIndex == -1)
+                frame.Position.Y = 0.0f;
         }
 
         Document.UpdateTransforms();
@@ -931,6 +946,7 @@ internal class AnimationEditor : DocumentEditor
         using (Gizmos.PushState(EditorLayer.Document))
         {
             Graphics.SetTransform(baseTransform);
+            Document.DrawOrigin();
             DrawBones();
             Graphics.SetSortGroup(0);
             Document.DrawSprites();

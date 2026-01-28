@@ -63,7 +63,6 @@ internal class AnimationDocument : Document
 
     private bool _isPlaying;
     private float _playTime;
-    private int _playFrame;
 
     public override bool IsPlaying => _isPlaying;
     public override bool CanPlay => true;
@@ -78,7 +77,17 @@ internal class AnimationDocument : Document
                 Flags &= ~AnimationFlags.Looping;
         }
     }
-    public bool IsRootMotion => (Flags & AnimationFlags.RootMotion) != 0;
+    public bool IsRootMotion
+    {
+        get => (Flags & AnimationFlags.RootMotion) != 0;
+        set
+        {
+            if (value)
+                Flags |= AnimationFlags.RootMotion;
+            else
+                Flags &= ~AnimationFlags.RootMotion;
+        }
+    }
 
     public AnimationDocument()
     {
@@ -160,6 +169,40 @@ internal class AnimationDocument : Document
             LocalToWorld[boneIndex] = CreateTRS(
                 bone.Transform.Position + frame.Position,
                 bone.Transform.Rotation + frame.Rotation,
+                Vector2.One
+            );
+        }
+
+        for (var boneIndex = 1; boneIndex < Skeleton.BoneCount; boneIndex++)
+        {
+            var parentIndex = Skeleton.Bones[boneIndex].ParentIndex;
+            LocalToWorld[boneIndex] = LocalToWorld[boneIndex] * LocalToWorld[parentIndex];
+        }
+    }
+
+    public void UpdateTransformsInterpolated(int frame0, int frame1, float t)
+    {
+        if (Skeleton == null)
+            return;
+
+        frame0 = Math.Clamp(frame0, 0, FrameCount - 1);
+        frame1 = Math.Clamp(frame1, 0, FrameCount - 1);
+
+        LocalToWorld.Clear();
+        LocalToWorld.AddRange(Skeleton.BoneCount);
+
+        for (var boneIndex = 0; boneIndex < Skeleton.BoneCount; boneIndex++)
+        {
+            var bone = Skeleton.Bones[boneIndex];
+            ref var t0 = ref GetFrameTransform(boneIndex, frame0);
+            ref var t1 = ref GetFrameTransform(boneIndex, frame1);
+
+            var position = Vector2.Lerp(t0.Position, t1.Position, t);
+            var rotation = MathEx.LerpAngle(t0.Rotation, t1.Rotation, t);
+
+            LocalToWorld[boneIndex] = CreateTRS(
+                bone.Transform.Position + position,
+                bone.Transform.Rotation + rotation,
                 Vector2.One
             );
         }
@@ -677,6 +720,7 @@ internal class AnimationDocument : Document
         using (Gizmos.PushState(EditorLayer.Document))
         {
             DrawBones();
+            DrawOrigin();
             Graphics.SetSortGroup(0);
             DrawSprites();
         }
@@ -727,7 +771,6 @@ internal class AnimationDocument : Document
     {
         _isPlaying = true;
         _playTime = 0;
-        _playFrame = 0;
     }
 
     public override void Stop()
@@ -748,25 +791,55 @@ internal class AnimationDocument : Document
         if (totalFrames <= 0)
             return;
 
-        var frameDuration = 1f / frameRate;
-        var newFrame = (int)(_playTime / frameDuration);
+        var duration = totalFrames / frameRate;
 
         if (IsLooping)
         {
-            newFrame %= totalFrames;
+            _playTime %= duration;
         }
-        else if (newFrame >= totalFrames)
+        else if (_playTime >= duration)
         {
-            newFrame = totalFrames - 1;
+            _playTime = duration;
             _isPlaying = false;
         }
 
-        if (newFrame != _playFrame)
+        var frameFloat = _playTime * frameRate;
+        GetInterpolatedFrames(frameFloat, out var frame0, out var frame1, out var t);
+        UpdateTransformsInterpolated(frame0, frame1, t);
+    }
+
+    private void GetInterpolatedFrames(float virtualFrame, out int frame0, out int frame1, out float t)
+    {
+        var virtualFrameInt = (int)virtualFrame;
+        var virtualFrameFrac = virtualFrame - virtualFrameInt;
+
+        var totalVirtual = GetFrameCountWithHolds();
+        if (IsLooping)
+            virtualFrameInt %= totalVirtual;
+        else
+            virtualFrameInt = Math.Min(virtualFrameInt, totalVirtual - 1);
+
+        frame0 = 0;
+        t = 0f;
+        var accum = 0;
+        for (var i = 0; i < FrameCount; i++)
         {
-            _playFrame = newFrame;
-            var realFrame = GetRealFrameIndex(_playFrame);
-            UpdateTransforms(realFrame);
+            var frameSpan = 1 + Frames[i].Hold;
+            if (accum + frameSpan > virtualFrameInt)
+            {
+                frame0 = i;
+                var posInFrame = virtualFrameInt - accum + virtualFrameFrac;
+                t = posInFrame / frameSpan;
+                break;
+            }
+            accum += frameSpan;
         }
+
+        frame1 = frame0 + 1;
+        if (IsLooping)
+            frame1 %= FrameCount;
+        else
+            frame1 = Math.Min(frame1, FrameCount - 1);
     }
 
     public override void Import(string outputPath, PropertySet config, PropertySet meta)

@@ -48,7 +48,7 @@ public struct AnimationTransform
         return new AnimationTransform
         {
             Position = Vector2.Lerp(a.Position, b.Position, t),
-            Rotation = a.Rotation + (b.Rotation - a.Rotation) * t,
+            Rotation = MathEx.LerpAngle(a.Rotation, b.Rotation, t),
             Scale = Vector2.Lerp(a.Scale, b.Scale, t)
         };
     }

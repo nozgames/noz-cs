@@ -924,6 +924,17 @@ public sealed unsafe partial class Shape : IDisposable
         return IsPointInPolygon(point, verts);
     }
 
+    public int GetPathsContainingPoint(Vector2 point, Span<ushort> results)
+    {
+        var count = 0;
+        for (ushort p = 0; p < PathCount && count < results.Length; p++)
+        {
+            if (IsPointInPath(point, p))
+                results[count++] = p;
+        }
+        return count;
+    }
+
     private static bool IsPointInPolygon(Vector2 point, List<Vector2> verts)
     {
         var winding = 0;
@@ -1121,6 +1132,83 @@ public sealed unsafe partial class Shape : IDisposable
                 _anchors[i].Curve = ClampCurve(-_anchors[i].Curve);
             }
         }
+    }
+
+    public bool MoveSelectedPathUp()
+    {
+        ushort selectedIndex = ushort.MaxValue;
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (_paths[p].IsSelected)
+            {
+                selectedIndex = p;
+                break;
+            }
+        }
+
+        if (selectedIndex == ushort.MaxValue || selectedIndex == 0)
+            return false;
+
+        SwapPaths(selectedIndex, (ushort)(selectedIndex - 1));
+        return true;
+    }
+
+    public bool MoveSelectedPathDown()
+    {
+        ushort selectedIndex = ushort.MaxValue;
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            if (_paths[p].IsSelected)
+            {
+                selectedIndex = p;
+                break;
+            }
+        }
+
+        if (selectedIndex == ushort.MaxValue || selectedIndex >= PathCount - 1)
+            return false;
+
+        SwapPaths(selectedIndex, (ushort)(selectedIndex + 1));
+        return true;
+    }
+
+    private void SwapPaths(ushort indexA, ushort indexB)
+    {
+        if (indexA > indexB)
+            (indexA, indexB) = (indexB, indexA);
+
+        ref var pathA = ref _paths[indexA];
+        ref var pathB = ref _paths[indexB];
+
+        var countA = pathA.AnchorCount;
+        var countB = pathB.AnchorCount;
+        var startA = pathA.AnchorStart;
+        var startB = pathB.AnchorStart;
+
+        Span<Anchor> tempAnchors = stackalloc Anchor[MaxAnchorsPerPath];
+        for (var i = 0; i < countA; i++)
+            tempAnchors[i] = _anchors[startA + i];
+
+        for (var i = 0; i < countB; i++)
+            _anchors[startA + i] = _anchors[startB + i];
+
+        for (var i = 0; i < countA; i++)
+            _anchors[startA + countB + i] = tempAnchors[i];
+
+        var newStartA = startA;
+        var newStartB = (ushort)(startA + countB);
+
+        pathA.AnchorStart = newStartB;
+        pathB.AnchorStart = newStartA;
+
+        (_paths[indexA], _paths[indexB]) = (_paths[indexB], _paths[indexA]);
+
+        for (var i = 0; i < _paths[indexA].AnchorCount; i++)
+            _anchors[_paths[indexA].AnchorStart + i].Path = indexA;
+        for (var i = 0; i < _paths[indexB].AnchorCount; i++)
+            _anchors[_paths[indexB].AnchorStart + i].Path = indexB;
+
+        UpdateSamples();
     }
 
     public void ScaleAnchors(Vector2 pivot, Vector2 scale, Vector2[] savedPositions, float[] savedCurves)
