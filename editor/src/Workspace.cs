@@ -177,17 +177,20 @@ public static class Workspace
 
     public static void IncreaseUIScale()
     {
-        UI.UserScale = Math.Clamp(UI.UserScale + UIScaleStep, UIScaleMin, UIScaleMax);
+        _userUIScale = Math.Clamp(UI.UserScale + UIScaleStep, UIScaleMin, UIScaleMax);
+        UI.UserScale = _userUIScale;
     }
 
     public static void DecreaseUIScale()
     {
-        UI.UserScale = Math.Clamp(UI.UserScale - UIScaleStep, UIScaleMin, UIScaleMax);
+        _userUIScale = Math.Clamp(UI.UserScale - UIScaleStep, UIScaleMin, UIScaleMax);
+        UI.UserScale = _userUIScale;
     }
 
     public static void ResetUIScale()
     {
-        UI.UserScale = 1f;
+        _userUIScale = 0.66666f;
+        UI.UserScale = _userUIScale;
     }
 
     public static void Init()
@@ -220,6 +223,7 @@ public static class Workspace
         _showGrid = props.GetBool("workspace", "show_grid", true);
         _showNames = props.GetBool("workspace", "show_names", false);
         _userUIScale = props.GetFloat("workspace", "ui_scale", 1f);
+        UI.UserScale = _userUIScale;
 
         // Restore camera position and zoom from visible collection
         var collection = CollectionManager.VisibleCollection;
@@ -244,7 +248,7 @@ public static class Workspace
 
         props.SetBool("workspace", "show_grid", _showGrid);
         props.SetBool("workspace", "show_names", _showNames);
-        props.SetFloat("workspace", "ui_scale", _userUIScale);
+        props.SetFloat("workspace", "ui_scale", UI.UserScale);
     }
 
     

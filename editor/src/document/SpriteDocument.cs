@@ -335,7 +335,7 @@ public class SpriteDocument : Document
             Graphics.SetTexture(Atlas.Texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetColor(Color.White.WithAlpha(alpha));
-            Graphics.SetTextureFilter(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point);
+            Graphics.SetTextureFilter(TextureFilter.Point);
             var bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
             Graphics.Draw(
                 bounds.Translate(offset),

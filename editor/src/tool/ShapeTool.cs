@@ -116,7 +116,29 @@ public class ShapeTool : Tool
                 DrawRectanglePreview(min, max, lineWidth);
             else
                 DrawCirclePreview(min, max, lineWidth);
+
+            DrawDimensionText(min, max);
         }
+    }
+
+    private void DrawDimensionText(Vector2 min, Vector2 max)
+    {
+        var dpi = EditorApplication.Config.PixelsPerUnit;
+        var widthPx = (int)MathF.Round((max.X - min.X) * dpi);
+        var heightPx = (int)MathF.Round((max.Y - min.Y) * dpi);
+        var text = $"{widthPx} x {heightPx}";
+
+        var font = EditorAssets.Fonts.Seguisb;
+        var fontSize = Gizmos.ZoomRefScale * 0.15f;
+        var textSize = TextRender.Measure(text, font, fontSize);
+
+        var centerX = (min.X + max.X) * 0.5f;
+        var textX = centerX - textSize.X * 0.5f;
+        var textY = max.Y + Gizmos.ZoomRefScale * 0.1f;
+
+        Graphics.SetColor(EditorStyle.Tool.LineColor);
+        Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY) * _editor.Document.Transform);
+        TextRender.Draw(text, font, fontSize);
     }
 
     private static void DrawRectanglePreview(Vector2 min, Vector2 max, float lineWidth)
