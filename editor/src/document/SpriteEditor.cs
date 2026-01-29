@@ -1120,6 +1120,8 @@ public class SpriteEditor : DocumentEditor
             {
                 var pivot = Input.IsShiftDown() ? Vector2.Zero : localPivot.Value;
                 shape.RotateAnchors(pivot, angle, _savedPositions);
+                if (Input.IsCtrlDown())
+                    shape.SnapSelectedAnchorsToPixelGrid();
                 shape.UpdateSamples();
                 shape.UpdateBounds();
                 MarkRasterDirty();
@@ -1169,12 +1171,18 @@ public class SpriteEditor : DocumentEditor
             {
                 var pivot = Input.IsShiftDown() ? Vector2.Zero : localPivot.Value;
                 shape.ScaleAnchors(pivot, scale, _savedPositions, _savedCurves);
+                if (Input.IsCtrlDown())
+                    shape.SnapSelectedAnchorsToPixelGrid();
                 shape.UpdateSamples();
                 shape.UpdateBounds();
                 MarkRasterDirty();
             },
             commit: _ =>
             {
+                if (Input.IsCtrlDown())
+                    shape.SnapSelectedAnchorsToPixelGrid();
+                shape.UpdateSamples();
+                shape.UpdateBounds();
                 Document.MarkModified();
                 Document.UpdateBounds();
                 MarkRasterDirty();

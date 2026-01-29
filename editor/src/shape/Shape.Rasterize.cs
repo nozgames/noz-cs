@@ -21,9 +21,11 @@ public sealed partial class Shape
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct ScanlineIntersection(float x, int dir)
+    private struct ScanlineIntersection(float x, float xMin, float xMax, int dir)
     {
-        public float X = x;
+        public float X = x;         // Intersection at row center (for winding/sorting)
+        public float XMin = xMin;   // Min X within this row (for AA)
+        public float XMax = xMax;   // Max X within this row (for AA)
         public int Direction = dir;
     }
 
@@ -63,8 +65,6 @@ public sealed partial class Shape
                 : palette[path.FillColor % palette.Length].ToColor32().WithAlpha(path.FillOpacity);
             var rb = RasterBounds;
 
-            Log.Info($"Path: {pathIndex}");
-
             RasterizePath(
                 target,
                 targetRect,
@@ -99,12 +99,6 @@ public sealed partial class Shape
             var intersectionCount = GetScanlineIntersections(verts, sy + 0.5f, intersections);
             if (intersectionCount == 0) continue;
 
-            if (y == 0)
-                for (int i = 0; i < intersectionCount; i++)
-                {
-                    Log.Info($"  {i}: X={intersections[i].X}, Dir={intersections[i].Direction}");
-                }
-
             RasterizeScanline(
                 target,
                 targetRect,
@@ -131,6 +125,9 @@ public sealed partial class Shape
     {
         var winding = 0;
         var sourceMin = 0;
+        var sourceMinXMin = 0f;
+        var sourceMinXMax = 0f;
+
         for (var i = 0; i < intersections.Length; i++)
         {
             var wasInside = winding != 0;
@@ -142,30 +139,18 @@ public sealed partial class Shape
             if (isInside)
             {
                 sourceMin = (int)MathF.Ceiling(intersections[i].X - 0.5f);
-                if (scanlineY == 0)
-                {
-                    Log.Info($"intersection.X0={intersections[i].X}");
-                }
-                    continue;
+                sourceMinXMin = intersections[i].XMin;
+                sourceMinXMax = intersections[i].XMax;
+                continue;
             }
 
             var sourceMax = (int)MathF.Floor(intersections[i].X + 0.5f);
+            var sourceMaxXMin = intersections[i].XMin;
+            var sourceMaxXMax = intersections[i].XMax;
+
             var targetMin = int.Max(targetRect.X, sourceOffset.X + sourceMin + targetRect.X);
             var targetMax = int.Min(targetRect.X + targetRect.Width, sourceOffset.X + sourceMax + targetRect.X);
             var targetWidth = targetMax - targetMin;
-
-            if (scanlineY == 0)
-            {
-                Log.Info($"intersection.X1={intersections[i].X}");
-                Log.Info($"sourceMin={sourceMin}");
-                Log.Info($"sourceMax={sourceMax}");
-                Log.Info($"sourceOffset={sourceOffset}");
-                Log.Info($"targetRect={targetRect}");
-                Log.Info($"targetMin={targetMin}");
-                Log.Info($"targetMax={targetMax}");
-                Log.Info($"targetWidth={targetWidth}");
-            }
-
 
             if (targetWidth <= 0)
                 continue;
@@ -173,47 +158,54 @@ public sealed partial class Shape
             if (antiAlias)
             {
                 var sourceY = -sourceOffset.Y + scanlineY + 0.5f;
-                var sourceX = sourceMin + 0.5f;
 
-                if (scanlineY == 0)
+                var leftAAStart = (int)MathF.Floor(sourceMinXMin - 0.5f);
+                var leftAAEnd = (int)MathF.Floor(sourceMinXMax + 0.5f);
+                for (var px = leftAAStart; px <= leftAAEnd; px++)
                 {
-                    Log.Info($"sourceX0={sourceX}");
-                    Log.Info($"sourceY0={sourceY}");
-                    Log.Info($"alpha0={GetAntiAliasedAlpha(new Vector2(sourceX, sourceY), verts)}");
+                    var targetX = sourceOffset.X + px + targetRect.X;
+                    if (targetX < targetRect.X || targetX >= targetRect.X + targetRect.Width)
+                        continue;
+                    var sourcePoint = new Vector2(px + 0.5f, sourceY);
+                    var alpha = GetAntiAliasedAlpha(sourcePoint, verts);
+                    if (alpha > 0.001f && alpha < 0.999f)
+                        AntiAliasPixel(ref target[targetX, targetRect.Y + scanlineY], color, alpha, subtract);
                 }
 
-                AntiAliasPixel(
-                     ref target[targetMin, targetRect.Y + scanlineY],
-                     color,
-                     GetAntiAliasedAlpha(new Vector2(sourceX, sourceY), verts),
-                     subtract);
-
-                if (targetWidth == 1) continue;
-
-                sourceX = sourceMax - 1 + 0.5f;
-                if (scanlineY == 0)
+                var rightAAStart = (int)MathF.Floor(sourceMaxXMin - 0.5f);
+                var rightAAEnd = (int)MathF.Floor(sourceMaxXMax + 0.5f);
+                for (var px = rightAAStart; px <= rightAAEnd; px++)
                 {
-                    Log.Info($"sourceX1={sourceX}");
-                    Log.Info($"sourceY1={sourceY}");
-                    Log.Info($"alpha1={GetAntiAliasedAlpha(new Vector2(sourceX, sourceY), verts)}");
+                    var targetX = sourceOffset.X + px + targetRect.X;
+                    if (targetX < targetRect.X || targetX >= targetRect.X + targetRect.Width)
+                        continue;
+                    var sourcePoint = new Vector2(px + 0.5f, sourceY);
+                    var alpha = GetAntiAliasedAlpha(sourcePoint, verts);
+                    if (alpha > 0.001f && alpha < 0.999f)
+                        AntiAliasPixel(ref target[targetX, targetRect.Y + scanlineY], color, alpha, subtract);
                 }
 
-                AntiAliasPixel(
-                     ref target[targetMax - 1, targetRect.Y + scanlineY],
-                     color,
-                     GetAntiAliasedAlpha(new Vector2(sourceX, sourceY), verts),
-                     subtract);
+                var solidMin = (int)MathF.Ceiling(sourceMinXMax - 0.5f);
+                var solidMax = (int)MathF.Floor(sourceMaxXMin + 0.5f);
+                var solidTargetMin = int.Max(targetRect.X, sourceOffset.X + solidMin + targetRect.X);
+                var solidTargetMax = int.Min(targetRect.X + targetRect.Width, sourceOffset.X + solidMax + targetRect.X);
+                var solidWidth = solidTargetMax - solidTargetMin;
 
-                if (targetWidth == 2) continue;
-
-                targetMin++;
-                targetWidth -= 2;
+                if (solidWidth > 0)
+                {
+                    if (subtract)
+                        Subtract(target, solidTargetMin, targetRect.Y + scanlineY, solidWidth);
+                    else
+                        Fill(target, solidTargetMin, targetRect.Y + scanlineY, solidWidth, color);
+                }
             }
-            
-            if (subtract)
-                Subtract(target, targetMin, targetRect.Y + scanlineY, targetWidth);
             else
-                Fill(target, targetMin, targetRect.Y + scanlineY, targetWidth, color);
+            {
+                if (subtract)
+                    Subtract(target, targetMin, targetRect.Y + scanlineY, targetWidth);
+                else
+                    Fill(target, targetMin, targetRect.Y + scanlineY, targetWidth, color);
+            }
         }
     }
 
@@ -222,7 +214,10 @@ public sealed partial class Shape
         float scanlineY,
         Span<ScanlineIntersection> intersections)
     {
+        var rowTop = scanlineY - 0.5f;
+        var rowBottom = scanlineY + 0.5f;
         var intersectionCount = 0;
+
         for (var i = 0; i < verts.Length; i++)
         {
             ref readonly var p0 = ref verts[i];
@@ -232,7 +227,9 @@ public sealed partial class Shape
             if (p0.Y <= scanlineY && p1.Y > scanlineY)
             {
                 var t = (scanlineY - p0.Y) / (p1.Y - p0.Y);
-                intersections[intersectionCount++] = new ScanlineIntersection(p0.X + t * (p1.X - p0.X), 1);
+                var x = p0.X + t * (p1.X - p0.X);
+                GetEdgeXRange(p0, p1, rowTop, rowBottom, out var xMin, out var xMax);
+                intersections[intersectionCount++] = new ScanlineIntersection(x, xMin, xMax, 1);
                 continue;
             }
 
@@ -240,7 +237,9 @@ public sealed partial class Shape
             if (p1.Y <= scanlineY && p0.Y > scanlineY)
             {
                 var t = (scanlineY - p0.Y) / (p1.Y - p0.Y);
-                intersections[intersectionCount++] = new ScanlineIntersection(p0.X + t * (p1.X - p0.X), -1);
+                var x = p0.X + t * (p1.X - p0.X);
+                GetEdgeXRange(p0, p1, rowTop, rowBottom, out var xMin, out var xMax);
+                intersections[intersectionCount++] = new ScanlineIntersection(x, xMin, xMax, -1);
                 continue;
             }
         }
@@ -250,6 +249,31 @@ public sealed partial class Shape
 
         intersections[..intersectionCount].Sort((a, b) => a.X.CompareTo(b.X));
         return intersectionCount;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void GetEdgeXRange(Vector2 p0, Vector2 p1, float rowTop, float rowBottom, out float xMin, out float xMax)
+    {
+        var edgeMinY = MathF.Min(p0.Y, p1.Y);
+        var edgeMaxY = MathF.Max(p0.Y, p1.Y);
+
+        var clampedTop = MathF.Max(rowTop, edgeMinY);
+        var clampedBottom = MathF.Min(rowBottom, edgeMaxY);
+
+        if (MathF.Abs(p1.Y - p0.Y) < 0.0001f)
+        {
+            xMin = MathF.Min(p0.X, p1.X);
+            xMax = MathF.Max(p0.X, p1.X);
+            return;
+        }
+
+        var tTop = (clampedTop - p0.Y) / (p1.Y - p0.Y);
+        var tBottom = (clampedBottom - p0.Y) / (p1.Y - p0.Y);
+        var xAtTop = p0.X + tTop * (p1.X - p0.X);
+        var xAtBottom = p0.X + tBottom * (p1.X - p0.X);
+
+        xMin = MathF.Min(xAtTop, xAtBottom);
+        xMax = MathF.Max(xAtTop, xAtBottom);
     }
 
     private int GetRasterVerts(

@@ -1211,10 +1211,6 @@ public sealed unsafe partial class Shape : IDisposable
 
     public void ScaleAnchors(Vector2 pivot, Vector2 scale, Vector2[] savedPositions, float[] savedCurves)
     {
-        var dpi = EditorApplication.Config.PixelsPerUnit;
-        var invDpi = 1f / dpi;
-
-        // first pass: apply scale to determine resulting raster bounds
         var curveScale = (MathF.Abs(scale.X) + MathF.Abs(scale.Y)) * 0.5f;
         for (ushort i = 0; i < AnchorCount; i++)
         {
@@ -1224,63 +1220,6 @@ public sealed unsafe partial class Shape : IDisposable
             var offset = savedPositions[i] - pivot;
             _anchors[i].Position = pivot + offset * scale;
             _anchors[i].Curve = ClampCurve(savedCurves[i] * curveScale);
-        }
-
-        UpdateSamples();
-
-        // compute raster bounds of selected anchors only
-        var min = new Vector2(float.MaxValue, float.MaxValue);
-        var max = new Vector2(float.MinValue, float.MinValue);
-
-        for (ushort i = 0; i < AnchorCount; i++)
-        {
-            if (!_anchors[i].IsSelected)
-                continue;
-
-            min = Vector2.Min(min, _anchors[i].Position);
-            max = Vector2.Max(max, _anchors[i].Position);
-
-            if (MathF.Abs(_anchors[i].Curve) > 0.0001f)
-            {
-                var samples = GetSegmentSamples(i);
-                for (var s = 0; s < MaxSegmentSamples; s++)
-                {
-                    min = Vector2.Min(min, samples[s]);
-                    max = Vector2.Max(max, samples[s]);
-                }
-            }
-        }
-
-        if (min.X == float.MaxValue)
-            return;
-
-        var rbWidth = (max.X - min.X) * dpi;
-        var rbHeight = (max.Y - min.Y) * dpi;
-
-        if (rbWidth <= 0 || rbHeight <= 0)
-            return;
-
-        // compute corrected scale to get whole pixel dimensions
-        // use uniform correction to preserve scale ratio
-        var targetWidth = MathF.Max(1f, MathF.Round(rbWidth));
-        var targetHeight = MathF.Max(1f, MathF.Round(rbHeight));
-
-        var correctionX = targetWidth / rbWidth;
-        var correctionY = targetHeight / rbHeight;
-        var correction = (correctionX + correctionY) * 0.5f;
-
-        var correctedScale = new Vector2(scale.X * correction, scale.Y * correction);
-        var correctedCurveScale = (MathF.Abs(correctedScale.X) + MathF.Abs(correctedScale.Y)) * 0.5f;
-
-        // re-apply with corrected scale
-        for (ushort i = 0; i < AnchorCount; i++)
-        {
-            if (!_anchors[i].IsSelected)
-                continue;
-
-            var offset = savedPositions[i] - pivot;
-            _anchors[i].Position = pivot + offset * correctedScale;
-            _anchors[i].Curve = ClampCurve(savedCurves[i] * correctedCurveScale);
         }
     }
 
