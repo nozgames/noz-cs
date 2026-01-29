@@ -237,7 +237,6 @@ public static class Undo
         clone.Def = source.Def;
         clone.Name = source.Name;
         clone.Path = source.Path;
-        clone.SourcePathIndex = source.SourcePathIndex;
         clone.Position = source.Position;
         clone.SavedPosition = source.SavedPosition;
         clone.Bounds = source.Bounds;
@@ -253,7 +252,6 @@ public static class Undo
         target.Bounds = snapshot.Bounds;
         target.Name = snapshot.Name;
         target.Path = snapshot.Path;
-        target.SourcePathIndex = snapshot.SourcePathIndex;
         target.Clone(snapshot);
         target.IsEditing = wasEditing;
     }

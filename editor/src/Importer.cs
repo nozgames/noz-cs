@@ -2,59 +2,45 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Collections.Concurrent;
+
 namespace NoZ.Editor;
 
 public static class Importer
 {
-    private static readonly HashSet<Document> _pendingDocuments = [];
-    private static readonly List<Task> _activeTasks = [];
-    private static readonly Lock _lock = new();
+    private static readonly Queue<Document> _queue = [];
     private static readonly List<FileSystemWatcher> _watchers = [];
-    private static PropertySet? _config;
-    private static bool _running;
+    private static readonly ConcurrentQueue<string> _watcherQueue = [];
 
     public static event Action<Document>? OnImported;
 
     public static void Init(bool clean = false)
     {
-        _config = new PropertySet();
-        _running = true;
-
         if (clean)
             Log.Info("Clean build requested, reimporting all assets...");
 
         foreach (var doc in DocumentManager.Documents)
-            QueueImport(doc, clean);
+            Queue(doc, clean);
 
-        WaitForAllTasks();
+        Update();
 
         foreach (var sourcePath in DocumentManager.SourcePaths)
-        {
             if (Directory.Exists(sourcePath))
                 StartWatching(sourcePath);
-        }
     }
 
     public static void Shutdown()
-    {
-        _running = false;
+    {        
         foreach (var watcher in _watchers)
             watcher.Dispose();
         _watchers.Clear();
-
-        WaitForAllTasks();
-
-        lock (_lock)
-        {
-            _pendingDocuments.Clear();
-            _activeTasks.Clear();
-        }
     }
 
-    public static void QueueImport(Document doc, bool force = false)
+    public static void Queue(Document? doc, bool force = false)
     {
-        if (!File.Exists(doc.Path))
-            return;
+        if (doc == null) return;
+        if (doc.IsQueuedForImport) return;
+        if (!File.Exists(doc.Path)) return;
 
         var targetPath = DocumentManager.GetTargetPath(doc);
         var metaPath = doc.Path + ".meta";
@@ -73,16 +59,11 @@ public static class Importer
             }
         }
 
-        lock (_lock)
-        {
-            if (!_pendingDocuments.Add(doc))
-                return;
-
-            _activeTasks.Add(Task.Run(() => ExecuteImport(doc)));
-        }
+        doc.IsQueuedForImport = true;
+        _queue.Enqueue(doc);
     }
 
-    public static void QueueImport(string path)
+    public static void Queue(string path)
     {
         var ext = Path.GetExtension(path);
         var def = DocumentManager.GetDef(ext);
@@ -90,40 +71,11 @@ public static class Importer
             return;
 
         var name = DocumentManager.MakeCanonicalName(path);
-        var doc = DocumentManager.Find(def.Type, name);
-
-        if (doc == null)
-        {
-            doc = DocumentManager.Add(path);
-            if (doc == null)
-                return;
-            doc.LoadMetadata();
-        }
-
-        QueueImport(doc);
+        Queue(DocumentManager.Find(def.Type, name) ?? DocumentManager.Create(path));
     }
 
-    public static void WaitForAllTasks()
+    private static void Import(Document doc)
     {
-        while (true)
-        {
-            Task[] tasks;
-            lock (_lock)
-            {
-                _activeTasks.RemoveAll(t => t.IsCompleted);
-                if (_activeTasks.Count == 0)
-                    break;
-                tasks = _activeTasks.ToArray();
-            }
-            Task.WaitAll(tasks);
-        }
-    }
-
-    private static void ExecuteImport(Document doc)
-    {
-        var silent = doc.SilentImport;
-        doc.SilentImport = false;
-
         try
         {
             if (!File.Exists(doc.Path))
@@ -135,35 +87,14 @@ public static class Importer
 
             Directory.CreateDirectory(Path.GetDirectoryName(targetDir) ?? "");
 
-            doc.Import(targetDir, _config ?? new PropertySet(), meta);
+            doc.Import(targetDir,  meta);
 
             Log.Info($"Imported {doc.Def.Type.ToString().ToLowerInvariant()}/{doc.Name}");
-            if (!silent)
-                OnImported?.Invoke(doc);
+            OnImported?.Invoke(doc);
         }
         catch (Exception ex)
         {
             Log.Error($"Failed to import '{doc.Name}': {ex.Message}");
-        }
-        finally
-        {
-            RemovePending(doc);
-        }
-    }
-
-    private static void RemovePending(Document doc)
-    {
-        lock (_lock)
-        {
-            _pendingDocuments.Remove(doc);
-        }
-    }
-
-    public static void CancelImport(Document doc)
-    {
-        lock (_lock)
-        {
-            _pendingDocuments.Remove(doc);
         }
     }
 
@@ -183,28 +114,26 @@ public static class Importer
         _watchers.Add(watcher);
     }
 
-    private static void OnFileChanged(object sender, FileSystemEventArgs e)
-    {
-        if (!_running)
-            return;
-
+    private static void OnFileChanged(object sender, FileSystemEventArgs e) =>
         HandleFileChange(e.FullPath);
-    }
 
-    private static void OnFileRenamed(object sender, RenamedEventArgs e)
-    {
-        if (!_running)
-            return;
-
+    private static void OnFileRenamed(object sender, RenamedEventArgs e) =>
         HandleFileChange(e.FullPath);
-    }
 
-    private static void HandleFileChange(string path)
+    private static void HandleFileChange(string path) =>
+        _watcherQueue.Enqueue(Path.GetExtension(path) == ".meta" ? path[..^5] : path);
+
+    public static void Update()
     {
-        var filename = Path.GetFileName(path);
-        if (filename.EndsWith(".d.luau") || filename.EndsWith(".d.lua"))
-            return;
+        foreach (var path in _watcherQueue)
+            Queue(path);
 
-        QueueImport(Path.GetExtension(path) == ".meta" ? path[..^5] : path);
+        while (_queue.Count > 0)
+        {
+            var doc = _queue.Dequeue();
+            doc.IsQueuedForImport = false;
+            if (doc.IsDisposed) continue;                            
+            Import(doc);
+        }
     }
 }

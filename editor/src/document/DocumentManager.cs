@@ -29,9 +29,9 @@ public static class DocumentManager
         _sourcePaths.AddRange(sourcePaths);
         _outputPath = outputPath;
 
-        Log.Info($"Asset output path: {Path.GetFullPath(outputPath)}");
+        Log.Info($"DocumentOutputPath: {Path.GetFullPath(outputPath)}");
         foreach (var path in sourcePaths)
-            Log.Info($"Asset source path: {Path.GetFullPath(path)}");
+            Log.Info($"DocumentSourcePath: {Path.GetFullPath(path)}");
 
         Directory.CreateDirectory(outputPath);
 
@@ -71,7 +71,7 @@ public static class DocumentManager
                 yield return def;
     }
     
-    public static Document? Add(string path)
+    public static Document? Create(string path)
     {
         string ext = Path.GetExtension(path);
         var def = GetDef(ext);
@@ -83,17 +83,6 @@ public static class DocumentManager
         doc.Path = Path.GetFullPath(path).ToLowerInvariant();
         doc.Name = MakeCanonicalName(path);
         doc.Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
-        
-        // Find which source path this belongs to
-        for (int i = 0; i < _sourcePaths.Count; i++)
-        {
-            if (doc.Path.StartsWith(_sourcePaths[i].ToLowerInvariant(), StringComparison.OrdinalIgnoreCase))
-            {
-                doc.SourcePathIndex = i;
-                break;
-            }
-        }
-
         _documents.Add(doc);
         return doc;
     }
@@ -134,12 +123,11 @@ public static class DocumentManager
         if (directory != null)
             Directory.CreateDirectory(directory);
 
-        using (var writer = new StreamWriter(path))
-        {
-            def.NewFile(writer);
-        }
+        var doc = Create(path);
 
-        var doc = Add(path);
+        using (var writer = new StreamWriter(path))
+            def.NewFile(writer);
+
         if (doc == null) return null;
 
         doc.LoadMetadata();
@@ -268,7 +256,6 @@ public static class DocumentManager
     public static void Delete(Document doc)
     {
         Undo.RemoveDocument(doc);
-        Importer.CancelImport(doc);
 
         if (File.Exists(doc.Path))
             File.Delete(doc.Path);
@@ -280,6 +267,7 @@ public static class DocumentManager
         AssetManifest.IsModified = true;
 
         _documents.Remove(doc);
+        doc.Dispose();
     }
 
     private static void InitDocuments()
@@ -298,7 +286,7 @@ public static class DocumentManager
                 var name = MakeCanonicalName(filePath);
                 if (Find(name) != null) continue;
 
-                Add(filePath);
+                Create(filePath);
             }
 
             for (int i=0; i< _documents.Count; i++)
@@ -359,6 +347,7 @@ public static class DocumentManager
     public static Document? Duplicate(Document source)
     {
         var newPath = GetUniquePath(source.Path);
+        var newName = Path.GetFileNameWithoutExtension(newPath);
 
         var directory = Path.GetDirectoryName(newPath);
         if (directory != null)
@@ -370,9 +359,11 @@ public static class DocumentManager
         if (File.Exists(metaPath))
             File.Copy(metaPath, newPath + ".meta");
 
-        var doc = Add(newPath);
-        if (doc == null)
-            return null;
+        Importer.Queue(newPath);
+        Importer.Update();
+
+        var doc = Find(source.Def.Type, newName);
+        if (doc == null) return null;
 
         doc.LoadMetadata();
         doc.Load();
@@ -381,8 +372,6 @@ public static class DocumentManager
         doc.Position = source.Position;
 
         DocumentAdded?.Invoke(doc);
-
-        Importer.QueueImport(doc, true);
 
         return doc;
     }

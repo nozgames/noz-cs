@@ -23,6 +23,9 @@ public class SpriteEditor : DocumentEditor
     private const byte PreviewButtonId = 11;
     private const byte PalettePopupId = 12;
     private const byte SkeletonOverlayButtonId = 13;
+    private const byte SizeButtonId = 24;
+    private const byte SizePopupId = 25;
+    private const byte FirstSizeId = 26;
     private const byte FirstPaletteId = 64;
     private const byte FirstPaletteColorId = 128;
     private static readonly string[] OpacityStrings = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"];
@@ -39,6 +42,7 @@ public class SpriteEditor : DocumentEditor
     private bool _rasterDirty = true;
     private bool _showOpacityPopup;
     private bool _showPalettePopup;
+    private bool _showSizePopup;
 
     public SpriteEditor(SpriteDocument document) : base(document)
     {
@@ -247,6 +251,12 @@ public class SpriteEditor : DocumentEditor
                             _showPalettePopup = !_showPalettePopup;
 
                         PalettePopupUI();
+                    }
+
+                    using (UI.BeginContainer(ContainerStyle.Fit))
+                    {
+                        SizeButtonUI();
+                        SizePopupUI();
                     }
                 }
             }
@@ -555,6 +565,98 @@ public class SpriteEditor : DocumentEditor
         }
     }
 
+    private void SizeButtonUI()
+    {
+        var sizes = EditorApplication.Config.SpriteSizes;
+        var constraint = Document.ConstrainedSize;
+        var label = constraint.HasValue
+            ? $"{constraint.Value.X}x{constraint.Value.Y}"
+            : "None";
+
+        void SizeButtonContent()
+        {
+            using (UI.BeginRow())
+            {
+                EditorUI.ControlIcon(EditorAssets.Sprites.IconMove);
+                EditorUI.ControlText(label);
+                UI.Spacer(EditorStyle.Control.Spacing);
+            }
+        }
+
+        if (EditorUI.Control(SizeButtonId, SizeButtonContent, selected: _showSizePopup, disabled: sizes.Length == 0))
+            _showSizePopup = !_showSizePopup;
+    }
+
+    private void SizePopupUI()
+    {
+        if (!_showSizePopup) return;
+
+        var buttonRect = UI.GetElementRect(EditorStyle.CanvasId.DocumentEditor, SizeButtonId);
+        var sizes = EditorApplication.Config.SpriteSizes;
+
+        using (UI.BeginPopup(SizePopupId, EditorStyle.SpriteEditor.PalettePopup with { AnchorRect = buttonRect }))
+        {
+            if (UI.IsClosed())
+            {
+                _showSizePopup = false;
+                return;
+            }
+
+            using (UI.BeginContainer(EditorStyle.SpriteEditor.OpacityPopupRoot))
+            using (UI.BeginColumn(ContainerStyle.Fit with { Spacing = EditorStyle.Control.Spacing }))
+            {
+                using (UI.BeginContainer(FirstSizeId, EditorStyle.Popup.Item))
+                {
+                    var selected = !Document.ConstrainedSize.HasValue;
+                    EditorUI.PopupItemFill(selected, UI.IsHovered());
+                    using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
+                    {
+                        EditorUI.PopupIcon(EditorAssets.Sprites.IconMove, UI.IsHovered(), selected);
+                        UI.Label("None", EditorStyle.Popup.Text);
+                        UI.Spacer(EditorStyle.Control.Spacing);
+                    }
+
+                    if (UI.WasPressed())
+                    {
+                        Undo.Record(Document);
+                        Document.ConstrainedSize = null;
+                        Document.UpdateBounds();
+                        Document.MarkMetaModified();
+                        MarkRasterDirty();
+                        _showSizePopup = false;
+                    }
+                }
+
+                for (int i = 0; i < sizes.Length; i++)
+                {
+                    var size = sizes[i];
+                    using (UI.BeginContainer(FirstSizeId + 1 + i, EditorStyle.Popup.Item))
+                    {
+                        var selected = Document.ConstrainedSize.HasValue &&
+                                       Document.ConstrainedSize.Value == size;
+                        EditorUI.PopupItemFill(selected, UI.IsHovered());
+                        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
+                        {
+                            EditorUI.PopupIcon(EditorAssets.Sprites.IconMove, UI.IsHovered(), selected);
+                            UI.Label($"{size.X}x{size.Y}", EditorStyle.Popup.Text);
+                            UI.Spacer(EditorStyle.Control.Spacing);
+                        }
+
+                        if (UI.WasPressed())
+                        {
+                            Undo.Record(Document);
+                            Document.ConstrainedSize = size;
+                            Document.UpdateBounds();
+                            Document.MarkMetaModified();
+                            MarkRasterDirty();
+                            _showSizePopup = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private void SetOpacity(float value)
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
@@ -604,17 +706,18 @@ public class SpriteEditor : DocumentEditor
             return;
         }
 
-        var textureRect = new RectInt(0, 0, size.X + Padding * 2, size.Y + Padding * 2);
-        _image.Clear(textureRect);
+        var rasterRect = new RectInt(0, 0, size.X + Padding * 2, size.Y + Padding * 2);
+        _image.Clear(rasterRect);
         var palette = PaletteManager.GetPalette(Document.Palette);
         if (palette != null)
             shape.Rasterize(
                 _image,
+                rasterRect.Expand(-Padding),
+                -Document.RasterBounds.Position,
                 palette.Colors,
-                new Vector2Int(-bounds.X, -bounds.Y) + new Vector2Int(Padding, Padding),
                 options: new Shape.RasterizeOptions { AntiAlias = Document.IsAntiAliased });
 
-        _image.BleedColors(textureRect);
+        _image.BleedColors(rasterRect);
 
         for (int p = Padding - 1; p >= 0; p--)
             _image.ExtrudeEdges(new RectInt(
@@ -622,7 +725,7 @@ public class SpriteEditor : DocumentEditor
                 p,
                 size.X + (Padding - p) * 2, size.Y + (Padding - p) * 2));
 
-        _rasterTexture.Update(_image.AsByteSpan(), textureRect, _image.Width);
+        _rasterTexture.Update(_image.AsByteSpan(), rasterRect, _image.Width);
         _rasterDirty = false;
     }
 

@@ -75,7 +75,7 @@ public class TextureDocument : Document
         }
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         using var stream = File.OpenRead(Path);
         var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);

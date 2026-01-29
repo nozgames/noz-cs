@@ -20,7 +20,7 @@ public class SoundDocument : Document
         ));
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         using var fileStream = File.OpenRead(Path);
         using var reader = new BinaryReader(fileStream);

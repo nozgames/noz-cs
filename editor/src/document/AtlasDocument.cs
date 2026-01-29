@@ -352,8 +352,9 @@ internal class AtlasDocument : Document
                     rasterBounds.Size);
                 frame.Shape.Rasterize(
                     _image,
+                    rasterRect,
+                    -rect.Sprite.RasterBounds.Position,
                     palette.Colors,
-                    rasterRect.Position - rasterBounds.Position,
                     new Shape.RasterizeOptions { AntiAlias = rect.Sprite.IsAntiAliased });
 
                 _image.BleedColors(rasterRect);
@@ -383,12 +384,8 @@ internal class AtlasDocument : Document
                 spriteNames.Add(rect.Name);
         }
 
-        // Clear sprites from their atlas reference
         foreach (var rect in _rects)
-        {
-            if (rect.Sprite != null) { }
-                rect.Sprite.Atlas = null;
-        }
+            rect.Sprite?.Atlas = null;
 
         // Clear all rects and reset packer
         _rects.Clear();
@@ -430,7 +427,7 @@ internal class AtlasDocument : Document
         }
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Atlas, Atlas.Version, 0);

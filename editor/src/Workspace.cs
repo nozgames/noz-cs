@@ -17,7 +17,7 @@ public static class Workspace
     private static void ReimportAll()
     {
         foreach (var doc in DocumentManager.Documents)
-            Importer.QueueImport(doc, true);
+            Importer.Queue(doc, true);
     }
 
     private static void CreateNewDocument(AssetType assetType)

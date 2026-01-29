@@ -102,6 +102,7 @@ public class SpriteDocument : Document
     public bool ShowInSkeleton { get; set; }
     public bool ShowTiling { get; set; }
     public bool ShowSkeletonOverlay { get; set; }
+    public Vector2Int? ConstrainedSize { get; set; }
 
     internal AtlasDocument? Atlas;
     internal Rect AtlasUV;
@@ -219,6 +220,24 @@ public class SpriteDocument : Document
 
     public void UpdateBounds()
     {
+        if (ConstrainedSize.HasValue)
+        {
+            var cs = ConstrainedSize.Value;
+            var ppu = EditorApplication.Config.PixelsPerUnitInv;
+            Bounds = new Rect(
+                cs.X * ppu * -0.5f,
+                cs.Y * ppu * -0.5f,
+                cs.X * ppu,
+                cs.Y * ppu);
+            RasterBounds = new RectInt(
+                -cs.X / 2,
+                -cs.Y / 2,
+                cs.X,
+                cs.Y);
+
+            return;
+        }
+
         if (FrameCount <= 0)
         {
             Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
@@ -250,6 +269,18 @@ public class SpriteDocument : Document
             Frames[fi].Shape.UpdateSamples();
             Frames[fi].Shape.UpdateBounds();
             RasterBounds = RasterBounds.Union(Frames[fi].Shape.RasterBounds);
+        }
+
+        if (ConstrainedSize.HasValue)
+        {
+            var cs = ConstrainedSize.Value;
+            var centerX = RasterBounds.X + RasterBounds.Width / 2;
+            var centerY = RasterBounds.Y + RasterBounds.Height / 2;
+            RasterBounds = new RectInt(
+                centerX - cs.X / 2,
+                centerY - cs.Y / 2,
+                cs.X,
+                cs.Y);
         }
 
         Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
@@ -372,6 +403,21 @@ public class SpriteDocument : Document
         ShowInSkeleton = meta.GetBool("sprite", "show_in_skeleton", false);
         ShowTiling = meta.GetBool("sprite", "show_tiling", false);
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
+        ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
+    }
+
+    private static Vector2Int? ParseConstrainedSize(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return null;
+        var parts = value.Split('x');
+        if (parts.Length == 2 &&
+            int.TryParse(parts[0], out var w) &&
+            int.TryParse(parts[1], out var h))
+        {
+            return new Vector2Int(w, h);
+        }
+        return null;
     }
 
     public override void SaveMetadata(PropertySet meta)
@@ -379,6 +425,8 @@ public class SpriteDocument : Document
         meta.SetBool("sprite", "show_in_skeleton", ShowInSkeleton);
         meta.SetBool("sprite", "show_tiling", ShowTiling);
         meta.SetBool("sprite", "show_skeleton_overlay", ShowSkeletonOverlay);
+        if (ConstrainedSize.HasValue)
+            meta.SetString("sprite", "constrained_size", $"{ConstrainedSize.Value.X}x{ConstrainedSize.Value.Y}");
         if (Binding.IsBound)
         {
             meta.SetString("bone", "skeleton", Binding.SkeletonName);
@@ -410,7 +458,7 @@ public class SpriteDocument : Document
         MarkMetaModified();
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         UpdateBounds();
 

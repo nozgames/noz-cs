@@ -200,19 +200,15 @@ public class PropertySet
             // Parse key=value
             var lineTk = new Tokenizer(line);
 
-            if (!lineTk.ExpectToken(out Token keyToken))
-                continue;
-
-            string key = lineTk.GetString(keyToken);
-            if (string.IsNullOrEmpty(key))
-                continue;
+            if (!lineTk.ExpectToken(out var keyToken)) continue;
+            while (!lineTk.ExpectDelimiter('=') && lineTk.ExpectToken(out var temp))
+                keyToken.Length = (temp.Start - keyToken.Start) + temp.Length;
 
             string value = "";
-            if (lineTk.ExpectDelimiter('='))
-            {
-                if (lineTk.ExpectLine(out string lineValue))
-                    value = lineValue;
-            }
+            if (lineTk.ExpectLine(out string lineValue))
+                value = lineValue;
+
+            string key = line[keyToken.Start..(keyToken.Start + keyToken.Length)];
 
             props.SetString(groupName, key, value);
         }

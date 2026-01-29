@@ -65,18 +65,31 @@ internal static class EditorUI
         return pressed;
     }
 
+    private static void ButtonIcon(Sprite icon)
+    {
+        using var _ = UI.BeginContainer(EditorStyle.Button.IconContent);
+        if (_controlDisabled)
+            UI.Image(icon, EditorStyle.Button.DisabledIcon);
+        else if (_controlSelected)
+            UI.Image(icon, EditorStyle.Button.SelectedIcon);
+        else if (_controlHovered)
+            UI.Image(icon, EditorStyle.Button.HoveredIcon);
+        else
+            UI.Image(icon, EditorStyle.Button.Icon);
+
+    }
+
     public static bool Button(ElementId id, Sprite icon, bool selected = false, bool disabled = false, bool toolbar = false)
     {
         bool pressed = false;
         using (UI.BeginContainer(id, EditorStyle.Button.RootWithIcon))
         {
+            _controlDisabled = disabled;
+            _controlHovered = UI.IsHovered();
+            _controlSelected = selected;
+
             ButtonFill(selected, UI.IsHovered(), disabled, toolbar: toolbar);
-            using (UI.BeginContainer(EditorStyle.Button.IconContent))
-                UI.Image(
-                    icon,
-                    disabled
-                        ? EditorStyle.Button.DisabledIcon
-                        : (selected ? EditorStyle.Button.SelectedIcon : EditorStyle.Button.Icon));
+            ButtonIcon(icon);
             pressed = UI.WasPressed();
         }
 

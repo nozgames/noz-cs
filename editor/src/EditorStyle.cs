@@ -153,7 +153,7 @@ public static class EditorStyle
     public static class Control
     {
         public const float TextSize = 11.0f;
-        public const float Height = 20.0f;
+        public const float Height = 40.0f;
         public const float BorderRadius = 6.0f;
         public const float Spacing = 5.0f;
         public static Color TextColor => _colors.ControlTextColor;
@@ -220,10 +220,10 @@ public static class EditorStyle
             Color = Color.FromRgb(0x545454)
         };
 
-        public static readonly ContainerStyle HoverFill = Fill with { Color = Color.FromRgb(0x656565) };
-        public static readonly ContainerStyle SelectedFill = Fill with { Color = Color.FromRgb(0x4772b3) };
-        public static readonly ContainerStyle SelectedHoverFill = Fill with { Color = Color.FromRgb(0x628bca) };
-        public static readonly ContainerStyle DisabledFill = Fill with { Color = Color.FromRgb(0x484848) };
+        public static readonly ContainerStyle HoverFill = Fill with { Color = Color.FromRgb(0x3f3f3f) };
+        public static readonly ContainerStyle SelectedFill = Fill with { Color = Color.FromRgb(0x545454) };
+        public static readonly ContainerStyle SelectedHoverFill = Fill with { Color = Color.FromRgb(0x545454) };
+        public static readonly ContainerStyle DisabledFill = Fill with { Color = Color.Transparent };
 
         public static readonly ContainerStyle TextContent = new()
         {
@@ -233,7 +233,7 @@ public static class EditorStyle
         {
             Width = Control.Height,
             Height = Control.Height,
-            Padding = EdgeInsets.All(3)
+            Padding = EdgeInsets.All(7)
         };
         public static readonly ContainerStyle Content = new()
         {
@@ -247,9 +247,10 @@ public static class EditorStyle
             AlignY = Align.Center
         };
         public static readonly LabelStyle DisabledText = Text with { Color = Color.FromRgb(0x929292) };
-        public static readonly ImageStyle Icon = new() { Color = Control.IconColor, AlignX = Align.Center, AlignY = Align.Center };
-        public static readonly ImageStyle SelectedIcon = Icon with { Color = Control.SelectedIconColor };
-        public static readonly ImageStyle DisabledIcon = Icon with { Color = Color.FromRgb(0x585858) };
+        public static readonly ImageStyle Icon = new() { Color = Color.FromRgb(0xebebeb), AlignX = Align.Center, AlignY = Align.Center };
+        public static readonly ImageStyle SelectedIcon = Icon with { Color = Color.FromRgb(0xffffff) };
+        public static readonly ImageStyle DisabledIcon = Icon with { Color = Color.FromRgb(0x3e3e3e) };
+        public static readonly ImageStyle HoveredIcon = Icon with { Color = Color.FromRgb(0xffffff) };
     }
 
     public static class List
@@ -354,7 +355,7 @@ public static class EditorStyle
         public const int TextSize = 12;
         public const float ContentBorderRadius = 9f;
         public const float VerticalSpacing = 4.0f;
-        public static Color FillColor => _colors.Overlay.Fill;
+        public static Color FillColor => Color.FromRgb(0x323232);
         public static readonly Color TextColor = Color.White;
         public static Color AccentTextColor => _colors.Overlay.AccentText;
         public static Color DisabledTextColor => _colors.Overlay.DisabledText;
@@ -363,15 +364,15 @@ public static class EditorStyle
         public static readonly ContainerStyle Root = new()
         {
             Color = FillColor,
-            Border = new BorderStyle { Radius = BorderRadius, Width = BorderWidth, Color = Color.FromRgb(0x3d3d3d) },
+            Border = new BorderStyle { Radius = BorderRadius, Width = BorderWidth, Color = Color.Black10Pct },
             Padding = EdgeInsets.All(BorderWidth)
         };
 
         public static readonly ContainerStyle Toolbar = new()
         {
-            Padding = EdgeInsets.LeftRight(2 + BorderWidth),
+            Padding = EdgeInsets.Symmetric(6, 2 + BorderWidth),
             Spacing = Control.Spacing,
-            Height = Control.Height,
+            Height = Size.Fit,
             Margin = EdgeInsets.Top(VerticalSpacing)
         };
 

@@ -38,7 +38,7 @@ public class FontDocument : Document
         if (Padding != 1) meta.SetInt("font", "padding", Padding);
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         var ttf = TrueTypeFont.Load(Path, FontSize, Characters);
         if (ttf == null)

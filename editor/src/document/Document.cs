@@ -11,7 +11,6 @@ public abstract class Document : IDisposable
     public DocumentDef Def { get; internal set; } = null!;
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
-    public int SourcePathIndex { get; set; } = -1;
     public string CollectionId { get; set; } = "";
     public virtual bool IsPlaying { get; } = false;
     public virtual bool CanPlay => false;
@@ -22,6 +21,8 @@ public abstract class Document : IDisposable
 
     public Matrix3x2 Transform => Matrix3x2.CreateTranslation(Position);
     
+    public bool IsQueuedForImport { get; internal set; }
+    public bool IsDisposed { get; private set; }
     public bool IsVisible { get; set; } = true;
     public bool IsSelected { get; set; }
     public bool IsEditing { get; set; }
@@ -40,7 +41,7 @@ public abstract class Document : IDisposable
     public virtual void PostLoad() { }
     public virtual void LoadMetadata(PropertySet meta) { }
     public virtual void SaveMetadata(PropertySet meta) { }
-    public virtual void Import(string outputPath, PropertySet config, PropertySet meta) { }
+    public virtual void Import(string outputPath, PropertySet meta) { }
     public virtual void Draw() { }
     public virtual void Clone(Document source) { }
     public virtual void OnUndoRedo() { }
@@ -100,7 +101,10 @@ public abstract class Document : IDisposable
         IsMetaModified = true;
     }
 
-    public virtual void Dispose () { }
+    public virtual void Dispose () 
+    {
+        IsDisposed = true;
+    }
 
     public void DrawBounds(bool selected=false)
     {

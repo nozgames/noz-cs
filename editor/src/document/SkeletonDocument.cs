@@ -569,7 +569,7 @@ public class SkeletonDocument : Document
         }
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         using var writer = new BinaryWriter(File.Create(outputPath));
 
@@ -607,7 +607,7 @@ public class SkeletonDocument : Document
 
         File.WriteAllText(fullPath, defaultSkel);
 
-        var doc = DocumentManager.Add(fullPath) as SkeletonDocument;
+        var doc = DocumentManager.Create(fullPath) as SkeletonDocument;
         doc?.Load();
         return doc;
     }

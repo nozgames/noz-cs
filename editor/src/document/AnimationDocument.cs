@@ -842,7 +842,7 @@ internal class AnimationDocument : Document
             frame1 = Math.Min(frame1, FrameCount - 1);
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         if (Skeleton == null)
             throw new Exception("Invalid skeleton");
@@ -946,7 +946,7 @@ internal class AnimationDocument : Document
         var contents = $"s \"{skeleton.Name}\"\n";
         File.WriteAllText(fullPath, contents);
 
-        var doc = DocumentManager.Add(fullPath) as AnimationDocument;
+        var doc = DocumentManager.Create(fullPath) as AnimationDocument;
         doc?.Load();
         return doc;
     }

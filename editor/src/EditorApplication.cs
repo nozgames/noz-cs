@@ -12,7 +12,7 @@ internal class EditorApplicationInstance : IApplication
 
     public void LoadAssets()
     {
-        Importer.WaitForAllTasks();
+        Importer.Update();
         EditorAssets.LoadAssets();
         EditorApplication.PostLoad();
     }
@@ -100,6 +100,7 @@ public static class EditorApplication
 
     public static void Update()
     {
+        Importer.Update();
         ConfirmDialog.Update();
         CommandPalette.Update();
         ContextMenu.Update();

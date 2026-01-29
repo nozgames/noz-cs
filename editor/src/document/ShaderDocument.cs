@@ -45,7 +45,7 @@ public class ShaderDocument : Document
         if (PremultipliedAlpha) meta.SetBool("shader", "premultiplied", true);
     }
 
-    public override void Import(string outputPath, PropertySet config, PropertySet meta)
+    public override void Import(string outputPath, PropertySet meta)
     {
         ImportWgsl(outputPath, GetShaderFlags());
     }
