@@ -1010,6 +1010,7 @@ public static class Workspace
             return;
 
         ActiveTool.Cancel();
+        ActiveTool.Dispose();
         ActiveTool = null;
         Cursor.SetDefault();
     }

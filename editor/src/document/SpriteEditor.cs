@@ -37,7 +37,7 @@ public class SpriteEditor : DocumentEditor
     private readonly Texture _rasterTexture;
     private bool _rasterDirty = true;
 
-    public SpriteEditor(SpriteDocument document) : base(document)
+    public SpriteEditor(SpriteDocument doc) : base(doc)
     {
         _rasterTexture = Texture.Create(
             _image.Width,
@@ -137,9 +137,9 @@ public class SpriteEditor : DocumentEditor
     }
 
     // Selection
-    private byte _selectionFillColor;
-    private byte _selectionStrokeColor;
-    private float _selectionFillOpacity;
+    private byte _selectionFillColor = 0;
+    private byte _selectionStrokeColor = 0;
+    private float _selectionFillOpacity = 1.0f;
 
     // Tool state
     private readonly Vector2[] _savedPositions = new Vector2[Shape.MaxAnchors];
@@ -150,6 +150,8 @@ public class SpriteEditor : DocumentEditor
 
     public override void Dispose()
     {
+        ClearSelection();
+
         if (Document.IsModified)
             AtlasManager.UpdateSprite(Document);
 
@@ -1534,6 +1536,12 @@ public class SpriteEditor : DocumentEditor
         Document.MarkMetaModified();
         MarkRasterDirty();
         Notifications.Add("origin → bone origin");
+    }
+
+    private void ClearSelection()
+    {
+        for (int i=0; i<Document.FrameCount; i++)
+            Document.GetFrame((ushort)i).Shape.ClearSelection();
     }
 
     #endregion

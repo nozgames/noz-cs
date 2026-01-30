@@ -66,13 +66,13 @@ public static partial class UI
             HandleCanvasInput(cid, mouse, isHotCanvas);
         }
 
-        if (_mouseLeftElementId != ElementId.None)
+        if (_mouseLeftElementId != ElementId.None || _popupCount > 0)
             Input.ConsumeButton(InputCode.MouseLeft);
 
-        if (_mouseDoubleClickElementId != ElementId.None)
+        if (_mouseDoubleClickElementId != ElementId.None || _popupCount > 0)
             Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
 
-        if (_mouseRightElementId != ElementId.None)
+        if (_mouseRightElementId != ElementId.None || _popupCount > 0)
             Input.ConsumeButton(InputCode.MouseRight);
 
         HandleScrollableDrag(mouse);
@@ -152,7 +152,6 @@ public static partial class UI
             {
                 es.SetFlags(ElementFlags.RightClick, ElementFlags.None);
             }
-
         }
     }
 

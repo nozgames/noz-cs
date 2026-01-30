@@ -40,6 +40,7 @@ public class SkeletonDocument : Document
     public static event Action<SkeletonDocument, int, string, string>? BoneRenamed;
     public static event Action<SkeletonDocument, int, string>? BoneRemoved;
     public static event Action<SkeletonDocument, int>? BoneAdded;
+    public static event Action<SkeletonDocument>? TransformsChanged;
 
     public SkeletonDocument()
     {
@@ -631,16 +632,25 @@ public class SkeletonDocument : Document
     public void NotifyBoneRenamed(int boneIndex, string oldName, string newName)
     {
         BoneRenamed?.Invoke(this, boneIndex, oldName, newName);
+        UpdateSprites();
     }
 
     public void NotifyBoneRemoved(int removedIndex, string removedName)
     {
         BoneRemoved?.Invoke(this, removedIndex, removedName);
+        UpdateSprites();
     }
 
     public void NotifyBoneAdded(int boneIndex)
     {
         BoneAdded?.Invoke(this, boneIndex);
+        UpdateSprites();
+    }
+
+    public void NotifyTransformsChanged()
+    {
+        TransformsChanged?.Invoke(this);
+        UpdateSprites();
     }
 
     public override void Dispose()

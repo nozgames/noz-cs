@@ -105,6 +105,18 @@ internal class AnimationDocument : Document
     {
         SkeletonDocument.BoneRenamed += OnSkeletonBoneRenamed;
         SkeletonDocument.BoneRemoved += OnSkeletonBoneRemoved;
+        SkeletonDocument.BoneAdded += OnSkeletonBoneAdded;
+        SkeletonDocument.TransformsChanged += OnSkeletonTransformsChanged;
+    }
+
+    private static void OnSkeletonTransformsChanged(SkeletonDocument skeleton)
+    {
+        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        {
+            if (doc.Skeleton != skeleton)
+                continue;
+            doc.RebuildLocalToWorld();
+        }
     }
 
     public static void RegisterDef()
@@ -118,6 +130,26 @@ internal class AnimationDocument : Document
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconAnimation
         });
+    }
+
+    private static void OnSkeletonBoneAdded(SkeletonDocument skeleton, int boneIndex)
+    {
+        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        {
+            if (doc.Skeleton != skeleton)
+                continue;
+
+            if (boneIndex < NoZ.Skeleton.MaxBones)
+            {
+                doc.Bones[boneIndex].Name = skeleton.Bones[boneIndex].Name;
+                doc.Bones[boneIndex].Index = boneIndex;
+                for (var f = 0; f < doc.FrameCount; f++)
+                    doc.Frames[f].Transforms[boneIndex] = BoneTransform.Identity;
+            }
+
+            doc.BoneCount = skeleton.BoneCount;
+            doc.RebuildLocalToWorld();
+        }
     }
 
     private static void OnSkeletonBoneRenamed(SkeletonDocument skeleton, int boneIndex, string oldName, string newName)
@@ -138,22 +170,26 @@ internal class AnimationDocument : Document
     {
         foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
         {
-            if (doc.Skeleton != skeleton || removedIndex >= doc.BoneCount)
+            if (doc.Skeleton != skeleton)
                 continue;
 
-            for (var i = removedIndex; i < doc.BoneCount - 1; i++)
+            if (removedIndex < doc.BoneCount)
             {
-                doc.Bones[i].Name = doc.Bones[i + 1].Name;
-                doc.Bones[i].Index = i;
-                doc.Bones[i].IsSelected = doc.Bones[i + 1].IsSelected;
-                for (var f = 0; f < doc.FrameCount; f++)
-                    doc.Frames[f].Transforms[i] = doc.Frames[f].Transforms[i + 1];
+                for (var i = removedIndex; i < doc.BoneCount - 1; i++)
+                {
+                    doc.Bones[i].Name = doc.Bones[i + 1].Name;
+                    doc.Bones[i].Index = i;
+                    doc.Bones[i].IsSelected = doc.Bones[i + 1].IsSelected;
+                    for (var f = 0; f < doc.FrameCount; f++)
+                        doc.Frames[f].Transforms[i] = doc.Frames[f].Transforms[i + 1];
+                }
+                doc.BoneCount--;
+                doc.MarkModified();
+                Notifications.Add($"Animation '{doc.Name}' updated (bone '{removedName}' removed)");
             }
 
-            doc.BoneCount--;
-            doc.UpdateTransforms();
-            doc.MarkModified();
-            Notifications.Add($"Animation '{doc.Name}' updated (bone '{removedName}' removed)");
+            doc.BoneCount = skeleton.BoneCount;
+            doc.RebuildLocalToWorld();
         }
     }
 
@@ -225,6 +261,21 @@ internal class AnimationDocument : Document
             var parentIndex = Skeleton.Bones[boneIndex].ParentIndex;
             LocalToWorld[boneIndex] = LocalToWorld[boneIndex] * LocalToWorld[parentIndex];
         }
+    }
+
+    public void RebuildLocalToWorld()
+    {
+        if (Skeleton == null)
+            return;
+
+        LocalToWorld.Clear();
+        LocalToWorld.AddRange(Skeleton.BoneCount);
+
+        for (var boneIndex = 0; boneIndex < Skeleton.BoneCount; boneIndex++)
+            LocalToWorld[boneIndex] = Matrix3x2.Identity;
+
+        if (FrameCount > 0 && CurrentFrame >= 0 && CurrentFrame < FrameCount)
+            UpdateTransforms(CurrentFrame);
     }
 
     public void UpdateTransformsInterpolated(int frame0, int frame1, float t)

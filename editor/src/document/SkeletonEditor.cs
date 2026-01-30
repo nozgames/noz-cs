@@ -285,7 +285,7 @@ internal class SkeletonEditor : DocumentEditor
 
         Workspace.BeginTool(new MoveTool(
             update: UpdateMoveTool,
-            commit: _ => Document.MarkModified(),
+            commit: _ => { Document.MarkModified(); Document.NotifyTransformsChanged(); },
             cancel: Undo.Cancel
         ));
     }
@@ -301,7 +301,7 @@ internal class SkeletonEditor : DocumentEditor
 
         Workspace.BeginTool(new MoveTool(
             update: UpdateMoveTool,
-            commit: _ => Document.MarkModified(),
+            commit: _ => { Document.MarkModified(); Document.NotifyTransformsChanged(); },
             cancel: Undo.Cancel
         ));
     }
@@ -362,7 +362,7 @@ internal class SkeletonEditor : DocumentEditor
             Vector2.Zero,
             invTransform,
             update: UpdateRotateTool,
-            commit: _ => Document.MarkModified(),
+            commit: _ => { Document.MarkModified(); Document.NotifyTransformsChanged(); },
             cancel: Undo.Cancel
         ));
     }
@@ -422,7 +422,7 @@ internal class SkeletonEditor : DocumentEditor
             _selectionCenterWorld,
             worldOrigin,
             update: UpdateScaleTool,
-            commit: _ => Document.MarkModified(),
+            commit: _ => { Document.MarkModified(); Document.NotifyTransformsChanged(); },
             cancel: Undo.Cancel
         ));
     }

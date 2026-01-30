@@ -22,7 +22,6 @@ internal class AnimationEditor : DocumentEditor
     private const int LoopButtonId = 4;
     private const int AddFrameButtonId = 5;
     private const int SkeletonButtonId = 6;
-    private const int SkeletonPopupId = 7;
     private const int FirstFrameId = 64;
     private const int FirstPopupItemId = 128;
 
@@ -106,31 +105,24 @@ internal class AnimationEditor : DocumentEditor
 
     private void SkeletonPopupUI()
     {
-        if (!_showSkeletonPopup) return;
-
-        var anchorRect = UI.GetElementRect(EditorStyle.CanvasId.DocumentEditor, SkeletonButtonId);
-        using var _ = UI.BeginPopup(SkeletonPopupId, EditorStyle.AnimationEditor.SkeletonPopup with { AnchorRect = anchorRect });
-        if (UI.IsClosed())
+        void Content()
         {
-            _showSkeletonPopup = false;
-            return;
-        }
-
-        using var __ = UI.BeginColumn(EditorStyle.Popup.Root with { Size = Size.Fit });
-
-        for (int i=0; i<DocumentManager.Count; i++)
-        {
-            var doc = DocumentManager.Get(i);
-            if (doc.Def.Type != AssetType.Skeleton) continue;
-
-            if (EditorUI.PopupItem(FirstPopupItemId + i, doc.Name, selected: doc as SkeletonDocument == Document.Skeleton))
+            for (int i = 0; i < DocumentManager.Count; i++)
             {
-                _showSkeletonPopup = false;
-                Undo.Record(Document);
-                Document.MarkModified();
-                Document.SetSkeleton(doc as SkeletonDocument);
+                var doc = DocumentManager.Get(i);
+                if (doc.Def.Type != AssetType.Skeleton) continue;
+
+                if (EditorUI.PopupItem(FirstPopupItemId + i, doc.Name, selected: doc as SkeletonDocument == Document.Skeleton))
+                {
+                    _showSkeletonPopup = false;
+                    Undo.Record(Document);
+                    Document.MarkModified();
+                    Document.SetSkeleton(doc as SkeletonDocument);
+                }
             }
         }
+
+        EditorUI.Popup(SkeletonButtonId, Content);
     }
 
     private void SkeletonButtonUI()
@@ -144,13 +136,10 @@ internal class AnimationEditor : DocumentEditor
                 EditorUI.ControlPlaceholderText(Document.Skeleton.Name);
         }
 
-        using (UI.BeginContainer(ContainerStyle.Fit))
-        {
-            if (EditorUI.Control(SkeletonButtonId, ButtonContent, false, false, false))
-                _showSkeletonPopup = true;
+        if (EditorUI.Control(SkeletonButtonId, ButtonContent, false, false, false))
+            EditorUI.TogglePopup(SkeletonButtonId);
 
-            SkeletonPopupUI();
-        }
+        SkeletonPopupUI();
     }
 
     private void TimelineUI(int currentFrame, bool isPlaying)

@@ -6,13 +6,14 @@
 - [ ] Drag the end of bones to size them in skeleton editor
 - [ ] Create new animation with skeleton skeelcton should use that skeleton for animation
 - [ ] Animation editor toggle for hiding bones
-- [ ] Cancelling a rename seems to get you stuck so no input works
 - [ ] Block input when rotating boes in animation
 - [ ] cant see holds in the animation editor
 - [ ] animation got corrupted by messing with holds
 - [ ] Factored out the dopesheet and reused in sprite
 - [ ] Added animated sprites
 - [ ] Added stroke rendering
+- [ ] Atlas not always rebuilding when sprites change, sprite added i think
+- [X] Cancelling a rename seems to get you stuck so no input works
 - [X] adding bones, renaming bones, and deleting bones causes animations to crash
 - [X] Cleanup refactor of contextmenu to use popup ui
 - [X] Sort the new menu by name
