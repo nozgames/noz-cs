@@ -941,7 +941,13 @@ public static class Workspace
             return;
 
         var doc = GetFirstSelected();
-        if (doc == null || !doc.Def.CanEdit)
+        if (doc == null)
+            return;
+
+        if (doc.Def.EditorFactory == null)
+            return;
+
+        if (!(doc.Def.CanEdit?.Invoke(doc) ?? true))
             return;
 
         _activeDocument = doc;
@@ -1011,18 +1017,6 @@ public static class Workspace
                 ClearSelection();
                 SetSelected(hitDoc, true);
                 BeginTool(CreateRenameToolForDocument(hitDoc));
-                return;
-            }
-
-            // Double-click on asset to enter edit mode
-            hitDoc = HitTestDocuments(_mouseWorldPosition);
-            if (hitDoc != null && hitDoc.Def.CanEdit)
-            {
-                Input.ConsumeButton(InputCode.MouseLeft);
-                Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
-                ClearSelection();
-                SetSelected(hitDoc, true);
-                ToggleEdit();
                 return;
             }
         }

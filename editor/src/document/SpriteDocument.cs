@@ -117,13 +117,14 @@ public class SpriteDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Sprite,
-            ".sprite",
-            () => new SpriteDocument(),
-            doc => new SpriteEditor((SpriteDocument)doc),
-            newFile: NewFile
-        ));
+        DocumentManager.RegisterDef(new DocumentDef
+        {
+            Type = AssetType.Sprite,
+            Extension = ".sprite",
+            Factory = () => new SpriteDocument(),
+            EditorFactory = doc => new SpriteEditor((SpriteDocument)doc),
+            NewFile = NewFile
+        });
     }
 
     public SpriteFrame GetFrame(ushort frameIndex) => Frames[frameIndex];

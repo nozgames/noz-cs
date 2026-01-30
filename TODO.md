@@ -14,6 +14,9 @@
 - [ ] Factored out the dopesheet and reused in sprite
 - [ ] Added animated sprites
 - [ ] Added stroke rendering
+- [ ] Exclusive input while scale tool is active
+- [X] TextureEditor that allows scaling textures
+- [X] improved documentdef registration
 - [X] Added EditorUI.Popup interface to make popups easier
 - [X] Simplified subtraction to be opacity of float.MinValue
 - [X] Added EditorUI.ColorButton

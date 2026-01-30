@@ -71,10 +71,10 @@ public static class EditorStyle
     // :workspace
     public static class Workspace
     {
+        public static readonly Color SelectionColor = Color.Cyan;
         public static readonly Color FillColor = Color.FromRgb(0x464646);
         public static readonly Color GridColor = Color.FromRgb(0x686868);
-        public static readonly Color DocumentBoundsColor = Color.FromRgb(0x212121);
-        public static readonly Color SelectedDocumentBoundsColor = Color.FromRgb(0xfd970e);
+        public static readonly Color BoundsColor = Color.FromRgb(0x212121);
         public static readonly Color OriginColor = Color.FromRgb(0xff9f2c);
         public const float OriginSize = 0.06f;
         public const float DocumentBoundsLineWidth = 0.015f;

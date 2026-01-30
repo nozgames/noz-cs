@@ -200,6 +200,7 @@ public readonly struct Color(float r, float g, float b, float a)
     public static readonly Color White5Pct = new(1f, 1f, 1f, 0.05f);
     public static readonly Color White10Pct = new(1f, 1f, 1f, 0.1f);
     public static readonly Color White50Pct = new(1f, 1f, 1f, 0.5f);
+    public static readonly Color Cyan = new(0.0f, 1.0f, 1.0f, 1.0f);
 
     public override string ToString()
     {

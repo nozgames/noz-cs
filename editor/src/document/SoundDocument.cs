@@ -13,11 +13,12 @@ public class SoundDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Sound,
-            ".wav",
-            () => new SoundDocument()
-        ));
+        DocumentManager.RegisterDef(new DocumentDef 
+        {
+            Type = AssetType.Sound,
+            Extension = ".wav",
+            Factory = () => new SoundDocument()
+        });
     }
 
     public override void Import(string outputPath, PropertySet meta)

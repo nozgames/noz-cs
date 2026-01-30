@@ -13,6 +13,7 @@ public class ScaleTool : Tool
     private readonly Action<Vector2> _update;
     private readonly Action<Vector2> _commit;
     private readonly Action _cancel;
+    private InputScope _scope;
 
     private Vector2 _startWorld;
     private Vector2 _scaleConstraint = Vector2.One;
@@ -28,18 +29,21 @@ public class ScaleTool : Tool
 
     public override void Begin()
     {
+        _scope = Input.PushScope();
         _startWorld = Workspace.MouseWorldPosition;
     }
 
     public override void Update()
     {
-        if (Input.WasButtonPressed(InputCode.KeyEscape) || Input.WasButtonPressed(InputCode.MouseRight))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, _scope) ||
+            Input.WasButtonPressed(InputCode.MouseRight, _scope))
         {
             Workspace.CancelTool();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.KeyEnter))
+        if (Input.WasButtonPressed(InputCode.MouseLeft, _scope) ||
+            Input.WasButtonPressed(InputCode.KeyEnter, _scope))
         {
             var finalScale = GetCurrentScale();
             _commit(finalScale);
@@ -48,16 +52,16 @@ public class ScaleTool : Tool
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyX))
+        if (Input.WasButtonPressed(InputCode.KeyX, _scope))
             _scaleConstraint = _scaleConstraint.X > 0 && _scaleConstraint.Y == 0 ? Vector2.One : new Vector2(1, 0);
-        if (Input.WasButtonPressed(InputCode.KeyY))
+        if (Input.WasButtonPressed(InputCode.KeyY, _scope))
             _scaleConstraint = _scaleConstraint.Y > 0 && _scaleConstraint.X == 0 ? Vector2.One : new Vector2(0, 1);
 
         var scale = GetCurrentScale();
         _update(scale);
     }
 
-    private Vector2 GetCurrentPivot() => Input.IsShiftDown() ? _origin : _pivot;
+    private Vector2 GetCurrentPivot() => Input.IsShiftDown(_scope) ? _origin : _pivot;
 
     private Vector2 GetCurrentScale()
     {
@@ -109,5 +113,12 @@ public class ScaleTool : Tool
     public override void Cancel()
     {
         _cancel();
+    }
+
+    public override void Dispose()
+    {
+        GC.SuppressFinalize(this);
+        Input.PopScope(_scope);
+        base.Dispose();
     }
 }

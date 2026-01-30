@@ -17,11 +17,14 @@ public class TextureDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Texture,
-            ".png",
-            () => new TextureDocument()
-        ));
+        DocumentManager.RegisterDef(new DocumentDef
+        {
+            Type = AssetType.Texture,
+            Extension = ".png",
+            Factory = () => new TextureDocument(),
+            EditorFactory = doc => new TextureEditor((TextureDocument)doc),
+            CanEdit = doc => ((TextureDocument)doc).IsEditorOnly
+        });
     }
 
     public override void LoadMetadata(PropertySet meta)

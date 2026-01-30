@@ -15,11 +15,12 @@ public class FontDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Font,
-            ".ttf",
-            () => new FontDocument()
-        ));
+        DocumentManager.RegisterDef(new DocumentDef
+        {
+            Type = AssetType.Font,
+            Extension = ".ttf",
+            Factory = () => new FontDocument()
+        });
     }
 
     public override void LoadMetadata(PropertySet meta)

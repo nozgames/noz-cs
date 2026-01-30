@@ -18,11 +18,12 @@ public class ShaderDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Shader,
-            ".wgsl",
-            () => new ShaderDocument()
-        ));
+        DocumentManager.RegisterDef(new DocumentDef 
+        {
+            Type = AssetType.Shader,
+            Extension = ".wgsl",
+            Factory = () => new ShaderDocument()
+        });
     }
 
     public override void LoadMetadata(PropertySet meta)

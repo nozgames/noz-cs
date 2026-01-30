@@ -45,13 +45,13 @@ public class SkeletonDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Skeleton,
-            ".skel",
-            () => new SkeletonDocument(),
-            doc => new SkeletonEditor((SkeletonDocument)doc),
-            newFile: NewFile
-        ));
+        DocumentManager.RegisterDef(new DocumentDef {
+            Type = AssetType.Skeleton,
+            Extension = ".skel",
+            Factory = () => new SkeletonDocument(),
+            EditorFactory = doc => new SkeletonEditor((SkeletonDocument)doc),
+            NewFile = NewFile
+        });
     }
 
     public BoneData? GetParent(BoneData bone)

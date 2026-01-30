@@ -4,17 +4,12 @@
 
 namespace NoZ.Editor;
 
-public class DocumentDef(
-    AssetType type,
-    string extension,
-    Func<Document> factory, Func<Document, DocumentEditor>? editorFactory = null,
-    Action<StreamWriter>? newFile = null)
+public class DocumentDef
 {
-    public AssetType Type { get; } = type;
-    public string Extension { get; } = extension.ToLowerInvariant();
-    public Func<Document> Factory { get; } = factory;
-    public Action<StreamWriter>? NewFile { get; } = newFile;
-    public Func<Document, DocumentEditor>? EditorFactory { get; } = editorFactory;
-
-    public bool CanEdit => EditorFactory != null;
+    public required AssetType Type { get; init; }
+    public required string Extension { get; init; }
+    public required Func<Document> Factory { get; init; }
+    public Action<StreamWriter>? NewFile { get; init; }
+    public Func<Document, DocumentEditor>? EditorFactory { get; init; }
+    public Func<Document, bool>? CanEdit { get; init; }
 }

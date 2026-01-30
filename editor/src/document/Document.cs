@@ -112,8 +112,8 @@ public abstract class Document : IDisposable
         {
             Graphics.SetTransform(Transform);
             Graphics.SetColor(selected
-                ? EditorStyle.Workspace.SelectedDocumentBoundsColor
-                : EditorStyle.Workspace.DocumentBoundsColor);
+                ? EditorStyle.Workspace.SelectionColor
+                : EditorStyle.Workspace.BoundsColor);
             Gizmos.DrawRect(Bounds, EditorStyle.Workspace.DocumentBoundsLineWidth, outside: true);
         }
     }
@@ -124,7 +124,7 @@ public abstract class Document : IDisposable
         using (Gizmos.PushState(selected ? EditorLayer.Selection : EditorLayer.Document))
             Gizmos.DrawOrigin(selected
                 ? EditorStyle.Workspace.OriginColor
-                : EditorStyle.Workspace.DocumentBoundsColor,
+                : EditorStyle.Workspace.BoundsColor,
                 order: 1);
     }
 

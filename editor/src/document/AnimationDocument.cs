@@ -102,13 +102,14 @@ internal class AnimationDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Animation,
-            ".anim",
-            () => new AnimationDocument(),
-            doc => new AnimationEditor((AnimationDocument)doc),
-            newFile: NewFile
-        ));
+        DocumentManager.RegisterDef(new DocumentDef
+        {
+            Type = AssetType.Animation,
+            Extension = ".anim",
+            Factory = () => new AnimationDocument(),
+            EditorFactory = doc => new AnimationEditor((AnimationDocument)doc),
+            NewFile = NewFile
+        });
     }
 
     public ref BoneTransform GetFrameTransform(int boneIndex, int frameIndex)

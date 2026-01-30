@@ -38,13 +38,14 @@ internal class AtlasDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef(
-            AssetType.Atlas,
-            ".atlas",
-            () => new AtlasDocument(),
-            editorFactory: doc => new AtlasEditor((AtlasDocument)doc),
-            newFile: NewFile
-        ));
+        DocumentManager.RegisterDef(new DocumentDef
+        {
+            Type = AssetType.Atlas,
+            Extension = ".atlas",
+            Factory = () => new AtlasDocument(),
+            EditorFactory = doc => new AtlasEditor((AtlasDocument)doc),
+            NewFile = NewFile
+        });
     }
 
     private static void NewFile(StreamWriter writer)
