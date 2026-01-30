@@ -14,7 +14,8 @@
 - [ ] Factored out the dopesheet and reused in sprite
 - [ ] Added animated sprites
 - [ ] Added stroke rendering
-- [ ] Exclusive input while scale tool is active
+- [ ] Move to collection menu should show current as selected
+- [X] Exclusive input while scale tool is active
 - [X] TextureEditor that allows scaling textures
 - [X] improved documentdef registration
 - [X] Added EditorUI.Popup interface to make popups easier

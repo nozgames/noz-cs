@@ -115,6 +115,44 @@ public class SpriteDocument : Document
             Frames[i] = new SpriteFrame();
     }
 
+    static SpriteDocument()
+    {
+        SkeletonDocument.BoneRenamed += OnSkeletonBoneRenamed;
+        SkeletonDocument.BoneRemoved += OnSkeletonBoneRemoved;
+    }
+
+    private static void OnSkeletonBoneRenamed(SkeletonDocument skeleton, int boneIndex, string oldName, string newName)
+    {
+        foreach (var doc in DocumentManager.Documents.OfType<SpriteDocument>())
+        {
+            if (doc.Binding.Skeleton != skeleton || doc.Binding.BoneName != oldName)
+                continue;
+
+            doc.Binding.BoneName = newName;
+            doc.MarkMetaModified();
+        }
+    }
+
+    private static void OnSkeletonBoneRemoved(SkeletonDocument skeleton, int removedIndex, string removedName)
+    {
+        foreach (var doc in DocumentManager.Documents.OfType<SpriteDocument>())
+        {
+            if (doc.Binding.Skeleton != skeleton)
+                continue;
+
+            if (doc.Binding.BoneName == removedName)
+            {
+                doc.Binding.Clear();
+                doc.MarkMetaModified();
+                Notifications.Add($"Sprite '{doc.Name}' bone binding cleared (bone '{removedName}' deleted)");
+            }
+            else if (doc.Binding.BoneIndex > removedIndex)
+            {
+                doc.Binding.BoneIndex--;
+            }
+        }
+    }
+
     public static void RegisterDef()
     {
         DocumentManager.RegisterDef(new DocumentDef

@@ -470,6 +470,7 @@ internal class SkeletonEditor : DocumentEditor
         newBone.Length = parentBone.Length;
         Document.BoneCount++;
 
+        Document.NotifyBoneAdded(Document.BoneCount - 1);
         Document.UpdateTransforms();
         ClearSelection();
         SetBoneSelected(Document.BoneCount - 1, true);
@@ -492,7 +493,9 @@ internal class SkeletonEditor : DocumentEditor
         for (var i = Document.BoneCount - 1; i >= 0; i--)
         {
             if (!IsBoneSelected(i)) continue;
+            var boneName = Document.Bones[i].Name;
             Document.RemoveBone(i);
+            Document.NotifyBoneRemoved(i, boneName);
         }
 
         ClearSelection();
@@ -510,6 +513,7 @@ internal class SkeletonEditor : DocumentEditor
             return;
 
         var bone = Document.Bones[boneIndex];
+        var oldName = bone.Name;
 
         Workspace.BeginTool(new RenameTool(
             bone.Name,
@@ -521,8 +525,12 @@ internal class SkeletonEditor : DocumentEditor
             },
             newName =>
             {
+                if (newName == oldName)
+                    return;
+
                 Undo.Record(Document);
                 bone.Name = newName;
+                Document.NotifyBoneRenamed(boneIndex, oldName, newName);
                 Document.MarkModified();
                 Notifications.Add($"renamed bone to '{newName}'");
             }

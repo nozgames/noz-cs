@@ -37,6 +37,10 @@ public class SkeletonDocument : Document
     public int SelectedBoneCount;
     public float Opacity = 1f;
 
+    public static event Action<SkeletonDocument, int, string, string>? BoneRenamed;
+    public static event Action<SkeletonDocument, int, string>? BoneRemoved;
+    public static event Action<SkeletonDocument, int>? BoneAdded;
+
     public SkeletonDocument()
     {
         for (var i = 0; i < Skeleton.MaxBones; i++)
@@ -621,6 +625,21 @@ public class SkeletonDocument : Document
         Sprites = [.. DocumentManager.Documents
             .OfType<SpriteDocument>()
             .Where(d => d.Binding.IsBoundTo(this) && d.ShowInSkeleton)];
+    }
+
+    public void NotifyBoneRenamed(int boneIndex, string oldName, string newName)
+    {
+        BoneRenamed?.Invoke(this, boneIndex, oldName, newName);
+    }
+
+    public void NotifyBoneRemoved(int removedIndex, string removedName)
+    {
+        BoneRemoved?.Invoke(this, removedIndex, removedName);
+    }
+
+    public void NotifyBoneAdded(int boneIndex)
+    {
+        BoneAdded?.Invoke(this, boneIndex);
     }
 
     public override void Dispose()

@@ -287,8 +287,7 @@ public static class ContextMenu
                         if (hasChildren && isSubmenuOpen)
                         {
                             var itemRect = UI.GetElementRectInCanvas(EditorStyle.CanvasId.ContextMenu, itemId);
-                            var submenuAnchor = new Rect(0, 0, itemRect.Width, itemRect.Height);
-                            MenuUI(level + 1, index, submenuAnchor, ref executed, ref shouldClose);
+                            MenuUI(level + 1, index, itemRect, ref executed, ref shouldClose);
                         }
                     }
                 }

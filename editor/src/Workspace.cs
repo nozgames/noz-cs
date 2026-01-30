@@ -91,7 +91,7 @@ public static class Workspace
         if (creatableDefs.Length > 0)
         {
             items.Add(ContextMenuItem.Submenu("New"));
-            foreach (var def in creatableDefs)
+            foreach (var def in creatableDefs.OrderBy(d => d.Type.ToString()))
             {
                 var assetType = def.Type;
                 items.Add(ContextMenuItem.Item(def.Type.ToString(), () => CreateNewDocument(assetType), level: 1));

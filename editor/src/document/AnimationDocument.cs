@@ -100,6 +100,49 @@ internal class AnimationDocument : Document
             Frames[i] = new AnimationFrameData();
     }
 
+    static AnimationDocument()
+    {
+        SkeletonDocument.BoneRenamed += OnSkeletonBoneRenamed;
+        SkeletonDocument.BoneRemoved += OnSkeletonBoneRemoved;
+    }
+
+    private static void OnSkeletonBoneRenamed(SkeletonDocument skeleton, int boneIndex, string oldName, string newName)
+    {
+        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        {
+            if (doc.Skeleton != skeleton)
+                continue;
+            if (boneIndex >= 0 && boneIndex < doc.BoneCount && doc.Bones[boneIndex].Name == oldName)
+            {
+                doc.Bones[boneIndex].Name = newName;
+                doc.MarkModified();
+            }
+        }
+    }
+
+    private static void OnSkeletonBoneRemoved(SkeletonDocument skeleton, int removedIndex, string removedName)
+    {
+        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        {
+            if (doc.Skeleton != skeleton || removedIndex >= doc.BoneCount)
+                continue;
+
+            for (var i = removedIndex; i < doc.BoneCount - 1; i++)
+            {
+                doc.Bones[i].Name = doc.Bones[i + 1].Name;
+                doc.Bones[i].Index = i;
+                doc.Bones[i].IsSelected = doc.Bones[i + 1].IsSelected;
+                for (var f = 0; f < doc.FrameCount; f++)
+                    doc.Frames[f].Transforms[i] = doc.Frames[f].Transforms[i + 1];
+            }
+
+            doc.BoneCount--;
+            doc.UpdateTransforms();
+            doc.MarkModified();
+            Notifications.Add($"Animation '{doc.Name}' updated (bone '{removedName}' removed)");
+        }
+    }
+
     public static void RegisterDef()
     {
         DocumentManager.RegisterDef(new DocumentDef
