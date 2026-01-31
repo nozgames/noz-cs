@@ -400,10 +400,11 @@ internal static class EditorUI
         });
 
         var nextItemId = FirstPopupItemId;
+        var hasOpacity = _opacityValue > float.Epsilon;
 
         for (var i = 0; i < 64; i++)
         {
-            using (BeginColorContainer(nextItemId++, selected: i == _colorValue))
+            using (BeginColorContainer(nextItemId++, selected: hasOpacity && i == _colorValue))
             {
                 var displayColor = PaletteManager.GetColor(_colorPalette, i);
                 if (displayColor.A <= float.Epsilon)
@@ -420,6 +421,9 @@ internal static class EditorUI
 
                 if (UI.WasPressed())
                 {
+                    if (_opacityValue <= 0.0f)
+                        _opacityValue = 1.0f;
+
                     _colorValue = i;
                     ClosePopup();
                 }
@@ -428,7 +432,7 @@ internal static class EditorUI
 
         using (BeginColorContainer(nextItemId++, selected: _opacityValue <= float.MinValue))
         {
-            ControlIcon(EditorAssets.Sprites.IconSubtract);
+            UI.Image(EditorAssets.Sprites.IconSubtract, ImageStyle.Center);
             if (UI.WasPressed())
             {
                 _opacityValue = float.MinValue;
@@ -438,7 +442,7 @@ internal static class EditorUI
 
         using (BeginColorContainer(nextItemId++, selected: MathEx.Approximately(0, _opacityValue)))
         {
-            ControlIcon(EditorAssets.Sprites.IconDelete);
+            UI.Image(EditorAssets.Sprites.IconNofill, ImageStyle.Center);
             if (UI.WasPressed())
             {
                 _opacityValue = 0.0f;
@@ -467,6 +471,8 @@ internal static class EditorUI
 
     private static void ColorPopup(ElementId id, int palette, ref int value, ref float opacity)
     {
+        if (id != _popupId) return;
+
         _colorPalette = palette;
         _colorValue = value;
         _opacityValue = opacity;
@@ -495,17 +501,32 @@ internal static class EditorUI
                 return;
             }
 
+            if (MathEx.Approximately(oldOpacity, 0.0f))
+            {
+                ControlIcon(EditorAssets.Sprites.IconNofill);
+                return;
+            }
+
             using var _ = UI.BeginContainer(new ContainerStyle
             {
                 Width = EditorStyle.Control.ContentHeight,
                 Padding = EdgeInsets.All(2)
             });
 
-            UI.Container(new ContainerStyle 
+            var displayColor = PaletteManager.GetColor(paletteId, oldValue).WithAlpha(oldOpacity);
+            if (oldOpacity < 1.0f)
             {
-                Color = PaletteManager.GetColor(paletteId, oldValue),
-                Border = new BorderStyle { Radius = 5 }
-            });
+                UI.Image(EditorAssets.Sprites.IconOpacity);
+                UI.Image(EditorAssets.Sprites.IconOpacity, new ImageStyle { Color = displayColor });
+            }
+            else
+            {
+                UI.Container(new ContainerStyle
+                {
+                    Color = displayColor,
+                    Border = new BorderStyle { Radius = 5 }
+                });
+            }
         }
 
         if (Control(id, ButtonContent, selected: false, disabled: false, toolbar: false))

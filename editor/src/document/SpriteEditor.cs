@@ -137,9 +137,10 @@ public class SpriteEditor : DocumentEditor
     }
 
     // Selection
-    private byte _selectionFillColor = 0;
-    private byte _selectionStrokeColor = 0;
-    private float _selectionFillOpacity = 1.0f;
+    private byte _currentFillColor = 0;
+    private byte _currentStrokeColor = 0;
+    private float _currentFillOpacity = 1.0f;
+    private float _currentStrokeOpacity = 0.0f;
     private byte _selectionLayer = 0;
 
     // Tool state
@@ -212,10 +213,16 @@ public class SpriteEditor : DocumentEditor
 
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
         {
-            var color = (int)_selectionFillColor;
-            var opacity = _selectionFillOpacity;
-            if (EditorUI.ColorButton(FillColorButtonId, Document.Palette, ref color, ref opacity, EditorAssets.Sprites.IconClose))
+            var color = (int)_currentFillColor;
+            var opacity = _currentFillOpacity;
+
+            if (EditorUI.ColorButton(FillColorButtonId, Document.Palette, ref color, ref opacity, EditorAssets.Sprites.IconFill))
                 SetFillColor((byte)color, opacity);
+
+            var strokeColor = (int)_currentStrokeColor;
+            var strokeOpacity = _currentStrokeOpacity;
+            if (EditorUI.ColorButton(StrokeColorButtonId, Document.Palette, ref strokeColor, ref strokeOpacity, EditorAssets.Sprites.IconStroke))
+                SetStrokeColor((byte)strokeColor, strokeOpacity);
 
             // Palette 
             if (EditorUI.Button(
@@ -226,13 +233,6 @@ public class SpriteEditor : DocumentEditor
                 EditorUI.TogglePopup(PaletteButtonId);
 
             PalettePopupUI();
-
-            EditorUI.ToolbarSpacer();
-
-            var strokeColor = (int)_selectionStrokeColor;
-            var strokeOpacity = 1.0f;
-            if (EditorUI.ColorButton(StrokeColorButtonId, Document.Palette, ref strokeColor, ref strokeOpacity, EditorAssets.Sprites.IconDuplicate))
-                SetStrokeColor((byte)strokeColor);
 
             EditorUI.ToolbarSpacer();
 
@@ -265,7 +265,6 @@ public class SpriteEditor : DocumentEditor
             EditorUI.ToolbarSpacer();
 
             LayerButtonUI();
-            EditorUI.ToolbarSpacer();
         }
     }
 
@@ -392,9 +391,9 @@ public class SpriteEditor : DocumentEditor
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
 
-            _selectionFillColor = path.FillColor;
-            _selectionFillOpacity = path.FillOpacity;
-            _selectionStrokeColor = path.StrokeColor;
+            _currentFillColor = path.FillColor;
+            _currentFillOpacity = path.FillOpacity;
+            _currentStrokeColor = path.StrokeColor;
             _selectionLayer = path.Layer;
             return;
         }
@@ -508,7 +507,10 @@ public class SpriteEditor : DocumentEditor
             {
                 EditorUI.ControlIcon(EditorAssets.Sprites.IconSort);
                 if (EditorApplication.Config.TryGetSpriteLayer(_selectionLayer, out var spriteLayer))
+                {
                     EditorUI.ControlText(spriteLayer.Label);
+                    EditorUI.ControlPlaceholderText(spriteLayer.LayerLabel);
+                }
                 else
                     EditorUI.ControlPlaceholderText("None");
                UI.Spacer(EditorStyle.Control.Spacing);
@@ -533,7 +535,7 @@ public class SpriteEditor : DocumentEditor
             {
                 ref readonly var layerDef = ref layers[i];
                 var selected = _selectionLayer == layerDef.Layer;
-                var label = layerDef.Layer;
+                var label = layerDef.Label;
                 var layerLabel = layerDef.LayerLabel;
 
                 void ItemContent()
@@ -636,8 +638,8 @@ public class SpriteEditor : DocumentEditor
 
     public void SetFillColor(byte color, float opacity)
     {
-        _selectionFillColor = color;
-        _selectionFillOpacity = opacity;
+        _currentFillColor = color;
+        _currentFillOpacity = opacity;
 
         Undo.Record(Document);
 
@@ -646,17 +648,17 @@ public class SpriteEditor : DocumentEditor
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
-            shape.SetPathFillColor(p, _selectionFillColor);
-            shape.SetPathFillOpacity(p, _selectionFillOpacity);
+            shape.SetPathFillColor(p, _currentFillColor, _currentFillOpacity);
         }
 
         Document.MarkModified();
         MarkRasterDirty();
     }
 
-    public void SetStrokeColor(byte color)
+    public void SetStrokeColor(byte color, float opacity)
     {
-        _selectionFillColor = color;
+        _currentStrokeColor = color;
+        _currentStrokeOpacity = opacity;
 
         Undo.Record(Document);
 
@@ -665,7 +667,7 @@ public class SpriteEditor : DocumentEditor
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
-            shape.SetPathFillColor(p, _selectionFillColor);
+            shape.SetPathStrokeColor(p, _currentStrokeColor, _currentStrokeOpacity);
         }
 
         Document.MarkModified();
@@ -1035,7 +1037,7 @@ public class SpriteEditor : DocumentEditor
             {
                 var pivot = Input.IsShiftDown() ? Vector2.Zero : localPivot.Value;
                 shape.RotateAnchors(pivot, angle, _savedPositions);
-                if (Input.IsCtrlDown())
+                if (Input.IsCtrlDown(InputScope.All))
                     shape.SnapSelectedAnchorsToPixelGrid();
                 shape.UpdateSamples();
                 shape.UpdateBounds();
@@ -1043,7 +1045,7 @@ public class SpriteEditor : DocumentEditor
             },
             commit: _ =>
             {
-                if (Input.IsCtrlDown())
+                if (Input.IsCtrlDown(InputScope.All))
                     shape.SnapSelectedAnchorsToPixelGrid();
                 shape.UpdateSamples();
                 shape.UpdateBounds();
@@ -1086,7 +1088,7 @@ public class SpriteEditor : DocumentEditor
             {
                 var pivot = Input.IsShiftDown() ? Vector2.Zero : localPivot.Value;
                 shape.ScaleAnchors(pivot, scale, _savedPositions, _savedCurves);
-                if (Input.IsCtrlDown())
+                if (Input.IsCtrlDown(InputScope.All))
                     shape.SnapSelectedAnchorsToPixelGrid();
                 shape.UpdateSamples();
                 shape.UpdateBounds();
@@ -1094,7 +1096,7 @@ public class SpriteEditor : DocumentEditor
             },
             commit: _ =>
             {
-                if (Input.IsCtrlDown())
+                if (Input.IsCtrlDown(InputScope.All))
                     shape.SnapSelectedAnchorsToPixelGrid();
                 shape.UpdateSamples();
                 shape.UpdateBounds();
@@ -1277,7 +1279,7 @@ public class SpriteEditor : DocumentEditor
     private void BeginPenTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new PenTool(this, shape, _selectionFillColor));
+        Workspace.BeginTool(new PenTool(this, shape, _currentFillColor));
     }
 
     private void BeginKnifeTool()
@@ -1297,9 +1299,9 @@ public class SpriteEditor : DocumentEditor
         Workspace.BeginTool(new ShapeTool(
             this,
             shape,
-            _selectionFillColor,
+            _currentFillColor,
             ShapeType.Rectangle,
-            opacity: _selectionFillOpacity));
+            opacity: _currentFillOpacity));
     }
 
     private void BeginCircleTool()
@@ -1308,9 +1310,9 @@ public class SpriteEditor : DocumentEditor
         Workspace.BeginTool(new ShapeTool(
             this,
             shape,
-            _selectionFillColor,
+            _currentFillColor,
             ShapeType.Circle,
-            opacity: _selectionFillOpacity));
+            opacity: _currentFillOpacity));
     }
 
     private void InsertAnchorAtHover()
@@ -1339,23 +1341,6 @@ public class SpriteEditor : DocumentEditor
             _savedPositions[i] = shape.GetAnchor(i).Position;
 
         BeginMoveTool();
-    }
-
-    private void ApplyColorToSelection()
-    {
-        Undo.Record(Document);
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
-
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathFillColor(p, _selectionFillColor);
-        }
-
-        Document.MarkModified();
-        MarkRasterDirty();
     }
 
     private static ushort FindPathForAnchor(Shape shape, ushort anchorIndex)

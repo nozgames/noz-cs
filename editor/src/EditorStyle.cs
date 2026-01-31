@@ -373,7 +373,7 @@ public static class EditorStyle
     {
         public static readonly ContainerStyle Root = new()
         {
-            Padding = EdgeInsets.Symmetric(4, 2 + Panel.BorderWidth),
+            Padding = EdgeInsets.Symmetric(4, Control.Spacing + Panel.BorderWidth),
             Spacing = Control.Spacing,
             Height = Size.Fit,
             Margin = EdgeInsets.Top(Panel.VerticalSpacing)

@@ -11,9 +11,9 @@
 - [ ] Inital color when entering sprite editor is weird (first color in palette?)
 - [ ] Set bone per sprite layer
 - [ ] Add icons to color button
-- [ ] Opacity in the color popup as a row
-- [ ] Color button show color over grid with opacity
 - [ ] Fix the atlas editor
+- [X] Opacity in the color popup as a row
+- [X] Color button show color over grid with opacity
 - [X] Added BitMask256
 - [X] Sprite layers
 - [X] Add skeelton editor toolbar with button to hide / show the preview

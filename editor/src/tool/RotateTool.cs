@@ -71,7 +71,7 @@ public class RotateTool(
         var currentAngle = GetAngleFromPivot(mouseLocal, pivotLocal);
         var angle = currentAngle - startAngle;
 
-        if (Input.IsCtrlDown())
+        if (Input.IsCtrlDown(Scope))
         {
             var snap = MathF.PI / 12f; // 15 degrees
             angle = MathF.Round(angle / snap) * snap;

@@ -85,11 +85,12 @@ public sealed unsafe partial class Shape : IDisposable
         public byte Layer;
         public PathFlags Flags;
         public float FillOpacity;
+        public float StrokeOpacity;
 
         public readonly bool IsSelected => (Flags & PathFlags.Selected) != 0;
         public readonly bool IsSubtract => (Flags & PathFlags.Subtract) != 0;
 
-        public static readonly Path Default = new() { FillOpacity = 1.0f };
+        public static readonly Path Default = new() { FillOpacity = 1.0f, StrokeOpacity = 0.0f };
     }
 
     public Shape()
@@ -801,18 +802,16 @@ public sealed unsafe partial class Shape : IDisposable
     public ref readonly Anchor GetNextAnchor(ushort anchorIndex) =>
         ref GetAnchor(GetNextAnchorIndex(anchorIndex));
 
-    public void SetPathFillColor(ushort pathIndex, byte fillColor)
+    public void SetPathFillColor(ushort pathIndex, byte color, float opacity)
     {
-        _paths[pathIndex].FillColor = fillColor;
+        _paths[pathIndex].FillColor = color;
+        _paths[pathIndex].FillOpacity = opacity;
     }
 
-    public void SetPathFillOpacity(ushort pathIndex, float value)
+    public void SetPathStrokeColor(ushort pathIndex, byte color, float opacity)
     {
-        ref var path = ref _paths[pathIndex];
-        path.FillOpacity = value;
-        path.Flags &= ~PathFlags.Subtract;
-        if (value <= float.MinValue)
-            path.Flags |= PathFlags.Subtract;
+        _paths[pathIndex].StrokeColor = color;
+        _paths[pathIndex].StrokeOpacity = color;
     }
 
     public void SetPathLayer(ushort pathIndex, byte layer)
@@ -821,7 +820,12 @@ public sealed unsafe partial class Shape : IDisposable
         UpdateLayers();
     }
 
-    public ushort AddPath(byte fillColor = 0, byte strokeColor = 0, float fillOpacity = 1.0f, byte layer = 0)
+    public ushort AddPath(
+        byte fillColor = 0, 
+        float fillOpacity = 1.0f,
+        byte strokeColor = 0,
+        float strokeOpacity = 0.0f,
+        byte layer = 0)
     {
         if (PathCount >= MaxPaths) return ushort.MaxValue;
 
@@ -832,6 +836,8 @@ public sealed unsafe partial class Shape : IDisposable
             AnchorCount = 0,
             FillColor = fillColor,
             FillOpacity = fillOpacity,
+            StrokeColor = strokeColor,
+            StrokeOpacity = strokeOpacity,
             Layer = layer,
             Flags = PathFlags.None | (fillOpacity <= float.MinValue ? PathFlags.Subtract : PathFlags.None),
         };
@@ -1541,6 +1547,8 @@ public sealed unsafe partial class Shape : IDisposable
             AnchorCount = (ushort)path2Count,
             FillColor = srcPath.FillColor,
             FillOpacity = srcPath.FillOpacity,
+            StrokeColor = srcPath.StrokeColor,
+            StrokeOpacity = srcPath.StrokeOpacity,
             Layer = srcPath.Layer,
             Flags = srcPath.Flags & PathFlags.Subtract
         };

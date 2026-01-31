@@ -37,7 +37,7 @@ public class ShapeTool(
 
     public override void Update()
     {
-        if (Input.WasButtonPressed(InputCode.KeyEscape))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope))
         {
             Cancel();
             return;
@@ -46,10 +46,10 @@ public class ShapeTool(
         Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
 
-        if (Input.IsCtrlDown())
+        if (Input.IsCtrlDown(Scope))
             mouseLocal = Grid.SnapToPixelGrid(mouseLocal);
 
-        if (!_isDragging && Input.WasButtonPressed(InputCode.MouseLeft))
+        if (!_isDragging && Input.WasButtonPressed(InputCode.MouseLeft, Scope))
         {
             _startLocal = mouseLocal;
             _currentLocal = mouseLocal;
@@ -61,10 +61,10 @@ public class ShapeTool(
         {
             _currentLocal = mouseLocal;
 
-            if (Input.IsShiftDown())
+            if (Input.IsShiftDown(Scope))
                 _currentLocal = ConstrainToUniform(_startLocal, _currentLocal);
 
-            if (Input.WasButtonReleased(InputCode.MouseLeft))
+            if (Input.WasButtonReleased(InputCode.MouseLeft, Scope))
             {
                 Commit();
                 return;

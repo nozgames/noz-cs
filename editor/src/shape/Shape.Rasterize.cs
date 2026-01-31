@@ -6,7 +6,6 @@ using System.Buffers;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 
 namespace NoZ.Editor;
 
@@ -15,7 +14,7 @@ public sealed partial class Shape
     private const float AntiAliasEdgeInner = -0.5f;
     private const float AntiAliasEdgeOuter = 0.5f;
 
-    private const float DefaultStrokeWidth = 0.0f;
+    private const float DefaultStrokeWidth = 0.01f;
     private static readonly Color32 DefaultStrokeColor = Color32.Black;
 
     public struct RasterizeOptions
@@ -63,7 +62,7 @@ public sealed partial class Shape
             Span<ushort> sortedPaths = stackalloc ushort[PathCount];
             var pathCount = GetSortedPathIndicies(sortedPaths, options.Layer);
 
-            foreach (var pathIndex in sortedPaths)
+            foreach (var pathIndex in sortedPaths[..pathCount])
             {
                 ref var path = ref _paths[pathIndex];
                 if (path.AnchorCount < 3) continue;
@@ -84,6 +83,21 @@ public sealed partial class Shape
                     vertCount,
                     fillColor,
                     subtract,
+                    antiAlias);
+
+                var strokeColor = palette[path.StrokeColor % palette.Length]
+                    .ToColor32()
+                    .WithAlpha(path.StrokeOpacity);
+                if (strokeColor.A < float.Epsilon)
+                    continue;
+
+                RasterizeStroke(
+                    target,
+                    targetRect,
+                    sourceOffset,
+                    polyVerts.AsSpan(0, vertCount),
+                    strokeColor,
+                    DefaultStrokeWidth * dpi,
                     antiAlias);
             }
         }

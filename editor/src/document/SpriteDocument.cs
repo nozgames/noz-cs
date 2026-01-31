@@ -257,8 +257,7 @@ public class SpriteDocument : Document
                 break;
         }
 
-        f.Shape.SetPathFillColor(pathIndex, fillColor);
-        f.Shape.SetPathFillOpacity(pathIndex, opacity);
+        f.Shape.SetPathFillColor(pathIndex, fillColor, opacity);
         f.Shape.SetPathLayer(pathIndex, layer);
     }
 
@@ -587,6 +586,11 @@ public class SpriteDocument : Document
         {
             if (!_layers[layer]) continue;
             var uv = _atlasUV[layer];
+            if (uv == Rect.Zero)
+            {
+                _sprite = null;
+                return;
+            }
             meshes[idx++] = new SpriteMesh(uv, (short)layer);
         }
 
@@ -633,7 +637,7 @@ public class SpriteDocument : Document
             writer.Write(uv.Top);
             writer.Write(uv.Right);
             writer.Write(uv.Bottom);
-            writer.Write((byte)i);
+            writer.Write((short)i);  // Must match Sprite.Load which reads Int16
         }
     }
 
