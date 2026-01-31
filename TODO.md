@@ -10,8 +10,8 @@
 - [ ] Refactor selection within sprite editor
 - [ ] Inital color when entering sprite editor is weird (first color in palette?)
 - [ ] Set bone per sprite layer
-- [ ] Add icons to color button
 - [ ] Fix the atlas editor
+- [X] Add icons to color button
 - [X] Opacity in the color popup as a row
 - [X] Color button show color over grid with opacity
 - [X] Added BitMask256

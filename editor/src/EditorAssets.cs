@@ -41,8 +41,8 @@ public static class EditorAssets
         public const string IconExpandDown = "icon_expand_down";
         public const string IconExpandUp = "icon_expand_up";
         public const string IconFill = "icon_fill";
-        public const string IconFill2 = "icon_fill_2";
         public const string IconKeyframe = "icon_keyframe";
+        public const string IconLayer = "icon_layer";
         public const string IconLoop = "icon_loop";
         public const string IconMirror = "icon_mirror";
         public const string IconMove = "icon_move";
@@ -61,6 +61,7 @@ public static class EditorAssets
         public const string IconSubmenu = "icon_submenu";
         public const string IconSubtract = "icon_subtract";
         public const string IconTiling = "icon_tiling";
+        public const string NewSprite = "new_sprite";
         public const string EditorPalette = "editor_palette";
     }
 
@@ -147,8 +148,8 @@ public static class EditorAssets
         public static Sprite IconExpandDown { get; private set; } = null!;
         public static Sprite IconExpandUp { get; private set; } = null!;
         public static Sprite IconFill { get; private set; } = null!;
-        public static Sprite IconFill2 { get; private set; } = null!;
         public static Sprite IconKeyframe { get; private set; } = null!;
+        public static Sprite IconLayer { get; private set; } = null!;
         public static Sprite IconLoop { get; private set; } = null!;
         public static Sprite IconMirror { get; private set; } = null!;
         public static Sprite IconMove { get; private set; } = null!;
@@ -167,6 +168,7 @@ public static class EditorAssets
         public static Sprite IconSubmenu { get; private set; } = null!;
         public static Sprite IconSubtract { get; private set; } = null!;
         public static Sprite IconTiling { get; private set; } = null!;
+        public static Sprite NewSprite { get; private set; } = null!;
 
         public static void Load()
         {
@@ -194,8 +196,8 @@ public static class EditorAssets
             IconExpandDown = (Sprite)Asset.Load(AssetType.Sprite, Names.IconExpandDown)!;
             IconExpandUp = (Sprite)Asset.Load(AssetType.Sprite, Names.IconExpandUp)!;
             IconFill = (Sprite)Asset.Load(AssetType.Sprite, Names.IconFill)!;
-            IconFill2 = (Sprite)Asset.Load(AssetType.Sprite, Names.IconFill2)!;
             IconKeyframe = (Sprite)Asset.Load(AssetType.Sprite, Names.IconKeyframe)!;
+            IconLayer = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLayer)!;
             IconLoop = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLoop)!;
             IconMirror = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMirror)!;
             IconMove = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMove)!;
@@ -214,6 +216,7 @@ public static class EditorAssets
             IconSubmenu = (Sprite)Asset.Load(AssetType.Sprite, Names.IconSubmenu)!;
             IconSubtract = (Sprite)Asset.Load(AssetType.Sprite, Names.IconSubtract)!;
             IconTiling = (Sprite)Asset.Load(AssetType.Sprite, Names.IconTiling)!;
+            NewSprite = (Sprite)Asset.Load(AssetType.Sprite, Names.NewSprite)!;
         }
 
         public static void Unload()
@@ -242,8 +245,8 @@ public static class EditorAssets
             IconExpandDown?.Dispose();
             IconExpandUp?.Dispose();
             IconFill?.Dispose();
-            IconFill2?.Dispose();
             IconKeyframe?.Dispose();
+            IconLayer?.Dispose();
             IconLoop?.Dispose();
             IconMirror?.Dispose();
             IconMove?.Dispose();
@@ -262,6 +265,7 @@ public static class EditorAssets
             IconSubmenu?.Dispose();
             IconSubtract?.Dispose();
             IconTiling?.Dispose();
+            NewSprite?.Dispose();
         }
     }
 

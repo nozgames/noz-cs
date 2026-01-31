@@ -505,7 +505,7 @@ public class SpriteEditor : DocumentEditor
         {
             void ButtonContent()
             {
-                EditorUI.ControlIcon(EditorAssets.Sprites.IconSort);
+                EditorUI.ControlIcon(EditorAssets.Sprites.IconLayer);
                 if (EditorApplication.Config.TryGetSpriteLayer(_selectionLayer, out var spriteLayer))
                 {
                     EditorUI.ControlText(spriteLayer.Label);

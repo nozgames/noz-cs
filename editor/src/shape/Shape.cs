@@ -804,8 +804,12 @@ public sealed unsafe partial class Shape : IDisposable
 
     public void SetPathFillColor(ushort pathIndex, byte color, float opacity)
     {
-        _paths[pathIndex].FillColor = color;
-        _paths[pathIndex].FillOpacity = opacity;
+        ref var path = ref _paths[pathIndex];
+        path.FillColor = color;
+        path.FillOpacity = opacity;
+        path.Flags &= PathFlags.Subtract;
+        if (opacity <= float.MinValue)
+            path.Flags |= PathFlags.Subtract;
     }
 
     public void SetPathStrokeColor(ushort pathIndex, byte color, float opacity)
