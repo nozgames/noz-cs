@@ -22,14 +22,15 @@ internal class TextureEditor : DocumentEditor
             exitEditCommand
         ];
 
-        ContextMenu = new ContextMenuDef
+        ContextMenu = new PopupMenuDef
         {
             Title = "Reference",
-            Items = [                
-                ContextMenuItem.FromCommand(scaleCommand),
+            Items =
+            [
+                PopupMenuItem.FromCommand(scaleCommand),
 
-                ContextMenuItem.Separator(),
-                ContextMenuItem.FromCommand(exitEditCommand),
+                PopupMenuItem.Separator(),
+                PopupMenuItem.FromCommand(exitEditCommand),
             ]
         };
 

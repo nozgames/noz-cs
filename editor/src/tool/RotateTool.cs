@@ -29,18 +29,21 @@ public class RotateTool(
 
     public override void Begin()
     {
+        base.Begin();
         _startMouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, _invTransform);
     }
 
     public override void Update()
     {
-        if (Input.WasButtonPressed(InputCode.KeyEscape) || Input.WasButtonPressed(InputCode.MouseRight))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) ||
+            Input.WasButtonPressed(InputCode.MouseRight, Scope))
         {
             Workspace.CancelTool();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.KeyEnter))
+        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
+            Input.WasButtonPressed(InputCode.KeyEnter, Scope))
         {
             _commit(GetCurrentAngle());
             Input.ConsumeButton(InputCode.MouseLeft);
@@ -57,8 +60,8 @@ public class RotateTool(
         return MathF.Atan2(dir.Y, dir.X);
     }
 
-    private Vector2 GetCurrentPivotLocal() => Input.IsShiftDown() ? _originLocal : _pivotLocal;
-    private Vector2 GetCurrentPivotWorld() => Input.IsShiftDown() ? _originWorld : _pivotWorld;
+    private Vector2 GetCurrentPivotLocal() => Input.IsShiftDown(Scope) ? _originLocal : _pivotLocal;
+    private Vector2 GetCurrentPivotWorld() => Input.IsShiftDown(Scope) ? _originWorld : _pivotWorld;
 
     private float GetCurrentAngle()
     {
@@ -92,6 +95,7 @@ public class RotateTool(
 
     public override void Cancel()
     {
+        base.Cancel();
         _cancel();
     }
 }

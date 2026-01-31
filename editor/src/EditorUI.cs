@@ -516,20 +516,17 @@ internal static class EditorUI
             if (showSubtract && oldValue <= float.MinValue)
             {
                 ControlIcon(EditorAssets.Sprites.IconSubtract);
+                return;
             }
-            else
-            {
-                using var _ = UI.BeginContainer(EditorStyle.Control.IconContainer with { 
-                    Padding = EdgeInsets.All(EditorStyle.Control.Spacing + 1) 
-                });
-                UI.Image(EditorAssets.Sprites.IconOpacity, EditorStyle.Control.Icon);
-                UI.Image(
-                    EditorAssets.Sprites.IconOpacityOverlay,
-                    EditorStyle.Control.Icon with { Color = Color.White.WithAlpha(oldValue) });
-            }
+
+            using var _ = UI.BeginContainer(EditorStyle.Control.IconContainer);
+            UI.Image(EditorAssets.Sprites.IconOpacity, EditorStyle.Control.Icon);
+            UI.Image(
+                EditorAssets.Sprites.IconOpacityOverlay,
+                EditorStyle.Control.Icon with { Color = Color.White.WithAlpha(oldValue) });
         }
 
-        if (Control(id, ControlContent, padding: false))
+        if (Control(id, ControlContent))
             TogglePopup(id);
 
         value = OpacityPopup(id, value: value, showSubtract: showSubtract);

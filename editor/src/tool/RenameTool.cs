@@ -6,32 +6,25 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class RenameTool : Tool
+public class RenameTool(
+    string originalName,
+    Func<Vector2> getWorldPosition,
+    Action<string> commit) : Tool
 {
     private const int RenameTextBoxId = 99;
     private const int TextBoxId = 98;
 
-    private readonly string _originalName;
-    private readonly Func<Vector2> _getWorldPosition;
-    private readonly Action<string> _commit;
-    private string _currentText;
+    private readonly string _originalName = originalName;
+    private readonly Func<Vector2> _getWorldPosition = getWorldPosition;
+    private readonly Action<string> _commit = commit;
+    private string _currentText = originalName;
     private bool _firstFrame = true;
-    private InputScope _scope;
 
     public object? Target { get; init; }
-
-    public RenameTool(string originalName, Func<Vector2> getWorldPosition, Action<string> commit)
-    {
-        _originalName = originalName;
-        _currentText = originalName;
-        _getWorldPosition = getWorldPosition;
-        _commit = commit;
-    }
 
     public override void Begin()
     {
         _firstFrame = true;
-        _scope = Input.PushScope();
         UI.SetFocus(TextBoxId, EditorStyle.CanvasId.Workspace);
     }
 
@@ -84,7 +77,7 @@ public class RenameTool : Tool
                 _firstFrame = false;
             }
 
-            if (UI.TextBox(TextBoxId, EditorStyle.RenameTool.Text with { Scope = _scope }))
+            if (UI.TextBox(TextBoxId, EditorStyle.RenameTool.Text with { Scope = Scope }))
                 _currentText = new string(UI.GetTextBoxText(EditorStyle.CanvasId.Workspace, TextBoxId));
         }
     }
@@ -97,14 +90,9 @@ public class RenameTool : Tool
             _commit(_currentText);
     }
 
-    public override void Cancel()
-    {
-        // Name stays unchanged
-    }
-
     public override void Dispose()
     {
-        Input.PopScope(_scope);
+        base.Dispose();
         UI.ClearFocus();
     }
 }

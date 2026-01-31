@@ -139,8 +139,8 @@ public static class EditorStyle
 
         public static readonly ContainerStyle IconContainer = new()
         {
-            Width = Height,
-            Height = Height,
+            Width = ContentHeight,
+            Height = ContentHeight,
             Padding = EdgeInsets.All(2f),
         };
 
@@ -438,6 +438,7 @@ public static class EditorStyle
         };
     }
 
+    // :notification
     public static class Notifications
     {
         public readonly static ContainerStyle Root = new()
@@ -453,7 +454,7 @@ public static class EditorStyle
         public readonly static ContainerStyle Notification = new()
         {
             Height = Control.Height + 8,
-            Padding = EdgeInsets.Symmetric(4,8),
+            Padding = EdgeInsets.Symmetric(4,12),
             Color = Popup.FillColor,
             Border = new BorderStyle { Radius = Panel.BorderRadius }
         };

@@ -112,6 +112,7 @@ public struct PopupStyle()
     public float Spacing = 0;
     public bool ClampToScreen = false;
     public Rect AnchorRect = Rect.Zero;
+    public float MinWidth = 0;
 }
 
 public struct CanvasStyle()

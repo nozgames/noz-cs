@@ -14,25 +14,24 @@ public class MoveTool(Action<Vector2> update, Action<Vector2> commit, Action can
 
     private Vector2 _startWorld;
     private Vector2 _deltaScale = Vector2.One;
-    private InputScope _inputScope;
 
     public override void Begin()
     {
+        base.Begin();
         _startWorld = Workspace.MouseWorldPosition;
-        _inputScope = Input.PushScope();
     }
 
     public override void Update()
     {
-        if (Input.WasButtonPressed(InputCode.KeyEscape, _inputScope) ||
-            Input.WasButtonPressed(InputCode.MouseRight, _inputScope))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) ||
+            Input.WasButtonPressed(InputCode.MouseRight, Scope))
         {
             Workspace.CancelTool();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, _inputScope) ||
-            Input.WasButtonPressed(InputCode.KeyEnter, _inputScope))
+        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
+            Input.WasButtonPressed(InputCode.KeyEnter, Scope))
         {
             var delta = Workspace.MouseWorldPosition - _startWorld;
             delta *= _deltaScale;
@@ -42,9 +41,9 @@ public class MoveTool(Action<Vector2> update, Action<Vector2> commit, Action can
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyX, _inputScope))
+        if (Input.WasButtonPressed(InputCode.KeyX, Scope))
             _deltaScale = _deltaScale.X > 0 ? new Vector2(1, 0) : Vector2.One;
-        if (Input.WasButtonPressed(InputCode.KeyY, _inputScope))
+        if (Input.WasButtonPressed(InputCode.KeyY, Scope))
             _deltaScale = _deltaScale.Y > 0 ? new Vector2(0, 1) : Vector2.One;
 
         var updateDelta = Workspace.MouseWorldPosition - _startWorld;
@@ -77,11 +76,5 @@ public class MoveTool(Action<Vector2> update, Action<Vector2> commit, Action can
     {
         _cancel();
         base.Cancel();
-    }
-
-    public override void Dispose()
-    {
-        Input.PopScope(_inputScope);
-        base.Dispose();
     }
 }

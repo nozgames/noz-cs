@@ -49,7 +49,7 @@ public static class Workspace
     private static Document? _activeDocument;
     private static DocumentEditor? _activeEditor;
     private static Texture? _whiteTexture;
-    private static ContextMenuDef _workspaceContextMenu;
+    private static PopupMenuDef _workspaceContextMenu;
 
     public static Camera Camera => _camera;
     public static float Zoom => _zoom;
@@ -124,7 +124,7 @@ public static class Workspace
 
     private static void CreateNewDocument(AssetType assetType)
     {
-        var position = ContextMenu.WorldPosition;
+        var position = PopupMenu.WorldPosition;
         var doc = DocumentManager.New(assetType, null, position);
         if (doc != null)
         {
@@ -192,40 +192,40 @@ public static class Workspace
 
         CommandManager.RegisterWorkspace([.. workspaceCommands]);
 
-        var items = new List<ContextMenuItem>();
+        var items = new List<PopupMenuItem>();
         var creatableDefs = DocumentManager.GetCreatableDefs().ToArray();
         if (creatableDefs.Length > 0)
         {
-            items.Add(ContextMenuItem.Submenu("New"));
+            items.Add(PopupMenuItem.Submenu("New"));
             foreach (var def in creatableDefs.OrderBy(d => d.Type.ToString()))
             {
                 var assetType = def.Type;
-                items.Add(ContextMenuItem.Item(
+                items.Add(PopupMenuItem.Item(
                     def.Type.ToString(),
                     () => CreateNewDocument(assetType),
                     level: 1,
                     icon: def.Icon?.Invoke()));
             }
-            items.Add(ContextMenuItem.Separator());
+            items.Add(PopupMenuItem.Separator());
         }
 
         if (CollectionManager.Collections.Count > 0)
         {
-            items.Add(ContextMenuItem.Submenu("Move to Collection", showChecked: true, showIcons: false));
+            items.Add(PopupMenuItem.Submenu("Move to Collection", showChecked: true, showIcons: false));
             foreach (var collection in CollectionManager.Collections)
             {
                 var idx = collection.Index;
-                items.Add(ContextMenuItem.Item(collection.Name, () => MoveSelectedToCollection(idx), level: 1, isChecked: () => idx == CollectionManager.VisibleIndex));
+                items.Add(PopupMenuItem.Item(collection.Name, () => MoveSelectedToCollection(idx), level: 1, isChecked: () => idx == CollectionManager.VisibleIndex));
             }
-            items.Add(ContextMenuItem.Separator());
+            items.Add(PopupMenuItem.Separator());
         }
 
-        items.Add(ContextMenuItem.FromCommand(editCommand, enabled: () => SelectedCount == 1));
-        items.Add(ContextMenuItem.FromCommand(duplicateCommand));
-        items.Add(ContextMenuItem.FromCommand(renameCommand));
-        items.Add(ContextMenuItem.FromCommand(deleteCommand));
-        items.Add(ContextMenuItem.FromCommand(moveCommand));
-        _workspaceContextMenu = new ContextMenuDef([.. items], "Asset");
+        items.Add(PopupMenuItem.FromCommand(editCommand, enabled: () => SelectedCount == 1));
+        items.Add(PopupMenuItem.FromCommand(duplicateCommand));
+        items.Add(PopupMenuItem.FromCommand(renameCommand));
+        items.Add(PopupMenuItem.FromCommand(deleteCommand));
+        items.Add(PopupMenuItem.FromCommand(moveCommand));
+        _workspaceContextMenu = new PopupMenuDef([.. items], "Asset");
     }
 
     public static void LoadUserSettings(PropertySet props)
@@ -267,7 +267,7 @@ public static class Workspace
         UpdateState();
         UpdateCamera();
 
-        if (!CommandPalette.IsOpen && !ContextMenu.IsVisible && !ConfirmDialog.IsVisible)
+        if (!CommandPalette.IsOpen && !PopupMenu.IsVisible && !ConfirmDialog.IsVisible)
         {
             CommandManager.ProcessShortcuts();
 
@@ -282,7 +282,7 @@ public static class Workspace
             }
 
             if (Input.WasButtonReleased(InputCode.MouseRight) && !_wasDragging)
-                OpenContextMenu();
+                OpenPopupMenu();
 
             ActiveTool?.Update();
         }
@@ -1029,14 +1029,14 @@ public static class Workspace
         }
     }
 
-    private static void OpenContextMenu()
+    private static void OpenPopupMenu()
     {
-        var menu = GetContextMenu();
+        var menu = GetPopupMenu();
         if (menu != null && menu.Value.Items.Length > 0)
-            ContextMenu.Open(menu.Value);
+            PopupMenu.Open(menu.Value);
     }
 
-    public static ContextMenuDef? GetContextMenu()
+    public static PopupMenuDef? GetPopupMenu()
     {
         if (_activeEditor != null)
             return _activeEditor.ContextMenu;

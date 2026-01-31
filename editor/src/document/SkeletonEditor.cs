@@ -51,19 +51,19 @@ internal class SkeletonEditor : DocumentEditor
 
         bool HasSelection() => Document.SelectedBoneCount > 0;
 
-        ContextMenu = new ContextMenuDef 
+        ContextMenu = new PopupMenuDef
         {
             Title = "Skeleton",
-            Items = 
+            Items =
             [
-                ContextMenuItem.FromCommand(renameCommand, enabled: () => Document.SelectedBoneCount == 1),
-                ContextMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
-                ContextMenuItem.Separator(),
-                ContextMenuItem.FromCommand(moveCommand, enabled: HasSelection),
-                ContextMenuItem.FromCommand(rotateCommand, enabled: HasSelection),
-                ContextMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
-                ContextMenuItem.Separator(),
-                ContextMenuItem.FromCommand(exitEditCommand),
+                PopupMenuItem.FromCommand(renameCommand, enabled: () => Document.SelectedBoneCount == 1),
+                PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
+                PopupMenuItem.Separator(),
+                PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
+                PopupMenuItem.FromCommand(rotateCommand, enabled: HasSelection),
+                PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
+                PopupMenuItem.Separator(),
+                PopupMenuItem.FromCommand(exitEditCommand),
             ]
         };
 

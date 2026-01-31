@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace NoZ.Editor;
@@ -59,7 +60,6 @@ public class SpriteEditor : DocumentEditor
         var scaleCommand = new Command { Name = "Scale", Handler = BeginScaleTool, Key = InputCode.KeyS };
         var flipHorizontalCommand = new Command { Name = "Flip Horizontal", Handler = FlipHorizontal };
         var flipVerticalCommand = new Command { Name = "Flip Vertical", Handler = FlipVertical };
-        var bindCommand = new Command { Name = "Select Bone", Handler = HandleSelectBone, Key = InputCode.KeyB };
         var copyCommand = new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true };
         var pasteCommand = new Command { Name = "Paste", Handler = PasteSelected, Key = InputCode.KeyV, Ctrl = true };
         var bringForwardCommand = new Command { Name = "Bring Forward", Handler = MovePathUp, Key = InputCode.KeyLeftBracket };
@@ -79,7 +79,6 @@ public class SpriteEditor : DocumentEditor
             scaleCommand,
             flipHorizontalCommand,
             flipVerticalCommand,
-            bindCommand,
             copyCommand,
             pasteCommand,
             bringForwardCommand,
@@ -102,36 +101,37 @@ public class SpriteEditor : DocumentEditor
         bool HasSelection() => Document.GetFrame(_currentFrame).Shape.HasSelection();
         bool HasSelectedPaths() => Document.GetFrame(_currentFrame).Shape.HasSelectedPaths();
 
-        ContextMenu = new ContextMenuDef
+        ContextMenu = new PopupMenuDef
         {
             Title = "Sprite",
-            Items = [
-                ContextMenuItem.FromCommand(copyCommand, enabled: HasSelection),
-                ContextMenuItem.FromCommand(pasteCommand, enabled: () => Clipboard.Is<PathClipboardData>()),
-                ContextMenuItem.Separator(),
+            Items =
+            [
+                PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
+                PopupMenuItem.FromCommand(pasteCommand, enabled: () => Clipboard.Is<PathClipboardData>()),
+                PopupMenuItem.Separator(),
 
-                ContextMenuItem.FromCommand(moveCommand, enabled: HasSelection),
-                ContextMenuItem.FromCommand(rotateCommand, enabled: HasSelection),
-                ContextMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
-                ContextMenuItem.FromCommand(flipHorizontalCommand, enabled: HasSelectedPaths),
-                ContextMenuItem.FromCommand(flipVerticalCommand, enabled: HasSelectedPaths),
-                ContextMenuItem.Separator(),
+                PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
+                PopupMenuItem.FromCommand(rotateCommand, enabled: HasSelection),
+                PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
+                PopupMenuItem.FromCommand(flipHorizontalCommand, enabled: HasSelectedPaths),
+                PopupMenuItem.FromCommand(flipVerticalCommand, enabled: HasSelectedPaths),
+                PopupMenuItem.Separator(),
 
-                ContextMenuItem.Submenu("Arrange"),
-                ContextMenuItem.FromCommand(bringForwardCommand, enabled: HasSelectedPaths, level: 1),
-                ContextMenuItem.FromCommand(sendBackwardCommand, enabled: HasSelectedPaths, level: 1),
+                PopupMenuItem.Submenu("Arrange"),
+                PopupMenuItem.FromCommand(bringForwardCommand, enabled: HasSelectedPaths, level: 1),
+                PopupMenuItem.FromCommand(sendBackwardCommand, enabled: HasSelectedPaths, level: 1),
 
-                ContextMenuItem.Submenu("Set Origin"),
-                ContextMenuItem.FromCommand(originToCenterCommand, level: 1),
-                ContextMenuItem.FromCommand(originToBoneOriginCommand, enabled: () => Document.Binding.IsBound, level: 1),
-                ContextMenuItem.Submenu("Set Bone Origin"),
-                ContextMenuItem.FromCommand(moveBoneOriginCommand, enabled: () => Document.Binding.IsBound, level: 1),
-                ContextMenuItem.FromCommand(boneOriginToOriginCommand, enabled: () => Document.Binding.IsBound, level: 1),
-                ContextMenuItem.FromCommand(boneOriginToBoneCommand, enabled: () => Document.Binding.IsBound, level: 1),
-                ContextMenuItem.Separator(),
-                ContextMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
-                ContextMenuItem.Separator(),
-                ContextMenuItem.FromCommand(exitEditCommand),
+                PopupMenuItem.Submenu("Set Origin"),
+                PopupMenuItem.FromCommand(originToCenterCommand, level: 1),
+                PopupMenuItem.FromCommand(originToBoneOriginCommand, enabled: () => Document.Binding.IsBound, level: 1),
+                PopupMenuItem.Submenu("Set Bone Origin"),
+                PopupMenuItem.FromCommand(moveBoneOriginCommand, enabled: () => Document.Binding.IsBound, level: 1),
+                PopupMenuItem.FromCommand(boneOriginToOriginCommand, enabled: () => Document.Binding.IsBound, level: 1),
+                PopupMenuItem.FromCommand(boneOriginToBoneCommand, enabled: () => Document.Binding.IsBound, level: 1),
+                PopupMenuItem.Separator(),
+                PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
+                PopupMenuItem.Separator(),
+                PopupMenuItem.FromCommand(exitEditCommand),
             ]
         };  
     }
@@ -292,9 +292,12 @@ public class SpriteEditor : DocumentEditor
                 return;
             }
 
-            EditorUI.ControlText(binding.SkeletonName);
-            EditorUI.ControlText(".");
-            EditorUI.ControlText(binding.BoneName);
+            using (UI.BeginRow())
+            {
+                EditorUI.ControlText(binding.SkeletonName);
+                EditorUI.ControlText(".");
+                EditorUI.ControlText(binding.BoneName);
+            }
 
             using (UI.BeginContainer(BoneUnbindButtonId, EditorStyle.Button.IconContent with { Padding = EdgeInsets.All(4) }))
             {
@@ -312,7 +315,7 @@ public class SpriteEditor : DocumentEditor
         }
 
         if (EditorUI.Control(BoneBindButtonId, BoneBindingContent, selected: selected))
-            HandleSelectBone();
+            OpenBonePopupMenu();
 
         if (EditorUI.Button(PreviewButtonId, EditorAssets.Sprites.IconPreview, selected: Document.ShowInSkeleton, disabled: !Document.Binding.IsBound, toolbar: true))
         {
@@ -327,6 +330,51 @@ public class SpriteEditor : DocumentEditor
             Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
             Document.MarkMetaModified();
         }
+    }
+
+    private void OpenBonePopupMenu()
+    {
+        var items = new List<PopupMenuItem>();
+        var skeletonIndex = 0;
+
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
+                continue;
+
+            items.Add(PopupMenuItem.Submenu(skeleton.Name, showIcons: false, showChecked: true, isChecked: () => Document.Binding.Skeleton == skeleton));
+
+            for (var i = 0; i < skeleton.BoneCount; i++)
+            {
+                var skel = skeleton;
+                var boneIndex = i;
+                var boneName = skeleton.Bones[i].Name;
+                var isBound = Document.Binding.IsBound && Document.Binding.Skeleton == skeleton && Document.Binding.BoneIndex == i;
+                items.Add(PopupMenuItem.Item(boneName, () => CommitBoneBinding(skel, boneIndex), level: 1, isChecked: () => isBound));
+            }
+
+            skeletonIndex++;
+        }
+
+        if (items.Count == 0)
+        {
+            Notifications.AddError("no skeletons available");
+            return;
+        }
+
+        var buttonRect = UI.GetElementRectInCanvas(EditorStyle.CanvasId.DocumentEditor, BoneBindButtonId);
+        var popupStyle = new PopupStyle
+        {
+            AnchorX = Align.Min,
+            AnchorY = Align.Min,
+            PopupAlignX = Align.Min,
+            PopupAlignY = Align.Max,
+            ClampToScreen = true,
+            AnchorRect = buttonRect,
+            MinWidth = buttonRect.Width,
+        };
+
+        Editor.PopupMenu.Open([.. items], null, popupStyle, showChecked: true, showIcons: false);
     }
 
     private void UpdateSelectionColor()
@@ -1456,10 +1504,6 @@ public class SpriteEditor : DocumentEditor
         Gizmos.DrawOrigin(EditorStyle.SpriteEditor.BoneOriginColor);
     }
 
-    private void HandleSelectBone()
-    {
-        Workspace.BeginTool(new BoneSelectTool(CommitBoneBinding));
-    }
 
     private void CommitBoneBinding(SkeletonDocument skeleton, int boneIndex)
     {

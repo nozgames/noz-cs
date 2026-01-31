@@ -6,8 +6,8 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public struct ContextMenuDef(
-    ContextMenuItem[] items,
+public struct PopupMenuDef(
+    PopupMenuItem[] items,
     string? title = null,
     Sprite? icon = null,
     bool showChecked = false,
@@ -15,14 +15,14 @@ public struct ContextMenuDef(
 {
     public string? Title = title;
     public Sprite? Icon = icon;
-    public ContextMenuItem[] Items = items;
+    public PopupMenuItem[] Items = items;
     public bool ShowChecked = showChecked;
     public bool ShowIcons = showIcons;
 
-    public static implicit operator ContextMenuDef(ContextMenuItem[] items) => new(items);
+    public static implicit operator PopupMenuDef(PopupMenuItem[] items) => new(items);
 }
 
-public struct ContextMenuItem
+public struct PopupMenuItem
 {
     public string? Label;
     public Action? Handler;
@@ -40,20 +40,20 @@ public struct ContextMenuItem
     public readonly bool IsEnabled => GetEnabled?.Invoke() ?? true;
     public readonly bool IsChecked => GetChecked?.Invoke() ?? false;
 
-    public static ContextMenuItem Item(string label, Action handler, InputCode key = InputCode.None, bool ctrl = false, bool alt = false, bool shift = false, int level = 0, Func<bool>? enabled = null, Func<bool>? isChecked = null, Sprite? icon = null) =>
+    public static PopupMenuItem Item(string label, Action handler, InputCode key = InputCode.None, bool ctrl = false, bool alt = false, bool shift = false, int level = 0, Func<bool>? enabled = null, Func<bool>? isChecked = null, Sprite? icon = null) =>
         new() { Label = label, Handler = handler, Level = level, Key = key, Ctrl = ctrl, Alt = alt, Shift = shift, GetEnabled = enabled, GetChecked = isChecked, Icon = icon, ShowChecked = true };
 
-    public static ContextMenuItem Submenu(string label, int level = 0, bool showChecked = false, bool showIcons = true) =>
-        new() { Label = label, Handler = null, Level = level, ShowChecked = showChecked, ShowIcons = showIcons };
+    public static PopupMenuItem Submenu(string label, int level = 0, bool showChecked = false, bool showIcons = true, Func<bool>? isChecked = null) =>
+        new() { Label = label, Handler = null, Level = level, ShowChecked = showChecked, ShowIcons = showIcons, GetChecked = isChecked };
 
-    public static ContextMenuItem Separator(int level = 0) =>
+    public static PopupMenuItem Separator(int level = 0) =>
         new() { Label = null, Handler = null, Level = level };
 
-    public static ContextMenuItem FromCommand(Command cmd, int level = 0, Func<bool>? enabled = null, Func<bool>? isChecked = null) =>
+    public static PopupMenuItem FromCommand(Command cmd, int level = 0, Func<bool>? enabled = null, Func<bool>? isChecked = null) =>
         new() { Label = cmd.Name, Handler = cmd.Handler, Level = level, Key = cmd.Key, Ctrl = cmd.Ctrl, Alt = cmd.Alt, Shift = cmd.Shift, GetEnabled = enabled, GetChecked = isChecked, Icon = cmd.Icon, ShowChecked = true };
 }
 
-public static class ContextMenu
+public static class PopupMenu
 {
     private struct LevelState
     {
@@ -70,10 +70,11 @@ public static class ContextMenu
     private static bool _visible;
     private static Vector2 _position;
     private static Vector2 _worldPosition;
-    private static ContextMenuItem[]? _items;
+    private static PopupMenuItem[]? _items;
     private static int _itemCount;
     private static string? _title;
     private static InputScope _scope;
+    private static PopupStyle? _popupStyle;
     private static readonly LevelState[] _levels = new LevelState[MaxSubmenuDepth];
 
     public static bool IsVisible => _visible;
@@ -91,17 +92,43 @@ public static class ContextMenu
         _title = null;
     }
 
-    public static void Open(ContextMenuDef def)
-    {
+    public static void Open(PopupMenuDef def) =>
         Open(def.Items, def.Title, showChecked: def.ShowChecked, showIcons: def.ShowIcons);
-    }
 
-    public static void Open(ContextMenuItem[] items, string? title = null, bool showChecked = true, bool showIcons = true)
+    public static void Open(PopupMenuDef def, Vector2 position) =>
+        Open(def.Items, def.Title, position, showChecked: def.ShowChecked, showIcons: def.ShowIcons);
+
+    public static void Open(PopupMenuDef def, PopupStyle popupStyle) =>
+        Open(def.Items, def.Title, popupStyle, showChecked: def.ShowChecked, showIcons: def.ShowIcons);
+
+    public static void Open(PopupMenuItem[] items, string? title = null, bool showChecked = true, bool showIcons = true) =>
+        Open(items, title, UI.ScreenToUI(Input.MousePosition), showChecked, showIcons);
+
+    public static void Open(PopupMenuItem[] items, string? title, Vector2 position, bool showChecked = true, bool showIcons = true)
     {
         _items = items;
         _itemCount = Math.Min(items.Length, MaxItems);
         _title = title;
-        _position = UI.ScreenToUI(Input.MousePosition);
+        _position = position;
+        _popupStyle = null;
+        _worldPosition = Workspace.MouseWorldPosition;
+        _visible = true;
+        for (var i = 0; i < MaxSubmenuDepth; i++)
+            _levels[i] = new LevelState { OpenSubmenu = -1, ShowChecked = true, ShowIcons = true };
+        _levels[0].ShowChecked = showChecked;
+        _levels[0].ShowIcons = showIcons;
+        UI.SetFocus(0, EditorStyle.CanvasId.ContextMenu);
+
+        _scope = Input.PushScope();
+    }
+
+    public static void Open(PopupMenuItem[] items, string? title, PopupStyle popupStyle, bool showChecked = true, bool showIcons = true)
+    {
+        _items = items;
+        _itemCount = Math.Min(items.Length, MaxItems);
+        _title = title;
+        _position = Vector2.Zero;
+        _popupStyle = popupStyle;
         _worldPosition = Workspace.MouseWorldPosition;
         _visible = true;
         for (var i = 0; i < MaxSubmenuDepth; i++)
@@ -115,9 +142,9 @@ public static class ContextMenu
 
     public static void Open(Command[] commands, string? title = null)
     {
-        var items = new ContextMenuItem[commands.Length];
+        var items = new PopupMenuItem[commands.Length];
         for (var i = 0; i < commands.Length; i++)
-            items[i] = ContextMenuItem.FromCommand(commands[i]);
+            items[i] = PopupMenuItem.FromCommand(commands[i]);
         Open(items, title);
     }
 
@@ -166,7 +193,7 @@ public static class ContextMenu
         var shouldClose = false;
 
         using (UI.BeginCanvas(id: EditorStyle.CanvasId.ContextMenu))
-            MenuUI(0, -1, new Rect(_position, Vector2.Zero), ref executed, ref shouldClose);
+            MenuUI(0, -1, new Rect(_position, Vector2.Zero), _popupStyle, ref executed, ref shouldClose);
 
         if (shouldClose)
         {
@@ -190,15 +217,14 @@ public static class ContextMenu
         int level,
         int parentIndex,
         Rect anchorRect,
+        PopupStyle? customStyle,
         ref Action? executed,
         ref bool shouldClose)
     {
         var startIndex = level == 0 ? 0 : parentIndex + 1;
         var parentLevel = level == 0 ? -1 : _items![parentIndex].Level;
 
-        anchorRect.Y -= 8;
-
-        using var _ = UI.BeginPopup((byte)(MenuIdStart + level), new PopupStyle
+        var style = customStyle ?? new PopupStyle
         {
             AnchorX = Align.Max,
             AnchorY = Align.Min,
@@ -206,14 +232,16 @@ public static class ContextMenu
             PopupAlignY = Align.Min,
             Spacing = level == 0 ? 0 : EditorStyle.Control.Spacing,
             ClampToScreen = true,
-            AnchorRect = anchorRect
-        });
+            AnchorRect = new Rect(anchorRect.X, anchorRect.Y - 8, anchorRect.Width, anchorRect.Height)
+        };
+
+        using var _ = UI.BeginPopup((byte)(MenuIdStart + level), style);
 
         if (UI.IsClosed())
             shouldClose = true;
 
         using (UI.BeginContainer(EditorStyle.ContextMenu.Menu))
-        using (UI.BeginColumn(ContainerStyle.Fit))
+        using (UI.BeginColumn(ContainerStyle.Fit with { MinWidth = style.MinWidth }))
         {
             if (level == 0 && _title != null)
             {
@@ -265,7 +293,7 @@ public static class ContextMenu
         }
     }
 
-    private static void SubmenuItemUI(int level, int index, byte itemId, ref ContextMenuItem item, bool enabled, bool isSubmenuOpen, ref Action? executed, ref bool shouldClose)
+    private static void SubmenuItemUI(int level, int index, byte itemId, ref PopupMenuItem item, bool enabled, bool isSubmenuOpen, ref Action? executed, ref bool shouldClose)
     {
         static void Content()
         {
@@ -273,7 +301,7 @@ public static class ContextMenu
             EditorUI.ControlIcon(EditorAssets.Sprites.IconSubmenu);
         }
 
-        if (EditorUI.PopupItem(itemId, item.Icon, item.Label, Content, selected: isSubmenuOpen, disabled: !enabled, showChecked: _levels[level].ShowChecked, showIcon: _levels[level].ShowIcons))
+        if (EditorUI.PopupItem(itemId, item.Icon, item.Label, Content, selected: item.IsChecked, disabled: !enabled, showChecked: _levels[level].ShowChecked, showIcon: _levels[level].ShowIcons))
         {
             _levels[level].OpenSubmenu = isSubmenuOpen ? -1 : index;
 
@@ -294,7 +322,7 @@ public static class ContextMenu
             _levels[level + 1].ShowChecked = item.ShowChecked;
             _levels[level + 1].ShowIcons = item.ShowIcons;
             var itemRect = UI.GetElementRectInCanvas(EditorStyle.CanvasId.ContextMenu, itemId);
-            MenuUI(level + 1, index, itemRect, ref executed, ref shouldClose);
+            MenuUI(level + 1, index, itemRect, null, ref executed, ref shouldClose);
         }
     }
 }

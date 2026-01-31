@@ -6,44 +6,39 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class ScaleTool : Tool
+public class ScaleTool(
+    Vector2 pivot,
+    Vector2 origin,
+    Action<Vector2> update,
+    Action<Vector2> commit,
+    Action cancel) : Tool
 {
-    private readonly Vector2 _pivot;
-    private readonly Vector2 _origin;
-    private readonly Action<Vector2> _update;
-    private readonly Action<Vector2> _commit;
-    private readonly Action _cancel;
-    private InputScope _scope;
+    private readonly Vector2 _pivot = pivot;
+    private readonly Vector2 _origin = origin;
+    private readonly Action<Vector2> _update = update;
+    private readonly Action<Vector2> _commit = commit;
+    private readonly Action _cancel = cancel;
 
     private Vector2 _startWorld;
     private Vector2 _scaleConstraint = Vector2.One;
 
-    public ScaleTool(Vector2 pivot, Vector2 origin, Action<Vector2> update, Action<Vector2> commit, Action cancel)
-    {
-        _pivot = pivot;
-        _origin = origin;
-        _update = update;
-        _commit = commit;
-        _cancel = cancel;
-    }
-
     public override void Begin()
     {
-        _scope = Input.PushScope();
+        base.Begin();
         _startWorld = Workspace.MouseWorldPosition;
     }
 
     public override void Update()
     {
-        if (Input.WasButtonPressed(InputCode.KeyEscape, _scope) ||
-            Input.WasButtonPressed(InputCode.MouseRight, _scope))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) ||
+            Input.WasButtonPressed(InputCode.MouseRight, Scope))
         {
             Workspace.CancelTool();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, _scope) ||
-            Input.WasButtonPressed(InputCode.KeyEnter, _scope))
+        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
+            Input.WasButtonPressed(InputCode.KeyEnter, Scope))
         {
             var finalScale = GetCurrentScale();
             _commit(finalScale);
@@ -52,16 +47,16 @@ public class ScaleTool : Tool
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyX, _scope))
+        if (Input.WasButtonPressed(InputCode.KeyX, Scope))
             _scaleConstraint = _scaleConstraint.X > 0 && _scaleConstraint.Y == 0 ? Vector2.One : new Vector2(1, 0);
-        if (Input.WasButtonPressed(InputCode.KeyY, _scope))
+        if (Input.WasButtonPressed(InputCode.KeyY, Scope))
             _scaleConstraint = _scaleConstraint.Y > 0 && _scaleConstraint.X == 0 ? Vector2.One : new Vector2(0, 1);
 
         var scale = GetCurrentScale();
         _update(scale);
     }
 
-    private Vector2 GetCurrentPivot() => Input.IsShiftDown(_scope) ? _origin : _pivot;
+    private Vector2 GetCurrentPivot() => Input.IsShiftDown(Scope) ? _origin : _pivot;
 
     private Vector2 GetCurrentScale()
     {
@@ -118,7 +113,6 @@ public class ScaleTool : Tool
     public override void Dispose()
     {
         GC.SuppressFinalize(this);
-        Input.PopScope(_scope);
         base.Dispose();
     }
 }

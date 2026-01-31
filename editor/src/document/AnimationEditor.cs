@@ -76,15 +76,15 @@ internal class AnimationEditor : DocumentEditor
 
         bool HasSelection() => Document.SelectedBoneCount > 0;
 
-        ContextMenu = new ContextMenuDef
+        ContextMenu = new PopupMenuDef
         {
             Title = "Animation",
             Items =
             [
-                ContextMenuItem.FromCommand(copyCommand, enabled: HasSelection),
-                ContextMenuItem.FromCommand(pasteCommand, enabled: Clipboard.Is<AnimationFrameData>),
-                ContextMenuItem.Separator(),
-                ContextMenuItem.FromCommand(exitEditCommand),
+                PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
+                PopupMenuItem.FromCommand(pasteCommand, enabled: Clipboard.Is<AnimationFrameData>),
+                PopupMenuItem.Separator(),
+                PopupMenuItem.FromCommand(exitEditCommand),
             ]
         };
 

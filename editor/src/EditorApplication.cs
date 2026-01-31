@@ -70,7 +70,7 @@ public static class EditorApplication
 
         DocumentManager.PostLoad();
         EditorStyle.Init();
-        ContextMenu.Init();
+        PopupMenu.Init();
         ConfirmDialog.Init();
         Notifications.Init();
         Workspace.Init();
@@ -87,7 +87,7 @@ public static class EditorApplication
         Workspace.Shutdown();
         Notifications.Shutdown();
         ConfirmDialog.Shutdown();
-        ContextMenu.Shutdown();
+        PopupMenu.Shutdown();
         EditorStyle.Shutdown();
         CollectionManager.Shutdown();
         PaletteManager.Shutdown();
@@ -101,7 +101,7 @@ public static class EditorApplication
         Importer.Update();
         ConfirmDialog.Update();
         CommandPalette.Update();
-        ContextMenu.Update();
+        PopupMenu.Update();
         Notifications.Update();
         Workspace.Update();
     }
@@ -110,7 +110,7 @@ public static class EditorApplication
     {
         Workspace.UpdateUI();
         Notifications.UpdateUI();
-        ContextMenu.UpdateUI();
+        PopupMenu.UpdateUI();
         CommandPalette.UpdateUI();
         ConfirmDialog.UpdateUI();
     }

@@ -1,16 +1,19 @@
 # 1/31/2026
-- [ ] Select bone should just make a context menu with skeletons and bones as sub menus
 - [ ] ctrl Snap bones from one to another when dragging in skeleton editor
 - [ ] Drag the end of bones to size them in skeleton editor
 - [ ] Create new animation with skeleton skeelcton should use that skeleton for animation
-- [ ] Block input when rotating bones in animation
-- [ ] animation got corrupted by messing with holds
 - [ ] Add animated sprites
 - [ ] Add stroke rendering
 - [ ] Atlas not always rebuilding when sprites change, sprite added i think
 - [ ] Add skeelton editor toolbar with button to hide / show the preview
 - [ ] toolbar button to add a bone in skeleton editor
 - [ ] Make sure you cant add too many holds or frames to animation (hold + frames < MAxFrames)>)
+- [ ] Refactor selection within sprite editor
+- [ ] Inital color when entering sprite editor is weird (first color in palette?)
+- [X] All tools now block other input while active
+- [X] Bone name in sprite editor has spacing.
+- [X] Reworked ContextMenu -> PopupMenu 
+- [X] Select bone should just make a context menu with skeletons and bones as sub menus
 - [X] Factored out the dopesheet and reused in sprite
 - [X] cant see holds in the animation editor
 - [X] Clear selection when exiting skeleton editor

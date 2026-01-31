@@ -2,10 +2,13 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Diagnostics.CodeAnalysis;
 using NoZ;
 using NoZ.Platform;
 using NoZ.Editor;
 using NoZ.Platform.WebGPU;
+
+[assembly: SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "<Pending>", Scope = "member", Target = "~M:NoZ.Editor.RenameTool.Dispose")]
 
 // Log.Path = "log.txt";
 
