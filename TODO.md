@@ -12,7 +12,7 @@ import to work, fix.
 - [ ] Merge importer into document manager and make Export method to export a document.
 - [ ] Animation editor onion skin
 - [ ] New palette
-- [ ] New bone shape
+- [X] New bone shape
 - [X] connected bone icon
 - [X] Redo bone icon
 - [X] Rework of editing bones in skeleton editor to be more like blender
