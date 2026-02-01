@@ -84,17 +84,16 @@ public static class Physics
         return Vector2.Distance(point, closestPoint) <= maxDistance;
     }
 
-    public static bool OverlapPoint(Collider collider, Matrix3x2 transform, Vector2 point)
+    public static bool OverlapPoint(ReadOnlySpan<Vector2> points, Vector2 point)
     {
-        var points = collider.Points;
         if (points.Length == 0)
             return false;
 
-        var v1 = Vector2.Transform(points[points.Length - 1], transform);
+        var v1 = points[points.Length - 1];
 
         for (var i = 0; i < points.Length; i++)
         {
-            var v2 = Vector2.Transform(points[i], transform);
+            var v2 = points[i];
             var edge = v2 - v1;
             var toPoint = point - v1;
             var cross = edge.X * toPoint.Y - edge.Y * toPoint.X;
@@ -106,6 +105,19 @@ public static class Physics
         }
 
         return true;
+    }
+
+    public static bool OverlapPoint(Collider collider, Matrix3x2 transform, Vector2 point)
+    {
+        var points = collider.Points;
+        if (points.Length == 0)
+            return false;
+
+        Span<Vector2> transformed = stackalloc Vector2[points.Length];
+        for (var i = 0; i < points.Length; i++)
+            transformed[i] = Vector2.Transform(points[i], transform);
+
+        return OverlapPoint(transformed, point);
     }
 
     public static bool OverlapBounds(Collider collider, Matrix3x2 transform, Rect bounds)

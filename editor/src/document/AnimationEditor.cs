@@ -842,7 +842,7 @@ internal class AnimationEditor : DocumentEditor
         if (skeleton == null)
             return;
 
-        var boneRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
+        var boneRadius = EditorStyle.Skeleton.JointSize * Gizmos.ZoomRefScale;
 
         var prevFrame = (Document.CurrentFrame - 1 + Document.FrameCount) % Document.FrameCount;
         Document.UpdateTransforms(prevFrame);

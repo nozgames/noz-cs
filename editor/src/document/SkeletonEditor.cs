@@ -18,11 +18,9 @@ internal class SkeletonEditor : DocumentEditor
 
     private struct SavedBone
     {
-        public BoneTransform Transform;
-        public Matrix3x2 LocalToWorld;
-        public float Length;
         public Vector2 HeadWorld;
         public Vector2 TailWorld;
+        public float Length;
     }
 
     public new SkeletonDocument Document => (SkeletonDocument)base.Document;
@@ -33,7 +31,6 @@ internal class SkeletonEditor : DocumentEditor
     private bool _clearSelectionOnUp;
     private bool _ignoreUp;
     private bool _showPreview = true;
-    private bool _currentConnected;
 
     private readonly Command[] _commands;
 
@@ -116,8 +113,8 @@ internal class SkeletonEditor : DocumentEditor
             var hasSelectableHead = HasSelectedHeadWithParent();
             if (EditorUI.Button(
                 ConnectedButtonId,
-                EditorAssets.Sprites.IconConstraint,
-                selected: _currentConnected,
+                EditorAssets.Sprites.IconConnected,
+                selected: Document.CurrentConnected,
                 disabled: !hasSelectableHead,
                 toolbar: true))
             {
@@ -137,7 +134,7 @@ internal class SkeletonEditor : DocumentEditor
     {
         Undo.Record(Document);
 
-        _currentConnected = !_currentConnected;
+        Document.CurrentConnected = !Document.CurrentConnected;
 
         for (var i = 0; i < Document.BoneCount; i++)
         {
@@ -145,21 +142,16 @@ internal class SkeletonEditor : DocumentEditor
             if (!bone.IsHeadSelected || bone.ParentIndex < 0)
                 continue;
 
-            bone.IsConnected = _currentConnected;
+            bone.IsConnected = Document.CurrentConnected;
 
-            if (_currentConnected)
+            if (Document.CurrentConnected)
             {
+                // Snap head to parent's tail - tail stays in place
                 var parent = Document.Bones[bone.ParentIndex];
-                ref readonly var parentM = ref Document.LocalToWorld[bone.ParentIndex];
-                var parentTailWorld = Vector2.Transform(new Vector2(parent.Length, 0), parentM);
-
-                bone.Transform.Position = Vector2.Transform(
-                    parentTailWorld,
-                    Document.WorldToLocal[bone.ParentIndex]);
+                bone.HeadWorld = parent.TailWorld;
             }
         }
 
-        Document.UpdateTransforms();
         Document.MarkModified();
     }
 
@@ -239,7 +231,7 @@ internal class SkeletonEditor : DocumentEditor
             var bone = Document.Bones[i];
             if (bone.IsHeadSelected && bone.ParentIndex >= 0)
             {
-                _currentConnected = bone.IsConnected;
+                Document.CurrentConnected = bone.IsConnected;
                 return;
             }
         }
@@ -264,17 +256,16 @@ internal class SkeletonEditor : DocumentEditor
         for (var i = 0; i < Document.BoneCount; i++)
         {
             var bone = Document.Bones[i];
-            ref readonly var m = ref Document.LocalToWorld[i];
 
             if (bone.IsHeadSelected)
             {
-                center += Vector2.Transform(Vector2.Zero, m);
+                center += bone.HeadWorld;
                 centerCount += 1f;
             }
 
             if (bone.IsTailSelected)
             {
-                center += Vector2.Transform(new Vector2(bone.Length, 0), m);
+                center += bone.TailWorld;
                 centerCount += 1f;
             }
         }
@@ -289,22 +280,20 @@ internal class SkeletonEditor : DocumentEditor
         {
             var src = Document.Bones[boneIndex];
             ref var saved = ref _savedBones[boneIndex];
-            saved.Transform = src.Transform;
-            saved.Length = src.Length;
-            saved.LocalToWorld = Document.LocalToWorld[boneIndex];
-            saved.HeadWorld = Vector2.Transform(Vector2.Zero, saved.LocalToWorld);
-            saved.TailWorld = Vector2.Transform(new Vector2(src.Length, 0), saved.LocalToWorld);
+            saved.HeadWorld = src.HeadWorld;
+            saved.TailWorld = src.TailWorld;
+            saved.Length = (src.TailWorld - src.HeadWorld).Length();
         }
     }
 
     private bool TrySelect()
     {
-        var cycle = !Input.IsShiftDown();
-        var hit = Document.HitTestBoneEndpoints(Workspace.MouseWorldPosition, cycle);
+        var shiftDown = Input.IsShiftDown(InputScope.All);
+        var hit = Document.HitTestJoints(Workspace.MouseWorldPosition, cycle: !shiftDown);
         if (hit.BoneIndex == -1)
             return false;
 
-        if (!Input.IsShiftDown())
+        if (!shiftDown)
             ClearSelection();
 
         var bone = Document.Bones[hit.BoneIndex];
@@ -312,21 +301,21 @@ internal class SkeletonEditor : DocumentEditor
         switch (hit.HitType)
         {
             case BoneHitType.Head:
-                if (Input.IsShiftDown())
+                if (shiftDown)
                     SetHeadSelected(hit.BoneIndex, !bone.IsHeadSelected);
                 else
                     SetHeadSelected(hit.BoneIndex, true);
                 break;
 
             case BoneHitType.Tail:
-                if (Input.IsShiftDown())
+                if (shiftDown)
                     SetTailSelected(hit.BoneIndex, !bone.IsTailSelected);
                 else
                     SetTailSelected(hit.BoneIndex, true);
                 break;
 
             case BoneHitType.Line:
-                if (Input.IsShiftDown())
+                if (shiftDown)
                     SetBoneFullySelected(hit.BoneIndex, !bone.IsFullySelected);
                 else
                     SetBoneFullySelected(hit.BoneIndex, true);
@@ -339,15 +328,14 @@ internal class SkeletonEditor : DocumentEditor
 
     private void HandleBoxSelect(Rect bounds)
     {
-        if (!Input.IsShiftDown())
+        if (!Input.IsShiftDown(InputScope.All))
             ClearSelection();
 
         for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
         {
             var b = Document.Bones[boneIndex];
-            ref readonly var m = ref Document.LocalToWorld[boneIndex];
-            var headPos = Vector2.Transform(Vector2.Zero, m) + Document.Position;
-            var tailPos = Vector2.Transform(new Vector2(b.Length, 0), m) + Document.Position;
+            var headPos = b.HeadWorld + Document.Position;
+            var tailPos = b.TailWorld + Document.Position;
 
             if (bounds.Contains(headPos))
                 SetHeadSelected(boneIndex, true);
@@ -406,7 +394,7 @@ internal class SkeletonEditor : DocumentEditor
                 if (i == renamingBoneIndex) continue;
 
                 ref var b = ref Document.Bones[i];
-                b.NamePosition = Vector2.Transform(new Vector2(b.Length * 0.5f, 0), Document.LocalToWorld[i]) + Document.Position;
+                b.NamePosition = (b.HeadWorld + b.TailWorld) * 0.5f + Document.Position;
                 var textSize = TextRender.Measure(b.Name, font, fontSize);
                 var textOffset = new Vector2(b.NamePosition.X - textSize.X * 0.5f, b.NamePosition.Y - textSize.Y * 0.5f);
                 Graphics.SetTransform(Matrix3x2.CreateTranslation(textOffset));
@@ -416,31 +404,6 @@ internal class SkeletonEditor : DocumentEditor
         }
 
         TextRender.ClearOutline();
-    }
-
-    private void CounterActParentTransform(int parentIndex)
-    {
-        var parent = Document.Bones[parentIndex];
-        ref readonly var parentWorldToLocal = ref Document.WorldToLocal[parentIndex];
-
-        for (var childIndex = 0; childIndex < Document.BoneCount; childIndex++)
-        {
-            var child = Document.Bones[childIndex];
-            if (child.ParentIndex != parentIndex || IsBoneSelected(childIndex))
-                continue;
-
-            var savedChild = _savedBones[childIndex];
-            var newLocal = savedChild.LocalToWorld * parentWorldToLocal;
-
-            child.Transform.Position = new Vector2(newLocal.M31, newLocal.M32);
-            child.Transform.Rotation = GetRotation(newLocal);
-        }
-    }
-
-    private static float GetRotation(Matrix3x2 matrix)
-    {
-        var scaleX = MathF.Sqrt(matrix.M11 * matrix.M11 + matrix.M12 * matrix.M12);
-        return MathF.Atan2(matrix.M12 / scaleX, matrix.M11 / scaleX) * 180f / MathF.PI;
     }
 
     #region Move Tool
@@ -478,188 +441,84 @@ internal class SkeletonEditor : DocumentEditor
 
     private void UpdateMoveTool(Vector2 delta)
     {
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
+        // Move selected endpoints
+        for (var i = 0; i < Document.BoneCount; i++)
         {
-            var bone = Document.Bones[boneIndex];
+            var bone = Document.Bones[i];
             if (!bone.IsSelected)
                 continue;
 
-            if (IsAncestorFullySelected(boneIndex))
+            if (IsAncestorFullySelected(i))
                 continue;
 
-            var sb = _savedBones[boneIndex];
-
-            if (bone.IsHeadSelected && bone.IsTailSelected)
+            var snappedDelta = delta;
+            if (Input.IsCtrlDown(InputScope.All))
             {
-                MoveFullBone(boneIndex, delta);
+                if (bone.IsHeadSelected)
+                    snappedDelta = Grid.SnapToPixelGrid(_savedBones[i].HeadWorld + delta) - _savedBones[i].HeadWorld;
+                else if (bone.IsTailSelected)
+                    snappedDelta = Grid.SnapToPixelGrid(_savedBones[i].TailWorld + delta) - _savedBones[i].TailWorld;
+            }
+
+            if (bone.IsFullySelected)
+            {
+                bone.HeadWorld = _savedBones[i].HeadWorld + snappedDelta;
+                bone.TailWorld = _savedBones[i].TailWorld + snappedDelta;
             }
             else if (bone.IsHeadSelected)
             {
-                var newHeadWorld = sb.HeadWorld + delta;
-                if (Input.IsCtrlDown(InputScope.All))
-                    newHeadWorld = Grid.SnapToPixelGrid(newHeadWorld);
-                MoveHead(boneIndex, newHeadWorld, sb.TailWorld, -1);
+                bone.HeadWorld = _savedBones[i].HeadWorld + snappedDelta;
             }
             else if (bone.IsTailSelected)
             {
-                var newTailWorld = sb.TailWorld + delta;
-                if (Input.IsCtrlDown(InputScope.All))
-                    newTailWorld = Grid.SnapToPixelGrid(newTailWorld);
-                MoveTail(boneIndex, newTailWorld, sb.HeadWorld, -1);
+                bone.TailWorld = _savedBones[i].TailWorld + snappedDelta;
             }
         }
 
-        // Connected bones: ensure head is at parent's tail
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            var bone = Document.Bones[boneIndex];
-            if (bone.ParentIndex < 0 || !bone.IsConnected)
-                continue;
-
-            var parent = Document.Bones[bone.ParentIndex];
-            bone.Transform.Position = new Vector2(parent.Length, 0);
-        }
-
-        Document.UpdateTransforms();
-
-        // Recalculate rotation for moved connected bones (rotation was calculated with stale parent)
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            var bone = Document.Bones[boneIndex];
-            if (!bone.IsConnected || !bone.IsHeadSelected)
-                continue;
-
-            var saved = _savedBones[boneIndex];
-            var headWorld = Vector2.Transform(Vector2.Zero, Document.LocalToWorld[boneIndex]);
-            var headToTail = saved.TailWorld - headWorld;
-            var newLength = headToTail.Length();
-            if (newLength < 0.05f)
-                continue;
-
-            bone.Length = newLength;
-            var newWorldRotation = MathF.Atan2(headToTail.Y, headToTail.X) * 180f / MathF.PI;
-            var parentRotation = GetParentWorldRotation(boneIndex);
-            bone.Transform.Rotation = newWorldRotation - parentRotation;
-        }
-
-        // Connected bones that weren't moved maintain their world rotation
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            var bone = Document.Bones[boneIndex];
-            if (!bone.IsConnected || bone.IsSelected)
-                continue;
-
-            var saved = _savedBones[boneIndex];
-            var savedWorldRotation = GetRotation(saved.LocalToWorld);
-            var parentRotation = GetParentWorldRotation(boneIndex);
-            bone.Transform.Rotation = savedWorldRotation - parentRotation;
-        }
-
-        Document.UpdateTransforms();
-
-        // Unconnected bones maintain their world position when parent transforms change
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            var bone = Document.Bones[boneIndex];
-            if (bone.ParentIndex < 0 || bone.IsConnected || bone.IsSelected)
-                continue;
-
-            var saved = _savedBones[boneIndex];
-            var newLocal = saved.LocalToWorld * Document.WorldToLocal[bone.ParentIndex];
-            bone.Transform.Position = new Vector2(newLocal.M31, newLocal.M32);
-            bone.Transform.Rotation = GetRotation(newLocal);
-        }
-
-        // Fully selected bones counteract parent transforms
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            if (!Document.Bones[boneIndex].IsFullySelected)
-                continue;
-            CounterActParentTransform(boneIndex);
-        }
-
-        Document.UpdateTransforms();
+        EnforceConnectedConstraints();
     }
 
-    private void MoveFullBone(int boneIndex, Vector2 delta)
+    private void EnforceConnectedConstraints()
     {
-        var bone = Document.Bones[boneIndex];
-        var sb = _savedBones[boneIndex];
+        const float minLength = 0.05f;
 
-        var newHeadWorld = sb.HeadWorld + delta;
-        if (Input.IsCtrlDown(InputScope.All))
-            newHeadWorld = Grid.SnapToPixelGrid(newHeadWorld);
-
-        bone.Transform.Position = bone.ParentIndex < 0
-            ? newHeadWorld
-            : Vector2.Transform(newHeadWorld, Document.WorldToLocal[bone.ParentIndex]);
-    }
-
-    private void MoveHead(int boneIndex, Vector2 newHeadWorld, Vector2 savedTailWorld, int initiator)
-    {
-        var bone = Document.Bones[boneIndex];
-
-        var headToTail = savedTailWorld - newHeadWorld;
-        var newLength = headToTail.Length();
-
-        if (newLength < 0.05f)
-            return;
-
-        bone.Length = newLength;
-
-        var newWorldRotation = MathF.Atan2(headToTail.Y, headToTail.X) * 180f / MathF.PI;
-        var parentRotation = GetParentWorldRotation(boneIndex);
-        bone.Transform.Rotation = newWorldRotation - parentRotation;
-
-        bone.Transform.Position = bone.ParentIndex < 0
-            ? newHeadWorld
-            : Vector2.Transform(newHeadWorld, Document.WorldToLocal[bone.ParentIndex]);
-
-        if (bone.IsConnected && bone.ParentIndex >= 0 && bone.ParentIndex != initiator)
+        bool changed;
+        do
         {
-            var parentSaved = _savedBones[bone.ParentIndex];
-            MoveTail(bone.ParentIndex, newHeadWorld, parentSaved.HeadWorld, boneIndex);
-        }
-    }
-
-    private void MoveTail(int boneIndex, Vector2 newTailWorld, Vector2 savedHeadWorld, int initiator)
-    {
-        var bone = Document.Bones[boneIndex];
-
-        var headToTail = newTailWorld - savedHeadWorld;
-        var newLength = headToTail.Length();
-
-        if (newLength < 0.05f)
-            return;
-
-        bone.Length = newLength;
-
-        var newWorldRotation = MathF.Atan2(headToTail.Y, headToTail.X) * 180f / MathF.PI;
-        var parentRotation = GetParentWorldRotation(boneIndex);
-        bone.Transform.Rotation = newWorldRotation - parentRotation;
-
-        for (var i = 0; i < Document.BoneCount; i++)
-        {
-            if (i == initiator)
-                continue;
-
-            var child = Document.Bones[i];
-            if (child.ParentIndex == boneIndex && child.IsConnected)
+            changed = false;
+            for (var i = 0; i < Document.BoneCount; i++)
             {
-                var childSaved = _savedBones[i];
-                MoveHead(i, newTailWorld, childSaved.TailWorld, boneIndex);
+                var bone = Document.Bones[i];
+                if (!bone.IsConnected || bone.ParentIndex < 0)
+                    continue;
+
+                var parent = Document.Bones[bone.ParentIndex];
+                if (bone.HeadWorld != parent.TailWorld)
+                {
+                    if (bone.IsHeadSelected)
+                    {
+                        // Child head is being dragged - move parent tail to match
+                        var parentDir = bone.HeadWorld - parent.HeadWorld;
+                        var parentLen = parentDir.Length();
+
+                        if (parentLen < minLength)
+                        {
+                            var dir = parentLen > 0.0001f
+                                ? parentDir / parentLen
+                                : new Vector2(1, 0);
+                            bone.HeadWorld = parent.HeadWorld + dir * minLength;
+                        }
+
+                        parent.TailWorld = bone.HeadWorld;
+                    }
+                    else
+                    {
+                        bone.HeadWorld = parent.TailWorld;
+                    }
+                    changed = true;
+                }
             }
-        }
-    }
-
-    private float GetParentWorldRotation(int boneIndex)
-    {
-        var bone = Document.Bones[boneIndex];
-        if (bone.ParentIndex < 0)
-            return 0f;
-
-        ref readonly var parentMatrix = ref Document.LocalToWorld[bone.ParentIndex];
-        return GetRotation(parentMatrix);
+        } while (changed);
     }
 
     #endregion
@@ -692,38 +551,44 @@ internal class SkeletonEditor : DocumentEditor
 
     private void UpdateRotateTool(float angle)
     {
-        var angleDeg = angle * 180f / MathF.PI;
+        if (Input.IsCtrlDown())
+        {
+            const float snapIncrement = 15f * MathF.PI / 180f;
+            angle = MathF.Round(angle / snapIncrement) * snapIncrement;
+        }
+
+        var cos = MathF.Cos(angle);
+        var sin = MathF.Sin(angle);
 
         for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
         {
-            if (!IsBoneSelected(boneIndex))
+            var bone = Document.Bones[boneIndex];
+            if (!bone.IsSelected)
                 continue;
 
-            var b = Document.Bones[boneIndex];
+            if (IsAncestorFullySelected(boneIndex))
+                continue;
+
             var sb = _savedBones[boneIndex];
 
-            if (Input.IsCtrlDown())
-                b.Transform.Rotation = SnapAngle(sb.Transform.Rotation + angleDeg);
-            else
-                b.Transform.Rotation = sb.Transform.Rotation + angleDeg;
+            if (bone.IsHeadSelected)
+            {
+                var rel = sb.HeadWorld - _selectionCenter;
+                bone.HeadWorld = _selectionCenter + new Vector2(
+                    rel.X * cos - rel.Y * sin,
+                    rel.X * sin + rel.Y * cos);
+            }
+
+            if (bone.IsTailSelected)
+            {
+                var rel = sb.TailWorld - _selectionCenter;
+                bone.TailWorld = _selectionCenter + new Vector2(
+                    rel.X * cos - rel.Y * sin,
+                    rel.X * sin + rel.Y * cos);
+            }
         }
 
-        Document.UpdateTransforms();
-
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            if (!IsBoneSelected(boneIndex))
-                continue;
-            CounterActParentTransform(boneIndex);
-        }
-
-        Document.UpdateTransforms();
-    }
-
-    private static float SnapAngle(float angle)
-    {
-        const float snapIncrement = 15f;
-        return MathF.Round(angle / snapIncrement) * snapIncrement;
+        EnforceConnectedConstraints();
     }
 
     #endregion
@@ -754,15 +619,23 @@ internal class SkeletonEditor : DocumentEditor
     {
         for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
         {
-            if (!IsBoneSelected(boneIndex))
+            var bone = Document.Bones[boneIndex];
+            if (!bone.IsFullySelected)
                 continue;
 
-            var b = Document.Bones[boneIndex];
+            if (IsAncestorFullySelected(boneIndex))
+                continue;
+
             var sb = _savedBones[boneIndex];
-            b.Length = Math.Clamp(sb.Length * scale.X, 0.05f, 10.0f);
+            var newLength = Math.Clamp(sb.Length * scale.X, 0.05f, 10.0f);
+
+            var dir = sb.TailWorld - sb.HeadWorld;
+            var len = dir.Length();
+            if (len > 0.0001f)
+                bone.TailWorld = sb.HeadWorld + dir / len * newLength;
         }
 
-        Document.UpdateTransforms();
+        EnforceConnectedConstraints();
     }
 
     #endregion
@@ -791,6 +664,14 @@ internal class SkeletonEditor : DocumentEditor
         newBone.ParentIndex = parentBoneIndex;
         newBone.Transform = BoneTransform.Identity;
         newBone.Length = parentBone.Length;
+
+        // Set world points - new bone starts at parent's head, extending in same direction
+        var parentDir = parentBone.TailWorld - parentBone.HeadWorld;
+        var parentLen = parentDir.Length();
+        var dir = parentLen > 0.0001f ? parentDir / parentLen : new Vector2(1, 0);
+        newBone.HeadWorld = parentBone.HeadWorld;
+        newBone.TailWorld = parentBone.HeadWorld + dir * newBone.Length;
+
         Document.BoneCount++;
 
         Document.NotifyBoneAdded(Document.BoneCount - 1);
@@ -811,6 +692,22 @@ internal class SkeletonEditor : DocumentEditor
         if (Document.SelectedBoneCount <= 0)
             return;
 
+        // Find the lowest index being deleted to know which sprites need recording
+        var lowestDeletedIndex = int.MaxValue;
+        for (var i = 0; i < Document.BoneCount; i++)
+        {
+            if (IsBoneSelected(i) && i < lowestDeletedIndex)
+                lowestDeletedIndex = i;
+        }
+
+        // Record all sprite documents that will be affected by the deletion
+        // (bound to this skeleton with BoneIndex >= lowestDeletedIndex)
+        Undo.BeginGroup();
+        foreach (var doc in DocumentManager.Documents.OfType<SpriteDocument>())
+        {
+            if (doc.Binding.Skeleton == Document && doc.Binding.BoneIndex >= lowestDeletedIndex)
+                Undo.Record(doc);
+        }
         Undo.Record(Document);
 
         for (var i = Document.BoneCount - 1; i >= 0; i--)
@@ -820,6 +717,11 @@ internal class SkeletonEditor : DocumentEditor
             Document.RemoveBone(i);
             Document.NotifyBoneRemoved(i, boneName);
         }
+
+        // Rebuild transforms from world points after deletion
+        Document.BuildTransformsFromWorldPoints();
+
+        Undo.EndGroup();
 
         ClearSelection();
         Document.MarkModified();
@@ -868,18 +770,15 @@ internal class SkeletonEditor : DocumentEditor
                 var b = Document.Bones[boneIndex];
                 var lineSelected = b.IsHeadSelected && b.IsTailSelected;
 
-                ref readonly var boneLocalToWorld = ref Document.LocalToWorld[boneIndex];
-                var headPos = Vector2.Transform(Vector2.Zero, boneLocalToWorld);
-                var tailPos = Vector2.Transform(new Vector2(b.Length, 0), boneLocalToWorld);
+                var headPos = b.HeadWorld;
+                var tailPos = b.TailWorld;
 
                 if (b.ParentIndex >= 0 && !b.IsConnected)
                 {
                     var parent = Document.Bones[b.ParentIndex];
-                    var parentTransform = Document.GetParentLocalToWorld(b, boneLocalToWorld);
-                    var parentTail = Vector2.Transform(new Vector2(parent.Length, 0), parentTransform);
                     Graphics.SetSortGroup(SortGroupBones);
                     Gizmos.SetColor(EditorStyle.Skeleton.ParentLineColor);
-                    Gizmos.DrawDashedLine(parentTail, headPos, order: 0);
+                    Gizmos.DrawDashedLine(parent.TailWorld, headPos, order: 0);
                 }
 
                 Graphics.SetSortGroup(lineSelected ? SortGroupSelectedBones : SortGroupBones);
@@ -890,23 +789,5 @@ internal class SkeletonEditor : DocumentEditor
                 Gizmos.DrawJoint(tailPos, b.IsTailSelected);
             }
         }
-    }
-
-    private static void DrawHead(Vector2 position, bool selected, ushort order)
-    {
-        using (Graphics.PushState())
-        {
-            Graphics.SetTransform(Matrix3x2.CreateRotation(MathEx.Deg2Rad * 45, position) * Graphics.Transform);
-            Graphics.SetSortGroup(selected ? SortGroupSelectedBones : SortGroupBones);
-            Gizmos.SetColor(selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.BoneColor);
-            Gizmos.DrawRect(position, EditorStyle.Skeleton.BoneSize, order);
-        }
-    }
-
-    private static void DrawTail(Vector2 position, bool selected, ushort order)
-    {
-        Graphics.SetSortGroup(selected ? SortGroupSelectedBones : SortGroupBones);
-        Gizmos.SetColor(selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.BoneColor);
-        Gizmos.DrawCircle(position, EditorStyle.Skeleton.TailSize, order);
     }
 }

@@ -21,6 +21,9 @@ public class BoneData
     public bool IsTailSelected;
     public bool IsConnected;
 
+    public Vector2 HeadWorld;
+    public Vector2 TailWorld;
+
     public bool IsSelected => IsHeadSelected || IsTailSelected;
     public bool IsFullySelected => IsHeadSelected && IsTailSelected;
 
@@ -59,6 +62,8 @@ public class SkeletonDocument : Document
     public int SelectedTailCount;
     public int SelectedBoneCount => int.Max(SelectedHeadCount, SelectedTailCount);
     public float Opacity = 1f;
+
+    public bool CurrentConnected = true;
 
     public static event Action<SkeletonDocument, int, string, string>? BoneRenamed;
     public static event Action<SkeletonDocument, int, string>? BoneRemoved;
@@ -179,6 +184,8 @@ public class SkeletonDocument : Document
 
     public override void Save(StreamWriter writer)
     {
+        BuildTransformsFromWorldPoints();
+
         for (var i = 0; i < BoneCount; i++)
         {
             var bone = Bones[i];
@@ -199,11 +206,14 @@ public class SkeletonDocument : Document
     {
         UpdateSprites();
         UpdateTransforms();
+        InitWorldPositions();
     }
 
     public override void OnUndoRedo()
     {
         UpdateTransforms();
+        InitWorldPositions();
+        NotifyTransformsChanged();
     }
 
     public override void Clone(Document source)
@@ -213,6 +223,7 @@ public class SkeletonDocument : Document
         Opacity = src.Opacity;
         SelectedHeadCount = src.SelectedHeadCount;
         SelectedTailCount = src.SelectedTailCount;
+        CurrentConnected = src.CurrentConnected;
 
         LocalToWorld.Dispose();
         WorldToLocal.Dispose();
@@ -229,6 +240,8 @@ public class SkeletonDocument : Document
             Bones[i].IsHeadSelected = src.Bones[i].IsHeadSelected;
             Bones[i].IsTailSelected = src.Bones[i].IsTailSelected;
             Bones[i].IsConnected = src.Bones[i].IsConnected;
+            Bones[i].HeadWorld = src.Bones[i].HeadWorld;
+            Bones[i].TailWorld = src.Bones[i].TailWorld;
         }
 
         Sprites = [.. src.Sprites];
@@ -280,6 +293,56 @@ public class SkeletonDocument : Document
         Bounds = bounds.Expand(BoundsPadding);
     }
 
+    public void InitWorldPositions()
+    {
+        for (var i = 0; i < BoneCount; i++)
+        {
+            var bone = Bones[i];
+            ref readonly var m = ref LocalToWorld[i];
+            bone.HeadWorld = Vector2.Transform(Vector2.Zero, m);
+            bone.TailWorld = Vector2.Transform(new Vector2(bone.Length, 0), m);
+        }
+    }
+
+    public void BuildTransformsFromWorldPoints()
+    {
+        for (var i = 0; i < BoneCount; i++)
+        {
+            var bone = Bones[i];
+            var headToTail = bone.TailWorld - bone.HeadWorld;
+            var length = headToTail.Length();
+            if (length < 0.05f)
+                length = 0.05f;
+            bone.Length = length;
+
+            var worldRotation = MathF.Atan2(headToTail.Y, headToTail.X) * 180f / MathF.PI;
+
+            if (bone.ParentIndex < 0)
+            {
+                bone.Transform.Position = bone.HeadWorld;
+                bone.Transform.Rotation = worldRotation;
+            }
+            else
+            {
+                var parent = Bones[bone.ParentIndex];
+                var parentHeadToTail = parent.TailWorld - parent.HeadWorld;
+                var parentWorldRotation = MathF.Atan2(parentHeadToTail.Y, parentHeadToTail.X) * 180f / MathF.PI;
+
+                var relativePos = bone.HeadWorld - parent.HeadWorld;
+                var radians = -parentWorldRotation * MathF.PI / 180f;
+                var cos = MathF.Cos(radians);
+                var sin = MathF.Sin(radians);
+                bone.Transform.Position = new Vector2(
+                    relativePos.X * cos - relativePos.Y * sin,
+                    relativePos.X * sin + relativePos.Y * cos
+                );
+                bone.Transform.Rotation = worldRotation - parentWorldRotation;
+            }
+        }
+
+        UpdateTransforms();
+    }
+
     private static Rect ExpandBounds(Rect bounds, Vector2 point)
     {
         var minX = MathF.Min(bounds.Left, point.X);
@@ -315,7 +378,7 @@ public class SkeletonDocument : Document
             var boneStart = Vector2.Transform(Vector2.Zero, localToWorld);
             var boneEnd = Vector2.Transform(new Vector2(b.Length, 0), localToWorld);
 
-            if (!HitTestBoneShape(position, boneStart, boneEnd))
+            if (!Gizmos.HitTestBone(boneStart, boneEnd, position))
                 continue;
 
             bones[hitCount++] = boneIndex;
@@ -354,72 +417,24 @@ public class SkeletonDocument : Document
         return HitTestBone(Matrix3x2.CreateTranslation(Position), worldPos, cycle);
     }
 
-    private static bool HitTestBoneShape(Vector2 point, Vector2 boneStart, Vector2 boneEnd)
+    public BoneHitResult HitTestJoints(Vector2 worldPos, bool cycle = false)
     {
-        var circleRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
-        var circleRadiusSqr = circleRadius * circleRadius + EditorStyle.Skeleton.BoneHitThresholdSqr * Gizmos.ZoomRefScale;
-
-        // Check if within the origin circle
-        if (Vector2.DistanceSquared(point, boneStart) <= circleRadiusSqr)
-            return true;
-
-        // Check if within the tapered body
-        var line = boneEnd - boneStart;
-        var lineLength = line.Length();
-        if (lineLength < 0.0001f)
-            return false;
-
-        var t = Vector2.Dot(point - boneStart, line) / (lineLength * lineLength);
-        if (t <= 0)
-            return false;
-
-        t = MathF.Min(1f, t);
-
-        // Threshold tapers from circleRadius at start to 0 at end
-        var threshold = circleRadius * (1f - t);
-        var thresholdSqr = threshold * threshold + EditorStyle.Skeleton.BoneHitThresholdSqr * Gizmos.ZoomRefScale;
-        var projection = boneStart + t * line;
-        return Vector2.DistanceSquared(point, projection) <= thresholdSqr;
-    }
-
-    private static float DistanceFromLine(Vector2 lineStart, Vector2 lineEnd, Vector2 point)
-    {
-        var line = lineEnd - lineStart;
-        var lineLength = line.Length();
-        if (lineLength < 0.0001f)
-            return Vector2.Distance(point, lineStart);
-
-        var t = MathF.Max(0, MathF.Min(1, Vector2.Dot(point - lineStart, line) / (lineLength * lineLength)));
-        var projection = lineStart + t * line;
-        return Vector2.Distance(point, projection);
-    }
-
-    public BoneHitResult HitTestBoneEndpoints(Vector2 worldPos, bool cycle = false)
-    {
-        var transform = Matrix3x2.CreateTranslation(Position);
-        var headRadius = EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale;
-        var tailRadius = EditorStyle.Skeleton.TailSize * Gizmos.ZoomRefScale;
-        var lineThreshold = EditorStyle.Skeleton.BoneHitThreshold * Gizmos.ZoomRefScale;
-        var headRadiusSqr = headRadius * headRadius;
-        var tailRadiusSqr = tailRadius * tailRadius;
-
         Span<BoneHitResult> hits = stackalloc BoneHitResult[Skeleton.MaxBones * 3];
         var hitCount = 0;
 
         for (var boneIndex = BoneCount - 1; boneIndex >= 0; boneIndex--)
         {
             var bone = Bones[boneIndex];
-            var localToWorld = LocalToWorld[boneIndex] * transform;
-            var headPos = Vector2.Transform(Vector2.Zero, localToWorld);
-            var tailPos = Vector2.Transform(new Vector2(bone.Length, 0), localToWorld);
+            var headPos = bone.HeadWorld + Position;
+            var tailPos = bone.TailWorld + Position;
 
-            if (Vector2.DistanceSquared(worldPos, headPos) <= headRadiusSqr)
+            if (Gizmos.HitTestJoint(headPos, worldPos))
                 hits[hitCount++] = new BoneHitResult { BoneIndex = boneIndex, HitType = BoneHitType.Head };
 
-            if (Vector2.DistanceSquared(worldPos, tailPos) <= tailRadiusSqr)
+            if (Gizmos.HitTestJoint(tailPos, worldPos))
                 hits[hitCount++] = new BoneHitResult { BoneIndex = boneIndex, HitType = BoneHitType.Tail };
 
-            if (DistanceFromLine(headPos, tailPos, worldPos) <= lineThreshold)
+            if (Gizmos.HitTestBone(headPos, tailPos, worldPos))
                 hits[hitCount++] = new BoneHitResult { BoneIndex = boneIndex, HitType = BoneHitType.Line };
         }
 
@@ -491,17 +506,19 @@ public class SkeletonDocument : Document
 
         var parentIndex = Bones[boneIndex].ParentIndex;
 
+        // Reparent children to deleted bone's parent and mark them unconnected
         for (var childIndex = 0; childIndex < BoneCount; childIndex++)
         {
             if (Bones[childIndex].ParentIndex == boneIndex)
             {
                 Bones[childIndex].ParentIndex = parentIndex;
-                ReparentBoneTransform(childIndex, parentIndex);
+                Bones[childIndex].IsConnected = false;
             }
         }
 
         BoneCount--;
 
+        // Shift bones down to fill the gap
         for (var i = boneIndex; i < BoneCount; i++)
         {
             var nextBone = Bones[i + 1];
@@ -512,6 +529,8 @@ public class SkeletonDocument : Document
             Bones[i].IsHeadSelected = nextBone.IsHeadSelected;
             Bones[i].IsTailSelected = nextBone.IsTailSelected;
             Bones[i].IsConnected = nextBone.IsConnected;
+            Bones[i].HeadWorld = nextBone.HeadWorld;
+            Bones[i].TailWorld = nextBone.TailWorld;
 
             if (nextBone.ParentIndex == boneIndex)
                 Bones[i].ParentIndex = parentIndex;
@@ -520,8 +539,6 @@ public class SkeletonDocument : Document
             else
                 Bones[i].ParentIndex = nextBone.ParentIndex;
         }
-
-        UpdateTransforms();
     }
 
     public string GetUniqueBoneName()
@@ -642,7 +659,7 @@ public class SkeletonDocument : Document
                     }
                 }
 
-                Gizmos.DrawBone(p0, p1);
+                Gizmos.DrawBoneAndJoints(this, boneIndex);
             }
         }
 

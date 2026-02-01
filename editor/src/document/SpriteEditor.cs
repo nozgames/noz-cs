@@ -424,10 +424,10 @@ public class SpriteEditor : DocumentEditor
             {
                 if (EditorUI.PopupItem(
                     PaletteManager.Palettes[i].Name,
-                    selected: i == Document.Palette))
+                    selected: (byte)PaletteManager.Palettes[i].Id == Document.Palette))
                 {
                     Undo.Record(Document);
-                    Document.Palette = (byte)i;
+                    Document.Palette = (byte)PaletteManager.Palettes[i].Id;
                     Document.MarkModified();
                     MarkRasterDirty();
                     EditorUI.ClosePopup();
@@ -909,7 +909,7 @@ public class SpriteEditor : DocumentEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
         var shape = Document.GetFrame(_currentFrame).Shape;
-        var shift = Input.IsShiftDown();
+        var shift = Input.IsShiftDown(InputScope.All);
 
         Span<Shape.HitResult> hits = stackalloc Shape.HitResult[Shape.MaxAnchors];
         var hitCount = shape.HitTestAll(localMousePos, hits);
@@ -1255,7 +1255,7 @@ public class SpriteEditor : DocumentEditor
     private void CommitBoxSelectAnchors(Rect bounds)
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        var shift = Input.IsShiftDown();
+        var shift = Input.IsShiftDown(InputScope.All);
 
         if (!shift)
             shape.ClearAnchorSelection();
@@ -1615,7 +1615,7 @@ public class SpriteEditor : DocumentEditor
             Graphics.SetTransform(Document.Transform * Matrix3x2.CreateTranslation(skeletonOffset));
 
             for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
-                Gizmos.DrawBone(skeleton, boneIndex, selected: boneIndex == Document.Binding.BoneIndex);
+                Gizmos.DrawBoneAndJoints(skeleton, boneIndex, selected: boneIndex == Document.Binding.BoneIndex);
         }
     }
 

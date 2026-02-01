@@ -30,10 +30,12 @@ public static class EditorAssets
         public const string IconAntialiasOff = "icon_antialias_off";
         public const string IconAntialiasOn = "icon_antialias_on";
         public const string IconBone = "icon_bone";
+        public const string IconBone2 = "icon_bone_2";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
         public const string IconClose = "icon_close";
         public const string IconCollection = "icon_collection";
+        public const string IconConnected = "icon_connected";
         public const string IconConstraint = "icon_constraint";
         public const string IconDelete = "icon_delete";
         public const string IconDropdown = "icon_dropdown";
@@ -63,7 +65,6 @@ public static class EditorAssets
         public const string IconSubtract = "icon_subtract";
         public const string IconTiling = "icon_tiling";
         public const string IconXray = "icon_xray";
-        public const string NewSprite = "new_sprite";
         public const string EditorPalette = "editor_palette";
     }
 
@@ -139,10 +140,12 @@ public static class EditorAssets
         public static Sprite IconAntialiasOff { get; private set; } = null!;
         public static Sprite IconAntialiasOn { get; private set; } = null!;
         public static Sprite IconBone { get; private set; } = null!;
+        public static Sprite IconBone2 { get; private set; } = null!;
         public static Sprite IconCheck { get; private set; } = null!;
         public static Sprite IconCircle { get; private set; } = null!;
         public static Sprite IconClose { get; private set; } = null!;
         public static Sprite IconCollection { get; private set; } = null!;
+        public static Sprite IconConnected { get; private set; } = null!;
         public static Sprite IconConstraint { get; private set; } = null!;
         public static Sprite IconDelete { get; private set; } = null!;
         public static Sprite IconDropdown { get; private set; } = null!;
@@ -172,7 +175,6 @@ public static class EditorAssets
         public static Sprite IconSubtract { get; private set; } = null!;
         public static Sprite IconTiling { get; private set; } = null!;
         public static Sprite IconXray { get; private set; } = null!;
-        public static Sprite NewSprite { get; private set; } = null!;
 
         public static void Load()
         {
@@ -189,10 +191,12 @@ public static class EditorAssets
             IconAntialiasOff = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAntialiasOff)!;
             IconAntialiasOn = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAntialiasOn)!;
             IconBone = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone)!;
+            IconBone2 = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone2)!;
             IconCheck = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCheck)!;
             IconCircle = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCircle)!;
             IconClose = (Sprite)Asset.Load(AssetType.Sprite, Names.IconClose)!;
             IconCollection = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCollection)!;
+            IconConnected = (Sprite)Asset.Load(AssetType.Sprite, Names.IconConnected)!;
             IconConstraint = (Sprite)Asset.Load(AssetType.Sprite, Names.IconConstraint)!;
             IconDelete = (Sprite)Asset.Load(AssetType.Sprite, Names.IconDelete)!;
             IconDropdown = (Sprite)Asset.Load(AssetType.Sprite, Names.IconDropdown)!;
@@ -222,7 +226,6 @@ public static class EditorAssets
             IconSubtract = (Sprite)Asset.Load(AssetType.Sprite, Names.IconSubtract)!;
             IconTiling = (Sprite)Asset.Load(AssetType.Sprite, Names.IconTiling)!;
             IconXray = (Sprite)Asset.Load(AssetType.Sprite, Names.IconXray)!;
-            NewSprite = (Sprite)Asset.Load(AssetType.Sprite, Names.NewSprite)!;
         }
 
         public static void Unload()
@@ -240,10 +243,12 @@ public static class EditorAssets
             IconAntialiasOff?.Dispose();
             IconAntialiasOn?.Dispose();
             IconBone?.Dispose();
+            IconBone2?.Dispose();
             IconCheck?.Dispose();
             IconCircle?.Dispose();
             IconClose?.Dispose();
             IconCollection?.Dispose();
+            IconConnected?.Dispose();
             IconConstraint?.Dispose();
             IconDelete?.Dispose();
             IconDropdown?.Dispose();
@@ -273,7 +278,6 @@ public static class EditorAssets
             IconSubtract?.Dispose();
             IconTiling?.Dispose();
             IconXray?.Dispose();
-            NewSprite?.Dispose();
         }
     }
 

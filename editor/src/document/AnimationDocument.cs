@@ -472,7 +472,7 @@ internal class AnimationDocument : Document
             var boneStart = Vector2.Transform(Vector2.Zero, localToWorld);
             var boneEnd = Vector2.Transform(new Vector2(bone.Length, 0), localToWorld);
 
-            if (!PointNearLine(position, boneStart, boneEnd, EditorStyle.Skeleton.BoneSize * Gizmos.ZoomRefScale * 2f))
+            if (!Gizmos.HitTestBone(boneStart, boneEnd, position))
                 continue;
 
             bones[hitCount++] = boneIndex;
@@ -487,23 +487,6 @@ internal class AnimationDocument : Document
         if (HitTestBones(transform, position, bones, 1) == 0)
             return -1;
         return bones[0];
-    }
-
-    private static bool PointNearLine(Vector2 point, Vector2 lineStart, Vector2 lineEnd, float threshold)
-    {
-        return DistanceFromLine(lineStart, lineEnd, point) <= threshold;
-    }
-
-    private static float DistanceFromLine(Vector2 lineStart, Vector2 lineEnd, Vector2 point)
-    {
-        var line = lineEnd - lineStart;
-        var lineLength = line.Length();
-        if (lineLength < 0.0001f)
-            return Vector2.Distance(point, lineStart);
-
-        var t = MathF.Max(0, MathF.Min(1, Vector2.Dot(point - lineStart, line) / (lineLength * lineLength)));
-        var projection = lineStart + t * line;
-        return Vector2.Distance(point, projection);
     }
 
     public override void Load()
@@ -807,7 +790,7 @@ internal class AnimationDocument : Document
     public override void OnUndoRedo()
     {
         UpdateSkeleton();
-        UpdateTransforms();
+        RebuildLocalToWorld();
     }
 
     public override void Draw()
@@ -838,17 +821,25 @@ internal class AnimationDocument : Document
 
         for (var boneIndex = 0; boneIndex < Skeleton.BoneCount; boneIndex++)
         {
-            var b = Skeleton.Bones[boneIndex];
+            ref readonly var b = ref Skeleton.Bones[boneIndex];
             ref readonly var boneTransform = ref LocalToWorld[boneIndex];
             var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
             var p1 = Vector2.Transform(new Vector2(b.Length, 0), boneTransform);
             Gizmos.DrawBone(p0, p1);
+
+            if (!b.IsConnected && boneIndex > 0)
+            {
+                ref readonly var p = ref Skeleton.Bones[b.ParentIndex];
+                var pt = Vector2.Transform(new Vector2(p.Length, 0), LocalToWorld[b.ParentIndex]);
+                Gizmos.SetColor(EditorStyle.Skeleton.ParentLineColor);
+                Gizmos.DrawDashedLine(p0, pt);
+            }
         }
     }
 
     public void DrawSprites()
     {
-        if (Skeleton == null) return;
+        if (Skeleton == null || Skeleton.IsDisposed) return;
 
         using (Graphics.PushState())
         {

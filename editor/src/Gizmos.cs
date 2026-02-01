@@ -151,8 +151,8 @@ public static class Gizmos
 
     public static void DrawJoint(Vector2 position, bool selected=false)
     {
-        SetColor(selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.BoneColor );
-        DrawCircle(position, EditorStyle.Skeleton.BoneSize);
+        SetColor(selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.JointColor );
+        DrawCircle(position, EditorStyle.Skeleton.JointSize, order: 1);
     }
 
     public static void DrawBone(SkeletonDocument skeleton, int boneIndex, bool selected=false)
@@ -186,98 +186,17 @@ public static class Gizmos
             return;
 
         SetColor(selected ? EditorStyle.Skeleton.SelectedBoneColor : EditorStyle.Skeleton.BoneColor);
-        DrawLine(start, end, EditorStyle.Skeleton.BoneLineWidth);
 
-        //using (Graphics.PushState())
-        //{
-        //    var dir = delta / length;
-        //    var angle = MathF.Atan2(dir.Y, dir.X);
-        //    Graphics.SetTransform(Matrix3x2.CreateRotation(MathEx.Deg2Rad * 45.0f + angle, start) * Graphics.Transform);
-        //    DrawRect(start, EditorStyle.Skeleton.BoneSize);
-        //}
+        var dir = Vector2.Normalize(end - start);
+        var normal = new Vector2(-dir.Y, dir.X);
+        var b = Vector2.Lerp(start, end, EditorStyle.Skeleton.BoneBaseRatio);
+        var p0 = b + normal * length * EditorStyle.Skeleton.BoneBaseRatio;
+        var p1 = b - normal * length * EditorStyle.Skeleton.BoneBaseRatio;
 
-#if false
-        const int CircleSegments = 16;
-
-        var delta = end - start;
-        var length = delta.Length();
-        if (length < 0.0001f)
-            return;
-
-        var circleRadius = EditorStyle.Skeleton.BoneSize * ZoomRefScale;
-        var vertCount = 1 + CircleSegments + 1;
-        var triCount = CircleSegments + 2;
-
-        var dir = delta / length;
-        var angle = MathF.Atan2(dir.Y, dir.X);
-        var topIdx = CircleSegments / 4;
-        var botIdx = 3 * CircleSegments / 4;
-
-        // Calculate outline points
-        var angleStep = MathF.PI * 2f / CircleSegments;
-        Span<Vector2> circlePoints = stackalloc Vector2[CircleSegments];
-        for (var i = 0; i < CircleSegments; i++)
-        {
-            var a = i * angleStep + angle;
-            circlePoints[i] = start + new Vector2(MathF.Cos(a) * circleRadius, MathF.Sin(a) * circleRadius);
-        }
-
-        // Draw outline - circle arc from top to bottom (front half)
-        var lineOrder = (ushort)(order + 1);
-        Graphics.SetColor(EditorStyle.Skeleton.BoneOutlineColor);
-        for (var i = topIdx; i != botIdx; i = (i + 1) % CircleSegments)
-        {
-            var next = (i + 1) % CircleSegments;
-            DrawLine(circlePoints[i], circlePoints[next], EditorStyle.Skeleton.BoneOutlineWidth, order: lineOrder);
-        }
-
-        // Draw outline - lines to tip
-        DrawLine(circlePoints[topIdx], end, EditorStyle.Skeleton.BoneOutlineWidth, order: lineOrder);
-        DrawLine(circlePoints[botIdx], end, EditorStyle.Skeleton.BoneOutlineWidth, order: lineOrder);
-
-        if (color.A > 0)
-        {
-            // Build fill mesh
-            Span<MeshVertex> verts = stackalloc MeshVertex[vertCount];
-            Span<ushort> indices = stackalloc ushort[triCount * 3];
-
-            Graphics.PushState();
-            Graphics.SetTransform(Matrix3x2.CreateRotation(angle, start) * Graphics.Transform);
-
-            verts[0] = new MeshVertex { Position = start };
-            for (var i = 0; i < CircleSegments; i++)
-            {
-                var a = i * angleStep;
-                verts[i + 1] = new MeshVertex
-                {
-                    Position = start + new Vector2(MathF.Cos(a) * circleRadius, MathF.Sin(a) * circleRadius)
-                };
-            }
-            verts[vertCount - 1] = new MeshVertex { Position = start + new Vector2(length, 0) };
-
-            for (var i = 0; i < CircleSegments; i++)
-            {
-                indices[i * 3 + 0] = 0;
-                indices[i * 3 + 1] = (ushort)(i + 1);
-                indices[i * 3 + 2] = (ushort)((i + 1) % CircleSegments + 1);
-            }
-
-            var baseIdx = CircleSegments * 3;
-            indices[baseIdx + 0] = (ushort)(topIdx + 1);
-            indices[baseIdx + 1] = (ushort)(vertCount - 1);
-            indices[baseIdx + 2] = 0;
-            indices[baseIdx + 3] = 0;
-            indices[baseIdx + 4] = (ushort)(vertCount - 1);
-            indices[baseIdx + 5] = (ushort)(botIdx + 1);
-
-            Graphics.SetColor(color);
-            Graphics.Draw(verts, indices, (ushort)(order + 1));
-            Graphics.PopState();
-
-            Graphics.SetColor(EditorStyle.Skeleton.BoneOriginColor);
-            DrawCircle(start, EditorStyle.Skeleton.BoneOriginSize, (ushort)(order + 1));
-        }
-#endif
+        DrawLine(p0, end, EditorStyle.Skeleton.BoneLineWidth);
+        DrawLine(p1, end, EditorStyle.Skeleton.BoneLineWidth);
+        DrawLine(p0, start, EditorStyle.Skeleton.BoneLineWidth);
+        DrawLine(p1, start, EditorStyle.Skeleton.BoneLineWidth);
     }
 
     public static void DrawDashedLine(Vector2 start, Vector2 end, ushort order=0)
@@ -311,4 +230,42 @@ public static class Gizmos
         SetColor(color);
         DrawRect(Vector2.Zero, EditorStyle.Workspace.OriginSize, order);
     }
+
+    #region Hit Testing
+
+    public static bool HitTestBone(Vector2 head, Vector2 tail, Vector2 point)
+    {
+        var delta = tail - head;
+        var length = delta.Length();
+        if (length < 0.0001f)
+            return Vector2.Distance(point, head) <= EditorStyle.Skeleton.BoneHitThreshold * ZoomRefScale;
+
+        // Compute diamond vertices (matching DrawBone)
+        var dir = delta / length;
+        var normal = new Vector2(-dir.Y, dir.X);
+        var baseRatio = EditorStyle.Skeleton.BoneBaseRatio;
+        var b = Vector2.Lerp(head, tail, baseRatio);
+        var halfWidth = length * baseRatio;
+        var p0 = b + normal * halfWidth;
+        var p1 = b - normal * halfWidth;
+
+        // Expand diamond outward by threshold
+        var threshold = EditorStyle.Skeleton.BoneHitThreshold * ZoomRefScale;
+        var headScaled = head - dir * threshold;
+        var tailScaled = tail + dir * threshold;
+        var p0Scaled = p0 + normal * threshold;
+        var p1Scaled = p1 - normal * threshold;
+
+        // CCW winding: head → p1 → tail → p0
+        Span<Vector2> diamond = [headScaled, p1Scaled, tailScaled, p0Scaled];
+        return Physics.OverlapPoint(diamond, point);
+    }
+
+    public static bool HitTestJoint(Vector2 position, Vector2 point)
+    {
+        var radius = EditorStyle.Skeleton.JointHitSize * ZoomRefScale;
+        return Vector2.DistanceSquared(point, position) <= radius * radius;
+    }
+
+    #endregion
 }

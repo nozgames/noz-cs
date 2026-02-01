@@ -1,7 +1,5 @@
 # 2/1/2026
 - [ ] Fix the atlas editor
-- [ ] ctrl Snap bones from one to another when dragging in skeleton editor
-- [ ] Drag the end of bones to size them in skeleton editor
 - [ ] Create new animation with skeleton selected should use that skeleton for animation
 - [ ] Add animated sprites
 - [ ] Add stroke rendering
@@ -13,8 +11,14 @@
 import to work, fix.
 - [ ] Merge importer into document manager and make Export method to export a document.
 - [ ] Animation editor onion skin
+- [ ] New palette
+- [ ] New bone shape
+- [X] connected bone icon
+- [X] Redo bone icon
+- [X] Rework of editing bones in skeleton editor to be more like blender
+- [X] Added mirror button to animator toolbar
 - [X] Setting a color and then setting again seems to not work
-- [X] sprites losing bone on import after atlas rebuild?  This is because REsolveBinding is called too late for the - [X] added collection selector in workspace toolbar
+- [X] sprites losing bone on import after atlas rebuild?  This is because REsolveBinding is called too late for the - - - [X] added collection selector in workspace toolbar
 - [x] Add worksapce toolbar
 - [X] Fixed alpha compositing bug in shape rasterization
 - [X] fixed but in rename tool that was causing button presses to affect workspace.

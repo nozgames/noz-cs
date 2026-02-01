@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Numerics;
+
 namespace NoZ;
 
 public static class MathEx
@@ -203,5 +205,17 @@ public static class MathEx
     public static uint FourCC(char a, char b, char c, char d)
     {
         return FourCC((byte)a, (byte)b, (byte)c, (byte)d);
+    }
+
+    public static float DistanceFromLineSegment(Vector2 lineStart, Vector2 lineEnd, Vector2 point)
+    {
+        var line = lineEnd - lineStart;
+        var lengthSqr = line.LengthSquared();
+        if (lengthSqr < 0.0001f)
+            return Vector2.Distance(point, lineStart);
+
+        var t = MathF.Max(0, MathF.Min(1, Vector2.Dot(point - lineStart, line) / lengthSqr));
+        var projection = lineStart + t * line;
+        return Vector2.Distance(point, projection);
     }
 }
