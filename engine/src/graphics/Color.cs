@@ -45,6 +45,8 @@ public readonly struct Color32(byte r, byte g, byte b, byte a=255)
 
     public static explicit operator Color(Color32 c) => c.ToColor();
 
+    public static Color32 operator *(Color32 a, Color32 b) => a.ToColor() * b.ToColor();
+
     public static readonly Color32 Black = new(0, 0, 0);
     public static readonly Color32 White = new(255, 255, 255);
     public static readonly Color32 Red = new(255, 0, 0);

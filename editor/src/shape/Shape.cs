@@ -824,7 +824,7 @@ public sealed unsafe partial class Shape : IDisposable
         ref var path = ref _paths[pathIndex];
         path.FillColor = color;
         path.FillOpacity = opacity;
-        path.Flags &= PathFlags.Subtract;
+        path.Flags &= ~PathFlags.Subtract;
         if (opacity <= float.MinValue)
             path.Flags |= PathFlags.Subtract;
     }

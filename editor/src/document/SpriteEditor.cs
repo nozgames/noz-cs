@@ -22,6 +22,7 @@ public class SpriteEditor : DocumentEditor
     private const byte FirstOpacityId = 10;
     private const byte PreviewButtonId = 11;
     private const byte SkeletonOverlayButtonId = 13;
+    private const byte XrayButtonId = 14;
     private const byte ConstraintsButtonId = 24;
     private const byte FillColorButtonId = 27;
     private const byte StrokeColorButtonId = 28;
@@ -32,6 +33,7 @@ public class SpriteEditor : DocumentEditor
     private ushort _currentFrame;
     private bool _isPlaying;
     private float _playTimer;
+    private bool _xray;
     private readonly PixelData<Color32> _image = new(
         EditorApplication.Config!.AtlasSize,
         EditorApplication.Config!.AtlasSize);
@@ -253,6 +255,12 @@ public class SpriteEditor : DocumentEditor
             {
                 Document.ShowTiling = !Document.ShowTiling;
                 Document.MarkMetaModified();
+            }
+
+            if (EditorUI.Button(XrayButtonId, EditorAssets.Sprites.IconXray, _xray, toolbar: true))
+            {
+                _xray = !_xray;
+                MarkRasterDirty();
             }
 
             EditorUI.ToolbarSpacer();
@@ -584,7 +592,10 @@ public class SpriteEditor : DocumentEditor
                 rasterRect.Expand(-Padding),
                 -Document.RasterBounds.Position,
                 palette.Colors,
-                options: new Shape.RasterizeOptions { AntiAlias = Document.IsAntiAliased });
+                options: new Shape.RasterizeOptions {
+                    AntiAlias = Document.IsAntiAliased,
+                    Color = _xray ? new Color(1,1,1,0.5f) : (Color?)null
+                });
 
         for (int p = Padding - 1; p >= 0; p--)
             _image.ExtrudeEdges(new RectInt(

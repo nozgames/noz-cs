@@ -1,4 +1,4 @@
-# 1/31/2026
+# 2/1/2026
 - [ ] Fix the atlas editor
 - [ ] ctrl Snap bones from one to another when dragging in skeleton editor
 - [ ] Drag the end of bones to size them in skeleton editor
@@ -10,10 +10,15 @@
 - [ ] Make sure you cant add too many holds or frames to animation (hold + frames < MAxFrames)>)
 - [ ] Refactor selection within sprite editor
 - [ ] Inital color when entering sprite editor is weird (first color in palette?)
-- [ ] Set bone per sprite layer
 - [ ] When anchor selected draw faded selection line along segment if other anchor isnt selected
 - [ ] Setting a color and then setting again seems to not work
-- [ ] sprites losing bone on import after atlas rebuild?
+- [ ] sprites losing bone on import after atlas rebuild?  This is because REsolveBinding is called too late for the import to work, fix.
+- [ ] Merge importer into document manager and make Export method to export a document.
+- [X] fixed but in rename tool that was causing button presses to affect workspace.
+- [X] Added Xray button to sprite editor
+
+
+# 1/31/2026
 - [X] Moved HitResult into Shape
 - [X] Add icons to color button
 - [X] Opacity in the color popup as a row

@@ -22,8 +22,9 @@ public sealed partial class Shape
         public bool AntiAlias;
         public string Name;
         public byte? Layer;
+        public Color? Color;
 
-        public static readonly RasterizeOptions Default = new() { AntiAlias = false, Layer = null };
+        public static readonly RasterizeOptions Default = new() { AntiAlias = false, Layer = null, Color = null };
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -74,6 +75,9 @@ public sealed partial class Shape
                 var fillColor = subtract
                     ? Color32.Transparent
                     : palette[path.FillColor % palette.Length].ToColor32().WithAlpha(path.FillOpacity);
+
+                if (options.Color != null)
+                    fillColor *= options.Color.Value;
 
                 RasterizePath(
                     target,

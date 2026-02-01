@@ -24,6 +24,7 @@ public class RenameTool(
 
     public override void Begin()
     {
+        base.Begin();
         _firstFrame = true;
         UI.SetFocus(TextBoxId, EditorStyle.CanvasId.Workspace);
     }
