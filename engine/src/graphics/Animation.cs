@@ -11,8 +11,7 @@ namespace NoZ;
 public enum AnimationFlags : byte
 {
     None = 0,
-    Looping = 1 << 0,
-    RootMotion = 1 << 1
+    Looping = 1 << 0
 }
 
 public struct AnimationBone
@@ -29,8 +28,6 @@ public struct AnimationFrame
     public byte Padding0;
     public float Fraction0;
     public float Fraction1;
-    public float RootMotion0;
-    public float RootMotion1;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -73,7 +70,6 @@ public class Animation : Asset
     public AnimationFrame[] Frames { get; private set; } = [];
 
     public bool IsLooping => (Flags & AnimationFlags.Looping) != 0;
-    public bool IsRootMotion => (Flags & AnimationFlags.RootMotion) != 0;
 
     private Animation(string name) : base(AssetType.Animation, name)
     {
@@ -124,8 +120,6 @@ public class Animation : Asset
             animation.Frames[i].Transform1 = reader.ReadByte();
             animation.Frames[i].Fraction0 = reader.ReadSingle();
             animation.Frames[i].Fraction1 = reader.ReadSingle();
-            animation.Frames[i].RootMotion0 = reader.ReadSingle();
-            animation.Frames[i].RootMotion1 = reader.ReadSingle();
         }
 
         if (frameCount > 0)
@@ -166,10 +160,6 @@ public class Animation : Asset
             frame.Fraction0 = 0f;
             frame.Fraction1 = 1f;
             frame.Event = 0;
-            frame.RootMotion0 = 0f;
-            frame.RootMotion1 = transforms[frameIndex * boneStride].Position.X;
-
-            transforms[frameIndex * boneStride].Position = new Vector2(0, transforms[frameIndex * boneStride].Position.Y);
 
             if (events != null)
             {

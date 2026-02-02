@@ -12,8 +12,7 @@ namespace NoZ.Editor;
 public enum AnimationFlags : byte
 {
     None = 0,
-    Looping = 1 << 0,
-    RootMotion = 1 << 1
+    Looping = 1 << 0
 }
 
 public class AnimationBoneData
@@ -76,17 +75,6 @@ internal class AnimationDocument : Document
                 Flags |= AnimationFlags.Looping;
             else
                 Flags &= ~AnimationFlags.Looping;
-        }
-    }
-    public bool IsRootMotion
-    {
-        get => (Flags & AnimationFlags.RootMotion) != 0;
-        set
-        {
-            if (value)
-                Flags |= AnimationFlags.RootMotion;
-            else
-                Flags &= ~AnimationFlags.RootMotion;
         }
     }
 
@@ -446,15 +434,6 @@ internal class AnimationDocument : Document
         MarkMetaModified();
     }
 
-    public void SetRootMotion(bool rootMotion)
-    {
-        if (rootMotion)
-            Flags |= AnimationFlags.RootMotion;
-        else
-            Flags &= ~AnimationFlags.RootMotion;
-        MarkMetaModified();
-    }
-
     public int HitTestBones(
         Matrix3x2 transform,
         Vector2 position,
@@ -738,14 +717,11 @@ internal class AnimationDocument : Document
         Flags = AnimationFlags.None;
         if (meta.GetBool("animation", "loop", true))
             Flags |= AnimationFlags.Looping;
-        if (meta.GetBool("animation", "root_motion", false))
-            Flags |= AnimationFlags.RootMotion;
     }
 
     public override void SaveMetadata(PropertySet meta)
     {
         meta.SetBool("animation", "loop", IsLooping);
-        meta.SetBool("animation", "root_motion", IsRootMotion);
     }
 
     public override void Clone(Document source)
@@ -851,11 +827,7 @@ internal class AnimationDocument : Document
                 Debug.Assert(sprite != null);
                 Debug.Assert(sprite.Binding.IsBoundTo(Skeleton));
 
-                // TODO: Per-mesh bone transforms for editor preview
-                ref readonly var bindPose = ref Skeleton.WorldToLocal[0];
-                ref readonly var animatedPose = ref LocalToWorld[0];
-                Graphics.SetTransform(bindPose * animatedPose * Transform);
-                sprite.DrawSprite();
+                sprite.DrawSprite(Skeleton.WorldToLocal, LocalToWorld, Transform);
             }
         }
     }
@@ -968,15 +940,7 @@ internal class AnimationDocument : Document
         {
             var f = Frames[frameIndex];
 
-            // Bone 0 (root) - position is zeroed for root motion handling
-            var rootTransform = f.Transforms[0];
-            writer.Write(0f); // position x
-            writer.Write(0f); // position y
-            writer.Write(rootTransform.Rotation + Skeleton.Bones[0].Transform.Rotation);
-            writer.Write(rootTransform.Scale.X);
-            writer.Write(rootTransform.Scale.Y);
-
-            for (var boneIndex = 1; boneIndex < Skeleton.BoneCount; boneIndex++)
+            for (var boneIndex = 0; boneIndex < Skeleton.BoneCount; boneIndex++)
             {
                 var bind = Skeleton.Bones[boneIndex].Transform;
                 var absTransform = f.Transforms[boneIndex];
@@ -988,8 +952,6 @@ internal class AnimationDocument : Document
             }
         }
 
-        var baseRootMotion = Frames[0].Transforms[0].Position.X;
-
         for (var frameIndex = 0; frameIndex < FrameCount; frameIndex++)
         {
             var fd = Frames[frameIndex];
@@ -1000,12 +962,6 @@ internal class AnimationDocument : Document
                 ? (byte)((frameIndex + 1) % FrameCount)
                 : (byte)Math.Min(frameIndex + 1, FrameCount - 1);
 
-            var rootMotion0 = Frames[transform0].Transforms[0].Position.X - baseRootMotion;
-            var rootMotion1 = Frames[transform1].Transforms[0].Position.X - baseRootMotion;
-
-            if (transform1 < transform0)
-                rootMotion1 += rootMotion0 + baseRootMotion;
-
             if (fd.Hold == 0)
             {
                 writer.Write(eventId);
@@ -1013,8 +969,6 @@ internal class AnimationDocument : Document
                 writer.Write(transform1);
                 writer.Write(0f); // fraction0
                 writer.Write(1f); // fraction1
-                writer.Write(rootMotion0);
-                writer.Write(rootMotion1);
                 continue;
             }
 
@@ -1023,15 +977,12 @@ internal class AnimationDocument : Document
             for (var holdIndex = 0; holdIndex < holdCount; holdIndex++)
             {
                 var fraction1 = (float)(holdIndex + 1) / holdCount;
-                var rm1 = rootMotion0 + (rootMotion1 - rootMotion0) * fraction1;
 
                 writer.Write(holdIndex == 0 ? eventId : (byte)0);
                 writer.Write(transform0);
                 writer.Write(transform1);
                 writer.Write(fraction0);
                 writer.Write(fraction1);
-                writer.Write(rootMotion0 + (rootMotion1 - rootMotion0) * fraction0);
-                writer.Write(rm1);
 
                 fraction0 = fraction1;
             }

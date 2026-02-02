@@ -38,8 +38,14 @@ public class Animator
         for (var i = 0; i < skeleton.BoneCount; i++)
         {
             _boneTransforms[i] = Matrix3x2.Identity;
-            _poseA[i] = AnimationTransform.Identity;
-            _poseB[i] = AnimationTransform.Identity;
+            ref var boneTransform = ref skeleton.Bones[i].Transform;
+            _poseA[i] = new AnimationTransform
+            {
+                Position = boneTransform.Position,
+                Rotation = boneTransform.Rotation,
+                Scale = boneTransform.Scale
+            };
+            _poseB[i] = _poseA[i];
         }
     }
 

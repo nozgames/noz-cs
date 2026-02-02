@@ -630,6 +630,8 @@ public class SkeletonDocument : Document
 
     public override void Draw()
     {
+        DrawOrigin();
+
         using (Gizmos.PushState(EditorLayer.Document))
         {
             Graphics.SetTransform(Transform);

@@ -12,7 +12,10 @@ import to work, fix.
 - [ ] Animation editor onion skin
 - [ ] New palette
 - [ ] Stoke size popup in sprite editor
-- [ ] Per path bone binding.
+- [ ] Removed root motion
+- [ ] Fixed skeletons that had an altered root bone
+- [X] fixed asset manifest but with conflicting names cross types
+- [X] Per path bone binding.
 - [X] new Name system
 - [X] fixed documentmanager bug causing name conflicts across types
 - [X] removed rotate tool from skeleton editor

@@ -19,7 +19,6 @@ internal class AnimationEditor : DocumentEditor
     private const int RootId = 1;
     private const int OnionSkinButtonId = 2;
     private const int PlayButtonId = 3;
-    private const int RootMotionButtonId = 4;
     private const int LoopButtonId = 5;
     private const int AddFrameButtonId = 6;
     private const int SkeletonButtonId = 7;
@@ -34,8 +33,6 @@ internal class AnimationEditor : DocumentEditor
     private Vector2 _selectionCenter;
     private Vector2 _selectionCenterWorld;
     private bool _onionSkin;
-    private Vector2 _rootMotionDelta;
-    private bool _rootMotion = true;
     private float _playSpeed = 1f;
 
     public new AnimationDocument Document => (AnimationDocument)base.Document;
@@ -68,7 +65,6 @@ internal class AnimationEditor : DocumentEditor
             new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
             new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
             new Command { Name = "Toggle Onion Skin", Handler = ToggleOnionSkin, Key = InputCode.KeyO, Shift = true },
-            new Command { Name = "Toggle Root Motion", Handler = ToggleRootMotion, Key = InputCode.KeyM, Shift = true },
             new Command { Name = "Toggle Loop", Handler = ToggleLoop, Key = InputCode.KeyL },
             new Command { Name = "Increase Play Speed", Handler = IncreasePlaySpeed, Key = InputCode.KeyRight },
             new Command { Name = "Decrease Play Speed", Handler = DecreasePlaySpeed, Key = InputCode.KeyLeft },
@@ -194,14 +190,6 @@ internal class AnimationEditor : DocumentEditor
                 Document.IsLooping = !Document.IsLooping;
             }
 
-            if (EditorUI.Button(RootMotionButtonId, EditorAssets.Sprites.IconRootMotion, selected: Document.IsRootMotion, toolbar: true))
-            {
-                Undo.Record(Document);
-                Document.MarkMetaModified();
-                Document.IsRootMotion = !Document.IsRootMotion;
-                _rootMotion = Document.IsRootMotion;
-            }
-
             if (EditorUI.Button(OnionSkinButtonId, EditorAssets.Sprites.IconOnion, selected: _onionSkin, toolbar: true))
                 _onionSkin = !_onionSkin;
         }
@@ -247,12 +235,6 @@ internal class AnimationEditor : DocumentEditor
     {
         Document.UpdatePlayback(Time.DeltaTime * _playSpeed);
 
-        if (_rootMotion)
-        {
-            ref var rootTransform = ref Document.GetFrameTransform(0, Document.CurrentFrame);
-            _rootMotionDelta.X += rootTransform.Position.X * Time.DeltaTime * _playSpeed * 12f;
-        }
-
         if (!Document.IsPlaying)
         {
             Document.Play();
@@ -283,8 +265,7 @@ internal class AnimationEditor : DocumentEditor
 
     private Matrix3x2 GetBaseTransform()
     {
-        var offset = _rootMotion ? Vector2.Zero : new Vector2(-Vector2.Transform(Vector2.Zero, Document.LocalToWorld[0]).X, 0);
-        return Matrix3x2.CreateTranslation(Document.Position + offset + _rootMotionDelta);
+        return Matrix3x2.CreateTranslation(Document.Position);
     }
 
     private bool TrySelectBone()
@@ -407,7 +388,6 @@ internal class AnimationEditor : DocumentEditor
 
         Document.Stop();
         Document.UpdateTransforms();
-        _rootMotionDelta = Vector2.Zero;
         _state = AnimationEditorState.Default;
     }
 
@@ -612,7 +592,6 @@ internal class AnimationEditor : DocumentEditor
         if (_state != AnimationEditorState.Default)
             return;
 
-        _rootMotionDelta = Vector2.Zero;
         Document.Play();
         _state = AnimationEditorState.Play;
     }
@@ -715,14 +694,6 @@ internal class AnimationEditor : DocumentEditor
     private void ToggleOnionSkin()
     {
         _onionSkin = !_onionSkin;
-    }
-
-    private void ToggleRootMotion()
-    {
-        _rootMotion = !_rootMotion;
-        _rootMotionDelta = Vector2.Zero;
-        UpdateSelectionCenter();
-        Document.UpdateTransforms();
     }
 
     private void ToggleLoop()

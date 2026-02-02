@@ -59,7 +59,7 @@ public class SpriteEditor : DocumentEditor
         var moveCommand = new Command { Name = "Move", Handler = BeginMoveTool, Key = InputCode.KeyG, Icon = EditorAssets.Sprites.IconMove };
         var originToCenterCommand = new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true };
         var rotateCommand = new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR };
-        var scaleCommand = new Command { Name = "Scale", Handler = BeginScaleTool, Key = InputCode.KeyS };
+        var scaleCommand = new Command { Name = "Scale", Handler = OnScale, Key = InputCode.KeyS };
         var flipHorizontalCommand = new Command { Name = "Flip Horizontal", Handler = FlipHorizontal };
         var flipVerticalCommand = new Command { Name = "Flip Vertical", Handler = FlipVertical };
         var copyCommand = new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true };
@@ -1166,7 +1166,7 @@ public class SpriteEditor : DocumentEditor
         ));
     }
 
-    private void BeginScaleTool()
+    private void OnScale()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
         var localPivot = GetLocalTransformPivot(shape);
@@ -1189,7 +1189,7 @@ public class SpriteEditor : DocumentEditor
             worldOrigin,
             update: scale =>
             {
-                var pivot = Input.IsShiftDown() ? Vector2.Zero : localPivot.Value;
+                var pivot = Input.IsShiftDown(InputScope.All) ? Vector2.Zero : localPivot.Value;
                 shape.ScaleAnchors(pivot, scale, _savedPositions, _savedCurves);
                 if (Input.IsCtrlDown(InputScope.All))
                     shape.SnapSelectedAnchorsToPixelGrid();

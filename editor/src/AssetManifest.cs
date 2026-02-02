@@ -59,16 +59,18 @@ public static class AssetManifest
 
         var hasAtlases = documentsByType.Any(g => g.Key == AssetType.Atlas);
 
-        // Names class
+        // Names class (deduplicated since different types can share names)
         writer.WriteLine("    public static class Names");
         writer.WriteLine("    {");
-        foreach (var group in documentsByType)
+        var uniqueNames = documentsByType
+            .SelectMany(g => g)
+            .Select(d => d.Name)
+            .Distinct()
+            .OrderBy(n => n);
+        foreach (var name in uniqueNames)
         {
-            foreach (var doc in group.OrderBy(d => d.Name))
-            {
-                var constName = ToPascalCase(doc.Name);
-                writer.WriteLine($"        public const string {constName} = \"{doc.Name}\";");
-            }
+            var constName = ToPascalCase(name);
+            writer.WriteLine($"        public const string {constName} = \"{name}\";");
         }
         writer.WriteLine("    }");
 

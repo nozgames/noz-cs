@@ -555,6 +555,32 @@ public class SpriteDocument : Document
         }
     }
 
+    public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform)
+    {
+        if (Atlas == null) return;
+
+        var sprite = Sprite;
+        if (sprite == null) return;
+
+        using (Graphics.PushState())
+        {
+            Graphics.SetTexture(Atlas.Texture);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetColor(Color.White);
+            Graphics.SetTextureFilter(sprite.TextureFilter);
+
+            var bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
+
+            foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
+            {
+                var boneIndex = mesh.BoneIndex >= 0 ? mesh.BoneIndex : 0;
+                var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
+                Graphics.SetTransform(transform);
+                Graphics.Draw(bounds, mesh.UV, order: (ushort)mesh.SortOrder);
+            }
+        }
+    }
+
     public override void Clone(Document source)
     {
         var src = (SpriteDocument)source;
