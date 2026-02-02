@@ -58,6 +58,7 @@ public static class EditorApplication
         CollectionManager.Init(Config);
         DocumentManager.Init(Config.SourcePaths, Config.OutputPath);
         PaletteManager.Init(Config);
+        DocumentManager.LoadAll();
         AtlasManager.Init();
         Importer.Init(clean);
         AssetManifest.Generate();

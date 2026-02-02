@@ -18,8 +18,11 @@ public readonly struct StringId : IEquatable<StringId>
 
     public bool IsNone => Value == 0;
 
-    public static StringId Get(string name)
+    public static StringId Get(string? name)
     {
+        if (string.IsNullOrEmpty(name))
+            return None;
+
         if (_nameDict.TryGetValue(name, out var id))
             return new StringId { Value = id };
         if (_nextId >= MaxNames)

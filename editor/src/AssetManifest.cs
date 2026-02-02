@@ -74,6 +74,21 @@ public static class AssetManifest
         }
         writer.WriteLine("    }");
 
+        // Layers class for sprite layer constants
+        var spriteLayers = config.SpriteLayers;
+        if (spriteLayers.Length > 0)
+        {
+            writer.WriteLine();
+            writer.WriteLine("    public static class Layers");
+            writer.WriteLine("    {");
+            foreach (var layer in spriteLayers.OrderBy(l => l.Layer))
+            {
+                var constName = ToCSharpIdentifier(layer.Id);
+                writer.WriteLine($"        public const ushort {constName} = {layer.Layer};");
+            }
+            writer.WriteLine("    }");
+        }
+
         // Static classes grouped by type, each with Load() and Unload() methods
         foreach (var group in documentsByType)
         {
@@ -246,5 +261,43 @@ public static class AssetManifest
         }
 
         return sb.ToString();
+    }
+
+    private static string ToCSharpIdentifier(string name)
+    {
+        var sb = new System.Text.StringBuilder();
+        var capitalizeNext = true;
+
+        foreach (var c in name)
+        {
+            if (c == '_' || c == '-' || c == ' ')
+            {
+                capitalizeNext = true;
+            }
+            else if (char.IsLetterOrDigit(c))
+            {
+                if (capitalizeNext)
+                {
+                    sb.Append(char.ToUpperInvariant(c));
+                    capitalizeNext = false;
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+        }
+
+        var result = sb.ToString();
+
+        // Ensure identifier doesn't start with a digit
+        if (result.Length > 0 && char.IsDigit(result[0]))
+            result = "_" + result;
+
+        // Handle empty result
+        if (string.IsNullOrEmpty(result))
+            result = "_";
+
+        return result;
     }
 }

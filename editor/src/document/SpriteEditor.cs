@@ -295,7 +295,7 @@ public class SpriteEditor : DocumentEditor
                 return;
             }
 
-            EditorUI.ControlText(binding.SkeletonName);
+            EditorUI.ControlText(binding.SkeletonName.ToString());
 
             using (UI.BeginContainer(BoneUnbindButtonId, EditorStyle.Button.IconContent with { Padding = EdgeInsets.All(4) }))
             {

@@ -62,6 +62,8 @@ public static class PaletteManager
 
     public static IReadOnlyList<PaletteDef> Palettes => _palettes;
 
+    public static int DefaultRow => _palettes.Count > 0 ? _palettes[0].Row : 0;
+
     public static void Init(EditorConfig config)
     {
         _palettes.Clear();

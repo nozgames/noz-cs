@@ -12,11 +12,13 @@ import to work, fix.
 - [ ] Animation editor onion skin
 - [ ] New palette
 - [ ] Stoke size popup in sprite editor
-- [ ] Removed root motion
-- [ ] Fixed skeletons that had an altered root bone
+- [ ] bone separation sort is wrong, switch rendering in wrong order
+- [X] Started renaming sprite document identifiers so its easier to read
+- [X] Removed root motion
+- [X] Fixed skeletons that had an altered root bone
 - [X] fixed asset manifest but with conflicting names cross types
 - [X] Per path bone binding.
-- [X] new Name system
+- [X] new StringId system
 - [X] fixed documentmanager bug causing name conflicts across types
 - [X] removed rotate tool from skeleton editor
 - [X] reworked scale tool in skeleton editor

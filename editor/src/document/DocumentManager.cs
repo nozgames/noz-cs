@@ -39,7 +39,6 @@ public static class DocumentManager
         Directory.CreateDirectory(outputPath);
 
         InitDocuments();
-        LoadAll();
     }
 
     public static void Shutdown()
@@ -165,7 +164,7 @@ public static class DocumentManager
         return null;
     }
 
-    private static void LoadAll()
+    public static void LoadAll()
     {
         foreach (var doc in _documents)
         {

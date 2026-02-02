@@ -196,6 +196,9 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
+    public static void SetBones(Animator animator) =>
+        SetBones(animator.Skeleton, animator.BoneTransforms);
+
     public static void SetBones(Skeleton skeleton, ReadOnlySpan<Matrix3x2> transforms) =>
         SetBones(skeleton.BindPoses.AsReadonlySpan(), transforms);
 

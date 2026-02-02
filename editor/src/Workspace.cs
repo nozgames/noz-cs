@@ -128,6 +128,8 @@ public static class Workspace
     {
         foreach (var doc in DocumentManager.Documents)
             Importer.Queue(doc, true);
+
+        AssetManifest.Generate(force: true);
     }
 
     private static void CreateNewDocument(AssetType assetType)

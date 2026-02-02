@@ -75,6 +75,8 @@ public class Animator
         _time = normalizedTime * animation.Duration;
     }
 
+    public void Update() => Update(NoZ.Time.DeltaTime);
+
     public void Update(float dt)
     {
         if (_animation == null)

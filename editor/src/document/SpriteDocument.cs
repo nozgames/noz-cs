@@ -22,7 +22,7 @@ public class SpriteDocument : Document
 {
     public class SkeletonBinding
     {
-        public string SkeletonName = "";
+        public StringId SkeletonName;
         public SkeletonDocument? Skeleton;
 
         public bool IsBound => Skeleton != null;
@@ -37,13 +37,13 @@ public class SpriteDocument : Document
             }
 
             Skeleton = skeleton;
-            SkeletonName = skeleton.Name;
+            SkeletonName = StringId.Get(skeleton.Name);
         }
 
         public void Clear()
         {
             Skeleton = null;
-            SkeletonName = "";
+            SkeletonName = StringId.None;
         }
 
         public void CopyFrom(SkeletonBinding src)
@@ -54,7 +54,7 @@ public class SpriteDocument : Document
 
         public void Resolve()
         {
-            Skeleton = DocumentManager.Find(AssetType.Skeleton, SkeletonName) as SkeletonDocument;
+            Skeleton = DocumentManager.Find(AssetType.Skeleton, SkeletonName.ToString()) as SkeletonDocument;
         }
     }
 
@@ -81,27 +81,24 @@ public class SpriteDocument : Document
     /// <summary>
     /// Gets the unique (layer, bone) pairs used across all frames.
     /// Each pair represents a separate mesh slot in the atlas.
+    /// Order is preserved based on first path encounter to maintain render order.
     /// </summary>
     public List<(byte layer, StringId bone)> GetMeshSlots()
     {
-        var slots = new HashSet<(byte layer, StringId bone)>();
+        var seen = new HashSet<(byte layer, StringId bone)>();
+        var slots = new List<(byte layer, StringId bone)>();
         for (ushort fi = 0; fi < FrameCount; fi++)
         {
             var shape = Frames[fi].Shape;
             for (ushort p = 0; p < shape.PathCount; p++)
             {
                 ref readonly var path = ref shape.GetPath(p);
-                slots.Add((path.Layer, path.Bone));
+                var slot = (path.Layer, path.Bone);
+                if (seen.Add(slot))
+                    slots.Add(slot);
             }
         }
-        // Sort for deterministic ordering
-        var result = slots.ToList();
-        result.Sort((a, b) =>
-        {
-            var layerCmp = a.layer.CompareTo(b.layer);
-            return layerCmp != 0 ? layerCmp : a.bone.Value.CompareTo(b.bone.Value);
-        });
-        return result;
+        return slots;
     }
 
     public int MeshSlotCount => Math.Max(1, GetMeshSlots().Count);
@@ -225,7 +222,7 @@ public class SpriteDocument : Document
 
     private static void NewFile(StreamWriter writer)
     {
-        writer.WriteLine("c DEFAULT a");
+        writer.WriteLine("antialias true");
     }
 
     public override void Load()
@@ -247,23 +244,12 @@ public class SpriteDocument : Document
             {
                 ParsePath(f, ref tk);
             }
-            else if (tk.ExpectIdentifier("c"))
+            else if (tk.ExpectIdentifier("palette"))
             {
-                // Support both old format (row number) and new format (palette ID)
-                if (tk.ExpectInt(out var row))
-                {
-                    // Old format: row number directly
-                    Palette = (byte)row;
-                }
-                else if (tk.ExpectToken(out var token) && token.Type == TokenType.Identifier)
-                {
-                    // New format: look up row from palette ID
-                    var paletteId = tk.GetString(token);
-                    Palette = PaletteManager.TryGetPalette(paletteId, out var paletteDef)
-                        ? (byte)paletteDef.Row
-                        : (byte)0;
-                }
-                IsAntiAliased = tk.ExpectIdentifier("a");
+                var paletteId = tk.ExpectQuotedString();
+                Palette = PaletteManager.TryGetPalette(paletteId, out var paletteDef)
+                    ? (byte)paletteDef.Row
+                    : (byte)0;
             }
             else if (tk.ExpectIdentifier("o"))
             {
@@ -274,6 +260,14 @@ public class SpriteDocument : Document
                 if (tk.ExpectIdentifier("h"))
                     f.Hold = tk.ExpectInt();
                 f = Frames[FrameCount++];
+            }
+            else if (tk.ExpectIdentifier("skeleton"))
+            {
+                Binding.SkeletonName = StringId.Get(tk.ExpectQuotedString());
+            }
+            else if (tk.ExpectIdentifier("antialias"))
+            {
+                IsAntiAliased = tk.ExpectBool();
             }
             else
             {
@@ -442,13 +436,13 @@ public class SpriteDocument : Document
     // :save
     public override void Save(StreamWriter writer)
     {
-        var paletteId = PaletteManager.TryGetPaletteByRow(Palette, out var paletteDef)
-            ? paletteDef.Id
-            : "DEFAULT";
-        writer.Write($"c {paletteId}");
+        if (Binding.IsBound)
+            writer.WriteLine($"skeleton \"{Binding.SkeletonName}\"");
 
-        if (IsAntiAliased)
-            writer.WriteLine(" a");
+        writer.WriteLine($"antialias {(IsAntiAliased ? "true" : "false")}");
+
+        if (PaletteManager.TryGetPaletteByRow(Palette, out var paletteDef))
+            writer.WriteLine($"palette \"{paletteDef.Id}\"");
 
         if (Order > 0)
             writer.WriteLine($"o {Order}");
@@ -610,7 +604,6 @@ public class SpriteDocument : Document
 
     public override void LoadMetadata(PropertySet meta)
     {
-        Binding.SkeletonName = meta.GetString("skeleton", "name", "");
         ShowInSkeleton = meta.GetBool("sprite", "show_in_skeleton", false);
         ShowTiling = meta.GetBool("sprite", "show_tiling", false);
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
@@ -638,10 +631,7 @@ public class SpriteDocument : Document
         meta.SetBool("sprite", "show_skeleton_overlay", ShowSkeletonOverlay);
         if (ConstrainedSize.HasValue)
             meta.SetString("sprite", "constrained_size", $"{ConstrainedSize.Value.X}x{ConstrainedSize.Value.Y}");
-        if (Binding.IsBound)
-            meta.SetString("skeleton", "name", Binding.SkeletonName);
-        else
-            meta.ClearGroup("skeleton");
+        meta.ClearGroup("skeleton");  // Legacy cleanup - skeleton now in .sprite file
         meta.ClearGroup("bone");  // Legacy cleanup
     }
 

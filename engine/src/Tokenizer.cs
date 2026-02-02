@@ -224,8 +224,22 @@ public ref struct Tokenizer
         return true;
     }
 
+    public bool ExpectBool(bool defaultValue = false)
+    {
+        if (!ExpectBool(out bool value))
+            return defaultValue;
+        return value;
+    }
+
     public bool ExpectBool(out bool value)
     {
+        if (_nextToken.Type == TokenType.Bool)
+        {
+            value = _nextToken.BoolValue;
+            ReadToken();
+            return true;
+        }
+
         if (!ExpectInt(out int i))
         {
             value = false;
