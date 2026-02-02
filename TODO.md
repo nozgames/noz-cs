@@ -5,14 +5,14 @@
 - [ ] Atlas not always rebuilding when sprites change, sprite added i think
 - [ ] toolbar button to add a bone in skeleton editor
 - [ ] Make sure you cant add too many holds or frames to animation (hold + frames < MAxFrames)>)
-- [ ] Inital color when entering sprite editor is weird (first color in palette?)
 - [ ] When anchor selected draw faded selection line along segment if other anchor isnt selected
 import to work, fix.
 - [ ] Merge importer into document manager and make Export method to export a document.
 - [ ] Animation editor onion skin
 - [ ] New palette
 - [ ] Stoke size popup in sprite editor
-- [ ] bone separation sort is wrong, switch rendering in wrong order
+- [X] Inital color when entering sprite editor is weird (first color in palette?)
+- [X] bone separation sort is wrong, switch rendering in wrong order
 - [X] Started renaming sprite document identifiers so its easier to read
 - [X] Removed root motion
 - [X] Fixed skeletons that had an altered root bone

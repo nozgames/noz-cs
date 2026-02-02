@@ -87,7 +87,7 @@ public class Sprite : Asset
         sprite.BoneIndex = boneIndex;
         sprite.PixelsPerUnit = ppu;
         sprite.PixelsPerUnitInv = 1.0f / ppu;
-        sprite.TextureFilter = TextureFilter.Point; //  filter;
+        sprite.TextureFilter = filter;
         sprite.Meshes = meshes;
         return sprite;
     }

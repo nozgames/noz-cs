@@ -51,4 +51,14 @@ public static class Vector2Extensions
 {
     public static Vector2Int ToVector2Int(this Vector2 v) => new((int)v.X, (int)v.Y);
     public static Vector2 ToVector2(this Vector2Int v) => new(v.X, v.Y);
+
+    public static Vector2Int FloorInt(this Vector2 v) => new(
+        (int)MathF.Floor(v.X),
+        (int)MathF.Floor(v.Y)
+    );
+
+    public static Vector2Int CeilInt(this Vector2 v) => new(
+        (int)MathF.Ceiling(v.X),
+        (int)MathF.Ceiling(v.Y)
+    );
 }

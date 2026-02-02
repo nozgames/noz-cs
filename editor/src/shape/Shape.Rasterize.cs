@@ -45,27 +45,26 @@ public sealed partial class Shape
         Vector2Int offset)
         => Rasterize(target, targetRect, sourceOffset, palette, RasterizeOptions.Default);
 
+    /// <summary>
+    /// Rasterize specific paths by index.
+    /// </summary>
     public void Rasterize(
         PixelData<Color32> target,
         RectInt targetRect,
         Vector2Int sourceOffset,
         Color[] palette,
-        RasterizeOptions options)
+        ReadOnlySpan<ushort> pathIndices,
+        bool antiAlias = false)
     {
-        if (PathCount == 0) return;
-
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        if (pathIndices.Length == 0) return;
 
         var polyVerts = ArrayPool<Vector2>.Shared.Rent(MaxAnchorsPerPath);
         try
         {
             var dpi = EditorApplication.Config.PixelsPerUnit;
-            var antiAlias = options.AntiAlias;
-            Span<ushort> sortedPaths = stackalloc ushort[PathCount];
-            var pathCount = GetSortedPathIndicies(sortedPaths, options.Layer, options.Bone);
-
-            foreach (var pathIndex in sortedPaths[..pathCount])
+            foreach (var pathIndex in pathIndices)
             {
+                if (pathIndex >= PathCount) continue;
                 ref var path = ref _paths[pathIndex];
                 if (path.AnchorCount < 3) continue;
 
@@ -76,9 +75,6 @@ public sealed partial class Shape
                 var fillColor = subtract
                     ? Color32.Transparent
                     : palette[path.FillColor % palette.Length].ToColor32().WithAlpha(path.FillOpacity);
-
-                if (options.Color != null)
-                    fillColor *= options.Color.Value;
 
                 RasterizePath(
                     target,
@@ -93,28 +89,38 @@ public sealed partial class Shape
                 var strokeColor = palette[path.StrokeColor % palette.Length]
                     .ToColor32()
                     .WithAlpha(path.StrokeOpacity);
-                if (strokeColor.A < float.Epsilon)
-                    continue;
-
-                RasterizeStroke(
-                    target,
-                    targetRect,
-                    sourceOffset,
-                    polyVerts.AsSpan(0, vertCount),
-                    strokeColor,
-                    DefaultStrokeWidth * dpi,
-                    antiAlias);
+                if (strokeColor.A >= float.Epsilon)
+                {
+                    RasterizeStroke(
+                        target,
+                        targetRect,
+                        sourceOffset,
+                        polyVerts.AsSpan(0, vertCount),
+                        strokeColor,
+                        DefaultStrokeWidth * dpi,
+                        antiAlias);
+                }
             }
         }
         finally
         {
             ArrayPool<Vector2>.Shared.Return(polyVerts);
         }
+    }
 
-        if (sw.ElapsedMilliseconds > 16)
-        {
-            Log.Info($"Shape.Rasterize ({sw.ElapsedMilliseconds}ms):  name={(options.Name ?? "???")}  targetRect={targetRect}  pathCount={PathCount}  anchorCount={AnchorCount}");
-        }
+    public void Rasterize(
+        PixelData<Color32> target,
+        RectInt targetRect,
+        Vector2Int sourceOffset,
+        Color[] palette,
+        RasterizeOptions options)
+    {
+        if (PathCount == 0) return;
+
+        Span<ushort> sortedPaths = stackalloc ushort[PathCount];
+        var pathCount = GetSortedPathIndicies(sortedPaths, options.Layer, options.Bone);
+
+        Rasterize(target, targetRect, sourceOffset, palette, sortedPaths[..pathCount], options.AntiAlias);
     }
 
     private int GetSortedPathIndicies(Span<ushort> results, byte? layer = null, StringId? bone = null)

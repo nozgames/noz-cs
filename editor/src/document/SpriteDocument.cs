@@ -58,8 +58,18 @@ public class SpriteDocument : Document
         }
     }
 
+    /// <summary>
+    /// Represents a mesh slot - a run of paths with the same layer and bone.
+    /// </summary>
+    public sealed class MeshSlot(byte layer, StringId bone)
+    {
+        public readonly byte Layer = layer;
+        public readonly StringId Bone = bone;
+        public readonly List<ushort> PathIndices = new();
+    }
+
     private BitMask256 _layers = new();
-    private readonly Dictionary<(byte layer, StringId bone), Rect> _atlasUV = new();
+    private readonly List<Rect> _atlasUV = new();
     private Sprite? _sprite;
 
     public readonly SpriteFrame[] Frames = new SpriteFrame[Sprite.MaxFrames];
@@ -79,27 +89,52 @@ public class SpriteDocument : Document
     public ref readonly BitMask256 Layers => ref _layers;
 
     /// <summary>
-    /// Gets the unique (layer, bone) pairs used across all frames.
-    /// Each pair represents a separate mesh slot in the atlas.
-    /// Order is preserved based on first path encounter to maintain render order.
+    /// Gets mesh slots for a specific frame. Each slot is a run of consecutive paths
+    /// (after sorting by layer) with the same layer and bone.
     /// </summary>
-    public List<(byte layer, StringId bone)> GetMeshSlots()
+    public List<MeshSlot> GetMeshSlots(ushort frameIndex)
     {
-        var seen = new HashSet<(byte layer, StringId bone)>();
-        var slots = new List<(byte layer, StringId bone)>();
-        for (ushort fi = 0; fi < FrameCount; fi++)
+        var slots = new List<MeshSlot>();
+        var shape = Frames[frameIndex].Shape;
+        if (shape.PathCount == 0) return slots;
+
+        // Get paths sorted by layer, then by index
+        Span<ushort> sortedPaths = stackalloc ushort[shape.PathCount];
+        for (ushort i = 0; i < shape.PathCount; i++)
+            sortedPaths[i] = i;
+
+        sortedPaths.Sort((a, b) =>
         {
-            var shape = Frames[fi].Shape;
-            for (ushort p = 0; p < shape.PathCount; p++)
+            var layerA = shape.GetPath(a).Layer;
+            var layerB = shape.GetPath(b).Layer;
+            if (layerA != layerB) return layerA.CompareTo(layerB);
+            return a.CompareTo(b);
+        });
+
+        // Build runs - new slot whenever layer or bone changes
+        MeshSlot? currentSlot = null;
+
+        foreach (var pathIndex in sortedPaths)
+        {
+            ref readonly var path = ref shape.GetPath(pathIndex);
+
+            if (currentSlot == null || path.Layer != currentSlot.Layer || path.Bone != currentSlot.Bone)
             {
-                ref readonly var path = ref shape.GetPath(p);
-                var slot = (path.Layer, path.Bone);
-                if (seen.Add(slot))
-                    slots.Add(slot);
+                // Start new slot
+                currentSlot = new MeshSlot(path.Layer, path.Bone);
+                slots.Add(currentSlot);
             }
+
+            currentSlot.PathIndices.Add(pathIndex);
         }
+
         return slots;
     }
+
+    /// <summary>
+    /// Gets mesh slots for frame 0 (used for atlas layout).
+    /// </summary>
+    public List<MeshSlot> GetMeshSlots() => GetMeshSlots(0);
 
     public int MeshSlotCount => Math.Max(1, GetMeshSlots().Count);
 
@@ -121,7 +156,7 @@ public class SpriteDocument : Document
 
     public readonly SkeletonBinding Binding = new();
 
-    public Rect AtlasUV => GetAtlasUV(0, StringId.None);
+    public Rect AtlasUV => GetAtlasUV(0);
 
     public Sprite? Sprite
     {
@@ -662,14 +697,16 @@ public class SpriteDocument : Document
         MarkSpriteDirty();
     }
 
-    internal void SetAtlasUV(byte layer, StringId bone, Rect uv)
+    internal void SetAtlasUV(int slotIndex, Rect uv)
     {
-        _atlasUV[(layer, bone)] = uv;
+        while (_atlasUV.Count <= slotIndex)
+            _atlasUV.Add(Rect.Zero);
+        _atlasUV[slotIndex] = uv;
         MarkSpriteDirty();
     }
 
-    internal Rect GetAtlasUV(byte layer, StringId bone) =>
-        _atlasUV.TryGetValue((layer, bone), out var uv) ? uv : Rect.Zero;
+    internal Rect GetAtlasUV(int slotIndex) =>
+        slotIndex < _atlasUV.Count ? _atlasUV[slotIndex] : Rect.Zero;
 
     private void UpdateSprite()
     {
@@ -683,8 +720,8 @@ public class SpriteDocument : Document
         var meshes = new SpriteMesh[slots.Count];
         for (int idx = 0; idx < slots.Count; idx++)
         {
-            var (layer, bone) = slots[idx];
-            var uv = GetAtlasUV(layer, bone);
+            var slot = slots[idx];
+            var uv = GetAtlasUV(idx);
             if (uv == Rect.Zero)
             {
                 _sprite = null;
@@ -693,8 +730,8 @@ public class SpriteDocument : Document
             // Look up bone index by name (None = root bone 0, else find by name)
             var boneIndex = (short)-1;
             if (Binding.IsBound && Binding.Skeleton != null)
-                boneIndex = bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(bone.ToString());
-            meshes[idx] = new SpriteMesh(uv, (short)layer, boneIndex);
+                boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
+            meshes[idx] = new SpriteMesh(uv, (short)slot.Layer, boneIndex);
         }
 
         _sprite = Sprite.Create(
@@ -732,18 +769,19 @@ public class SpriteDocument : Document
         writer.Write((short)-1);  // Legacy bone index field (no longer used)
         writer.Write((byte)slots.Count);
 
-        foreach (var (layer, bone) in slots)
+        for (int idx = 0; idx < slots.Count; idx++)
         {
-            var uv = GetAtlasUV(layer, bone);
+            var slot = slots[idx];
+            var uv = GetAtlasUV(idx);
             writer.Write(uv.Left);
             writer.Write(uv.Top);
             writer.Write(uv.Right);
             writer.Write(uv.Bottom);
-            writer.Write((short)layer);  // Sort order
+            writer.Write((short)slot.Layer);  // Sort order
             // Look up bone index by name (None = root bone 0, else find by name)
             var boneIndex = (short)-1;
             if (Binding.IsBound && Binding.Skeleton != null)
-                boneIndex = bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(bone.ToString());
+                boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
             writer.Write(boneIndex);
         }
     }

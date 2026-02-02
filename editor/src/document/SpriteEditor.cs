@@ -461,6 +461,7 @@ public class SpriteEditor : DocumentEditor
                 Undo.Record(Document);
                 Document.ConstrainedSize = null;
                 Document.UpdateBounds();
+                Document.MarkModified();
                 Document.MarkMetaModified();
                 MarkRasterDirty();
                 EditorUI.ClosePopup();

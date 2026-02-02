@@ -24,7 +24,7 @@ public class Animator
     public Animation? CurrentAnimation => _animation;
     public float Time => _time;
     public float NormalizedTime => _animation != null && _animation.Duration > 0 ? _time / _animation.Duration : 0f;
-    public bool IsPlaying => _animation != null;
+    public bool IsPlaying => _animation != null && (_animation.IsLooping || _time < _animation.Duration);
     public bool IsBlending => _blendFromAnimation != null && _blendElapsed < _blendDuration;
     public ReadOnlySpan<Matrix3x2> BoneTransforms => _boneTransforms;
 

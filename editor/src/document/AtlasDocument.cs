@@ -204,8 +204,7 @@ internal class AtlasDocument : Document
         var slots = sprite.GetMeshSlots();
         for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
         {
-            var (layer, bone) = slots[slotIndex];
-            sprite.SetAtlasUV(layer, bone, ToUV(rect, slotIndex));
+            sprite.SetAtlasUV(slotIndex, ToUV(rect, slotIndex));
         }
     }
 
@@ -359,17 +358,22 @@ internal class AtlasDocument : Document
             var palette = PaletteManager.GetPalette(rect.Sprite.Palette);
             if (palette == null) continue;
 
+            // Use frame 0 slots for atlas layout
             var slots = rect.Sprite.GetMeshSlots();
 
             for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
             {
-                var (layer, bone) = slots[slotIndex];
+                var slot = slots[slotIndex];
 
                 for (int frameIndex = 0; frameIndex < rect.FrameCount; frameIndex++)
                 {
                     var frame = rect.Sprite.GetFrame((ushort)frameIndex);
 
-                    AtlasManager.LogAtlas($"Rasterize: Name={rect.Name} Layer={layer} Bone={bone} Frame={frameIndex} Rect={rect.Rect} Size={rect.Sprite.AtlasSize}");
+                    // Get slots for this specific frame to get correct path indices
+                    var frameSlots = rect.Sprite.GetMeshSlots((ushort)frameIndex);
+                    var frameSlot = slotIndex < frameSlots.Count ? frameSlots[slotIndex] : null;
+
+                    AtlasManager.LogAtlas($"Rasterize: Name={rect.Name} Layer={slot.Layer} Bone={slot.Bone} Frame={frameIndex} Rect={rect.Rect} Size={rect.Sprite.AtlasSize}");
 
                     var rasterBounds = rect.Sprite.RasterBounds;
                     var padding2 = Padding * 2;
@@ -381,18 +385,18 @@ internal class AtlasDocument : Document
                     var rasterRect = new RectInt(
                         outerRect.Position + new Vector2Int(Padding, Padding),
                         rasterBounds.Size);
-                    frame.Shape.Rasterize(
-                        _image,
-                        rasterRect,
-                        -rect.Sprite.RasterBounds.Position,
-                        palette.Colors,
-                        new Shape.RasterizeOptions
-                        {
-                            Name = rect.Sprite.Name,
-                            AntiAlias = rect.Sprite.IsAntiAliased,
-                            Layer = layer,
-                            Bone = bone
-                        });
+
+                    if (frameSlot != null && frameSlot.PathIndices.Count > 0)
+                    {
+                        // Rasterize specific paths for this slot
+                        frame.Shape.Rasterize(
+                            _image,
+                            rasterRect,
+                            -rect.Sprite.RasterBounds.Position,
+                            palette.Colors,
+                            CollectionsMarshal.AsSpan(frameSlot.PathIndices),
+                            rect.Sprite.IsAntiAliased);
+                    }
 
                     _image.BleedColors(rasterRect);
                     for (int p = Padding - 1; p >= 0; p--)
