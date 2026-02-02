@@ -14,7 +14,7 @@ public sealed partial class Shape
     private const float AntiAliasEdgeInner = -0.5f;
     private const float AntiAliasEdgeOuter = 0.5f;
 
-    private const float DefaultStrokeWidth = 0.01f;
+    private const float DefaultStrokeWidth = 0.05f;
     private static readonly Color32 DefaultStrokeColor = Color32.Black;
 
     public struct RasterizeOptions

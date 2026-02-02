@@ -236,17 +236,27 @@ public class SpriteDocument : Document
     {
         var pathIndex = f.Shape.AddPath();
         byte fillColor = 0;
-        var opacity = 1.0f;
+        var fillOpacity = 1.0f;
+        byte strokeColor = 0;
+        var strokeOpacity = 0.0f;
         byte layer = 0;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectIdentifier("c"))
+            {
                 fillColor = (byte)tk.ExpectInt();
+                fillOpacity = MathEx.Clamp01(tk.ExpectFloat(fillOpacity));
+            }
+            else if (tk.ExpectIdentifier("s"))
+            {
+                strokeColor = (byte)tk.ExpectInt();
+                strokeOpacity = MathEx.Clamp01(tk.ExpectFloat(strokeOpacity));
+            }
             else if (tk.ExpectIdentifier("o"))
-                opacity = tk.ExpectFloat();
+                fillOpacity = MathEx.Clamp01(tk.ExpectFloat());
             else if (tk.ExpectIdentifier("h"))
-                opacity = float.MinValue;
+                fillOpacity = float.MinValue;
             else if (tk.ExpectIdentifier("l"))
                 layer = EditorApplication.Config.TryGetSpriteLayer(tk.ExpectQuotedString(), out var sg)
                     ? sg.Layer
@@ -257,7 +267,8 @@ public class SpriteDocument : Document
                 break;
         }
 
-        f.Shape.SetPathFillColor(pathIndex, fillColor, opacity);
+        f.Shape.SetPathFillColor(pathIndex, fillColor, fillOpacity);
+        f.Shape.SetPathStrokeColor(pathIndex, strokeColor, strokeOpacity);
         f.Shape.SetPathLayer(pathIndex, layer);
     }
 
@@ -372,9 +383,11 @@ public class SpriteDocument : Document
     // :save
     public override void Save(StreamWriter writer)
     {
-        writer.WriteLine($"c {Palette}");
+        writer.Write($"c {Palette}");
+
         if (IsAntiAliased)
             writer.WriteLine(" a");
+
         if (Order > 0)
             writer.WriteLine($"o {Order}");
         writer.WriteLine();
@@ -408,13 +421,18 @@ public class SpriteDocument : Document
             var opacity = path.IsSubtract
                 ? " h"
                 : path.FillOpacity < 1
-                    ? $" o {path.FillOpacity}"
+                    ? $" {path.FillOpacity}"
                     : "";
 
             var layer = EditorApplication.Config.TryGetSpriteLayer(path.Layer, out var layerDef)
                 ? $" l \"{layerDef.Id}\""
                 : "";
-            writer.WriteLine($"p c {path.FillColor}{opacity}{layer}");
+
+            var stroke = path.StrokeOpacity > float.Epsilon
+                ? $" s {path.StrokeColor} {path.StrokeOpacity}"
+                : "";
+
+            writer.WriteLine($"p c {path.FillColor}{opacity}{stroke}{layer}");
 
             for (ushort aIdx = 0; aIdx < path.AnchorCount; aIdx++)
             {
