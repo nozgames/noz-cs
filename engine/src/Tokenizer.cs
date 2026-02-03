@@ -249,6 +249,14 @@ public ref struct Tokenizer
         return true;
     }
 
+    public string ExpectIdentifier()
+    {
+        if (!ExpectIdentifier(out string value))
+            return "";
+
+        return value;
+    }
+
     public bool ExpectIdentifier(string? match = null)
     {
         if (_nextToken.Type != TokenType.Identifier)

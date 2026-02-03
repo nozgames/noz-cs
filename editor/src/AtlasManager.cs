@@ -116,6 +116,16 @@ public static class AtlasManager
             sprite.Atlas.Update();
             return;
         }
+
+        // Sprite no longer fits in its atlas, need to relocate it
+        var oldAtlas = sprite.Atlas;
+        sprite.Atlas = null;
+        AddSprite(sprite);
+
+        // Update both the old atlas (to clear the old rect) and the new one
+        oldAtlas.Update();
+        if (sprite.Atlas != oldAtlas)
+            sprite.Atlas!.Update();
     }
 
     private static void AddSprite(SpriteDocument sprite)
