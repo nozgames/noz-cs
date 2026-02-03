@@ -43,7 +43,6 @@ internal class AtlasDocument : Document
             Type = AssetType.Atlas,
             Extension = ".atlas",
             Factory = () => new AtlasDocument(),
-            //EditorFactory = doc => new AtlasEditor((AtlasDocument)doc),
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconAtlas
         });
@@ -202,11 +201,9 @@ internal class AtlasDocument : Document
 
         for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
         {
-            var slot = slots[slotIndex];
-            var key = (slot.Layer, slot.Bone);
-
-            // Get the size for this slot (or fallback to full raster bounds if not found)
-            var slotSize = slotBounds.TryGetValue(key, out var bounds)
+            // Get the size for this slot (list is aligned with slots by index)
+            var bounds = slotBounds[slotIndex];
+            var slotSize = (bounds.Width > 0 && bounds.Height > 0)
                 ? bounds.Size
                 : sprite.RasterBounds.Size;
 
@@ -376,12 +373,11 @@ internal class AtlasDocument : Document
             for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
             {
                 var slot = slots[slotIndex];
-                var slotKey = (slot.Layer, slot.Bone);
 
-                // Get the tight bounds for this slot (or fallback to full raster bounds)
-                var slotRasterBounds = slotBounds.TryGetValue(slotKey, out var bounds)
-                    ? bounds
-                    : rect.Sprite.RasterBounds;
+                // Get the tight bounds for this slot (list is aligned with slots by index)
+                var slotRasterBounds = slotBounds[slotIndex];
+                if (slotRasterBounds.Width <= 0 || slotRasterBounds.Height <= 0)
+                    slotRasterBounds = rect.Sprite.RasterBounds;
 
                 var frameStride = slotRasterBounds.Size.X + padding2;
 

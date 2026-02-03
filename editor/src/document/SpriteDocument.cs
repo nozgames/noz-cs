@@ -140,24 +140,25 @@ public class SpriteDocument : Document
 
     /// <summary>
     /// Computes tight bounds for each mesh slot, unioned across all frames.
+    /// Returns a list aligned with GetMeshSlots() indices.
     /// </summary>
-    public Dictionary<(byte layer, StringId bone), RectInt> GetMeshSlotBounds()
+    public List<RectInt> GetMeshSlotBounds()
     {
-        var result = new Dictionary<(byte layer, StringId bone), RectInt>();
-        for (ushort fi = 0; fi < FrameCount; fi++)
+        var slots = GetMeshSlots();
+        var result = new List<RectInt>(slots.Count);
+
+        foreach (var slot in slots)
         {
-            var shape = Frames[fi].Shape;
-            foreach (var slot in GetMeshSlots(fi))
+            var bounds = RectInt.Zero;
+            for (ushort fi = 0; fi < FrameCount; fi++)
             {
-                var key = (slot.Layer, slot.Bone);
+                var shape = Frames[fi].Shape;
                 var slotBounds = shape.GetRasterBoundsFor(slot.Layer, slot.Bone);
                 if (slotBounds.Width <= 0 || slotBounds.Height <= 0)
                     continue;
-                if (result.TryGetValue(key, out var existing))
-                    result[key] = RectInt.Union(existing, slotBounds);
-                else
-                    result[key] = slotBounds;
+                bounds = bounds.Width <= 0 ? slotBounds : RectInt.Union(bounds, slotBounds);
             }
+            result.Add(bounds);
         }
         return result;
     }
@@ -175,7 +176,7 @@ public class SpriteDocument : Document
 
             var totalWidth = 0;
             var maxHeight = 0;
-            foreach (var (_, bounds) in slotBounds)
+            foreach (var bounds in slotBounds)
             {
                 totalWidth += (bounds.Size.X + padding2) * FrameCount;
                 maxHeight = Math.Max(maxHeight, bounds.Size.Y + padding2);
@@ -778,9 +779,10 @@ public class SpriteDocument : Document
                 return;
             }
 
-            // Get per-slot bounds (or fallback to full raster bounds)
-            var slotKey = (slot.Layer, slot.Bone);
-            var bounds = slotBounds.TryGetValue(slotKey, out var b) ? b : RasterBounds;
+            // Get per-slot bounds (list is aligned with slots by index)
+            var bounds = slotBounds[idx];
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                bounds = RasterBounds;
 
             // Look up bone index by name (None = root bone 0, else find by name)
             var boneIndex = (short)-1;
@@ -846,9 +848,10 @@ public class SpriteDocument : Document
                 boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
             writer.Write(boneIndex);
 
-            // Write per-slot offset and size
-            var slotKey = (slot.Layer, slot.Bone);
-            var bounds = slotBounds.TryGetValue(slotKey, out var b) ? b : RasterBounds;
+            // Write per-slot offset and size (list is aligned with slots by index)
+            var bounds = slotBounds[idx];
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                bounds = RasterBounds;
             writer.Write((short)bounds.X);
             writer.Write((short)bounds.Y);
             writer.Write((short)bounds.Width);
