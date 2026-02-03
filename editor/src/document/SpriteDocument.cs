@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 
@@ -76,7 +77,6 @@ public class SpriteDocument : Document
     public ushort FrameCount;
     public byte Palette;
     public float Depth;
-    public ushort Order;
     public RectInt RasterBounds { get; private set; }
 
     public byte CurrentFillColor = 0;
@@ -138,13 +138,49 @@ public class SpriteDocument : Document
 
     public int MeshSlotCount => Math.Max(1, GetMeshSlots().Count);
 
+    /// <summary>
+    /// Computes tight bounds for each mesh slot, unioned across all frames.
+    /// </summary>
+    public Dictionary<(byte layer, StringId bone), RectInt> GetMeshSlotBounds()
+    {
+        var result = new Dictionary<(byte layer, StringId bone), RectInt>();
+        for (ushort fi = 0; fi < FrameCount; fi++)
+        {
+            var shape = Frames[fi].Shape;
+            foreach (var slot in GetMeshSlots(fi))
+            {
+                var key = (slot.Layer, slot.Bone);
+                var slotBounds = shape.GetRasterBoundsFor(slot.Layer, slot.Bone);
+                if (slotBounds.Width <= 0 || slotBounds.Height <= 0)
+                    continue;
+                if (result.TryGetValue(key, out var existing))
+                    result[key] = RectInt.Union(existing, slotBounds);
+                else
+                    result[key] = slotBounds;
+            }
+        }
+        return result;
+    }
+
     public Vector2Int AtlasSize
     {
         get
         {
             var padding2 = EditorApplication.Config.AtlasPadding * 2;
-            var slotCount = MeshSlotCount;
-            return new((RasterBounds.Size.X + padding2) * FrameCount * slotCount, RasterBounds.Size.Y + padding2);
+            var slotBounds = GetMeshSlotBounds();
+
+            // If no slot bounds, fall back to full raster bounds
+            if (slotBounds.Count == 0)
+                return new((RasterBounds.Size.X + padding2) * FrameCount, RasterBounds.Size.Y + padding2);
+
+            var totalWidth = 0;
+            var maxHeight = 0;
+            foreach (var (_, bounds) in slotBounds)
+            {
+                totalWidth += (bounds.Size.X + padding2) * FrameCount;
+                maxHeight = Math.Max(maxHeight, bounds.Size.Y + padding2);
+            }
+            return new(totalWidth, maxHeight);
         }
     }
     public bool ShowInSkeleton { get; set; }
@@ -275,7 +311,7 @@ public class SpriteDocument : Document
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("p"))
+            if (tk.ExpectIdentifier("path"))
             {
                 ParsePath(f, ref tk);
             }
@@ -286,13 +322,9 @@ public class SpriteDocument : Document
                     ? (byte)paletteDef.Row
                     : (byte)0;
             }
-            else if (tk.ExpectIdentifier("o"))
+            else if (tk.ExpectIdentifier("frame"))
             {
-                Order = (ushort)tk.ExpectInt();
-            }
-            else if (tk.ExpectIdentifier("f"))
-            {
-                if (tk.ExpectIdentifier("h"))
+                if (tk.ExpectIdentifier("hold"))
                     f.Hold = tk.ExpectInt();
                 f = Frames[FrameCount++];
             }
@@ -306,6 +338,7 @@ public class SpriteDocument : Document
             }
             else
             {
+                Log.Error($"SpriteDocument.Load: Unexpected token '{tk.GetString()}'");
                 break;
             }
         }
@@ -323,32 +356,33 @@ public class SpriteDocument : Document
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("c"))
+            if (tk.ExpectIdentifier("fill"))
             {
                 fillColor = (byte)tk.ExpectInt();
                 fillOpacity = MathEx.Clamp01(tk.ExpectFloat(fillOpacity));
             }
-            else if (tk.ExpectIdentifier("s"))
+            else if (tk.ExpectIdentifier("stroke"))
             {
                 strokeColor = (byte)tk.ExpectInt();
                 strokeOpacity = MathEx.Clamp01(tk.ExpectFloat(strokeOpacity));
             }
-            else if (tk.ExpectIdentifier("o"))
-                fillOpacity = MathEx.Clamp01(tk.ExpectFloat());
-            else if (tk.ExpectIdentifier("h"))
-                fillOpacity = float.MinValue;
-            else if (tk.ExpectIdentifier("l"))
+            else if (tk.ExpectIdentifier("subtract"))
+            {
+                if (tk.ExpectBool())
+                    fillOpacity = float.MinValue;
+            }
+            else if (tk.ExpectIdentifier("layer"))
                 layer = EditorApplication.Config.TryGetSpriteLayer(tk.ExpectQuotedString(), out var sg)
                     ? sg.Layer
                     : (byte)0;
-            else if (tk.ExpectIdentifier("b"))
+            else if (tk.ExpectIdentifier("bone"))
             {
                 // Bone name - stored directly as Name
                 var boneName = tk.ExpectQuotedString();
                 if (!string.IsNullOrEmpty(boneName))
                     bone = StringId.Get(boneName);
             }
-            else if (tk.ExpectIdentifier("a"))
+            else if (tk.ExpectIdentifier("anchor"))
                 ParseAnchor(f.Shape, pathIndex, ref tk);
             else
                 break;
@@ -479,8 +513,6 @@ public class SpriteDocument : Document
         if (PaletteManager.TryGetPaletteByRow(Palette, out var paletteDef))
             writer.WriteLine($"palette \"{paletteDef.Id}\"");
 
-        if (Order > 0)
-            writer.WriteLine($"o {Order}");
         writer.WriteLine();
 
         for (ushort frameIndex = 0; frameIndex < FrameCount; frameIndex++)
@@ -489,10 +521,9 @@ public class SpriteDocument : Document
 
             if (FrameCount > 1 || f.Hold > 0)
             {
-                writer.Write('f');
+                writer.WriteLine("frame");
                 if (f.Hold > 0)
-                    writer.Write($" h {f.Hold}");
-                writer.WriteLine();
+                    writer.WriteLine($"hold {f.Hold}");
             }
 
             SaveFrame(f, writer);
@@ -509,31 +540,24 @@ public class SpriteDocument : Document
         for (ushort pIdx = 0; pIdx < shape.PathCount; pIdx++)
         {
             ref readonly var path = ref shape.GetPath(pIdx);
-            var opacity = path.IsSubtract
-                ? " h"
-                : path.FillOpacity < 1
-                    ? $" {path.FillOpacity}"
-                    : "";
+            writer.WriteLine("path");
+            if (path.IsSubtract)
+                writer.WriteLine("subtract true");
+            else
+                writer.WriteLine($"fill {path.FillColor} {path.FillOpacity}");
 
-            var layer = EditorApplication.Config.TryGetSpriteLayer(path.Layer, out var layerDef)
-                ? $" l \"{layerDef.Id}\""
-                : "";
+            if (path.StrokeOpacity > float.Epsilon)
+                writer.WriteLine($"stroke {path.StrokeColor} {path.StrokeOpacity}");
 
-            var stroke = path.StrokeOpacity > float.Epsilon
-                ? $" s {path.StrokeColor} {path.StrokeOpacity}"
-                : "";
+            if (EditorApplication.Config.TryGetSpriteLayer(path.Layer, out var layerDef))
+                writer.WriteLine($"layer \"{layerDef.Id}\"");
 
-            // Bone: write bone name if not root (None = root/default)
-            var bone = "";
-            if (!path.Bone.IsNone)
-                bone = $" b \"{path.Bone}\"";
-
-            writer.WriteLine($"p c {path.FillColor}{opacity}{stroke}{layer}{bone}");
+            writer.WriteLine($"bone \"{path.Bone}\"");
 
             for (ushort aIdx = 0; aIdx < path.AnchorCount; aIdx++)
             {
                 ref readonly var anchor = ref shape.GetAnchor((ushort)(path.AnchorStart + aIdx));
-                writer.Write(string.Format(CultureInfo.InvariantCulture, "a {0} {1}", anchor.Position.X, anchor.Position.Y));
+                writer.Write(string.Format(CultureInfo.InvariantCulture, "anchor {0} {1}", anchor.Position.X, anchor.Position.Y));
                 if (MathF.Abs(anchor.Curve) > float.Epsilon)
                     writer.Write(string.Format(CultureInfo.InvariantCulture, " {0}", anchor.Curve));
                 writer.WriteLine();
@@ -575,10 +599,23 @@ public class SpriteDocument : Document
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
-            var bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv).Translate(offset);
-
             foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
             {
+                // Use per-mesh bounds if available, otherwise fall back to sprite bounds
+                Rect bounds;
+                if (mesh.Size.X > 0 && mesh.Size.Y > 0)
+                {
+                    bounds = new Rect(
+                        mesh.Offset.X * Graphics.PixelsPerUnitInv,
+                        mesh.Offset.Y * Graphics.PixelsPerUnitInv,
+                        mesh.Size.X * Graphics.PixelsPerUnitInv,
+                        mesh.Size.Y * Graphics.PixelsPerUnitInv).Translate(offset);
+                }
+                else
+                {
+                    bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv).Translate(offset);
+                }
+
                 Graphics.Draw(bounds, mesh.UV, order: (ushort)mesh.SortOrder);
             }
         }
@@ -598,10 +635,23 @@ public class SpriteDocument : Document
             Graphics.SetColor(Color.White);
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
-            var bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
-
             foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
             {
+                // Use per-mesh bounds if available, otherwise fall back to sprite bounds
+                Rect bounds;
+                if (mesh.Size.X > 0 && mesh.Size.Y > 0)
+                {
+                    bounds = new Rect(
+                        mesh.Offset.X * Graphics.PixelsPerUnitInv,
+                        mesh.Offset.Y * Graphics.PixelsPerUnitInv,
+                        mesh.Size.X * Graphics.PixelsPerUnitInv,
+                        mesh.Size.Y * Graphics.PixelsPerUnitInv);
+                }
+                else
+                {
+                    bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
+                }
+
                 var boneIndex = mesh.BoneIndex >= 0 ? mesh.BoneIndex : 0;
                 var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
                 Graphics.SetTransform(transform);
@@ -616,7 +666,6 @@ public class SpriteDocument : Document
         FrameCount = src.FrameCount;
         Palette = src.Palette;
         Depth = src.Depth;
-        Order = src.Order;
         Bounds = src.Bounds;
         CurrentFillColor = src.CurrentFillColor;
         CurrentStrokeColor = src.CurrentStrokeColor;
@@ -717,6 +766,7 @@ public class SpriteDocument : Document
             return;
         }
 
+        var slotBounds = GetMeshSlotBounds();
         var meshes = new SpriteMesh[slots.Count];
         for (int idx = 0; idx < slots.Count; idx++)
         {
@@ -727,11 +777,22 @@ public class SpriteDocument : Document
                 _sprite = null;
                 return;
             }
+
+            // Get per-slot bounds (or fallback to full raster bounds)
+            var slotKey = (slot.Layer, slot.Bone);
+            var bounds = slotBounds.TryGetValue(slotKey, out var b) ? b : RasterBounds;
+
             // Look up bone index by name (None = root bone 0, else find by name)
             var boneIndex = (short)-1;
             if (Binding.IsBound && Binding.Skeleton != null)
                 boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
-            meshes[idx] = new SpriteMesh(uv, (short)slot.Layer, boneIndex);
+
+            meshes[idx] = new SpriteMesh(
+                uv,
+                (short)slot.Layer,
+                boneIndex,
+                bounds.Position,
+                bounds.Size);
         }
 
         _sprite = Sprite.Create(
@@ -755,6 +816,7 @@ public class SpriteDocument : Document
         UpdateBounds();
 
         var slots = GetMeshSlots();
+        var slotBounds = GetMeshSlotBounds();
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
@@ -783,6 +845,14 @@ public class SpriteDocument : Document
             if (Binding.IsBound && Binding.Skeleton != null)
                 boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
             writer.Write(boneIndex);
+
+            // Write per-slot offset and size
+            var slotKey = (slot.Layer, slot.Bone);
+            var bounds = slotBounds.TryGetValue(slotKey, out var b) ? b : RasterBounds;
+            writer.Write((short)bounds.X);
+            writer.Write((short)bounds.Y);
+            writer.Write((short)bounds.Width);
+            writer.Write((short)bounds.Height);
         }
     }
 

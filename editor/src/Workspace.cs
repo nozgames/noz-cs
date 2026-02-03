@@ -189,8 +189,6 @@ public static class Workspace
             new() { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
             new() { Name = "Show/Hide Hidden Assets", Handler = ToggleShowHidden },
             new() { Name = "Rebuild Atlas", Handler = RebuildAtlas },
-            new() { Name = "Bring Forward", Handler = BringForward, Key = InputCode.KeyRightBracket },
-            new() { Name = "Send Backward", Handler = SendBackward, Key = InputCode.KeyLeftBracket },
         };
 
         for (var i = 1; i <= 9; i++)
@@ -808,32 +806,6 @@ public static class Workspace
         },
         yes: "Delete",
         no: "Cancel");
-    }
-
-    private static void BringForward()
-    {
-        if (SelectedCount == 0) return;
-
-        foreach (var doc in DocumentManager.Documents)
-        {
-            if (!doc.IsSelected || doc is not SpriteDocument sprite) continue;
-            if (sprite.Order == ushort.MaxValue) continue;
-            sprite.Order++;
-            sprite.MarkModified();
-        }
-    }
-
-    private static void SendBackward()
-    {
-        if (SelectedCount == 0) return;
-
-        foreach (var doc in DocumentManager.Documents)
-        {
-            if (!doc.IsSelected || doc is not SpriteDocument sprite) continue;
-            if (sprite.Order == 0) continue;
-            sprite.Order--;
-            sprite.MarkModified();
-        }
     }
 
     public static void FrameSelected()

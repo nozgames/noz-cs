@@ -110,28 +110,42 @@ public static partial class Graphics
     {
         if (sprite == null || SpriteAtlas == null) return;
 
-        var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
-        var p0 = new Vector2(bounds.Left, bounds.Top);
-        var p1 = new Vector2(bounds.Right, bounds.Top);
-        var p2 = new Vector2(bounds.Right, bounds.Bottom);
-        var p3 = new Vector2(bounds.Left, bounds.Bottom);
-
         using (PushState())
         {
             SetTexture(SpriteAtlas);
             SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
-            foreach (ref readonly var quad in sprite.Meshes.AsSpan())
+            foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
             {
-                var uv = quad.UV;
+                // Use per-mesh bounds if available, otherwise fall back to sprite bounds
+                Rect bounds;
+                if (mesh.Size.X > 0 && mesh.Size.Y > 0)
+                {
+                    bounds = new Rect(
+                        mesh.Offset.X * sprite.PixelsPerUnitInv,
+                        mesh.Offset.Y * sprite.PixelsPerUnitInv,
+                        mesh.Size.X * sprite.PixelsPerUnitInv,
+                        mesh.Size.Y * sprite.PixelsPerUnitInv);
+                }
+                else
+                {
+                    bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
+                }
+
+                var p0 = new Vector2(bounds.Left, bounds.Top);
+                var p1 = new Vector2(bounds.Right, bounds.Top);
+                var p2 = new Vector2(bounds.Right, bounds.Bottom);
+                var p3 = new Vector2(bounds.Left, bounds.Bottom);
+
+                var uv = mesh.UV;
                 // Use per-mesh bone if available, otherwise use sprite default or passed bone
-                var meshBone = quad.BoneIndex >= 0 ? quad.BoneIndex : bone;
+                var meshBone = mesh.BoneIndex >= 0 ? mesh.BoneIndex : bone;
                 AddQuad(
                     p0, p1, p2, p3,
                     uv.TopLeft, new Vector2(uv.Right, uv.Top),
                     uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-                    order: (ushort)quad.SortOrder,
+                    order: (ushort)mesh.SortOrder,
                     atlasIndex: sprite.AtlasIndex,
                     bone: meshBone);
             }
@@ -168,21 +182,35 @@ public static partial class Graphics
     {
         if (sprite == null || SpriteAtlas == null) return;
 
-        var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
-        var p0 = new Vector2(bounds.Left, bounds.Top);
-        var p1 = new Vector2(bounds.Right, bounds.Top);
-        var p2 = new Vector2(bounds.Right, bounds.Bottom);
-        var p3 = new Vector2(bounds.Left, bounds.Bottom);
-
         using (PushState())
         {
             SetTexture(SpriteAtlas);
             SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
-            foreach (ref readonly var quad in sprite.Meshes.AsSpan())
+            foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
             {
-                var uv = quad.UV;
+                // Use per-mesh bounds if available, otherwise fall back to sprite bounds
+                Rect bounds;
+                if (mesh.Size.X > 0 && mesh.Size.Y > 0)
+                {
+                    bounds = new Rect(
+                        mesh.Offset.X * sprite.PixelsPerUnitInv,
+                        mesh.Offset.Y * sprite.PixelsPerUnitInv,
+                        mesh.Size.X * sprite.PixelsPerUnitInv,
+                        mesh.Size.Y * sprite.PixelsPerUnitInv);
+                }
+                else
+                {
+                    bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
+                }
+
+                var p0 = new Vector2(bounds.Left, bounds.Top);
+                var p1 = new Vector2(bounds.Right, bounds.Top);
+                var p2 = new Vector2(bounds.Right, bounds.Bottom);
+                var p3 = new Vector2(bounds.Left, bounds.Bottom);
+
+                var uv = mesh.UV;
                 AddQuad(
                     p0, p1, p2, p3,
                     uv.TopLeft, new Vector2(uv.Right, uv.Top),

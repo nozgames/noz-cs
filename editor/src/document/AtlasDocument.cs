@@ -174,22 +174,16 @@ internal class AtlasDocument : Document
         Padding = EditorApplication.Config.AtlasPadding;
     }
 
-    internal Rect ToUV(in AtlasSpriteRect rect, int sortGroupIndex)
+    internal Rect ToUV(in AtlasSpriteRect rect, int slotIndex, Vector2Int slotSize, int slotXOffset)
     {
         if (rect.Sprite == null)
             return Rect.Zero;
 
-        var size = rect.Sprite.RasterBounds.Size;
         var ts = (float)EditorApplication.Config.AtlasSize;
-        var padding2 = Padding * 2;
-        var frameStride = size.X + padding2;
-
-        // Each sort group has FrameCount slots, so offset by sortGroupIndex * frameCount * frameStride
-        var slotOffset = sortGroupIndex * rect.FrameCount * frameStride;
-        var u = (rect.Rect.Left + Padding + slotOffset) / ts;
+        var u = (rect.Rect.Left + Padding + slotXOffset) / ts;
         var v = (rect.Rect.Top + Padding) / ts;
-        var s = u + size.X / ts;
-        var t = v + size.Y / ts;
+        var s = u + slotSize.X / ts;
+        var t = v + slotSize.Y / ts;
         return Rect.FromMinMax(u, v, s, t);
     }
 
@@ -202,9 +196,24 @@ internal class AtlasDocument : Document
         sprite.ClearAtlasUVs();
 
         var slots = sprite.GetMeshSlots();
+        var slotBounds = sprite.GetMeshSlotBounds();
+        var padding2 = Padding * 2;
+        var xOffset = 0;
+
         for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
         {
-            sprite.SetAtlasUV(slotIndex, ToUV(rect, slotIndex));
+            var slot = slots[slotIndex];
+            var key = (slot.Layer, slot.Bone);
+
+            // Get the size for this slot (or fallback to full raster bounds if not found)
+            var slotSize = slotBounds.TryGetValue(key, out var bounds)
+                ? bounds.Size
+                : sprite.RasterBounds.Size;
+
+            sprite.SetAtlasUV(slotIndex, ToUV(rect, slotIndex, slotSize, xOffset));
+
+            // Advance x offset for next slot
+            xOffset += (slotSize.X + padding2) * rect.FrameCount;
         }
     }
 
@@ -360,10 +369,21 @@ internal class AtlasDocument : Document
 
             // Use frame 0 slots for atlas layout
             var slots = rect.Sprite.GetMeshSlots();
+            var slotBounds = rect.Sprite.GetMeshSlotBounds();
+            var padding2 = Padding * 2;
+            var xOffset = 0;
 
             for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
             {
                 var slot = slots[slotIndex];
+                var slotKey = (slot.Layer, slot.Bone);
+
+                // Get the tight bounds for this slot (or fallback to full raster bounds)
+                var slotRasterBounds = slotBounds.TryGetValue(slotKey, out var bounds)
+                    ? bounds
+                    : rect.Sprite.RasterBounds;
+
+                var frameStride = slotRasterBounds.Size.X + padding2;
 
                 for (int frameIndex = 0; frameIndex < rect.FrameCount; frameIndex++)
                 {
@@ -373,26 +393,22 @@ internal class AtlasDocument : Document
                     var frameSlots = rect.Sprite.GetMeshSlots((ushort)frameIndex);
                     var frameSlot = slotIndex < frameSlots.Count ? frameSlots[slotIndex] : null;
 
-                    AtlasManager.LogAtlas($"Rasterize: Name={rect.Name} Layer={slot.Layer} Bone={slot.Bone} Frame={frameIndex} Rect={rect.Rect} Size={rect.Sprite.AtlasSize}");
+                    AtlasManager.LogAtlas($"Rasterize: Name={rect.Name} Layer={slot.Layer} Bone={slot.Bone} Frame={frameIndex} Rect={rect.Rect} SlotBounds={slotRasterBounds}");
 
-                    var rasterBounds = rect.Sprite.RasterBounds;
-                    var padding2 = Padding * 2;
-                    var frameStride = rasterBounds.Size.X + padding2;
-                    var atlasSlotIndex = slotIndex * rect.FrameCount + frameIndex;
                     var outerRect = new RectInt(
-                        rect.Rect.Position + new Vector2Int(atlasSlotIndex * frameStride, 0),
-                        new Vector2Int(frameStride, rasterBounds.Size.Y + padding2));
+                        rect.Rect.Position + new Vector2Int(xOffset + frameIndex * frameStride, 0),
+                        new Vector2Int(frameStride, slotRasterBounds.Size.Y + padding2));
                     var rasterRect = new RectInt(
                         outerRect.Position + new Vector2Int(Padding, Padding),
-                        rasterBounds.Size);
+                        slotRasterBounds.Size);
 
                     if (frameSlot != null && frameSlot.PathIndices.Count > 0)
                     {
-                        // Rasterize specific paths for this slot
+                        // Rasterize specific paths for this slot using slot-specific bounds offset
                         frame.Shape.Rasterize(
                             _image,
                             rasterRect,
-                            -rect.Sprite.RasterBounds.Position,
+                            -slotRasterBounds.Position,
                             palette.Colors,
                             CollectionsMarshal.AsSpan(frameSlot.PathIndices),
                             rect.Sprite.IsAntiAliased);
@@ -407,6 +423,9 @@ internal class AtlasDocument : Document
                         _image.ExtrudeEdges(padRect);
                     }
                 }
+
+                // Advance x offset for next slot
+                xOffset += frameStride * rect.FrameCount;
             }
 
             UpdateSpriteUVs(rect.Sprite);

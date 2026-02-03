@@ -6,16 +6,23 @@ using System.Numerics;
 
 namespace NoZ;
 
-public readonly struct SpriteMesh(Rect uv, short order, short boneIndex = -1)
+public readonly struct SpriteMesh(
+    Rect uv,
+    short order,
+    short boneIndex = -1,
+    Vector2Int offset = default,
+    Vector2Int size = default)
 {
     public readonly Rect UV = uv;
     public readonly short SortOrder = order;
     public readonly short BoneIndex = boneIndex;  // -1 = unbound, 0+ = bone index
+    public readonly Vector2Int Offset = offset;   // Offset from sprite origin in pixels
+    public readonly Vector2Int Size = size;       // Tight bounds size in pixels
 }
 
 public class Sprite : Asset
 {
-    public const ushort Version = 5;
+    public const ushort Version = 6;
     public const int MaxFrames = 64;
 
     public RectInt Bounds { get; private set; }
@@ -78,7 +85,17 @@ public class Sprite : Asset
             var ub = reader.ReadSingle();
             var sortOrder = reader.ReadInt16();
             var meshBoneIndex = reader.ReadInt16();
-            meshes[i] = new SpriteMesh(Rect.FromMinMax(ul, ut, ur, ub), sortOrder, meshBoneIndex);
+            var offsetX = reader.ReadInt16();
+            var offsetY = reader.ReadInt16();
+            var sizeX = reader.ReadInt16();
+            var sizeY = reader.ReadInt16();
+
+            meshes[i] = new SpriteMesh(
+                Rect.FromMinMax(ul, ut, ur, ub),
+                sortOrder,
+                meshBoneIndex,
+                new Vector2Int(offsetX, offsetY),
+                new Vector2Int(sizeX, sizeY));
         }
 
         sprite.Bounds = RectInt.FromMinMax(l, t, r, b);

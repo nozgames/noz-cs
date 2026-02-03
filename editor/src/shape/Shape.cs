@@ -1776,4 +1776,55 @@ public sealed unsafe partial class Shape : IDisposable
         for (ushort p = 0; p < PathCount; p++)
             _layers[_paths[p].Layer] = true;
     }
+
+    public RectInt GetRasterBoundsFor(byte layer, StringId bone)
+    {
+        var dpi = EditorApplication.Config.PixelsPerUnit;
+        var min = new Vector2(float.MaxValue, float.MaxValue);
+        var max = new Vector2(float.MinValue, float.MinValue);
+        var hasContent = false;
+        var stroke = false;
+
+        for (ushort p = 0; p < PathCount; p++)
+        {
+            ref var path = ref _paths[p];
+            if (path.Layer != layer || path.Bone != bone)
+                continue;
+
+            hasContent = true;
+            stroke |= path.StrokeOpacity > float.Epsilon;
+
+            for (ushort a = 0; a < path.AnchorCount; a++)
+            {
+                var anchorIdx = (ushort)(path.AnchorStart + a);
+                ref var anchor = ref _anchors[anchorIdx];
+
+                var worldPos = anchor.Position;
+                min = Vector2.Min(min, worldPos);
+                max = Vector2.Max(max, worldPos);
+
+                if (MathF.Abs(anchor.Curve) > 0.0001f)
+                {
+                    var samples = GetSegmentSamples(anchorIdx);
+                    for (var s = 0; s < MaxSegmentSamples; s++)
+                    {
+                        var sampleWorld = samples[s];
+                        min = Vector2.Min(min, sampleWorld);
+                        max = Vector2.Max(max, sampleWorld);
+                    }
+                }
+            }
+        }
+
+        if (!hasContent)
+            return RectInt.Zero;
+
+        var strokePadding = (int)(stroke ? MathF.Ceiling(DefaultStrokeWidth * 0.5f + 1f) : 0.0f);
+        var xMin = (int)MathF.Floor(min.X * dpi + 0.001f) - strokePadding;
+        var yMin = (int)MathF.Floor(min.Y * dpi + 0.001f) - strokePadding;
+        var xMax = (int)MathF.Ceiling(max.X * dpi - 0.001f) + strokePadding;
+        var yMax = (int)MathF.Ceiling(max.Y * dpi - 0.001f) + strokePadding;
+
+        return new RectInt(xMin, yMin, xMax - xMin, yMax - yMin);
+    }
 }

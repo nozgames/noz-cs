@@ -10,13 +10,6 @@ public static class EditorAssets
 {
     public static class Names
     {
-        public const string EditorSprites000 = "editor_sprites000";
-        public const string Seguisb = "seguisb";
-        public const string Composite = "composite";
-        public const string Sprite = "sprite";
-        public const string Text = "text";
-        public const string Texture = "texture";
-        public const string Ui = "ui";
         public const string AssetIconAnimation = "asset_icon_animation";
         public const string AssetIconAtlas = "asset_icon_atlas";
         public const string AssetIconBin = "asset_icon_bin";
@@ -27,10 +20,12 @@ public static class EditorAssets
         public const string AssetIconSound = "asset_icon_sound";
         public const string AssetIconSprite = "asset_icon_sprite";
         public const string AssetIconVfx = "asset_icon_vfx";
+        public const string Composite = "composite";
+        public const string EditorPalette = "editor_palette";
+        public const string EditorSprites000 = "editor_sprites000";
         public const string IconAntialiasOff = "icon_antialias_off";
         public const string IconAntialiasOn = "icon_antialias_on";
         public const string IconBone = "icon_bone";
-        public const string IconBone2 = "icon_bone_2";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
         public const string IconClose = "icon_close";
@@ -65,7 +60,11 @@ public static class EditorAssets
         public const string IconSubtract = "icon_subtract";
         public const string IconTiling = "icon_tiling";
         public const string IconXray = "icon_xray";
-        public const string EditorPalette = "editor_palette";
+        public const string Seguisb = "seguisb";
+        public const string Sprite = "sprite";
+        public const string Text = "text";
+        public const string Texture = "texture";
+        public const string Ui = "ui";
     }
 
     public static class Atlases
@@ -140,7 +139,6 @@ public static class EditorAssets
         public static Sprite IconAntialiasOff { get; private set; } = null!;
         public static Sprite IconAntialiasOn { get; private set; } = null!;
         public static Sprite IconBone { get; private set; } = null!;
-        public static Sprite IconBone2 { get; private set; } = null!;
         public static Sprite IconCheck { get; private set; } = null!;
         public static Sprite IconCircle { get; private set; } = null!;
         public static Sprite IconClose { get; private set; } = null!;
@@ -191,7 +189,6 @@ public static class EditorAssets
             IconAntialiasOff = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAntialiasOff)!;
             IconAntialiasOn = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAntialiasOn)!;
             IconBone = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone)!;
-            IconBone2 = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone2)!;
             IconCheck = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCheck)!;
             IconCircle = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCircle)!;
             IconClose = (Sprite)Asset.Load(AssetType.Sprite, Names.IconClose)!;
@@ -243,7 +240,6 @@ public static class EditorAssets
             IconAntialiasOff?.Dispose();
             IconAntialiasOn?.Dispose();
             IconBone?.Dispose();
-            IconBone2?.Dispose();
             IconCheck?.Dispose();
             IconCircle?.Dispose();
             IconClose?.Dispose();
