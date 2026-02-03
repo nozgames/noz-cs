@@ -2,12 +2,30 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Buffers;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.JavaScript;
+using System.Text;
 using NoZ.Platform;
 
 namespace NoZ.Platform.Web;
+
+// ArrayPool helper extension for efficient memory reuse
+internal static class ArrayPoolExtensions
+{
+    public static ArraySegment<byte> RentAndCopy(this ArrayPool<byte> pool, ReadOnlySpan<byte> source, out byte[] rented)
+    {
+        if (source.Length == 0)
+        {
+            rented = Array.Empty<byte>();
+            return new ArraySegment<byte>(rented, 0, 0);
+        }
+        rented = pool.Rent(source.Length);
+        source.CopyTo(rented);
+        return new ArraySegment<byte>(rented, 0, source.Length);
+    }
+}
 
 /// <summary>
 /// IGraphicsDriver implementation for browser WebGPU using JSImport interop
@@ -49,6 +67,25 @@ public class WebGraphicsDriver : IGraphicsDriver
     // Offscreen rendering state
     private Vector2Int _offscreenSize;
     private int _msaaSamples = 1;
+
+    // Pre-allocated buffers to reduce per-frame allocations
+    private readonly byte[] _globalsWriteBuffer = new byte[GlobalsBufferSize];
+    private readonly StringBuilder _jsonBuilder = new(512);
+    private readonly JSObject[] _singleColorAttachment = new JSObject[1]; // Reusable array for render pass
+
+    // Bind group cache to avoid recreating bind groups every frame
+    private readonly Dictionary<BindGroupKey, int> _bindGroupCache = new();
+    private struct BindGroupKey : IEquatable<BindGroupKey>
+    {
+        public nuint Shader;
+        public int GlobalsIndex;
+        public ulong TextureHash; // Combined hash of bound textures
+
+        public bool Equals(BindGroupKey other) =>
+            Shader == other.Shader && GlobalsIndex == other.GlobalsIndex && TextureHash == other.TextureHash;
+
+        public override int GetHashCode() => HashCode.Combine(Shader, GlobalsIndex, TextureHash);
+    }
 
     public string ShaderExtension => "";
 
@@ -303,10 +340,19 @@ public class WebGraphicsDriver : IGraphicsDriver
             return;
         }
 
-        var vertexArray = vertexData.Length > 0 ? vertexData.ToArray() : Array.Empty<byte>();
-        var indexBytes = indexData.Length > 0 ? MemoryMarshal.AsBytes(indexData).ToArray() : Array.Empty<byte>();
+        // Use ArrayPool to reduce allocations for frequent mesh updates
+        var vertexSegment = ArrayPool<byte>.Shared.RentAndCopy(vertexData, out var rentedVertex);
+        var indexSegment = ArrayPool<byte>.Shared.RentAndCopy(MemoryMarshal.AsBytes(indexData), out var rentedIndex);
 
-        WebGPUInterop.UpdateMesh(mesh.JsMeshId, new ArraySegment<byte>(vertexArray), new ArraySegment<byte>(indexBytes));
+        try
+        {
+            WebGPUInterop.UpdateMesh(mesh.JsMeshId, vertexSegment, indexSegment);
+        }
+        finally
+        {
+            if (rentedVertex.Length > 0) ArrayPool<byte>.Shared.Return(rentedVertex);
+            if (rentedIndex.Length > 0) ArrayPool<byte>.Shared.Return(rentedIndex);
+        }
     }
 
     // ============================================================================
@@ -345,7 +391,15 @@ public class WebGraphicsDriver : IGraphicsDriver
             return;
         }
 
-        WebGPUInterop.WriteBuffer(bufferInfo.JsBufferId, offsetBytes, new ArraySegment<byte>(data.ToArray()));
+        var segment = ArrayPool<byte>.Shared.RentAndCopy(data, out var rented);
+        try
+        {
+            WebGPUInterop.WriteBuffer(bufferInfo.JsBufferId, offsetBytes, segment);
+        }
+        finally
+        {
+            if (rented.Length > 0) ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     public void BindUniformBuffer(nuint buffer, int slot)
@@ -427,7 +481,15 @@ public class WebGraphicsDriver : IGraphicsDriver
             _ => 4
         };
 
-        WebGPUInterop.WriteTexture(textureInfo.JsTextureId, new ArraySegment<byte>(data.ToArray()), size.X, size.Y, size.X * bytesPerPixel, 0);
+        var segment = ArrayPool<byte>.Shared.RentAndCopy(data, out var rented);
+        try
+        {
+            WebGPUInterop.WriteTexture(textureInfo.JsTextureId, segment, size.X, size.Y, size.X * bytesPerPixel, 0);
+        }
+        finally
+        {
+            if (rented.Length > 0) ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     public void UpdateTextureRegion(nuint handle, in RectInt region, ReadOnlySpan<byte> data, int srcWidth = -1)
@@ -447,7 +509,15 @@ public class WebGraphicsDriver : IGraphicsDriver
         };
 
         var rowWidth = srcWidth < 0 ? region.Width : srcWidth;
-        WebGPUInterop.WriteTextureRegion(textureInfo.JsTextureId, new ArraySegment<byte>(data.ToArray()), region.X, region.Y, region.Width, region.Height, rowWidth * bytesPerPixel);
+        var segment = ArrayPool<byte>.Shared.RentAndCopy(data, out var rented);
+        try
+        {
+            WebGPUInterop.WriteTextureRegion(textureInfo.JsTextureId, segment, region.X, region.Y, region.Width, region.Height, rowWidth * bytesPerPixel);
+        }
+        finally
+        {
+            if (rented.Length > 0) ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     public void DestroyTexture(nuint handle)
@@ -706,7 +776,9 @@ public class WebGraphicsDriver : IGraphicsDriver
         if (index < 0 || index >= _globalsBufferCount)
             return;
 
-        WebGPUInterop.WriteBuffer(_globalsBuffers[index], 0, new ArraySegment<byte>(data.ToArray()));
+        // Copy to pre-allocated buffer to avoid allocation
+        data.CopyTo(_globalsWriteBuffer);
+        WebGPUInterop.WriteBuffer(_globalsBuffers[index], 0, new ArraySegment<byte>(_globalsWriteBuffer, 0, data.Length));
     }
 
     public void BindGlobals(int index)
@@ -820,12 +892,36 @@ public class WebGraphicsDriver : IGraphicsDriver
             return 0;
         }
 
-        // Use JSON serialization instead of JSObject array for reliable marshalling
-        var entries = new List<BindGroupEntryData>();
+        // Compute texture hash for cache key
+        ulong textureHash = 0;
+        for (int i = 0; i < _state.BoundTextures.Length; i++)
+        {
+            textureHash = textureHash * 31 + _state.BoundTextures[i];
+            textureHash = textureHash * 31 + (ulong)_state.TextureFilters[i];
+        }
+
+        // Check cache first
+        var cacheKey = new BindGroupKey
+        {
+            Shader = _state.BoundShader,
+            GlobalsIndex = _currentGlobalsIndex,
+            TextureHash = textureHash
+        };
+
+        if (_bindGroupCache.TryGetValue(cacheKey, out var cachedId))
+            return cachedId;
+
+        // Build JSON using StringBuilder to avoid allocations
+        _jsonBuilder.Clear();
+        _jsonBuilder.Append('[');
+        bool first = true;
 
         for (int i = 0; i < bindings.Count; i++)
         {
             var binding = bindings[i];
+
+            if (!first) _jsonBuilder.Append(',');
+            first = false;
 
             switch (binding.Type)
             {
@@ -862,7 +958,13 @@ public class WebGraphicsDriver : IGraphicsDriver
                         bufferSize = uniformData.Length;
                     }
 
-                    entries.Add(new BindGroupEntryData { type = "buffer", binding = (int)binding.Binding, bufferId = bufferId, size = bufferSize });
+                    _jsonBuilder.Append("{\"type\":\"buffer\",\"binding\":");
+                    _jsonBuilder.Append(binding.Binding);
+                    _jsonBuilder.Append(",\"bufferId\":");
+                    _jsonBuilder.Append(bufferId);
+                    _jsonBuilder.Append(",\"size\":");
+                    _jsonBuilder.Append(bufferSize);
+                    _jsonBuilder.Append('}');
                     break;
                 }
 
@@ -879,7 +981,11 @@ public class WebGraphicsDriver : IGraphicsDriver
                         return 0;
                     }
 
-                    entries.Add(new BindGroupEntryData { type = "texture", binding = (int)binding.Binding, textureId = tex.JsTextureId });
+                    _jsonBuilder.Append("{\"type\":\"texture\",\"binding\":");
+                    _jsonBuilder.Append(binding.Binding);
+                    _jsonBuilder.Append(",\"textureId\":");
+                    _jsonBuilder.Append(tex.JsTextureId);
+                    _jsonBuilder.Append('}');
                     break;
                 }
 
@@ -889,17 +995,32 @@ public class WebGraphicsDriver : IGraphicsDriver
                     var slotFilter = textureSlot >= 0 ? _state.TextureFilters[textureSlot] : TextureFilter.Point;
                     bool useLinear = slotFilter == TextureFilter.Linear;
 
-                    entries.Add(new BindGroupEntryData { type = "sampler", binding = (int)binding.Binding, useLinear = useLinear });
+                    _jsonBuilder.Append("{\"type\":\"sampler\",\"binding\":");
+                    _jsonBuilder.Append(binding.Binding);
+                    _jsonBuilder.Append(",\"useLinear\":");
+                    _jsonBuilder.Append(useLinear ? "true" : "false");
+                    _jsonBuilder.Append('}');
                     break;
                 }
             }
         }
 
-        var entriesJson = System.Text.Json.JsonSerializer.Serialize(entries);
-        return WebGPUInterop.CreateBindGroupFromJson(shader.BindGroupLayoutId, entriesJson, null);
+        _jsonBuilder.Append(']');
+        var bindGroupId = WebGPUInterop.CreateBindGroupFromJson(shader.BindGroupLayoutId, _jsonBuilder.ToString(), null);
+
+        // Cache the result
+        _bindGroupCache[cacheKey] = bindGroupId;
+        return bindGroupId;
     }
 
-    // Simple data class for JSON serialization of bind group entries
+    // Clear bind group cache when textures change or at frame boundaries if needed
+    private void InvalidateBindGroupCache()
+    {
+        _bindGroupCache.Clear();
+    }
+
+    // No longer needed - using StringBuilder instead
+    /*
     private class BindGroupEntryData
     {
         public string type { get; set; } = "";
@@ -909,6 +1030,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public int textureId { get; set; }
         public bool useLinear { get; set; }
     }
+    */
 
     private int GetTextureSlotForBinding(uint bindingNumber, ShaderInfo shader)
     {
@@ -948,7 +1070,7 @@ public class WebGraphicsDriver : IGraphicsDriver
     {
         _state.CurrentPassSampleCount = _msaaSamples;
 
-        var colorAttachment = JSObjectHelper.CreateColorAttachment(
+        _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
             -2, // offscreen MSAA texture
             _msaaSamples > 1 ? -3 : 0, // resolve texture if MSAA
             "clear",
@@ -956,7 +1078,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             clearColor
         );
 
-        WebGPUInterop.BeginRenderPass(new[] { colorAttachment }, null, "ScenePass");
+        WebGPUInterop.BeginRenderPass(_singleColorAttachment, null, "ScenePass");
         WebGPUInterop.SetViewport(0, 0, _surfaceWidth, _surfaceHeight, 0, 1);
         WebGPUInterop.SetScissorRect(0, 0, _surfaceWidth, _surfaceHeight);
     }
@@ -970,7 +1092,7 @@ public class WebGraphicsDriver : IGraphicsDriver
     {
         _state.CurrentPassSampleCount = 1;
 
-        var colorAttachment = JSObjectHelper.CreateColorAttachment(
+        _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
             -1, // surface texture
             0, // no resolve
             "clear",
@@ -978,7 +1100,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             new Color(0, 0, 0, 1)
         );
 
-        WebGPUInterop.BeginRenderPass(new[] { colorAttachment }, null, "Composite");
+        WebGPUInterop.BeginRenderPass(_singleColorAttachment, null, "Composite");
         WebGPUInterop.SetViewport(0, 0, _surfaceWidth, _surfaceHeight, 0, 1);
         WebGPUInterop.SetScissorRect(0, 0, _surfaceWidth, _surfaceHeight);
 
@@ -1007,7 +1129,7 @@ public class WebGraphicsDriver : IGraphicsDriver
     {
         _state.CurrentPassSampleCount = 1;
 
-        var colorAttachment = JSObjectHelper.CreateColorAttachment(
+        _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
             -1, // surface texture
             0, // no resolve
             "load", // preserve existing content
@@ -1015,7 +1137,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             new Color(0, 0, 0, 1)
         );
 
-        WebGPUInterop.BeginRenderPass(new[] { colorAttachment }, null, "UIPass");
+        WebGPUInterop.BeginRenderPass(_singleColorAttachment, null, "UIPass");
         WebGPUInterop.SetViewport(0, 0, _surfaceWidth, _surfaceHeight, 0, 1);
         WebGPUInterop.SetScissorRect(0, 0, _surfaceWidth, _surfaceHeight);
 
