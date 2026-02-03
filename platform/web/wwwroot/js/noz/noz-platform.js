@@ -8,15 +8,18 @@ let clickCount = 0;
 export function init(dotNet, width, height) {
     dotNetRef = dotNet;
 
-    canvas = document.getElementById('noz-canvas');
+    // Use the canvas created by Blazor (same one WebGPU uses)
+    canvas = document.getElementById('canvas');
     if (!canvas) {
-        canvas = document.createElement('canvas');
-        canvas.id = 'noz-canvas';
-        document.body.appendChild(canvas);
+        console.error('Canvas element #canvas not found!');
+        return { width: width, height: height };
     }
 
-    canvas.width = width;
-    canvas.height = height;
+    // Set canvas to actual window size immediately
+    const actualWidth = window.innerWidth;
+    const actualHeight = window.innerHeight;
+    canvas.width = actualWidth;
+    canvas.height = actualHeight;
     canvas.style.display = 'block';
 
     // Prevent context menu on right click
@@ -43,6 +46,9 @@ export function init(dotNet, width, height) {
     // Prevent default behaviors that interfere with games
     canvas.tabIndex = 1;
     canvas.focus();
+
+    // Return actual window size so C# can use it
+    return { width: actualWidth, height: actualHeight };
 }
 
 export function shutdown() {
@@ -143,6 +149,13 @@ function onTouchMove(e) {
 }
 
 function onResize() {
-    // Could auto-resize canvas to window, or notify C# to decide
-    dotNetRef.invokeMethodAsync('OnResize', window.innerWidth, window.innerHeight);
+    // Update canvas size to match window
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    if (canvas) {
+        canvas.width = width;
+        canvas.height = height;
+    }
+    // Notify C# of the resize
+    dotNetRef.invokeMethodAsync('OnResize', width, height);
 }

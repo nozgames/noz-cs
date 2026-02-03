@@ -23,7 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\engine\NoZ.csproj" />
-    <ProjectReference Include="..\webgpu\NoZ.WebGPU.csproj" />
+    <!-- WebGPU desktop driver removed - web uses WebGraphicsDriver with browser WebGPU -->
   </ItemGroup>
 
 </Project>

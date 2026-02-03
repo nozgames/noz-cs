@@ -51,13 +51,15 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    if (input.border_ratio < 0.0) {
-        return input.color;
-    }
-
+    // Compute SDF and derivatives BEFORE any branching (WebGPU requires uniform control flow for fwidth)
     let n = 4.0;
     let dist = pow(pow(abs(input.uv.x), n) + pow(abs(input.uv.y), n), 1.0 / n);
     let edge = fwidth(dist);
+
+    // Early out for non-SDF elements (border_ratio < 0 means no SDF processing)
+    if (input.border_ratio < 0.0) {
+        return input.color;
+    }
 
     var color = input.color;
     let border_color = input.border_color;

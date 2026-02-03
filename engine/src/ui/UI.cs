@@ -432,11 +432,11 @@ public static partial class UI
 
     private static bool IsHotElement(ref Element e) => IsHotElement(e.CanvasId, e.Id);        
 
-    public static bool IsHotElement(CanvasId canvasId, ElementId elementId) => 
+    public static bool IsHotElement(CanvasId canvasId, ElementId elementId) =>
         elementId != ElementId.None &&
         canvasId != CanvasId.None &&
         _hotElementId == elementId &&
-        _hotCanvasId == canvasId;
+        _focusCanvasId == canvasId;
 
     internal static void Begin()
     {

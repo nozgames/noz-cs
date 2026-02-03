@@ -115,7 +115,7 @@ public static partial class UI
             }
 
             if (e.Type == ElementType.TextBox)
-                HandleTextBoxInput(ref e);
+                UpdateTextBoxState(ref e);
 
             var localMouse = Vector2.Transform(mouse, e.WorldToLocal);
             var mouseOver = e.Rect.Contains(localMouse);

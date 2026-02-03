@@ -3,7 +3,6 @@
 @using NoZ
 @using NoZ.Platform
 @using NoZ.Platform.Web
-@using NoZ.Platform.WebGPU
 @using noz
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -14,13 +13,14 @@
     [Parameter] public int Width { get; set; } = 1280;
     [Parameter] public int Height { get; set; } = 720;
     [Parameter] public string Title { get; set; } = "NoZ Game";
-    [Parameter] public IApplicationVtable? Vtable { get; set; }
+    [Parameter] public IApplication? Vtable { get; set; }
+    [Parameter] public UIConfig? UI { get; set; }
     [Parameter] public Func<Task>? OnInitialize { get; set; }
 
     private int _width;
     private int _height;
     private WebPlatform? _platform;
-    private WebGPUGraphicsDriver? _driver;
+    private WebGraphicsDriver? _driver;
     private WebAudio? _audio;
     private IJSObjectReference? _gameLoop;
     private DotNetObjectReference<WebApplication>? _dotNetRef;
@@ -45,7 +45,7 @@
     {
         // Create platform, render backend, and audio driver
         _platform = new WebPlatform(JS);
-        _driver = new WebGPUGraphicsDriver();
+        _driver = new WebGraphicsDriver();
         _audio = new WebAudio(JS);
 
         // Initialize platform async first (web needs JS modules loaded)
@@ -58,6 +58,14 @@
             Resizable = false
         });
 
+        // Initialize graphics driver (needs async for browser WebGPU)
+        _driver.Init(new GraphicsDriverConfig
+        {
+            Platform = _platform,
+            VSync = true
+        });
+        await _driver.InitAsync();
+
         await _audio.InitAsync();
 
         // Initialize Application with config
@@ -69,6 +77,7 @@
             Platform = _platform,
             AudioBackend = _audio,
             Vtable = Vtable,
+            UI = UI,
             Graphics = new GraphicsConfig
             {
                 Driver = _driver
