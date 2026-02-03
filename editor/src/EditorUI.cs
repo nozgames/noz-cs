@@ -402,7 +402,8 @@ internal static class EditorUI
         var nextItemId = FirstPopupItemId;
         var hasOpacity = _opacityValue > float.Epsilon;
 
-        for (var i = 0; i < 64; i++)
+        int colors = (PaletteManager.GetPalette(_colorPalette).Count + 7) & ~7;
+        for (var i = 0; i < colors; i++)
         {
             using (BeginColorContainer(nextItemId++, selected: hasOpacity && i == _colorValue))
             {

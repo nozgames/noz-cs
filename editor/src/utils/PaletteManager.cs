@@ -17,6 +17,7 @@ public class PaletteDef
     public string? DisplayName { get; }
     public string Label { get; }
     public Color[] Colors { get; } = new Color[ColorCount];
+    public int Count { get; private set; }
 
     public PaletteDef(string id, int row, string? displayName)
     {
@@ -33,6 +34,7 @@ public class PaletteDef
     {
         if (image.Width != 512 || image.Height != 512) return;
 
+        int count = 0;
         image.ProcessPixelRows(accessor =>
         {
             int y = Row * CellSize + CellSize / 2;
@@ -47,8 +49,12 @@ public class PaletteDef
                     p.B / 255f,
                     p.A / 255f
                 );
+
+                if (p.A > 0)
+                    count = c + 1;
             }
         });
+        Count = count;
     }
 }
 

@@ -65,6 +65,7 @@ public static partial class UI
     public static Vector2 ScreenSize => _size;
 
     public static float UserScale { get; set; } = 1.0f;
+    public static UIScaleMode? ScaleMode { get; set; }
 
     public static float GetUIScale() => Application.Platform.DisplayScale * UserScale;
 
@@ -78,7 +79,7 @@ public static partial class UI
         var screenSize = Application.WindowSize.ToVector2();
         var displayScale = Application.Platform.DisplayScale;
 
-        switch (Config.ScaleMode)
+        switch (ScaleMode ?? Config.ScaleMode)
         {
             case UIScaleMode.ConstantPixelSize:
                 return new Vector2Int(
@@ -195,6 +196,9 @@ public static partial class UI
 
     private static ref CanvasState GetCanvasState(CanvasId canvasId) =>
         ref _canvasStates[canvasId];
+
+    public static bool IsRow() => GetSelf().Type == ElementType.Row;
+    public static bool IsColumn() => GetSelf().Type == ElementType.Row;
 
     private static void ResetCanvasElementStates(CanvasId canvasId)
     {
