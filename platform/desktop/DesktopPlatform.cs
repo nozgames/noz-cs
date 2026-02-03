@@ -539,6 +539,8 @@ public unsafe partial class SDLPlatform : IPlatform
 
         using var file = File.Create(path);
         data.CopyTo(file);
+        file.Flush();
+        file.Close();
     }
 }
 
