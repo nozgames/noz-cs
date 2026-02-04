@@ -109,7 +109,7 @@ public unsafe partial class WebGPUGraphicsDriver
 
         // Apply scissor state right before draw
         if (_state.ScissorEnabled)
-        {            
+        {
             _wgpu.RenderPassEncoderSetScissorRect(
                 _currentRenderPass,
                 (uint)_state.Scissor.X,
@@ -119,7 +119,20 @@ public unsafe partial class WebGPUGraphicsDriver
         }
         else
         {
-            _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)_surfaceWidth, (uint)_surfaceHeight);
+            // Use render texture dimensions if rendering to texture, otherwise surface dimensions
+            uint width, height;
+            if (_activeRenderTexture != 0)
+            {
+                ref var rt = ref _renderTextures[(int)_activeRenderTexture];
+                width = (uint)rt.Width;
+                height = (uint)rt.Height;
+            }
+            else
+            {
+                width = (uint)_surfaceWidth;
+                height = (uint)_surfaceHeight;
+            }
+            _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, width, height);
         }
 
         // Draw indexed

@@ -66,7 +66,11 @@ public static partial class UI
             HandleCanvasInput(cid, mouse, isHotCanvas);
         }
 
-        if (_mouseLeftElementId != ElementId.None || _popupCount > 0)
+        // Process scrollbar input BEFORE consuming buttons
+        HandleScrollbarInput(mouse);
+
+        // Don't consume mouse button if scrollbar is being dragged
+        if ((_mouseLeftElementId != ElementId.None || _popupCount > 0) && !_scrollbarDragging)
             Input.ConsumeButton(InputCode.MouseLeft);
 
         if (_mouseDoubleClickElementId != ElementId.None || _popupCount > 0)
@@ -74,9 +78,151 @@ public static partial class UI
 
         if (_mouseRightElementId != ElementId.None || _popupCount > 0)
             Input.ConsumeButton(InputCode.MouseRight);
-
         HandleScrollableDrag(mouse);
         HandleMouseWheelScroll(mouse);
+    }
+
+    private static bool GetScrollbarThumbRect(ref Element e, out Rect thumbRect)
+    {
+        thumbRect = Rect.Zero;
+        ref var s = ref e.Data.Scrollable;
+
+        var viewportHeight = e.Rect.Height;
+        var maxScroll = Math.Max(0, s.ContentHeight - viewportHeight);
+
+        if (s.ScrollbarVisibility == ScrollbarVisibility.Never || maxScroll <= 0)
+            return false;
+
+        var pos = Vector2.Transform(e.Rect.Position, e.LocalToWorld);
+        var trackX = pos.X + e.Rect.Width - s.ScrollbarWidth - s.ScrollbarPadding;
+        var trackY = pos.Y + s.ScrollbarPadding;
+        var trackH = viewportHeight - s.ScrollbarPadding * 2;
+
+        var thumbHeightRatio = viewportHeight / s.ContentHeight;
+        var thumbH = Math.Max(s.ScrollbarMinThumbHeight, trackH * thumbHeightRatio);
+        var scrollRatio = s.Offset / maxScroll;
+        var thumbY = trackY + scrollRatio * (trackH - thumbH);
+
+        thumbRect = new Rect(trackX, thumbY, s.ScrollbarWidth, thumbH);
+        return true;
+    }
+
+    private static bool GetScrollbarTrackRect(ref Element e, out Rect trackRect)
+    {
+        trackRect = Rect.Zero;
+        ref var s = ref e.Data.Scrollable;
+
+        var viewportHeight = e.Rect.Height;
+        var maxScroll = Math.Max(0, s.ContentHeight - viewportHeight);
+
+        if (s.ScrollbarVisibility == ScrollbarVisibility.Never)
+            return false;
+        if (s.ScrollbarVisibility == ScrollbarVisibility.Auto && maxScroll <= 0)
+            return false;
+
+        var pos = Vector2.Transform(e.Rect.Position, e.LocalToWorld);
+        var trackX = pos.X + e.Rect.Width - s.ScrollbarWidth - s.ScrollbarPadding;
+        var trackY = pos.Y + s.ScrollbarPadding;
+        var trackH = viewportHeight - s.ScrollbarPadding * 2;
+
+        trackRect = new Rect(trackX, trackY, s.ScrollbarWidth, trackH);
+        return true;
+    }
+
+    private static void HandleScrollbarInput(Vector2 mouse)
+    {
+        // Handle ongoing scrollbar drag
+        if (_scrollbarDragging)
+        {
+            if (!_mouseLeftDown)
+            {
+                _scrollbarDragging = false;
+                return;
+            }
+
+            ref var es = ref GetElementState(_scrollbarDragCanvasId, _scrollbarDragElementId);
+            ref var e = ref _elements[es.Index];
+
+            ref var s = ref e.Data.Scrollable;
+            var viewportHeight = e.Rect.Height;
+            var maxScroll = Math.Max(0, s.ContentHeight - viewportHeight);
+            if (maxScroll <= 0) return;
+
+            var trackH = viewportHeight - s.ScrollbarPadding * 2;
+            var thumbHeightRatio = viewportHeight / s.ContentHeight;
+            var thumbH = Math.Max(s.ScrollbarMinThumbHeight, trackH * thumbHeightRatio);
+            var availableTrackSpace = trackH - thumbH;
+
+            if (availableTrackSpace > 0)
+            {
+                var mouseDeltaY = mouse.Y - _scrollbarDragStartMouseY;
+                var scrollDelta = (mouseDeltaY / availableTrackSpace) * maxScroll;
+                var newOffset = Math.Clamp(_scrollbarDragStartOffset + scrollDelta, 0, maxScroll);
+
+                s.Offset = newOffset;
+                es.Data.Scrollable.Offset = newOffset;
+            }
+            return;
+        }
+
+        // Check for new scrollbar interaction
+        if (!_mouseLeftPressed) return;
+
+        for (var i = _elementCount - 1; i >= 0; i--)
+        {
+            ref var e = ref _elements[i];
+            if (e.Type != ElementType.Scrollable || e.Id == ElementId.None || e.CanvasId == ElementId.None)
+                continue;
+
+            // When popups are open, only interact with scrollbars inside popups
+            if (_popupCount > 0 && !IsInsidePopup(i))
+                continue;
+
+            // Check if mouse is over the scrollbar thumb
+            var hasThumb = GetScrollbarThumbRect(ref e, out var thumbRect);
+            var thumbContains = hasThumb && thumbRect.Contains(mouse);
+
+            if (thumbContains)
+            {
+                // Start thumb drag (don't consume button - we need _mouseLeftDown to stay true)
+                _scrollbarDragging = true;
+                _scrollbarDragElementId = e.Id;
+                _scrollbarDragCanvasId = e.CanvasId;
+                _scrollbarDragStartOffset = e.Data.Scrollable.Offset;
+                _scrollbarDragStartMouseY = mouse.Y;
+                return;
+            }
+
+            // Check if mouse is over the scrollbar track (page scroll)
+            if (GetScrollbarTrackRect(ref e, out var trackRect) && trackRect.Contains(mouse))
+            {
+                ref var s = ref e.Data.Scrollable;
+                var viewportHeight = e.Rect.Height;
+                var maxScroll = Math.Max(0, s.ContentHeight - viewportHeight);
+
+                if (maxScroll > 0)
+                {
+                    var trackY = trackRect.Y;
+                    var clickRelativeY = mouse.Y - trackY;
+                    var clickRatio = clickRelativeY / trackRect.Height;
+
+                    // Scroll towards click position by one page
+                    var targetOffset = clickRatio * maxScroll;
+                    var pageAmount = viewportHeight * 0.9f;
+                    var newOffset = s.Offset < targetOffset
+                        ? Math.Min(s.Offset + pageAmount, targetOffset)
+                        : Math.Max(s.Offset - pageAmount, targetOffset);
+                    newOffset = Math.Clamp(newOffset, 0, maxScroll);
+
+                    s.Offset = newOffset;
+                    ref var cs = ref _canvasStates[e.CanvasId];
+                    ref var state = ref cs.ElementStates[e.Id];
+                    state.Data.Scrollable.Offset = newOffset;
+                }
+                Input.ConsumeButton(InputCode.MouseLeft);
+                return;
+            }
+        }
     }
 
     private static bool IsInsidePopup(int elementIndex)
@@ -157,6 +303,10 @@ public static partial class UI
 
     private static void HandleScrollableDrag(Vector2 mouse)
     {
+        // Don't start/continue content drag if scrollbar is being dragged
+        if (_scrollbarDragging)
+            return;
+
         if (!_mouseLeftDown)
         {
             _activeScrollId = ElementId.None;
@@ -230,7 +380,7 @@ public static partial class UI
             ref var cs = ref _canvasStates[e.CanvasId];
             ref var state = ref cs.ElementStates[e.Id];
 
-            var scrollSpeed = 30f;
+            var scrollSpeed = e.Data.Scrollable.ScrollSpeed;
             var newOffset = e.Data.Scrollable.Offset - scrollDelta * scrollSpeed;
             var maxScroll = Math.Max(0, e.Data.Scrollable.ContentHeight - e.Rect.Height);
             newOffset = Math.Clamp(newOffset, 0, maxScroll);

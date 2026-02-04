@@ -172,6 +172,7 @@ public unsafe partial class WebGPUGraphicsDriver
             TextureFormat.R8 => WGPUTextureFormat.R8Unorm,
             TextureFormat.RG8 => WGPUTextureFormat.Rgba8Unorm, // Use RGBA8 as fallback for RG8
             TextureFormat.RGBA32F => WGPUTextureFormat.Rgba32float,
+            TextureFormat.BGRA8 => WGPUTextureFormat.Bgra8Unorm,
             _ => WGPUTextureFormat.Rgba8Unorm,
         };
     }
@@ -599,5 +600,260 @@ public unsafe partial class WebGPUGraphicsDriver
 
             _wgpu.QueueWriteTexture(_queue, &destination, dataPtr, (nuint)data.Length, &layout, &copySize);
         }
+    }
+
+    // ============================================================================
+    // Render Texture (for capturing to image)
+    // ============================================================================
+
+    private const int MaxRenderTextures = 16;
+    private readonly RenderTextureInfo[] _renderTextures = new RenderTextureInfo[MaxRenderTextures];
+    private int _nextRenderTextureId = 1;
+    private nuint _activeRenderTexture;
+
+    private struct RenderTextureInfo
+    {
+        public WGPUTexture* Texture;
+        public TextureView* TextureView;
+        public int Width;
+        public int Height;
+        public WGPUTextureFormat Format;
+    }
+
+    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, string? name = null)
+    {
+        var wgpuFormat = MapTextureFormat(format);
+
+        var textureDesc = new TextureDescriptor
+        {
+            Label = (byte*)(name != null ? System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi(name) : IntPtr.Zero),
+            Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
+            MipLevelCount = 1,
+            SampleCount = 1,
+            Dimension = TextureDimension.Dimension2D,
+            Format = wgpuFormat,
+            // RenderAttachment for drawing, CopySrc for readback, TextureBinding for sampling
+            Usage = TextureUsage.RenderAttachment | TextureUsage.CopySrc | TextureUsage.TextureBinding,
+        };
+
+        var texture = _wgpu.DeviceCreateTexture(_device, &textureDesc);
+
+        var viewDesc = new TextureViewDescriptor
+        {
+            Format = wgpuFormat,
+            Dimension = TextureViewDimension.Dimension2D,
+            BaseMipLevel = 0,
+            MipLevelCount = 1,
+            BaseArrayLayer = 0,
+            ArrayLayerCount = 1,
+            Aspect = TextureAspect.All,
+        };
+        var textureView = _wgpu.TextureCreateView(texture, &viewDesc);
+
+        var handle = (nuint)_nextRenderTextureId++;
+        _renderTextures[(int)handle] = new RenderTextureInfo
+        {
+            Texture = texture,
+            TextureView = textureView,
+            Width = width,
+            Height = height,
+            Format = wgpuFormat,
+        };
+
+        return handle;
+    }
+
+    public void DestroyRenderTexture(nuint handle)
+    {
+        ref var rt = ref _renderTextures[(int)handle];
+
+        if (rt.TextureView != null)
+        {
+            _wgpu.TextureViewRelease(rt.TextureView);
+            rt.TextureView = null;
+        }
+
+        if (rt.Texture != null)
+        {
+            _wgpu.TextureRelease(rt.Texture);
+            rt.Texture = null;
+        }
+    }
+
+    public void BeginRenderTexturePass(nuint renderTexture, Color clearColor)
+    {
+        if (_currentRenderPass != null)
+            throw new InvalidOperationException("Already in a render pass");
+
+        ref var rt = ref _renderTextures[(int)renderTexture];
+        _activeRenderTexture = renderTexture;
+        _state.CurrentPassSampleCount = 1;
+
+        var colorAttachment = new RenderPassColorAttachment
+        {
+            View = rt.TextureView,
+            ResolveTarget = null,
+            LoadOp = LoadOp.Clear,
+            StoreOp = StoreOp.Store,
+            ClearValue = new Silk.NET.WebGPU.Color
+            {
+                R = clearColor.R,
+                G = clearColor.G,
+                B = clearColor.B,
+                A = clearColor.A
+            }
+        };
+
+        var desc = new RenderPassDescriptor
+        {
+            ColorAttachments = &colorAttachment,
+            ColorAttachmentCount = 1,
+            DepthStencilAttachment = null
+        };
+
+        _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, in desc);
+
+        _wgpu.RenderPassEncoderSetViewport(_currentRenderPass, 0, 0, rt.Width, rt.Height, 0, 1);
+        _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)rt.Width, (uint)rt.Height);
+
+        _state.PipelineDirty = true;
+        _state.BindGroupDirty = true;
+    }
+
+    public void EndRenderTexturePass()
+    {
+        if (_currentRenderPass == null)
+            throw new InvalidOperationException("Not in a render pass");
+
+        _wgpu.RenderPassEncoderEnd(_currentRenderPass);
+        _wgpu.RenderPassEncoderRelease(_currentRenderPass);
+        _currentRenderPass = null;
+        _activeRenderTexture = 0;
+
+        if (_bindGroupsToRelease.Count > 0)
+        {
+            foreach (var bindGroup in _bindGroupsToRelease)
+                _wgpu.BindGroupRelease((BindGroup*)bindGroup);
+            _bindGroupsToRelease.Clear();
+        }
+
+        _currentBindGroup = null;
+
+        // Submit the current command encoder so RTT draws are executed before any readback
+        // Then create a new encoder for subsequent operations
+        var commandBufferDesc = new CommandBufferDescriptor();
+        var commandBuffer = _wgpu.CommandEncoderFinish(_commandEncoder, &commandBufferDesc);
+        _wgpu.QueueSubmit(_queue, 1, &commandBuffer);
+        _wgpu.CommandBufferRelease(commandBuffer);
+        _wgpu.CommandEncoderRelease(_commandEncoder);
+
+        // Create new encoder for any remaining frame operations
+        var encoderDesc = new CommandEncoderDescriptor();
+        _commandEncoder = _wgpu.DeviceCreateCommandEncoder(_device, ref encoderDesc);
+    }
+
+    public Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture)
+    {
+        ref var rt = ref _renderTextures[(int)renderTexture];
+
+        int bytesPerPixel = 4; // RGBA8
+        int bytesPerRow = rt.Width * bytesPerPixel;
+        // WebGPU requires bytesPerRow to be aligned to 256 bytes
+        int alignedBytesPerRow = (bytesPerRow + 255) & ~255;
+        int bufferSize = alignedBytesPerRow * rt.Height;
+
+        // Create staging buffer with MapRead usage
+        var bufferDesc = new BufferDescriptor
+        {
+            Label = (byte*)System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi("readback_staging"),
+            Size = (ulong)bufferSize,
+            Usage = WGPUBufferUsage.MapRead | WGPUBufferUsage.CopyDst,
+            MappedAtCreation = false,
+        };
+        var stagingBuffer = _wgpu.DeviceCreateBuffer(_device, &bufferDesc);
+
+        // Copy texture to staging buffer
+        var encoder = _wgpu.DeviceCreateCommandEncoder(_device, null);
+
+        var src = new ImageCopyTexture
+        {
+            Texture = rt.Texture,
+            MipLevel = 0,
+            Origin = new Origin3D { X = 0, Y = 0, Z = 0 },
+            Aspect = TextureAspect.All,
+        };
+
+        var dst = new ImageCopyBuffer
+        {
+            Buffer = stagingBuffer,
+            Layout = new TextureDataLayout
+            {
+                Offset = 0,
+                BytesPerRow = (uint)alignedBytesPerRow,
+                RowsPerImage = (uint)rt.Height,
+            }
+        };
+
+        var copySize = new Extent3D
+        {
+            Width = (uint)rt.Width,
+            Height = (uint)rt.Height,
+            DepthOrArrayLayers = 1
+        };
+
+        _wgpu.CommandEncoderCopyTextureToBuffer(encoder, &src, &dst, &copySize);
+
+        var cmdBufferDesc = new CommandBufferDescriptor();
+        var cmdBuffer = _wgpu.CommandEncoderFinish(encoder, &cmdBufferDesc);
+        _wgpu.QueueSubmit(_queue, 1, &cmdBuffer);
+        _wgpu.CommandBufferRelease(cmdBuffer);
+        _wgpu.CommandEncoderRelease(encoder);
+
+        // Map buffer and read data asynchronously
+        var tcs = new TaskCompletionSource<byte[]>();
+        var width = rt.Width;
+        var height = rt.Height;
+        var wgpu = _wgpu;
+
+        var isBgra = rt.Format == WGPUTextureFormat.Bgra8Unorm;
+
+        PfnBufferMapCallback callback = new((status, userdata) =>
+        {
+            if (status != BufferMapAsyncStatus.Success)
+            {
+                tcs.SetException(new Exception($"Buffer map failed: {status}"));
+                return;
+            }
+
+            // Read the mapped data
+            var mappedPtr = wgpu.BufferGetMappedRange(stagingBuffer, 0, (nuint)bufferSize);
+            var result = new byte[width * height * 4];
+
+            // Copy row by row to handle alignment padding
+            for (int y = 0; y < height; y++)
+            {
+                var srcOffset = y * alignedBytesPerRow;
+                var dstOffset = y * width * 4;
+                System.Runtime.InteropServices.Marshal.Copy((IntPtr)((byte*)mappedPtr + srcOffset), result, dstOffset, width * 4);
+            }
+
+            // Swizzle BGRA to RGBA if needed
+            if (isBgra)
+            {
+                for (int i = 0; i < result.Length; i += 4)
+                {
+                    (result[i], result[i + 2]) = (result[i + 2], result[i]); // Swap B and R
+                }
+            }
+
+            wgpu.BufferUnmap(stagingBuffer);
+            wgpu.BufferRelease(stagingBuffer);
+
+            tcs.SetResult(result);
+        });
+
+        _wgpu.BufferMapAsync(stagingBuffer, MapMode.Read, 0, (nuint)bufferSize, callback, null);
+
+        return tcs.Task;
     }
 }

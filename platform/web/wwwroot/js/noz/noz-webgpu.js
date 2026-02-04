@@ -295,7 +295,8 @@ const formatMap = {
     'rgba8': 'rgba8unorm',
     'r8': 'r8unorm',
     'rg8': 'rg8unorm',
-    'rgba32f': 'rgba32float'
+    'rgba32f': 'rgba32float',
+    'bgra8': 'bgra8unorm'
 };
 
 export function createTexture(width, height, format, usage, label) {
@@ -919,6 +920,125 @@ export function getOffscreenResolveTextureView() {
 
 export function getMsaaSamples() {
     return msaaSamples;
+}
+
+// ============================================================================
+// Render Texture (for capturing to image)
+// ============================================================================
+
+const renderTextures = new Map();
+let nextRenderTextureId = 1;
+let currentRenderTexturePass = null;
+
+export function createRenderTexture(width, height, format, label) {
+    const id = nextRenderTextureId++;
+    const gpuFormat = formatMap[format] || 'rgba8unorm';
+
+    const texture = device.createTexture({
+        size: { width, height, depthOrArrayLayers: 1 },
+        format: gpuFormat,
+        // RenderAttachment for drawing, CopySrc for readback, TextureBinding for sampling
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING,
+        label: label || `render_texture_${id}`
+    });
+
+    const view = texture.createView({ format: gpuFormat, dimension: '2d' });
+
+    renderTextures.set(id, {
+        texture: texture,
+        view: view,
+        width: width,
+        height: height,
+        format: gpuFormat
+    });
+
+    return id;
+}
+
+export function destroyRenderTexture(textureId) {
+    const rt = renderTextures.get(textureId);
+    if (rt) {
+        rt.texture.destroy();
+        renderTextures.delete(textureId);
+    }
+}
+
+export function beginRenderTexturePass(textureId, clearR, clearG, clearB, clearA) {
+    const rt = renderTextures.get(textureId);
+    if (!rt || !currentCommandEncoder) {
+        console.error(`beginRenderTexturePass: render texture ${textureId} not found or no command encoder`);
+        return;
+    }
+
+    currentRenderTexturePass = rt;
+
+    currentRenderPass = currentCommandEncoder.beginRenderPass({
+        colorAttachments: [{
+            view: rt.view,
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: { r: clearR, g: clearG, b: clearB, a: clearA }
+        }],
+        label: 'render_texture_pass'
+    });
+}
+
+export function endRenderTexturePass() {
+    if (currentRenderPass) {
+        currentRenderPass.end();
+        currentRenderPass = null;
+    }
+    currentRenderTexturePass = null;
+}
+
+export async function readRenderTexturePixels(textureId) {
+    const rt = renderTextures.get(textureId);
+    if (!rt) throw new Error(`Render texture ${textureId} not found`);
+
+    const bytesPerPixel = 4;
+    const bytesPerRow = rt.width * bytesPerPixel;
+    // WebGPU requires 256-byte alignment for bytesPerRow
+    const alignedBytesPerRow = Math.ceil(bytesPerRow / 256) * 256;
+    const bufferSize = alignedBytesPerRow * rt.height;
+
+    // Create staging buffer
+    const stagingBuffer = device.createBuffer({
+        size: bufferSize,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+        label: 'readback_staging'
+    });
+
+    // Copy texture to buffer
+    const encoder = device.createCommandEncoder();
+    encoder.copyTextureToBuffer(
+        { texture: rt.texture, origin: { x: 0, y: 0, z: 0 } },
+        { buffer: stagingBuffer, bytesPerRow: alignedBytesPerRow, rowsPerImage: rt.height },
+        { width: rt.width, height: rt.height, depthOrArrayLayers: 1 }
+    );
+
+    queue.submit([encoder.finish()]);
+
+    // Map and read
+    await stagingBuffer.mapAsync(GPUMapMode.READ);
+    const mappedData = new Uint8Array(stagingBuffer.getMappedRange());
+
+    // Copy to result, removing row padding
+    const result = new Uint8Array(rt.width * rt.height * bytesPerPixel);
+    for (let y = 0; y < rt.height; y++) {
+        const srcOffset = y * alignedBytesPerRow;
+        const dstOffset = y * bytesPerRow;
+        result.set(mappedData.subarray(srcOffset, srcOffset + bytesPerRow), dstOffset);
+    }
+
+    stagingBuffer.unmap();
+    stagingBuffer.destroy();
+
+    // Convert to base64 for JS interop (returning Uint8Array directly doesn't work well)
+    let binary = '';
+    for (let i = 0; i < result.length; i++) {
+        binary += String.fromCharCode(result[i]);
+    }
+    return btoa(binary);
 }
 
 // ============================================================================

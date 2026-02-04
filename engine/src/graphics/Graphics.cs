@@ -5,6 +5,7 @@
 // #define NOZ_GRAPHICS_DEBUG
 // #define NOZ_GRAPHICS_DEBUG_VERBOSE
 
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -13,8 +14,16 @@ using NoZ.Platform;
 
 namespace NoZ;
 
+public enum RenderPass : byte
+{
+    Scene = 0,
+    UI = 1,
+    RenderTexture = 2,
+}
+
 public static unsafe partial class Graphics
 {
+    private const int MaxRenderPasses = 3;
     private const int MaxSortGroups = 1526;
     private const int MaxStateStack = 16;
     private const int MaxVertices = 65536;
@@ -62,6 +71,18 @@ public static unsafe partial class Graphics
     private static Shader? _compositeShader;
     private static Shader? _spriteShader;
     private static bool _inUIPass;
+
+    // Render to texture support
+    private struct RenderToTextureRequest
+    {
+        public nuint RenderTexture;      // 0 if we need to create one
+        public int Width;                 // Only used if RenderTexture is 0
+        public int Height;                // Only used if RenderTexture is 0
+        public Color ClearColor;
+        public Action Draw;
+        public Action<nuint> OnComplete;
+    }
+    private static readonly List<RenderToTextureRequest> _rttRequests = new();
     private static State[] _stateStack = null!;
     private static int _stateStackDepth = 0;
     private static bool _batchStateDirty = true;
@@ -82,10 +103,9 @@ public static unsafe partial class Graphics
     private static nuint _mesh;
     private static nuint _boneTexture;
     private const int BoneTextureSlot = 1;
-    private static byte _currentPass;
-    private static byte _activeDriverPass;
-    private static Matrix4x4 _sceneProjection;
-    private static Matrix4x4 _uiProjection;
+    private static RenderPass _currentPass;
+    private static RenderPass _activeDriverPass;
+    private static Matrix4x4[] _passProjections = new Matrix4x4[MaxRenderPasses];
     private static NativeArray<float> _boneData;
     private static int _maxDrawCommands;
     private static int _maxBatches;
@@ -125,8 +145,6 @@ public static unsafe partial class Graphics
             Platform = config.Platform!,
             VSync = config.VSync,
         });
-
-        Camera = new Camera();
 
         _vertices = new NativeArray<MeshVertex>(MaxVertices);
         _indices = new NativeArray<ushort>(MaxIndices);
@@ -188,7 +206,7 @@ public static unsafe partial class Graphics
         Driver.ResizeOffscreenTarget(Application.WindowSize, RenderConfig.MsaaSamples);
 
         _inUIPass = false;
-        _activeDriverPass = 0;
+        _activeDriverPass = RenderPass.Scene;
 
         Driver.BeginScenePass(ClearColor);
 
@@ -198,7 +216,7 @@ public static unsafe partial class Graphics
     public static void BeginUI()
     {
         if (_inUIPass) return;
-        _currentPass = 1;
+        _currentPass = RenderPass.UI;
         _inUIPass = true;
         _batchStateDirty = true;
     }
@@ -208,20 +226,109 @@ public static unsafe partial class Graphics
         ExecuteCommands();
 
         // Close whatever pass is currently active
-        if (_activeDriverPass == 0)
+        if (_activeDriverPass == RenderPass.Scene)
         {
             Driver.EndScenePass();
             if (_compositeShader != null)
                 Driver.Composite(_compositeShader.Handle);
         }
-        else
+        else if (_activeDriverPass == RenderPass.UI)
         {
             Driver.EndUIPass();
         }
 
         _inUIPass = false;
 
+        // Process any queued render-to-texture requests after normal rendering
+        ProcessRenderToTextureQueue();
+
         Driver.EndFrame();
+    }
+
+    public static void RenderToTexture(nuint renderTexture, int width, int height, Color clearColor, Action draw, Action<nuint> onComplete)
+    {
+        _rttRequests.Add(new RenderToTextureRequest
+        {
+            RenderTexture = renderTexture,
+            Width = width,
+            Height = height,
+            ClearColor = clearColor,
+            Draw = draw,
+            OnComplete = onComplete
+        });
+    }
+
+    public static void RenderToTexture(int width, int height, Color clearColor, Action draw, Action<nuint> onComplete)
+    {
+        _rttRequests.Add(new RenderToTextureRequest
+        {
+            RenderTexture = 0,
+            Width = width,
+            Height = height,
+            ClearColor = clearColor,
+            Draw = draw,
+            OnComplete = onComplete
+        });
+    }
+
+    private static void ProcessRenderToTextureQueue()
+    {
+        if (_rttRequests.Count == 0)
+            return;
+
+        // Save state - no need to save projections since RTT uses its own slot
+        var savedCurrentPass = _currentPass;
+        var savedActiveDriverPass = _activeDriverPass;
+        var savedInUIPass = _inUIPass;
+        var savedViewport = CurrentState.Viewport;
+        var savedScissorEnabled = CurrentState.ScissorEnabled;
+        var savedScissor = CurrentState.Scissor;
+
+        foreach (var request in _rttRequests)
+        {
+            // Create RT if needed
+            var rt = request.RenderTexture;
+            var width = request.Width;
+            var height = request.Height;
+            if (rt == 0)
+            {
+                rt = Driver.CreateRenderTexture(width, height);
+            }
+
+            // Begin render pass to the texture
+            Driver.BeginRenderTexturePass(rt, request.ClearColor);
+
+            // Set RTT pass - projection goes to its own slot, ExecuteCommands skips pass transitions
+            _currentPass = RenderPass.RenderTexture;
+            _activeDriverPass = RenderPass.RenderTexture;
+            _inUIPass = false;
+            ClearScissor();
+            SetViewport(0, 0, width, height);
+            _batchStateDirty = true;
+
+            // Execute draw action - caller is responsible for setting up camera/projection
+            request.Draw();
+
+            // Execute pending draw commands
+            ExecuteCommands();
+
+            // End render pass
+            Driver.EndRenderTexturePass();
+
+            // Notify completion with the render texture handle
+            request.OnComplete(rt);
+        }
+
+        // Restore state
+        _currentPass = savedCurrentPass;
+        _activeDriverPass = savedActiveDriverPass;
+        _inUIPass = savedInUIPass;
+        CurrentState.Viewport = savedViewport;
+        CurrentState.ScissorEnabled = savedScissorEnabled;
+        CurrentState.Scissor = savedScissor;
+        _batchStateDirty = true;
+
+        _rttRequests.Clear();
     }
 
     internal static void ResolveAssets()
@@ -267,7 +374,7 @@ public static unsafe partial class Graphics
     }
 
     private static long MakeSortKey(ushort order) =>
-        (((long)_currentPass) << PassShift) |
+        (((long)(byte)_currentPass) << PassShift) |
         (((long)(CurrentState.SortLayer & 0xFFF)) << LayerShift) |
         (((long)CurrentState.SortGroup) << GroupShift) |
         (((long)order) << OrderShift) |
@@ -291,11 +398,11 @@ public static unsafe partial class Graphics
     {
         _batchStateDirty = false;
 
-        var currentProjection = _currentPass == 0 ? _sceneProjection : _uiProjection;
+        var currentProjection = _passProjections[(int)_currentPass];
 
         var candidate = new BatchState
         {
-            Pass = _currentPass,
+            Pass = (byte)_currentPass,
             GlobalsIndex = GetOrAddGlobals(currentProjection),
             Shader = CurrentState.Shader?.Handle ?? nuint.Zero,
             BlendMode = CurrentState.BlendMode,
@@ -579,17 +686,17 @@ public static unsafe partial class Graphics
             ref var batch = ref _batches[batchIndex];
             ref var batchState = ref _batchStates[batch.State];
 
-            // Handle pass transitions
-            if (batchState.Pass != _activeDriverPass)
+            // Handle pass transitions (only for Scene/UI passes, not RTT)
+            if (batchState.Pass != (byte)_activeDriverPass && _activeDriverPass != RenderPass.RenderTexture)
             {
-                if (_activeDriverPass == 0 && batchState.Pass == 1)
+                if (_activeDriverPass == RenderPass.Scene && batchState.Pass == (byte)RenderPass.UI)
                 {
                     // Transition from scene to UI
                     Driver.EndScenePass();
                     if (_compositeShader != null)
                         Driver.Composite(_compositeShader.Handle);
                     Driver.BeginUIPass();
-                    _activeDriverPass = 1;
+                    _activeDriverPass = RenderPass.UI;
 
                     SetBlendMode(BlendMode.Alpha);
 

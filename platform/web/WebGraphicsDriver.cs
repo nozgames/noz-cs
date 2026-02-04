@@ -272,11 +272,24 @@ public class WebGraphicsDriver : IGraphicsDriver
 
     public void SetScissor(in RectInt scissor)
     {
+        // Get current render target dimensions
+        int targetWidth, targetHeight;
+        if (_activeRenderTexture != 0 && _renderTextures.TryGetValue(_activeRenderTexture, out var rt))
+        {
+            targetWidth = rt.Width;
+            targetHeight = rt.Height;
+        }
+        else
+        {
+            targetWidth = _surfaceWidth;
+            targetHeight = _surfaceHeight;
+        }
+
         var clampedScissor = scissor;
         clampedScissor.X = Math.Max(0, scissor.X);
         clampedScissor.Y = Math.Max(0, scissor.Y);
-        clampedScissor.Width = Math.Min(scissor.Width, _surfaceWidth - scissor.X);
-        clampedScissor.Height = Math.Min(scissor.Height, _surfaceHeight - scissor.Y);
+        clampedScissor.Width = Math.Min(scissor.Width, targetWidth - scissor.X);
+        clampedScissor.Height = Math.Min(scissor.Height, targetHeight - scissor.Y);
         if (clampedScissor.Width <= 0 || clampedScissor.Height <= 0)
             return;
 
@@ -289,7 +302,20 @@ public class WebGraphicsDriver : IGraphicsDriver
     public void ClearScissor()
     {
         _state.ScissorEnabled = false;
-        WebGPUInterop.SetScissorRect(0, 0, _surfaceWidth, _surfaceHeight);
+
+        // Use render texture dimensions if rendering to texture, otherwise surface dimensions
+        int width, height;
+        if (_activeRenderTexture != 0 && _renderTextures.TryGetValue(_activeRenderTexture, out var rt))
+        {
+            width = rt.Width;
+            height = rt.Height;
+        }
+        else
+        {
+            width = _surfaceWidth;
+            height = _surfaceHeight;
+        }
+        WebGPUInterop.SetScissorRect(0, 0, width, height);
     }
 
     // ============================================================================
@@ -422,6 +448,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             TextureFormat.R8 => WebGPUTextureFormat.R8,
             TextureFormat.RG8 => WebGPUTextureFormat.RGBA8, // Fallback
             TextureFormat.RGBA32F => WebGPUTextureFormat.RGBA32F,
+            TextureFormat.BGRA8 => WebGPUTextureFormat.BGRA8,
             _ => WebGPUTextureFormat.RGBA8
         };
     }
@@ -1149,6 +1176,95 @@ public class WebGraphicsDriver : IGraphicsDriver
     public void EndUIPass()
     {
         WebGPUInterop.EndRenderPass();
+    }
+
+    // ============================================================================
+    // Render Texture (for capturing to image)
+    // ============================================================================
+
+    private readonly Dictionary<nuint, RenderTextureInfo> _renderTextures = new();
+    private int _nextRenderTextureId = 1;
+    private nuint _activeRenderTexture;
+
+    private struct RenderTextureInfo
+    {
+        public int JsTextureId;
+        public int Width;
+        public int Height;
+        public string Format;
+    }
+
+    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, string? name = null)
+    {
+        var gpuFormat = MapTextureFormat(format);
+        var jsTextureId = WebGPUInterop.CreateRenderTexture(width, height, gpuFormat, name);
+
+        var handle = (nuint)_nextRenderTextureId++;
+        _renderTextures[handle] = new RenderTextureInfo
+        {
+            JsTextureId = jsTextureId,
+            Width = width,
+            Height = height,
+            Format = gpuFormat
+        };
+
+        return handle;
+    }
+
+    public void DestroyRenderTexture(nuint handle)
+    {
+        if (_renderTextures.TryGetValue(handle, out var rt))
+        {
+            WebGPUInterop.DestroyRenderTexture(rt.JsTextureId);
+            _renderTextures.Remove(handle);
+        }
+    }
+
+    public void BeginRenderTexturePass(nuint renderTexture, Color clearColor)
+    {
+        if (!_renderTextures.TryGetValue(renderTexture, out var rt))
+        {
+            Log.Error($"Render texture {renderTexture} not found");
+            return;
+        }
+
+        _activeRenderTexture = renderTexture;
+        _state.CurrentPassSampleCount = 1;
+        WebGPUInterop.BeginRenderTexturePass(rt.JsTextureId, clearColor.R, clearColor.G, clearColor.B, clearColor.A);
+        WebGPUInterop.SetViewport(0, 0, rt.Width, rt.Height, 0, 1);
+        WebGPUInterop.SetScissorRect(0, 0, rt.Width, rt.Height);
+
+        _state.PipelineDirty = true;
+        _state.BindGroupDirty = true;
+    }
+
+    public void EndRenderTexturePass()
+    {
+        _activeRenderTexture = 0;
+        WebGPUInterop.EndRenderTexturePass();
+    }
+
+    public async Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture)
+    {
+        if (!_renderTextures.TryGetValue(renderTexture, out var rt))
+        {
+            Log.Error($"Render texture {renderTexture} not found");
+            return Array.Empty<byte>();
+        }
+
+        var base64 = await WebGPUInterop.ReadRenderTexturePixelsAsync(rt.JsTextureId);
+        var result = Convert.FromBase64String(base64);
+
+        // Swizzle BGRA to RGBA if needed
+        if (rt.Format == WebGPUTextureFormat.BGRA8)
+        {
+            for (int i = 0; i < result.Length; i += 4)
+            {
+                (result[i], result[i + 2]) = (result[i + 2], result[i]); // Swap B and R
+            }
+        }
+
+        return result;
     }
 
     // ============================================================================

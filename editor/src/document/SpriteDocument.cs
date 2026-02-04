@@ -553,7 +553,8 @@ public class SpriteDocument : Document
             if (EditorApplication.Config.TryGetSpriteLayer(path.Layer, out var layerDef))
                 writer.WriteLine($"layer \"{layerDef.Id}\"");
 
-            writer.WriteLine($"bone \"{path.Bone}\"");
+            if (Binding.IsBound)
+                writer.WriteLine($"bone \"{path.Bone}\"");
 
             for (ushort aIdx = 0; aIdx < path.AnchorCount; aIdx++)
             {

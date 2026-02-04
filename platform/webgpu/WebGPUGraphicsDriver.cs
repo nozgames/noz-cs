@@ -655,11 +655,25 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void SetScissor(in RectInt scissor)
     {
+        // Get current render target dimensions
+        int targetWidth, targetHeight;
+        if (_activeRenderTexture != 0)
+        {
+            ref var rt = ref _renderTextures[(int)_activeRenderTexture];
+            targetWidth = rt.Width;
+            targetHeight = rt.Height;
+        }
+        else
+        {
+            targetWidth = _surfaceWidth;
+            targetHeight = _surfaceHeight;
+        }
+
         var clampedScissor = scissor;
         clampedScissor.X = Math.Max(0, scissor.X);
         clampedScissor.Y = Math.Max(0, scissor.Y);
-        clampedScissor.Width = Math.Min(scissor.Width, _surfaceWidth - scissor.X);
-        clampedScissor.Height = Math.Min(scissor.Height, _surfaceHeight - scissor.Y);
+        clampedScissor.Width = Math.Min(scissor.Width, targetWidth - scissor.X);
+        clampedScissor.Height = Math.Min(scissor.Height, targetHeight - scissor.Y);
         if (clampedScissor.Width <= 0 || clampedScissor.Height <= 0)
             return;
 
@@ -682,9 +696,20 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
         if (_currentRenderPass != null)
         {
-            // Set scissor to full viewport
-            _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass,
-                0, 0, (uint)_surfaceWidth, (uint)_surfaceHeight);
+            // Set scissor to full render target - use RT dimensions if rendering to texture
+            uint width, height;
+            if (_activeRenderTexture != 0)
+            {
+                ref var rt = ref _renderTextures[(int)_activeRenderTexture];
+                width = (uint)rt.Width;
+                height = (uint)rt.Height;
+            }
+            else
+            {
+                width = (uint)_surfaceWidth;
+                height = (uint)_surfaceHeight;
+            }
+            _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, width, height);
         }
     }
 

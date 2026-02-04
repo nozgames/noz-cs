@@ -230,9 +230,10 @@ internal class AtlasDocument : Document
             if (rect.Sprite == null)
                 continue;
 
-            var rasterBounds = rect.Sprite.RasterBounds;
-            if (rasterBounds.Size.X > rect.Rect.Size.X ||
-                rasterBounds.Size.Y > rect.Rect.Size.Y )
+            // Use AtlasSize (which accounts for slot bounds) instead of RasterBounds
+            var atlasSize = rect.Sprite.AtlasSize;
+            if (atlasSize.X > rect.Rect.Size.X ||
+                atlasSize.Y > rect.Rect.Size.Y )
             {
                 rect.Name = "";
                 rect.Sprite = null;

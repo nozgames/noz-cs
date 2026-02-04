@@ -62,6 +62,13 @@ public static partial class UI
     private static byte _activeScrollId;
     private static float _lastScrollMouseY;
     private static bool _closePopups;
+
+    // Scrollbar drag state
+    private static bool _scrollbarDragging;
+    private static byte _scrollbarDragElementId;
+    private static byte _scrollbarDragCanvasId;
+    private static float _scrollbarDragStartOffset;
+    private static float _scrollbarDragStartMouseY;
     public static Vector2 ScreenSize => _size;
 
     public static float UserScale { get; set; } = 1.0f;
@@ -690,12 +697,33 @@ public static partial class UI
 
     public static void EndTransformed() => EndElement(ElementType.Transform);
 
-    public static AutoScrollable BeginScrollable(ElementId id)
+    public static AutoScrollable BeginScrollable(ElementId id) =>
+        BeginScrollable(id, new ScrollableStyle());
+
+    public static AutoScrollable BeginScrollable(ElementId id, in ScrollableStyle style)
     {
         Debug.Assert(id != ElementId.None);
         ref var e = ref CreateElement(ElementType.Scrollable);
-        e.Data.Scrollable.ContentHeight = 0;
+        e.Data.Scrollable = new ScrollableData
+        {
+            Offset = 0,
+            ContentHeight = 0,
+            ScrollSpeed = style.ScrollSpeed,
+            ScrollbarVisibility = style.Scrollbar,
+            ScrollbarWidth = style.ScrollbarWidth,
+            ScrollbarMinThumbHeight = style.ScrollbarMinThumbHeight,
+            ScrollbarTrackColor = style.ScrollbarTrackColor,
+            ScrollbarThumbColor = style.ScrollbarThumbColor,
+            ScrollbarThumbHoverColor = style.ScrollbarThumbHoverColor,
+            ScrollbarPadding = style.ScrollbarPadding,
+            ScrollbarBorderRadius = style.ScrollbarBorderRadius
+        };
         SetId(ref e, _currentCanvasId, id);
+
+        // Restore persisted scroll offset from element state
+        ref var es = ref GetElementState(ref e);
+        e.Data.Scrollable.Offset = es.Data.Scrollable.Offset;
+
         PushElement(e.Index);
         return new AutoScrollable();
     }

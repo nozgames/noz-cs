@@ -162,6 +162,26 @@ public struct TextBoxStyle()
     };
 }
 
+public enum ScrollbarVisibility : byte
+{
+    Auto,    // Show when content exceeds viewport
+    Always,  // Always show scrollbar
+    Never    // Never show scrollbar (scroll via drag/wheel only)
+}
+
+public struct ScrollableStyle()
+{
+    public float ScrollSpeed = 30f;
+    public ScrollbarVisibility Scrollbar = ScrollbarVisibility.Auto;
+    public float ScrollbarWidth = 8f;
+    public float ScrollbarMinThumbHeight = 20f;
+    public Color ScrollbarTrackColor = new(0.15f, 0.15f, 0.15f, 0.5f);
+    public Color ScrollbarThumbColor = new(0.5f, 0.5f, 0.5f, 0.8f);
+    public Color ScrollbarThumbHoverColor = new(0.6f, 0.6f, 0.6f, 1f);
+    public float ScrollbarPadding = 2f;
+    public float ScrollbarBorderRadius = 4f;
+}
+
 public static class ElementStyle
 {
     public static ContainerStyle WithColor(this ContainerStyle style, Color color)

@@ -84,4 +84,11 @@ public interface IGraphicsDriver
     void Composite(nuint compositeShader);
     void BeginUIPass();
     void EndUIPass();
+
+    // Render Texture support (BGRA8 default matches swap chain format for pipeline compatibility)
+    nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, string? name = null);
+    void DestroyRenderTexture(nuint handle);
+    void BeginRenderTexturePass(nuint renderTexture, Color clearColor);
+    void EndRenderTexturePass();
+    Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture);
 }

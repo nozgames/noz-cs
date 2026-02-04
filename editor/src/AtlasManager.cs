@@ -164,6 +164,8 @@ public static class AtlasManager
 
         for (int atlasIndex = 0; atlasIndex < _atlases.Count; atlasIndex++)
             _atlases[atlasIndex].Update();
+
+        DocumentManager.SaveAll();
     }
 
     [Conditional("NOZ_ATLAS_DEBUG")]

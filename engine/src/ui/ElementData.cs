@@ -106,13 +106,34 @@ internal struct FlexData
 
 internal struct ScrollableData
 {
+    // Runtime state
     public float Offset;
     public float ContentHeight;
+
+    // Style configuration
+    public float ScrollSpeed;
+    public ScrollbarVisibility ScrollbarVisibility;
+    public float ScrollbarWidth;
+    public float ScrollbarMinThumbHeight;
+    public Color ScrollbarTrackColor;
+    public Color ScrollbarThumbColor;
+    public Color ScrollbarThumbHoverColor;
+    public float ScrollbarPadding;
+    public float ScrollbarBorderRadius;
 
     public static ScrollableData Default => new()
     {
         Offset = 0,
-        ContentHeight = 0
+        ContentHeight = 0,
+        ScrollSpeed = 30f,
+        ScrollbarVisibility = ScrollbarVisibility.Auto,
+        ScrollbarWidth = 8f,
+        ScrollbarMinThumbHeight = 20f,
+        ScrollbarTrackColor = new Color(0.15f, 0.15f, 0.15f, 0.5f),
+        ScrollbarThumbColor = new Color(0.5f, 0.5f, 0.5f, 0.8f),
+        ScrollbarThumbHoverColor = new Color(0.6f, 0.6f, 0.6f, 1f),
+        ScrollbarPadding = 2f,
+        ScrollbarBorderRadius = 4f
     };
 }
 

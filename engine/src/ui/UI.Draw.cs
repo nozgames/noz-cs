@@ -76,6 +76,51 @@ public static partial class UI
 
         if (setScissor)
             Graphics.ClearScissor();
+
+        // Draw scrollbar after children (outside scissor)
+        if (e.Type == ElementType.Scrollable)
+            DrawScrollbar(ref e);
+    }
+
+    private static void DrawScrollbar(ref Element e)
+    {
+        ref var s = ref e.Data.Scrollable;
+        var viewportHeight = e.Rect.Height;
+        var maxScroll = Math.Max(0, s.ContentHeight - viewportHeight);
+
+        // Check visibility
+        if (s.ScrollbarVisibility == ScrollbarVisibility.Never)
+            return;
+        if (s.ScrollbarVisibility == ScrollbarVisibility.Auto && maxScroll <= 0)
+            return;
+
+        // Calculate track position (right side of scrollable, in world space)
+        var pos = Vector2.Transform(e.Rect.Position, e.LocalToWorld);
+        var trackX = pos.X + e.Rect.Width - s.ScrollbarWidth - s.ScrollbarPadding;
+        var trackY = pos.Y + s.ScrollbarPadding;
+        var trackH = viewportHeight - s.ScrollbarPadding * 2;
+
+        // Draw track
+        UIRender.DrawRect(
+            new Rect(trackX, trackY, s.ScrollbarWidth, trackH),
+            s.ScrollbarTrackColor,
+            s.ScrollbarBorderRadius
+        );
+
+        // Draw thumb if there's content to scroll
+        if (maxScroll > 0 && s.ContentHeight > 0)
+        {
+            var thumbHeightRatio = viewportHeight / s.ContentHeight;
+            var thumbH = Math.Max(s.ScrollbarMinThumbHeight, trackH * thumbHeightRatio);
+            var scrollRatio = s.Offset / maxScroll;
+            var thumbY = trackY + scrollRatio * (trackH - thumbH);
+
+            UIRender.DrawRect(
+                new Rect(trackX, thumbY, s.ScrollbarWidth, thumbH),
+                s.ScrollbarThumbColor,
+                s.ScrollbarBorderRadius
+            );
+        }
     }
 
     private static void DrawElements() 

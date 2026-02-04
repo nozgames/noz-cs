@@ -177,6 +177,25 @@ public static partial class WebGPUInterop
     internal static partial int GetMsaaSamples();
 
     // ============================================================================
+    // Render Texture (for capturing to image)
+    // ============================================================================
+
+    [JSImport("createRenderTexture", ModuleName)]
+    internal static partial int CreateRenderTexture(int width, int height, string format, string? label);
+
+    [JSImport("destroyRenderTexture", ModuleName)]
+    internal static partial void DestroyRenderTexture(int textureId);
+
+    [JSImport("beginRenderTexturePass", ModuleName)]
+    internal static partial void BeginRenderTexturePass(int textureId, float clearR, float clearG, float clearB, float clearA);
+
+    [JSImport("endRenderTexturePass", ModuleName)]
+    internal static partial void EndRenderTexturePass();
+
+    [JSImport("readRenderTexturePixels", ModuleName)]
+    internal static partial Task<string> ReadRenderTexturePixelsAsync(int textureId);
+
+    // ============================================================================
     // Utility Functions
     // ============================================================================
 

@@ -93,7 +93,7 @@ public static unsafe partial class Graphics
         CurrentState.Viewport = RectInt.Zero;
         CurrentState.Mesh = _mesh;
 
-        _currentPass = 0;
+        _currentPass = RenderPass.Scene;
         _boneRow = 1;
 
         var size = Application.WindowSize;
@@ -103,6 +103,7 @@ public static unsafe partial class Graphics
     public static void SetCamera(Camera? camera)
     {
         Camera = camera;
+
         _batchStateDirty = true;
         if (camera == null) return;
 
@@ -118,10 +119,7 @@ public static unsafe partial class Graphics
             0, 0, 0, 1
         );
 
-        if (_currentPass == 0)
-            _sceneProjection = projection;
-        else
-            _uiProjection = projection;
+        _passProjections[(int)_currentPass] = projection;
     }
 
     public static void SetMesh(nuint vertexArray)

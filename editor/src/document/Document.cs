@@ -75,9 +75,7 @@ public abstract class Document : IDisposable
 
     public void LoadMetadata()
     {
-        var props = PropertySet.LoadFile(Path + ".meta");
-        if (props == null)
-            return;
+        var props = PropertySet.LoadFile(Path + ".meta") ?? new PropertySet();  
 
         Position = props.GetVector2("editor", "position", default);
         var collectionId = props.GetString("editor", "collection", "");

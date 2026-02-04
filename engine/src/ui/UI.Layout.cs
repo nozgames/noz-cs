@@ -223,6 +223,21 @@ public static partial class UI
                 elementIndex = child.NextSiblingIndex;
             }
         }
+
+        // Calculate content height for scrollables
+        if (e.Type == ElementType.Scrollable)
+        {
+            var contentHeight = 0f;
+            var childIdx = e.Index + 1;
+            for (var i = 0; i < e.ChildCount; i++)
+            {
+                ref var child = ref GetElement(childIdx);
+                var childBottom = child.Rect.Y + child.Rect.Height - e.ContentRect.Y;
+                contentHeight = Math.Max(contentHeight, childBottom);
+                childIdx = child.NextSiblingIndex;
+            }
+            e.Data.Scrollable.ContentHeight = contentHeight;
+        }
     }
 
     private static void UpdateTransforms(ref Element e, ref readonly Element p)
@@ -232,6 +247,13 @@ public static partial class UI
 
         // Child position relative to parent's LocalToWorld origin
         var childPos = new Vector2(e.Rect.X, e.Rect.Y) - parentPivotOffset;
+
+        // Apply scroll offset if parent is scrollable
+        if (p.Type == ElementType.Scrollable && p.Id != ElementId.None)
+        {
+            ref var ps = ref GetElementState(p.CanvasId, p.Id);
+            childPos.Y -= ps.Data.Scrollable.Offset;
+        }
 
         // Clamp popup to screen bounds if requested (popup rect is already in canvas space)
         if (e.Type == ElementType.Popup && e.Data.Popup.ClampToScreen)
