@@ -288,4 +288,6 @@ public class WebPlatform : IPlatform
 
     public Stream? LoadPersistentData(string name, string? appName = null) => null; // TODO: Use localStorage
     public void SavePersistentData(string name, Stream data, string? appName = null) { } // TODO: Use localStorage
+
+    public void Log(string message) => Console.WriteLine(message);
 }

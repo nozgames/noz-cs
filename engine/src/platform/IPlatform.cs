@@ -71,5 +71,7 @@ public interface IPlatform
 
     Stream? LoadPersistentData(string name, string? appName = null);
     void SavePersistentData(string name, Stream data, string? appName = null);
+
+    void Log(string message);
 }
 

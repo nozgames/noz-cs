@@ -542,5 +542,7 @@ public unsafe partial class SDLPlatform : IPlatform
         file.Flush();
         file.Close();
     }
+
+    public void Log(string message) => System.Diagnostics.Debug.WriteLine(message);
 }
 

@@ -37,7 +37,8 @@ public static class Log
 
     private static void Write(string message)
     {
-        System.Diagnostics.Debug.WriteLine(message);
+        Application.Platform.Log(message);
+
         if (Path != null)
             WriteToFile(message);
     }
