@@ -91,39 +91,27 @@ public class Asset : IDisposable {
 
     private static Stream? LoadEmbeddedResource(string resourceSuffix)
     {
-        Log.Info($"LoadEmbeddedResource: Looking for '{resourceSuffix}'");
-
         var assembly = Application.ResourceAssembly;
         if (assembly == null)
-        {
-            Log.Error("LoadEmbeddedResource: No resource assembly configured");
             return null;
-        }
-
-        Log.Info($"LoadEmbeddedResource: Using assembly '{assembly.GetName().Name}'");
 
         try
         {
             var names = assembly.GetManifestResourceNames();
-            Log.Info($"LoadEmbeddedResource: Assembly has {names.Length} resources");
-
             foreach (var name in names)
             {
                 if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
                 {
-                    Log.Info($"LoadEmbeddedResource: FOUND '{name}'");
                     var stream = assembly.GetManifestResourceStream(name);
                     if (stream != null)
                         return stream;
                 }
             }
         }
-        catch (Exception ex)
+        catch
         {
-            Log.Warning($"LoadEmbeddedResource: {ex.Message}");
         }
 
-        Log.Error($"LoadEmbeddedResource: NOT FOUND '{resourceSuffix}'");
         return null;
     }
 
