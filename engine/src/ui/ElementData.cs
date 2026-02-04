@@ -229,6 +229,7 @@ public struct TextBoxData
     public Color SelectionColor;
     public BorderStyle Border;
     public BorderStyle FocusBorder;
+    public EdgeInsets Padding;
     public UnsafeSpan<char> Placeholder;
     public bool Password;
     public InputScope Scope;
@@ -243,6 +244,7 @@ public struct TextBoxData
         SelectionColor = new Color(0.2f, 0.4f, 0.8f, 0.5f),
         Border = BorderStyle.None,
         FocusBorder = BorderStyle.None,
+        Padding = EdgeInsets.Zero,
         Password = false,
         Placeholder = UnsafeSpan<char>.Empty
     };

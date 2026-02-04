@@ -160,24 +160,30 @@ public static partial class UI
 
     private static Vector2 FitTextBox(ref readonly Element e, ref readonly Element p)
     {
-        var font = e.Font ?? DefaultFont;
-        if (font == null)
-            return Vector2.Zero;
-
-        var fontSize = e.Data.TextBox.FontSize;
-        var height = font.LineHeight * fontSize;
-
-        // Use actual text if available, otherwise placeholder
-        var text = e.Id != ElementId.None
-            ? GetElementState(e.CanvasId, e.Id).Data.TextBox.Text.AsReadOnlySpan()
-            : ReadOnlySpan<char>.Empty;
-
-        if (text.Length == 0)
-            text = e.Data.TextBox.Placeholder.AsReadOnlySpan();
-
-        var width = text.Length > 0
-            ? TextRender.Measure(text, font, fontSize).X
+        // Use the style's height (same as MeasureTextBox)
+        var height = e.Data.TextBox.Height.Mode == SizeMode.Fixed
+            ? e.Data.TextBox.Height.Value
             : 0;
+
+        var font = e.Font ?? DefaultFont;
+        var width = 0f;
+
+        if (font != null)
+        {
+            var fontSize = e.Data.TextBox.FontSize;
+
+            // Use actual text if available, otherwise placeholder
+            var text = e.Id != ElementId.None
+                ? GetElementState(e.CanvasId, e.Id).Data.TextBox.Text.AsReadOnlySpan()
+                : ReadOnlySpan<char>.Empty;
+
+            if (text.Length == 0)
+                text = e.Data.TextBox.Placeholder.AsReadOnlySpan();
+
+            width = text.Length > 0
+                ? TextRender.Measure(text, font, fontSize).X
+                : 0;
+        }
 
         return new Vector2(width, height);
     }

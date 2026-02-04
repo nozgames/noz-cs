@@ -31,9 +31,8 @@ public static partial class UI
         _mouseRightPressed = Input.WasButtonPressedRaw(InputCode.MouseRight);
         _mouseRightElementId = ElementId.None;
         _mouseDoubleClickElementId = ElementId.None;
-        _hotCanvasId = ElementId.None;
 
-        LogUI("Input:", values: [("HotCanvasId", _hotCanvasId, true)]);
+        LogUI("Input:", values: [("FocusElementId", _focusElementId, true)]);
 
         // Handle popup close detection
         _closePopups = false;
@@ -58,12 +57,12 @@ public static partial class UI
             }
         }
 
-        for (var c = 0; c < _activeCanvasIds.Length; c++)
+        // Process canvases in reverse order so later canvases (on top) get input priority
+        for (var c = _activeCanvasIds.Length - 1; c >= 0; c--)
         {
             ref var cid = ref _activeCanvasIds[c];
             ref var cs = ref GetCanvasState(cid);
-            var isHotCanvas = cid == _hotCanvasId;
-            HandleCanvasInput(cid, mouse, isHotCanvas);
+            HandleCanvasInput(cid, mouse);
         }
 
         // Process scrollbar input BEFORE consuming buttons
@@ -237,7 +236,7 @@ public static partial class UI
         return false;
     }
 
-    private static void HandleCanvasInput(CanvasId canvasId, Vector2 mouse, bool isHotCanvas)
+    private static void HandleCanvasInput(CanvasId canvasId, Vector2 mouse)
     {
         ref var cs = ref _canvasStates[canvasId];
         ref var c = ref _elements[cs.ElementIndex];
@@ -281,7 +280,7 @@ public static partial class UI
             {
                 es.SetFlags(ElementFlags.Pressed, ElementFlags.Pressed);
                 _mouseLeftElementId = e.Id;
-                _pendingFocusId = e.Id;
+                _pendingFocusElementId = e.Id;
                 _pendingFocusCanvasId = canvasId;
             }
             else if (es.IsPressed)
@@ -339,7 +338,7 @@ public static partial class UI
             for (var i = _elementCount; i > 0; i--)
             {
                 ref var e = ref _elements[i - 1];
-                if (e.Type == ElementType.Scrollable && e.Id != ElementId.None && e.CanvasId == _hotCanvasId)
+                if (e.Type == ElementType.Scrollable && e.Id != ElementId.None && e.CanvasId != CanvasId.None)
                 {
                     // When popups are open, only allow starting scroll inside popups
                     if (_popupCount > 0 && !IsInsidePopup(i - 1))

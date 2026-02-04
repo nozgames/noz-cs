@@ -48,13 +48,12 @@ public static partial class UI
 
     private static int _currentTextBuffer;
     private static CanvasId _currentCanvasId;
-    private static CanvasId _hotCanvasId;
 
     private static short _elementCount;
     private static int _elementStackCount;
     private static int _popupCount;
-    private static byte _hotElementId;
-    private static byte _pendingFocusId;
+    private static byte _focusElementId;
+    private static byte _pendingFocusElementId;
     private static byte _focusCanvasId;
     private static byte _pendingFocusCanvasId;
     private static Vector2 _size;
@@ -78,8 +77,8 @@ public static partial class UI
 
     public static Camera? Camera { get; private set; } = null!;
 
-    public static bool IsHotCanvas =>
-        _currentCanvasId != CanvasId.None && _currentCanvasId == _hotCanvasId;
+    public static bool IsFocusedCanvas =>
+        _currentCanvasId != CanvasId.None && _currentCanvasId == _focusCanvasId;
 
     public static Vector2Int GetRefSize()
     {
@@ -221,12 +220,11 @@ public static partial class UI
             es.Data = default;
         }
 
+        // Only clear actual focus, not pending - allows SetFocus before BeginCanvas
         if (_focusCanvasId == canvasId)
         {
-            _hotElementId = 0;
-            _pendingFocusId = 0;
+            _focusElementId = 0;
             _focusCanvasId = 0;
-            _pendingFocusCanvasId = 0;
         }
     }
 
@@ -404,45 +402,43 @@ public static partial class UI
     {
         if (!HasCurrentElement()) return false;
         ref var e = ref GetSelf();
-        return _hotElementId != 0 && e.Id == _hotElementId && e.CanvasId == _focusCanvasId;
+        return _focusElementId != 0 && e.Id == _focusElementId && e.CanvasId == _focusCanvasId;
     }
 
-    public static void SetFocus(byte elementId)
+    public static void SetFocus(ElementId elementId)
     {
-        _hotElementId = elementId;
-        _pendingFocusId = elementId;
+        // Requires a current canvas context
+        if (!HasCurrentElement())
+            return;
 
-        // Set canvas ID from current element context
-        if (HasCurrentElement())
-        {
-            ref var e = ref GetSelf();
-            _focusCanvasId = e.CanvasId;
-            _pendingFocusCanvasId = e.CanvasId;
-        }
+        ref var e = ref GetSelf();
+        _pendingFocusElementId = elementId;
+        _pendingFocusCanvasId = e.CanvasId;
     }
 
-    public static void SetFocus(byte elementId, byte canvasId)
+    public static void SetFocus(CanvasId canvasId, ElementId elementId)
     {
-        _hotElementId = elementId;
-        _pendingFocusId = elementId;
-        _focusCanvasId = canvasId;
+        _pendingFocusElementId = elementId;
         _pendingFocusCanvasId = canvasId;
     }
-    
+
     public static void ClearFocus()
     {
-        UI.SetFocus(0, 0);
+        _focusElementId = 0;
+        _focusCanvasId = 0;
+        _pendingFocusElementId = 0;
+        _pendingFocusCanvasId = 0;
     }
 
     public static bool IsClosed() =>
         HasCurrentElement() && GetSelf().Type == ElementType.Popup && _closePopups;
 
-    private static bool IsHotElement(ref Element e) => IsHotElement(e.CanvasId, e.Id);        
+    private static bool IsFocused(ref Element e) => IsFocused(e.CanvasId, e.Id);
 
-    public static bool IsHotElement(CanvasId canvasId, ElementId elementId) =>
+    public static bool IsFocused(CanvasId canvasId, ElementId elementId) =>
         elementId != ElementId.None &&
         canvasId != CanvasId.None &&
-        _hotElementId == elementId &&
+        _focusElementId == elementId &&
         _focusCanvasId == canvasId;
 
     internal static void Begin()
@@ -452,8 +448,7 @@ public static partial class UI
         _elementCount = 0;
         _popupCount = 0;
         _currentTextBuffer = 1 - _currentTextBuffer;
-        _textBuffers[_currentTextBuffer].Clear();        
-        _hotCanvasId = CanvasId.None;
+        _textBuffers[_currentTextBuffer].Clear();
         _currentCanvasId = CanvasId.None;
 
         var screenSize = Application.WindowSize.ToVector2();
@@ -498,7 +493,7 @@ public static partial class UI
         Camera!.Update();
 
         // Apply pending focus (element ID + canvas ID)
-        _hotElementId = _pendingFocusId;
+        _focusElementId = _pendingFocusElementId;
         _focusCanvasId = _pendingFocusCanvasId;
         _activeCanvasIds.Clear();
     }
@@ -882,17 +877,6 @@ public static partial class UI
         Graphics.SetCamera(Camera);
 
         DrawElements();
-
-        // Reset textbox tracking before draw pass
-        // _textboxRenderedThisFrame = false;
-
-        //for (var popupIndex = 0; popupIndex < _popupCount; popupIndex++)
-        //{
-        //    var pIdx = _popups[popupIndex];
-        //    ref var p = ref _elements[pIdx];
-        //    for (var idx = pIdx; idx < p.NextSiblingIndex;)
-        //        idx = DrawElement(idx, true);
-        //}
 
         TextBoxEndFrame();
     }

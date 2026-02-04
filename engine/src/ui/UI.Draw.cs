@@ -123,17 +123,25 @@ public static partial class UI
         }
     }
 
-    private static void DrawElements() 
+    private static void DrawElements()
     {
         LogUI("Draw", condition: () => _elementCount > 0);
 
+        // First pass: draw everything except popups
         for (int elementIndex = 0; elementIndex < _elementCount;)
         {
             ref var canvas = ref _elements[elementIndex];
             Debug.Assert(canvas.Type == ElementType.Canvas, "Expected canvas element");
-            DrawElement(elementIndex, true);
+            DrawElement(elementIndex, false);
             elementIndex = canvas.NextSiblingIndex;
-        }            
+        }
+
+        // Second pass: draw popups (outside any scissor regions)
+        for (var i = 0; i < _popupCount; i++)
+        {
+            var popupIndex = _popups[i];
+            DrawElement(popupIndex, true);
+        }
     }
 
     private static void DrawCanvas(ref Element e)

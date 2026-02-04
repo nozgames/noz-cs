@@ -22,11 +22,17 @@ public static partial class UI
         return alignFactor * extraSpace + marginMin;
     }
 
-    private static Vector2 AlignElement(ref Element e, ref readonly Element p) => e.IsContainer
-        ? new Vector2(
-            ResolveAlign(ref e, in p, e.Data.Container.AlignX, 0),
-            ResolveAlign(ref e, in p, e.Data.Container.AlignY, 1))
-        : Vector2.Zero;
+    private static Vector2 AlignElement(ref Element e, ref readonly Element p)
+    {
+        if (!e.IsContainer)
+            return Vector2.Zero;
+
+        // For Row children, don't apply AlignX (X position is determined by row layout)
+        // For Column children, don't apply AlignY (Y position is determined by column layout)
+        var alignX = p.Type == ElementType.Row ? 0 : ResolveAlign(ref e, in p, e.Data.Container.AlignX, 0);
+        var alignY = p.Type == ElementType.Column ? 0 : ResolveAlign(ref e, in p, e.Data.Container.AlignY, 1);
+        return new Vector2(alignX, alignY);
+    }
 
     private static void LayoutGrid(ref Element e)
     {
@@ -72,7 +78,10 @@ public static partial class UI
 
             // Count spacing before any child (including flex)
             if (prevWasChild)
+            {
                 totalSpacing += e.Data.Container.Spacing;
+                offset[axis] += e.Data.Container.Spacing;
+            }
 
             if (child.Type == ElementType.Flex)
             {
@@ -82,7 +91,7 @@ public static partial class UI
                 continue;
             }
 
-            // Layout non-flex child (offset only tracks non-flex positions for first pass)
+            // Layout non-flex child
             LayoutElement(elementIndex, offset, sizeOverride);
 
             var childSize = child.Rect.GetSize(axis) + child.MarginMin[axis] + child.MarginMax[axis];

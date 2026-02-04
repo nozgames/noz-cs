@@ -142,8 +142,8 @@ public struct TextBoxStyle()
     public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
     public Color SelectionColor = new(0.2f, 0.4f, 0.8f, 0.5f);
     public BorderStyle Border = BorderStyle.None;
-
     public BorderStyle FocusBorder = BorderStyle.None;
+    public EdgeInsets Padding = EdgeInsets.Zero;
     public bool IsPassword = false;
     public InputScope Scope = InputScope.All;
 
@@ -157,6 +157,7 @@ public struct TextBoxStyle()
         SelectionColor = SelectionColor,
         Border = Border,
         FocusBorder = FocusBorder,
+        Padding = Padding,
         Password = IsPassword,
         Scope = Scope
     };

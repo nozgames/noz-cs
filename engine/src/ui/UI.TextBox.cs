@@ -16,8 +16,8 @@ public static partial class UI
         Debug.Assert(e.Id != ElementId.None, "TextBox element must have a valid Id");
 
         ref var data = ref e.Data.TextBox;
-        var isHot = e.Id != 0 && IsHotElement(ref e);
-        var border = isHot ? data.FocusBorder : data.Border;
+        var isFocused = e.Id != 0 && IsFocused(ref e);
+        var border = isFocused ? data.FocusBorder : data.Border;
 
         UIRender.DrawRect(
             new Rect(Vector2.Transform(e.Rect.Position, e.LocalToWorld), e.Rect.Size),
@@ -46,7 +46,7 @@ public static partial class UI
         Debug.Assert(e.Id != ElementId.None, "TextBox element must have a valid Id");
 
         ref var es = ref GetElementState(e.CanvasId, e.Id);
-        if (!IsHotElement(ref e))
+        if (!IsFocused(ref e))
         {
             es.SetFlags(ElementFlags.Focus | ElementFlags.Dragging, ElementFlags.None);
             es.Data.TextBox.ScrollOffset = 0.0f;
@@ -86,7 +86,6 @@ public static partial class UI
         var mousePos = UI.Camera!.ScreenToWorld(Input.MousePosition);
         var localMouse = Vector2.Transform(mousePos, e.WorldToLocal);
         var isMouseOver = e.Rect.Contains(localMouse);
-        var isHotCanvas = e.CanvasId == _hotCanvasId;
         var fontSize = e.Data.TextBox.FontSize;
         var font = e.Font!;
 
@@ -98,9 +97,7 @@ public static partial class UI
             es.SetFlags(ElementFlags.Focus, ElementFlags.Focus);
 
             // If mouse is down inside, start dragging immediately
-            // We verify hot canvas to ensure we don't steal focus/drag if obscured, 
-            // though UI system usually handles the focus switch.
-            if (isMouseOver && Input.IsButtonDown(InputCode.MouseLeft, scope) && isHotCanvas)
+            if (isMouseOver && Input.IsButtonDown(InputCode.MouseLeft, scope))
             {
                 var mouseIndex = GetTextBoxPosition(ref e, tb.Text.AsReadOnlySpan(), font, fontSize, mousePos);
                 tb.CursorIndex = mouseIndex;
@@ -111,7 +108,7 @@ public static partial class UI
         }
 
         // Double Click to Select All
-        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeftDoubleClick, scope) && isHotCanvas)
+        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeftDoubleClick, scope))
         {
             tb.SelectionStart = 0;
             tb.CursorIndex = tb.Text.AsReadOnlySpan().Length;
@@ -121,7 +118,7 @@ public static partial class UI
         }
 
         // Standard Mouse Input
-        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeft, scope) && isHotCanvas)
+        if (isMouseOver && Input.WasButtonPressed(InputCode.MouseLeft, scope))
         {
             var mouseIndex = GetTextBoxPosition(ref e, tb.Text.AsReadOnlySpan(), font, fontSize, mousePos);
             tb.CursorIndex = mouseIndex;
@@ -314,15 +311,16 @@ public static partial class UI
         ref var tb = ref es.Data.TextBox;
         var font = e.Font!;
         var text = es.Data.TextBox.Text.AsReadOnlySpan();
+        var padding = e.Data.TextBox.Padding;
         var cursorX = MeasureText(text, 0, tb.CursorIndex, font, e.Data.TextBox.FontSize);
-        var viewportWidth = e.Rect.Width;
+        var viewportWidth = e.Rect.Width - padding.Horizontal;
         var cursorScreenX = cursorX - tb.ScrollOffset;
 
         if (cursorScreenX < 0)
             tb.ScrollOffset = cursorX;
         else if (cursorScreenX > viewportWidth)
             tb.ScrollOffset = cursorX - viewportWidth;
-        
+
         var totalWidth = MeasureText(text, 0, text.Length, font, e.Data.TextBox.FontSize);
         if (totalWidth < viewportWidth)
             tb.ScrollOffset = 0;
@@ -338,19 +336,21 @@ public static partial class UI
         if (!es.HasFocus) return;
         if (tb.CursorIndex == tb.SelectionStart) return;
 
+        var padding = e.Data.TextBox.Padding;
         var start = Math.Min(tb.CursorIndex, tb.SelectionStart);
         var end = Math.Max(tb.CursorIndex, tb.SelectionStart);
-        var startX = MeasureText(text, 0, start, font, e.Data.TextBox.FontSize) - tb.ScrollOffset;
-        var endX = MeasureText(text, 0, end, font, e.Data.TextBox.FontSize) - tb.ScrollOffset;        
-        var rectX = 0f;
-        var rectW = e.Rect.Width;
+        var startX = MeasureText(text, 0, start, font, e.Data.TextBox.FontSize) - tb.ScrollOffset + padding.L;
+        var endX = MeasureText(text, 0, end, font, e.Data.TextBox.FontSize) - tb.ScrollOffset + padding.L;
+        var rectX = padding.L;
+        var rectW = e.Rect.Width - padding.R;
         var drawX = Math.Max(rectX, startX);
         var drawW = Math.Min(rectW, endX) - drawX;
 
         if (drawW <= 0) return;
 
-        var pos = Vector2.Transform(new Vector2(drawX + e.Rect.X, e.Rect.Y), e.LocalToWorld);
-        UIRender.DrawRect(new Rect(pos.X, pos.Y, drawW, e.Rect.Height), e.Data.TextBox.SelectionColor);
+        var pos = Vector2.Transform(new Vector2(drawX + e.Rect.X, e.Rect.Y + padding.T), e.LocalToWorld);
+        var selectionHeight = e.Rect.Height - padding.Vertical;
+        UIRender.DrawRect(new Rect(pos.X, pos.Y, drawW, selectionHeight), e.Data.TextBox.SelectionColor);
     }
 
     private static void DrawTextBoxText(
@@ -365,6 +365,7 @@ public static partial class UI
 
         ref var es = ref GetElementState(ref e);
         ref var tb = ref es.Data.TextBox;
+        var padding = e.Data.TextBox.Padding;
 
         var scale = UI.GetUIScale();
         var screenPos = UI.Camera!.WorldToScreen(Vector2.Transform(e.Rect.Position, e.LocalToWorld));
@@ -375,7 +376,10 @@ public static partial class UI
             (int)(e.Rect.Width * scale),
             (int)(e.Rect.Height * scale));
 
-        var textOffset = new Vector2(-tb.ScrollOffset + e.Rect.X, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f + e.Rect.Y);
+        var contentHeight = e.Rect.Height - padding.Vertical;
+        var textOffset = new Vector2(
+            -tb.ScrollOffset + e.Rect.X + padding.L,
+            (contentHeight - font.LineHeight * fontSize) * 0.5f + e.Rect.Y + padding.T);
         var textToRender = password
              ? PasswordMask.AsSpan()[..Math.Min(text.Length, PasswordMask!.Length)]
              : text;
@@ -397,9 +401,13 @@ public static partial class UI
             return;
 
         ref var state = ref GetElementState(ref e).Data.TextBox;
-        var fontSize = e.Data.TextBox.FontSize;
+        var padding = data.Padding;
+        var fontSize = data.FontSize;
         var placeholder = new string(data.Placeholder.AsReadOnlySpan());
-        var placeholderOffset = new Vector2(-state.ScrollOffset + e.Rect.X, (e.Rect.Height - font.LineHeight * fontSize) * 0.5f + e.Rect.Y);
+        var contentHeight = e.Rect.Height - padding.Vertical;
+        var placeholderOffset = new Vector2(
+            -state.ScrollOffset + e.Rect.X + padding.L,
+            (contentHeight - font.LineHeight * fontSize) * 0.5f + e.Rect.Y + padding.T);
         var transform = Matrix3x2.CreateTranslation(placeholderOffset) * e.LocalToWorld;
 
         using (Graphics.PushState())
@@ -421,14 +429,17 @@ public static partial class UI
         tb.BlinkTimer += Time.DeltaTime;
         if ((int)(tb.BlinkTimer * 2) % 2 == 1 && !es.IsDragging) return; // Blink off
 
+        var padding = e.Data.TextBox.Padding;
         var fontSize = e.Data.TextBox.FontSize;
-        var cursorX = MeasureText(text, 0, tb.CursorIndex, font, fontSize) - tb.ScrollOffset;
+        var cursorX = MeasureText(text, 0, tb.CursorIndex, font, fontSize) - tb.ScrollOffset + padding.L;
+        var viewportWidth = e.Rect.Width - padding.Horizontal;
 
-        if (cursorX < 0 || cursorX > e.Rect.Width) return;
+        if (cursorX < padding.L || cursorX > padding.L + viewportWidth) return;
 
         var cursorW = 1f; // 1 pixel width
         var cursorH = font.LineHeight * fontSize;
-        var cursorY = (e.Rect.Height - cursorH) * 0.5f;
+        var contentHeight = e.Rect.Height - padding.Vertical;
+        var cursorY = (contentHeight - cursorH) * 0.5f + padding.T;
 
         var pos = Vector2.Transform(new Vector2(cursorX + e.Rect.X, cursorY + e.Rect.Y), e.LocalToWorld);
         UIRender.DrawRect(new Rect(pos.X, pos.Y, cursorW, cursorH), Color.White);
@@ -449,13 +460,14 @@ public static partial class UI
     {
         ref var es = ref GetElementState(ref e);
         ref var tb = ref es.Data.TextBox;
+        var padding = e.Data.TextBox.Padding;
         var localMouse = Vector2.Transform(worldMousePos, e.WorldToLocal);
-        var x = localMouse.X - e.Rect.X + tb.ScrollOffset;
-        
+        var x = localMouse.X - e.Rect.X - padding.L + tb.ScrollOffset;
+
         if (x <= 0) return 0;
-        
+
         var currentX = 0f;
-        
+
         for (var i = 0; i < text.Length; i++)
         {
             var ch = text[i];
@@ -463,13 +475,13 @@ public static partial class UI
             var advance = glyph.Advance * fontSize;
             if (i + 1 < text.Length)
                 advance += font.GetKerning(ch, text[i + 1]) * fontSize;
-                
+
             if (x < currentX + advance * 0.5f)
                 return i;
-                
+
             currentX += advance;
         }
-        
+
         return text.Length;
     }
 

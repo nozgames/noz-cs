@@ -30,7 +30,7 @@ public static class CommandPalette
         _filteredCount = 0;
 
         UpdateFilteredCommands();
-        UI.SetFocus(SearchId, EditorStyle.CanvasId.CommandPalette);
+        UI.SetFocus(EditorStyle.CanvasId.CommandPalette, SearchId);
     }
 
     public static void Close()
