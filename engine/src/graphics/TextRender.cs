@@ -123,7 +123,7 @@ internal static class TextRender
 
         using var _ = Graphics.PushState();
         Graphics.SetShader(_textShader);
-        Graphics.SetTexture(atlasTexture);
+        Graphics.SetTexture(atlasTexture, filter: TextureFilter.Linear);
         Graphics.SetMesh(_mesh);
 
         var currentX = 0f;

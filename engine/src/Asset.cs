@@ -91,36 +91,36 @@ public class Asset : IDisposable {
 
     private static Stream? LoadEmbeddedResource(string resourceSuffix)
     {
-        // Check all loaded assemblies for embedded resources
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        Log.Info($"LoadEmbeddedResource: Looking for '{resourceSuffix}'");
 
-        Log.Info($"LoadEmbeddedResource: Looking for '{resourceSuffix}' in {assemblies.Length} assemblies");
-
-        foreach (var assembly in assemblies)
+        var assembly = Application.ResourceAssembly;
+        if (assembly == null)
         {
-            if (assembly == null || assembly.IsDynamic) continue;
+            Log.Error("LoadEmbeddedResource: No resource assembly configured");
+            return null;
+        }
 
-            try
+        Log.Info($"LoadEmbeddedResource: Using assembly '{assembly.GetName().Name}'");
+
+        try
+        {
+            var names = assembly.GetManifestResourceNames();
+            Log.Info($"LoadEmbeddedResource: Assembly has {names.Length} resources");
+
+            foreach (var name in names)
             {
-                var names = assembly.GetManifestResourceNames();
-                if (names.Length > 0)
-                    Log.Info($"  Assembly {assembly.GetName().Name}: {names.Length} resources");
-
-                foreach (var name in names)
+                if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
-                    {
-                        Log.Info($"  FOUND: {name}");
-                        var stream = assembly.GetManifestResourceStream(name);
-                        if (stream != null)
-                            return stream;
-                    }
+                    Log.Info($"LoadEmbeddedResource: FOUND '{name}'");
+                    var stream = assembly.GetManifestResourceStream(name);
+                    if (stream != null)
+                        return stream;
                 }
             }
-            catch (Exception ex)
-            {
-                Log.Warning($"  Assembly {assembly.GetName().Name}: {ex.Message}");
-            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"LoadEmbeddedResource: {ex.Message}");
         }
 
         Log.Error($"LoadEmbeddedResource: NOT FOUND '{resourceSuffix}'");

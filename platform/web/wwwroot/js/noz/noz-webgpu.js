@@ -117,8 +117,6 @@ export async function init(canvasSelector) {
     // Create fullscreen quad
     createFullscreenQuad();
 
-    console.log(`WebGPU initialized: ${presentFormat}, ${surfaceWidth}x${surfaceHeight}`);
-
     return {
         width: surfaceWidth,
         height: surfaceHeight,
@@ -181,7 +179,6 @@ export function createBuffer(size, usage, label) {
         mappedAtCreation: false
     });
     buffers.set(id, buffer);
-    console.log(`createBuffer: id=${id}, size=${size}, usage=${usage}, label=${label}, buffers.size=${buffers.size}`);
     return id;
 }
 
@@ -678,13 +675,7 @@ export function createBindGroupFromJson(layoutId, entriesJson, label) {
 // Frame Management
 // ============================================================================
 
-let beginFrameCount = 0;
 export function beginFrame() {
-    beginFrameCount++;
-    if (beginFrameCount <= 3) {
-        console.log(`beginFrame: frame ${beginFrameCount}`);
-    }
-
     // Check for resize
     checkResize();
 
@@ -704,18 +695,12 @@ export function beginFrame() {
     return true;
 }
 
-let frameCount = 0;
 export function endFrame() {
     if (!currentCommandEncoder) return;
 
     // Submit commands
     const commandBuffer = currentCommandEncoder.finish();
     queue.submit([commandBuffer]);
-
-    frameCount++;
-    if (frameCount <= 3) {
-        console.log(`endFrame: frame ${frameCount} submitted, drawCalls=${drawCallCount}`);
-    }
 
     currentCommandEncoder = null;
     currentSurfaceTexture = null;
@@ -846,13 +831,8 @@ export function setIndexBuffer(meshId) {
     }
 }
 
-let drawCallCount = 0;
 export function drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
     if (currentRenderPass) {
-        drawCallCount++;
-        if (drawCallCount <= 5) {
-            console.log(`drawIndexed: indexCount=${indexCount}, instanceCount=${instanceCount || 1}`);
-        }
         currentRenderPass.drawIndexed(
             indexCount,
             instanceCount || 1,
@@ -881,7 +861,6 @@ export function draw(vertexCount, instanceCount, firstVertex, firstInstance) {
 // ============================================================================
 
 export function resizeOffscreenTarget(width, height, samples) {
-    console.log(`resizeOffscreenTarget: ${width}x${height}, samples=${samples}`);
     if (offscreenWidth === width && offscreenHeight === height && msaaSamples === samples) {
         return;
     }
@@ -976,12 +955,7 @@ function createFullscreenQuad() {
     queue.writeBuffer(fullscreenQuadIndexBuffer, 0, indices);
 }
 
-let fullscreenQuadDrawCount = 0;
 export function drawFullscreenQuad() {
-    fullscreenQuadDrawCount++;
-    if (fullscreenQuadDrawCount <= 3) {
-        console.log(`drawFullscreenQuad: pass=${!!currentRenderPass}, vb=${!!fullscreenQuadVertexBuffer}, ib=${!!fullscreenQuadIndexBuffer}`);
-    }
     if (currentRenderPass && fullscreenQuadVertexBuffer && fullscreenQuadIndexBuffer) {
         currentRenderPass.setVertexBuffer(0, fullscreenQuadVertexBuffer);
         currentRenderPass.setIndexBuffer(fullscreenQuadIndexBuffer, 'uint16');

@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Reflection;
 using NoZ.Platform;
 
 namespace NoZ;
@@ -17,6 +18,7 @@ public static class Application
     public static ApplicationConfig Config { get; private set; } = null!;
     public static IPlatform Platform { get; private set; } = null!;
     public static IAudioDriver AudioDriverBackend { get; private set; } = null!;
+    public static Assembly? ResourceAssembly { get; private set; }
     public static Vector2Int WindowSize => Platform.WindowSize;
     public static Vector2Int WindowPosition => Platform.WindowPosition;
     public static string AssetPath { get; private set; } = null!;
@@ -45,6 +47,7 @@ public static class Application
             "App must be provided. Implement IApplication in your game.");
 
         AssetPath = config.AssetPath ?? Path.Combine(Directory.GetCurrentDirectory(), "library");
+        ResourceAssembly = config.ResourceAssembly;
 
         // Allow game to load config (window size/position) before platform init
         _instance.LoadConfig(config);

@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Reflection;
 using NoZ.Platform;
 
 namespace NoZ;
@@ -37,4 +38,5 @@ public class ApplicationConfig
     public IAudioDriver? AudioBackend { get; init; }
     public string? AssetPath { get; init; } = null;
     public string TextShader { get; init; } = "text";
+    public Assembly? ResourceAssembly { get; init; }
 }

@@ -37,7 +37,10 @@ public static class Log
 
     private static void Write(string message)
     {
-        Application.Platform.Log(message);
+        // Console.WriteLine for web browser console
+        Console.WriteLine(message);
+        // Debug.WriteLine for Windows debug output (VS, debugger)
+        System.Diagnostics.Debug.WriteLine(message);
 
         if (Path != null)
             WriteToFile(message);

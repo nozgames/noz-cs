@@ -218,59 +218,51 @@ public static partial class UI
         }
         else if (e.Type == ElementType.Column)
         {
-            var prevWasNonFlex = false;
+            var prevWasChild = false;
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
             {
                 ref readonly var child = ref GetElement(elementIndex);
-                if (child.Type == ElementType.Flex)
-                {
-                    prevWasNonFlex = false;
-                    elementIndex = child.NextSiblingIndex;
-                    continue;
-                }
-
                 if (child.Type == ElementType.Popup)
                 {
                     elementIndex = child.NextSiblingIndex;
                     continue;
                 }
 
-                if (prevWasNonFlex)
+                if (prevWasChild)
                     fit.Y += e.Data.Container.Spacing;
 
-                var childOuter = GetOuterSize(in child, FitElement(in child, in e));
-                fit.X = Math.Max(fit.X, childOuter.X);
-                fit.Y += childOuter.Y;
-                prevWasNonFlex = true;
+                if (child.Type != ElementType.Flex)
+                {
+                    var childOuter = GetOuterSize(in child, FitElement(in child, in e));
+                    fit.X = Math.Max(fit.X, childOuter.X);
+                    fit.Y += childOuter.Y;
+                }
+                prevWasChild = true;
                 elementIndex = child.NextSiblingIndex;
             }
         }
         else if (e.Type == ElementType.Row)
         {
-            var prevWasNonFlex = false;
+            var prevWasChild = false;
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
             {
                 ref readonly var child = ref GetElement(elementIndex);
-                if (child.Type == ElementType.Flex)
-                {
-                    prevWasNonFlex = false;
-                    elementIndex = child.NextSiblingIndex;
-                    continue;
-                }
-
                 if (child.Type == ElementType.Popup)
                 {
                     elementIndex = child.NextSiblingIndex;
                     continue;
                 }
 
-                if (prevWasNonFlex)
+                if (prevWasChild)
                     fit.X += e.Data.Container.Spacing;
 
-                var childOuter = GetOuterSize(in child, FitElement(in child, in e));
-                fit.X += childOuter.X;
-                fit.Y = Math.Max(fit.Y, childOuter.Y);
-                prevWasNonFlex = true;
+                if (child.Type != ElementType.Flex)
+                {
+                    var childOuter = GetOuterSize(in child, FitElement(in child, in e));
+                    fit.X += childOuter.X;
+                    fit.Y = Math.Max(fit.Y, childOuter.Y);
+                }
+                prevWasChild = true;
                 elementIndex = child.NextSiblingIndex;
             }
         }

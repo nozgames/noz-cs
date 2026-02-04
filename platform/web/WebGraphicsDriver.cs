@@ -186,13 +186,22 @@ public class WebGraphicsDriver : IGraphicsDriver
     {
         // Import the JS module first before calling any JSImport functions
         // Use absolute path from web root (not relative, which resolves from _framework/)
+        Log.Info("WebGraphicsDriver: Importing JS module...");
         await JSHost.ImportAsync("noz-webgpu", "/js/noz/noz-webgpu.js");
 
+        Log.Info("WebGraphicsDriver: Calling InitAsync...");
         var result = await WebGPUInterop.InitAsync("#canvas");
+
+        if (result == null)
+        {
+            Log.Error("WebGraphicsDriver: InitAsync returned null - WebGPU may not be available");
+            throw new InvalidOperationException("WebGPU initialization failed - result is null");
+        }
 
         _surfaceWidth = result.GetPropertyAsInt32("width");
         _surfaceHeight = result.GetPropertyAsInt32("height");
         _surfaceFormat = result.GetPropertyAsString("format") ?? "bgra8unorm";
+        Log.Info($"WebGraphicsDriver: Initialized {_surfaceWidth}x{_surfaceHeight} format={_surfaceFormat}");
 
         _state = new CachedState
         {
@@ -201,8 +210,6 @@ public class WebGraphicsDriver : IGraphicsDriver
         };
 
         CreateFullscreenQuad();
-
-        Log.Info($"WebGraphicsDriver initialized: {_surfaceFormat}, {_surfaceWidth}x{_surfaceHeight}");
     }
 
     public void Shutdown()

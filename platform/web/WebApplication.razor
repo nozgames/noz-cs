@@ -43,11 +43,14 @@
 
     private async Task InitializeGame()
     {
+        Console.WriteLine("WebApplication: InitializeGame starting...");
+
         // Create platform, render backend, and audio driver
         _platform = new WebPlatform(JS);
         _driver = new WebGraphicsDriver();
         _audio = new WebAudio(JS);
 
+        Console.WriteLine("WebApplication: Initializing platform...");
         // Initialize platform async first (web needs JS modules loaded)
         await _platform.InitAsync(new PlatformConfig
         {
@@ -58,6 +61,7 @@
             Resizable = false
         });
 
+        Console.WriteLine("WebApplication: Initializing graphics driver...");
         // Initialize graphics driver (needs async for browser WebGPU)
         _driver.Init(new GraphicsDriverConfig
         {
@@ -66,8 +70,15 @@
         });
         await _driver.InitAsync();
 
+        Console.WriteLine("WebApplication: Initializing audio...");
         await _audio.InitAsync();
 
+        // Get resource assembly from Vtable
+        var resourceAssembly = Vtable?.GetType().Assembly;
+        Console.WriteLine($"WebApplication: Vtable type = {Vtable?.GetType().FullName}");
+        Console.WriteLine($"WebApplication: ResourceAssembly = {resourceAssembly?.GetName().Name}");
+
+        Console.WriteLine("WebApplication: Calling Application.Init...");
         // Initialize Application with config
         Application.Init(new ApplicationConfig
         {
@@ -77,6 +88,7 @@
             Platform = _platform,
             AudioBackend = _audio,
             Vtable = Vtable,
+            ResourceAssembly = resourceAssembly,
             UI = UI,
             Graphics = new GraphicsConfig
             {

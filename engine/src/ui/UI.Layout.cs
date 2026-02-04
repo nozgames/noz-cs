@@ -51,25 +51,18 @@ public static partial class UI
     private static void LayoutRowColumn(ref Element e, ref readonly Element p, int axis)
     {
         var offset = Vector2.Zero;
-        var fixedSize = 0.0f;
+        var nonFlexSize = 0.0f;
+        var totalSpacing = 0.0f;
         var flexTotal = 0.0f;
         var sizeOverride = e.ContentRect.Size;
         sizeOverride[axis] = AutoSize.X;
 
-        // First pass: layout non-flex children, spacing only between adjacent non-flex elements
-        var prevWasNonFlex = false;
+        // First pass: layout non-flex children and calculate total fixed size (including all spacing)
+        var prevWasChild = false;
         var elementIndex = e.Index + 1;
         for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
         {
             ref var child = ref GetElement(elementIndex);
-            if (child.Type == ElementType.Flex)
-            {
-                flexTotal += child.Data.Flex.Flex;
-                prevWasNonFlex = false;
-                elementIndex = child.NextSiblingIndex;
-                continue;
-            }
-
             if (child.Type == ElementType.Popup)
             {
                 LayoutElement(elementIndex, Vector2.Zero, AutoSize);
@@ -77,23 +70,35 @@ public static partial class UI
                 continue;
             }
 
-            if (prevWasNonFlex)
-                offset[axis] += e.Data.Container.Spacing;
+            // Count spacing before any child (including flex)
+            if (prevWasChild)
+                totalSpacing += e.Data.Container.Spacing;
 
+            if (child.Type == ElementType.Flex)
+            {
+                flexTotal += child.Data.Flex.Flex;
+                prevWasChild = true;
+                elementIndex = child.NextSiblingIndex;
+                continue;
+            }
+
+            // Layout non-flex child (offset only tracks non-flex positions for first pass)
             LayoutElement(elementIndex, offset, sizeOverride);
 
-            var childRelativeEnd = (child.Rect[axis] - e.ContentRect[axis]) + child.Rect.GetSize(axis);
-            offset[axis] = childRelativeEnd + child.MarginMax[axis];
-            fixedSize = offset[axis];
-            prevWasNonFlex = true;
+            var childSize = child.Rect.GetSize(axis) + child.MarginMin[axis] + child.MarginMax[axis];
+            nonFlexSize += childSize;
+            offset[axis] += childSize;
+            prevWasChild = true;
             elementIndex = child.NextSiblingIndex;
         }
+
+        var fixedSize = nonFlexSize + totalSpacing;
 
         if (flexTotal > float.Epsilon && fixedSize < e.ContentRect.Size[axis])
         {
             var flexAvailable = e.ContentRect.Size[axis] - fixedSize;
             var flexOffset = Vector2.Zero;
-            prevWasNonFlex = false;
+            prevWasChild = false;
             elementIndex = e.Index + 1;
             for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
             {
@@ -104,15 +109,14 @@ public static partial class UI
                     continue;
                 }
 
+                if (prevWasChild)
+                    flexOffset[axis] += e.Data.Container.Spacing;
+
                 if (child.Type != ElementType.Flex)
                 {
-                    if (prevWasNonFlex)
-                        flexOffset[axis] += e.Data.Container.Spacing;
-
                     var align = child.MarginMin[axis];
                     child.Rect[axis] = e.ContentRect[axis] + flexOffset[axis] + align;
                     flexOffset[axis] += align + child.Rect.GetSize(axis) + child.MarginMax[axis];
-                    prevWasNonFlex = true;
                 }
                 else
                 {
@@ -121,9 +125,9 @@ public static partial class UI
                     flexSizeOverride[axis] = flex;
                     LayoutElement(child.Index, flexOffset, flexSizeOverride);
                     flexOffset[axis] += flex;
-                    prevWasNonFlex = false;
                 }
 
+                prevWasChild = true;
                 elementIndex = child.NextSiblingIndex;
             }
         }
