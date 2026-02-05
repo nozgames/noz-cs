@@ -162,7 +162,7 @@ public static partial class UI
     {
         return TextRender.Measure(
             e.Data.Label.Text.AsReadOnlySpan(),
-            e.Font!,
+            (Font)e.Asset!,
             e.Data.Label.FontSize);
     }
 
@@ -173,7 +173,7 @@ public static partial class UI
             ? e.Data.TextBox.Height.Value
             : 0;
 
-        var font = e.Font ?? DefaultFont;
+        var font = (e.Asset as Font) ?? DefaultFont;
         var width = 0f;
 
         if (font != null)

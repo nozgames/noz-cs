@@ -17,6 +17,7 @@ public static class UIRender
     private static NativeArray<UIVertex> _vertices;
     private static NativeArray<ushort> _indices;
     private static Shader? _shader;
+    private static Texture? _whiteTexture;
     private static bool _initialized;
 
     public static void Init(UIConfig config)
@@ -34,6 +35,10 @@ public static class UIRender
             "UIRender"
         );
 
+        // Create 1x1 white texture for non-textured UI elements
+        byte[] white = [255, 255, 255, 255];
+        _whiteTexture = Texture.Create(1, 1, white, TextureFormat.RGBA8, TextureFilter.Point, "UIRender_White");
+
         _initialized = true;
     }
 
@@ -43,6 +48,7 @@ public static class UIRender
 
         _vertices.Dispose();
         _indices.Dispose();
+        _whiteTexture?.Dispose();
 
         Graphics.Driver.DestroyMesh(_mesh);
         _initialized = false;
@@ -64,6 +70,26 @@ public static class UIRender
         BorderRadius borderRadius,
         float borderWidth = 0,
         Color borderColor = default)
+    {
+        DrawTexturedRect(rect, _whiteTexture, color, borderRadius, borderWidth, borderColor);
+    }
+
+    public static void DrawImage(
+        in Rect rect,
+        Texture texture,
+        Color color,
+        BorderRadius borderRadius = default)
+    {
+        DrawTexturedRect(rect, texture, color, borderRadius, 0, default);
+    }
+
+    private static void DrawTexturedRect(
+        in Rect rect,
+        Texture? texture,
+        Color color,
+        BorderRadius borderRadius,
+        float borderWidth,
+        Color borderColor)
     {
         if (!_initialized || _shader == null) return;
 
@@ -133,6 +159,7 @@ public static class UIRender
         AddQuadIndices(vertexOffset);
 
         Graphics.SetShader(_shader);
+        Graphics.SetTexture(texture ?? _whiteTexture, filter: texture?.Filter ?? TextureFilter.Point);
         Graphics.SetMesh(_mesh);
         Graphics.DrawElements(6, indexOffset);
     }
@@ -146,20 +173,6 @@ public static class UIRender
         _indices.Add((ushort)(baseVertex + 2));
         _indices.Add((ushort)(baseVertex + 3));
         _indices.Add((ushort)baseVertex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void AddSimpleQuad(float x0, float y0, float x1, float y1, Color c)
-    {
-        if (x1 <= x0 || y1 <= y0) return;
-        var vo = _vertices.Length;
-        // Simple quad with no rounding - uses the same shader but with zero radii
-        var size = new Vector2(x1 - x0, y1 - y0);
-        _vertices.Add(new UIVertex { Position = new Vector2(x0, y0), UV = new Vector2(0, 0), Normal = size, Color = c, BorderRatio = 0, BorderColor = default, CornerRadii = Vector4.Zero });
-        _vertices.Add(new UIVertex { Position = new Vector2(x1, y0), UV = new Vector2(1, 0), Normal = size, Color = c, BorderRatio = 0, BorderColor = default, CornerRadii = Vector4.Zero });
-        _vertices.Add(new UIVertex { Position = new Vector2(x1, y1), UV = new Vector2(1, 1), Normal = size, Color = c, BorderRatio = 0, BorderColor = default, CornerRadii = Vector4.Zero });
-        _vertices.Add(new UIVertex { Position = new Vector2(x0, y1), UV = new Vector2(0, 1), Normal = size, Color = c, BorderRatio = 0, BorderColor = default, CornerRadii = Vector4.Zero });
-        AddQuadIndices(vo);
     }
 
     public static void Flush()

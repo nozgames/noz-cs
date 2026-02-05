@@ -75,6 +75,7 @@ internal struct ImageData
     public float Width;
     public float Height;
     public int AtlasIndex;
+    public BorderRadius BorderRadius;
 
     public static ImageData Default => new()
     {
@@ -88,7 +89,8 @@ internal struct ImageData
         UV1 = Vector2.One,
         Width = 0,
         Height = 0,
-        AtlasIndex = -1
+        AtlasIndex = -1,
+        BorderRadius = BorderRadius.Zero
     };
 }
 

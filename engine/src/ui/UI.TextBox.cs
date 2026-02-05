@@ -30,7 +30,7 @@ public static partial class UI
         if (e.Id == ElementId.None)
             return;
 
-        var font = e.Font ?? DefaultFont;
+        var font = (e.Asset as Font) ?? DefaultFont;
         if (font == null) return;
 
         ref var es = ref GetElementState(ref e);
@@ -87,7 +87,7 @@ public static partial class UI
         var localMouse = Vector2.Transform(mousePos, e.WorldToLocal);
         var isMouseOver = e.Rect.Contains(localMouse);
         var fontSize = e.Data.TextBox.FontSize;
-        var font = e.Font!;
+        var font = (Font)e.Asset!;
 
         ref var es = ref GetElementState(ref e);
         ref var tb = ref es.Data.TextBox;
@@ -309,7 +309,7 @@ public static partial class UI
     {
         ref var es = ref GetElementState(ref e);
         ref var tb = ref es.Data.TextBox;
-        var font = e.Font!;
+        var font = (Font)e.Asset!;
         var text = es.Data.TextBox.Text.AsReadOnlySpan();
         var padding = e.Data.TextBox.Padding;
         var cursorX = MeasureText(text, 0, tb.CursorIndex, font, e.Data.TextBox.FontSize);

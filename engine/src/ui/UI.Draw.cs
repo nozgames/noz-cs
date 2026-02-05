@@ -207,7 +207,7 @@ public static partial class UI
     // :label
     private static void DrawLabel(ref Element e)
     {
-        var font = e.Font ?? _defaultFont!;
+        var font = (e.Asset as Font) ?? _defaultFont!;
         var text = e.Data.Label.Text.AsReadOnlySpan();
         var textOffset = GetTextOffset(text, font, e.Data.Label.FontSize, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
         var transform = Matrix3x2.CreateTranslation(e.Rect.Position + textOffset) * e.LocalToWorld;
@@ -220,51 +220,46 @@ public static partial class UI
         }
     }
 
+    private static Vector2 GetImageScale(ImageStretch stretch, Vector2 srcSize, Vector2 dstSize)
+    {
+        var scale = dstSize / srcSize;
+        return stretch switch
+        {
+            ImageStretch.None => Vector2.One,
+            ImageStretch.Uniform => new Vector2(MathF.Min(scale.X, scale.Y)),
+            _ => scale
+        };
+    }
+
     private static void DrawImage(ref Element e)
     {
         ref var img = ref e.Data.Image;
-        if (e.Sprite == null) return;
+        if (e.Asset == null) return;
 
-        var sprite = e.Sprite;
-        var spriteSize = sprite.Size;
-        var imgSize = e.Rect.Size;
-        var scale = new Vector2(
-            imgSize.X / spriteSize.X,
-            imgSize.Y / spriteSize.Y);
+        var srcSize = new Vector2(img.Width, img.Height);
+        var scale = GetImageScale(img.Stretch, srcSize, e.Rect.Size);
+        var scaledSize = scale * srcSize;
+        var offset = e.Rect.Position + (e.Rect.Size - scaledSize) * new Vector2(img.AlignX.ToFactor(), img.AlignY.ToFactor());
 
-        switch (img.Stretch)
+        if (e.Asset is Sprite sprite)
         {
-            case ImageStretch.None:
-                scale = Vector2.One;
-                break;
-            case ImageStretch.Uniform:
-                var uniformScale = MathF.Min(scale.X, scale.Y);
-                scale = new Vector2(uniformScale, uniformScale);
-                break;
-            case ImageStretch.Fill:
-                // scaleX and scaleY are already set correctly
-                break;
-        }
-
-        var scaledSize = scale * spriteSize;
-
-        var offset = new Vector2(
-            e.Rect.X + (imgSize.X - scaledSize.X) * img.AlignX.ToFactor() - sprite.Bounds.X * scale.X,
-            e.Rect.Y + (imgSize.Y - scaledSize.Y) * img.AlignY.ToFactor() - sprite.Bounds.Y * scale.Y
-        );
-
-        LogUI(e, "      ", values: [
-            ("Scale", scale, true),
-            ("Offset", offset, offset != Vector2.Zero),
-            ("Color", img.Color, img.Color != Color.White),
-            ]);
-
-        using (Graphics.PushState())
-        {
+            offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
             var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld;
+            using var _ = Graphics.PushState();
             Graphics.SetTransform(transform);
             Graphics.SetColor(img.Color);
-            Graphics.DrawFlat(e.Sprite, order: 0, bone: -1);
+            Graphics.DrawFlat(sprite, order: 0, bone: -1);
+        }
+        else if (e.Asset is Texture texture)
+        {
+            var topLeft = Vector2.Transform(offset, e.LocalToWorld);
+            var bottomRight = Vector2.Transform(offset + scaledSize, e.LocalToWorld);
+            UIRender.DrawImage(
+                new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y),
+                texture,
+                img.Color,
+                img.BorderRadius
+            );
         }
     }
 

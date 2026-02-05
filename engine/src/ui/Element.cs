@@ -94,8 +94,7 @@ internal struct Element
     public Matrix3x2 WorldToLocal;
     public Vector2 Pivot;
     public ElementData Data;
-    public Font? Font;
-    public Sprite? Sprite;
+    public object? Asset;
 
     public readonly bool IsContainer =>
         Type == ElementType.Container ||

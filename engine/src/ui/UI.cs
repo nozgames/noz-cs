@@ -487,6 +487,10 @@ public static partial class UI
             _sceneCallbacks[i] = new SceneCallback();
         _sceneCallbackCount = 0;
 
+        // Clear asset references from previous frame's elements to avoid leaks
+        for (int i = 0; i < _elementCount; i++)
+            _elements[i].Asset = null;
+
         _refSize = GetRefSize();
         _elementStackCount = 0;
         _elementCount = 0;
@@ -840,7 +844,7 @@ public static partial class UI
     public static void Label(string text, LabelStyle style = default)
     {
         ref var e = ref CreateElement(ElementType.Label);
-        e.Font = style.Font ?? _defaultFont;
+        e.Asset = style.Font ?? _defaultFont;
         e.Data.Label = new LabelData
         {
             FontSize = style.FontSize > 0 ? style.FontSize : 16,
@@ -862,7 +866,7 @@ public static partial class UI
         if (sprite == null) return;
 
         ref var e = ref CreateElement(ElementType.Image);
-        e.Sprite = sprite;
+        e.Asset = sprite;
         e.Data.Image = new ImageData
         {
             Stretch = style.Stretch,
@@ -882,11 +886,12 @@ public static partial class UI
         PopElement();
     }
 
-    public static void Image(Texture? texture, float width, float height, ImageStyle style = default)
-    {
-        if (texture == null) return;
+    public static void Image(Texture texture) => Image(texture, new ImageStyle());
 
+    public static void Image(Texture texture, in ImageStyle style)
+    {
         ref var e = ref CreateElement(ElementType.Image);
+        e.Asset = texture;
         e.Data.Image = new ImageData
         {
             Stretch = style.Stretch,
@@ -897,9 +902,10 @@ public static partial class UI
             Texture = texture.Handle,
             UV0 = Vector2.Zero,
             UV1 = Vector2.One,
-            Width = width,
-            Height = height,
-            AtlasIndex = -1
+            Width = texture.Width,
+            Height = texture.Height,
+            AtlasIndex = -1,
+            BorderRadius = style.BorderRadius
         };
 
         PushElement(e.Index);
@@ -914,7 +920,7 @@ public static partial class UI
     {
         ref var e = ref CreateElement(ElementType.TextBox);
         e.Data.TextBox = style.ToData();
-        e.Font = style.Font ?? _defaultFont;
+        e.Asset = style.Font ?? _defaultFont;
 
         if (!string.IsNullOrEmpty(placeholder))
             e.Data.TextBox.Placeholder = AddText(placeholder);

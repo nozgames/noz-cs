@@ -1,7 +1,7 @@
 //
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
-//  UI shader - Rounded rectangle with per-corner radius support (branchless)
+//  UI shader - Rounded rectangle with per-corner radius support and texture sampling
 
 struct Globals {
     projection: mat4x4<f32>,
@@ -9,6 +9,8 @@ struct Globals {
 }
 
 @group(0) @binding(0) var<uniform> globals: Globals;
+@group(0) @binding(1) var ui_texture: texture_2d<f32>;
+@group(0) @binding(2) var ui_sampler: sampler;
 
 struct VertexInput {
     @location(0) position: vec2<f32>,
@@ -64,6 +66,9 @@ fn sdf_rounded_rect(p: vec2<f32>, size: vec2<f32>, radii: vec4<f32>) -> f32 {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    // Sample texture
+    let tex_color = textureSample(ui_texture, ui_sampler, input.uv);
+
     let p = input.uv * input.rect_size;
     let dist = sdf_rounded_rect(p, input.rect_size, input.corner_radii);
     let edge = fwidth(dist);
@@ -74,7 +79,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // Border blend (branchless)
     let border_blend = smoothstep(-edge, edge, dist + input.border_width);
     let has_border = step(0.001, input.border_width) * step(0.001, input.border_color.a);
-    let final_color = mix(input.color, input.border_color, border_blend * has_border);
+    let base_color = input.color * tex_color;
+    let final_color = mix(base_color, input.border_color, border_blend * has_border);
 
     // Early discard for fully transparent pixels
     let out_alpha = final_color.a * alpha;
