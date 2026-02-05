@@ -59,9 +59,10 @@ public static class UIRender
         Color color,
         float borderRadius = 0,
         float borderWidth = 0,
-        Color borderColor = default)
+        Color borderColor = default,
+        ushort order = 0)
     {
-        DrawRect(rect, color, BorderRadius.Circular(borderRadius), borderWidth, borderColor);
+        DrawRect(rect, color, BorderRadius.Circular(borderRadius), borderWidth, borderColor, order: order);
     }
 
     public static void DrawRect(
@@ -69,9 +70,10 @@ public static class UIRender
         Color color,
         BorderRadius borderRadius,
         float borderWidth = 0,
-        Color borderColor = default)
+        Color borderColor = default,
+        ushort order = 0)
     {
-        DrawTexturedRect(rect, _whiteTexture, color, borderRadius, borderWidth, borderColor);
+        DrawTexturedRect(rect, _whiteTexture, color, borderRadius, borderWidth, borderColor, order: order);
     }
 
     public static void DrawImage(
@@ -89,7 +91,8 @@ public static class UIRender
         Color color,
         BorderRadius borderRadius,
         float borderWidth,
-        Color borderColor)
+        Color borderColor,
+        ushort order = 0)
     {
         if (!_initialized || _shader == null) return;
 
@@ -161,7 +164,7 @@ public static class UIRender
         Graphics.SetShader(_shader);
         Graphics.SetTexture(texture ?? _whiteTexture, filter: texture?.Filter ?? TextureFilter.Point);
         Graphics.SetMesh(_mesh);
-        Graphics.DrawElements(6, indexOffset);
+        Graphics.DrawElements(6, indexOffset, order: order);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

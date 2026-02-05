@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace NoZ;
 
@@ -117,8 +118,13 @@ public static class MathEx
     }
 
     // Easing functions
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float EaseInQuadratic(float t) => t * t;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float EaseOutQuadratic(float t) => 1f - (1f - t) * (1f - t);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float EaseInOutQuadratic(float t)
     {
         if (t < 0.5f) return 2f * t * t;
@@ -126,14 +132,59 @@ public static class MathEx
         return -0.5f * (f * (f - 2f) - 1f);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float EaseInCubic(float t) => t * t * t;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float EaseOutCubic(float t) => 1f - MathF.Pow(1f - t, 3f);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float EaseInOutCubic(float t)
     {
         return t < 0.5f
             ? 4f * t * t * t
             : 1f - MathF.Pow(-2f * t + 2f, 3f) / 2f;
     }
+
+    private const float BackOvershoot = 1.70158f;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float EaseInBack(float t) => t * t * ((BackOvershoot + 1f) * t - BackOvershoot);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float EaseOutBack(float t)
+    {
+        var u = t - 1f;
+        return u * u * ((BackOvershoot + 1f) * u + BackOvershoot) + 1f;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float EaseInOutBack(float t)
+    {
+        const float c = BackOvershoot * 1.525f;
+        return t < 0.5f
+            ? 2f * t * t * ((c + 1f) * 2f * t - c)
+            : 1f + 2f * (t - 1f) * (t - 1f) * ((c + 1f) * 2f * (t - 1f) + c);
+    }
+
+    private delegate float EasingDelegate(float t);
+
+    private static readonly EasingDelegate[] EasingFunctions =
+    [
+        t => t,                 // None
+        EaseInQuadratic,        // QuadIn
+        EaseOutQuadratic,       // QuadOut
+        EaseInOutQuadratic,     // QuadInOut
+        EaseInCubic,            // CubicIn
+        EaseOutCubic,           // CubicOut
+        EaseInOutCubic,         // CubicInOut
+        EaseInBack,             // BackIn
+        EaseOutBack,            // BackOut
+        EaseInOutBack,          // BackInOut
+    ];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float Ease(Easing easing, float t) => EasingFunctions[(int)easing](t);
 
     public static float SmoothStep(float t) => t * t * (3f - 2f * t);
 

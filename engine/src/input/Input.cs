@@ -309,6 +309,19 @@ public static class Input
     public static bool WasButtonReleased(InputCode code, InputScope scope) =>
         CheckScope(scope) && Buttons[(int)code].Released && !Buttons[(int)code].Consumed;
 
+    public static bool WasAnyButtonPressed()
+    {
+        if (_scopeStack.Count != 0)
+            return false;
+
+        for (var i = 1; i < (int)InputCode.Count; i++)
+        {
+            if (((InputCode)i).IsButton() && Buttons[i].Pressed && !Buttons[i].Consumed)
+                return true;
+        }
+        return false;
+    }
+
     public static float GetAxis(InputCode code) =>
         _scopeStack.Count == 0 ? GetAxisValue(code) : 0f;
     public static float GetAxis(InputCode code, InputScope scope) =>

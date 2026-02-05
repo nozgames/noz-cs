@@ -173,7 +173,8 @@ public static partial class UI
             style.Color,
             style.Border.Radius,
             style.Border.Width,
-            style.Border.Color
+            style.Border.Color,
+            order: e.Data.Container.Order
         );
     }
 

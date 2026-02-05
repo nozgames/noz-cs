@@ -30,6 +30,7 @@ public struct ContainerStyle()
     public BorderStyle Border = BorderStyle.None;
     public float Spacing = 0;
     public bool Clip = false;
+    public ushort Order = 0;
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
@@ -48,7 +49,8 @@ public struct ContainerStyle()
         Color = Color,
         Border = Border,
         Spacing = Spacing,
-        Clip = Clip
+        Clip = Clip,
+        Order = Order
     };
 
     public static readonly ContainerStyle Default = new();

@@ -22,6 +22,7 @@ internal struct ContainerData
     public BorderStyle Border;
     public float Spacing;
     public bool Clip;
+    public ushort Order;
 
     public readonly bool IsAutoWidth => Size.Width.Mode is SizeMode.Percent or SizeMode.Default;
     public readonly bool IsAutoHeight => Size.Height.Mode is SizeMode.Percent or SizeMode.Default;
