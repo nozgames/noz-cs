@@ -228,13 +228,15 @@ internal struct CanvasData
     public Vector2Int ColorOffset;
     public Vector2 WorldPosition;
     public Vector2 WorldSize;
+    public ushort Layer;
 
     public static CanvasData Default => new()
     {
         Color = Color.Transparent,
         ColorOffset = Vector2Int.Zero,
         WorldPosition = Vector2.Zero,
-        WorldSize = Vector2.Zero
+        WorldSize = Vector2.Zero,
+        Layer = 0
     };
 }
 

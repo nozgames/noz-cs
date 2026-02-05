@@ -26,6 +26,7 @@ public static partial class UI
         switch (e.Type)
         {
             case ElementType.Canvas:
+                Graphics.SetLayer(e.Data.Canvas.Layer);
                 DrawCanvas(ref e);
                 break;
 
@@ -291,5 +292,8 @@ public static partial class UI
         Graphics.SetCamera(callback.Camera);
 
         callback.Draw();
+
+        // Restore UI camera so subsequent UI draws use the correct projection
+        Graphics.SetCamera(Camera);
     }
 }

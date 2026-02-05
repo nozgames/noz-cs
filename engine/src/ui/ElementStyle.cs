@@ -127,13 +127,15 @@ public struct CanvasStyle()
     public Vector2 WorldPosition = Vector2.Zero;
     public Vector2 WorldSize = Vector2.Zero;
     public Camera? WorldCamera = null;
+    public ushort Layer = 0;
 
     internal CanvasData ToData() => new()
     {
         Color = Color,
         ColorOffset = ColorOffset,
         WorldPosition = WorldPosition,
-        WorldSize = WorldSize
+        WorldSize = WorldSize,
+        Layer = Layer
     };
 }
 
