@@ -117,7 +117,7 @@ public static class PopupMenu
             _levels[i] = new LevelState { OpenSubmenu = -1, ShowChecked = true, ShowIcons = true };
         _levels[0].ShowChecked = showChecked;
         _levels[0].ShowIcons = showIcons;
-        UI.SetFocus(0, EditorStyle.CanvasId.ContextMenu);
+        UI.ClearFocus();
 
         _scope = Input.PushScope();
     }
@@ -135,7 +135,7 @@ public static class PopupMenu
             _levels[i] = new LevelState { OpenSubmenu = -1, ShowChecked = true, ShowIcons = true };
         _levels[0].ShowChecked = showChecked;
         _levels[0].ShowIcons = showIcons;
-        UI.SetFocus(0, EditorStyle.CanvasId.ContextMenu);
+        UI.ClearFocus();
 
         _scope = Input.PushScope();
     }

@@ -35,7 +35,7 @@ public static class ConfirmDialog
         _message = message;
         _onConfirm = onConfirm;
         _visible = true;
-        UI.SetFocus(NoButtonId, EditorStyle.CanvasId.Confirm);
+        UI.SetFocus(EditorStyle.CanvasId.Confirm, NoButtonId);
     }
 
     public static void Close()

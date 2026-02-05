@@ -91,6 +91,7 @@ public static class Importer
 
             Log.Info($"Imported {doc.Def.Type.ToString().ToLowerInvariant()}/{doc.Name}");
             OnImported?.Invoke(doc);
+            AssetManifest.IsModified = true;
         }
         catch (Exception ex)
         {

@@ -21,37 +21,22 @@ namespace NoZ.Editor
                 if (edges.Length == 0)
                     return 0;
 
+                // Sample each edge at multiple points to handle curves correctly
+                const int samplesPerEdge = 4;
                 double total = 0;
-                if (edges.Length == 1)
+                Vector2Double prev = edges[edges.Length - 1].GetPoint(1.0);
+
+                foreach (var edge in edges)
                 {
-                    var a = edges[0].GetPoint(0);
-                    var b = edges[0].GetPoint(1 / 3.0);
-                    var c = edges[0].GetPoint(2 / 3.0);
-                    total += ShoeLace(a, b);
-                    total += ShoeLace(b, c);
-                    total += ShoeLace(c, a);
-                }
-                else if (edges.Length == 2)
-                {
-                    var a = edges[0].GetPoint(0);
-                    var b = edges[0].GetPoint(0.5);
-                    var c = edges[1].GetPoint(0);
-                    var d = edges[1].GetPoint(.5);
-                    total += ShoeLace(a, b);
-                    total += ShoeLace(b, c);
-                    total += ShoeLace(c, d);
-                    total += ShoeLace(d, a);
-                }
-                else
-                {
-                    var prev = edges.Last().GetPoint(0);
-                    foreach (var edge in edges)
+                    for (int s = 0; s < samplesPerEdge; s++)
                     {
-                        var cur = edge.GetPoint(0);
+                        double t = (s + 1.0) / samplesPerEdge;
+                        var cur = edge.GetPoint(t);
                         total += ShoeLace(prev, cur);
                         prev = cur;
                     }
                 }
+
                 return Sign(total);
             }
         }

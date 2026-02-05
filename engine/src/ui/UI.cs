@@ -259,6 +259,9 @@ public static partial class UI
         return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
     }
 
+    public static Rect GetElementCanvasRect(CanvasId canvasId, ElementId elementId) =>
+        GetElementRectInCanvas(canvasId, elementId);
+
     public static Rect GetElementCanvasRect(ElementId elementId) =>
         GetElementRectInCanvas(_currentCanvasId, elementId);
 

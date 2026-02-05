@@ -246,42 +246,98 @@ namespace NoZ.Editor
                 _scale.y = _requestedSize / _unitsPerEm;
             }
 
+            private bool SeekToGlyph(Glyph glyph) => SeekToGlyphById(glyph.id);
+
+            private bool SeekToGlyphById(ushort glyphId)
+            {
+                // Seek to the glyph in the GLYF table
+                if (_indexToLocFormat == 1)
+                {
+                    Seek(TableName.LOCA, glyphId * 4);
+                    var offset = ReadUInt32();
+                    var length = ReadUInt32() - offset;
+
+                    // Empty glyph
+                    if (length == 0)
+                        return false;
+
+                    Seek(TableName.GLYF, offset);
+                }
+                else
+                {
+                    Seek(TableName.LOCA, glyphId * 2);
+
+                    var offset = ReadUInt16() * 2;
+                    var length = (ReadUInt16() * 2) - offset;
+
+                    if (length == 0)
+                        return false;
+
+                    Seek(TableName.GLYF, offset);
+                }
+                return true;
+            }
+
+            // Load a component glyph by ID (for glyphs not in the character map)
+            private Glyph? LoadComponentGlyph(ushort glyphId)
+            {
+                if (!SeekToGlyphById(glyphId))
+                    return null;
+
+                short numberOfContours = ReadInt16();
+
+                // Don't support nested compound glyphs for now
+                if (numberOfContours < 0)
+                    return null;
+
+                var glyph = new Glyph { id = glyphId };
+                ReadSimpleGlyph(glyph, numberOfContours);
+
+                // Cache it for future use
+                if (glyphId < _glyphsById.Length)
+                    _glyphsById[glyphId] = glyph;
+
+                return glyph;
+            }
+
             private void ReadGlyphs()
             {
+                // Two-pass loading: simple glyphs first, then compound glyphs
+                // This ensures component glyphs are available when compound glyphs reference them
+                var compoundGlyphs = new List<Glyph>();
+
+                // First pass: load simple glyphs
                 for (int i = 0; i < _ttf._glyphs.Length; i++)
                 {
                     var glyph = _ttf._glyphs[i];
                     if (glyph == null)
                         continue;
 
-                    // Seek to the glyph in the GLYF table
-                    if (_indexToLocFormat == 1)
+                    if (!SeekToGlyph(glyph))
+                        continue;
+
+                    // Peek at numberOfContours to determine if compound
+                    short numberOfContours = ReadInt16();
+                    if (numberOfContours < 0)
                     {
-                        Seek(TableName.LOCA, glyph.id * 4);
-                        var offset = ReadUInt32();
-                        var length = ReadUInt32() - offset;
-
-                        // Empty glyph
-                        if (length == 0)
-                            continue;
-
-                        Seek(TableName.GLYF, offset);
-                    }
-                    else
-                    {
-                        Seek(TableName.LOCA, glyph.id * 2);
-
-                        var offset = ReadUInt16() * 2;
-                        var length = (ReadUInt16() * 2) - offset;
-
-                        if (length == 0)
-                            continue;
-
-                        Seek(TableName.GLYF, offset);
+                        // Compound glyph - save for second pass
+                        compoundGlyphs.Add(glyph);
+                        continue;
                     }
 
-                    // Read the glyph
-                    ReadGlyph(glyph);
+                    // Read simple glyph
+                    ReadSimpleGlyph(glyph, numberOfContours);
+                }
+
+                // Second pass: load compound glyphs
+                foreach (var glyph in compoundGlyphs)
+                {
+                    if (!SeekToGlyph(glyph))
+                        continue;
+
+                    // Skip numberOfContours (we already know it's negative)
+                    ReadInt16();
+                    ReadCompoundGlyph(glyph);
                 }
             }
 
@@ -294,6 +350,20 @@ namespace NoZ.Editor
                 Repeat = 8,
                 XIsSame = 16,
                 YIsSame = 32
+            }
+
+            [Flags]
+            private enum CompoundFlags : ushort
+            {
+                ArgsAreWords = 0x0001,
+                ArgsAreXYValues = 0x0002,
+                RoundXYToGrid = 0x0004,
+                WeHaveAScale = 0x0008,
+                MoreComponents = 0x0020,
+                WeHaveAnXAndYScale = 0x0040,
+                WeHaveATwoByTwo = 0x0080,
+                WeHaveInstructions = 0x0100,
+                UseMyMetrics = 0x0200
             }
 
             private void ReadPoints(Glyph glyph, PointFlags[] flags, bool isX)
@@ -334,10 +404,18 @@ namespace NoZ.Editor
             {
                 short numberOfContours = ReadInt16();
 
-                // Simple ?
+                // Compound glyph?
                 if (numberOfContours < 0)
-                    throw new NotImplementedException("Compound glyphs not supported");
+                {
+                    ReadCompoundGlyph(glyph);
+                    return;
+                }
 
+                ReadSimpleGlyph(glyph, numberOfContours);
+            }
+
+            private void ReadSimpleGlyph(Glyph glyph, short numberOfContours)
+            {
                 double minx = ReadFUnit();
                 double miny = ReadFUnit();
                 double maxx = ReadFUnit();
@@ -383,6 +461,163 @@ namespace NoZ.Editor
 
                 ReadPoints(glyph, flags, true);
                 ReadPoints(glyph, flags, false);
+            }
+
+            private void ReadCompoundGlyph(Glyph glyph)
+            {
+                // Read bounding box
+                double minx = ReadFUnit();
+                double miny = ReadFUnit();
+                double maxx = ReadFUnit();
+                double maxy = ReadFUnit();
+
+                var allPoints = new List<Point>();
+                var allContours = new List<Contour>();
+
+                CompoundFlags flags;
+                do
+                {
+                    flags = (CompoundFlags)ReadUInt16();
+                    ushort componentGlyphIndex = ReadUInt16();
+
+                    // Read offset (x, y)
+                    double offsetX, offsetY;
+                    bool skipComponent = false;
+                    if (flags.HasFlag(CompoundFlags.ArgsAreWords))
+                    {
+                        if (flags.HasFlag(CompoundFlags.ArgsAreXYValues))
+                        {
+                            offsetX = ReadInt16() * _scale.x;
+                            offsetY = ReadInt16() * _scale.y;
+                        }
+                        else
+                        {
+                            // Point indices - not commonly used, skip this component
+                            ReadInt16();
+                            ReadInt16();
+                            offsetX = offsetY = 0;
+                            skipComponent = true;
+                        }
+                    }
+                    else
+                    {
+                        if (flags.HasFlag(CompoundFlags.ArgsAreXYValues))
+                        {
+                            offsetX = (sbyte)_reader.ReadByte() * _scale.x;
+                            offsetY = (sbyte)_reader.ReadByte() * _scale.y;
+                        }
+                        else
+                        {
+                            // Point indices - not commonly used, skip this component
+                            _reader.ReadByte();
+                            _reader.ReadByte();
+                            offsetX = offsetY = 0;
+                            skipComponent = true;
+                        }
+                    }
+
+                    // Read transformation (scale/matrix) - must always read these to maintain stream position
+                    double a = 1, b = 0, c = 0, d = 1;
+                    if (flags.HasFlag(CompoundFlags.WeHaveAScale))
+                    {
+                        a = d = ReadInt16() / 16384.0; // F2Dot14 format
+                    }
+                    else if (flags.HasFlag(CompoundFlags.WeHaveAnXAndYScale))
+                    {
+                        a = ReadInt16() / 16384.0;
+                        d = ReadInt16() / 16384.0;
+                    }
+                    else if (flags.HasFlag(CompoundFlags.WeHaveATwoByTwo))
+                    {
+                        a = ReadInt16() / 16384.0;
+                        b = ReadInt16() / 16384.0;
+                        c = ReadInt16() / 16384.0;
+                        d = ReadInt16() / 16384.0;
+                    }
+
+                    if (skipComponent)
+                        continue;
+
+                    // Get component glyph - try cache first, then load on demand
+                    var componentGlyph = componentGlyphIndex < _glyphsById.Length ? _glyphsById[componentGlyphIndex] : null;
+
+                    // If component not in cache, load it directly from font
+                    if (componentGlyph?.points == null && componentGlyphIndex < _glyphsById.Length)
+                    {
+                        long savedPosition = Position;
+                        componentGlyph = LoadComponentGlyph(componentGlyphIndex);
+                        Seek(savedPosition);
+                    }
+
+                    if (componentGlyph?.points != null)
+                    {
+                        int pointOffset = allPoints.Count;
+
+                        // Check if transformation flips winding (negative determinant)
+                        double det = a * d - b * c;
+                        bool flipWinding = det < 0;
+
+                        // Transform and add points for each contour
+                        foreach (var contour in componentGlyph.contours)
+                        {
+                            int contourStart = allPoints.Count;
+
+                            if (flipWinding)
+                            {
+                                // Reverse point order to maintain correct winding
+                                for (int i = contour.length - 1; i >= 0; i--)
+                                {
+                                    var point = componentGlyph.points[contour.start + i];
+                                    var transformed = new Point
+                                    {
+                                        curve = point.curve,
+                                        xy = new Vector2Double(
+                                            point.xy.x * a + point.xy.y * b + offsetX,
+                                            point.xy.x * c + point.xy.y * d + offsetY
+                                        )
+                                    };
+                                    allPoints.Add(transformed);
+                                }
+                            }
+                            else
+                            {
+                                // Normal order
+                                for (int i = 0; i < contour.length; i++)
+                                {
+                                    var point = componentGlyph.points[contour.start + i];
+                                    var transformed = new Point
+                                    {
+                                        curve = point.curve,
+                                        xy = new Vector2Double(
+                                            point.xy.x * a + point.xy.y * b + offsetX,
+                                            point.xy.x * c + point.xy.y * d + offsetY
+                                        )
+                                    };
+                                    allPoints.Add(transformed);
+                                }
+                            }
+
+                            allContours.Add(new Contour
+                            {
+                                start = contourStart,
+                                length = contour.length
+                            });
+                        }
+                    }
+
+                } while (flags.HasFlag(CompoundFlags.MoreComponents));
+
+                // Skip instructions if present
+                if (flags.HasFlag(CompoundFlags.WeHaveInstructions))
+                {
+                    var instructionLength = ReadUInt16();
+                    _reader.ReadBytes(instructionLength);
+                }
+
+                glyph.points = allPoints.ToArray();
+                glyph.contours = allContours.ToArray();
+                glyph.size = new Vector2Double(maxx - minx, maxy - miny);
+                glyph.bearing = new Vector2Double(minx, maxy);
             }
 
             private void ReadHHEA()

@@ -80,14 +80,20 @@ namespace NoZ.Editor
                 param = Vector2Double.Dot(aq, ab) / Vector2Double.Dot(ab, ab);
                 Vector2Double eq = (param > 0.5 ? p1 : p0) - origin;
                 double endpointDistance = eq.Magnitude;
+
+                // Compute orthogonal distance (used for sign in all cases)
+                // Negate to match expected inside/outside convention
+                double orthoDistance = -Vector2Double.Dot(ab.OrthoNormalize(false), aq);
+
                 if (param > 0 && param < 1)
                 {
-                    double orthoDistance = Vector2Double.Dot(ab.OrthoNormalize(false), aq);
                     if (Math.Abs(orthoDistance) < endpointDistance)
                         return new SignedDistance(orthoDistance, 0);
                 }
+
+                // Use orthoDistance for consistent sign at endpoints
                 return new SignedDistance(
-                    NonZeroSign(Vector2Double.Cross(aq, ab)) * endpointDistance,
+                    NonZeroSign(orthoDistance) * endpointDistance,
                     Math.Abs(Vector2Double.Dot(ab.Normalized, eq.Normalized))
                 );
             }

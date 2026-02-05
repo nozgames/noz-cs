@@ -29,6 +29,51 @@ namespace NoZ.Editor
             );
         }
 
+        // Compute winding number contribution from a contour using ray casting
+        // Returns +1 for each upward crossing, -1 for each downward crossing
+        private static int ComputeWindingNumber(Contour contour, Vector2Double p)
+        {
+            int winding = 0;
+            const int samples = 32; // samples per edge for curves
+
+            foreach (var edge in contour.edges)
+            {
+                Vector2Double prev = edge.GetPoint(0);
+                for (int s = 1; s <= samples; s++)
+                {
+                    Vector2Double curr = edge.GetPoint(s / (double)samples);
+
+                    // Check if this segment crosses the horizontal ray from p going right
+                    if (prev.y <= p.y)
+                    {
+                        if (curr.y > p.y)
+                        {
+                            // Upward crossing
+                            double t = (p.y - prev.y) / (curr.y - prev.y);
+                            double xIntersect = prev.x + t * (curr.x - prev.x);
+                            if (xIntersect > p.x)
+                                winding++;
+                        }
+                    }
+                    else
+                    {
+                        if (curr.y <= p.y)
+                        {
+                            // Downward crossing
+                            double t = (p.y - prev.y) / (curr.y - prev.y);
+                            double xIntersect = prev.x + t * (curr.x - prev.x);
+                            if (xIntersect > p.x)
+                                winding--;
+                        }
+                    }
+
+                    prev = curr;
+                }
+            }
+
+            return winding;
+        }
+
         private static void GenerateSDF(
             PixelData<byte> output,
             Vector2Int outputPosition,
@@ -50,7 +95,6 @@ namespace NoZ.Editor
             for (int i = 0; i < shape.contours.Length; i++)
                 windings[i] = shape.contours[i].Winding();
 
-            var contourSD = new double[contourCount];
             for (int y = 0; y < h; ++y)
             {
                 int row = shape.InverseYAxis ? h - y - 1 : y;
@@ -58,46 +102,29 @@ namespace NoZ.Editor
                 {
                     double dummy = 0;
                     Vector2Double p = new Vector2Double(x + .5, y + .5) / scale - translate;
-                    double negDist = -SignedDistance.Infinite.distance;
-                    double posDist = SignedDistance.Infinite.distance;
-                    int winding = 0;
 
-                    for (int i = 0; i < shape.contours.Length; i++)
+                    // Find the minimum absolute distance to any edge
+                    double minAbsDist = double.PositiveInfinity;
+                    foreach (var contour in shape.contours)
                     {
-                        SignedDistance minDistance = SignedDistance.Infinite;
-                        foreach (var edge in shape.contours[i].edges)
+                        foreach (var edge in contour.edges)
                         {
                             SignedDistance distance = edge.GetSignedDistance(p, out dummy);
-                            if (distance < minDistance)
-                                minDistance = distance;
+                            double absDist = Math.Abs(distance.distance);
+                            if (absDist < minAbsDist)
+                                minAbsDist = absDist;
                         }
-                        contourSD[i] = minDistance.distance;
-                        if (windings[i] > 0 && minDistance.distance >= 0 && Math.Abs(minDistance.distance) < Math.Abs(posDist))
-                            posDist = minDistance.distance;
-                        if (windings[i] < 0 && minDistance.distance <= 0 && Math.Abs(minDistance.distance) < Math.Abs(negDist))
-                            negDist = minDistance.distance;
                     }
 
-                    double sd = SignedDistance.Infinite.distance;
-                    if (posDist >= 0 && Math.Abs(posDist) <= Math.Abs(negDist))
-                    {
-                        sd = posDist;
-                        winding = 1;
-                        for (int i = 0; i < contourCount; ++i)
-                            if (windings[i] > 0 && contourSD[i] > sd && Math.Abs(contourSD[i]) < Math.Abs(negDist))
-                                sd = contourSD[i];
-                    }
-                    else if (negDist <= 0 && Math.Abs(negDist) <= Math.Abs(posDist))
-                    {
-                        sd = negDist;
-                        winding = -1;
-                        for (int i = 0; i < contourCount; ++i)
-                            if (windings[i] < 0 && contourSD[i] < sd && Math.Abs(contourSD[i]) < Math.Abs(posDist))
-                                sd = contourSD[i];
-                    }
-                    for (int i = 0; i < contourCount; ++i)
-                        if (windings[i] != winding && Math.Abs(contourSD[i]) < Math.Abs(sd))
-                            sd = contourSD[i];
+                    // Compute total winding number using non-zero rule
+                    // This correctly handles overlapping same-winding contours
+                    int totalWinding = 0;
+                    foreach (var contour in shape.contours)
+                        totalWinding += ComputeWindingNumber(contour, p);
+
+                    // Inside if winding is non-zero
+                    bool inside = totalWinding != 0;
+                    double sd = inside ? minAbsDist : -minAbsDist;
 
                     // Set the SDF value in the output image (R8 format)
                     sd /= (range * 2.0f);
