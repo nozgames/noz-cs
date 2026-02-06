@@ -30,7 +30,7 @@ public static class Grid
 
         using (Gizmos.PushState(EditorLayer.Grid))
         {
-            Graphics.SetTexture(Workspace.WhiteTexture);
+            Graphics.SetTexture(Graphics.WhiteTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
 
             DrawZeroLines(camera, EditorStyle.Workspace.GridColor.WithAlpha(EditorStyle.Workspace.GridZeroAlpha));

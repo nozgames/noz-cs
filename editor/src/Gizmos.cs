@@ -23,7 +23,7 @@ public static class Gizmos
     {
         var state = Graphics.PushState();
         Graphics.SetLayer(layer);
-        Graphics.SetTexture(Workspace.WhiteTexture);
+        Graphics.SetTexture(Graphics.WhiteTexture);
         Graphics.SetShader(EditorAssets.Shaders.Texture);
         return state;
     }

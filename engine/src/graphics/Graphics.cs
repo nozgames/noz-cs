@@ -81,6 +81,7 @@ public static unsafe partial class Graphics
     public static IGraphicsDriver Driver { get; private set; } = null!;
     public static Camera? Camera { get; private set; }
     public static Texture? SpriteAtlas { get; set; }
+    public static Texture WhiteTexture { get; private set; } = null!;
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
     public static Color Color => CurrentState.Color;
     public static float PixelsPerUnit { get; private set; }
@@ -162,6 +163,8 @@ public static unsafe partial class Graphics
             TextureFilter.Point,
             name: "Bones");
 
+        WhiteTexture = Texture.Create(1, 1, [255, 255, 255, 255], name: "White");
+
         ResetState();
     }
 
@@ -175,6 +178,7 @@ public static unsafe partial class Graphics
 
         Driver.DestroyMesh(_mesh);
         Driver.DestroyTexture(_boneTexture);
+        WhiteTexture?.Dispose();
 
         Driver.Shutdown();
 

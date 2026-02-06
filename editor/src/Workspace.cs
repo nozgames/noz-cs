@@ -53,7 +53,6 @@ public static partial class Workspace
 
     private static Document? _activeDocument;
     private static DocumentEditor? _activeEditor;
-    private static Texture? _whiteTexture;
     private static PopupMenuDef _workspaceContextMenu;
 
     public static Camera Camera => _camera;
@@ -77,8 +76,6 @@ public static partial class Workspace
     public static Tool? ActiveTool { get; private set; }
 
     public static event Action<bool>? XrayModeChanged;
-
-    public static Texture WhiteTexture => _whiteTexture!;
 
     public static float GetUIScale() => Application.Platform.DisplayScale * _userUIScale;
 
@@ -113,16 +110,10 @@ public static partial class Workspace
         UpdateCamera();
 
         Graphics.ClearColor = EditorStyle.Workspace.FillColor;
-
-        // Create a 1x1 white texture for untextured draws
-        byte[] white = [255, 255, 255, 255];
-        _whiteTexture = Texture.Create(1, 1, white, name: "white");
     }
 
     public static void Shutdown()
     {
-        _whiteTexture?.Dispose();
-        _whiteTexture = null;
     }
 
     private static void ReimportAll()
@@ -301,7 +292,7 @@ public static partial class Workspace
         if (EditorAssets.Shaders.Sprite is Shader spriteShader)
             Graphics.SetShader(spriteShader);
 
-        Graphics.SetTexture(_whiteTexture!);
+        Graphics.SetTexture(Graphics.WhiteTexture);
         Graphics.SetBlendMode(BlendMode.Alpha);
         Graphics.SetCamera(_camera);
 

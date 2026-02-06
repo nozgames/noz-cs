@@ -17,7 +17,6 @@ public static class UIRender
     private static NativeArray<UIVertex> _vertices;
     private static NativeArray<ushort> _indices;
     private static Shader? _shader;
-    private static Texture? _whiteTexture;
     private static bool _initialized;
     private static ushort _uiLayer;
 
@@ -37,10 +36,6 @@ public static class UIRender
             "UIRender"
         );
 
-        // Create 1x1 white texture for non-textured UI elements
-        byte[] white = [255, 255, 255, 255];
-        _whiteTexture = Texture.Create(1, 1, white, TextureFormat.RGBA8, TextureFilter.Point, "UIRender_White");
-
         _initialized = true;
     }
 
@@ -50,7 +45,6 @@ public static class UIRender
 
         _vertices.Dispose();
         _indices.Dispose();
-        _whiteTexture?.Dispose();
 
         Graphics.Driver.DestroyMesh(_mesh);
         _initialized = false;
@@ -75,7 +69,7 @@ public static class UIRender
         Color borderColor = default,
         ushort order = 0)
     {
-        DrawTexturedRect(rect, _whiteTexture, color, borderRadius, borderWidth, borderColor, order: order);
+        DrawTexturedRect(rect, Graphics.WhiteTexture, color, borderRadius, borderWidth, borderColor, order: order);
     }
 
     public static void DrawImage(
@@ -165,7 +159,7 @@ public static class UIRender
 
         Graphics.SetLayer(_uiLayer);
         Graphics.SetShader(_shader);
-        Graphics.SetTexture(texture ?? _whiteTexture, filter: texture?.Filter ?? TextureFilter.Point);
+        Graphics.SetTexture(texture ?? Graphics.WhiteTexture, filter: texture?.Filter ?? TextureFilter.Point);
         Graphics.SetMesh(_mesh);
         Graphics.DrawElements(6, indexOffset, order: order);
     }
