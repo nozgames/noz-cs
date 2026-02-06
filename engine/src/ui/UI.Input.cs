@@ -4,16 +4,15 @@
 
 // #define NOZ_UI_DEBUG
 
-using System.Diagnostics;
 using System.Numerics;
 
 namespace NoZ;
 
 public static partial class UI
 {
-    private static ElementId _mouseLeftElementId;
-    private static ElementId _mouseDoubleClickElementId;
-    private static ElementId _mouseRightElementId;
+    private static int _mouseLeftElementId;
+    private static int _mouseDoubleClickElementId;
+    private static int _mouseRightElementId;
     private static bool _mouseLeftPressed;
     private static bool _mouseRightPressed;
     private static bool _mouseLeftDown;
@@ -22,15 +21,15 @@ public static partial class UI
 
     private static void HandleInput()
     {
-        var mouse = Camera!.ScreenToWorld(Input.MousePosition);        
+        var mouse = Camera!.ScreenToWorld(Input.MousePosition);
         _mousePosition = mouse;
         _mouseLeftPressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
         _mouseLeftDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
         _mouseLeftDoubleClickPressed = Input.WasButtonPressedRaw(InputCode.MouseLeftDoubleClick);
-        _mouseLeftElementId = ElementId.None;
+        _mouseLeftElementId = 0;
         _mouseRightPressed = Input.WasButtonPressedRaw(InputCode.MouseRight);
-        _mouseRightElementId = ElementId.None;
-        _mouseDoubleClickElementId = ElementId.None;
+        _mouseRightElementId = 0;
+        _mouseDoubleClickElementId = 0;
 
         LogUI("Input:", values: [("FocusElementId", _focusElementId, true)]);
 
@@ -58,25 +57,20 @@ public static partial class UI
             }
         }
 
-        // Process canvases in reverse order so later canvases (on top) get input priority
-        for (var c = _activeCanvasIds.Length - 1; c >= 0; c--)
-        {
-            ref var cid = ref _activeCanvasIds[c];
-            ref var cs = ref GetCanvasState(cid);
-            HandleCanvasInput(cid, mouse);
-        }
+        // Process all elements
+        HandleElementInput(mouse);
 
         // Process scrollbar input BEFORE consuming buttons
         HandleScrollbarInput(mouse);
 
         // Don't consume mouse button if scrollbar is being dragged
-        if ((_mouseLeftElementId != ElementId.None || _popupCount > 0) && !_scrollbarDragging)
+        if ((_mouseLeftElementId != 0 || _popupCount > 0) && !_scrollbarDragging)
             Input.ConsumeButton(InputCode.MouseLeft);
 
-        if (_mouseDoubleClickElementId != ElementId.None || _popupCount > 0)
+        if (_mouseDoubleClickElementId != 0 || _popupCount > 0)
             Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
 
-        if (_mouseRightElementId != ElementId.None || _popupCount > 0)
+        if (_mouseRightElementId != 0 || _popupCount > 0)
             Input.ConsumeButton(InputCode.MouseRight);
         HandleScrollableDrag(mouse);
         HandleMouseWheelScroll(mouse);
@@ -140,7 +134,7 @@ public static partial class UI
                 return;
             }
 
-            ref var es = ref GetElementState(_scrollbarDragCanvasId, _scrollbarDragElementId);
+            ref var es = ref GetElementState(_scrollbarDragElementId);
             ref var e = ref _elements[es.Index];
 
             ref var s = ref e.Data.Scrollable;
@@ -171,7 +165,7 @@ public static partial class UI
         for (var i = _elementCount - 1; i >= 0; i--)
         {
             ref var e = ref _elements[i];
-            if (e.Type != ElementType.Scrollable || e.Id == ElementId.None || e.CanvasId == ElementId.None)
+            if (e.Type != ElementType.Scrollable || e.Id == 0)
                 continue;
 
             // When popups are open, only interact with scrollbars inside popups
@@ -187,7 +181,6 @@ public static partial class UI
                 // Start thumb drag (don't consume button - we need _mouseLeftDown to stay true)
                 _scrollbarDragging = true;
                 _scrollbarDragElementId = e.Id;
-                _scrollbarDragCanvasId = e.CanvasId;
                 _scrollbarDragStartOffset = e.Data.Scrollable.Offset;
                 _scrollbarDragStartMouseY = mouse.Y;
                 return;
@@ -215,8 +208,7 @@ public static partial class UI
                     newOffset = Math.Clamp(newOffset, 0, maxScroll);
 
                     s.Offset = newOffset;
-                    ref var cs = ref _canvasStates[e.CanvasId];
-                    ref var state = ref cs.ElementStates[e.Id];
+                    ref var state = ref GetElementState(e.Id);
                     state.Data.Scrollable.Offset = newOffset;
                 }
                 Input.ConsumeButton(InputCode.MouseLeft);
@@ -237,19 +229,15 @@ public static partial class UI
         return false;
     }
 
-    private static void HandleCanvasInput(CanvasId canvasId, Vector2 mouse)
+    private static void HandleElementInput(Vector2 mouse)
     {
-        ref var cs = ref _canvasStates[canvasId];
-        ref var c = ref _elements[cs.ElementIndex];
-
-        for (var elementIndex=c.NextSiblingIndex - 1; elementIndex > c.Index; elementIndex--)
+        // Process elements in reverse order so later elements (on top) get input priority
+        for (var elementIndex = _elementCount - 1; elementIndex >= 0; elementIndex--)
         {
             ref var e = ref _elements[elementIndex];
-            if (e.Id == ElementId.None) continue;
+            if (e.Id == 0) continue;
 
-            Debug.Assert(e.CanvasId == c.CanvasId);
-
-            ref var es = ref cs.ElementStates[e.Id];
+            ref var es = ref GetElementState(e.Id);
             es.Rect = e.Rect;
             es.LocalToWorld = e.LocalToWorld;
 
@@ -271,7 +259,7 @@ public static partial class UI
 
             var consumesInput = e.Type != ElementType.Scene;
 
-            if (mouseOver && _mouseLeftDoubleClickPressed && _mouseDoubleClickElementId == ElementId.None && consumesInput)
+            if (mouseOver && _mouseLeftDoubleClickPressed && _mouseDoubleClickElementId == 0 && consumesInput)
             {
                 _mouseDoubleClickElementId = e.Id;
                 es.SetFlags(ElementFlags.DoubleClick, ElementFlags.DoubleClick);
@@ -279,19 +267,18 @@ public static partial class UI
             else
                 es.SetFlags(ElementFlags.DoubleClick, ElementFlags.None);
 
-            if (mouseOver && _mouseLeftPressed && _mouseLeftElementId == ElementId.None && consumesInput)
+            if (mouseOver && _mouseLeftPressed && _mouseLeftElementId == 0 && consumesInput)
             {
                 es.SetFlags(ElementFlags.Pressed, ElementFlags.Pressed);
                 _mouseLeftElementId = e.Id;
                 _pendingFocusElementId = e.Id;
-                _pendingFocusCanvasId = canvasId;
             }
             else if (es.IsPressed)
             {
                 es.SetFlags(ElementFlags.Pressed, ElementFlags.None);
             }
 
-            if (mouseOver && _mouseRightPressed && _mouseRightElementId == ElementId.None && consumesInput)
+            if (mouseOver && _mouseRightPressed && _mouseRightElementId == 0 && consumesInput)
             {
                 es.SetFlags(ElementFlags.RightClick, ElementFlags.RightClick);
                 _mouseRightElementId = e.Id;
@@ -311,9 +298,9 @@ public static partial class UI
 
         if (!_mouseLeftDown)
         {
-            _activeScrollId = ElementId.None;
+            _activeScrollId = 0;
         }
-        else if (_activeScrollId != ElementId.None)
+        else if (_activeScrollId != 0)
         {
             var deltaY = _lastScrollMouseY - mouse.Y;
             _lastScrollMouseY = mouse.Y;
@@ -321,10 +308,9 @@ public static partial class UI
             for (var i = 0; i < _elementCount; i++)
             {
                 ref var e = ref _elements[i];
-                if (e.Type == ElementType.Scrollable && e.Id == _activeScrollId && e.CanvasId != ElementId.None)
+                if (e.Type == ElementType.Scrollable && e.Id == _activeScrollId)
                 {
-                    ref var cs = ref _canvasStates[e.CanvasId];
-                    ref var state = ref cs.ElementStates[e.Id];
+                    ref var state = ref GetElementState(e.Id);
 
                     var newOffset = e.Data.Scrollable.Offset + deltaY;
                     var maxScroll = Math.Max(0, e.Data.Scrollable.ContentHeight - e.Rect.Height);
@@ -341,14 +327,13 @@ public static partial class UI
             for (var i = _elementCount; i > 0; i--)
             {
                 ref var e = ref _elements[i - 1];
-                if (e.Type == ElementType.Scrollable && e.Id != ElementId.None && e.CanvasId != CanvasId.None)
+                if (e.Type == ElementType.Scrollable && e.Id != 0)
                 {
                     // When popups are open, only allow starting scroll inside popups
                     if (_popupCount > 0 && !IsInsidePopup(i - 1))
                         continue;
 
-                    ref var cs = ref _canvasStates[e.CanvasId];
-                    ref var state = ref cs.ElementStates[e.Id];
+                    ref var state = ref GetElementState(e.Id);
                     if ((state.Flags & ElementFlags.Pressed) != 0)
                     {
                         _activeScrollId = e.Id;
@@ -368,7 +353,7 @@ public static partial class UI
         for (var i = _elementCount; i > 0; i--)
         {
             ref var e = ref _elements[i - 1];
-            if (e.Type != ElementType.Scrollable || e.Id == ElementId.None || e.CanvasId == ElementId.None)
+            if (e.Type != ElementType.Scrollable || e.Id == 0)
                 continue;
 
             // When popups are open, only allow scrolling inside popups
@@ -379,8 +364,7 @@ public static partial class UI
             if (!e.Rect.Contains(localMouse))
                 continue;
 
-            ref var cs = ref _canvasStates[e.CanvasId];
-            ref var state = ref cs.ElementStates[e.Id];
+            ref var state = ref GetElementState(e.Id);
 
             var scrollSpeed = e.Data.Scrollable.ScrollSpeed;
             var newOffset = e.Data.Scrollable.Offset - scrollDelta * scrollSpeed;

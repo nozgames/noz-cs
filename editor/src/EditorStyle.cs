@@ -7,17 +7,14 @@ namespace NoZ.Editor;
 
 public static class EditorStyle
 {
-    #region Canvas
-    public static class CanvasId
+    public static class ElementId
     {
-        public const byte CommandPalette = 1;
-        public const byte ContextMenu = 2;
-        public const byte Confirm = 3;
-        public const byte DocumentEditor = 4;
-        public const byte Workspace = 5;
-        public const byte Tool = 6;
+        public const int CommandPalette = 1;
+        public const int PopupMenu = CommandPalette + 100;
+        public const int ConfirmDialog = PopupMenu + 100;
+        public const int RenameTool = ConfirmDialog + 100;
+        public const int Workspace = RenameTool + 100;
     }
-    #endregion
 
     public static readonly Color SelectionColor = Color.FromRgb(0x54a3f6);
 

@@ -14,9 +14,13 @@ public enum WorkspaceState
 
 public static class Workspace
 {
-    private const int ToolbarId = 1;
-    private const int XrayButtonId = 2;
-    private const int CollectionButtonId = 3;
+    private static class ElementId
+    {
+        private const int BaseId = EditorStyle.ElementId.Workspace;
+        public const int Toolbar = BaseId + 1;
+        public const int XrayButton = BaseId + 2;
+        public const int CollectionButton = BaseId + 3;
+    }
 
     private const float ZoomMin = 0.2f;
     private const float ZoomMax = 200f;
@@ -361,7 +365,7 @@ public static class Workspace
         CollectionUI();
 
         UI.Flex();
-        if (EditorUI.Button(XrayButtonId, EditorAssets.Sprites.IconXray, toolbar: true, selected: XrayMode))
+        if (EditorUI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, toolbar: true, selected: XrayMode))
         {
             XrayMode = !XrayMode;
             XrayModeChanged?.Invoke(XrayMode);
@@ -383,7 +387,7 @@ public static class Workspace
 
             if (items.Count == 0) return;
 
-            var buttonRect = UI.GetElementRectInCanvas(EditorStyle.CanvasId.Workspace, CollectionButtonId);
+            var buttonRect = UI.GetElementWorldRect(ElementId.CollectionButton);
             var popupStyle = new PopupStyle
             {
                 AnchorX = Align.Min,
@@ -411,8 +415,8 @@ public static class Workspace
         }
 
         if (EditorUI.Control(
-            CollectionButtonId,
-            selected: EditorUI.IsPopupOpen(CollectionButtonId),
+            ElementId.CollectionButton,
+            selected: EditorUI.IsPopupOpen(ElementId.CollectionButton),
             toolbar: false,
             content: Content))
             OpenPopup();
@@ -420,8 +424,7 @@ public static class Workspace
 
     public static void UpdateUI()
     {
-        using (UI.BeginCanvas(EditorStyle.CanvasId.Workspace))
-        using (UI.BeginColumn(ToolbarId, new ContainerStyle { Height = Size.Fit }))
+        using (UI.BeginColumn(ElementId.Toolbar, new ContainerStyle { Height = Size.Fit }))
         {
             ToolbarUI();
             UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.Panel.Root.Border.Color });

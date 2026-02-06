@@ -261,9 +261,9 @@ public static partial class UI
         var childPos = new Vector2(e.Rect.X, e.Rect.Y) - parentPivotOffset;
 
         // Apply scroll offset if parent is scrollable
-        if (p.Type == ElementType.Scrollable && p.Id != ElementId.None)
+        if (p.Type == ElementType.Scrollable && p.Id != 0)
         {
-            ref var ps = ref GetElementState(p.CanvasId, p.Id);
+            ref var ps = ref GetElementState(p.Id);
             childPos.Y -= ps.Data.Scrollable.Offset;
         }
 
@@ -321,38 +321,29 @@ public static partial class UI
         }
     }
 
-    private static void LayoutCanvas(int elementIndex)
-    {
-        ref var e = ref _elements[elementIndex++];
-        Debug.Assert(e.Type == ElementType.Canvas);
-
-        LogUI(e, $"{e.Type}: Index={e.Index} Parent={e.ParentIndex} Sibling={e.NextSiblingIndex}");
-
-        e.Rect = new Rect(0, 0, ScreenSize.X, ScreenSize.Y);
-        e.ContentRect = e.Rect;
-        e.Pivot = Vector2.Zero;
-        e.LocalToWorld = Matrix3x2.Identity;
-        e.WorldToLocal = Matrix3x2.Identity;
-
-        for (var childIndex = 0; childIndex < e.ChildCount; childIndex++)
-        {
-            ref var child = ref _elements[elementIndex];
-            LayoutElement(elementIndex, Vector2.Zero, AutoSize);
-            elementIndex = child.NextSiblingIndex;
-            UpdateTransforms(ref child, ref e);
-        }
-    }
-
     private static void LayoutElements()
     {
         LogUI("Layout", condition: () => _elementCount > 0);
 
-        for (int elementIndex = 0; elementIndex < _elementCount;)
+        if (_elementCount == 0) return;
+
+        // Root container is always at index 0
+        ref var root = ref _elements[0];
+        Debug.Assert(root.Type == ElementType.Container);
+
+        root.Rect = new Rect(0, 0, ScreenSize.X, ScreenSize.Y);
+        root.ContentRect = root.Rect;
+        root.Pivot = Vector2.Zero;
+        root.LocalToWorld = Matrix3x2.Identity;
+        root.WorldToLocal = Matrix3x2.Identity;
+
+        var elementIndex = 1;
+        for (var childIndex = 0; childIndex < root.ChildCount; childIndex++)
         {
-            ref var canvas = ref _elements[elementIndex];
-            Debug.Assert(canvas.Type == ElementType.Canvas);
-            LayoutCanvas(elementIndex);
-            elementIndex = canvas.NextSiblingIndex;
-        }            
+            ref var child = ref _elements[elementIndex];
+            LayoutElement(elementIndex, Vector2.Zero, AutoSize);
+            UpdateTransforms(ref child, ref root);
+            elementIndex = child.NextSiblingIndex;
+        }
     }
 }

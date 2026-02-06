@@ -13,7 +13,7 @@ public static partial class UI
 
     private static void DrawTextBox(ref Element e)
     {
-        Debug.Assert(e.Id != ElementId.None, "TextBox element must have a valid Id");
+        Debug.Assert(e.Id != 0, "TextBox element must have a valid Id");
 
         ref var data = ref e.Data.TextBox;
         var isFocused = e.Id != 0 && IsFocused(ref e);
@@ -27,7 +27,7 @@ public static partial class UI
             border.Color
         );
 
-        if (e.Id == ElementId.None)
+        if (e.Id == 0)
             return;
 
         var font = (e.Asset as Font) ?? DefaultFont;
@@ -43,9 +43,9 @@ public static partial class UI
 
     private static void UpdateTextBoxState(ref Element e)
     {
-        Debug.Assert(e.Id != ElementId.None, "TextBox element must have a valid Id");
+        Debug.Assert(e.Id != 0, "TextBox element must have a valid Id");
 
-        ref var es = ref GetElementState(e.CanvasId, e.Id);
+        ref var es = ref GetElementState(e.Id);
         if (!IsFocused(ref e))
         {
             es.SetFlags(ElementFlags.Focus | ElementFlags.Dragging, ElementFlags.None);
@@ -486,17 +486,17 @@ public static partial class UI
         return text.Length;
     }
 
-    public static ReadOnlySpan<char> GetTextBoxText(CanvasId canvasId, ElementId elementId)
+    public static ReadOnlySpan<char> GetTextBoxText(int elementId)
     {
-        ref var es = ref GetElementState(canvasId, elementId);
+        ref var es = ref GetElementState(elementId);
         ref var e = ref GetElement(es.Index);
         Debug.Assert(e.Type == ElementType.TextBox, "Element is not a TextBox");
         return es.Data.TextBox.Text.AsReadOnlySpan();
     }
 
-    public static void SetTextBoxText(CanvasId canvasId, ElementId elementId, string text, bool selectAll = false)
+    public static void SetTextBoxText(int elementId, string text, bool selectAll = false)
     {
-        ref var es = ref GetElementState(canvasId, elementId);
+        ref var es = ref GetElementState(elementId);
         ref var tb = ref es.Data.TextBox;
         tb.Text = AddText(text);
         tb.TextHash = string.GetHashCode(text);

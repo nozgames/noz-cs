@@ -23,6 +23,7 @@ public static partial class UI
     private const int MaxPopups = 4;
     private const int MaxTextBuffer = 64 * 1024;
     private const int MaxSceneCallbacks = 64;
+    private const int MaxElementId = 32767;
     
     private struct SceneCallback
     {
@@ -30,7 +31,6 @@ public static partial class UI
         public Camera? Camera;
     }
 
-    public struct AutoCanvas : IDisposable { readonly void IDisposable.Dispose() => EndCanvas(); }
     public struct AutoContainer : IDisposable { readonly void IDisposable.Dispose() => EndContainer(); }
     public struct AutoColumn : IDisposable { readonly void IDisposable.Dispose() => EndColumn(); }
     public struct AutoRow : IDisposable { readonly void IDisposable.Dispose() => EndRow(); }
@@ -48,33 +48,28 @@ public static partial class UI
     private static readonly Element[] _elements = new Element[MaxElements];
     private static readonly short[] _elementStack = new short[MaxElementStack];
     private static readonly short[] _popups = new short[MaxPopups];
-    private static NativeArray<ElementState> _elementStates = new(CanvasId.MaxValue * (ElementId.MaxValue + 1));
+    private static NativeArray<ElementState> _elementStates = new(MaxElementId + 1, MaxElementId + 1);
     private static NativeArray<char>[] _textBuffers = [new(MaxTextBuffer), new(MaxTextBuffer)];
-    private static NativeArray<CanvasState> _canvasStates = new(CanvasId.MaxValue + 1, CanvasId.MaxValue + 1);
-    private static NativeArray<CanvasId> _activeCanvasIds = new(CanvasId.MaxValue + 1);
     private static readonly SceneCallback[] _sceneCallbacks = new SceneCallback[MaxSceneCallbacks];
     private static int _sceneCallbackCount;
 
     private static int _currentTextBuffer;
-    private static CanvasId _currentCanvasId;
 
     private static short _elementCount;
     private static int _elementStackCount;
     private static int _popupCount;
-    private static byte _focusElementId;
-    private static byte _pendingFocusElementId;
-    private static byte _focusCanvasId;
-    private static byte _pendingFocusCanvasId;
+    private static int _focusElementId;
+    private static int _pendingFocusElementId;
+    private static int _frameNumber;
     private static Vector2 _size;
     private static Vector2Int _refSize;
-    private static byte _activeScrollId;
+    private static int _activeScrollId;
     private static float _lastScrollMouseY;
     private static bool _closePopups;
 
     // Scrollbar drag state
     private static bool _scrollbarDragging;
-    private static byte _scrollbarDragElementId;
-    private static byte _scrollbarDragCanvasId;
+    private static int _scrollbarDragElementId;
     private static float _scrollbarDragStartOffset;
     private static float _scrollbarDragStartMouseY;
     public static Vector2 ScreenSize => _size;
@@ -85,9 +80,6 @@ public static partial class UI
     public static float GetUIScale() => Application.Platform.DisplayScale * UserScale;
 
     public static Camera? Camera { get; private set; } = null!;
-
-    public static bool IsFocusedCanvas =>
-        _currentCanvasId != CanvasId.None && _currentCanvasId == _focusCanvasId;
 
     public static Vector2Int GetRefSize()
     {
@@ -137,14 +129,6 @@ public static partial class UI
     {
         Config = config ?? new UIConfig();
         Camera = new Camera { FlipY = true };
-        
-        for (int canvasStateIndex=0; canvasStateIndex <= CanvasId.MaxValue; canvasStateIndex++)
-            _canvasStates[canvasStateIndex] = new CanvasState
-            {
-                ElementIndex = -1,
-                LastActiveFrame = 0,
-                ElementStates = _elementStates.AsUnsafeSpan(canvasStateIndex * (ElementId.MaxValue + 1), ElementId.MaxValue + 1)
-            };
 
         UIRender.Init(Config);
 
@@ -162,7 +146,6 @@ public static partial class UI
         ref var element = ref _elements[_elementCount];
         element.Type = type;
         element.Id = 0;
-        element.CanvasId = _currentCanvasId;
         element.Index = _elementCount;
         element.NextSiblingIndex = 0;
         element.ParentIndex = _elementStackCount > 0 ? _elementStack[_elementStackCount - 1] : (short)-1;
@@ -170,7 +153,7 @@ public static partial class UI
         element.Rect = Rect.Zero;
         element.MeasuredSize = Vector2.Zero;
         element.LocalToWorld = Matrix3x2.Identity;
-        element.WorldToLocal = Matrix3x2.Identity;        
+        element.WorldToLocal = Matrix3x2.Identity;
 
         if (_elementStackCount > 0)
             _elements[_elementStack[_elementStackCount - 1]].ChildCount++;
@@ -203,94 +186,69 @@ public static partial class UI
     private static ref Element GetElement(int index) =>
         ref _elements[index];
 
-    private static ref ElementState GetElementState(ref Element e) =>
-        ref _canvasStates[e.CanvasId].ElementStates[e.Id];
+    private static ref ElementState GetElementState(ref Element e)
+    {
+        Debug.Assert(e.Id > 0 && e.Id <= MaxElementId, $"Invalid ElementId: {e.Id}");
+        return ref _elementStates[e.Id];
+    }
 
-    private static ref ElementState GetElementState(CanvasId canvasId, ElementId elementId) =>
-        ref _canvasStates[canvasId].ElementStates[elementId];
-
-    private static ref CanvasState GetCanvasState(CanvasId canvasId) =>
-        ref _canvasStates[canvasId];
+    private static ref ElementState GetElementState(int elementId)
+    {
+        Debug.Assert(elementId > 0 && elementId <= MaxElementId, $"Invalid ElementId: {elementId}");
+        ref var es = ref _elementStates[elementId];
+        if (es.LastFrame != _frameNumber)
+        {
+            es.LastFrame = _frameNumber;
+            es.Flags = ElementFlags.None;
+            es.Index = 0;
+            // Persistent data (TextBox.Text, Scrollable.Offset) is preserved
+        }
+        return ref es;
+    }
 
     public static bool IsRow() => GetSelf().Type == ElementType.Row;
     public static bool IsColumn() => GetSelf().Type == ElementType.Row;
 
-    private static void ResetCanvasElementStates(CanvasId canvasId)
-    {
-        ref var cs = ref GetCanvasState(canvasId);
-        var states = cs.ElementStates;
-
-        for (int i = 0; i <= ElementId.MaxValue; i++)
-        {
-            ref var es = ref states[i];
-            es.Flags = ElementFlags.None;
-            es.Index = 0;
-            es.Rect = Rect.Zero;
-            es.Data = default;
-        }
-
-        // Only clear actual focus, not pending - allows SetFocus before BeginCanvas
-        if (_focusCanvasId == canvasId)
-        {
-            _focusElementId = 0;
-            _focusCanvasId = 0;
-        }
-    }
-
     private static ref NativeArray<char> GetTextBuffer() => ref _textBuffers[_currentTextBuffer];
 
-    public static byte GetElementId() => HasCurrentElement() ? GetSelf().Id : (byte)0;
+    public static int GetElementId() => HasCurrentElement() ? GetSelf().Id : 0;
 
-    public static Rect GetElementRect(CanvasId canvasId, ElementId id)
+    public static Rect GetElementRect(int elementId)
     {
-        if (id == ElementId.None) return Rect.Zero;
-        if (canvasId == CanvasId.None) return Rect.Zero;
-        return GetElementState(canvasId, id).Rect;
+        if (elementId == 0) return Rect.Zero;
+        return GetElementState(elementId).Rect;
     }
 
-    public static Rect GetElementRectInCanvas(CanvasId canvasId, ElementId elementId)
+    public static Rect GetElementWorldRect(int elementId)
     {
-        if (elementId == ElementId.None || canvasId == CanvasId.None)
+        if (elementId == 0)
             return Rect.Zero;
 
-        ref var es = ref GetElementState(canvasId, elementId);
+        ref var es = ref GetElementState(elementId);
         var topLeft = Vector2.Transform(es.Rect.Position, es.LocalToWorld);
         var bottomRight = Vector2.Transform(es.Rect.Position + es.Rect.Size, es.LocalToWorld);
         return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
     }
 
-    public static Rect GetElementCanvasRect(CanvasId canvasId, ElementId elementId) =>
-        GetElementRectInCanvas(canvasId, elementId);
-
-    public static Rect GetElementCanvasRect(ElementId elementId) =>
-        GetElementRectInCanvas(_currentCanvasId, elementId);
-
-    public static ElementId GetParentElementId() =>
+    public static int GetParentElementId() =>
         GetElement(GetElement(GetElementId()).ParentIndex).Id;
 
-    public static Rect GetRelativeElementRect(ElementId elementId, ElementId relativeToId) =>
-        GetRelativeElementRect(_currentCanvasId, elementId, _currentCanvasId, relativeToId);
-    
-    public static Rect GetRelativeElementRect(
-        CanvasId canvasId,
-        ElementId elementId,
-        CanvasId relativeToCanvasId,
-        ElementId relativeToElementId)
+    public static Rect GetRelativeElementRect(int elementId, int relativeToId)
     {
-        if (elementId == ElementId.None || canvasId == CanvasId.None)
+        if (elementId == 0)
             return Rect.Zero;
 
-        ref var sourceState = ref GetElementState(canvasId, elementId);
+        ref var sourceState = ref GetElementState(elementId);
 
         var topLeft = Vector2.Transform(sourceState.Rect.Position, sourceState.LocalToWorld);
         var bottomRight = Vector2.Transform(sourceState.Rect.Position + sourceState.Rect.Size, sourceState.LocalToWorld);
 
-        // If no relative element specified, return canvas-space rect
-        if (relativeToElementId == ElementId.None || relativeToCanvasId == CanvasId.None)
+        // If no relative element specified, return world-space rect
+        if (relativeToId == 0)
             return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
 
         // Transform to target element's local space using cached transform
-        ref var targetState = ref GetElementState(relativeToCanvasId, relativeToElementId);
+        ref var targetState = ref GetElementState(relativeToId);
         Matrix3x2.Invert(targetState.LocalToWorld, out var targetWorldToLocal);
 
         topLeft = Vector2.Transform(topLeft, targetWorldToLocal);
@@ -301,15 +259,14 @@ public static partial class UI
 
     private static bool HasCurrentElement() => _elementStackCount > 0;
 
-    private static void SetId(ref Element e, CanvasId canvasId, ElementId elementId)
+    private static void SetId(ref Element e, int elementId)
     {
-        if (elementId == ElementId.None) return;
-        if (canvasId == CanvasId.None) return;
-        
-        e.Id = elementId;
-        e.CanvasId = canvasId;
+        if (elementId == 0) return;
+        Debug.Assert(elementId > 0 && elementId <= MaxElementId, $"Invalid ElementId: {elementId}");
 
-        ref var es = ref GetElementState(canvasId, elementId);
+        e.Id = elementId;
+
+        ref var es = ref GetElementState(elementId);
         es.Index = e.Index;
     }
 
@@ -380,22 +337,20 @@ public static partial class UI
     public static bool WasPressed() => GetElementState(ref GetSelf()).IsPressed;
     public static bool IsDown() => GetElementState(ref GetSelf()).IsDown;
 
-    public static float GetScrollOffset(CanvasId canvasId, ElementId elementId)
+    public static float GetScrollOffset(int elementId)
     {
-        if (canvasId == CanvasId.None) return 0;
-        if (elementId == CanvasId.None) return 0;
-        ref var es = ref GetElementState(canvasId, elementId);
+        if (elementId == 0) return 0;
+        ref var es = ref GetElementState(elementId);
         if (es.Index == 0) return 0;
         ref var e = ref GetElement(es.Index);
         Debug.Assert(e.Type == ElementType.Scrollable, "GetScrollOffset called on non-scrollable element");
         return es.Data.Scrollable.Offset;
     }
 
-    public static void SetScrollOffset(CanvasId canvasId, ElementId elementId, float offset)
+    public static void SetScrollOffset(int elementId, float offset)
     {
-        if (canvasId == CanvasId.None) return;
-        if (elementId == CanvasId.None) return;
-        ref var es = ref GetElementState(canvasId, elementId);
+        if (elementId == 0) return;
+        ref var es = ref GetElementState(elementId);
         ref var e = ref GetElement(es.Index);
         Debug.Assert(e.Type == ElementType.Scrollable, "SetScrollOffset called on non-scrollable element");
         es.Data.Scrollable.Offset = offset;
@@ -406,8 +361,7 @@ public static partial class UI
     /// Returns (startIndex, endIndex) where endIndex is exclusive.
     /// </summary>
     public static (int startIndex, int endIndex) GetGridCellRange(
-        CanvasId canvasId,
-        ElementId scrollId,
+        int scrollId,
         int columns,
         float cellHeight,
         float spacing,
@@ -416,7 +370,7 @@ public static partial class UI
     {
         if (totalCount <= 0) return (0, 0);
 
-        var scrollOffset = GetScrollOffset(canvasId, scrollId);
+        var scrollOffset = GetScrollOffset(scrollId);
         var rowHeight = cellHeight + spacing;
 
         // Calculate visible row range with 1-row buffer above and below
@@ -445,47 +399,33 @@ public static partial class UI
     {
         if (!HasCurrentElement()) return false;
         ref var e = ref GetSelf();
-        return _focusElementId != 0 && e.Id == _focusElementId && e.CanvasId == _focusCanvasId;
+        return _focusElementId != 0 && e.Id == _focusElementId;
     }
 
-    public static void SetFocus(ElementId elementId)
-    {
-        // Requires a current canvas context
-        if (!HasCurrentElement())
-            return;
-
-        ref var e = ref GetSelf();
-        _pendingFocusElementId = elementId;
-        _pendingFocusCanvasId = e.CanvasId;
-    }
-
-    public static void SetFocus(CanvasId canvasId, ElementId elementId)
+    public static void SetFocus(int elementId)
     {
         _pendingFocusElementId = elementId;
-        _pendingFocusCanvasId = canvasId;
     }
 
     public static void ClearFocus()
     {
         _focusElementId = 0;
-        _focusCanvasId = 0;
         _pendingFocusElementId = 0;
-        _pendingFocusCanvasId = 0;
     }
 
     public static bool IsClosed() =>
         HasCurrentElement() && GetSelf().Type == ElementType.Popup && _closePopups;
 
-    private static bool IsFocused(ref Element e) => IsFocused(e.CanvasId, e.Id);
+    private static bool IsFocused(ref Element e) => IsFocused(e.Id);
 
-    public static bool IsFocused(CanvasId canvasId, ElementId elementId) =>
-        elementId != ElementId.None &&
-        canvasId != CanvasId.None &&
-        _focusElementId == elementId &&
-        _focusCanvasId == canvasId;
+    public static bool IsFocused(int elementId) =>
+        elementId != 0 &&
+        _focusElementId == elementId;
 
     internal static void Begin()
     {
+        _frameNumber++;
+
         for (int i=0; i< _sceneCallbackCount; i++)
             _sceneCallbacks[i] = new SceneCallback();
         _sceneCallbackCount = 0;
@@ -501,7 +441,6 @@ public static partial class UI
         _sceneCallbackCount = 0;
         _currentTextBuffer = 1 - _currentTextBuffer;
         _textBuffers[_currentTextBuffer].Clear();
-        _currentCanvasId = CanvasId.None;
 
         var screenSize = Application.WindowSize.ToVector2();
         var rw = (float)_refSize.X;
@@ -544,126 +483,91 @@ public static partial class UI
         Camera!.SetExtents(new Rect(0, 0, _size.X, _size.Y));
         Camera!.Update();
 
-        // Apply pending focus (element ID + canvas ID)
+        // Apply pending focus
         _focusElementId = _pendingFocusElementId;
-        _focusCanvasId = _pendingFocusCanvasId;
-        _activeCanvasIds.Clear();
+
+        // Create automatic full-screen root container
+        ref var root = ref CreateElement(ElementType.Container);
+        root.Id = 0;
+        root.Data.Container = ContainerData.Default;
+        PushElement(root.Index);
     }
 
-    public static AutoCanvas BeginCanvas(CanvasId id, in CanvasStyle style)
-    {
-        ref var e = ref CreateElement(ElementType.Canvas);
-        e.Data.Canvas = style.ToData();
-        e.CanvasId = id;
-
-        if (id != CanvasId.None)
-        {
-            _currentCanvasId = id;
-            ref var cs = ref GetCanvasState(id);
-
-            var currentFrame = Time.FrameCount;
-            if (cs.LastActiveFrame > 0 && cs.LastActiveFrame < currentFrame - 1)
-                ResetCanvasElementStates(id);
-            cs.LastActiveFrame = currentFrame;
-
-            cs.ElementIndex = e.Index;
-            _activeCanvasIds.Add(id);
-        }
-
-        PushElement(e.Index);
-        return new AutoCanvas();
-    }
-
-    public static AutoCanvas BeginCanvas(CanvasId id) =>
-        BeginCanvas(id, new CanvasStyle());
-
-    public static AutoCanvas BeginCanvas(in CanvasStyle style) =>
-        BeginCanvas(CanvasId.None, style);
-
-    public static AutoCanvas BeginCanvas() =>
-        BeginCanvas(CanvasId.None, new CanvasStyle());
-
-    public static void EndCanvas()
-    {
-        EndElement(ElementType.Canvas);
-        _currentCanvasId = CanvasId.None;
-    }
-
-    public static AutoContainer BeginContainer(ElementId id=default)
+    public static AutoContainer BeginContainer(int id=default)
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = ContainerData.Default;
-        SetId(ref e, _currentCanvasId, id);
+        SetId(ref e, id);
         PushElement(e.Index);
         return new AutoContainer();
     }
 
-    public static AutoContainer BeginContainer(ElementId id, in ContainerStyle style)
+    public static AutoContainer BeginContainer(int id, in ContainerStyle style)
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = style.ToData();
-        SetId(ref e, _currentCanvasId, id);
+        SetId(ref e, id);
         PushElement(e.Index);
         return new AutoContainer();
     }
 
     public static AutoContainer BeginContainer(in ContainerStyle style) =>
-        BeginContainer(ElementId.None, style);
+        BeginContainer(0, style);
 
     public static void EndContainer() => EndElement(ElementType.Container);
 
-    public static void Container(byte id=0)
+    public static void Container(int id=0)
     {
         BeginContainer(id:id);
         EndContainer();
     }
 
-    public static void Container(ElementId id, ContainerStyle style)
+    public static void Container(int id, ContainerStyle style)
     {
         BeginContainer(id, style);
         EndContainer();
     }
 
     public static void Container(ContainerStyle style) =>
-        Container(ElementId.None, style);
+        Container(0, style);
 
-    public static AutoColumn BeginColumn(ElementId id, in ContainerStyle style)
+    public static AutoColumn BeginColumn(int id, in ContainerStyle style)
     {
         ref var e = ref CreateElement(ElementType.Column);
         e.Data.Container = style.ToData();
-        SetId(ref e, _currentCanvasId, id);
+        SetId(ref e, id);
         PushElement(e.Index);
         return new AutoColumn();
     }
 
-    public static AutoColumn BeginColumn(ElementId id) =>
+    public static AutoColumn BeginColumn(int id) =>
         BeginColumn(id, ContainerStyle.Default);
 
     public static AutoColumn BeginColumn(in ContainerStyle style) =>
-        BeginColumn(ElementId.None, style);
+        BeginColumn(0, style);
 
     public static AutoColumn BeginColumn() =>
-        BeginColumn(ElementId.None, ContainerStyle.Default);
+        BeginColumn(0, ContainerStyle.Default);
 
     public static void EndColumn() => EndElement(ElementType.Column);
 
-    public static AutoRow BeginRow(ElementId id, in ContainerStyle style)
+    public static AutoRow BeginRow(int id, in ContainerStyle style)
     {
         ref var e = ref CreateElement(ElementType.Row);
         e.Data.Container = style.ToData();
-        SetId(ref e, _currentCanvasId, id);
+        SetId(ref e, id);
         PushElement(e.Index);
         return new AutoRow();
     }
 
-    public static AutoRow BeginRow(ElementId id) =>
+    public static AutoRow BeginRow(int id) =>
         BeginRow(id, ContainerStyle.Default);
 
     public static AutoRow BeginRow(in ContainerStyle style) =>
-        BeginRow(ElementId.None, style);
+        BeginRow(0, style);
 
     public static AutoRow BeginRow() =>
-        BeginRow(ElementId.None, ContainerStyle.Default);
+        BeginRow(0, ContainerStyle.Default);
 
     public static void EndRow() => EndElement(ElementType.Row);
 
@@ -744,12 +648,12 @@ public static partial class UI
 
     public static void EndTransformed() => EndElement(ElementType.Transform);
 
-    public static AutoScrollable BeginScrollable(ElementId id) =>
+    public static AutoScrollable BeginScrollable(int id) =>
         BeginScrollable(id, new ScrollableStyle());
 
-    public static AutoScrollable BeginScrollable(ElementId id, in ScrollableStyle style)
+    public static AutoScrollable BeginScrollable(int id, in ScrollableStyle style)
     {
-        Debug.Assert(id != ElementId.None);
+        Debug.Assert(id != 0);
         ref var e = ref CreateElement(ElementType.Scrollable);
         e.Data.Scrollable = new ScrollableData
         {
@@ -765,7 +669,7 @@ public static partial class UI
             ScrollbarPadding = style.ScrollbarPadding,
             ScrollbarBorderRadius = style.ScrollbarBorderRadius
         };
-        SetId(ref e, _currentCanvasId, id);
+        SetId(ref e, id);
 
         // Restore persisted scroll offset from element state
         ref var es = ref GetElementState(ref e);
@@ -795,7 +699,7 @@ public static partial class UI
 
     public static void EndGrid() => EndElement(ElementType.Grid);
 
-    public static void Scene(ElementId id, in SceneStyle style)
+    public static void Scene(int id, in SceneStyle style)
     {
         ref var e = ref CreateElement(ElementType.Scene);
 
@@ -814,14 +718,14 @@ public static partial class UI
             Size = style.Size
         };
 
-        SetId(ref e, _currentCanvasId, id);
+        SetId(ref e, id);
         PushElement(e.Index);
         PopElement();
     }
 
-    public static void Scene(in SceneStyle style) => Scene(ElementId.None, style);
+    public static void Scene(in SceneStyle style) => Scene(0, style);
 
-    public static AutoPopup BeginPopup(ElementId id, PopupStyle style)
+    public static AutoPopup BeginPopup(int id, PopupStyle style)
     {
         ref var e = ref CreateElement(ElementType.Popup);
         e.Data.Popup = new PopupData
@@ -835,7 +739,7 @@ public static partial class UI
             AnchorRect = style.AnchorRect,
             MinWidth = style.MinWidth
         };
-        SetId(ref e, _currentCanvasId, id);
+        SetId(ref e, id);
         PushElement(e.Index);
         _popups[_popupCount++] = e.Index;
         return new AutoPopup();
@@ -917,7 +821,7 @@ public static partial class UI
 
     // :textbox
     public static bool TextBox(
-        ElementId id,
+        int id,
         TextBoxStyle style = default,
         string? placeholder = null)
     {
@@ -927,12 +831,12 @@ public static partial class UI
 
         if (!string.IsNullOrEmpty(placeholder))
             e.Data.TextBox.Placeholder = AddText(placeholder);
-        
-        SetId(ref e, _currentCanvasId, id);
+
+        SetId(ref e, id);
 
         ref var es = ref GetElementState(ref e);
 
-        // the ui system uses alternating text buffers so we can access previous 
+        // the ui system uses alternating text buffers so we can access previous
         // text while building new text. Here we copy the previous text into the current buffer.
         es.Data.TextBox.Text = AddText(es.Data.TextBox.Text.AsReadOnlySpan());
 
@@ -946,6 +850,9 @@ public static partial class UI
 
     internal static void End()
     {
+        // Pop the automatic root container
+        PopElement();
+
         LayoutElements();
 
         Graphics.SetCamera(Camera);

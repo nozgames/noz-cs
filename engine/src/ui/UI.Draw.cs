@@ -25,11 +25,6 @@ public static partial class UI
 
         switch (e.Type)
         {
-            case ElementType.Canvas:
-                Graphics.SetLayer(e.Data.Canvas.Layer);
-                DrawCanvas(ref e);
-                break;
-
             case ElementType.Container:
             case ElementType.Column:
             case ElementType.Row:
@@ -133,14 +128,10 @@ public static partial class UI
     {
         LogUI("Draw", condition: () => _elementCount > 0);
 
-        // First pass: draw everything except popups
-        for (int elementIndex = 0; elementIndex < _elementCount;)
-        {
-            ref var canvas = ref _elements[elementIndex];
-            Debug.Assert(canvas.Type == ElementType.Canvas, "Expected canvas element");
-            DrawElement(elementIndex, false);
-            elementIndex = canvas.NextSiblingIndex;
-        }
+        if (_elementCount == 0) return;
+
+        // Draw from root container (index 0)
+        DrawElement(0, false);
 
         // Second pass: draw popups (outside any scissor regions)
         for (var i = 0; i < _popupCount; i++)
@@ -148,17 +139,6 @@ public static partial class UI
             var popupIndex = _popups[i];
             DrawElement(popupIndex, true);
         }
-    }
-
-    private static void DrawCanvas(ref Element e)
-    {
-        ref var style = ref e.Data.Canvas;
-        if (style.Color.IsTransparent)
-            return;
-
-        var topLeft = Vector2.Transform(e.Rect.Position, e.LocalToWorld);
-        var bottomRight = Vector2.Transform(e.Rect.Position + e.Rect.Size, e.LocalToWorld);
-        UIRender.DrawRect(new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y), style.Color);
     }
 
     private static void DrawContainer(ref Element e)

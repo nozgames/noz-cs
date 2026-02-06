@@ -62,8 +62,8 @@ public static class PopupMenu
         public bool ShowIcons;
     }
 
-    private static readonly ElementId MenuIdStart = 10;
-    private static readonly ElementId ItemIdStart = 20;
+    private static readonly int MenuIdStart = EditorStyle.ElementId.PopupMenu;
+    private static readonly int ItemIdStart = EditorStyle.ElementId.PopupMenu + 20;
     private const int MaxItems = 64;
     private const int MaxSubmenuDepth = 8;
 
@@ -192,8 +192,7 @@ public static class PopupMenu
         Action? executed = null;
         var shouldClose = false;
 
-        using (UI.BeginCanvas(id: EditorStyle.CanvasId.ContextMenu))
-            MenuUI(0, -1, new Rect(_position, Vector2.Zero), _popupStyle, ref executed, ref shouldClose);
+        MenuUI(0, -1, new Rect(_position, Vector2.Zero), _popupStyle, ref executed, ref shouldClose);
 
         if (shouldClose)
         {
@@ -321,7 +320,7 @@ public static class PopupMenu
         {
             _levels[level + 1].ShowChecked = item.ShowChecked;
             _levels[level + 1].ShowIcons = item.ShowIcons;
-            var itemRect = UI.GetElementRectInCanvas(EditorStyle.CanvasId.ContextMenu, itemId);
+            var itemRect = UI.GetElementWorldRect(itemId);
             MenuUI(level + 1, index, itemRect, null, ref executed, ref shouldClose);
         }
     }

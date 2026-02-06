@@ -6,9 +6,14 @@ namespace NoZ.Editor;
 
 public static class CommandPalette
 {
-    private static readonly ElementId CloseId = new(1);
-    private static readonly ElementId SearchId = new(2);
-    private static readonly ElementId CommandListId = new(3);
+    private static class ElementId
+    {
+        private const int BaseId = EditorStyle.ElementId.CommandPalette;
+        public const int Close = BaseId + 0;
+        public const int Search = BaseId + 1;
+        public const int CommandList = BaseId + 2;
+    }
+
     private const int MaxFilteredCommands = 32;
 
     private static string _text = string.Empty;
@@ -30,7 +35,7 @@ public static class CommandPalette
         _filteredCount = 0;
 
         UpdateFilteredCommands();
-        UI.SetFocus(EditorStyle.CanvasId.CommandPalette, SearchId);
+        UI.SetFocus(ElementId.Search);
     }
 
     public static void Close()
@@ -88,28 +93,25 @@ public static class CommandPalette
     {
         if (!IsOpen) return;
 
-        using (UI.BeginCanvas(id:EditorStyle.CanvasId.CommandPalette))
+        using (UI.BeginContainer(ElementId.Close))
+            if (UI.WasPressed())
+                Close();
+
+        using (UI.BeginColumn(EditorStyle.CommandPalette.Root))
         {
-            using (UI.BeginContainer(id:CloseId))
-                if (UI.WasPressed())
-                    Close();
-
-            using (UI.BeginColumn(EditorStyle.CommandPalette.Root))
+            using (UI.BeginRow(EditorStyle.Popup.Item with { Spacing = 4.0f }))
             {
-                using (UI.BeginRow(EditorStyle.Popup.Item with { Spacing = 4.0f }))
-                {
-                    using (UI.BeginContainer(EditorStyle.Control.IconContainer))
-                        UI.Image(EditorAssets.Sprites.IconSearch, EditorStyle.Control.Icon);
+                using (UI.BeginContainer(EditorStyle.Control.IconContainer))
+                    UI.Image(EditorAssets.Sprites.IconSearch, EditorStyle.Control.Icon);
                    
-                    using (UI.BeginFlex())
-                        if (UI.TextBox(SearchId, style: EditorStyle.CommandPalette.SearchTextBox, placeholder: "Search..."))
-                            _text = new string(UI.GetTextBoxText(EditorStyle.CanvasId.CommandPalette, SearchId));
-                }
-
-                UI.Container(EditorStyle.Popup.Separator);
-
-                CommandList();
+                using (UI.BeginFlex())
+                    if (UI.TextBox(ElementId.Search, style: EditorStyle.CommandPalette.SearchTextBox, placeholder: "Search..."))
+                        _text = new string(UI.GetTextBoxText(ElementId.Search));
             }
+
+            UI.Container(EditorStyle.Popup.Separator);
+
+            CommandList();
         }
     }
 
@@ -118,7 +120,7 @@ public static class CommandPalette
         var execute = false;
 
         using (UI.BeginContainer(EditorStyle.CommandPalette.CommandList))
-        using (UI.BeginScrollable(CommandListId))
+        using (UI.BeginScrollable(ElementId.CommandList))
         using (UI.BeginColumn())
         {
             var selectedIndex = _selectedIndex;
@@ -157,10 +159,10 @@ public static class CommandPalette
             }
 
             _selectedIndex = selectedIndex;
-        }
 
-        if (execute)
-            ExecuteSelectedCommand();
+            if (execute)
+                ExecuteSelectedCommand();
+        }
     }
 
     private static void ExecuteSelectedCommand()
@@ -195,7 +197,7 @@ public static class CommandPalette
 
     private static void ScrollToSelection()
     {
-        var scrollableRect = UI.GetElementRect(EditorStyle.CanvasId.CommandPalette, CommandListId);
+        var scrollableRect = UI.GetElementRect(ElementId.CommandList);
 
         if (scrollableRect.Height <= 0)
             return;
@@ -203,7 +205,7 @@ public static class CommandPalette
         var itemTop = _selectedIndex * EditorStyle.List.ItemHeight;
         var itemBottom = itemTop + EditorStyle.List.ItemHeight;
 
-        var currentScroll = UI.GetScrollOffset(EditorStyle.CanvasId.CommandPalette, CommandListId);
+        var currentScroll = UI.GetScrollOffset(ElementId.CommandList);
         var viewTop = currentScroll;
         var viewBottom = currentScroll + scrollableRect.Height;
         var newScroll = currentScroll;
@@ -214,6 +216,6 @@ public static class CommandPalette
             newScroll = itemBottom - scrollableRect.Height;
 
         if (newScroll != currentScroll)
-            UI.SetScrollOffset(EditorStyle.CanvasId.CommandPalette, CommandListId, newScroll);
+            UI.SetScrollOffset(ElementId.CommandList, newScroll);
     }
 }

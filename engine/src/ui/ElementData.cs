@@ -222,24 +222,6 @@ internal struct SceneData
 }
 
 
-internal struct CanvasData
-{
-    public Color Color;
-    public Vector2Int ColorOffset;
-    public Vector2 WorldPosition;
-    public Vector2 WorldSize;
-    public ushort Layer;
-
-    public static CanvasData Default => new()
-    {
-        Color = Color.Transparent,
-        ColorOffset = Vector2Int.Zero,
-        WorldPosition = Vector2.Zero,
-        WorldSize = Vector2.Zero,
-        Layer = 0
-    };
-}
-
 public struct TextBoxData
 {
     public Size Height;
@@ -283,7 +265,6 @@ internal struct ElementData
     [FieldOffset(0)] public TransformData Transform;
     [FieldOffset(0)] public PopupData Popup;
     [FieldOffset(0)] public SpacerData Spacer;
-    [FieldOffset(0)] public CanvasData Canvas;
     [FieldOffset(0)] public TextBoxData TextBox;
     [FieldOffset(0)] public SceneData Scene;
 }

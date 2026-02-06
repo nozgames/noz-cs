@@ -242,7 +242,6 @@ public class SpriteEditor : DocumentEditor
 
     public override void UpdateUI()
     {
-        using (UI.BeginCanvas(id: EditorStyle.CanvasId.DocumentEditor))
         using (UI.BeginColumn(RootId, EditorStyle.DocumentEditor.Root))
         {
             ToolbarUI();

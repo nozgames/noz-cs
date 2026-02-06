@@ -46,6 +46,7 @@ internal struct ElementState
 {
     public ElementFlags Flags;
     public short Index;
+    public int LastFrame;
     public Rect Rect;
     public System.Numerics.Matrix3x2 LocalToWorld;
     public ElementStateData Data;
@@ -58,12 +59,4 @@ internal struct ElementState
     public readonly bool IsChanged => (Flags & ElementFlags.Changed) != 0;
     public void SetFlags(ElementFlags mask, ElementFlags flags) =>
         Flags = (Flags & ~mask) | (flags & mask);
-}
-
-internal struct CanvasState
-{
-    public short ElementIndex;
-    public Rect WorldBounds;
-    public UnsafeSpan<ElementState> ElementStates;
-    public int LastActiveFrame;
 }

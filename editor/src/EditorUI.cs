@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 internal static class EditorUI
 {
-    public const int PopupId = 128;
+    public const int PopupId = EditorStyle.ElementId.PopupMenu;
     public const int FirstPopupItemId = PopupId + 1;
     private static readonly string[] OpacityStrings = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"];
     private static readonly string[] FrameTimeStrings = ["0", "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60"];
@@ -79,7 +79,7 @@ internal static class EditorUI
             UI.Container(EditorStyle.Button.Fill);
     }
 
-    public static bool Button(ElementId id, string text, bool selected = false, bool disabled = false, bool toolbar = false)
+    public static bool Button(int id, string text, bool selected = false, bool disabled = false, bool toolbar = false)
     {
         bool pressed = false;
         using (UI.BeginContainer(id, EditorStyle.Button.Root))
@@ -107,7 +107,7 @@ internal static class EditorUI
 
     }
 
-    public static bool Button(ElementId id, Sprite icon, bool selected = false, bool disabled = false, bool toolbar = false)
+    public static bool Button(int id, Sprite icon, bool selected = false, bool disabled = false, bool toolbar = false)
     {
         bool pressed = false;
         using (UI.BeginContainer(id, EditorStyle.Button.RootWithIcon))
@@ -124,7 +124,7 @@ internal static class EditorUI
         return pressed;
     }
 
-    public static bool Button(ElementId id, Action content, bool selected = false, bool disabled = false, bool toolbar = false)
+    public static bool Button(int id, Action content, bool selected = false, bool disabled = false, bool toolbar = false)
     {
         bool pressed = false;
         using (UI.BeginContainer(id, EditorStyle.Button.RootWithContent))
@@ -178,7 +178,7 @@ internal static class EditorUI
         PopupItem(_nextPopupItemId++, text, content, selected, disabled);
 
     public static bool PopupItem(
-        ElementId id,
+        int id,
         string text,
         Action? content = null,
         bool selected = false,
@@ -195,7 +195,7 @@ internal static class EditorUI
         PopupItem(_nextPopupItemId++, icon, text, content, selected, disabled, showIcon);
 
     public static bool PopupItem(
-        ElementId id,
+        int id,
         Sprite? icon,
         string? text,
         Action? content = null,
@@ -232,7 +232,7 @@ internal static class EditorUI
         return pressed;
     }
 
-    public static void OpenPopup(ElementId id)
+    public static void OpenPopup(int id)
     {
         _popupId = id;
     }
@@ -242,7 +242,7 @@ internal static class EditorUI
         _popupId = -1;
     }
 
-    public static void TogglePopup(ElementId id)
+    public static void TogglePopup(int id)
     {
         if (_popupId == id)
             _popupId = -1;
@@ -250,16 +250,16 @@ internal static class EditorUI
             _popupId = id;
     }
 
-    public static bool IsPopupOpen(ElementId id) =>
+    public static bool IsPopupOpen(int id) =>
         _popupId == id;
 
-    public static bool Popup(ElementId id, Action content, PopupStyle? style = null, Vector2 offset = default)
+    public static bool Popup(int id, Action content, PopupStyle? style = null, Vector2 offset = default)
     {
         if (_popupId != id) return false;
 
         _nextPopupItemId = FirstPopupItemId;
 
-        var anchorRect = UI.GetElementCanvasRect(id).Translate(offset);
+        var anchorRect = UI.GetElementWorldRect(id).Translate(offset);
         using var _ = UI.BeginPopup(
             PopupId,
             style ?? new PopupStyle
@@ -300,7 +300,7 @@ internal static class EditorUI
     }
 
     public static bool Control(
-        ElementId id,
+        int id,
         Action content,
         bool selected = false,
         bool disabled = false,
@@ -372,7 +372,7 @@ internal static class EditorUI
         UI.Container(EditorStyle.Toolbar.Spacer);
     }
 
-    private static UI.AutoContainer BeginColorContainer(ElementId id, bool selected)
+    private static UI.AutoContainer BeginColorContainer(int id, bool selected)
     {
         var container = UI.BeginContainer(id, new ContainerStyle
         {
@@ -470,7 +470,7 @@ internal static class EditorUI
         }
     }
 
-    private static void ColorPopup(ElementId id, int palette, ref int value, ref float opacity)
+    private static void ColorPopup(int id, int palette, ref int value, ref float opacity)
     {
         if (id != _popupId) return;
 
@@ -483,7 +483,7 @@ internal static class EditorUI
     }
 
     public static bool ColorButton(
-        ElementId id,
+        int id,
         int paletteId,
         ref int colorId,
         ref float opacity,
@@ -538,7 +538,7 @@ internal static class EditorUI
         return colorId != oldValue || oldOpacity != opacity;
     }
 
-    private static float OpacityPopup(ElementId id, float value, bool showSubtract)
+    private static float OpacityPopup(int id, float value, bool showSubtract)
     {
         void OpacityItem(float value)
         {
@@ -583,7 +583,7 @@ internal static class EditorUI
         return _opacityValue;
     }
 
-    public static bool OpacityButton(ElementId id, ref float value, bool showSubtract=false)
+    public static bool OpacityButton(int id, ref float value, bool showSubtract=false)
     {
         var oldValue = value;
 

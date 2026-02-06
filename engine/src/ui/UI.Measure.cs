@@ -181,8 +181,8 @@ public static partial class UI
             var fontSize = e.Data.TextBox.FontSize;
 
             // Use actual text if available, otherwise placeholder
-            var text = e.Id != ElementId.None
-                ? GetElementState(e.CanvasId, e.Id).Data.TextBox.Text.AsReadOnlySpan()
+            var text = e.Id != 0
+                ? GetElementState(e.Id).Data.TextBox.Text.AsReadOnlySpan()
                 : ReadOnlySpan<char>.Empty;
 
             if (text.Length == 0)

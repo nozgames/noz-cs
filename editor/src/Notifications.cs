@@ -98,7 +98,6 @@ public static class Notifications
         if (_count <= 0)
             return;
 
-        using (UI.BeginCanvas())
         using (UI.BeginColumn(EditorStyle.Notifications.Root))
         {
             for (var i = 0; i < _count; i++)

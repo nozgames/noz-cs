@@ -120,25 +120,6 @@ public struct PopupStyle()
     public float MinWidth = 0;
 }
 
-public struct CanvasStyle()
-{
-    public Color Color = Color.Transparent;
-    public Vector2Int ColorOffset = Vector2Int.Zero;
-    public Vector2 WorldPosition = Vector2.Zero;
-    public Vector2 WorldSize = Vector2.Zero;
-    public Camera? WorldCamera = null;
-    public ushort Layer = 0;
-
-    internal CanvasData ToData() => new()
-    {
-        Color = Color,
-        ColorOffset = ColorOffset,
-        WorldPosition = WorldPosition,
-        WorldSize = WorldSize,
-        Layer = Layer
-    };
-}
-
 public struct TextBoxStyle()
 {
     public Size Height = 28f;
