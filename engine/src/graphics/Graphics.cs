@@ -47,6 +47,7 @@ public static unsafe partial class Graphics
         public byte Pass;
         public ushort GlobalsIndex;
         public nuint RenderTextureHandle;  // 0 = scene pass, otherwise RT handle
+        public Color ClearColor;
     }
 
     private struct Batch
@@ -71,7 +72,6 @@ public static unsafe partial class Graphics
 
     public static event Action? AfterEndFrame;
 
-    private static readonly Dictionary<nuint, Color> _rtClearColors = new();
     private static State[] _stateStack = null!;
     private static int _stateStackDepth = 0;
     private static bool _batchStateDirty = true;
@@ -206,7 +206,7 @@ public static unsafe partial class Graphics
 
         PushState();
 
-        _rtClearColors[rt.Handle] = clearColor ?? Color.Transparent;
+        CurrentState.ClearColor = clearColor ?? Color.Transparent;
         _currentPass = RenderPass.RenderTexture;
         _activeRenderTexture = rt;
 
@@ -314,7 +314,8 @@ public static unsafe partial class Graphics
             ScissorEnabled = CurrentState.ScissorEnabled,
             Scissor = CurrentState.Scissor,
             Mesh = CurrentState.Mesh,
-            RenderTextureHandle = _activeRenderTexture.Handle
+            RenderTextureHandle = _activeRenderTexture.Handle,
+            ClearColor = CurrentState.ClearColor
         };
 
         for (int t = 0; t < MaxTextures; t++)
@@ -630,9 +631,8 @@ public static unsafe partial class Graphics
                 }
                 else
                 {
-                    // RT pass - get clear color from stored values
-                    var clearColor = _rtClearColors.GetValueOrDefault(currentRT, Color.Transparent);
-                    Driver.BeginRenderTexturePass(currentRT, clearColor);
+                    // RT pass - get clear color from batch state
+                    Driver.BeginRenderTexturePass(currentRT, batchState.ClearColor);
                     LogGraphics($"  BeginPass: RT 0x{currentRT:X}");
                 }
 
@@ -746,7 +746,6 @@ public static unsafe partial class Graphics
         _indices.Clear();
         _batches.Clear();
         _batchStates.Clear();
-        _rtClearColors.Clear();
 
         // Advance base index so subsequent ExecuteCommands calls (like RTT) use different buffer slots
         // This prevents RTT from overwriting globals that main frame draw commands still reference

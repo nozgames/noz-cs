@@ -15,6 +15,7 @@ public static unsafe partial class Graphics
     private struct State
     {
         public Color Color;
+        public Color ClearColor;
         public Shader? Shader;
         public Matrix3x2 Transform;
         public fixed ulong Textures[MaxTextures];
