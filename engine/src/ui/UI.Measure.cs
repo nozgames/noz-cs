@@ -193,7 +193,8 @@ public static partial class UI
                 : 0;
         }
 
-        return new Vector2(width, height);
+        var padding = e.Data.TextBox.Padding;
+        return new Vector2(width + padding.Horizontal, height);
     }
 
     private static Vector2 GetOuterSize(ref readonly Element e, in Vector2 intrinsicSize)

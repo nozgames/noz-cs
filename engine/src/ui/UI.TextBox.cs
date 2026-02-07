@@ -95,16 +95,10 @@ public static partial class UI
         if (!es.HasFocus)
         {
             es.SetFlags(ElementFlags.Focus, ElementFlags.Focus);
-
-            // If mouse is down inside, start dragging immediately
-            if (isMouseOver && Input.IsButtonDown(InputCode.MouseLeft, scope))
-            {
-                var mouseIndex = GetTextBoxPosition(ref e, tb.Text.AsReadOnlySpan(), font, fontSize, mousePos);
-                tb.CursorIndex = mouseIndex;
-                tb.SelectionStart = mouseIndex;
-                tb.BlinkTimer = 0;
-                es.SetFlags(ElementFlags.Dragging, ElementFlags.Dragging);
-            }
+            tb.SelectionStart = 0;
+            tb.CursorIndex = tb.Text.AsReadOnlySpan().Length;
+            tb.BlinkTimer = 0;
+            return;
         }
 
         // Double Click to Select All
@@ -144,6 +138,7 @@ public static partial class UI
         // Keyboard Navigation
         if (Input.WasButtonPressed(InputCode.KeyLeft, true, scope))
         {
+            Input.ConsumeButton(InputCode.KeyLeft);
             if (control)
             {
                 // Move by word
@@ -164,6 +159,7 @@ public static partial class UI
         }
         else if (Input.WasButtonPressed(InputCode.KeyRight, true, scope))
         {
+            Input.ConsumeButton(InputCode.KeyRight);
             if (control)
             {
                 // Move by word
@@ -184,23 +180,27 @@ public static partial class UI
         }
         else if (Input.WasButtonPressed(InputCode.KeyHome, scope))
         {
+            Input.ConsumeButton(InputCode.KeyHome);
             tb.CursorIndex = 0;
             if (!shift) tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
         }
         else if (Input.WasButtonPressed(InputCode.KeyEnd, scope))
         {
+            Input.ConsumeButton(InputCode.KeyEnd);
             tb.CursorIndex = tb.Text.AsReadOnlySpan().Length;
             if (!shift) tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
         }
         else if (control && Input.WasButtonPressed(InputCode.KeyA, scope))
         {
+            Input.ConsumeButton(InputCode.KeyA);
             tb.SelectionStart = 0;
             tb.CursorIndex = tb.Text.AsReadOnlySpan().Length;
         }
         else if (control && Input.WasButtonPressed(InputCode.KeyC, scope))
         {
+            Input.ConsumeButton(InputCode.KeyC);
             if (tb.CursorIndex != tb.SelectionStart)
             {
                 var start = Math.Min(tb.CursorIndex, tb.SelectionStart);
@@ -210,6 +210,7 @@ public static partial class UI
         }
         else if (control && Input.WasButtonPressed(InputCode.KeyV, scope))
         {
+            Input.ConsumeButton(InputCode.KeyV);
             var clipboard = Application.Platform.GetClipboardText();
             if (!string.IsNullOrEmpty(clipboard))
             {
@@ -222,6 +223,7 @@ public static partial class UI
         }
         else if (control && Input.WasButtonPressed(InputCode.KeyX, scope))
         {
+            Input.ConsumeButton(InputCode.KeyX);
             if (tb.CursorIndex != tb.SelectionStart)
             {
                 var start = Math.Min(tb.CursorIndex, tb.SelectionStart);
@@ -233,6 +235,7 @@ public static partial class UI
         }
         else if (Input.WasButtonPressed(InputCode.KeyBackspace, true, scope))
         {
+            Input.ConsumeButton(InputCode.KeyBackspace);
             if (tb.CursorIndex != tb.SelectionStart)
             {
                 RemoveSelectedTextBoxText(ref es);
@@ -254,6 +257,7 @@ public static partial class UI
         }
         else if (Input.WasButtonPressed(InputCode.KeyDelete, true, scope))
         {
+            Input.ConsumeButton(InputCode.KeyDelete);
             if (tb.CursorIndex != tb.SelectionStart)
             {
                 RemoveSelectedTextBoxText(ref es);
@@ -272,6 +276,8 @@ public static partial class UI
         }
         else if (Input.WasButtonPressed(InputCode.KeyEnter, scope) || Input.WasButtonPressed(InputCode.KeyEscape, scope))
         {
+            Input.ConsumeButton(InputCode.KeyEnter);
+            Input.ConsumeButton(InputCode.KeyEscape);
             UI.ClearFocus();
             return;
         }
@@ -285,6 +291,15 @@ public static partial class UI
             tb.CursorIndex += input.Length;
             tb.SelectionStart = tb.CursorIndex;
             tb.BlinkTimer = 0;
+        }
+
+        // Consume all keyboard buttons to prevent leaking to other systems.
+        // Skip modifier keys (Shift, Ctrl, Alt) so held modifiers aren't broken.
+        for (var i = (int)InputCode.KeyA; i <= (int)InputCode.KeyRightSuper; i++)
+        {
+            if (i >= (int)InputCode.KeyLeftShift && i <= (int)InputCode.KeyRightAlt)
+                continue;
+            Input.ConsumeButton((InputCode)i);
         }
     }
 
