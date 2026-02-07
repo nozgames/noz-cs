@@ -95,6 +95,7 @@ public static unsafe partial class Graphics
         CurrentState.Mesh = _mesh;
 
         _currentPass = RenderPass.Scene;
+        _rtPassIndex = 0;
         _boneRow = 1;
         _globalsBaseIndex = 0;
         Camera = null;

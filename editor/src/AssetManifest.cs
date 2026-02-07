@@ -133,6 +133,39 @@ public static class AssetManifest
             writer.WriteLine("    }");
         }
 
+        // Palettes class with expanded colors
+        var palettes = PaletteManager.Palettes;
+        if (palettes.Count > 0)
+        {
+            writer.WriteLine();
+            writer.WriteLine("    public static class Palettes");
+            writer.WriteLine("    {");
+
+            for (int p = 0; p < palettes.Count; p++)
+            {
+                var palette = palettes[p];
+                var paletteName = ToPascalCase(palette.Id);
+
+                if (p > 0) writer.WriteLine();
+                writer.WriteLine($"        public static class {paletteName}");
+                writer.WriteLine("        {");
+
+                for (int c = 0; c < palette.Count; c++)
+                {
+                    var color = palette.Colors[c];
+                    var r = (byte)(color.R * 255f);
+                    var g = (byte)(color.G * 255f);
+                    var b = (byte)(color.B * 255f);
+                    var a = (byte)(color.A * 255f);
+                    writer.WriteLine($"            public static readonly Color Color{c} = new({r}, {g}, {b}, {a});");
+                }
+
+                writer.WriteLine("        }");
+            }
+
+            writer.WriteLine("    }");
+        }
+
         // AtlasArray field if we have atlases
         if (hasAtlases)
         {

@@ -116,6 +116,12 @@ public static partial class Workspace
     {
     }
 
+    private static void GenerateManifest()
+    {
+        AssetManifest.Generate(force: true);
+        Notifications.Add("Asset manifest generated");
+    }   
+
     private static void ReimportAll()
     {
         foreach (var doc in DocumentManager.Documents)
@@ -178,6 +184,7 @@ public static partial class Workspace
             new() { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new() { Name = "Frame", Handler = FrameSelected, Key = InputCode.KeyF },
             new() { Name = "Reimport All", Handler = ReimportAll },
+            new() { Name = "Generate Manifest", Handler = GenerateManifest },
             new() { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
             new() { Name = "Show/Hide Hidden Assets", Handler = ToggleShowHidden },
             new() { Name = "Rebuild Atlas", Handler = RebuildAtlas },

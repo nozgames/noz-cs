@@ -94,6 +94,7 @@ public static unsafe partial class Graphics
     private static nuint _boneTexture;
     private const int BoneTextureSlot = 1;
     private static RenderPass _currentPass;
+    private static byte _rtPassIndex;
     private static Matrix4x4[] _passProjections = new Matrix4x4[MaxRenderPasses];
     private static RenderTexture _activeRenderTexture;
     private static NativeArray<float> _boneData;
@@ -213,6 +214,7 @@ public static unsafe partial class Graphics
 
         CurrentState.ClearColor = clearColor ?? Color.Transparent;
         _currentPass = RenderPass.RenderTexture;
+        _rtPassIndex++;
         _activeRenderTexture = rt;
 
         SetViewport(0, 0, rt.Width, rt.Height);
@@ -282,12 +284,18 @@ public static unsafe partial class Graphics
         }
     }
 
-    private static long MakeSortKey(ushort order) =>
-        (((long)(byte)_currentPass) << PassShift) |
-        (((long)(CurrentState.SortLayer & 0xFFF)) << LayerShift) |
-        (((long)CurrentState.SortGroup) << GroupShift) |
-        (((long)order) << OrderShift) |
-        (((long)_commands.Length) << IndexShift);
+    private static long MakeSortKey(ushort order)
+    {
+        // Each RT pass gets a unique sort index (1, 2, 3, ...) so draws targeting the
+        // same render texture stay grouped together. Scene pass sorts last (0xF).
+        byte passSortValue = _currentPass == RenderPass.RenderTexture ? _rtPassIndex : (byte)0xF;
+        return
+            (((long)passSortValue) << PassShift) |
+            (((long)(CurrentState.SortLayer & 0xFFF)) << LayerShift) |
+            (((long)CurrentState.SortGroup) << GroupShift) |
+            (((long)order) << OrderShift) |
+            (((long)_commands.Length) << IndexShift);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ushort GetOrAddGlobals(in Matrix4x4 projection)
