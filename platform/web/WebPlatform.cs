@@ -18,6 +18,7 @@ public class WebPlatform : IPlatform
     private float _displayScale = 1.0f;
     private bool _shouldQuit;
     private DotNetObjectReference<WebPlatform>? _dotNetRef;
+    private readonly Queue<PlatformEvent> _eventQueue = new();
 
     Vector2Int IPlatform.WindowSize => new((int)_windowSize.X, (int)_windowSize.Y);
     public Vector2Int WindowPosition => Vector2Int.Zero; // Not applicable for web
@@ -67,7 +68,10 @@ public class WebPlatform : IPlatform
 
     public bool PollEvents()
     {
-        // Events are pushed from JS via JSInvokable methods
+        // Drain buffered events so they are processed after Input.BeginFrame()
+        while (_eventQueue.Count > 0)
+            OnEvent?.Invoke(_eventQueue.Dequeue());
+
         return !_shouldQuit;
     }
 
@@ -140,7 +144,7 @@ public class WebPlatform : IPlatform
     {
         var code = KeyToInputCode(key);
         if (code != InputCode.None)
-            OnEvent?.Invoke(PlatformEvent.KeyDown(code));
+            _eventQueue.Enqueue(PlatformEvent.KeyDown(code));
     }
 
     [JSInvokable]
@@ -148,7 +152,7 @@ public class WebPlatform : IPlatform
     {
         var code = KeyToInputCode(key);
         if (code != InputCode.None)
-            OnEvent?.Invoke(PlatformEvent.KeyUp(code));
+            _eventQueue.Enqueue(PlatformEvent.KeyUp(code));
     }
 
     [JSInvokable]
@@ -156,7 +160,7 @@ public class WebPlatform : IPlatform
     {
         var code = MouseButtonToInputCode(button);
         if (code != InputCode.None)
-            OnEvent?.Invoke(PlatformEvent.MouseDown(code, clickCount));
+            _eventQueue.Enqueue(PlatformEvent.MouseDown(code, clickCount));
     }
 
     [JSInvokable]
@@ -164,38 +168,38 @@ public class WebPlatform : IPlatform
     {
         var code = MouseButtonToInputCode(button);
         if (code != InputCode.None)
-            OnEvent?.Invoke(PlatformEvent.MouseUp(code));
+            _eventQueue.Enqueue(PlatformEvent.MouseUp(code));
     }
 
     [JSInvokable]
     public void OnMouseMove(float x, float y)
     {
-        OnEvent?.Invoke(PlatformEvent.MouseMove(new Vector2(x, y)));
+        _eventQueue.Enqueue(PlatformEvent.MouseMove(new Vector2(x, y)));
     }
 
     [JSInvokable]
     public void OnMouseWheel(float deltaX, float deltaY)
     {
-        OnEvent?.Invoke(PlatformEvent.MouseScroll(deltaX, deltaY));
+        _eventQueue.Enqueue(PlatformEvent.MouseScroll(deltaX, deltaY));
     }
 
     [JSInvokable]
     public void OnMouseEnter()
     {
-        OnEvent?.Invoke(PlatformEvent.MouseEnter());
+        _eventQueue.Enqueue(PlatformEvent.MouseEnter());
     }
 
     [JSInvokable]
     public void OnMouseLeave()
     {
-        OnEvent?.Invoke(PlatformEvent.MouseLeave());
+        _eventQueue.Enqueue(PlatformEvent.MouseLeave());
     }
 
     [JSInvokable]
     public void OnResize(int width, int height)
     {
         _windowSize = new Vector2(width, height);
-        OnEvent?.Invoke(PlatformEvent.Resize(width, height));
+        _eventQueue.Enqueue(PlatformEvent.Resize(width, height));
     }
 
     private static InputCode KeyToInputCode(string key)

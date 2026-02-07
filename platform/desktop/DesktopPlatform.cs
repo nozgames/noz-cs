@@ -12,7 +12,6 @@ namespace NoZ.Platform;
 public unsafe partial class SDLPlatform : IPlatform
 {
     private SDL_Window* _window;
-    private SDL_GLContextState* _glContext;
     private Action? _resizeCallback;
     private static SDLPlatform? _instance;
 
@@ -59,17 +58,7 @@ public unsafe partial class SDLPlatform : IPlatform
             throw new Exception($"Failed to initialize SDL: {SDL_GetError()}");
         }
 
-        SDL_GL_SetAttribute(SDL_GLAttr.SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-        SDL_GL_SetAttribute(SDL_GLAttr.SDL_GL_CONTEXT_MINOR_VERSION, 5);
-        SDL_GL_SetAttribute(SDL_GLAttr.SDL_GL_CONTEXT_PROFILE_MASK, (int)SDL_GLProfile.SDL_GL_CONTEXT_PROFILE_CORE);
-
-        if (config.MsaaSamples > 0)
-        {
-            SDL_GL_SetAttribute(SDL_GLAttr.SDL_GL_MULTISAMPLEBUFFERS, 1);
-            SDL_GL_SetAttribute(SDL_GLAttr.SDL_GL_MULTISAMPLESAMPLES, config.MsaaSamples);
-        }
-
-        var windowFlags = SDL_WindowFlags.SDL_WINDOW_OPENGL;
+        SDL_WindowFlags windowFlags = 0;
         if (config.Resizable)
         {
             windowFlags |= SDL_WindowFlags.SDL_WINDOW_RESIZABLE;
@@ -90,15 +79,6 @@ public unsafe partial class SDLPlatform : IPlatform
 
         if (config.MinWidth > 0 && config.MinHeight > 0)
             SDL_SetWindowMinimumSize(_window, config.MinWidth, config.MinHeight);
-
-        _glContext = SDL_GL_CreateContext(_window);
-        if (_glContext == null)
-        {
-            throw new Exception($"Failed to create OpenGL context: {SDL_GetError()}");
-        }
-
-        SDL_GL_MakeCurrent(_window, _glContext);
-        SDL_GL_SetSwapInterval(config.VSync ? 1 : 0);
 
         SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
         SDL_SetHint(SDL_HINT_MOUSE_DOUBLE_CLICK_RADIUS, "4");  // Windows default ~4px
@@ -161,7 +141,6 @@ public unsafe partial class SDLPlatform : IPlatform
             }
 
             _instance._resizeCallback?.Invoke();
-            SDL_GL_SwapWindow(_instance._window);
         }
 
         return true;
@@ -185,12 +164,6 @@ public unsafe partial class SDLPlatform : IPlatform
         }
 
         ShutdownNativeTextInput();
-
-        if (_glContext != null)
-        {
-            SDL_GL_DestroyContext(_glContext);
-            _glContext = null;
-        }
 
         if (_window != null)
         {
@@ -216,7 +189,6 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public void SwapBuffers()
     {
-        SDL_GL_SwapWindow(_window);
     }
 
     private void ProcessEvent(SDL_Event evt)
@@ -309,7 +281,7 @@ public unsafe partial class SDLPlatform : IPlatform
             }
 
             case SDL_EventType.SDL_EVENT_WINDOW_RESIZED:
-                WindowSize = new Vector2Int(evt.window.data1, evt.window.data2);
+                WindowSize = new Vector2Int(evt.window.data1, evt.window.data2);                
                 OnEvent?.Invoke(PlatformEvent.Resize(evt.window.data1, evt.window.data2));
                 break;
 
@@ -514,7 +486,8 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public nint GetGraphicsProcAddress(string name)
     {
-        return SDL_GL_GetProcAddress(name);
+        //return SDL_GL_GetProcAddress(name);
+        return 0;
     }
 
     public Stream? OpenAssetStream(AssetType type, string name, string extension, string? libraryPath = null)

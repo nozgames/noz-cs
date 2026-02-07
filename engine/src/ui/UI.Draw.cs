@@ -130,10 +130,11 @@ public static partial class UI
 
         if (_elementCount == 0) return;
 
-        // Draw from root container (index 0)
+        Graphics.SetBlendMode(BlendMode.Alpha);
+
         DrawElement(0, false);
 
-        // Second pass: draw popups (outside any scissor regions)
+        // Popups
         for (var i = 0; i < _popupCount; i++)
         {
             var popupIndex = _popups[i];
@@ -230,6 +231,7 @@ public static partial class UI
             using var _ = Graphics.PushState();
             Graphics.SetTransform(transform);
             Graphics.SetColor(img.Color);
+            Graphics.SetTextureFilter(sprite.TextureFilter);
             Graphics.DrawFlat(sprite, order: 0, bone: -1);
         }
         else if (e.Asset is Texture texture)
@@ -247,20 +249,44 @@ public static partial class UI
 
     private static void DrawScene(ref Element e)
     {
-        ref var scene = ref e.Data.Scene;
-        if (!scene.RenderTexture.IsValid)
+        if (e.Asset is not (Camera camera, Action draw))
             return;
 
+        ref var scene = ref e.Data.Scene;
+
+        // Compute element screen rect from current frame's layout (stable)
         var topLeft = Vector2.Transform(e.Rect.Position, e.LocalToWorld);
         var bottomRight = Vector2.Transform(e.Rect.Position + e.Rect.Size, e.LocalToWorld);
+        var screenTopLeft = Camera!.WorldToScreen(topLeft);
+        var screenBottomRight = Camera!.WorldToScreen(bottomRight);
+        var rtW = (int)MathF.Ceiling(screenBottomRight.X - screenTopLeft.X);
+        var rtH = (int)MathF.Ceiling(screenBottomRight.Y - screenTopLeft.Y);
+           
+        if (rtW <= 0 || rtH <= 0)
+        {
+            var winSize = Application.WindowSize;
+            rtW = winSize.X;
+            rtH = winSize.Y;
+            if (rtW <= 0 || rtH <= 0)
+                return;
+        }
 
+        // Acquire RT and render the scene via callback
+        var rt = RenderTexturePool.Acquire(rtW, rtH, scene.SampleCount);
+
+        Graphics.BeginPass(rt, scene.Color);
+        Graphics.SetCamera(camera);
+        Graphics.SetViewport(0, 0, rt.Width, rt.Height);
+        //camera.Viewport = new Rect(screenTopLeft.X, screenTopLeft.Y, screenBottomRight.X - screenTopLeft.X, screenBottomRight.Y - screenTopLeft.Y);
+        draw();
+        Graphics.EndPass();
+        Graphics.SetCamera(Camera);
+
+        // Draw the RT to screen
         using (Graphics.PushState())
         {
             Graphics.SetTextureFilter(TextureFilter.Point);
-            Graphics.Draw(scene.RenderTexture, topLeft, bottomRight);
+            Graphics.Draw(rt, topLeft, bottomRight);
         }
-
-        if (scene.OwnsRT)
-            RenderTexturePool.Release(scene.RenderTexture);
     }
 }

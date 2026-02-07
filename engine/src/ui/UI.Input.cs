@@ -63,15 +63,19 @@ public static partial class UI
         // Process scrollbar input BEFORE consuming buttons
         HandleScrollbarInput(mouse);
 
-        // Don't consume mouse button if scrollbar is being dragged
-        if ((_mouseLeftElementId != 0 || _popupCount > 0) && !_scrollbarDragging)
-            Input.ConsumeButton(InputCode.MouseLeft);
+        // Don't consume mouse buttons when hovering over a Scene element (pass-through),
+        // but still consume when popups are open or scrollbar is being used.
+        if (!_mouseOverScene || _popupCount > 0)
+        {
+            if ((_mouseLeftElementId != 0 || _popupCount > 0) && !_scrollbarDragging)
+                Input.ConsumeButton(InputCode.MouseLeft);
 
-        if (_mouseDoubleClickElementId != 0 || _popupCount > 0)
-            Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
+            if (_mouseDoubleClickElementId != 0 || _popupCount > 0)
+                Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
 
-        if (_mouseRightElementId != 0 || _popupCount > 0)
-            Input.ConsumeButton(InputCode.MouseRight);
+            if (_mouseRightElementId != 0 || _popupCount > 0)
+                Input.ConsumeButton(InputCode.MouseRight);
+        }
         HandleScrollableDrag(mouse);
         HandleMouseWheelScroll(mouse);
     }
@@ -229,8 +233,12 @@ public static partial class UI
         return false;
     }
 
+    private static bool _mouseOverScene;
+
     private static void HandleElementInput(Vector2 mouse)
     {
+        _mouseOverScene = false;
+
         // Process elements in reverse order so later elements (on top) get input priority
         for (var elementIndex = _elementCount - 1; elementIndex >= 0; elementIndex--)
         {
@@ -257,7 +265,12 @@ public static partial class UI
             es.SetFlags(ElementFlags.Hovered, mouseOver ? ElementFlags.Hovered : ElementFlags.None);
             es.SetFlags(ElementFlags.Down, mouseOver && _mouseLeftDown ? ElementFlags.Down : ElementFlags.None);
 
-            var consumesInput = e.Type != ElementType.Scene;
+            // Scene elements pass input through to the application; when the mouse
+            // is over a Scene, prevent parent elements from consuming input too.
+            if (mouseOver && e.Type == ElementType.Scene)
+                _mouseOverScene = true;
+
+            var consumesInput = e.Type != ElementType.Scene && !_mouseOverScene;
 
             if (mouseOver && _mouseLeftDoubleClickPressed && _mouseDoubleClickElementId == 0 && consumesInput)
             {

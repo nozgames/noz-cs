@@ -1128,14 +1128,16 @@ public class WebGraphicsDriver : IGraphicsDriver
         public int JsTextureId;
         public int Width;
         public int Height;
+        public int SampleCount;
         public string Format;
     }
 
-    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, string? name = null)
+    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null)
     {
         var gpuFormat = MapTextureFormat(format);
         // JS side allocates from shared nextTextureId and stores in both textures + renderTextures maps
-        var jsTextureId = WebGPUInterop.CreateRenderTexture(width, height, gpuFormat, name);
+        // When sampleCount > 1, JS creates both MSAA and resolve textures
+        var jsTextureId = WebGPUInterop.CreateRenderTexture(width, height, gpuFormat, sampleCount, name);
 
         // Use shared handle space so RT handles work with BindTexture/CreateBindGroup
         var handle = (nuint)_nextTextureId++;
@@ -1144,10 +1146,12 @@ public class WebGraphicsDriver : IGraphicsDriver
             JsTextureId = jsTextureId,
             Width = width,
             Height = height,
+            SampleCount = sampleCount,
             Format = gpuFormat
         };
 
         // Also store in _textures so CreateBindGroup can resolve the texture
+        // JS side ensures the textures map points to the resolve texture for sampling
         _textures[handle] = new TextureInfo
         {
             JsTextureId = jsTextureId,
@@ -1180,7 +1184,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         }
 
         _activeRenderTexture = renderTexture;
-        _state.CurrentPassSampleCount = 1;
+        _state.CurrentPassSampleCount = rt.SampleCount;
         WebGPUInterop.BeginRenderTexturePass(rt.JsTextureId, clearColor.R, clearColor.G, clearColor.B, clearColor.A);
         WebGPUInterop.SetViewport(0, 0, rt.Width, rt.Height, 0, 1);
         WebGPUInterop.SetScissorRect(0, 0, rt.Width, rt.Height);

@@ -292,6 +292,26 @@ public static class EditorAssets
         }
     }
 
+    public static class Palettes
+    {
+        public static class Default
+        {
+            public static readonly Color Color0 = new(255, 255, 255, 255);
+            public static readonly Color Color1 = new(0, 0, 0, 255);
+            public static readonly Color Color2 = new(15, 14, 17, 255);
+            public static readonly Color Color3 = new(45, 44, 50, 255);
+            public static readonly Color Color4 = new(64, 64, 73, 255);
+            public static readonly Color Color5 = new(82, 84, 91, 255);
+            public static readonly Color Color6 = new(108, 113, 120, 255);
+            public static readonly Color Color7 = new(125, 131, 136, 255);
+            public static readonly Color Color8 = new(169, 178, 181, 255);
+            public static readonly Color Color9 = new(213, 213, 213, 255);
+            public static readonly Color Color10 = new(237, 234, 225, 255);
+            public static readonly Color Color11 = new(66, 165, 245, 255);
+            public static readonly Color Color12 = new(245, 72, 66, 255);
+        }
+    }
+
     public static Texture? AtlasArray { get; private set; }
 
     public static void LoadAssets()

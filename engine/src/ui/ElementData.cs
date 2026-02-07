@@ -207,17 +207,15 @@ internal struct SpacerData
 
 internal struct SceneData
 {
-    public RenderTexture RenderTexture;
-    public bool OwnsRT;
-    public Align AlignX;
-    public Align AlignY;
     public Size2 Size;
+    public Color Color;
+    public int SampleCount;
 
     public static SceneData Default => new()
     {
-        AlignX = Align.Center,
-        AlignY = Align.Center,
-        Size = Size2.Default
+        Size = Size2.Default,
+        Color = Color.Transparent,
+        SampleCount = 1
     };
 }
 

@@ -618,15 +618,19 @@ public unsafe partial class WebGPUGraphicsDriver
     {
         public WGPUTexture* Texture;
         public TextureView* TextureView;
+        public WGPUTexture* MsaaTexture;
+        public TextureView* MsaaTextureView;
         public int Width;
         public int Height;
+        public int SampleCount;
         public WGPUTextureFormat Format;
     }
 
-    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, string? name = null)
+    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null)
     {
         var wgpuFormat = MapTextureFormat(format);
 
+        // Resolve texture (SampleCount=1) - used for sampling, readback, and as MSAA resolve target
         var textureDesc = new TextureDescriptor
         {
             Label = (byte*)(name != null ? System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi(name) : IntPtr.Zero),
@@ -635,13 +639,12 @@ public unsafe partial class WebGPUGraphicsDriver
             SampleCount = 1,
             Dimension = TextureDimension.Dimension2D,
             Format = wgpuFormat,
-            // RenderAttachment for drawing, CopySrc for readback, TextureBinding for sampling
             Usage = TextureUsage.RenderAttachment | TextureUsage.CopySrc | TextureUsage.TextureBinding,
         };
 
         var texture = _wgpu.DeviceCreateTexture(_device, &textureDesc);
 
-        // D2 view for render pass color attachment
+        // D2 view for render pass (resolve target when MSAA, or direct attachment when no MSAA)
         var viewDesc = new TextureViewDescriptor
         {
             Format = wgpuFormat,
@@ -667,6 +670,25 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var arrayTextureView = _wgpu.TextureCreateView(texture, &arrayViewDesc);
 
+        // MSAA texture (only when sampleCount > 1)
+        WGPUTexture* msaaTexture = null;
+        TextureView* msaaTextureView = null;
+        if (sampleCount > 1)
+        {
+            var msaaDesc = new TextureDescriptor
+            {
+                Label = (byte*)(name != null ? System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi(name + "_msaa") : IntPtr.Zero),
+                Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
+                MipLevelCount = 1,
+                SampleCount = (uint)sampleCount,
+                Dimension = TextureDimension.Dimension2D,
+                Format = wgpuFormat,
+                Usage = TextureUsage.RenderAttachment,
+            };
+            msaaTexture = _wgpu.DeviceCreateTexture(_device, &msaaDesc);
+            msaaTextureView = _wgpu.TextureCreateView(msaaTexture, &viewDesc);
+        }
+
         // Allocate from shared texture handle space so RT can be used with BindTexture
         var handle = (nuint)_nextTextureId++;
         var rtSlot = _freeRtSlotCount > 0 ? _freeRtSlots[--_freeRtSlotCount] : _nextRenderTextureSlot++;
@@ -674,9 +696,12 @@ public unsafe partial class WebGPUGraphicsDriver
         _renderTextures[rtSlot] = new RenderTextureInfo
         {
             Texture = texture,
-            TextureView = textureView,  // D2 view for render pass
+            TextureView = textureView,
+            MsaaTexture = msaaTexture,
+            MsaaTextureView = msaaTextureView,
             Width = width,
             Height = height,
+            SampleCount = sampleCount,
             Format = wgpuFormat,
         };
 
@@ -702,11 +727,23 @@ public unsafe partial class WebGPUGraphicsDriver
         var rtSlot = _rtHandleToSlot[(int)handle];
         ref var rt = ref _renderTextures[rtSlot];
 
-        // Release the D2 view (render pass attachment)
+        // Release the D2 view (render pass attachment / resolve target)
         if (rt.TextureView != null)
         {
             _wgpu.TextureViewRelease(rt.TextureView);
             rt.TextureView = null;
+        }
+
+        // Release MSAA resources
+        if (rt.MsaaTextureView != null)
+        {
+            _wgpu.TextureViewRelease(rt.MsaaTextureView);
+            rt.MsaaTextureView = null;
+        }
+        if (rt.MsaaTexture != null)
+        {
+            _wgpu.TextureRelease(rt.MsaaTexture);
+            rt.MsaaTexture = null;
         }
 
         // Release the D2Array view (sampling)
@@ -737,14 +774,14 @@ public unsafe partial class WebGPUGraphicsDriver
         var rtSlot = _rtHandleToSlot[(int)renderTexture];
         ref var rt = ref _renderTextures[rtSlot];
         _activeRenderTexture = renderTexture;
-        _state.CurrentPassSampleCount = 1;
+        _state.CurrentPassSampleCount = rt.SampleCount;
 
         var colorAttachment = new RenderPassColorAttachment
         {
-            View = rt.TextureView,
-            ResolveTarget = null,
+            View = rt.SampleCount > 1 ? rt.MsaaTextureView : rt.TextureView,
+            ResolveTarget = rt.SampleCount > 1 ? rt.TextureView : null,
             LoadOp = LoadOp.Clear,
-            StoreOp = StoreOp.Store,
+            StoreOp = rt.SampleCount > 1 ? StoreOp.Discard : StoreOp.Store,
             ClearValue = new Silk.NET.WebGPU.Color
             {
                 R = clearColor.R,

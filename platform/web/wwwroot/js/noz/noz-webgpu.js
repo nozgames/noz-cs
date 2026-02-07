@@ -837,31 +837,49 @@ export function draw(vertexCount, instanceCount, firstVertex, firstInstance) {
 const renderTextures = new Map();
 let currentRenderTexturePass = null;
 
-export function createRenderTexture(width, height, format, label) {
+export function createRenderTexture(width, height, format, sampleCount, label) {
     // Allocate from shared texture ID space so RT can be used with bind groups
     const id = nextTextureId++;
     const gpuFormat = formatMap[format] || 'rgba8unorm';
+    const msaa = sampleCount > 1;
 
+    // Resolve texture (SampleCount=1) - used for sampling, readback, and as MSAA resolve target
     const texture = device.createTexture({
         size: { width, height, depthOrArrayLayers: 1 },
         format: gpuFormat,
-        // RenderAttachment for drawing, CopySrc for readback, TextureBinding for sampling
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING,
         label: label || `render_texture_${id}`
     });
 
-    // D2 view for render pass color attachment
+    // D2 view for resolve target (when MSAA) or direct attachment (when no MSAA)
     const view = texture.createView({ format: gpuFormat, dimension: '2d' });
+
+    // MSAA texture (only when sampleCount > 1)
+    let msaaTexture = null;
+    let msaaView = null;
+    if (msaa) {
+        msaaTexture = device.createTexture({
+            size: { width, height, depthOrArrayLayers: 1 },
+            format: gpuFormat,
+            sampleCount: sampleCount,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            label: (label || `render_texture_${id}`) + '_msaa'
+        });
+        msaaView = msaaTexture.createView({ format: gpuFormat, dimension: '2d' });
+    }
 
     renderTextures.set(id, {
         texture: texture,
         view: view,
+        msaaTexture: msaaTexture,
+        msaaView: msaaView,
+        sampleCount: sampleCount,
         width: width,
         height: height,
         format: gpuFormat
     });
 
-    // D2Array view for sampling (sprite shader expects texture_2d_array)
+    // D2Array view for sampling (sprite shader expects texture_2d_array) - always from resolve texture
     const arrayView = texture.createView({ format: gpuFormat, dimension: '2d-array', arrayLayerCount: 1 });
 
     textures.set(id, {
@@ -880,6 +898,9 @@ export function createRenderTexture(width, height, format, label) {
 export function destroyRenderTexture(textureId) {
     const rt = renderTextures.get(textureId);
     if (rt) {
+        if (rt.msaaTexture) {
+            rt.msaaTexture.destroy();
+        }
         rt.texture.destroy();
         renderTextures.delete(textureId);
     }
@@ -894,12 +915,14 @@ export function beginRenderTexturePass(textureId, clearR, clearG, clearB, clearA
     }
 
     currentRenderTexturePass = rt;
+    const msaa = rt.sampleCount > 1;
 
     currentRenderPass = currentCommandEncoder.beginRenderPass({
         colorAttachments: [{
-            view: rt.view,
+            view: msaa ? rt.msaaView : rt.view,
+            resolveTarget: msaa ? rt.view : undefined,
             loadOp: 'clear',
-            storeOp: 'store',
+            storeOp: msaa ? 'discard' : 'store',
             clearValue: { r: clearR, g: clearG, b: clearB, a: clearA }
         }],
         label: 'render_texture_pass'

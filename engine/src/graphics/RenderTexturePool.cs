@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Diagnostics;
+
 namespace NoZ;
 
 internal static class RenderTexturePool
@@ -11,102 +13,73 @@ internal static class RenderTexturePool
         public nuint Handle;
         public int Width;
         public int Height;
-        public bool InUse;
+        public int SampleCount;
+        public int Frame;
     }
 
     private const int MaxPooledTextures = 16;
-    private const int MaxPendingReleases = 32;
     private static readonly PooledTexture[] _pool = new PooledTexture[MaxPooledTextures];
-    private static readonly nuint[] _pendingReleases = new nuint[MaxPendingReleases];
-    private static int _poolCount;
-    private static int _pendingCount;
+    private static int _frame = 1;
 
-    public static RenderTexture Acquire(int width, int height)
+    public static RenderTexture Acquire(int width, int height, int sampleCount = 1)
     {
-        // First, try to find an exact size match that's not in use
-        for (int i = 0; i < _poolCount; i++)
+        // Use existing
+        for (int i = 0; i < MaxPooledTextures; i++)
         {
             ref var entry = ref _pool[i];
-            if (!entry.InUse && entry.Width == width && entry.Height == height)
+            if (entry.Handle != nuint.Zero &&
+                entry.Frame != _frame &&
+                entry.Width == width &&
+                entry.Height == height &&
+                entry.SampleCount == sampleCount)
             {
-                entry.InUse = true;
-                return new RenderTexture(entry.Handle, width, height);
+                entry.Frame = _frame;
+                return new RenderTexture(entry.Handle, width, height, sampleCount);
             }
         }
 
-        // Evict all unused entries - they have stale sizes (e.g. from resize)
-        for (int i = _poolCount - 1; i >= 0; i--)
+        for (int i = 0; i < MaxPooledTextures; i++)
         {
-            if (!_pool[i].InUse)
+            ref var entry = ref _pool[i];
+            if (entry.Handle == 0)
             {
-                Graphics.Driver.DestroyRenderTexture(_pool[i].Handle);
-                _pool[i] = _pool[--_poolCount];
+                entry.Frame = _frame;
+                entry.Width = width;
+                entry.Height = height;
+                entry.SampleCount = sampleCount;
+                entry.Handle = Graphics.Driver.CreateRenderTexture(width, height, sampleCount: sampleCount, name: "PooledRT");
+                return new RenderTexture(entry.Handle, width, height, sampleCount);
             }
         }
 
-        // No match found - create a new texture
-        var handle = Graphics.Driver.CreateRenderTexture(width, height, name: "PooledRT");
+        Debug.Assert(false, "RenderTexturePool exhausted");
 
-        // Try to add to pool if there's room
-        if (_poolCount < MaxPooledTextures)
-        {
-            _pool[_poolCount++] = new PooledTexture
-            {
-                Handle = handle,
-                Width = width,
-                Height = height,
-                InUse = true
-            };
-        }
-
-        return new RenderTexture(handle, width, height);
-    }
-
-    public static void Release(RenderTexture rt)
-    {
-        if (!rt.IsValid)
-            return;
-        
-        if (_pendingCount < MaxPendingReleases)
-            _pendingReleases[_pendingCount++] = rt.Handle;
+        return default;
     }
 
     internal static void FlushPendingReleases()
     {
-        for (int p = 0; p < _pendingCount; p++)
+        for (int i=0; i<MaxPooledTextures; i++)
         {
-            var handle = _pendingReleases[p];
+            ref var entry = ref _pool[i];
+            if (entry.Handle == nuint.Zero) continue;
+            if (int.Abs(entry.Frame - _frame) < 2) continue;
 
-            // Find the texture in the pool and mark it as available
-            bool found = false;
-            for (int i = 0; i < _poolCount; i++)
-            {
-                ref var entry = ref _pool[i];
-                if (entry.Handle == handle)
-                {
-                    entry.InUse = false;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-                Graphics.Driver.DestroyRenderTexture(handle);
+            Graphics.Driver.DestroyRenderTexture(entry.Handle);
+            entry = default;
         }
 
-        _pendingCount = 0;
+        _frame++;
     }
 
     public static void Clear()
     {
-        for (int i = 0; i < _poolCount; i++)
+        for (int i = 0; i < MaxPooledTextures; i++)
         {
-            if (_pool[i].Handle != 0)
-            {
-                Graphics.Driver.DestroyRenderTexture(_pool[i].Handle);
-                _pool[i] = default;
-            }
+            ref var entry = ref _pool[i];
+            if (entry.Handle == 0) continue;
+            Graphics.Driver.DestroyRenderTexture(_pool[i].Handle);
+            entry = default;
         }
-        _poolCount = 0;
     }
 }

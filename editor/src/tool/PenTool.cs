@@ -40,6 +40,7 @@ public class PenTool : Tool
 
     public override void Begin()
     {
+        base.Begin();
         Cursor.SetCrosshair();
     }
 
@@ -49,20 +50,20 @@ public class PenTool : Tool
         Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(mouseWorld, invTransform);
 
-        if (Input.WasButtonPressed(InputCode.KeyEscape))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope))
         {
             Cancel();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyEnter))
+        if (Input.WasButtonPressed(InputCode.KeyEnter, Scope))
         {
             if (_pointCount >= 3)
                 Commit();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseRight))
+        if (Input.WasButtonPressed(InputCode.MouseRight, Scope))
         {
             if (_pointCount > 0)
                 _pointCount--;
@@ -71,7 +72,7 @@ public class PenTool : Tool
 
         UpdateHover(mouseLocal);
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft))
+        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope))
             HandleLeftClick(mouseLocal);
     }
 
@@ -108,7 +109,7 @@ public class PenTool : Tool
         }
 
         _snappingToGrid = false;
-        if (!_hoveringFirstPoint && !_hoveringExistingAnchor && !_hoveringSegment && Input.IsCtrlDown())
+        if (!_hoveringFirstPoint && !_hoveringExistingAnchor && !_hoveringSegment && Input.IsCtrlDown(Scope))
         {
             _snappingToGrid = true;
             var worldPos = Vector2.Transform(mouseLocal, _editor.Document.Transform);

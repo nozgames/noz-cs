@@ -17,6 +17,7 @@ public static partial class Workspace
     [ElementId("Toolbar")]
     [ElementId("XrayButton")]
     [ElementId("CollectionButton")]
+    [ElementId("Scene")]
     private static partial class ElementId { }
 
     private const float ZoomMin = 0.2f;
@@ -295,14 +296,10 @@ public static partial class Workspace
         }
 
         UpdateCulling();
+    }
 
-        if (EditorAssets.Shaders.Sprite is Shader spriteShader)
-            Graphics.SetShader(spriteShader);
-
-        Graphics.SetTexture(Graphics.WhiteTexture);
-        Graphics.SetBlendMode(BlendMode.Alpha);
-        Graphics.SetCamera(_camera);
-
+    private static void DrawScene()
+    {
         DrawDocuments();
 
         if (_showGrid)
@@ -419,10 +416,13 @@ public static partial class Workspace
 
     public static void UpdateUI()
     {
-        using (UI.BeginColumn(ElementId.Toolbar, new ContainerStyle { Height = Size.Fit }))
+        using (UI.BeginColumn(ElementId.Toolbar))
         {
             ToolbarUI();
             UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.Panel.Root.Border.Color });
+
+            using (UI.BeginFlex())
+                UI.Scene(ElementId.Scene, Camera, DrawScene, new SceneStyle { Color = EditorStyle.Workspace.FillColor, SampleCount = 4 });
         }
 
         ActiveEditor?.UpdateUI();

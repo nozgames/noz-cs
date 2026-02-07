@@ -286,9 +286,7 @@ public static unsafe partial class Graphics
 
     private static long MakeSortKey(ushort order)
     {
-        // Each RT pass gets a unique sort index (1, 2, 3, ...) so draws targeting the
-        // same render texture stay grouped together. Scene pass sorts last (0xF).
-        byte passSortValue = _currentPass == RenderPass.RenderTexture ? _rtPassIndex : (byte)0xF;
+        byte passSortValue = _currentPass == RenderPass.RenderTexture ? _rtPassIndex : (byte)0x7;
         return
             (((long)passSortValue) << PassShift) |
             (((long)(CurrentState.SortLayer & 0xFFF)) << LayerShift) |

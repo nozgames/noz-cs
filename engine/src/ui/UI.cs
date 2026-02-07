@@ -34,7 +34,7 @@ public static partial class UI
     public struct AutoPopup : IDisposable { readonly void IDisposable.Dispose() => EndPopup(); }
     public struct AutoGrid : IDisposable { readonly void IDisposable.Dispose() => EndGrid(); }
     public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
-    public struct AutoScene : IDisposable { readonly void IDisposable.Dispose() => EndScene(); }
+
 
     private static Font? _defaultFont;
     public static Font? DefaultFont => _defaultFont;
@@ -332,6 +332,7 @@ public static partial class UI
         ref var es = ref GetElementState(elementId);
         if (es.Index == 0) return 0;
         ref var e = ref GetElement(es.Index);
+        if (e.Id != elementId) return 0;
         Debug.Assert(e.Type == ElementType.Scrollable, "GetScrollOffset called on non-scrollable element");
         return es.Data.Scrollable.Offset;
     }
@@ -679,63 +680,22 @@ public static partial class UI
 
     public static void EndGrid() => EndElement(ElementType.Grid);
 
-    public static AutoScene BeginScene(int id, in SceneStyle style)
+    public static void Scene(int id, Camera camera, Action draw, SceneStyle style = default)
     {
         ref var e = ref CreateElement(ElementType.Scene);
 
-        RenderTexture rt;
-        bool ownsRT = false;
-        if (style.RenderTarget.HasValue && style.RenderTarget.Value.IsValid)
-        {
-            rt = style.RenderTarget.Value;
-        }
-        else
-        {
-            // Use previous frame's element size in screen pixels for pixel-perfect RT
-            var screenRect = Camera!.WorldToScreen(GetElementWorldRect(id));
-            var rtW = (int)MathF.Round(screenRect.Width);
-            var rtH = (int)MathF.Round(screenRect.Height);
-            if (rtW <= 0 || rtH <= 0)
-            {
-                var winSize = Application.WindowSize;
-                rtW = winSize.X;
-                rtH = winSize.Y;
-            }
-            rt = RenderTexturePool.Acquire(rtW, rtH);
-            ownsRT = true;
-        }
-
         e.Data.Scene = new SceneData
         {
-            RenderTexture = rt,
-            OwnsRT = ownsRT,
-            AlignX = style.AlignX,
-            AlignY = style.AlignY,
-            Size = style.Size
+            Size = style.Size,
+            Color = style.Color,
+            SampleCount = style.SampleCount
         };
+        e.Asset = (camera, draw);
 
         SetId(ref e, id);
-        PushElement(e.Index);
-
-        Graphics.BeginPass(rt, style.Color);
-        if (style.Camera != null)
-        {
-            Graphics.SetCamera(style.Camera);
-            Graphics.SetViewport(0, 0, rt.Width, rt.Height);
-            style.Camera.Viewport = Camera!.WorldToScreen(GetElementWorldRect(id));
-        }
-
-        return new AutoScene();
     }
 
-    public static AutoScene BeginScene(in SceneStyle style) => BeginScene(0, style);
-
-    public static void EndScene()
-    {
-        Graphics.EndPass();
-        Graphics.SetCamera(Camera);
-        EndElement(ElementType.Scene);
-    }
+    public static void Scene(Camera camera, Action draw, SceneStyle style = default) => Scene(0, camera, draw, style);
 
     public static AutoPopup BeginPopup(int id, PopupStyle style)
     {

@@ -168,7 +168,7 @@ public static partial class WebGPUInterop
     // ============================================================================
 
     [JSImport("createRenderTexture", ModuleName)]
-    internal static partial int CreateRenderTexture(int width, int height, string format, string? label);
+    internal static partial int CreateRenderTexture(int width, int height, string format, int sampleCount, string? label);
 
     [JSImport("destroyRenderTexture", ModuleName)]
     internal static partial void DestroyRenderTexture(int textureId);
