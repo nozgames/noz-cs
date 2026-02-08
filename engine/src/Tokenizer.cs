@@ -67,10 +67,9 @@ public ref struct Tokenizer
     private readonly int _length;
     private int _line = 1;
     private int _column = 1;
-    private Token _nextToken;
-    private Token _currentToken;
+    private Token _token;
 
-    public bool IsEOF => _nextToken.Type == TokenType.EOF;
+    public bool IsEOF => _token.Type == TokenType.EOF;
 
     public Tokenizer(ReadOnlySpan<char> input)
     {
@@ -78,10 +77,7 @@ public ref struct Tokenizer
         _length = _input.Length;
 
         ReadToken();
-        _currentToken = _nextToken;
     }
-
-    public ReadOnlySpan<char> GetSpan() => GetSpan(_currentToken);
 
     public ReadOnlySpan<char> GetSpan(Token token)
     {
@@ -90,14 +86,7 @@ public ref struct Tokenizer
         return _input.Slice(token.Start, Math.Min(token.Length, _input.Length - token.Start));
     }
 
-    public string GetString() => GetSpan(_currentToken).ToString();
-
     public string GetString(Token token) => GetSpan(token).ToString();
-
-    public bool Equals(string value, bool ignoreCase = false)
-    {
-        return Equals(_currentToken, value, ignoreCase);
-    }
 
     public bool Equals(Token token, ReadOnlySpan<char> value, bool ignoreCase = false)
     {
@@ -106,20 +95,21 @@ public ref struct Tokenizer
         return span.Equals(value, comparison);
     }
 
-    public bool Peek(ReadOnlySpan<char> value, bool ignoreCase = false)
+    public void Skip()
     {
-        return Equals(_nextToken, value, ignoreCase);
+        ExpectToken(out var _);
+        return;
     }
 
     public bool ExpectToken(out Token token)
     {
-        if (_nextToken.Type == TokenType.EOF)
+        if (_token.Type == TokenType.EOF)
         {
             token = default;
             return false;
         }
 
-        token = _nextToken;
+        token = _token;
         ReadToken();
         return true;
     }
@@ -128,8 +118,8 @@ public ref struct Tokenizer
     {
         value = "";
 
-        var rewindPos = _nextToken.Start;
-        if (_nextToken.Type == TokenType.String && rewindPos > 0)
+        var rewindPos = _token.Start;
+        if (_token.Type == TokenType.String && rewindPos > 0)
         {
             var prev = _input[rewindPos - 1];
             if (prev == '"' || prev == '\'')
@@ -166,13 +156,13 @@ public ref struct Tokenizer
 
     public bool ExpectQuotedString(out string value)
     {
-        if (_nextToken.Type != TokenType.String)
+        if (_token.Type != TokenType.String)
         {
             value = "";
             return false;
         }
 
-        value = GetString(_nextToken);
+        value = GetString(_token);
         ReadToken();
         return true;
     }
@@ -186,13 +176,13 @@ public ref struct Tokenizer
 
     public bool ExpectInt(out int value)
     {
-        if (_nextToken.Type != TokenType.Int)
+        if (_token.Type != TokenType.Int)
         {
             value = 0;
             return false;
         }
 
-        value = _nextToken.IntValue;
+        value = _token.IntValue;
         ReadToken();
         return true;
     }
@@ -206,20 +196,20 @@ public ref struct Tokenizer
 
     public bool ExpectFloat(out float value)
     {
-        if (_nextToken.Type == TokenType.Int)
+        if (_token.Type == TokenType.Int)
         {
-            value = _nextToken.IntValue;
+            value = _token.IntValue;
             ReadToken();
             return true;
         }
 
-        if (_nextToken.Type != TokenType.Float)
+        if (_token.Type != TokenType.Float)
         {
             value = 0;
             return false;
         }
 
-        value = _nextToken.FloatValue;
+        value = _token.FloatValue;
         ReadToken();
         return true;
     }
@@ -233,9 +223,9 @@ public ref struct Tokenizer
 
     public bool ExpectBool(out bool value)
     {
-        if (_nextToken.Type == TokenType.Bool)
+        if (_token.Type == TokenType.Bool)
         {
-            value = _nextToken.BoolValue;
+            value = _token.BoolValue;
             ReadToken();
             return true;
         }
@@ -259,10 +249,10 @@ public ref struct Tokenizer
 
     public bool ExpectIdentifier(string? match = null)
     {
-        if (_nextToken.Type != TokenType.Identifier)
+        if (_token.Type != TokenType.Identifier)
             return false;
 
-        if (match != null && !Equals(_nextToken, match, ignoreCase: false))
+        if (match != null && !Equals(_token, match, ignoreCase: false))
             return false;
 
         ReadToken();
@@ -271,75 +261,75 @@ public ref struct Tokenizer
 
     public bool ExpectIdentifier(out string value)
     {
-        if (_nextToken.Type != TokenType.Identifier)
+        if (_token.Type != TokenType.Identifier)
         {
             value = "";
             return false;
         }
 
+        value = GetSpan(_token).ToString();
         ReadToken();
-        value = GetString();
         return true;
     }
 
     public bool ExpectVec2(out Vector2 value)
     {
-        if (_nextToken.Type != TokenType.Vec2)
+        if (_token.Type != TokenType.Vec2)
         {
             value = default;
             return false;
         }
 
-        value = _nextToken.Vec2Value;
+        value = _token.Vec2Value;
         ReadToken();
         return true;
     }
 
     public bool ExpectVec3(out Vector3 value)
     {
-        if (_nextToken.Type != TokenType.Vec3)
+        if (_token.Type != TokenType.Vec3)
         {
             value = default;
             return false;
         }
 
-        value = _nextToken.Vec3Value;
+        value = _token.Vec3Value;
         ReadToken();
         return true;
     }
 
     public bool ExpectVec4(out Vector4 value)
     {
-        if (_nextToken.Type != TokenType.Vec4)
+        if (_token.Type != TokenType.Vec4)
         {
             value = default;
             return false;
         }
 
-        value = _nextToken.Vec4Value;
+        value = _token.Vec4Value;
         ReadToken();
         return true;
     }
 
     public bool ExpectColor(out Color value)
     {
-        if (_nextToken.Type != TokenType.Color)
+        if (_token.Type != TokenType.Color)
         {
             value = default;
             return false;
         }
 
-        value = _nextToken.ColorValue;
+        value = _token.ColorValue;
         ReadToken();
         return true;
     }
 
     public bool ExpectDelimiter(char c)
     {
-        if (_nextToken.Type != TokenType.Delimiter)
+        if (_token.Type != TokenType.Delimiter)
             return false;
 
-        if (_nextToken.Length != 1 || _input[_nextToken.Start] != c)
+        if (_token.Length != 1 || _input[_token.Start] != c)
             return false;
 
         ReadToken();
@@ -384,16 +374,16 @@ public ref struct Tokenizer
 
     private void BeginToken()
     {
-        _nextToken.Line = _line;
-        _nextToken.Column = _column;
-        _nextToken.Start = _position;
-        _nextToken.Length = 0;
+        _token.Line = _line;
+        _token.Column = _column;
+        _token.Start = _position;
+        _token.Length = 0;
     }
 
     private void EndToken(TokenType type)
     {
-        _nextToken.Length = _position - _nextToken.Start;
-        _nextToken.Type = type;
+        _token.Length = _position - _token.Start;
+        _token.Type = type;
     }
 
     private static bool IsDelimiter(char c) => c == '[' || c == ']' || c == '=' || c == ',' || c == '<' || c == '>' || c == ':';
@@ -420,7 +410,7 @@ public ref struct Tokenizer
             if (c == quote)
             {
                 EndToken(TokenType.String);
-                _nextToken.Length--; // exclude closing quote
+                _token.Length--; // exclude closing quote
                 return true;
             }
 
@@ -441,7 +431,7 @@ public ref struct Tokenizer
             BeginToken();
             for (int i = 0; i < 4; i++) NextChar();
             EndToken(TokenType.Bool);
-            _nextToken.BoolValue = true;
+            _token.BoolValue = true;
             return true;
         }
 
@@ -450,7 +440,7 @@ public ref struct Tokenizer
             BeginToken();
             for (int i = 0; i < 5; i++) NextChar();
             EndToken(TokenType.Bool);
-            _nextToken.BoolValue = false;
+            _token.BoolValue = false;
             return true;
         }
 
@@ -498,7 +488,7 @@ public ref struct Tokenizer
                 continue;
             }
 
-            if ((c == '-' || c == '+') && _nextToken.Start == _position)
+            if ((c == '-' || c == '+') && _token.Start == _position)
             {
                 NextChar();
                 continue;
@@ -509,11 +499,11 @@ public ref struct Tokenizer
 
         EndToken((hasDecimal || hasExponent) ? TokenType.Float : TokenType.Int);
 
-        var span = GetSpan(_nextToken);
+        var span = GetSpan(_token);
         if (hasDecimal || hasExponent)
-            _nextToken.FloatValue = float.TryParse(span, out float f) ? f : 0f;
+            _token.FloatValue = float.TryParse(span, out float f) ? f : 0f;
         else
-            _nextToken.IntValue = int.TryParse(span, out int i) ? i : 0;
+            _token.IntValue = int.TryParse(span, out int i) ? i : 0;
 
         return true;
     }
@@ -540,7 +530,7 @@ public ref struct Tokenizer
         if (startToken)
             BeginToken();
 
-        var savedToken = _nextToken;
+        var savedToken = _token;
 
         SkipWhitespace();
         NextChar(); // skip '('
@@ -572,34 +562,34 @@ public ref struct Tokenizer
 
             if (componentCount < 4)
             {
-                if (_nextToken.Type == TokenType.Int)
-                    components[componentCount] = _nextToken.IntValue;
+                if (_token.Type == TokenType.Int)
+                    components[componentCount] = _token.IntValue;
                 else
-                    components[componentCount] = _nextToken.FloatValue;
+                    components[componentCount] = _token.FloatValue;
             }
             componentCount++;
         }
 
-        _nextToken = savedToken;
+        _token = savedToken;
 
         if (componentCount == 1)
         {
-            _nextToken.FloatValue = components[0];
+            _token.FloatValue = components[0];
             EndToken(TokenType.Float);
         }
         else if (componentCount == 2)
         {
-            _nextToken.Vec2Value = new Vector2(components[0], components[1]);
+            _token.Vec2Value = new Vector2(components[0], components[1]);
             EndToken(TokenType.Vec2);
         }
         else if (componentCount == 3)
         {
-            _nextToken.Vec3Value = new Vector3(components[0], components[1], components[2]);
+            _token.Vec3Value = new Vector3(components[0], components[1], components[2]);
             EndToken(TokenType.Vec3);
         }
         else if (componentCount == 4)
         {
-            _nextToken.Vec4Value = new Vector4(components[0], components[1], components[2], components[3]);
+            _token.Vec4Value = new Vector4(components[0], components[1], components[2], components[3]);
             EndToken(TokenType.Vec4);
         }
         else
@@ -625,8 +615,8 @@ public ref struct Tokenizer
 
             EndToken(TokenType.Color);
 
-            var hex = GetSpan(_nextToken).Slice(1); // skip #
-            _nextToken.ColorValue = ParseHexColor(hex);
+            var hex = GetSpan(_token).Slice(1); // skip #
+            _token.ColorValue = ParseHexColor(hex);
             return true;
         }
 
@@ -638,16 +628,16 @@ public ref struct Tokenizer
             SkipWhitespace();
             ReadVec(false);
 
-            if (_nextToken.Type == TokenType.Vec4)
+            if (_token.Type == TokenType.Vec4)
             {
-                _nextToken.ColorValue = new Color(
-                    _nextToken.Vec4Value.X / 255f,
-                    _nextToken.Vec4Value.Y / 255f,
-                    _nextToken.Vec4Value.Z / 255f,
-                    _nextToken.Vec4Value.W
+                _token.ColorValue = new Color(
+                    _token.Vec4Value.X / 255f,
+                    _token.Vec4Value.Y / 255f,
+                    _token.Vec4Value.Z / 255f,
+                    _token.Vec4Value.W
                 );
             }
-            _nextToken.Type = TokenType.Color;
+            _token.Type = TokenType.Color;
             return true;
         }
 
@@ -659,16 +649,16 @@ public ref struct Tokenizer
             SkipWhitespace();
             ReadVec(false);
 
-            if (_nextToken.Type == TokenType.Vec3)
+            if (_token.Type == TokenType.Vec3)
             {
-                _nextToken.ColorValue = new Color(
-                    _nextToken.Vec3Value.X / 255f,
-                    _nextToken.Vec3Value.Y / 255f,
-                    _nextToken.Vec3Value.Z / 255f,
+                _token.ColorValue = new Color(
+                    _token.Vec3Value.X / 255f,
+                    _token.Vec3Value.Y / 255f,
+                    _token.Vec3Value.Z / 255f,
                     1f
                 );
             }
-            _nextToken.Type = TokenType.Color;
+            _token.Type = TokenType.Color;
             return true;
         }
 
@@ -681,7 +671,7 @@ public ref struct Tokenizer
             BeginToken();
             for (var i = 0; i < name.Length; i++) NextChar();
             EndToken(TokenType.Color);
-            _nextToken.ColorValue = color;
+            _token.ColorValue = color;
             return true;
         }
 
@@ -738,8 +728,6 @@ public ref struct Tokenizer
 
     private bool ReadToken()
     {
-        _currentToken = _nextToken;
-
         SkipWhitespace();
 
         if (!HasTokens())

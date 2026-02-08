@@ -110,6 +110,58 @@ internal static class TextRender
         return new Vector2(totalWidth, totalHeight);
     }
 
+    public static void DrawAtlas(Font font, Rect bounds)
+    {
+        if (_textShader == null)
+            return;
+
+        var atlasTexture = font.AtlasTexture;
+        if (atlasTexture == null)
+            return;
+
+        using var _ = Graphics.PushState();
+        Graphics.SetShader(_textShader);
+        Graphics.SetTexture(atlasTexture, filter: TextureFilter.Linear);
+        Graphics.SetMesh(_mesh);
+
+        var color = Graphics.Color.ToColor32();
+        var baseVertex = _vertices.Length;
+        var baseIndex = _indices.Length;
+
+        _vertices.Add(new TextVertex
+        {
+            Position = Vector2.Transform(new Vector2(bounds.X, bounds.Y), Graphics.Transform),
+            UV = new Vector2(0, 0),
+            Color = color
+        });
+        _vertices.Add(new TextVertex
+        {
+            Position = Vector2.Transform(new Vector2(bounds.X + bounds.Width, bounds.Y), Graphics.Transform),
+            UV = new Vector2(1, 0),
+            Color = color
+        });
+        _vertices.Add(new TextVertex
+        {
+            Position = Vector2.Transform(new Vector2(bounds.X + bounds.Width, bounds.Y + bounds.Height), Graphics.Transform),
+            UV = new Vector2(1, 1),
+            Color = color
+        });
+        _vertices.Add(new TextVertex
+        {
+            Position = Vector2.Transform(new Vector2(bounds.X, bounds.Y + bounds.Height), Graphics.Transform),
+            UV = new Vector2(0, 1),
+            Color = color
+        });
+
+        _indices.Add((ushort)(baseVertex + 0));
+        _indices.Add((ushort)(baseVertex + 1));
+        _indices.Add((ushort)(baseVertex + 2));
+        _indices.Add((ushort)(baseVertex + 2));
+        _indices.Add((ushort)(baseVertex + 3));
+        _indices.Add((ushort)(baseVertex + 0));
+        Graphics.DrawElements(6, baseIndex);
+    }
+
     public static void Draw(in ReadOnlySpan<char> text, Font font, float fontSize, int order = 0)
     {
         Debug.Assert(order >= 0 && order <= ushort.MaxValue);

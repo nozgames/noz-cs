@@ -720,7 +720,9 @@ public static partial class UI
     public static void EndPopup() => EndElement(ElementType.Popup);
 
     // :label
-    public static void Label(string text, LabelStyle style = default)
+    public static void Label(string text) => Label(text, new LabelStyle());
+
+    public static void Label(string text, LabelStyle style)
     {
         ref var e = ref CreateElement(ElementType.Label);
         e.Asset = style.Font ?? _defaultFont;

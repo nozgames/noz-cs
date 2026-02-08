@@ -41,6 +41,35 @@ namespace NoZ.Editor
 
         public Vector2Int Size => _size;
 
+        public float UsedFraction
+        {
+            get
+            {
+                long totalArea = (long)_size.X * _size.Y;
+                if (totalArea == 0) return 0f;
+                long usedArea = 0;
+                foreach (var r in _used)
+                    usedArea += (long)r.Width * r.Height;
+                return (float)usedArea / totalArea;
+            }
+        }
+
+        public Vector2Int UsedBounds
+        {
+            get
+            {
+                int maxX = 0, maxY = 0;
+                foreach (var r in _used)
+                {
+                    var rx = r.X + r.Width;
+                    var ry = r.Y + r.Height;
+                    if (rx > maxX) maxX = rx;
+                    if (ry > maxY) maxY = ry;
+                }
+                return new Vector2Int(maxX + 1, maxY + 1);
+            }
+        }
+
         public RectInt GetRect(int index) => _used[index];
 
         public void Resize(int width, int height)

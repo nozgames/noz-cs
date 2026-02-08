@@ -3,6 +3,7 @@
 //
 
 using System;
+using System.Threading.Tasks;
 
 namespace NoZ.Editor
 {
@@ -29,45 +30,78 @@ namespace NoZ.Editor
             );
         }
 
-        // Compute winding number contribution from a contour using ray casting
-        // Returns +1 for each upward crossing, -1 for each downward crossing
+        // Compute winding number contribution from a contour using analytical ray casting.
+        // For each edge, computes exact ray-edge intersections instead of sampling.
         private static int ComputeWindingNumber(Contour contour, Vector2Double p)
         {
             int winding = 0;
-            const int samples = 32; // samples per edge for curves
 
             foreach (var edge in contour.edges)
             {
-                Vector2Double prev = edge.GetPoint(0);
-                for (int s = 1; s <= samples; s++)
+                if (edge is LinearEdge line)
                 {
-                    Vector2Double curr = edge.GetPoint(s / (double)samples);
-
-                    // Check if this segment crosses the horizontal ray from p going right
-                    if (prev.y <= p.y)
+                    double y0 = line.p0.y, y1 = line.p1.y;
+                    if (y0 <= p.y)
                     {
-                        if (curr.y > p.y)
+                        if (y1 > p.y)
                         {
-                            // Upward crossing
-                            double t = (p.y - prev.y) / (curr.y - prev.y);
-                            double xIntersect = prev.x + t * (curr.x - prev.x);
-                            if (xIntersect > p.x)
+                            double t = (p.y - y0) / (y1 - y0);
+                            if (line.p0.x + t * (line.p1.x - line.p0.x) > p.x)
                                 winding++;
                         }
                     }
-                    else
+                    else if (y1 <= p.y)
                     {
-                        if (curr.y <= p.y)
+                        double t = (p.y - y0) / (y1 - y0);
+                        if (line.p0.x + t * (line.p1.x - line.p0.x) > p.x)
+                            winding--;
+                    }
+                }
+                else if (edge is QuadraticEdge q)
+                {
+                    // Solve (1-t)^2*y0 + 2t(1-t)*y1 + t^2*y2 = py for t
+                    // Rearranges to: a*t^2 + b*t + c = 0
+                    double a = q.p0.y - 2 * q.p1.y + q.p2.y;
+                    double b = 2 * (q.p1.y - q.p0.y);
+                    double c = q.p0.y - p.y;
+
+                    double disc = b * b - 4 * a * c;
+                    if (disc < 0) continue;
+
+                    // Near-linear case (a ≈ 0)
+                    if (Math.Abs(a) < 1e-14)
+                    {
+                        if (Math.Abs(b) < 1e-14) continue;
+                        double t = -c / b;
+                        if (t >= 0 && t < 1)
                         {
-                            // Downward crossing
-                            double t = (p.y - prev.y) / (curr.y - prev.y);
-                            double xIntersect = prev.x + t * (curr.x - prev.x);
-                            if (xIntersect > p.x)
-                                winding--;
+                            double omt = 1 - t;
+                            double xAt = omt * omt * q.p0.x + 2 * omt * t * q.p1.x + t * t * q.p2.x;
+                            if (xAt > p.x)
+                            {
+                                double dydt = 2 * omt * (q.p1.y - q.p0.y) + 2 * t * (q.p2.y - q.p1.y);
+                                winding += dydt > 0 ? 1 : -1;
+                            }
                         }
+                        continue;
                     }
 
-                    prev = curr;
+                    double sqrtDisc = Math.Sqrt(disc);
+                    double inv2a = 1.0 / (2 * a);
+                    for (int i = 0; i < 2; i++)
+                    {
+                        double t = (-b + (i == 0 ? sqrtDisc : -sqrtDisc)) * inv2a;
+                        if (t >= 0 && t < 1)
+                        {
+                            double omt = 1 - t;
+                            double xAt = omt * omt * q.p0.x + 2 * omt * t * q.p1.x + t * t * q.p2.x;
+                            if (xAt > p.x)
+                            {
+                                double dydt = 2 * omt * (q.p1.y - q.p0.y) + 2 * t * (q.p2.y - q.p1.y);
+                                winding += dydt > 0 ? 1 : -1;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -95,7 +129,7 @@ namespace NoZ.Editor
             for (int i = 0; i < shape.contours.Length; i++)
                 windings[i] = shape.contours[i].Winding();
 
-            for (int y = 0; y < h; ++y)
+            Parallel.For(0, h, y =>
             {
                 int row = shape.InverseYAxis ? h - y - 1 : y;
                 for (int x = 0; x < w; ++x)
@@ -117,7 +151,6 @@ namespace NoZ.Editor
                     }
 
                     // Compute total winding number using non-zero rule
-                    // This correctly handles overlapping same-winding contours
                     int totalWinding = 0;
                     foreach (var contour in shape.contours)
                         totalWinding += ComputeWindingNumber(contour, p);
@@ -135,7 +168,7 @@ namespace NoZ.Editor
                         row + outputPosition.Y,
                         (byte)(sd * 255.0f));
                 }
-            }
+            });
         }
     }
 }

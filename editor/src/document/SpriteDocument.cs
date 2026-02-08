@@ -339,7 +339,8 @@ public class SpriteDocument : Document
             }
             else
             {
-                Log.Error($"SpriteDocument.Load: Unexpected token '{tk.GetString()}'");
+                tk.ExpectToken(out var badToken);
+                Log.Error($"SpriteDocument.Load: Unexpected token '{tk.GetString(badToken)}'");
                 break;
             }
         }
