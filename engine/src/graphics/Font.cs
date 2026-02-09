@@ -13,11 +13,13 @@ public struct FontGlyph
     public Vector2 Size;
     public float Advance;
     public Vector2 Bearing;
+    internal ushort NameStart;
+    internal ushort NameLength;
 }
 
 public class Font : Asset
 {
-    internal const ushort Version = 4;
+    internal const ushort Version = 5;
 
     public int FontSize { get; private init; }
     public int AtlasWidth { get; private init; }
@@ -32,8 +34,18 @@ public class Font : Asset
     private readonly Dictionary<int, FontGlyph> _glyphs = new();
     private readonly Dictionary<uint, float> _kerning = new();
     private Texture? _atlasTexture;
+    private char[]? _glyphNameBuffer;
 
     public Texture? AtlasTexture => _atlasTexture;
+    public int GlyphCount => _glyphs.Count;
+    public IEnumerable<int> Glyphs => _glyphs.Keys;
+
+    public ReadOnlySpan<char> GetGlyphName(int codepoint)
+    {
+        if (_glyphNameBuffer != null && _glyphs.TryGetValue(codepoint, out var glyph) && glyph.NameLength > 0)
+            return _glyphNameBuffer.AsSpan(glyph.NameStart, glyph.NameLength);
+        return ReadOnlySpan<char>.Empty;
+    }
 
     private Font(string name) : base(AssetType.Font, name)
     {
@@ -91,9 +103,11 @@ public class Font : Asset
 
         // Read glyphs
         var glyphCount = reader.ReadUInt16();
+        var glyphCodepoints = new int[glyphCount];
         for (var i = 0; i < glyphCount; i++)
         {
             var codepoint = reader.ReadUInt32();
+            glyphCodepoints[i] = (int)codepoint;
             var uvMinX = reader.ReadSingle();
             var uvMinY = reader.ReadSingle();
             var uvMaxX = reader.ReadSingle();
@@ -130,6 +144,27 @@ public class Font : Asset
         var r8Data = reader.ReadBytes(atlasDataSize);
 
         font._atlasTexture = Texture.Create(atlasWidth, atlasHeight, r8Data, TextureFormat.R8, name: name + "_atlas");
+
+        // Read glyph names (appended after atlas in v5+)
+        if (reader.BaseStream.Position < reader.BaseStream.Length)
+        {
+            var nameBufferLength = reader.ReadUInt16();
+            if (nameBufferLength > 0)
+                font._glyphNameBuffer = reader.ReadChars(nameBufferLength);
+
+            for (var i = 0; i < glyphCount; i++)
+            {
+                var nameStart = reader.ReadUInt16();
+                var nameLength = reader.ReadUInt16();
+                var cp = glyphCodepoints[i];
+                if (font._glyphs.TryGetValue(cp, out var g))
+                {
+                    g.NameStart = nameStart;
+                    g.NameLength = nameLength;
+                    font._glyphs[cp] = g;
+                }
+            }
+        }
 
         return font;
     }

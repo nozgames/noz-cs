@@ -34,6 +34,7 @@ namespace NoZ.Editor
             public double advance;
             public Vector2Double size;
             public Vector2Double bearing;
+            public string? name;
         }
 
         public double Ascent { get; private set; }

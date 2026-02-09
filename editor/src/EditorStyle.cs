@@ -297,7 +297,6 @@ public static class EditorStyle
 
         public static readonly TextBoxStyle SearchTextBox = new()
         {
-            Height = Popup.Item.Height,
             FontSize = Control.TextSize,
             TextColor = Control.Text.Color,
             SelectionColor = SelectionColor,
@@ -717,8 +716,7 @@ public static class EditorStyle
         {
             FontSize = 17.0f,
             TextColor = Control.Text.Color,
-            SelectionColor = SelectionColor,
-            Height = Control.Height
+            SelectionColor = SelectionColor
         };
     }
 

@@ -377,6 +377,31 @@ public class FontDocument : Document
 
         var bytes = atlas.AsByteSpan();
         writer.Write(bytes);
+
+        // Build packed glyph name buffer
+        var nameBuffer = new System.Text.StringBuilder();
+        var nameOffsets = new (ushort start, ushort length)[glyphs.Count];
+        for (int i = 0; i < glyphs.Count; i++)
+        {
+            var name = glyphs[i].Ttf.name;
+            if (!string.IsNullOrEmpty(name))
+            {
+                nameOffsets[i] = ((ushort)nameBuffer.Length, (ushort)name.Length);
+                nameBuffer.Append(name);
+            }
+        }
+
+        // Write glyph name section
+        var nameChars = nameBuffer.ToString();
+        writer.Write((ushort)nameChars.Length);
+        if (nameChars.Length > 0)
+            writer.Write(nameChars.ToCharArray());
+
+        for (int i = 0; i < glyphs.Count; i++)
+        {
+            writer.Write(nameOffsets[i].start);
+            writer.Write(nameOffsets[i].length);
+        }
     }
 
     private static string MergeCharacterRanges(string rangesStr, string existingChars)

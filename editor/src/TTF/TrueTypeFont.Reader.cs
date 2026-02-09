@@ -20,7 +20,8 @@ namespace NoZ.Editor
                 MAXP,
                 KERN,
                 NAME,
-                OS2
+                OS2,
+                POST
             }
 
             private BinaryReader _reader = new(stream);
@@ -779,6 +780,106 @@ namespace NoZ.Editor
                 }
             }
 
+            private static readonly string[] StandardMacGlyphNames =
+            [
+                ".notdef", ".null", "nonmarkingreturn", "space", "exclam", "quotedbl", "numbersign",
+                "dollar", "percent", "ampersand", "quotesingle", "parenleft", "parenright", "asterisk",
+                "plus", "comma", "hyphen", "period", "slash", "zero", "one", "two", "three", "four",
+                "five", "six", "seven", "eight", "nine", "colon", "semicolon", "less", "equal", "greater",
+                "question", "at", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N",
+                "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "bracketleft", "backslash",
+                "bracketright", "asciicircum", "underscore", "grave", "a", "b", "c", "d", "e", "f", "g",
+                "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x",
+                "y", "z", "braceleft", "bar", "braceright", "asciitilde", "Adieresis", "Aring", "Ccedilla",
+                "Eacute", "Ntilde", "Odieresis", "Udieresis", "aacute", "agrave", "acircumflex", "adieresis",
+                "atilde", "aring", "ccedilla", "eacute", "egrave", "ecircumflex", "edieresis", "iacute",
+                "igrave", "icircumflex", "idieresis", "ntilde", "oacute", "ograve", "ocircumflex", "odieresis",
+                "otilde", "uacute", "ugrave", "ucircumflex", "udieresis", "dagger", "degree", "cent",
+                "sterling", "section", "bullet", "paragraph", "germandbls", "registered", "copyright",
+                "trademark", "acute", "dieresis", "notequal", "AE", "Oslash", "infinity", "plusminus",
+                "lessequal", "greaterequal", "yen", "mu", "partialdiff", "summation", "product", "pi",
+                "integral", "ordfeminine", "ordmasculine", "Omega", "ae", "oslash", "questiondown",
+                "exclamdown", "logicalnot", "radical", "florin", "approxequal", "Delta", "guillemotleft",
+                "guillemotright", "ellipsis", "nonbreakingspace", "Agrave", "Atilde", "Otilde", "OE", "oe",
+                "endash", "emdash", "quotedblleft", "quotedblright", "quoteleft", "quoteright", "divide",
+                "lozenge", "ydieresis", "Ydieresis", "fraction", "currency", "guilsinglleft", "guilsinglright",
+                "fi", "fl", "daggerdbl", "periodcentered", "quotesinglbase", "quotedblbase", "perthousand",
+                "Acircumflex", "Ecircumflex", "Aacute", "Edieresis", "Egrave", "Iacute", "Icircumflex",
+                "Idieresis", "Igrave", "Oacute", "Ocircumflex", "apple", "Ograve", "Uacute", "Ucircumflex",
+                "Ugrave", "dotlessi", "circumflex", "tilde", "macron", "breve", "dotaccent", "ring",
+                "cedilla", "hungarumlaut", "ogonek", "caron", "Lslash", "lslash", "Scaron", "scaron",
+                "Zcaron", "zcaron", "brokenbar", "Eth", "eth", "Yacute", "yacute", "Thorn", "thorn",
+                "minus", "multiply", "onesuperior", "twosuperior", "threesuperior", "onehalf", "onequarter",
+                "threequarters", "franc", "Gbreve", "gbreve", "Idotaccent", "Scedilla", "scedilla",
+                "Cacute", "cacute", "Ccaron", "ccaron", "dcroat"
+            ];
+
+            private void ReadPOST()
+            {
+                if (_tableOffsets[(int)TableName.POST] == 0)
+                    return;
+
+                Seek(TableName.POST, 0);
+
+                var version = ReadUInt32();
+                ReadFixed();   // italicAngle
+                ReadInt16();   // underlinePosition
+                ReadInt16();   // underlineThickness
+                ReadUInt32();  // isFixedPitch
+                ReadUInt32();  // minMemType42
+                ReadUInt32();  // maxMemType42
+                ReadUInt32();  // minMemType1
+                ReadUInt32();  // maxMemType1
+
+                if (version == 0x00010000)
+                {
+                    // Format 1.0: standard 258 Mac glyph names, mapped by glyph ID
+                    for (int i = 0; i < _glyphsById.Length && i < StandardMacGlyphNames.Length; i++)
+                        if (_glyphsById[i] != null)
+                            _glyphsById[i].name = StandardMacGlyphNames[i];
+                }
+                else if (version == 0x00020000)
+                {
+                    // Format 2.0: custom glyph name mapping
+                    var numGlyphs = ReadUInt16();
+                    var glyphNameIndex = new ushort[numGlyphs];
+                    int maxCustomIndex = -1;
+
+                    for (int i = 0; i < numGlyphs; i++)
+                    {
+                        glyphNameIndex[i] = ReadUInt16();
+                        if (glyphNameIndex[i] >= 258)
+                        {
+                            var customIdx = glyphNameIndex[i] - 258;
+                            if (customIdx > maxCustomIndex)
+                                maxCustomIndex = customIdx;
+                        }
+                    }
+
+                    // Read Pascal strings for custom names
+                    var customNames = new string[maxCustomIndex + 1];
+                    for (int i = 0; i <= maxCustomIndex; i++)
+                    {
+                        var len = _reader.ReadByte();
+                        customNames[i] = len > 0 ? ReadString(len) : "";
+                    }
+
+                    // Assign names to glyphs
+                    for (int i = 0; i < numGlyphs && i < _glyphsById.Length; i++)
+                    {
+                        if (_glyphsById[i] == null)
+                            continue;
+
+                        var idx = glyphNameIndex[i];
+                        if (idx < 258)
+                            _glyphsById[i].name = StandardMacGlyphNames[idx];
+                        else if (idx - 258 < customNames.Length)
+                            _glyphsById[i].name = customNames[idx - 258];
+                    }
+                }
+                // Format 3.0 (version == 0x00030000): no glyph names, nothing to do
+            }
+
             private void ReadKERN()
             {
                 Seek(TableName.KERN, 2);
@@ -888,6 +989,8 @@ namespace NoZ.Editor
                 ReadKERN();
 
                 ReadNAME();
+
+                ReadPOST();
 
                 return _ttf;
             }
