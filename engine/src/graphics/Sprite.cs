@@ -20,9 +20,15 @@ public readonly struct SpriteMesh(
     public readonly Vector2Int Size = size;       // Tight bounds size in pixels
 }
 
+public readonly struct SpriteFrameInfo(ushort meshStart, ushort meshCount)
+{
+    public readonly ushort MeshStart = meshStart;
+    public readonly ushort MeshCount = meshCount;
+}
+
 public class Sprite : Asset
 {
-    public const ushort Version = 6;
+    public const ushort Version = 7;
     public const int MaxFrames = 64;
 
     public RectInt Bounds { get; private set; }
@@ -32,8 +38,10 @@ public class Sprite : Asset
     public int BoneIndex { get; private set; }
     public float PixelsPerUnit { get; private set; } = 64.0f;
     public float PixelsPerUnitInv { get; private set; }
+    public float FrameRate { get; private set; } = 12.0f;
     public TextureFilter TextureFilter { get; set; } = TextureFilter.Point;
     public SpriteMesh[] Meshes { get; private set; } = [];
+    public SpriteFrameInfo[] FrameTable { get; private set; } = [];
     public Rect UV => Meshes.Length > 0 ? Meshes[0].UV : Rect.Zero;
     public ushort Order => Meshes.Length > 0 ? (ushort)Meshes[0].SortOrder : (ushort)0;
 
@@ -45,18 +53,22 @@ public class Sprite : Asset
         float pixelsPerUnit,
         TextureFilter filter,
         int boneIndex,
-        SpriteMesh[] meshes)
+        SpriteMesh[] meshes,
+        SpriteFrameInfo[] frameTable,
+        float frameRate = 12.0f)
     {
         return new Sprite(name)
         {
             Bounds = bounds,
-            FrameCount = 1,
+            FrameCount = frameTable.Length,
             AtlasIndex = 0,
             PixelsPerUnit = pixelsPerUnit,
             PixelsPerUnitInv = 1.0f / pixelsPerUnit,
+            FrameRate = frameRate,
             TextureFilter = filter,
             BoneIndex = boneIndex,
-            Meshes = meshes
+            Meshes = meshes,
+            FrameTable = frameTable
         };
     }
 
@@ -74,7 +86,8 @@ public class Sprite : Asset
         var ppu = reader.ReadSingle();
         var filter = (TextureFilter)reader.ReadByte();
         var boneIndex = reader.ReadInt16();
-        var meshCount = reader.ReadByte();
+        var meshCount = reader.ReadUInt16();
+        var frameRate = reader.ReadSingle();
 
         var meshes = new SpriteMesh[meshCount];
         for (int i = 0; i < meshCount; i++)
@@ -98,14 +111,24 @@ public class Sprite : Asset
                 new Vector2Int(sizeX, sizeY));
         }
 
+        var frameTable = new SpriteFrameInfo[frameCount];
+        for (int i = 0; i < frameCount; i++)
+        {
+            var meshStart = reader.ReadUInt16();
+            var count = reader.ReadUInt16();
+            frameTable[i] = new SpriteFrameInfo(meshStart, count);
+        }
+
         sprite.Bounds = RectInt.FromMinMax(l, t, r, b);
         sprite.FrameCount = frameCount;
         sprite.AtlasIndex = atlasIndex;
         sprite.BoneIndex = boneIndex;
         sprite.PixelsPerUnit = ppu;
         sprite.PixelsPerUnitInv = 1.0f / ppu;
+        sprite.FrameRate = frameRate;
         sprite.TextureFilter = filter;
         sprite.Meshes = meshes;
+        sprite.FrameTable = frameTable;
         return sprite;
     }
 

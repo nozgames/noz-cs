@@ -29,6 +29,8 @@ public partial class SpriteEditor : DocumentEditor
     [ElementId("LayerButton")]
     [ElementId("BonePathButton")]
     [ElementId("StrokeWidth")]
+    [ElementId("AddFrameButton")]
+    [ElementId("PlayButton")]
     private static partial class ElementId { }
 
     public new SpriteDocument Document => (SpriteDocument)base.Document;
@@ -86,6 +88,11 @@ public partial class SpriteEditor : DocumentEditor
             new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
             new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
             new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
+            new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI },
+            new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO },
+            new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
+            new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
+            new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
             new Command { Name = "Curve", Handler = BeginCurveTool, Key = InputCode.KeyC },
             new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new Command { Name = "Insert Anchor", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
@@ -215,6 +222,12 @@ public partial class SpriteEditor : DocumentEditor
 
         BoneBindingUI();
 
+        if (EditorUI.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe, toolbar: true))
+            InsertFrameAfter();
+
+        if (EditorUI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, selected: _isPlaying, toolbar: true))
+            TogglePlayback();
+
         UI.Flex();
 
         if (EditorUI.Button(
@@ -254,8 +267,9 @@ public partial class SpriteEditor : DocumentEditor
                 Span<EditorUI.DopeSheetFrame> frames = stackalloc EditorUI.DopeSheetFrame[Document.FrameCount];
                 for (ushort i = 0; i < Document.FrameCount; i++)
                     frames[i] = new EditorUI.DopeSheetFrame { Hold = Document.Frames[i].Hold, };
-                var currentFrame = 0;
-                EditorUI.DopeSheet(ElementId.DopeSheet, frames, ref currentFrame, Sprite.MaxFrames, false);
+                var currentFrame = (int)_currentFrame;
+                if (EditorUI.DopeSheet(ElementId.DopeSheet, frames, ref currentFrame, Sprite.MaxFrames, _isPlaying))
+                    SetCurrentFrame((ushort)currentFrame);
             }
 
             UI.Spacer(EditorStyle.Control.Spacing);
@@ -688,6 +702,59 @@ public partial class SpriteEditor : DocumentEditor
 
         _currentFrame = _currentFrame == 0 ? (ushort)(Document.FrameCount - 1) : (ushort)(_currentFrame - 1);
         MarkRasterDirty();
+    }
+
+    private void InsertFrameBefore()
+    {
+        Undo.Record(Document);
+        var newFrame = Document.InsertFrame(_currentFrame);
+        if (newFrame >= 0)
+        {
+            _currentFrame = (ushort)newFrame;
+            MarkRasterDirty();
+            Document.MarkModified();
+            AtlasManager.UpdateSprite(Document);
+        }
+    }
+
+    private void InsertFrameAfter()
+    {
+        Undo.Record(Document);
+        var newFrame = Document.InsertFrame(_currentFrame + 1);
+        if (newFrame >= 0)
+        {
+            _currentFrame = (ushort)newFrame;
+            MarkRasterDirty();
+            Document.MarkModified();
+            AtlasManager.UpdateSprite(Document);
+        }
+    }
+
+    private void DeleteCurrentFrame()
+    {
+        if (Document.FrameCount <= 1) return;
+        Undo.Record(Document);
+        _currentFrame = (ushort)Document.DeleteFrame(_currentFrame);
+        MarkRasterDirty();
+        Document.MarkModified();
+        AtlasManager.UpdateSprite(Document);
+    }
+
+    private void AddHoldFrame()
+    {
+        Undo.Record(Document);
+        Document.Frames[_currentFrame].Hold++;
+        Document.MarkModified();
+    }
+
+    private void RemoveHoldFrame()
+    {
+        if (Document.Frames[_currentFrame].Hold <= 0)
+            return;
+
+        Undo.Record(Document);
+        Document.Frames[_currentFrame].Hold = Math.Max(0, Document.Frames[_currentFrame].Hold - 1);
+        Document.MarkModified();
     }
 
     public void SetFillColor(byte color, float opacity)

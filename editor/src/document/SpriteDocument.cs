@@ -293,6 +293,44 @@ public class SpriteDocument : Document
 
     public SpriteFrame GetFrame(ushort frameIndex) => Frames[frameIndex];
 
+    public int InsertFrame(int insertAt)
+    {
+        if (FrameCount >= Sprite.MaxFrames)
+            return -1;
+
+        FrameCount++;
+        var copyFrame = Math.Max(0, insertAt - 1);
+
+        for (var i = FrameCount - 1; i > insertAt; i--)
+        {
+            Frames[i].Shape.CopyFrom(Frames[i - 1].Shape);
+            Frames[i].Hold = Frames[i - 1].Hold;
+        }
+
+        if (copyFrame >= 0 && copyFrame < FrameCount)
+            Frames[insertAt].Shape.CopyFrom(Frames[copyFrame].Shape);
+
+        Frames[insertAt].Hold = 0;
+        return insertAt;
+    }
+
+    public int DeleteFrame(int frameIndex)
+    {
+        if (FrameCount <= 1)
+            return frameIndex;
+
+        for (var i = frameIndex; i < FrameCount - 1; i++)
+        {
+            Frames[i].Shape.CopyFrom(Frames[i + 1].Shape);
+            Frames[i].Hold = Frames[i + 1].Hold;
+        }
+
+        Frames[FrameCount - 1].Shape.Clear();
+        Frames[FrameCount - 1].Hold = 0;
+        FrameCount--;
+        return Math.Min(frameIndex, FrameCount - 1);
+    }
+
     private static void NewFile(StreamWriter writer)
     {
         writer.WriteLine("antialias true");
@@ -309,12 +347,13 @@ public class SpriteDocument : Document
 
     private void Load(ref Tokenizer tk)
     {
-        var f = Frames[FrameCount++];
+        SpriteFrame? f = null;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectIdentifier("path"))
             {
+                f ??= Frames[FrameCount++];
                 ParsePath(f, ref tk);
             }
             else if (tk.ExpectIdentifier("palette"))
@@ -326,9 +365,9 @@ public class SpriteDocument : Document
             }
             else if (tk.ExpectIdentifier("frame"))
             {
+                f = Frames[FrameCount++];
                 if (tk.ExpectIdentifier("hold"))
                     f.Hold = tk.ExpectInt();
-                f = Frames[FrameCount++];
             }
             else if (tk.ExpectIdentifier("skeleton"))
             {
@@ -591,7 +630,7 @@ public class SpriteDocument : Document
         DrawSprite();
     }
 
-    public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f)
+    public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f, int frame = 0)
     {
         if (Atlas == null) return;
 
@@ -605,8 +644,11 @@ public class SpriteDocument : Document
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
-            foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
+            var fi = sprite.FrameTable[frame];
+            for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
             {
+                ref readonly var mesh = ref sprite.Meshes[i];
+
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
                 if (mesh.Size.X > 0 && mesh.Size.Y > 0)
@@ -627,7 +669,7 @@ public class SpriteDocument : Document
         }
     }
 
-    public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform)
+    public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform, int frame = 0)
     {
         if (Atlas == null) return;
 
@@ -641,8 +683,11 @@ public class SpriteDocument : Document
             Graphics.SetColor(Color.White);
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
-            foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
+            var fi = sprite.FrameTable[frame];
+            for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
             {
+                ref readonly var mesh = ref sprite.Meshes[i];
+
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
                 if (mesh.Size.X > 0 && mesh.Size.Y > 0)
@@ -776,33 +821,41 @@ public class SpriteDocument : Document
         }
 
         var slotBounds = GetMeshSlotBounds();
-        var meshes = new SpriteMesh[slots.Count];
-        for (int idx = 0; idx < slots.Count; idx++)
+        var slotCount = slots.Count;
+        var meshes = new SpriteMesh[FrameCount * slotCount];
+        var frameTable = new SpriteFrameInfo[FrameCount];
+
+        for (int frameIndex = 0; frameIndex < FrameCount; frameIndex++)
         {
-            var slot = slots[idx];
-            var uv = GetAtlasUV(idx);
-            if (uv == Rect.Zero)
+            var meshStart = (ushort)(frameIndex * slotCount);
+            frameTable[frameIndex] = new SpriteFrameInfo(meshStart, (ushort)slotCount);
+
+            for (int slotIndex = 0; slotIndex < slotCount; slotIndex++)
             {
-                _sprite = null;
-                return;
+                var slot = slots[slotIndex];
+                var uvIndex = frameIndex * slotCount + slotIndex;
+                var uv = GetAtlasUV(uvIndex);
+                if (uv == Rect.Zero)
+                {
+                    _sprite = null;
+                    return;
+                }
+
+                var bounds = slotBounds[slotIndex];
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                    bounds = RasterBounds;
+
+                var boneIndex = (short)-1;
+                if (Binding.IsBound && Binding.Skeleton != null)
+                    boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
+
+                meshes[meshStart + slotIndex] = new SpriteMesh(
+                    uv,
+                    (short)slot.Layer,
+                    boneIndex,
+                    bounds.Position,
+                    bounds.Size);
             }
-
-            // Get per-slot bounds (list is aligned with slots by index)
-            var bounds = slotBounds[idx];
-            if (bounds.Width <= 0 || bounds.Height <= 0)
-                bounds = RasterBounds;
-
-            // Look up bone index by name (None = root bone 0, else find by name)
-            var boneIndex = (short)-1;
-            if (Binding.IsBound && Binding.Skeleton != null)
-                boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
-
-            meshes[idx] = new SpriteMesh(
-                uv,
-                (short)slot.Layer,
-                boneIndex,
-                bounds.Position,
-                bounds.Size);
         }
 
         _sprite = Sprite.Create(
@@ -811,7 +864,9 @@ public class SpriteDocument : Document
             pixelsPerUnit: EditorApplication.Config.PixelsPerUnit,
             filter: TextureFilter.Point,
             boneIndex: -1,
-            meshes: meshes);
+            meshes: meshes,
+            frameTable: frameTable,
+            frameRate: 12.0f);
     }
 
     internal void MarkSpriteDirty()
@@ -827,6 +882,8 @@ public class SpriteDocument : Document
 
         var slots = GetMeshSlots();
         var slotBounds = GetMeshSlotBounds();
+        var slotCount = slots.Count;
+        var totalMeshes = (ushort)(FrameCount * slotCount);
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
@@ -839,31 +896,42 @@ public class SpriteDocument : Document
         writer.Write((float)EditorApplication.Config.PixelsPerUnit);
         writer.Write((byte)(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point));
         writer.Write((short)-1);  // Legacy bone index field (no longer used)
-        writer.Write((byte)slots.Count);
+        writer.Write(totalMeshes);
+        writer.Write(12.0f);  // Frame rate
 
-        for (int idx = 0; idx < slots.Count; idx++)
+        // Write all meshes: frame0_slot0, frame0_slot1, ..., frame1_slot0, ...
+        for (int frameIndex = 0; frameIndex < FrameCount; frameIndex++)
         {
-            var slot = slots[idx];
-            var uv = GetAtlasUV(idx);
-            writer.Write(uv.Left);
-            writer.Write(uv.Top);
-            writer.Write(uv.Right);
-            writer.Write(uv.Bottom);
-            writer.Write((short)slot.Layer);  // Sort order
-            // Look up bone index by name (None = root bone 0, else find by name)
-            var boneIndex = (short)-1;
-            if (Binding.IsBound && Binding.Skeleton != null)
-                boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
-            writer.Write(boneIndex);
+            for (int slotIndex = 0; slotIndex < slotCount; slotIndex++)
+            {
+                var slot = slots[slotIndex];
+                var uvIndex = frameIndex * slotCount + slotIndex;
+                var uv = GetAtlasUV(uvIndex);
+                writer.Write(uv.Left);
+                writer.Write(uv.Top);
+                writer.Write(uv.Right);
+                writer.Write(uv.Bottom);
+                writer.Write((short)slot.Layer);  // Sort order
+                var boneIndex = (short)-1;
+                if (Binding.IsBound && Binding.Skeleton != null)
+                    boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
+                writer.Write(boneIndex);
 
-            // Write per-slot offset and size (list is aligned with slots by index)
-            var bounds = slotBounds[idx];
-            if (bounds.Width <= 0 || bounds.Height <= 0)
-                bounds = RasterBounds;
-            writer.Write((short)bounds.X);
-            writer.Write((short)bounds.Y);
-            writer.Write((short)bounds.Width);
-            writer.Write((short)bounds.Height);
+                var bounds = slotBounds[slotIndex];
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                    bounds = RasterBounds;
+                writer.Write((short)bounds.X);
+                writer.Write((short)bounds.Y);
+                writer.Write((short)bounds.Width);
+                writer.Write((short)bounds.Height);
+            }
+        }
+
+        // Write frame table
+        for (int frameIndex = 0; frameIndex < FrameCount; frameIndex++)
+        {
+            writer.Write((ushort)(frameIndex * slotCount));  // MeshStart
+            writer.Write((ushort)slotCount);                  // MeshCount
         }
     }
 

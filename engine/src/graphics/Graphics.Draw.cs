@@ -126,9 +126,11 @@ public static partial class Graphics
 
     public static void Draw(Sprite sprite) => Draw(sprite, bone: sprite.BoneIndex);
 
-    public static void Draw(Sprite sprite, int bone = -1)
+    public static void Draw(Sprite sprite, int bone = -1, int frame = 0)
     {
         if (sprite == null || SpriteAtlas == null) return;
+
+        var fi = sprite.FrameTable[frame];
 
         using (PushState())
         {
@@ -136,8 +138,10 @@ public static partial class Graphics
             SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
-            foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
+            for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
             {
+                ref readonly var mesh = ref sprite.Meshes[i];
+
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
                 if (mesh.Size.X > 0 && mesh.Size.Y > 0)
@@ -172,35 +176,44 @@ public static partial class Graphics
         }
     }
 
-    public static void Draw(Sprite sprite, ushort order, int bone = -1)
+    public static void Draw(Sprite sprite, ushort order, int bone = -1, int frame = 0)
     {
         if (sprite == null || SpriteAtlas == null) return;
 
-        var uv = sprite.UV;
-        var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
-        var p0 = new Vector2(bounds.Left, bounds.Top);
-        var p1 = new Vector2(bounds.Right, bounds.Top);
-        var p2 = new Vector2(bounds.Right, bounds.Bottom);
-        var p3 = new Vector2(bounds.Left, bounds.Bottom);
+        var fi = sprite.FrameTable[frame];
 
         using (PushState())
         {
             SetTexture(SpriteAtlas);
             SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
-            AddQuad(
-                p0, p1, p2, p3,
-                uv.TopLeft, new Vector2(uv.Right, uv.Top),
-                uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-                order: order,
-                atlasIndex: sprite.AtlasIndex,
-                bone: bone);
+
+            for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
+            {
+                ref readonly var mesh = ref sprite.Meshes[i];
+                var uv = mesh.UV;
+                var meshBounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
+                var p0 = new Vector2(meshBounds.Left, meshBounds.Top);
+                var p1 = new Vector2(meshBounds.Right, meshBounds.Top);
+                var p2 = new Vector2(meshBounds.Right, meshBounds.Bottom);
+                var p3 = new Vector2(meshBounds.Left, meshBounds.Bottom);
+
+                AddQuad(
+                    p0, p1, p2, p3,
+                    uv.TopLeft, new Vector2(uv.Right, uv.Top),
+                    uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
+                    order: order,
+                    atlasIndex: sprite.AtlasIndex,
+                    bone: bone);
+            }
         }
     }
 
-    public static void DrawFlat(Sprite sprite, ushort order = 0, int bone = -1)
+    public static void DrawFlat(Sprite sprite, ushort order = 0, int bone = -1, int frame = 0)
     {
         if (sprite == null || SpriteAtlas == null) return;
+
+        var fi = sprite.FrameTable[frame];
 
         using (PushState())
         {
@@ -208,8 +221,10 @@ public static partial class Graphics
             SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
-            foreach (ref readonly var mesh in sprite.Meshes.AsSpan())
+            for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
             {
+                ref readonly var mesh = ref sprite.Meshes[i];
+
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
                 if (mesh.Size.X > 0 && mesh.Size.Y > 0)
@@ -242,24 +257,42 @@ public static partial class Graphics
         }
     }
 
-    public static void DrawRaw(Sprite sprite, ushort order = 0, int bone = -1)
+    public static void DrawRaw(Sprite sprite, ushort order = 0, int bone = -1, int frame = 0)
     {
         if (sprite == null) return;
 
-        var uv = sprite.UV;
-        var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
-        var p0 = new Vector2(bounds.Left, bounds.Top);
-        var p1 = new Vector2(bounds.Right, bounds.Top);
-        var p2 = new Vector2(bounds.Right, bounds.Bottom);
-        var p3 = new Vector2(bounds.Left, bounds.Bottom);
+        var fi = sprite.FrameTable[frame];
 
-        AddQuad(
-            p0, p1, p2, p3,
-            uv.TopLeft, new Vector2(uv.Right, uv.Top),
-            uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-            order: order,
-            atlasIndex: sprite.AtlasIndex,
-            bone: bone);
+        for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
+        {
+            ref readonly var mesh = ref sprite.Meshes[i];
+            var uv = mesh.UV;
+            var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
+            var p0 = new Vector2(bounds.Left, bounds.Top);
+            var p1 = new Vector2(bounds.Right, bounds.Top);
+            var p2 = new Vector2(bounds.Right, bounds.Bottom);
+            var p3 = new Vector2(bounds.Left, bounds.Bottom);
+
+            AddQuad(
+                p0, p1, p2, p3,
+                uv.TopLeft, new Vector2(uv.Right, uv.Top),
+                uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
+                order: order,
+                atlasIndex: sprite.AtlasIndex,
+                bone: bone);
+        }
+    }
+
+    public static void DrawAnimated(Sprite sprite, float time, bool loop = true, int bone = -1)
+    {
+        if (sprite == null) return;
+        if (sprite.FrameCount <= 1) { Draw(sprite, bone); return; }
+        var frameIndex = (int)(time * sprite.FrameRate);
+        if (loop)
+            frameIndex = ((frameIndex % sprite.FrameCount) + sprite.FrameCount) % sprite.FrameCount;
+        else
+            frameIndex = Math.Min(frameIndex, sprite.FrameCount - 1);
+        Draw(sprite, bone, frameIndex);
     }
 
     public static void Draw(

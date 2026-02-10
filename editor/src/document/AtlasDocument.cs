@@ -207,10 +207,17 @@ internal class AtlasDocument : Document
                 ? bounds.Size
                 : sprite.RasterBounds.Size;
 
-            sprite.SetAtlasUV(slotIndex, ToUV(rect, slotIndex, slotSize, xOffset));
+            var frameStride = slotSize.X + padding2;
+
+            // Store a UV per (frame, slot) pair
+            for (int frameIndex = 0; frameIndex < rect.FrameCount; frameIndex++)
+            {
+                var uvIndex = frameIndex * slots.Count + slotIndex;
+                sprite.SetAtlasUV(uvIndex, ToUV(rect, slotIndex, slotSize, xOffset + frameIndex * frameStride));
+            }
 
             // Advance x offset for next slot
-            xOffset += (slotSize.X + padding2) * rect.FrameCount;
+            xOffset += frameStride * rect.FrameCount;
         }
     }
 
@@ -337,6 +344,7 @@ internal class AtlasDocument : Document
             return TryAddSprite(sprite);
         }
 
+        rect.FrameCount = sprite.FrameCount;
         rect.Dirty = true;
         MarkModified();
         return true;
