@@ -310,6 +310,8 @@ public static partial class Workspace
 
         if (State == WorkspaceState.Edit && ActiveEditor != null)
             ActiveEditor.Update();
+
+        VfxSystem.Render();
     }
 
     private static void UpdateToolAutoStart()

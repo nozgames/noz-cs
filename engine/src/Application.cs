@@ -82,6 +82,7 @@ public static class Application
         RegisterAssetTypes();
         _instance.LoadAssets();
         Graphics.ResolveAssets();
+        VfxSystem.Init();
 
         TextRender.Init(config);
         UI.Init(config.UI);
@@ -105,6 +106,7 @@ public static class Application
         Sound.RegisterDef();
         Shader.RegisterDef();
         Font.RegisterDef();
+        Vfx.RegisterDef();
     }
 
     public static void Run()
@@ -143,6 +145,7 @@ public static class Application
         _instance.UpdateUI();
         UI.End();
         _instance.LateUpdate();
+        VfxSystem.Update();
         Cursor.Update();
         Graphics.EndFrame();
 
@@ -154,6 +157,7 @@ public static class Application
         _instance.SaveConfig();
         _instance.UnloadAssets();
 
+        VfxSystem.Shutdown();
         UI.Shutdown();
         TextRender.Shutdown();
         Graphics.Shutdown();
@@ -188,6 +192,7 @@ public static class Application
         UI.Begin();
         _instance.UpdateUI();
         UI.End();
+        VfxSystem.Update();
         Cursor.Update();
         Graphics.EndFrame();
     }

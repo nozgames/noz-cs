@@ -43,6 +43,7 @@ public static class EditorApplication
         FontDocument.RegisterDef();
         SkeletonDocument.RegisterDef();
         AnimationDocument.RegisterDef();
+        VfxDocument.RegisterDef();
 
         Config = EditorConfig.Load(Path.Combine(ProjectPath, "editor.cfg"))!;           
         if (Config == null)
@@ -74,6 +75,7 @@ public static class EditorApplication
         PopupMenu.Init();
         ConfirmDialog.Init();
         Notifications.Init();
+        VfxSystem.Shader = EditorAssets.Shaders.Texture;
         Workspace.Init();
         UserSettings.Load();
 

@@ -129,6 +129,7 @@ public struct PopupStyle()
 
 public struct TextBoxStyle()
 {
+    public Size Height = Size.Default;
     public float FontSize = 16;
     public Font? Font = null;
     public Color BackgroundColor = Color.Transparent;
@@ -143,6 +144,7 @@ public struct TextBoxStyle()
 
     internal TextBoxData ToData() => new()
     {
+        Height = Height,
         FontSize = FontSize,
         BackgroundColor = BackgroundColor,
         TextColor = TextColor,
