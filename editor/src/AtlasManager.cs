@@ -30,6 +30,7 @@ public static class AtlasManager
     private static void HandleDocumentAdded(Document doc)
     {
         if (doc is not SpriteDocument sprite) return;
+        _sprites.Add(sprite);
         AddSprite(sprite);
         Update();
     }
@@ -141,10 +142,16 @@ public static class AtlasManager
             }
         }
 
+        // No existing atlas has space — create a new one and pack into it
         var atlas = DocumentManager.New(AssetType.Atlas, GetAtlasName(_atlases.Count)) as AtlasDocument;
         Debug.Assert(atlas != null);
         atlas.IsVisible = false;
         _atlases.Add(atlas);
+
+        if (!atlas.TryAddSprite(sprite))
+            Log.Warning($"AddSprite: failed to add sprite '{sprite.Name}' to new atlas");
+        else
+            atlas.MarkModified();
     }
 
     public static void Rebuild()

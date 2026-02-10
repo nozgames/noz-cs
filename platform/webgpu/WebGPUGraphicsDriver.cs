@@ -513,6 +513,23 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         SurfaceTexture surfaceTexture;
         _wgpu.SurfaceGetCurrentTexture(_surface, &surfaceTexture);
 
+        // Surface can become outdated after alt-tab, minimize, etc. Reconfigure and retry.
+        if (surfaceTexture.Status == SurfaceGetCurrentTextureStatus.Outdated)
+        {
+            var surfaceConfig = new SurfaceConfiguration
+            {
+                Device = _device,
+                Format = _surfaceFormat,
+                Usage = TextureUsage.RenderAttachment,
+                Width = (uint)_surfaceWidth,
+                Height = (uint)_surfaceHeight,
+                PresentMode = _presentMode,
+                AlphaMode = CompositeAlphaMode.Auto,
+            };
+            _wgpu.SurfaceConfigure(_surface, &surfaceConfig);
+            _wgpu.SurfaceGetCurrentTexture(_surface, &surfaceTexture);
+        }
+
         if (surfaceTexture.Status != SurfaceGetCurrentTextureStatus.Success)
             return false;
 
