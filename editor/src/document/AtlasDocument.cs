@@ -254,8 +254,18 @@ internal class AtlasDocument : Document
             resolved.Add(rect.Sprite);
         }
 
+        // Verify each sprite has all frame rects; if not, clear it for rebuild
         foreach (var sprite in resolved)
+        {
+            if (GetRectCount(sprite) != sprite.FrameCount)
+            {
+                RemoveSpriteRects(sprite);
+                sprite.Atlas = null;
+                MarkModified();
+                continue;
+            }
             UpdateSpriteUVs(sprite);
+        }
     }
 
     public override void Dispose()

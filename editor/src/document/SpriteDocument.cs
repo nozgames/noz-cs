@@ -390,6 +390,9 @@ public class SpriteDocument : Document
                 break;
             }
         }
+
+        if (FrameCount == 0)
+            FrameCount = 1;
     }
 
     private void ParsePath(SpriteFrame f, ref Tokenizer tk)
