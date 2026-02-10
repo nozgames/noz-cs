@@ -24,14 +24,27 @@ public static partial class UI
 
     private static Vector2 AlignElement(ref Element e, ref readonly Element p)
     {
-        if (!e.IsContainer)
+        Align alignX, alignY;
+        if (e.IsContainer)
+        {
+            alignX = e.Data.Container.AlignX;
+            alignY = e.Data.Container.AlignY;
+        }
+        else if (e.Type == ElementType.Image)
+        {
+            alignX = e.Data.Image.AlignX;
+            alignY = e.Data.Image.AlignY;
+        }
+        else
+        {
             return Vector2.Zero;
+        }
 
         // For Row children, don't apply AlignX (X position is determined by row layout)
         // For Column children, don't apply AlignY (Y position is determined by column layout)
-        var alignX = p.Type == ElementType.Row ? 0 : ResolveAlign(ref e, in p, e.Data.Container.AlignX, 0);
-        var alignY = p.Type == ElementType.Column ? 0 : ResolveAlign(ref e, in p, e.Data.Container.AlignY, 1);
-        return new Vector2(alignX, alignY);
+        var ax = p.Type == ElementType.Row ? 0 : ResolveAlign(ref e, in p, alignX, 0);
+        var ay = p.Type == ElementType.Column ? 0 : ResolveAlign(ref e, in p, alignY, 1);
+        return new Vector2(ax, ay);
     }
 
     private static void LayoutGrid(ref Element e)
@@ -96,7 +109,16 @@ public static partial class UI
 
             // Layout non-flex child
             offset[axis] += child.MarginMin[axis];
-            LayoutElement(elementIndex, offset, sizeOverride);
+            var childOverride = sizeOverride;
+            var crossAxis = 1 - axis;
+            var crossMode = SizeMode.Default;
+            if (child.IsContainer)
+                crossMode = child.Data.Container.Size[crossAxis].Mode;
+            else if (child.Type == ElementType.Image)
+                crossMode = child.Data.Image.Size[crossAxis].Mode;
+            if (crossMode is SizeMode.Fit or SizeMode.Fixed)
+                childOverride[crossAxis] = AutoSize[crossAxis];
+            LayoutElement(elementIndex, offset, childOverride);
 
             var childSize = child.Rect.GetSize(axis) + child.MarginMax[axis];
             nonFlexSize += child.MarginMin[axis] + childSize;

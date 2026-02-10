@@ -73,6 +73,7 @@ public struct LabelStyle()
 
 public struct ImageStyle()
 {
+    public Size2 Size = Size2.Default;
     public ImageStretch Stretch = ImageStretch.Uniform;
     public Align AlignX = Align.Min;
     public Align AlignY = Align.Min;
@@ -80,6 +81,9 @@ public struct ImageStyle()
     public Color Color = Color.White;
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public ushort Order = 1;
+
+    public Size Width { readonly get => Size.Width; set => Size.Width = value; }
+    public Size Height { readonly get => Size.Height; set => Size.Height = value; }
 
     public static readonly ImageStyle Default = new();
     public static readonly ImageStyle Center = new() { AlignX = Align.Center, AlignY = Align.Center };

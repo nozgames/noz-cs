@@ -79,7 +79,7 @@ export async function init(canvasSelector) {
     context.configure({
         device: device,
         format: presentFormat,
-        alphaMode: "premultiplied"
+        alphaMode: "opaque"
     });
 
     // Create global samplers
@@ -142,7 +142,7 @@ export function checkResize() {
         context.configure({
             device: device,
             format: presentFormat,
-            alphaMode: "premultiplied"
+            alphaMode: "opaque"
         });
 
         return true;
@@ -656,10 +656,23 @@ export function beginFrame() {
     checkResize();
 
     // Get current surface texture
-    currentSurfaceTexture = context.getCurrentTexture();
+    try {
+        currentSurfaceTexture = context.getCurrentTexture();
+    } catch (e) {
+        // Surface can be lost after tab switch or device loss — reconfigure and retry
+        context.configure({
+            device: device,
+            format: presentFormat,
+            alphaMode: "opaque"
+        });
+        try {
+            currentSurfaceTexture = context.getCurrentTexture();
+        } catch (e2) {
+            return false;
+        }
+    }
 
     if (!currentSurfaceTexture) {
-        console.error('beginFrame: failed to get surface texture');
         return false;
     }
 

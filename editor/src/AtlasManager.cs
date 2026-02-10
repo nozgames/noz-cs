@@ -115,6 +115,8 @@ public static class AtlasManager
         if (sprite.Atlas.TryUpdate(sprite))
         {
             sprite.Atlas.Update();
+            sprite.Reimport();
+            sprite.Atlas.Reimport();
             return;
         }
 
@@ -125,8 +127,12 @@ public static class AtlasManager
 
         // Update both the old atlas (to clear the old rect) and the new one
         oldAtlas.Update();
+        oldAtlas.Reimport();
         if (sprite.Atlas != oldAtlas)
+        {
             sprite.Atlas!.Update();
+            sprite.Atlas.Reimport();
+        }
     }
 
     private static void AddSprite(SpriteDocument sprite)

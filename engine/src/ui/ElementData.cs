@@ -66,6 +66,7 @@ internal struct LabelData
 
 internal struct ImageData
 {
+    public Size2 Size;
     public ImageStretch Stretch;
     public Align AlignX;
     public Align AlignY;
@@ -82,6 +83,7 @@ internal struct ImageData
 
     public static ImageData Default => new()
     {
+        Size = Size2.Default,
         Stretch = ImageStretch.Uniform,
         AlignX = Align.Min,
         AlignY = Align.Min,

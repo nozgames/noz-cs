@@ -86,6 +86,9 @@ public static partial class UI
         return size;
     }
 
+    private static Vector2 MeasureImage(ref readonly Element e, ref readonly Element p) =>
+        ResolveSize(in e, in p, e.Data.Image.Size);
+
     private static Vector2 MeasureElement(ref readonly Element e, ref readonly Element p) => e.Type switch
     {
         ElementType.Container => MeasureContainer(in e, in p),
@@ -95,6 +98,7 @@ public static partial class UI
         ElementType.Popup => MeasurePopup(in e, in p),
         ElementType.Scene => MeasureScene(in e, in p),
         ElementType.TextBox => MeasureTextBox(in e, in p),
+        ElementType.Image => MeasureImage(in e, in p),
         ElementType.Flex when p.Type is ElementType.Row => MeasureRowFlex(in e, in p),
         ElementType.Flex when p.Type is ElementType.Column => MeasureColumnFlex(in e, in p),
         _ => ResolveSize(in e, in p, Size2.Default)
@@ -301,8 +305,15 @@ public static partial class UI
         return fit;
     }
 
-    private static Vector2 FitImage(ref readonly Element e) =>
-        new(e.Data.Image.Width * e.Data.Image.Scale, e.Data.Image.Height * e.Data.Image.Scale);
+    private static Vector2 FitImage(ref readonly Element e)
+    {
+        var fit = new Vector2(e.Data.Image.Width * e.Data.Image.Scale, e.Data.Image.Height * e.Data.Image.Scale);
+        if (e.Data.Image.Size.Width.IsFixed)
+            fit.X = e.Data.Image.Size.Width.Value;
+        if (e.Data.Image.Size.Height.IsFixed)
+            fit.Y = e.Data.Image.Size.Height.Value;
+        return fit;
+    }
 
     private static Vector2 FitElement(ref readonly Element e, ref readonly Element p) => e.Type switch
     {

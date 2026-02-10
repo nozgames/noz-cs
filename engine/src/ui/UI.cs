@@ -799,6 +799,7 @@ public static partial class UI
         e.Asset = sprite;
         e.Data.Image = new ImageData
         {
+            Size = style.Size,
             Stretch = style.Stretch,
             AlignX = style.AlignX,
             AlignY = style.AlignY,
@@ -825,6 +826,7 @@ public static partial class UI
         e.Asset = texture;
         e.Data.Image = new ImageData
         {
+            Size = style.Size,
             Stretch = style.Stretch,
             AlignX = style.AlignX,
             AlignY = style.AlignY,
