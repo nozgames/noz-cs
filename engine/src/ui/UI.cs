@@ -42,6 +42,7 @@ public static partial class UI
 
     private static readonly Element[] _elements = new Element[MaxElements];
     private static readonly short[] _elementStack = new short[MaxElementStack];
+    private static readonly short[] _elementIdStack = new short[MaxElementStack];
     private static readonly short[] _popups = new short[MaxPopups];
     private static NativeArray<ElementState> _elementStates = new(MaxElementId + 1, MaxElementId + 1);
     private static NativeArray<char>[] _textBuffers = [new(MaxTextBuffer), new(MaxTextBuffer)];
@@ -51,6 +52,7 @@ public static partial class UI
     private static short _elementCount;
     private static short _previousElementCount;
     private static int _elementStackCount;
+    private static int _elementIdStackCount;
     private static int _popupCount;
     private static int _focusElementId;
     private static int _pendingFocusElementId;
@@ -190,6 +192,9 @@ public static partial class UI
     private static ref Element GetSelf() =>
         ref _elements[_elementStack[_elementStackCount - 1]];
 
+    private static ref Element GetTopId() =>
+        ref _elements[_elementIdStack[_elementIdStackCount - 1]];
+
     private static ref Element GetElement(int index) =>
         ref _elements[index];
 
@@ -280,12 +285,17 @@ public static partial class UI
     {
         if (_elementStackCount >= MaxElementStack) return;
         _elementStack[_elementStackCount++] = index;
+        if (_elements[index].Id != 0)
+            _elementIdStack[_elementIdStackCount++] = index;
     }
 
     private static void PopElement()
     {
         if (_elementStackCount == 0) return;
-        _elements[_elementStack[_elementStackCount - 1]].NextSiblingIndex = _elementCount;
+        var index = _elementStack[_elementStackCount - 1];
+        _elements[index].NextSiblingIndex = _elementCount;
+        if (_elements[index].Id != 0)
+            _elementIdStackCount--;
         _elementStackCount--;
     }
 
@@ -340,15 +350,15 @@ public static partial class UI
     }
 
     public static bool IsHovered(int elementId) => GetElementState(elementId).IsHovered;
-    public static bool IsHovered() => GetElementState(ref GetSelf()).IsHovered;
-    public static bool HoverEnter() { ref var es = ref GetElementState(ref GetSelf()); return es.IsHoverChanged && es.IsHovered; }
+    public static bool IsHovered() => GetElementState(ref GetTopId()).IsHovered;
+    public static bool HoverEnter() { ref var es = ref GetElementState(ref GetTopId()); return es.IsHoverChanged && es.IsHovered; }
     public static bool HoverEnter(int elementId) { ref var es = ref GetElementState(elementId); return es.IsHoverChanged && es.IsHovered; }
-    public static bool HoverExit() { ref var es = ref GetElementState(ref GetSelf()); return es.IsHoverChanged && !es.IsHovered; }
+    public static bool HoverExit() { ref var es = ref GetElementState(ref GetTopId()); return es.IsHoverChanged && !es.IsHovered; }
     public static bool HoverExit(int elementId) { ref var es = ref GetElementState(elementId); return es.IsHoverChanged && !es.IsHovered; }
-    public static bool HoverChanged() => GetElementState(ref GetSelf()).IsHoverChanged;
+    public static bool HoverChanged() => GetElementState(ref GetTopId()).IsHoverChanged;
     public static bool HoverChanged(int elementId) => GetElementState(elementId).IsHoverChanged;
-    public static bool WasPressed() => GetElementState(ref GetSelf()).IsPressed;
-    public static bool IsDown() => GetElementState(ref GetSelf()).IsDown;
+    public static bool WasPressed() => GetElementState(ref GetTopId()).IsPressed;
+    public static bool IsDown() => GetElementState(ref GetTopId()).IsDown;
 
     public static ref Tween GetElementTween(int elementId) => ref GetElementState(elementId).Tween;
 
@@ -444,6 +454,7 @@ public static partial class UI
         _previousElementCount = _elementCount;
         _refSize = GetRefSize();
         _elementStackCount = 0;
+        _elementIdStackCount = 0;
         _elementCount = 0;
         _popupCount = 0;
         _currentTextBuffer = 1 - _currentTextBuffer;
