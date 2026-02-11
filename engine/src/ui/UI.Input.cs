@@ -185,11 +185,11 @@ public static partial class UI
 
             if (thumbContains)
             {
-                // Start thumb drag (don't consume button - we need _mouseLeftDown to stay true)
                 _scrollbarDragging = true;
                 _scrollbarDragElementId = e.Id;
                 _scrollbarDragStartOffset = e.Data.Scrollable.Offset;
                 _scrollbarDragStartMouseY = mouse.Y;
+                ClearElementPress();
                 return;
             }
 
@@ -218,9 +218,20 @@ public static partial class UI
                     ref var state = ref GetElementState(e.Id);
                     state.Data.Scrollable.Offset = newOffset;
                 }
+                ClearElementPress();
                 Input.ConsumeButton(InputCode.MouseLeft);
                 return;
             }
+        }
+    }
+
+    private static void ClearElementPress()
+    {
+        if (_mouseLeftElementId != 0)
+        {
+            ref var es = ref GetElementState(_mouseLeftElementId);
+            es.SetFlags(ElementFlags.Pressed, ElementFlags.None);
+            _mouseLeftElementId = 0;
         }
     }
 

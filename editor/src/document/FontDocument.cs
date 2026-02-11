@@ -14,7 +14,7 @@ public class FontDocument : Document
     public string Characters { get; set; } = DefaultCharacters;
     public float SdfRange { get; set; } = 4f;
     public int Padding { get; set; } = 1;
-    public bool Mono { get; set; }
+    public bool Symbol { get; set; }
 
     private Font? _font;
     private double _monoSize;
@@ -35,7 +35,7 @@ public class FontDocument : Document
         Characters = meta.GetString("font", "characters", DefaultCharacters);
         SdfRange = meta.GetFloat("sdf", "range", 4f);
         Padding = meta.GetInt("font", "padding", 1);
-        Mono = meta.GetBool("font", "mono", false);
+        Symbol = meta.GetBool("font", "symbol", false);
 
         var ranges = meta.GetString("font", "ranges", "");
         if (!string.IsNullOrEmpty(ranges))
@@ -48,7 +48,7 @@ public class FontDocument : Document
         if (Characters != DefaultCharacters) meta.SetString("font", "characters", Characters);
         if (Math.Abs(SdfRange - 4f) > 0.001f) meta.SetFloat("sdf", "range", SdfRange);
         if (Padding != 1) meta.SetInt("font", "padding", Padding);
-        if (Mono) meta.SetBool("font", "mono", Mono);
+        if (Symbol) meta.SetBool("font", "symbol", Symbol);
     }
 
     private bool ImportAll => Characters == "*";
@@ -74,7 +74,7 @@ public class FontDocument : Document
         WriteFontData(outputPath, ttf, glyphs, atlas, atlasSize);
 
         sw.Stop();
-        var monoInfo = Mono ? $", mono {_monoSize:F1}px" : "";
+        var monoInfo = Symbol ? $", symbol {_monoSize:F1}px" : "";
         Log.Info($"[Font] {System.IO.Path.GetFileName(Path)}: {glyphs.Count} glyphs, {atlasSize.X}x{atlasSize.Y} atlas ({atlasUsage:P0} used), size {FontSize}{monoInfo}, {sw.ElapsedMilliseconds}ms");
     }
 
@@ -100,21 +100,20 @@ public class FontDocument : Document
             ? ttf.Glyphs
             : Characters.Select(c => ttf.GetGlyph(c)).Where(g => g != null)!;
 
-        // For mono mode, use FontSize as the cell dimension (the em square)
-        _monoSize = Mono ? FontSize : 0;
+        // For symbol mode, use FontSize as the cell dimension (the em square)
+        _monoSize = Symbol ? FontSize : 0;
 
         foreach (var ttfGlyph in source)
         {
-            if (Mono)
+            // Skip empty glyphs (space, etc.) for symbol fonts
+            if (Symbol && ttfGlyph!.contours is not { Length: > 0 })
+                continue;
+
+            if (Symbol)
             {
                 // Scale glyph to fill the mono square while maintaining aspect ratio
-                var scale = 1.0;
-                if (ttfGlyph!.contours is { Length: > 0 })
-                {
-                    var maxDim = Math.Max(ttfGlyph.size.x, ttfGlyph.size.y);
-                    if (maxDim > 0)
-                        scale = _monoSize / maxDim;
-                }
+                var maxDim = Math.Max(ttfGlyph.size.x, ttfGlyph.size.y);
+                var scale = maxDim > 0 ? _monoSize / maxDim : 1.0;
 
                 var monoDim = (int)Math.Ceiling(_monoSize + SdfRange * 2) + Padding * 2;
                 glyphs.Add(new ImportGlyph
@@ -123,7 +122,7 @@ public class FontDocument : Document
                     Ttf = ttfGlyph,
                     Scale = scale,
                     Size = new Vector2Double(_monoSize + SdfRange * 2, _monoSize + SdfRange * 2),
-                    Bearing = new Vector2Double(-SdfRange, 0),
+                    Bearing = new Vector2Double(-SdfRange, SdfRange),
                     Advance = _monoSize,
                     PackedSize = new Vector2Int(monoDim, monoDim)
                 });
@@ -153,7 +152,7 @@ public class FontDocument : Document
 
     private (Vector2Int size, float usage) PackGlyphs(List<ImportGlyph> glyphs)
     {
-        if (Mono)
+        if (Symbol)
             return PackGlyphsGrid(glyphs);
 
         var minHeight = (int)NextPowerOf2((uint)(FontSize + 2 + SdfRange * 2 + Padding * 2));
@@ -270,7 +269,7 @@ public class FontDocument : Document
 
             // Center offset in pixels (non-zero only in mono mode)
             double centerX = 0, centerY = 0;
-            if (Mono)
+            if (Symbol)
             {
                 centerX = (_monoSize - glyph.Ttf.size.x * s) / 2;
                 centerY = (_monoSize - glyph.Ttf.size.y * s) / 2;
@@ -308,11 +307,24 @@ public class FontDocument : Document
         writer.Write((uint)FontSize);
         writer.Write((uint)atlasSize.X);
         writer.Write((uint)atlasSize.Y);
-        writer.Write((float)(ttf.Ascent * fontSizeInv));
-        writer.Write((float)(ttf.Descent * fontSizeInv));
-        writer.Write((float)(ttf.Height * fontSizeInv));
-        writer.Write((float)(ttf.Ascent * fontSizeInv));
-        writer.Write((float)(ttf.InternalLeading * fontSizeInv));
+
+        if (Symbol)
+        {
+            // Symbol: metrics match the cell exactly, no extra space
+            writer.Write(1.0f);  // ascent
+            writer.Write(0.0f);  // descent
+            writer.Write(1.0f);  // lineHeight
+            writer.Write(1.0f);  // baseline
+            writer.Write(0.0f);  // internalLeading
+        }
+        else
+        {
+            writer.Write((float)(ttf.Ascent * fontSizeInv));
+            writer.Write((float)(ttf.Descent * fontSizeInv));
+            writer.Write((float)(ttf.Height * fontSizeInv));
+            writer.Write((float)(ttf.Ascent * fontSizeInv));
+            writer.Write((float)(ttf.InternalLeading * fontSizeInv));
+        }
 
         // Font family name
         writer.Write((ushort)ttf.FamilyName.Length);
