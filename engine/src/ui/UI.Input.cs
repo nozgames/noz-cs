@@ -276,6 +276,26 @@ public static partial class UI
             var localMouse = Vector2.Transform(mouse, e.WorldToLocal);
             var mouseOver = e.Rect.Contains(localMouse);
 
+            // Check if the element is clipped by a scrollable ancestor
+            if (mouseOver)
+            {
+                var parentIdx = e.ParentIndex;
+                while (parentIdx >= 0)
+                {
+                    ref var parent = ref _elements[parentIdx];
+                    if (parent.Type == ElementType.Scrollable)
+                    {
+                        var parentLocalMouse = Vector2.Transform(mouse, parent.WorldToLocal);
+                        if (!parent.Rect.Contains(parentLocalMouse))
+                        {
+                            mouseOver = false;
+                            break;
+                        }
+                    }
+                    parentIdx = parent.ParentIndex;
+                }
+            }
+
             var wasHovered = es.IsHovered;
             es.SetFlags(ElementFlags.Hovered, mouseOver ? ElementFlags.Hovered : ElementFlags.None);
             es.SetFlags(ElementFlags.HoverChanged, wasHovered != es.IsHovered ? ElementFlags.HoverChanged : ElementFlags.None);
