@@ -24,9 +24,18 @@ public static class Application
     public static string AssetPath { get; private set; } = null!;
 
     public static event Action? BeginFrame;
+    public static event Action? PreFrame;
 
     public static void SetWindowSize(int width, int height) => Platform.SetWindowSize(width, height);
     public static void SetWindowPosition(int x, int y) => Platform.SetWindowPosition(x, y);
+
+    public static bool IsFullscreen => Platform.IsFullscreen;
+    public static void SetFullscreen(bool fullscreen) => Platform.SetFullscreen(fullscreen);
+
+    public static void SetVSync(bool vsync)
+    {
+        Graphics.Driver.SetVSync(vsync);
+    }
 
     public static Stream? LoadPersistentData(string name, string? appName = null) => Platform.LoadPersistentData(name, appName);
     public static void SavePersistentData(string name, Stream data, string? appName = null) => Platform.SavePersistentData(name, data, appName);
@@ -132,6 +141,10 @@ public static class Application
         }
 
         Input.Update();
+
+        var preFrame = PreFrame;
+        PreFrame = null;
+        preFrame?.Invoke();
 
         if (!Graphics.BeginFrame())
             return _running;

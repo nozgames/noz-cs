@@ -73,6 +73,8 @@ public interface IGraphicsDriver
 
     void DrawElements(int firstIndex, int indexCount, int baseVertex = 0);
 
+    void SetVSync(bool vsync) { }
+
     nuint CreateFence();
     void WaitFence(nuint fence);
     void DeleteFence(nuint fence);

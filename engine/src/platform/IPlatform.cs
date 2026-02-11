@@ -64,6 +64,10 @@ public interface IPlatform
 
     void SetCursor(SystemCursor cursor);
 
+    bool IsFullscreen { get; }
+    void SetFullscreen(bool fullscreen);
+    void SetVSync(bool vsync);
+
     nint WindowHandle { get; }
     nint GetGraphicsProcAddress(string name);
 

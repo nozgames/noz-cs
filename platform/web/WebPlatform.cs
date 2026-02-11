@@ -123,6 +123,10 @@ public class WebPlatform : IPlatform
         return null;
     }
 
+    public bool IsFullscreen => false;
+    public void SetFullscreen(bool fullscreen) { }
+    public void SetVSync(bool vsync) { }
+
     public void SetCursor(SystemCursor cursor)
     {
         var cursorStyle = cursor switch

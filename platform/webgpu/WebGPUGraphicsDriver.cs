@@ -29,6 +29,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     private int _surfaceWidth;
     private int _surfaceHeight;
     private PresentMode _presentMode;
+    private bool _surfaceDirty;
 
     // Command recording
     private CommandEncoder* _commandEncoder;
@@ -487,14 +488,14 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         if (_device == null)
             return false;
 
-        // Check for window resize and reconfigure surface if needed
         var windowSize = _config.Platform.WindowSize;
         var newWidth = (int)windowSize.X;
         var newHeight = (int)windowSize.Y;
-        if (newWidth != _surfaceWidth || newHeight != _surfaceHeight)
+        if (newWidth != _surfaceWidth || newHeight != _surfaceHeight || _surfaceDirty)
         {
             _surfaceWidth = newWidth;
             _surfaceHeight = newHeight;
+            _surfaceDirty = false;
 
             var surfaceConfig = new SurfaceConfiguration
             {
@@ -570,6 +571,14 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             _wgpu.TextureViewRelease(_currentSurfaceTextureView);
             _currentSurfaceTextureView = null;
         }
+    }
+
+    public void SetVSync(bool vsync)
+    {
+        var newMode = vsync ? PresentMode.Fifo : PresentMode.Immediate;
+        if (newMode == _presentMode) return;
+        _presentMode = newMode;
+        _surfaceDirty = true;
     }
 
     public void SetViewport(in RectInt viewport)

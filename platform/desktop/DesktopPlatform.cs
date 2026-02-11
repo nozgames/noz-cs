@@ -440,6 +440,27 @@ public unsafe partial class SDLPlatform : IPlatform
         return null;
     }
 
+    public bool IsFullscreen { get; private set; }
+
+    public void SetFullscreen(bool fullscreen)
+    {
+        if (_window == null || IsFullscreen == fullscreen) return;
+
+        // Suppress the resize callback during fullscreen toggle to prevent
+        // a nested RenderFrame from the synchronous resize event watcher.
+        var cb = _resizeCallback;
+        _resizeCallback = null;
+        SDL_SetWindowFullscreen(_window, fullscreen);
+        IsFullscreen = fullscreen;
+        _resizeCallback = cb;
+    }
+
+    public void SetVSync(bool vsync)
+    {
+        // VSync is controlled by the graphics driver's present mode, not SDL directly.
+        // The graphics driver will pick this up on next surface reconfigure.
+    }
+
     public void SetCursor(SystemCursor cursor)
     {
         if (_currentCursor == cursor)
