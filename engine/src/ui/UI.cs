@@ -217,7 +217,7 @@ public static partial class UI
 
     private static ref NativeArray<char> GetTextBuffer() => ref _textBuffers[_currentTextBuffer];
 
-    public static int GetElementId() => HasCurrentElement() ? GetSelf().Id : 0;
+    public static int GetElementId() => GetTopId().Id;
 
     public static Rect GetElementRect(int elementId)
     {
