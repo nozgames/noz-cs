@@ -88,7 +88,7 @@ public static partial class UI
         // but still consume when popups are open or scrollbar is being used.
         if (!_mouseOverScene || _activePopupCount > 0)
         {
-            if ((_mouseLeftElementId != 0 || _activePopupCount > 0) && !_scrollbarDragging)
+            if (_mouseLeftElementId != 0 || _activePopupCount > 0 || _scrollbarDragging)
                 Input.ConsumeButton(InputCode.MouseLeft);
 
             if (_mouseDoubleClickElementId != 0 || _activePopupCount > 0)
@@ -451,6 +451,7 @@ public static partial class UI
 
             e.Data.Scrollable.Offset = newOffset;
             state.Data.Scrollable.Offset = newOffset;
+            Input.ConsumeScroll();
             break;
         }
     }

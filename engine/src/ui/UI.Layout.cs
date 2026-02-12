@@ -299,6 +299,15 @@ public static partial class UI
                 childIdx = child.NextSiblingIndex;
             }
             e.Data.Scrollable.ContentHeight = contentHeight;
+
+            // Clamp scroll offset when content shrinks
+            var maxScroll = Math.Max(0, contentHeight - e.Rect.Height);
+            if (e.Data.Scrollable.Offset > maxScroll)
+            {
+                e.Data.Scrollable.Offset = maxScroll;
+                ref var es = ref GetElementState(e.Id);
+                es.Data.Scrollable.Offset = maxScroll;
+            }
         }
     }
 

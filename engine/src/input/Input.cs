@@ -344,6 +344,12 @@ public static class Input
         btn.Consumed = true;
     }
 
+    public static void ConsumeScroll()
+    {
+        _scrollX = 0;
+        _scrollY = 0;
+    }
+
     public static bool IsShiftDown() => IsButtonDown(InputCode.KeyLeftShift) || IsButtonDown(InputCode.KeyRightShift);
     public static bool IsShiftDown(InputScope scope) => IsButtonDown(InputCode.KeyLeftShift, scope) || IsButtonDown(InputCode.KeyRightShift, scope);
     public static bool IsCtrlDown() => IsButtonDown(InputCode.KeyLeftCtrl) || IsButtonDown(InputCode.KeyRightCtrl);
