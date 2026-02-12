@@ -948,6 +948,15 @@ export function endRenderTexturePass() {
         currentRenderPass = null;
     }
     currentRenderTexturePass = null;
+
+    // Submit the current command encoder so RT draws are executed before any readback,
+    // then create a new encoder for subsequent operations (matches native driver behavior)
+    if (currentCommandEncoder) {
+        queue.submit([currentCommandEncoder.finish()]);
+        currentCommandEncoder = device.createCommandEncoder({
+            label: 'frame_command_encoder'
+        });
+    }
 }
 
 export async function readRenderTexturePixels(textureId) {
@@ -992,12 +1001,13 @@ export async function readRenderTexturePixels(textureId) {
     stagingBuffer.unmap();
     stagingBuffer.destroy();
 
-    // Convert to base64 for JS interop (returning Uint8Array directly doesn't work well)
-    let binary = '';
-    for (let i = 0; i < result.length; i++) {
-        binary += String.fromCharCode(result[i]);
+    // Convert to base64 for JS interop (chunked to avoid O(n^2) string concatenation)
+    const chunks = [];
+    const chunkSize = 65536;
+    for (let i = 0; i < result.length; i += chunkSize) {
+        chunks.push(String.fromCharCode.apply(null, result.subarray(i, i + chunkSize)));
     }
-    return btoa(binary);
+    return btoa(chunks.join(''));
 }
 
 // ============================================================================
