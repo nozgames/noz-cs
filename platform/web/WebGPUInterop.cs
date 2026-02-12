@@ -180,7 +180,10 @@ public static partial class WebGPUInterop
     internal static partial void EndRenderTexturePass();
 
     [JSImport("readRenderTexturePixels", ModuleName)]
-    internal static partial Task<string> ReadRenderTexturePixelsAsync(int textureId);
+    internal static partial Task<int> ReadRenderTexturePixelsAsync(int textureId);
+
+    [JSImport("copyReadbackResult", ModuleName)]
+    internal static partial void CopyReadbackResult(int textureId, [JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> dest);
 
     // ============================================================================
     // Utility Functions

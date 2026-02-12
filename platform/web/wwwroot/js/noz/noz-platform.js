@@ -129,7 +129,10 @@ function onMouseMove(e) {
     dotNetRef.invokeMethodAsync('OnMouseMove', x, y);
 }
 
-function onMouseEnter() {
+function onMouseEnter(e) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    dotNetRef.invokeMethodAsync('OnMouseMove', (e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
     dotNetRef.invokeMethodAsync('OnMouseEnter');
 }
 

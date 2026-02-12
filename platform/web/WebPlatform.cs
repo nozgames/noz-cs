@@ -56,6 +56,9 @@ public class WebPlatform : IPlatform
         _windowSize = new Vector2(result.Width, result.Height);
         _displayScale = result.Dpr;
         _initialized = true;
+
+        // Start with mouse outside window so custom cursor is hidden until real mouse events arrive
+        _eventQueue.Enqueue(PlatformEvent.MouseLeave());
     }
 
     private record InitResult(int Width, int Height, float Dpr);

@@ -848,6 +848,7 @@ export function draw(vertexCount, instanceCount, firstVertex, firstInstance) {
 // ============================================================================
 
 const renderTextures = new Map();
+const readbackResults = new Map();
 let currentRenderTexturePass = null;
 
 export function createRenderTexture(width, height, format, sampleCount, label) {
@@ -1001,13 +1002,17 @@ export async function readRenderTexturePixels(textureId) {
     stagingBuffer.unmap();
     stagingBuffer.destroy();
 
-    // Convert to base64 for JS interop (chunked to avoid O(n^2) string concatenation)
-    const chunks = [];
-    const chunkSize = 65536;
-    for (let i = 0; i < result.length; i += chunkSize) {
-        chunks.push(String.fromCharCode.apply(null, result.subarray(i, i + chunkSize)));
+    // Store result for copyReadbackResult to pick up
+    readbackResults.set(textureId, result);
+    return result.length;
+}
+
+export function copyReadbackResult(textureId, dest) {
+    const result = readbackResults.get(textureId);
+    readbackResults.delete(textureId);
+    if (result) {
+        dest.set(result);
     }
-    return btoa(chunks.join(''));
 }
 
 // ============================================================================

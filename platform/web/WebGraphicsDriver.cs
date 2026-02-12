@@ -1219,8 +1219,11 @@ public class WebGraphicsDriver : IGraphicsDriver
             return Array.Empty<byte>();
         }
 
-        var base64 = await WebGPUInterop.ReadRenderTexturePixelsAsync(rt.JsTextureId);
-        var result = Convert.FromBase64String(base64);
+        var size = await WebGPUInterop.ReadRenderTexturePixelsAsync(rt.JsTextureId);
+
+        // Copy directly from JS into managed buffer via MemoryView (no string encoding)
+        var result = new byte[size];
+        WebGPUInterop.CopyReadbackResult(rt.JsTextureId, new ArraySegment<byte>(result));
 
         // Swizzle BGRA to RGBA if needed
         if (rt.Format == WebGPUTextureFormat.BGRA8)
