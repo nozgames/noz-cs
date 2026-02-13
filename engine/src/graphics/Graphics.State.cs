@@ -29,6 +29,7 @@ public static unsafe partial class Graphics
         public bool ScissorEnabled;
         public RectInt Scissor;
         public nuint Mesh;
+        public float Opacity;
     }
 
     public struct AutoState(bool pop) : IDisposable
@@ -80,6 +81,7 @@ public static unsafe partial class Graphics
         CurrentState.SortGroup = 0;
         CurrentState.SortLayer = 0;
         CurrentState.Color = Color.White;
+        CurrentState.Opacity = 1.0f;
         CurrentState.Shader = null;
         CurrentState.BlendMode = default;
         CurrentState.BoneIndex = 0;
@@ -146,6 +148,13 @@ public static unsafe partial class Graphics
     public static void SetColor(Color color)
     {
         CurrentState.Color = color;
+    }
+
+    public static float Opacity => CurrentState.Opacity;
+
+    public static void SetOpacity(float opacity)
+    {
+        CurrentState.Opacity = opacity;
     }
 
     public static void SetShader(Shader shader)

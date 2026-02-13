@@ -83,7 +83,7 @@ public static unsafe partial class Graphics
     public static Texture? SpriteAtlas { get; set; }
     public static Texture WhiteTexture { get; private set; } = null!;
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
-    public static Color Color => CurrentState.Color;
+    public static Color Color => CurrentState.Color.WithAlpha(CurrentState.Color.A * CurrentState.Opacity);
     public static float PixelsPerUnit { get; private set; }
     public static float PixelsPerUnitInv {  get; private set; }
     public static bool IsScissor => CurrentState.ScissorEnabled;
@@ -417,6 +417,7 @@ public static unsafe partial class Graphics
         LogGraphics($"AddQuad: BatchState={_currentBatchState} SortKey={cmd.SortKey} Count={cmd.IndexCount} Offset={cmd.IndexOffset} Order={order}");
 
         var baseVertex = _vertices.Length;
+        var color = Color;
 
         if (bone == -1)
         {
@@ -425,7 +426,7 @@ public static unsafe partial class Graphics
                 _vertices.Add(v with
                 {
                     Position = Vector2.Transform(v.Position, CurrentState.Transform),
-                    Color = CurrentState.Color,
+                    Color = color,
                     Bone = 0
                 });
             }
@@ -437,7 +438,7 @@ public static unsafe partial class Graphics
             {
                 _vertices.Add(v with
                 {
-                    Color = CurrentState.Color,
+                    Color = color,
                     Bone = bone
                 });
             }
