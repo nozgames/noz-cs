@@ -361,6 +361,7 @@ public static partial class UI
     public static bool HoverChanged() => GetElementState(ref GetTopId()).IsHoverChanged;
     public static bool HoverChanged(int elementId) => GetElementState(elementId).IsHoverChanged;
     public static bool WasPressed() => GetElementState(ref GetTopId()).IsPressed;
+    public static bool WasPressed(int elementId) => GetElementState(elementId).IsPressed;
     public static bool IsDown() => GetElementState(ref GetTopId()).IsDown;
 
     public static ref Tween GetElementTween(int elementId) => ref GetElementState(elementId).Tween;
