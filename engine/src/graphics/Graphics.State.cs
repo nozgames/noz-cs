@@ -140,6 +140,11 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
+    public static void MultiplyTransform(in Matrix3x2 transform)
+    {
+        CurrentState.Transform = transform * CurrentState.Transform;
+    }
+
     public static void SetTransform(in Matrix3x2 transform)
     {
         CurrentState.Transform = transform;
