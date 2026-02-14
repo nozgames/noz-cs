@@ -12,32 +12,56 @@ using NoZ.Platform.WebGPU;
 
 // Log.Path = "log.txt";
 
+// Check if running in init mode first
+var initProject = false;
+string? initProjectName = null;
+for (var i = 0; i < args.Length; i++)
+{
+    if (args[i] == "--init")
+    {
+        initProject = true;
+        if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+            initProjectName = args[++i];
+        break;
+    }
+}
+
 // Find the editor root by walking up from the executable location
-var editorPath = Directory.GetCurrentDirectory();
+var editorPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!;
 if (!Directory.Exists(Path.Combine(editorPath, "library")))
 {
-    Log.Info("Searching for editor root...");
-    editorPath = Path.GetDirectoryName(editorPath);
-    while (editorPath != null)
+    // If running init, just create the library folder at the editor location
+    if (initProject)
     {
-        Log.Info($"Tying {Path.Combine(editorPath, "library")}");
-        if (Directory.Exists(Path.Combine(editorPath, "library")))
-            break;
-
-        editorPath = Path.GetDirectoryName(editorPath);
+        // Walk up to find the editor directory (should be 3 levels up from bin/Debug/net10.0)
+        editorPath = Path.GetDirectoryName(editorPath)!; // Debug
+        editorPath = Path.GetDirectoryName(editorPath)!; // bin
+        editorPath = Path.GetDirectoryName(editorPath)!; // editor
+        Directory.CreateDirectory(Path.Combine(editorPath, "library"));
     }
-
-    if (editorPath == null)
+    else
     {
-        Log.Error($"Could not find editor root (no 'library' folder found above {editorPath})");
-        return;
+        Log.Info("Searching for editor root...");
+        editorPath = Path.GetDirectoryName(editorPath);
+        while (editorPath != null)
+        {
+            Log.Info($"Tying {Path.Combine(editorPath, "library")}");
+            if (Directory.Exists(Path.Combine(editorPath, "library")))
+                break;
+
+            editorPath = Path.GetDirectoryName(editorPath);
+        }
+
+        if (editorPath == null)
+        {
+            Log.Error($"Could not find editor root (no 'library' folder found above {editorPath})");
+            return;
+        }
     }
 }
 
 string projectPath = editorPath;
 var clean = false;
-var initProject = false;
-string? initProjectName = null;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -45,17 +69,11 @@ for (var i = 0; i < args.Length; i++)
         projectPath = args[++i];
     else if (args[i] == "--clean")
         clean = true;
-    else if (args[i] == "--init")
-    {
-        initProject = true;
-        if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
-            initProjectName = args[++i];
-    }
 }
 
 if (projectPath.StartsWith('.'))
 {
-    projectPath = Path.Combine(editorPath, projectPath);
+    projectPath = Path.Combine(Directory.GetCurrentDirectory(), projectPath);
     projectPath = Path.GetFullPath(projectPath);
 }
 

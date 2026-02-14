@@ -23,14 +23,29 @@ internal static class ProjectInitializer
                 "Project name must be a valid C# identifier (letters, digits, underscore)",
                 nameof(projectName));
 
-        // Check if directory exists and is empty
+        // Check if directory exists and validate contents
         if (Directory.Exists(projectPath))
         {
-            var entries = Directory.GetFileSystemEntries(projectPath);
+            // Allow certain expected files/directories from git init and submodule workflow
+            var allowedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".git",
+                "noz",
+                ".gitmodules",
+                ".gitignore",
+                "library",
+                "assets"
+            };
+
+            var entries = Directory.GetFileSystemEntries(projectPath)
+                .Select(Path.GetFileName)
+                .Where(name => !allowedNames.Contains(name!))
+                .ToArray();
+
             if (entries.Length > 0)
                 throw new InvalidOperationException(
-                    $"Directory '{projectPath}' already exists and is not empty. " +
-                    "Please specify an empty or non-existent directory.");
+                    $"Directory '{projectPath}' contains unexpected files or directories: {string.Join(", ", entries)}. " +
+                    "The directory should be empty or only contain .git, noz submodule, and git-related files.");
         }
         else
         {
