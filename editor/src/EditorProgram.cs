@@ -36,6 +36,8 @@ if (!Directory.Exists(Path.Combine(editorPath, "library")))
 
 string projectPath = editorPath;
 var clean = false;
+var initProject = false;
+string? initProjectName = null;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -43,12 +45,46 @@ for (var i = 0; i < args.Length; i++)
         projectPath = args[++i];
     else if (args[i] == "--clean")
         clean = true;
+    else if (args[i] == "--init")
+    {
+        initProject = true;
+        if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+            initProjectName = args[++i];
+    }
 }
 
 if (projectPath.StartsWith('.'))
 {
     projectPath = Path.Combine(editorPath, projectPath);
     projectPath = Path.GetFullPath(projectPath);
+}
+
+// Handle project initialization before normal startup
+if (initProject)
+{
+    try
+    {
+        var projectName = initProjectName ?? Path.GetFileName(Path.GetFullPath(projectPath));
+        ProjectInitializer.Initialize(projectPath, projectName, editorPath);
+        Log.Info($"Project '{projectName}' initialized successfully at {projectPath}");
+        Log.Info("");
+        Log.Info("Next steps:");
+        Log.Info("  1. cd " + projectPath);
+        Log.Info("  2. git init");
+        Log.Info("  3. git submodule add https://github.com/nozgames/noz-cs noz");
+        Log.Info("  4. git submodule update --init --recursive");
+        Log.Info("  5. dotnet restore");
+        Log.Info("  6. dotnet build");
+        Log.Info("");
+        Log.Info("To open in the editor:");
+        Log.Info("  noz --project " + projectPath);
+        return;
+    }
+    catch (Exception ex)
+    {
+        Log.Error($"Failed to initialize project: {ex.Message}");
+        Environment.Exit(1);
+    }
 }
 
 if (!File.Exists(Path.Combine(projectPath, "editor.cfg")))

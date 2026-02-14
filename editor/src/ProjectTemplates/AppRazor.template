@@ -1,0 +1,24 @@
+@using {{NAMESPACE}}
+@using NoZ
+@using NoZ.Platform.Web
+@inject NavigationManager Nav
+
+<WebApplication Width="1280" Height="720" Title="{{PROJECT_NAME}}" Vtable="@_vtable" UI="@_uiConfig" OnInitialize="@OnGameInitialize" />
+
+@code {
+    private readonly GameVtable _vtable = new();
+    private readonly UIConfig _uiConfig = new()
+    {
+        DefaultFont = "segui",
+        ScaleMode = UIScaleMode.ScaleWithScreenSize,
+        ReferenceResolution = new(1920, 1080),
+        ScreenMatchMode = ScreenMatchMode.MatchWidthOrHeight,
+        MatchWidthOrHeight = 0.5f
+    };
+
+    private Task OnGameInitialize()
+    {
+        Game.Init();
+        return Task.CompletedTask;
+    }
+}

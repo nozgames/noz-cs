@@ -1,0 +1,23 @@
+[editor]
+output_path = ./library
+save_path = ./assets
+palette = palette
+pixels_per_unit = 256
+
+[atlas]
+size = 2048
+prefix = sprites
+padding = 4
+max_sprite_size=512
+
+[source]
+assets
+noz/engine/assets
+
+[manifest]
+generate_cs = ./game/{{PROJECT_NAME}}Assets.cs
+cs_namespace = {{NAMESPACE}}
+cs_class = {{PROJECT_NAME}}Assets
+
+[animation]
+frame_rate=12

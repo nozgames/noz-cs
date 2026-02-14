@@ -1,0 +1,34 @@
+//
+//  {{PROJECT_NAME}} - Copyright(c) 2026
+//
+
+using NoZ;
+using NoZ.Platform;
+using NoZ.Platform.WebGPU;
+using {{NAMESPACE}};
+
+Application.Init(new ApplicationConfig
+{
+    Title = "{{PROJECT_NAME}}",
+    Platform = new SDLPlatform(),
+    AudioBackend = new SDLAudioDriver(),
+    Vtable = new GameVtable(),
+    ResourceAssembly = typeof(GameVtable).Assembly,
+    UI = new UIConfig
+    {
+        DefaultFont = "segui",
+        ScaleMode = UIScaleMode.ConstantPixelSize,
+        ReferenceResolution = new(1920, 1080),
+        ScreenMatchMode = ScreenMatchMode.MatchWidthOrHeight,
+        MatchWidthOrHeight = 0.5f
+    },
+    Graphics = new GraphicsConfig
+    {
+        Driver = new WebGPUGraphicsDriver()
+    }
+});
+
+Game.Init();
+Application.Run();
+Game.Shutdown();
+Application.Shutdown();

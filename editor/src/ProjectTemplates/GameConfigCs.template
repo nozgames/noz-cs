@@ -1,0 +1,93 @@
+//
+//  {{PROJECT_NAME}} - Copyright(c) 2026
+//
+
+using NoZ;
+
+namespace {{NAMESPACE}};
+
+public static class GameConfig
+{
+    private const string ConfigFileName = "game.cfg";
+
+    // Settings
+    public static float MasterVolume { get; set; } = 1.0f;
+    public static float SoundVolume { get; set; } = 1.0f;
+    public static float MusicVolume { get; set; } = 1.0f;
+    public static bool VSync { get; set; } = true;
+    public static bool Fullscreen { get; set; } = false;
+
+    public static void Load(ApplicationConfig config)
+    {
+        using var stream = Application.LoadPersistentData(ConfigFileName);
+        if (stream == null)
+            return;
+
+        using var reader = new StreamReader(stream);
+
+        while (!reader.EndOfStream)
+        {
+            var line = reader.ReadLine();
+            var tk = new Tokenizer(line);
+
+            if (!tk.ExpectIdentifier(out var key))
+                continue;
+
+            if (!tk.ExpectDelimiter('='))
+                continue;
+
+            switch (key)
+            {
+                case "window_x":
+                    config.X = tk.ExpectInt(config.X);
+                    break;
+                case "window_y":
+                    config.Y = tk.ExpectInt(config.Y);
+                    break;
+                case "window_width":
+                    config.Width = tk.ExpectInt(config.Width);
+                    break;
+                case "window_height":
+                    config.Height = tk.ExpectInt(config.Height);
+                    break;
+                case "master_volume":
+                    MasterVolume = Math.Clamp(tk.ExpectFloat(MasterVolume), 0f, 1f);
+                    break;
+                case "sound_volume":
+                    SoundVolume = Math.Clamp(tk.ExpectFloat(SoundVolume), 0f, 1f);
+                    break;
+                case "music_volume":
+                    MusicVolume = Math.Clamp(tk.ExpectFloat(MusicVolume), 0f, 1f);
+                    break;
+                case "vsync":
+                    VSync = tk.ExpectBool(VSync);
+                    break;
+                case "fullscreen":
+                    Fullscreen = tk.ExpectBool(Fullscreen);
+                    break;
+                default:
+                    tk.ExpectLine(out _);
+                    break;
+            }
+        }
+    }
+
+    public static void Save()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new StreamWriter(stream);
+        writer.WriteLine($"window_x = {Application.WindowPosition.X}");
+        writer.WriteLine($"window_y = {Application.WindowPosition.Y}");
+        writer.WriteLine($"window_width = {Application.WindowSize.X}");
+        writer.WriteLine($"window_height = {Application.WindowSize.Y}");
+        writer.WriteLine($"master_volume = {MasterVolume:F2}");
+        writer.WriteLine($"sound_volume = {SoundVolume:F2}");
+        writer.WriteLine($"music_volume = {MusicVolume:F2}");
+        writer.WriteLine($"vsync = {(VSync ? 1 : 0)}");
+        writer.WriteLine($"fullscreen = {(Fullscreen ? 1 : 0)}");
+
+        writer.Flush();
+        stream.Position = 0;
+        Application.SavePersistentData(ConfigFileName, stream);
+    }
+}

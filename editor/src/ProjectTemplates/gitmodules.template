@@ -1,0 +1,3 @@
+[submodule "noz"]
+	path = noz
+	url = https://github.com/nozgames/noz-cs

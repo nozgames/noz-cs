@@ -31,9 +31,9 @@ namespace NoZ.Editor
                     if (packer.SplitFreeNode(packer._free[i], rect))
                         packer.SwapRemoveAt(i);
                 }
-            }
 
-            packer.PruneFreeList();
+                packer.PruneFreeList();
+            }
             return packer;
         }
 

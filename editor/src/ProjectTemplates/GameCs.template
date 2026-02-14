@@ -1,0 +1,48 @@
+//
+//  {{PROJECT_NAME}} - Copyright(c) 2026
+//
+
+using NoZ;
+
+namespace {{NAMESPACE}};
+
+public class GameVtable : IApplication
+{
+    public void LoadConfig(ApplicationConfig config) => GameConfig.Load(config);
+    public void SaveConfig() => GameConfig.Save();
+    public void Update() => Game.Update();
+    public void UpdateUI() => Game.UpdateUI();
+    public void LateUpdate() => Game.LateUpdate();
+    public void LoadAssets()
+    {
+        {{PROJECT_NAME}}Assets.LoadAssets();
+    }
+}
+
+public static class Game
+{
+    public static void Init()
+    {
+        // Initialize your game here
+    }
+
+    public static void Update()
+    {
+        // Update game logic
+    }
+
+    public static void UpdateUI()
+    {
+        // Update UI (called after Update)
+    }
+
+    public static void LateUpdate()
+    {
+        // Late update (called after UpdateUI)
+    }
+
+    public static void Shutdown()
+    {
+        // Cleanup on shutdown
+    }
+}

@@ -34,7 +34,12 @@
   <ItemGroup>
     <EmbeddedResource Include="src\TTF\UnicodeNames.txt" LogicalName="UnicodeNames.txt" />
   </ItemGroup>
-  
+
+  <ItemGroup>
+    <EmbeddedResource Include="src\ProjectTemplates\*.template"
+                      LogicalName="ProjectTemplates.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
       <PublishAot>true</PublishAot>
       <RuntimeIdentifier>win-x64</RuntimeIdentifier>

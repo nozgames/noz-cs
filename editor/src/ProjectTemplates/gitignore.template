@@ -1,0 +1,24 @@
+out/
+build/
+bin/
+obj/
+.vs/
+vs/
+_deps/
+
+# Large binary library files - track separately
+*.lib
+*.dll
+
+# Generated files
+src/game_assets_build.cpp
+web/wwwroot/js/noz/
+
+tmpclaude-*
+
+.ref
+.idea
+.noz
+.claude\settings.local.json
+
+node_modules
