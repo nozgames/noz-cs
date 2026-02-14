@@ -105,6 +105,9 @@ internal static class ProjectInitializer
         // Copy segui font from editor
         CopyFont(editorPath, projectPath);
 
+        // Copy default palette from editor
+        CopyPalette(editorPath, projectPath);
+
         Log.Info("Project structure created successfully");
     }
 
@@ -129,6 +132,7 @@ internal static class ProjectInitializer
             "library/skeleton",
             "library/vfx",
             "assets",
+            "assets/texture",
         };
 
         foreach (var dir in dirs)
@@ -208,6 +212,21 @@ internal static class ProjectInitializer
             File.Copy(fontFile, destFile, overwrite: true);
             Log.Info($"  Copied font: {fileName}");
         }
+    }
+
+    private static void CopyPalette(string editorPath, string projectPath)
+    {
+        var sourcePalette = Path.Combine(editorPath, "assets", "textures", "editor_palette.png");
+        var destPalette = Path.Combine(projectPath, "assets", "texture", "palette.png");
+
+        if (!File.Exists(sourcePalette))
+        {
+            Log.Warning($"  Warning: Editor palette not found at {sourcePalette}");
+            return;
+        }
+
+        File.Copy(sourcePalette, destPalette, overwrite: true);
+        Log.Info("  Copied default palette");
     }
 
     private static bool IsValidProjectName(string name)

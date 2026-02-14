@@ -21,3 +21,16 @@ cs_class = GameAssets
 
 [animation]
 frame_rate=12
+
+[palettes]
+default = 0 "Default"
+
+[collections]
+default = Default
+
+[sprite_sizes]
+16x16
+32x32
+64x64
+128x128
+256x256
