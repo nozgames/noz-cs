@@ -38,32 +38,32 @@ dotnet run --project editor/editor.csproj
 ### Quick Start
 
 ```bash
-# 1. Create and initialize a new game project
-noz --init MyGame --project ./MyGame
-
-# 2. Navigate to the project directory
+# 1. Create and navigate to your project directory
+mkdir MyGame
 cd MyGame
 
-# 3. Initialize git repository
+# 2. Initialize git repository
 git init
 
-# 4. Add the NOZ engine as a submodule
+# 3. Add the NOZ engine as a submodule
 git submodule add https://github.com/nozgames/noz-cs noz
-
-# 5. Initialize and update the submodule
 git submodule update --init --recursive
 
-# 6. Restore NuGet packages
-dotnet restore
+# 4. Build the NOZ editor from the submodule
+dotnet build noz/editor
 
-# 7. Build the project
+# 5. Initialize the game project structure
+noz/editor/bin/Debug/net10.0/noz --init --project .
+
+# 6. Restore NuGet packages and build the project
+dotnet restore
 dotnet build
 
-# 8. Run the desktop version
+# 7. Run the desktop version
 dotnet run --project platform/desktop
 
-# 9. Open in NOZ editor
-noz --project .
+# 8. Open in NOZ editor
+noz/editor/bin/Debug/net10.0/noz --project .
 ```
 
 ### What Gets Created
