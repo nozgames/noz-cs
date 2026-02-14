@@ -15,7 +15,7 @@ public class GameVtable : IApplication
     public void LateUpdate() => Game.LateUpdate();
     public void LoadAssets()
     {
-        {{PROJECT_NAME}}Assets.LoadAssets();
+        GameAssets.LoadAssets();
     }
 }
 

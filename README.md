@@ -87,6 +87,23 @@ The editor will load your game project and allow you to:
 - View and organize your asset library
 - Generate asset manifest files
 
+### Opening in Visual Studio
+
+You can open the generated solution file in Visual Studio or any compatible IDE:
+
+```bash
+# Open the solution file
+MyGame.sln
+```
+
+The solution includes:
+- **MyGame.Desktop** (startup project) - Desktop platform executable
+- **MyGame** - Core game logic (class library)
+- **MyGame.Web** - Web platform (Blazor WebAssembly)
+- NoZ engine projects (referenced as submodule)
+
+Press F5 to build and run the desktop version directly from Visual Studio.
+
 ### What Gets Created
 
 The `--init` command generates:
@@ -108,7 +125,7 @@ MyGame/
 │   ├── MyGame.csproj
 │   ├── Game.cs
 │   ├── GameConfig.cs
-│   └── MyGameAssets.cs
+│   └── GameAssets.cs
 ├── platform/
 │   ├── desktop/            # Desktop platform (SDL + WebGPU)
 │   │   ├── MyGame.Desktop.csproj

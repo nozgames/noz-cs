@@ -89,7 +89,7 @@ internal static class ProjectInitializer
         GenerateFile(Path.Combine(projectPath, "platform", "web"), $"{projectName}.Web.csproj", "web.csproj.template", context);
         GenerateFile(Path.Combine(projectPath, "game"), "Game.cs", "GameCs.template", context);
         GenerateFile(Path.Combine(projectPath, "game"), "GameConfig.cs", "GameConfigCs.template", context);
-        GenerateFile(Path.Combine(projectPath, "game"), $"{projectName}Assets.cs", "GameAssetsCs.template", context);
+        GenerateFile(Path.Combine(projectPath, "game"), "GameAssets.cs", "GameAssetsCs.template", context);
         GenerateFile(Path.Combine(projectPath, "platform", "desktop"), "Program.cs", "ProgramDesktopCs.template", context);
         GenerateFile(Path.Combine(projectPath, "platform", "desktop", "Properties"), "launchSettings.json", "launchSettings.json.template", context);
         GenerateFile(Path.Combine(projectPath, "platform", "web"), "Program.cs", "ProgramWebCs.template", context);

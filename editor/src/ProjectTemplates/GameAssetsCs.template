@@ -7,7 +7,7 @@
 
 namespace {{NAMESPACE}};
 
-public static class {{PROJECT_NAME}}Assets
+public static class GameAssets
 {
     public static void LoadAssets()
     {
