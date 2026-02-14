@@ -57,11 +57,7 @@ public struct Tween
         {
             if (!IsValid()) return 1f;
             ref var d = ref _data[Index];
-            var t = MathEx.Clamp01((d.Elapsed - d.Delay) / d.Duration);
-            t = MathEx.Ease(d.Easing, t);
-            if (!d.Forward) t = 1f - t;
-            return t;
-
+            return MathEx.Clamp01((d.Elapsed - d.Delay) / d.Duration);
         }
     }
 
@@ -72,7 +68,7 @@ public struct Tween
         {
             if (!IsValid()) return true;
             ref var d = ref _data[Index];
-            return d.Mode == TweenMode.Once && d.Elapsed >= d.Delay + d.Duration;
+            return (d.Mode == TweenMode.Once || d.Mode == TweenMode.PingPong) && d.Elapsed >= d.Delay + d.Duration;
         }
     }
 
@@ -83,24 +79,84 @@ public struct Tween
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public float Update(float from, float to)
+    public float Update(float from, float to, float defaultNormalizedTime = 1f)
     {
         Advance();
-        return from + (to - from) * NormalizedTime;
+        if (!IsValid())
+            return from + (to - from) * defaultNormalizedTime;
+
+        ref var d = ref _data[Index];
+        var rawT = NormalizedTime;
+
+        // Handle pingpong: 0→0.5→1 becomes 0→1→0
+        float interpT;
+        if (d.Mode == TweenMode.PingPong || d.Mode == TweenMode.PingPongLoop)
+        {
+            if (rawT < 0.5f)
+                interpT = MathEx.Ease(d.Easing, rawT * 2f);
+            else
+                interpT = MathEx.Ease(d.Easing, (1f - rawT) * 2f);
+        }
+        else
+        {
+            interpT = MathEx.Ease(d.Easing, rawT);
+        }
+
+        return from + (to - from) * interpT;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Vector2 Update(Vector2 from, Vector2 to)
+    public Vector2 Update(Vector2 from, Vector2 to, float defaultNormalizedTime = 1f)
     {
         Advance();
-        return from + (to - from) * NormalizedTime;
+        if (!IsValid())
+            return from + (to - from) * defaultNormalizedTime;
+
+        ref var d = ref _data[Index];
+        var rawT = NormalizedTime;
+
+        // Handle pingpong: 0→0.5→1 becomes 0→1→0
+        float interpT;
+        if (d.Mode == TweenMode.PingPong || d.Mode == TweenMode.PingPongLoop)
+        {
+            if (rawT < 0.5f)
+                interpT = MathEx.Ease(d.Easing, rawT * 2f);
+            else
+                interpT = MathEx.Ease(d.Easing, (1f - rawT) * 2f);
+        }
+        else
+        {
+            interpT = MathEx.Ease(d.Easing, rawT);
+        }
+
+        return from + (to - from) * interpT;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Color Update(Color from, Color to)
+    public Color Update(Color from, Color to, float defaultNormalizedTime = 1f)
     {
         Advance();
-        return Color.Mix(from, to, NormalizedTime);
+        if (!IsValid())
+            return Color.Mix(from, to, defaultNormalizedTime);
+
+        ref var d = ref _data[Index];
+        var rawT = NormalizedTime;
+
+        // Handle pingpong: 0→0.5→1 becomes 0→1→0
+        float interpT;
+        if (d.Mode == TweenMode.PingPong || d.Mode == TweenMode.PingPongLoop)
+        {
+            if (rawT < 0.5f)
+                interpT = MathEx.Ease(d.Easing, rawT * 2f);
+            else
+                interpT = MathEx.Ease(d.Easing, (1f - rawT) * 2f);
+        }
+        else
+        {
+            interpT = MathEx.Ease(d.Easing, rawT);
+        }
+
+        return Color.Mix(from, to, interpT);
     }
 
     public readonly void Restart()
@@ -125,29 +181,13 @@ public struct Tween
         if (d.Elapsed < d.Delay + d.Duration)
             return;
 
-        if (d.Mode == TweenMode.Loop)
+        if (d.Mode == TweenMode.Loop || d.Mode == TweenMode.PingPongLoop)
         {
             d.Elapsed = d.Delay;
-        }
-        else if (d.Mode == TweenMode.PingPongLoop)
-        {
-            d.Elapsed = d.Delay;
-            d.Forward = !d.Forward;
-        }
-        else if (d.Mode == TweenMode.PingPong)
-        {
-            if (!d.Forward)
-            {
-                d.Duration = 0;
-            }
-            else
-            {
-                d.Elapsed = d.Delay;
-                d.Forward = false;
-            }
         }
         else
         {
+            // Once or PingPong - stop the tween
             d.Duration = 0;
         }
     }

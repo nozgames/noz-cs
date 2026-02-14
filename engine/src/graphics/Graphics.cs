@@ -377,10 +377,10 @@ public static unsafe partial class Graphics
     {
         Span<MeshVertex> verts =
         [
-            new MeshVertex { Position = p0, UV = uv0, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 },
-            new MeshVertex { Position = p1, UV = uv1, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 },
-            new MeshVertex { Position = p2, UV = uv2, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 },
-            new MeshVertex { Position = p3, UV = uv3, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1 },
+            new MeshVertex { Position = p0, UV = uv0, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p1, UV = uv1, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p2, UV = uv2, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p3, UV = uv3, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Color = Color.White },
         ];
         ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
         AddTriangles(verts, indices, order: order, bone: bone);
@@ -426,7 +426,7 @@ public static unsafe partial class Graphics
                 _vertices.Add(v with
                 {
                     Position = Vector2.Transform(v.Position, CurrentState.Transform),
-                    Color = color,
+                    Color = v.Color * color,
                     Bone = 0
                 });
             }
@@ -438,7 +438,7 @@ public static unsafe partial class Graphics
             {
                 _vertices.Add(v with
                 {
-                    Color = color,
+                    Color = v.Color * color,
                     Bone = bone
                 });
             }
