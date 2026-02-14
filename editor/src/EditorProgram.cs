@@ -84,6 +84,12 @@ if (initProject)
     {
         var projectName = initProjectName ?? Path.GetFileName(Path.GetFullPath(projectPath));
         ProjectInitializer.Initialize(projectPath, projectName, editorPath);
+
+        // Import initial assets from noz engine
+        Log.Info("");
+        Log.Info("Importing assets...");
+        EditorApplication.Init(editorPath, projectPath, clean: false);
+
         Log.Info($"Project '{projectName}' initialized successfully at {projectPath}");
         Log.Info("");
         Log.Info("Next steps:");
