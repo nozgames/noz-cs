@@ -150,36 +150,86 @@ namespace NoZ.Editor
 
             int w = outputSize.X;
             int h = outputSize.Y;
+            int contourCount = shape.contours.Length;
+
+            // Cache geometric winding direction per contour (positive = solid, negative = hole)
+            var contourGeomWinding = new int[contourCount];
+            bool hasHoles = false;
+            for (int ci = 0; ci < contourCount; ci++)
+            {
+                contourGeomWinding[ci] = shape.contours[ci].Winding();
+                if (contourGeomWinding[ci] < 0)
+                    hasHoles = true;
+            }
 
             Parallel.For(0, h, y =>
             {
                 int row = shape.InverseYAxis ? h - y - 1 : y;
+
+                // Per-contour signed distance reused across pixels in a row
+                var contourSD = new double[contourCount];
+
                 for (int x = 0; x < w; ++x)
                 {
                     double dummy = 0;
                     Vector2Double p = new Vector2Double(x + .5, y + .5) / scale - translate;
 
-                    // Find the minimum absolute distance to any edge
-                    double minAbsDist = double.PositiveInfinity;
-                    foreach (var contour in shape.contours)
+                    // Compute per-contour signed distance: positive = inside, negative = outside
+                    for (int ci = 0; ci < contourCount; ci++)
                     {
+                        var contour = shape.contours[ci];
+
+                        double minAbsDist = double.PositiveInfinity;
                         foreach (var edge in contour.edges)
                         {
-                            SignedDistance distance = edge.GetSignedDistance(p, out dummy);
-                            double absDist = Math.Abs(distance.distance);
+                            double absDist = Math.Abs(edge.GetSignedDistance(p, out dummy).distance);
                             if (absDist < minAbsDist)
                                 minAbsDist = absDist;
                         }
+
+                        bool insideContour = ComputeWindingNumber(contour, p) != 0;
+                        contourSD[ci] = insideContour ? minAbsDist : -minAbsDist;
                     }
 
-                    // Compute total winding number using non-zero rule
-                    int totalWinding = 0;
-                    foreach (var contour in shape.contours)
-                        totalWinding += ComputeWindingNumber(contour, p);
+                    // Combine per-contour signed distances.
+                    // Single contour: use directly.
+                    // Multiple contours: union solid contours (max), subtract hole contours (min).
+                    // For overlapping same-winding contours (e.g. compound glyph components),
+                    // max correctly ignores internal edges between overlapping regions.
+                    double sd;
+                    if (contourCount == 1)
+                    {
+                        sd = contourSD[0];
+                    }
+                    else
+                    {
+                        // Union all positive-winding (solid) contours via max
+                        double solidSD = double.NegativeInfinity;
+                        for (int ci = 0; ci < contourCount; ci++)
+                        {
+                            if (contourGeomWinding[ci] >= 0 && contourSD[ci] > solidSD)
+                                solidSD = contourSD[ci];
+                        }
 
-                    // Inside if winding is non-zero
-                    bool inside = totalWinding != 0;
-                    double sd = inside ? minAbsDist : -minAbsDist;
+                        sd = solidSD > double.NegativeInfinity ? solidSD : contourSD[0];
+
+                        // Subtract hole contours: the final shape is the intersection of
+                        // the solid union with the complement of each hole.
+                        // hole contour SD is positive when inside the hole (= outside shape),
+                        // so we negate and take min.
+                        if (hasHoles)
+                        {
+                            for (int ci = 0; ci < contourCount; ci++)
+                            {
+                                if (contourGeomWinding[ci] < 0)
+                                {
+                                    double holeExteriorSD = -contourSD[ci];
+                                    if (holeExteriorSD < sd)
+                                        sd = holeExteriorSD;
+                                }
+                            }
+                        }
+                    }
 
                     // Set the SDF value in the output image (R8 format)
                     sd /= (range * 2.0f);
