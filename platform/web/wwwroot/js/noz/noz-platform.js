@@ -47,6 +47,10 @@ export function init(dotNet, width, height) {
     // Resize
     window.addEventListener('resize', onResize);
 
+    // Release modifier keys when window loses focus (e.g. Alt+Tab, Ctrl+Tab)
+    // Without this, modifier keys get "stuck" because the keyup event never fires
+    window.addEventListener('blur', onWindowBlur);
+
     // Prevent default behaviors that interfere with games
     canvas.tabIndex = 1;
     canvas.focus();
@@ -59,6 +63,7 @@ export function shutdown() {
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('resize', onResize);
+    window.removeEventListener('blur', onWindowBlur);
 
     if (canvas) {
         canvas.removeEventListener('mousedown', onMouseDown);
@@ -87,21 +92,34 @@ export function setCursor(cursorStyle) {
     }
 }
 
+function onWindowBlur() {
+    // Send key-up for modifier keys so they don't get stuck
+    dotNetRef.invokeMethod('OnKeyUp', 'Control');
+    dotNetRef.invokeMethod('OnKeyUp', 'Shift');
+    dotNetRef.invokeMethod('OnKeyUp', 'Alt');
+    dotNetRef.invokeMethod('OnKeyUp', 'Meta');
+}
+
 function onKeyDown(e) {
     // Prevent default for game keys (arrows, space, etc.)
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'].includes(e.key)) {
         e.preventDefault();
     }
-    dotNetRef.invokeMethodAsync('OnKeyDown', e.key);
+
+    // Prevent browser defaults for Ctrl/Cmd shortcuts the app handles
+    if ((e.ctrlKey || e.metaKey) && ['s', 'o', 'z', 'y'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+    }
+    dotNetRef.invokeMethod('OnKeyDown', e.key);
 
     // Forward printable characters as text input (e.key is a single char for printable keys)
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        dotNetRef.invokeMethodAsync('OnTextInput', e.key);
+        dotNetRef.invokeMethod('OnTextInput', e.key);
     }
 }
 
 function onKeyUp(e) {
-    dotNetRef.invokeMethodAsync('OnKeyUp', e.key);
+    dotNetRef.invokeMethod('OnKeyUp', e.key);
 }
 
 function onMouseDown(e) {
@@ -114,11 +132,11 @@ function onMouseDown(e) {
     lastClickTime = now;
 
     const rect = canvas.getBoundingClientRect();
-    dotNetRef.invokeMethodAsync('OnMouseDown', e.button, clickCount);
+    dotNetRef.invokeMethod('OnMouseDown', e.button, clickCount);
 }
 
 function onMouseUp(e) {
-    dotNetRef.invokeMethodAsync('OnMouseUp', e.button);
+    dotNetRef.invokeMethod('OnMouseUp', e.button);
 }
 
 function onMouseMove(e) {
@@ -126,18 +144,18 @@ function onMouseMove(e) {
     const dpr = window.devicePixelRatio || 1;
     const x = (e.clientX - rect.left) * dpr;
     const y = (e.clientY - rect.top) * dpr;
-    dotNetRef.invokeMethodAsync('OnMouseMove', x, y);
+    dotNetRef.invokeMethod('OnMouseMove', x, y);
 }
 
 function onMouseEnter(e) {
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    dotNetRef.invokeMethodAsync('OnMouseMove', (e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
-    dotNetRef.invokeMethodAsync('OnMouseEnter');
+    dotNetRef.invokeMethod('OnMouseMove', (e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
+    dotNetRef.invokeMethod('OnMouseEnter');
 }
 
 function onMouseLeave() {
-    dotNetRef.invokeMethodAsync('OnMouseLeave');
+    dotNetRef.invokeMethod('OnMouseLeave');
 }
 
 function onMouseWheel(e) {
@@ -145,7 +163,7 @@ function onMouseWheel(e) {
     // Normalize scroll values
     const deltaX = e.deltaX > 0 ? 1 : e.deltaX < 0 ? -1 : 0;
     const deltaY = e.deltaY > 0 ? -1 : e.deltaY < 0 ? 1 : 0; // Inverted for natural scrolling
-    dotNetRef.invokeMethodAsync('OnMouseWheel', deltaX, deltaY);
+    dotNetRef.invokeMethod('OnMouseWheel', deltaX, deltaY);
 }
 
 function onTouchStart(e) {
@@ -156,13 +174,13 @@ function onTouchStart(e) {
         const dpr = window.devicePixelRatio || 1;
         const x = (touch.clientX - rect.left) * dpr;
         const y = (touch.clientY - rect.top) * dpr;
-        dotNetRef.invokeMethodAsync('OnMouseMove', x, y);
-        dotNetRef.invokeMethodAsync('OnMouseDown', 0, 1); // Simulate left click
+        dotNetRef.invokeMethod('OnMouseMove', x, y);
+        dotNetRef.invokeMethod('OnMouseDown', 0, 1); // Simulate left click
     }
 }
 
 function onTouchEnd(e) {
-    dotNetRef.invokeMethodAsync('OnMouseUp', 0);
+    dotNetRef.invokeMethod('OnMouseUp', 0);
 }
 
 function onTouchMove(e) {
@@ -173,7 +191,7 @@ function onTouchMove(e) {
         const dpr = window.devicePixelRatio || 1;
         const x = (touch.clientX - rect.left) * dpr;
         const y = (touch.clientY - rect.top) * dpr;
-        dotNetRef.invokeMethodAsync('OnMouseMove', x, y);
+        dotNetRef.invokeMethod('OnMouseMove', x, y);
     }
 }
 
@@ -187,5 +205,5 @@ function onResize() {
         canvas.height = height;
     }
     // Notify C# of the pixel size (not CSS size)
-    dotNetRef.invokeMethodAsync('OnResize', width, height);
+    dotNetRef.invokeMethod('OnResize', width, height);
 }
