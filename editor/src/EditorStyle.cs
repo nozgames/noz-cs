@@ -489,6 +489,110 @@ public static class EditorStyle
         };
     }
 
+    // :inspector
+    public static class Inspector
+    {
+        public const float Width = 300f;
+        public const float LabelWidth = 80f;
+        public const float RowHeight = 28f;
+        public const float SectionSpacing = 12f;
+
+        public static readonly ContainerStyle Root = Panel.Root with
+        {
+            AlignX = Align.Max,
+            AlignY = Align.Min,
+            Width = Width,
+            Margin = EdgeInsets.Zero,
+            Padding = EdgeInsets.All(Panel.BorderWidth),
+            Border = Panel.Root.Border with { Radius = 0 }
+        };
+
+        public static readonly ContainerStyle Content = new()
+        {
+            Spacing = 2f,
+            Padding = EdgeInsets.Symmetric(4, Control.Spacing)
+        };
+
+        public static readonly ContainerStyle Row = new()
+        {
+            Height = Size.Fit,
+            MinHeight = RowHeight,
+            Padding = EdgeInsets.LeftRight(4),
+            Spacing = 4f
+        };
+
+        public static readonly ContainerStyle FieldContainer = new()
+        {
+            Width = 90f,
+            AlignY = Align.Center
+        };
+
+        public static readonly LabelStyle Label = new()
+        {
+            FontSize = Control.TextSize,
+            Color = Color.FromRgb(0x999999),
+            AlignX = Align.Min,
+            AlignY = Align.Center
+        };
+
+        public static readonly LabelStyle SectionLabel = Label with
+        {
+            FontSize = 14f,
+            Color = Color.FromRgb(0xcccccc)
+        };
+
+        public static readonly TextBoxStyle TextBox = new()
+        {
+            Height = 24f,
+            FontSize = Panel.TextSize,
+            TextColor = Control.Text.Color,
+            PlaceholderColor = Color.FromRgb(0x555555),
+            SelectionColor = SelectionColor,
+            BackgroundColor = Color.FromRgb(0x1d1d1d),
+            Border = new BorderStyle { Radius = 4f, Width = 1f, Color = Color.FromRgb(0x2a2a2a) },
+            FocusBorder = new BorderStyle { Radius = 4f, Width = 1f, Color = SelectionColor },
+            Padding = EdgeInsets.Symmetric(2, 6)
+        };
+
+        public static readonly ContainerStyle Separator = new()
+        {
+            Height = 1,
+            Margin = EdgeInsets.Symmetric(SectionSpacing / 2, 0),
+            Color = Color.FromRgb(0x3a3a3a)
+        };
+
+        public static readonly ContainerStyle EmitterTab = new()
+        {
+            Height = 28f,
+            Padding = EdgeInsets.LeftRight(10),
+            Border = new BorderStyle { Radius = 6f }
+        };
+
+        public static readonly ContainerStyle EmitterTabFill = new()
+        {
+            Color = Color.FromRgb(0x1d1d1d),
+            Border = new BorderStyle { Radius = 6f }
+        };
+
+        public static readonly ContainerStyle EmitterTabSelected = EmitterTabFill with
+        {
+            Color = Color.FromRgb(0x545454)
+        };
+
+        public static readonly ContainerStyle EmitterTabHover = EmitterTabFill with
+        {
+            Color = Color.FromRgb(0x3f3f3f)
+        };
+
+        public static readonly LabelStyle EmitterTabText = new()
+        {
+            FontSize = Panel.TextSize,
+            Color = Color.FromRgb(0xebebeb),
+            AlignX = Align.Center,
+            AlignY = Align.Center
+        };
+    }
+
     // :animationeditor
     public static class AnimationEditor
     {

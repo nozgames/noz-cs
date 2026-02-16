@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Text;
 
 namespace NoZ.Editor;
 
@@ -14,8 +15,73 @@ public class VfxDocument : Document
     private VfxHandle _handle = VfxHandle.Invalid;
     private bool _playing;
     private VfxEmitterDef[] _emitterDefs = [];
+    private string[] _emitterNames = [];
     private VfxRange _duration;
     private bool _loop;
+
+    public int EmitterCount => _emitterDefs.Length;
+    public int SelectedEmitterIndex { get; set; }
+    public ref VfxRange Duration => ref _duration;
+    public ref bool Loop => ref _loop;
+
+    public ref VfxEmitterDef GetEmitterDef(int index) => ref _emitterDefs[index];
+    public string GetEmitterName(int index) => _emitterNames[index];
+
+    public void AddEmitter(string name)
+    {
+        if (_emitterDefs.Length >= MaxEmittersPerVfx)
+            return;
+
+        var emitter = new VfxEmitterDef
+        {
+            Rate = new VfxIntRange(10, 10),
+            Duration = VfxRange.One,
+            Angle = new VfxRange(0, 360),
+            Particle = new VfxParticleDef
+            {
+                Duration = new VfxRange(0.5f, 1.0f),
+                Size = new VfxFloatCurve { Type = VfxCurveType.EaseOut, Start = new VfxRange(0.5f, 0.5f), End = new VfxRange(0f, 0.1f) },
+                Speed = new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(20, 40), End = new VfxRange(5, 10) },
+                Color = VfxColorCurve.White,
+                Opacity = new VfxFloatCurve { Type = VfxCurveType.EaseOut, Start = VfxRange.One, End = VfxRange.Zero },
+            }
+        };
+
+        _emitterDefs = [.. _emitterDefs, emitter];
+        _emitterNames = [.. _emitterNames, name];
+        SelectedEmitterIndex = _emitterDefs.Length - 1;
+        ApplyChanges();
+    }
+
+    public void RemoveEmitter(int index)
+    {
+        if (index < 0 || index >= _emitterDefs.Length)
+            return;
+
+        var defs = _emitterDefs.ToList();
+        var names = _emitterNames.ToList();
+        defs.RemoveAt(index);
+        names.RemoveAt(index);
+        _emitterDefs = defs.ToArray();
+        _emitterNames = names.ToArray();
+
+        if (SelectedEmitterIndex >= _emitterDefs.Length)
+            SelectedEmitterIndex = _emitterDefs.Length - 1;
+
+        ApplyChanges();
+    }
+
+    public void ApplyChanges()
+    {
+        MarkModified();
+        BuildVfx();
+
+        if (_playing && _vfx != null)
+        {
+            VfxSystem.Stop(_handle);
+            _handle = VfxSystem.Play(_vfx, Position);
+        }
+    }
 
     public static void RegisterDef()
     {
@@ -140,10 +206,11 @@ public class VfxDocument : Document
         _duration = ParseFloat(props.GetString("vfx", "duration", "1.0"), new VfxRange(1, 1));
         _loop = props.GetBool("vfx", "loop", false);
 
-        var emitterNames = props.GetKeys("emitters").ToArray();
+        var parsedNames = props.GetKeys("emitters").ToArray();
         var emitters = new List<VfxEmitterDef>();
+        var names = new List<string>();
 
-        foreach (var emitterName in emitterNames)
+        foreach (var emitterName in parsedNames)
         {
             if (string.IsNullOrWhiteSpace(emitterName))
                 continue;
@@ -178,12 +245,14 @@ public class VfxDocument : Document
             p.Rotation = ParseFloatCurve(props.GetString(particleSection, "rotation", "0"), VfxFloatCurve.Zero);
 
             emitters.Add(emitter);
+            names.Add(emitterName);
 
             if (emitters.Count >= MaxEmittersPerVfx)
                 break;
         }
 
         _emitterDefs = emitters.ToArray();
+        _emitterNames = names.ToArray();
     }
 
     private void BuildVfx()
@@ -566,4 +635,112 @@ public class VfxDocument : Document
             _ => VfxCurveType.Linear
         };
     }
+
+    // --- Text file serialization ---
+
+    public override void Save(StreamWriter sw)
+    {
+        sw.WriteLine("[vfx]");
+        sw.WriteLine($"duration = {FormatRange(_duration)}");
+        sw.WriteLine($"loop = {_loop.ToString().ToLowerInvariant()}");
+
+        sw.WriteLine();
+        sw.WriteLine("[emitters]");
+        for (var i = 0; i < _emitterNames.Length; i++)
+            sw.WriteLine(_emitterNames[i]);
+
+        for (var i = 0; i < _emitterDefs.Length; i++)
+        {
+            ref var e = ref _emitterDefs[i];
+            var name = _emitterNames[i];
+
+            sw.WriteLine();
+            sw.WriteLine($"[{name}]");
+            sw.WriteLine($"rate = {FormatIntRange(e.Rate)}");
+            sw.WriteLine($"burst = {FormatIntRange(e.Burst)}");
+            sw.WriteLine($"duration = {FormatRange(e.Duration)}");
+            sw.WriteLine($"angle = {FormatRange(e.Angle)}");
+            sw.WriteLine($"spawn = {FormatVec2Range(e.Spawn)}");
+            sw.WriteLine($"direction = {FormatVec2Range(e.Direction)}");
+
+            sw.WriteLine();
+            sw.WriteLine($"[{name}.particle]");
+            sw.WriteLine($"duration = {FormatRange(e.Particle.Duration)}");
+            sw.WriteLine($"size = {FormatFloatCurve(e.Particle.Size)}");
+            sw.WriteLine($"speed = {FormatFloatCurve(e.Particle.Speed)}");
+            sw.WriteLine($"color = {FormatColorCurve(e.Particle.Color)}");
+            sw.WriteLine($"opacity = {FormatFloatCurve(e.Particle.Opacity)}");
+            sw.WriteLine($"gravity = {FormatVec2Range(e.Particle.Gravity)}");
+            sw.WriteLine($"drag = {FormatRange(e.Particle.Drag)}");
+            sw.WriteLine($"rotation = {FormatFloatCurve(e.Particle.Rotation)}");
+        }
+    }
+
+    private static string FormatFloat(float v) =>
+        v == (int)v ? ((int)v).ToString() : v.ToString("G");
+
+    private static string FormatRange(VfxRange r) =>
+        r.Min == r.Max ? FormatFloat(r.Min) : $"[{FormatFloat(r.Min)}, {FormatFloat(r.Max)}]";
+
+    private static string FormatIntRange(VfxIntRange r) =>
+        r.Min == r.Max ? r.Min.ToString() : $"[{r.Min}, {r.Max}]";
+
+    private static string FormatVec2Range(VfxVec2Range r)
+    {
+        if (r.Min == r.Max)
+            return $"({FormatFloat(r.Min.X)}, {FormatFloat(r.Min.Y)})";
+        return $"[({FormatFloat(r.Min.X)}, {FormatFloat(r.Min.Y)}), ({FormatFloat(r.Max.X)}, {FormatFloat(r.Max.Y)})]";
+    }
+
+    private static string FormatFloatCurve(VfxFloatCurve c)
+    {
+        var start = FormatRange(c.Start);
+        var end = FormatRange(c.End);
+        var type = FormatCurveType(c.Type);
+
+        if (c.Start.Min == c.End.Min && c.Start.Max == c.End.Max)
+            return start;
+
+        return $"{start}=>{end}:{type}";
+    }
+
+    private static string FormatColorCurve(VfxColorCurve c)
+    {
+        var start = FormatColorRange(c.Start);
+        var end = FormatColorRange(c.End);
+        var type = FormatCurveType(c.Type);
+
+        if (c.Start.Min == c.End.Min && c.Start.Max == c.End.Max)
+            return start;
+
+        return $"{start}=>{end}:{type}";
+    }
+
+    private static string FormatColorRange(VfxColorRange r)
+    {
+        if (r.Min == r.Max)
+            return FormatColor(r.Min);
+        return $"[{FormatColor(r.Min)}, {FormatColor(r.Max)}]";
+    }
+
+    private static string FormatColor(Color c)
+    {
+        var r = (byte)(Math.Clamp(c.R, 0, 1) * 255);
+        var g = (byte)(Math.Clamp(c.G, 0, 1) * 255);
+        var b = (byte)(Math.Clamp(c.B, 0, 1) * 255);
+        var a = (byte)(Math.Clamp(c.A, 0, 1) * 255);
+        return a == 255 ? $"#{r:X2}{g:X2}{b:X2}" : $"#{r:X2}{g:X2}{b:X2}{a:X2}";
+    }
+
+    private static string FormatCurveType(VfxCurveType type) => type switch
+    {
+        VfxCurveType.Linear => "linear",
+        VfxCurveType.EaseIn => "easein",
+        VfxCurveType.EaseOut => "easeout",
+        VfxCurveType.EaseInOut => "easeinout",
+        VfxCurveType.Quadratic => "quadratic",
+        VfxCurveType.Cubic => "cubic",
+        VfxCurveType.Sine => "sine",
+        _ => "linear"
+    };
 }

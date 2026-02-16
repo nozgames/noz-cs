@@ -26,15 +26,24 @@ public static class Audio
 
     public static SoundHandle Play(Sound sound, float volume = 1f, float pitch = 1f, bool loop = false, bool debounce=true)
     {
+        if (volume <= 0f || sound.PlatformHandle == 0)
+            return default;
+
         if (debounce)
         {
            if (_playFrame.TryGetValue(sound.Id, out var frame) && frame == Time.FrameCount)
                 return default;
-            
+
             _playFrame[sound.Id] = Time.FrameCount;
         }
 
         return new(Driver.Play(sound.PlatformHandle, volume, pitch, loop));
+    }
+
+    public static SoundHandle PlayRandomPitch(Sound sound, float volume, float minPitch, float maxPitch, bool loop = false, bool debounce = true)
+    {
+        var pitch = MathEx.RandomRange(minPitch, maxPitch);
+        return Play(sound, volume, pitch, loop, debounce);
     }
 
     public static SoundHandle PlayRandom(Sound[] sounds, float volume = 1f, float pitch = 1f, bool loop = false)
