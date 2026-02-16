@@ -26,9 +26,9 @@ export function init(dotNet, width, height) {
     // Prevent context menu on right click
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-    // Keyboard events
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    // Keyboard events (capture phase so we preventDefault before anything else handles it)
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
 
     // Mouse events
     canvas.addEventListener('mousedown', onMouseDown);
@@ -60,8 +60,8 @@ export function init(dotNet, width, height) {
 }
 
 export function shutdown() {
-    window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('keyup', onKeyUp, true);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('blur', onWindowBlur);
 
@@ -93,12 +93,34 @@ export function setCursor(cursorStyle) {
 }
 
 function onWindowBlur() {
-    // Send key-up for modifier keys so they don't get stuck
-    dotNetRef.invokeMethod('OnKeyUp', 'Control');
-    dotNetRef.invokeMethod('OnKeyUp', 'Shift');
-    dotNetRef.invokeMethod('OnKeyUp', 'Alt');
-    dotNetRef.invokeMethod('OnKeyUp', 'Meta');
+    // Release all modifier keys when window loses focus
+    syncModifier(false, 'Control');
+    syncModifier(false, 'Shift');
+    syncModifier(false, 'Alt');
+    syncModifier(false, 'Meta');
 }
+
+function syncModifiers(e) {
+    // Sync modifier key state with the browser's actual state to prevent stuck keys.
+    // This catches cases where keyup was missed (e.g. browser dialog stole focus).
+    syncModifier(e.ctrlKey, 'Control');
+    syncModifier(e.shiftKey, 'Shift');
+    syncModifier(e.altKey, 'Alt');
+    syncModifier(e.metaKey, 'Meta');
+}
+
+function syncModifier(pressed, key) {
+    var code = key.toLowerCase();
+    if (pressed && !modifierState[code]) {
+        modifierState[code] = true;
+        dotNetRef.invokeMethod('OnKeyDown', key);
+    } else if (!pressed && modifierState[code]) {
+        modifierState[code] = false;
+        dotNetRef.invokeMethod('OnKeyUp', key);
+    }
+}
+
+let modifierState = { control: false, shift: false, alt: false, meta: false };
 
 function onKeyDown(e) {
     // Prevent default for game keys (arrows, space, etc.)
@@ -110,7 +132,14 @@ function onKeyDown(e) {
     if ((e.ctrlKey || e.metaKey) && ['s', 'o', 'z', 'y'].includes(e.key.toLowerCase())) {
         e.preventDefault();
     }
-    dotNetRef.invokeMethod('OnKeyDown', e.key);
+
+    // Sync modifiers with browser state before processing the key
+    syncModifiers(e);
+
+    // Don't double-send modifier keys (syncModifiers already handled them)
+    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        dotNetRef.invokeMethod('OnKeyDown', e.key);
+    }
 
     // Forward printable characters as text input (e.key is a single char for printable keys)
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
@@ -119,7 +148,11 @@ function onKeyDown(e) {
 }
 
 function onKeyUp(e) {
-    dotNetRef.invokeMethod('OnKeyUp', e.key);
+    syncModifiers(e);
+
+    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        dotNetRef.invokeMethod('OnKeyUp', e.key);
+    }
 }
 
 function onMouseDown(e) {
