@@ -177,7 +177,13 @@ public static partial class UI
     private static void LayoutElement(int elementIndex, in Vector2 offset, in Vector2 sizeOverride)
     {
         ref var e = ref _elements[elementIndex++];
-        LogUI(e, $"{(e.ChildCount>0?"+":"-")} {e.Type}: Index={e.Index} Parent={e.ParentIndex} Sibling={e.NextSiblingIndex}", depth: -1);
+        LogUI(
+            e,
+            $"{(e.ChildCount>0?"+":"-")} {e.Type}: Index={e.Index} Parent={e.ParentIndex} Sibling={e.NextSiblingIndex}",
+            values: [
+                ( "Text", e.Type == ElementType.Label ? e.Data.Label.Text.AsReadOnlySpan().ToString() : "", e.Type == ElementType.Label),
+            ],
+            depth: -1);
 
         ref readonly var p = ref GetParent(in e);
         var size = MeasureElement(in e, in p);

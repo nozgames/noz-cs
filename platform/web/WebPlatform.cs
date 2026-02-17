@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Runtime.InteropServices.JavaScript;
 using Microsoft.JSInterop;
 using NoZ;
 using NoZ.Platform;
@@ -315,8 +316,23 @@ public class WebPlatform : IPlatform
 
     public Stream? OpenAssetStream(AssetType type, string name, string extension) => null;
 
-    public Stream? LoadPersistentData(string name, string? appName = null) => null; // TODO: Use localStorage
-    public void SavePersistentData(string name, Stream data, string? appName = null) { } // TODO: Use localStorage
+    public Stream? LoadPersistentData(string name, string? appName = null)
+    {
+        var key = $"noz:{appName ?? "default"}:{name}";
+        var value = WebStorageInterop.GetItem(key);
+        if (value == null)
+            return null;
+
+        return new MemoryStream(System.Text.Encoding.UTF8.GetBytes(value));
+    }
+
+    public void SavePersistentData(string name, Stream data, string? appName = null)
+    {
+        var key = $"noz:{appName ?? "default"}:{name}";
+        using var reader = new StreamReader(data);
+        var value = reader.ReadToEnd();
+        WebStorageInterop.SetItem(key, value);
+    }
 
     public void Log(string message) => Console.WriteLine(message);
 }

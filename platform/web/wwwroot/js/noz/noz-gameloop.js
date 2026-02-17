@@ -26,7 +26,7 @@ function tick(currentTime) {
     lastTime = currentTime;
 
     // Call C# game tick
-    dotNetRef.invokeMethodAsync('GameTick', deltaTime);
+    dotNetRef.invokeMethod('GameTick', deltaTime);
 
     // Schedule next frame
     animationFrameId = requestAnimationFrame(tick);

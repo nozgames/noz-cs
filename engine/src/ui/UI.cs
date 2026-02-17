@@ -820,9 +820,10 @@ public static partial class UI
     public static void EndPopup() => EndElement(ElementType.Popup);
 
     // :label
-    public static void Label(string text) => Label(text, new LabelStyle());
+    public static void Label(ReadOnlySpan<char> text) =>
+        Label(text, new LabelStyle());
 
-    public static void Label(string text, LabelStyle style)
+    public static void Label(ReadOnlySpan<char> text, LabelStyle style) 
     {
         ref var e = ref CreateElement(ElementType.Label);
         e.Asset = style.Font ?? _defaultFont;
@@ -840,6 +841,10 @@ public static partial class UI
         PushElement(e.Index);
         PopElement();
     }
+
+    public static void Label(string text) => Label(text, new LabelStyle());
+
+    public static void Label(string text, LabelStyle style) => Label(text.AsSpan(), style);
 
     public static void WrappedLabel(int id, string text, LabelStyle style)
     {
