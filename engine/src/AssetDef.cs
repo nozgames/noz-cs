@@ -6,10 +6,11 @@ namespace NoZ;
 
 public delegate Asset? LoadAssetDelegate(Stream stream, string name);
 
-public class AssetDef(AssetType type, Type runtimeType, LoadAssetDelegate load)
+public class AssetDef(AssetType type, Type runtimeType, LoadAssetDelegate load, ushort version = 0)
 {
     public AssetType Type { get; } = type;
     public Type RuntimeType { get; } = runtimeType;
+    public ushort Version { get; } = version;
     internal LoadAssetDelegate Load { get; } = load;
 }
 

@@ -33,32 +33,7 @@ public static partial class UI
 
         LogUI("Input:", values: [("FocusElementId", _focusElementId, true)]);
 
-        // Handle popup close detection
-        _closePopups = false;
-        if (_mouseLeftPressed && _popupCount > 0)
-        {
-            var clickInsideAutoClosePopup = false;
-            var anyAutoClose = false;
-            for (var i = 0; i < _popupCount; i++)
-            {
-                ref var popup = ref _elements[_popups[i]];
-                if (!popup.Data.Popup.AutoClose) continue;
-                anyAutoClose = true;
-                var localMouse = Vector2.Transform(mouse, popup.WorldToLocal);
-                if (popup.Rect.Contains(localMouse))
-                {
-                    clickInsideAutoClosePopup = true;
-                    break;
-                }
-            }
-
-            if (anyAutoClose && !clickInsideAutoClosePopup)
-            {
-                _closePopups = true;
-                _mouseLeftPressed = false;
-                Input.ConsumeButton(InputCode.MouseLeft);
-            }
-        }
+        HandlePopupAutoClose(mouse);
 
         // When multiple popups are open, determine which popup the mouse is over
         // so that child popups block input to elements in parent popups
@@ -100,6 +75,51 @@ public static partial class UI
         HandleScrollableDrag(mouse);
         HandleMouseWheelScroll(mouse);
         HandleCursor();
+    }
+
+    private static void HandlePopupAutoClose(Vector2 mouse)
+    {
+        _closePopups = false;
+        if (_popupCount == 0) return;
+
+        var anyAutoClose = false;
+        for (var i = 0; i < _popupCount; i++)
+        {
+            ref var popup = ref _elements[_popups[i]];
+            if (popup.Data.Popup.AutoClose) { anyAutoClose = true; break; }
+        }
+        if (!anyAutoClose) return;
+
+        // Escape closes auto-close popups
+        if (Input.WasButtonPressedRaw(InputCode.KeyEscape))
+        {
+            _closePopups = true;
+            Input.ConsumeButton(InputCode.KeyEscape);
+        }
+
+        // Click outside closes auto-close popups
+        if (_mouseLeftPressed)
+        {
+            var clickInsideAutoClosePopup = false;
+            for (var i = 0; i < _popupCount; i++)
+            {
+                ref var popup = ref _elements[_popups[i]];
+                if (!popup.Data.Popup.AutoClose) continue;
+                var localMouse = Vector2.Transform(mouse, popup.WorldToLocal);
+                if (popup.Rect.Contains(localMouse))
+                {
+                    clickInsideAutoClosePopup = true;
+                    break;
+                }
+            }
+
+            if (!clickInsideAutoClosePopup)
+            {
+                _closePopups = true;
+                _mouseLeftPressed = false;
+                Input.ConsumeButton(InputCode.MouseLeft);
+            }
+        }
     }
 
     private static bool GetScrollbarThumbRect(ref Element e, out Rect thumbRect)

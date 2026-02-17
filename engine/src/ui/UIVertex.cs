@@ -20,6 +20,7 @@ internal struct UIVertex : IVertex
     public Vector4 CornerRadii;
 
     public static readonly int SizeInBytes = Marshal.SizeOf(typeof(UIVertex));
+    public static readonly uint VertexHash = VertexFormatHash.Compute(GetFormatDescriptor().Attributes);
 
     public static VertexFormatDescriptor GetFormatDescriptor() => new()
     {

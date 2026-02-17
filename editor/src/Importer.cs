@@ -54,12 +54,20 @@ public static class Importer
             bool targetExists = File.Exists(targetPath);
             if (targetExists)
             {
-                var targetTime = File.GetLastWriteTimeUtc(targetPath);
-                var sourceTime = File.GetLastWriteTimeUtc(doc.Path);
-                var metaTime = File.Exists(metaPath) ? File.GetLastWriteTimeUtc(metaPath) : DateTime.MinValue;
+                // Force reimport if the binary's version doesn't match the engine's expected version
+                var assetDef = Asset.GetDef(doc.Def.Type);
+                if (assetDef is { Version: > 0 } && Asset.ReadAssetVersion(targetPath) != assetDef.Version)
+                    force = true;
 
-                if (sourceTime <= targetTime && metaTime <= targetTime)
-                    return;
+                if (!force)
+                {
+                    var targetTime = File.GetLastWriteTimeUtc(targetPath);
+                    var sourceTime = File.GetLastWriteTimeUtc(doc.Path);
+                    var metaTime = File.Exists(metaPath) ? File.GetLastWriteTimeUtc(metaPath) : DateTime.MinValue;
+
+                    if (sourceTime <= targetTime && metaTime <= targetTime)
+                        return;
+                }
             }
         }
 

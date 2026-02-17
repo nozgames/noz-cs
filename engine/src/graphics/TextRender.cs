@@ -14,7 +14,7 @@ internal static class TextRender
     private const int MaxIndices = 8192 / 4 * 6;
 
     private static Shader? _textShader;
-    private static nuint _mesh;
+    private static RenderMesh _mesh;
     private static NativeArray<TextVertex> _vertices = new NativeArray<TextVertex>(MaxVertices);
     private static NativeArray<ushort> _indices = new NativeArray<ushort>(MaxIndices);
 
@@ -42,7 +42,7 @@ internal static class TextRender
         if (_textShader == null) throw new Exception($"Failed to load text shader '{config.TextShader}'");
 
         _vertices = new NativeArray<TextVertex>(MaxVertices);
-        _mesh = Graphics.Driver.CreateMesh<TextVertex>(
+        _mesh = Graphics.CreateMesh<TextVertex>(
             MaxVertices,
             MaxIndices,
             BufferUsage.Dynamic,
@@ -54,8 +54,8 @@ internal static class TextRender
     {
         _wrapCache.Clear();
         _vertices.Dispose();
-        Graphics.Driver.DestroyMesh(_mesh);
-        _mesh = nuint.Zero;
+        Graphics.Driver.DestroyMesh(_mesh.Handle);
+        _mesh = default;
         _textShader = null;
     }
     
@@ -64,8 +64,8 @@ internal static class TextRender
         if (_vertices.Length == 0 && _indices.Length == 0)
             return;
 
-        Graphics.Driver.BindMesh(_mesh);
-        Graphics.Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _indices.AsSpan());
+        Graphics.Driver.BindMesh(_mesh.Handle);
+        Graphics.Driver.UpdateMesh(_mesh.Handle, _vertices.AsByteSpan(), _indices.AsSpan());
         _vertices.Clear();
         _indices.Clear();
     }

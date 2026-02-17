@@ -90,7 +90,7 @@ public static unsafe partial class Graphics
 
     private static ref State CurrentState => ref _stateStack[_stateStackDepth];
     
-    private static nuint _mesh;
+    private static RenderMesh _mesh;
     private static nuint _boneTexture;
     private const int BoneTextureSlot = 1;
     private static RenderPass _currentPass;
@@ -148,7 +148,7 @@ public static unsafe partial class Graphics
         _batchStates = new NativeArray<BatchState>(_maxBatches);
         _globalsSnapshots = new NativeArray<GlobalsSnapshot>(64);
 
-        _mesh = Driver.CreateMesh<MeshVertex>(
+        _mesh = CreateMesh<MeshVertex>(
             MaxVertices,
             MaxIndices,
             BufferUsage.Dynamic,
@@ -177,13 +177,13 @@ public static unsafe partial class Graphics
         _indices.Dispose();
         _globalsSnapshots.Dispose();
 
-        Driver.DestroyMesh(_mesh);
+        Driver.DestroyMesh(_mesh.Handle);
         Driver.DestroyTexture(_boneTexture);
         WhiteTexture?.Dispose();
 
         Driver.Shutdown();
 
-        _mesh = 0;
+        _mesh = default;
         _boneTexture = 0;
     }
 
@@ -309,6 +309,7 @@ public static unsafe partial class Graphics
     private static void AddBatchState()
     {
         _batchStateDirty = false;
+        ValidateBatchState();
 
         var currentProjection = _passProjections[(int)_currentPass];
 
@@ -321,7 +322,7 @@ public static unsafe partial class Graphics
             Viewport = CurrentState.Viewport,
             ScissorEnabled = CurrentState.ScissorEnabled,
             Scissor = CurrentState.Scissor,
-            Mesh = CurrentState.Mesh,
+            Mesh = CurrentState.Mesh.Handle,
             RenderTextureHandle = _activeRenderTexture.Handle,
             ClearColor = CurrentState.ClearColor
         };
@@ -501,11 +502,11 @@ public static unsafe partial class Graphics
 
         ref var firstBatch = ref _batches[0];
         ref var firstState = ref _batchStates[_commands[0].BatchState];
-        firstBatch.IndexOffset = firstState.Mesh != _mesh ? _commands[0].IndexOffset : 0;
+        firstBatch.IndexOffset = firstState.Mesh != _mesh.Handle ? _commands[0].IndexOffset : 0;
         firstBatch.IndexCount = _commands[0].IndexCount;
         firstBatch.State = _commands[0].BatchState;
 
-        if (firstState.Mesh == _mesh)
+        if (firstState.Mesh == _mesh.Handle)
             _sortedIndices.AddRange(
                 _indices.AsReadonlySpan(_commands[0].IndexOffset, _commands[0].IndexCount)
             );
@@ -518,7 +519,7 @@ public static unsafe partial class Graphics
             LogGraphicsVerbose($"  Command: Index={commandIndex}  SortKey={cmd.SortKey}  IndexOffset={cmd.IndexOffset} IndexCount={cmd.IndexCount} State={cmd.BatchState}");
 
             // External mesh: merge if same state and contiguous indices, otherwise new batch.
-            if (cmdState.Mesh != _mesh)
+            if (cmdState.Mesh != _mesh.Handle)
             {
                 ref var prevBatch = ref _batches[^1];
                 if (cmd.BatchState == prevBatch.State &&
@@ -581,8 +582,8 @@ public static unsafe partial class Graphics
             if ((_sortedIndices.Length & 1) != 0)
                 _sortedIndices.Add(0);
 
-            Driver.BindMesh(_mesh);
-            Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _sortedIndices.AsSpan());
+            Driver.BindMesh(_mesh.Handle);
+            Driver.UpdateMesh(_mesh.Handle, _vertices.AsByteSpan(), _sortedIndices.AsSpan());
         }
 
         UploadBones();
@@ -720,6 +721,73 @@ public static unsafe partial class Graphics
         LogGraphics($"ExecuteCommands Done");
         _batchStateDirty = true;
         _currentBatchState = 0;
+    }
+
+    [Conditional("DEBUG")]
+    private static void ValidateBatchState()
+    {
+        var shader = CurrentState.Shader;
+        if (shader == null) return;
+
+        foreach (var binding in shader.Bindings)
+        {
+            switch (binding.Type)
+            {
+                case ShaderBindingType.Texture2D:
+                case ShaderBindingType.Texture2DArray:
+                {
+                    int slot = FindTextureSlotForBinding(binding, shader);
+
+                    // Bone texture slot is bound globally in ExecuteCommands, not per draw call
+                    if (slot == BoneTextureSlot)
+                        break;
+
+                    var textureHandle = slot >= 0 ? (nuint)CurrentState.Textures[slot] : 0;
+                    Debug.Assert(textureHandle != 0,
+                        $"Shader '{shader.Name}' binding {binding.Binding} ('{binding.Name}') expects a texture but none is bound");
+
+                    if (textureHandle != 0)
+                    {
+                        var texture = Asset.Get<Texture>(AssetType.Texture, textureHandle);
+                        if (texture != null)
+                        {
+                            if (binding.Type == ShaderBindingType.Texture2DArray)
+                                Debug.Assert(texture.IsArray,
+                                    $"Shader '{shader.Name}' binding {binding.Binding} ('{binding.Name}') expects texture_2d_array but got texture_2d");
+                            else
+                                Debug.Assert(!texture.IsArray,
+                                    $"Shader '{shader.Name}' binding {binding.Binding} ('{binding.Name}') expects texture_2d but got texture_2d_array");
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (CurrentState.Mesh.Handle != 0 && shader.VertexFormatHash != 0)
+        {
+            var meshHash = CurrentState.Mesh.VertexHash;
+            Debug.Assert(meshHash == 0 || meshHash == shader.VertexFormatHash,
+                $"Vertex format mismatch: shader '{shader.Name}' (hash 0x{shader.VertexFormatHash:X8}) " +
+                $"is incompatible with bound mesh (hash 0x{meshHash:X8})");
+        }
+    }
+
+    private static int FindTextureSlotForBinding(ShaderBinding target, Shader shader)
+    {
+        int slotIndex = 0;
+        foreach (var binding in shader.Bindings)
+        {
+            if (binding.Type is ShaderBindingType.Texture2D
+                or ShaderBindingType.Texture2DArray
+                or ShaderBindingType.Texture2DUnfilterable)
+            {
+                if (binding.Binding == target.Binding)
+                    return slotIndex;
+                slotIndex++;
+            }
+        }
+        return -1;
     }
 
     [Conditional("NOZ_GRAPHICS_DEBUG")]

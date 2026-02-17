@@ -32,11 +32,12 @@ public struct ShaderBinding
 
 public class Shader : Asset
 {
-    internal const byte Version = 2;
+    internal const byte Version = 3;
 
     public ShaderFlags Flags { get; private set; }
     public List<ShaderBinding> Bindings { get; private set; } = new();
     public string Source { get; private set; } = "";
+    public uint VertexFormatHash { get; private set; }
 
     private Shader(string name) : base(AssetType.Shader, name)
     {
@@ -61,12 +62,14 @@ public class Shader : Asset
             };
             bindings.Add(binding);
         }
+        var vertexFormatHash = reader.ReadUInt32();
 
         var shader = new Shader(name)
         {
             Flags = flags,
             Source = source,
-            Bindings = bindings
+            Bindings = bindings,
+            VertexFormatHash = vertexFormatHash,
         };
 
         shader.Handle = Graphics.Driver.CreateShader(name, source, source, bindings);
@@ -86,6 +89,6 @@ public class Shader : Asset
 
     internal static void RegisterDef()
     {
-        RegisterDef(new AssetDef(AssetType.Shader, typeof(Shader), Load));
+        RegisterDef(new AssetDef(AssetType.Shader, typeof(Shader), Load, Version));
     }
 }

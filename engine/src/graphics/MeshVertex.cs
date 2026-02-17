@@ -24,6 +24,7 @@ public struct MeshVertex(float x, float y, float u, float v, Color color, int at
     public float AnimStartTime = 0;
 
     public static readonly int SizeInBytes = Marshal.SizeOf<MeshVertex>();
+    public static readonly uint VertexHash = VertexFormatHash.Compute(GetFormatDescriptor().Attributes);
 
     public static VertexFormatDescriptor GetFormatDescriptor() => new()
     {

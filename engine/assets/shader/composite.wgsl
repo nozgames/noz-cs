@@ -7,10 +7,18 @@
 @group(0) @binding(0) var scene_texture: texture_2d<f32>;
 @group(0) @binding(1) var scene_sampler: sampler;
 
-// Vertex input
+// Vertex input (must declare all MeshVertex attributes for format hash compatibility)
 struct VertexInput {
     @location(0) position: vec2<f32>,
     @location(1) uv: vec2<f32>,
+    @location(2) normal: vec2<f32>,
+    @location(3) color: vec4<f32>,
+    @location(4) bone: i32,
+    @location(5) atlas: i32,
+    @location(6) frame_count: i32,
+    @location(7) frame_width: f32,
+    @location(8) frame_rate: f32,
+    @location(9) frame_time: f32,
 }
 
 // Vertex output / Fragment input

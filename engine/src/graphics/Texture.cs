@@ -41,6 +41,7 @@ public class Texture : Asset
             Data = data.ToArray()
         };
         texture.Upload();
+        texture.Register();
         return texture;
     }
 
@@ -53,6 +54,7 @@ public class Texture : Asset
         };
         texture.Handle = rt.Handle;
         texture._ownsRenderTexture = true;
+        texture.Register();
         return texture;
     }
 
@@ -116,6 +118,7 @@ public class Texture : Asset
             Handle = handle
         };
 
+        texture.Register();
         return texture;
     }
 
@@ -135,12 +138,13 @@ public class Texture : Asset
 
     internal static void RegisterDef()
     {
-        RegisterDef(new AssetDef(AssetType.Texture, typeof(Texture), Load));
+        RegisterDef(new AssetDef(AssetType.Texture, typeof(Texture), Load, Version));
     }
 
     public override void Dispose()
     {
         GC.SuppressFinalize(this);
+        Unregister();
 
         if (Handle != nuint.Zero)
         {

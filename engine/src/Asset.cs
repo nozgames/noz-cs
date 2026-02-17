@@ -135,6 +135,24 @@ public class Asset : IDisposable {
         return true;
     }
 
+    public static ushort ReadAssetVersion(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var reader = new BinaryReader(stream);
+            if (stream.Length < 9) return 0;
+            var signature = reader.ReadUInt32();
+            if (signature != Constants.AssetSignature) return 0;
+            reader.ReadByte(); // type
+            return reader.ReadUInt16();
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     internal static void RegisterDef(AssetDef def)
     {
         Debug.Assert(Defs[(int)def.Type] == null);
@@ -146,6 +164,9 @@ public class Asset : IDisposable {
         var index = (int)type;
         return index >= 0 && index < Defs.Length ? Defs[index] : null;
     }
+
+    protected void Register() => _registry[(Def.Type, Name)] = this;
+    protected void Unregister() => _registry.Remove((Def.Type, Name));
 
     public virtual void Dispose()
     {

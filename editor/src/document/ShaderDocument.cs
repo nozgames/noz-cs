@@ -55,6 +55,7 @@ public class ShaderDocument : Document
     {
         var wgslSource = File.ReadAllText(Path);
         var bindings = ParseWgslBindings(wgslSource);
+        var vertexHash = ComputeVertexInputHash(wgslSource);
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Shader, Shader.Version);
@@ -70,8 +71,9 @@ public class ShaderDocument : Document
             writer.Write((byte)binding.Type);
             writer.Write(binding.Name);
         }
+        writer.Write(vertexHash);
 
-        Log.Info($"Imported WGSL shader {Name} with {bindings.Count} bindings");
+        Log.Info($"Imported WGSL shader {Name} with {bindings.Count} bindings, vertexHash=0x{vertexHash:X8}");
     }
 
     private List<ShaderBinding> ParseWgslBindings(string wgslSource)
@@ -133,6 +135,48 @@ public class ShaderDocument : Document
 
         return bindingDict.Values.OrderBy(b => b.Binding).ToList();
     }
+
+    private static uint ComputeVertexInputHash(string wgslSource)
+    {
+        // Find the VertexInput struct and parse its @location attributes
+        var structMatch = Regex.Match(wgslSource, @"struct\s+VertexInput\s*\{([^}]+)\}");
+        if (!structMatch.Success)
+            return 0;
+
+        var body = structMatch.Groups[1].Value;
+        var locationPattern = @"@location\s*\(\s*(\d+)\s*\)\s+\w+\s*:\s*(\w+)";
+        var matches = Regex.Matches(body, locationPattern);
+
+        Span<(int location, int components, VertexAttribType type)> attrs =
+            stackalloc (int, int, VertexAttribType)[matches.Count];
+
+        for (int i = 0; i < matches.Count; i++)
+        {
+            var location = int.Parse(matches[i].Groups[1].Value);
+            var wgslType = matches[i].Groups[2].Value;
+            var (components, attribType) = MapWgslType(wgslType);
+            attrs[i] = (location, components, attribType);
+        }
+
+        return VertexFormatHash.Compute(attrs);
+    }
+
+    private static (int components, VertexAttribType type) MapWgslType(string wgslType) => wgslType switch
+    {
+        "f32" => (1, VertexAttribType.Float),
+        "i32" => (1, VertexAttribType.Int),
+        "u32" => (1, VertexAttribType.Int),
+        _ when wgslType.StartsWith("vec2") && wgslType.Contains("f32") => (2, VertexAttribType.Float),
+        _ when wgslType.StartsWith("vec2") && wgslType.Contains("i32") => (2, VertexAttribType.Int),
+        _ when wgslType.StartsWith("vec3") && wgslType.Contains("f32") => (3, VertexAttribType.Float),
+        _ when wgslType.StartsWith("vec3") && wgslType.Contains("i32") => (3, VertexAttribType.Int),
+        _ when wgslType.StartsWith("vec4") && wgslType.Contains("f32") => (4, VertexAttribType.Float),
+        _ when wgslType.StartsWith("vec4") && wgslType.Contains("i32") => (4, VertexAttribType.Int),
+        _ when wgslType.StartsWith("vec2") => (2, VertexAttribType.Float),
+        _ when wgslType.StartsWith("vec3") => (3, VertexAttribType.Float),
+        _ when wgslType.StartsWith("vec4") => (4, VertexAttribType.Float),
+        _ => (1, VertexAttribType.Float),
+    };
 
     private ShaderFlags GetShaderFlags()
     {

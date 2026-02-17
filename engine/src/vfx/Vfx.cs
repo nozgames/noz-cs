@@ -197,6 +197,6 @@ public class Vfx : Asset
 
     internal static void RegisterDef()
     {
-        RegisterDef(new AssetDef(AssetType.Vfx, typeof(Vfx), Load));
+        RegisterDef(new AssetDef(AssetType.Vfx, typeof(Vfx), Load, Version));
     }
 }

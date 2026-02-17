@@ -7,6 +7,7 @@
 
 using System.Diagnostics;
 using System.Numerics;
+using NoZ.Platform;
 
 namespace NoZ;
 
@@ -28,7 +29,7 @@ public static unsafe partial class Graphics
         public RectInt Viewport;
         public bool ScissorEnabled;
         public RectInt Scissor;
-        public nuint Mesh;
+        public RenderMesh Mesh;
         public float Opacity;
     }
 
@@ -133,11 +134,18 @@ public static unsafe partial class Graphics
         _passProjections[(int)_currentPass] = projection;
     }
 
-    public static void SetMesh(nuint vertexArray)
+    public static void SetMesh(RenderMesh mesh)
     {
-        if (CurrentState.Mesh == vertexArray) return;
-        CurrentState.Mesh = vertexArray;
+        if (CurrentState.Mesh == mesh) return;
+        CurrentState.Mesh = mesh;
         _batchStateDirty = true;
+    }
+
+    public static RenderMesh CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : unmanaged, IVertex
+    {
+        var handle = Driver.CreateMesh<T>(maxVertices, maxIndices, usage, name);
+        var hash = VertexFormatHash.Compute(T.GetFormatDescriptor().Attributes);
+        return new RenderMesh(handle, hash);
     }
 
     public static void MultiplyTransform(in Matrix3x2 transform)

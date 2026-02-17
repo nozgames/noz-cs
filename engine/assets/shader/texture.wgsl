@@ -44,8 +44,14 @@ fn get_bone_transform(bone: i32) -> mat3x2<f32> {
 struct VertexInput {
     @location(0) position: vec2<f32>,
     @location(1) uv: vec2<f32>,
+    @location(2) normal: vec2<f32>,
     @location(3) color: vec4<f32>,
-    @location(4) bone: i32
+    @location(4) bone: i32,
+    @location(5) atlas: i32,
+    @location(6) frame_count: i32,
+    @location(7) frame_width: f32,
+    @location(8) frame_rate: f32,
+    @location(9) frame_time: f32,
 }
 
 struct VertexOutput {

@@ -130,7 +130,7 @@ public static partial class UI
 
         _vertices = new NativeArray<UIVertex>(MaxUIVertices);
         _indices = new NativeArray<ushort>(MaxUIIndices);
-        _mesh = Graphics.Driver.CreateMesh<UIVertex>(
+        _mesh = Graphics.CreateMesh<UIVertex>(
             MaxUIVertices,
             MaxUIIndices,
             BufferUsage.Dynamic,
@@ -146,7 +146,7 @@ public static partial class UI
         _vertices.Dispose();
         _indices.Dispose();
 
-        Graphics.Driver.DestroyMesh(_mesh);
+        Graphics.Driver.DestroyMesh(_mesh.Handle);
 
         _textBuffers[0].Dispose();
         _textBuffers[1].Dispose();

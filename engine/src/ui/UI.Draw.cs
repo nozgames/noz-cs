@@ -14,7 +14,7 @@ public static partial class UI
 {
     private const int MaxUIVertices = 16384;
     private const int MaxUIIndices = 32768;
-    private static nuint _mesh;
+    private static RenderMesh _mesh;
     private static NativeArray<UIVertex> _vertices;
     private static NativeArray<ushort> _indices;
     private static Shader _shader = null!;
@@ -484,8 +484,8 @@ public static partial class UI
     public static void Flush()
     {
         if (_indices.Length == 0) return;
-        Graphics.Driver.BindMesh(_mesh);
-        Graphics.Driver.UpdateMesh(_mesh, _vertices.AsByteSpan(), _indices.AsSpan());
+        Graphics.Driver.BindMesh(_mesh.Handle);
+        Graphics.Driver.UpdateMesh(_mesh.Handle, _vertices.AsByteSpan(), _indices.AsSpan());
         _vertices.Clear();
         _indices.Clear();
     }

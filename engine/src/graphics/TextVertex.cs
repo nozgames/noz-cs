@@ -12,6 +12,7 @@ namespace NoZ;
 public struct TextVertex : IVertex
 {
     public static readonly int SizeInBytes = Marshal.SizeOf<TextVertex>();
+    public static readonly uint VertexHash = VertexFormatHash.Compute(GetFormatDescriptor().Attributes);
 
     public Vector2 Position;
     public Vector2 UV;

@@ -171,7 +171,7 @@ public class Font : Asset
 
     internal static void RegisterDef()
     {
-        RegisterDef(new AssetDef(AssetType.Font, typeof(Font), Load));
+        RegisterDef(new AssetDef(AssetType.Font, typeof(Font), Load, Version));
     }
 
     public override void Dispose()
