@@ -404,6 +404,10 @@ public static class DocumentManager
 
         DocumentAdded?.Invoke(doc);
 
+        // Re-import after atlas assignment so the binary has correct atlas UVs
+        Importer.Queue(doc, force: true);
+        Importer.Update();
+
         return doc;
     }
 }

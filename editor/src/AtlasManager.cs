@@ -30,17 +30,9 @@ public static class AtlasManager
     private static void HandleDocumentAdded(Document doc)
     {
         if (doc is SpriteDocument sprite)
-        {
-            _sources.Add(sprite);
-            Add(sprite);
-            Update();
-        }
+            AddSource(sprite);
         else if (doc is TextureDocument { IsSprite: true } texture)
-        {
-            _sources.Add(texture);
-            Add(texture);
-            Update();
-        }
+            AddSource(texture);
     }
 
     private static string GetAtlasName(int index) => $"{EditorApplication.Config.AtlasPrefix}{index:000}.atlas";
