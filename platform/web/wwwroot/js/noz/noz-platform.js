@@ -4,9 +4,13 @@ let canvas = null;
 let dotNetRef = null;
 let lastClickTime = 0;
 let clickCount = 0;
+let gameLoop = null;
 
-export function init(dotNet, width, height) {
+export async function init(dotNet, width, height) {
     dotNetRef = dotNet;
+
+    // Import game loop module so we can pause/resume on visibility change
+    gameLoop = await import('/js/noz/noz-gameloop.js');
 
     // Use the canvas created by Blazor (same one WebGPU uses)
     canvas = document.getElementById('canvas');
@@ -262,7 +266,15 @@ function onBeforeUnload(e) {
 }
 
 function onVisibilityChange() {
+    const visible = document.visibilityState === 'visible';
+
+    // Pause/resume the game loop — prevents calling into WebGPU while the tab is hidden
+    // and avoids a huge delta time spike on the first frame back
+    if (gameLoop) {
+        gameLoop.setPaused(!visible);
+    }
+
     if (dotNetRef) {
-        dotNetRef.invokeMethod('OnVisibilityChanged', document.visibilityState === 'visible');
+        dotNetRef.invokeMethod('OnVisibilityChanged', visible);
     }
 }

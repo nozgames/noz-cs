@@ -46,6 +46,10 @@ public class WebPlatform : IPlatform
         // Don't overwrite _windowSize if InitAsync already set it to actual window size
         if (!_initialized)
             _windowSize = new Vector2(config.Width, config.Height);
+
+        // WantsToQuit comes from Application.Init (via IApplication.WantsToQuit),
+        // which is called after InitAsync, so we must pick it up here.
+        _wantsToQuit = config.WantsToQuit;
     }
 
     private bool _initialized;

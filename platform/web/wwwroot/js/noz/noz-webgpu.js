@@ -63,6 +63,12 @@ export async function init(canvasSelector) {
         throw new Error("Failed to get WebGPU device");
     }
 
+    device.lost.then((info) => {
+        console.error(`WebGPU device lost: reason=${info.reason}, message=${info.message}`);
+        device = null;
+        queue = null;
+    });
+
     queue = device.queue;
 
     canvas = document.querySelector(canvasSelector);
@@ -652,6 +658,8 @@ export function createBindGroupFromJson(layoutId, entriesJson, label) {
 // ============================================================================
 
 export function beginFrame() {
+    if (!device) return false;
+
     // Check for resize
     checkResize();
 
