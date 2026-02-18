@@ -683,7 +683,7 @@ public class SpriteDocument : Document, ISpriteSource
         }
     }
 
-    public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform, int frame = 0)
+    public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform, int frame = 0, Color? tint = null)
     {
         if (Atlas == null) return;
 
@@ -694,7 +694,7 @@ public class SpriteDocument : Document, ISpriteSource
         {
             Graphics.SetTexture(Atlas.Texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetColor(Color.White);
+            Graphics.SetColor(tint ?? Color.White);
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
             var fi = sprite.FrameTable[frame];

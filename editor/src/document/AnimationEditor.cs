@@ -794,6 +794,7 @@ internal partial class AnimationEditor : DocumentEditor
         {
             Graphics.SetTransform(baseTransform);
             Document.DrawOrigin();
+            DrawOnionSkin();
             DrawBones();
             Graphics.SetSortGroup(0);
             Document.DrawSprites();
@@ -813,41 +814,31 @@ internal partial class AnimationEditor : DocumentEditor
         if (skeleton == null)
             return;
 
-        var boneRadius = EditorStyle.Skeleton.JointSize * Gizmos.ZoomRefScale;
-
         var prevFrame = (Document.CurrentFrame - 1 + Document.FrameCount) % Document.FrameCount;
-        Document.UpdateTransforms(prevFrame);
-        var prevColor = new Color(1f, 0f, 0f, 0.25f);
-
-        for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
-        {
-            var bone = skeleton.Bones[boneIndex];
-            var boneTransform = Document.LocalToWorld[boneIndex];
-            var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
-            var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
-
-            Gizmos.DrawBone(p0, p1);
-            Gizmos.SetColor(prevColor);
-            Gizmos.DrawCircle(p0, boneRadius);
-        }
-
         var nextFrame = (Document.CurrentFrame + 1) % Document.FrameCount;
-        Document.UpdateTransforms(nextFrame);
-        var nextColor = new Color(0f, 1f, 0f, 0.25f);
+        var prevColor = new Color(1f, 0.3f, 0.3f, 0.3f);
+        var nextColor = new Color(0.3f, 1f, 0.3f, 0.3f);
 
-        for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
-        {
-            var bone = skeleton.Bones[boneIndex];
-            var boneTransform = Document.LocalToWorld[boneIndex];
-            var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
-            var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
-
-            Gizmos.DrawBone(p0, p1);
-            Gizmos.SetColor(nextColor);
-            Gizmos.DrawCircle(p0, boneRadius);
-        }
+        DrawOnionSkinFrame(skeleton, prevFrame, prevColor);
+        DrawOnionSkinFrame(skeleton, nextFrame, nextColor);
 
         Document.UpdateTransforms();
+    }
+
+    private void DrawOnionSkinFrame(SkeletonDocument skeleton, int frame, Color tint)
+    {
+        Document.UpdateTransforms(frame);
+
+        using (Graphics.PushState())
+        {
+            Graphics.SetLayer(EditorLayer.Grid);
+
+            for (var i = 0; i < skeleton.Sprites.Count; i++)
+            {
+                var sprite = skeleton.Sprites[i];
+                sprite.DrawSprite(skeleton.WorldToLocal, Document.LocalToWorld, Document.Transform, tint: tint);
+            }
+        }
     }
 
     public override void OnUndoRedo()
