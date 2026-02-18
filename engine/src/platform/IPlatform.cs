@@ -62,6 +62,8 @@ public interface IPlatform
     void SetClipboardText(string text);
     string? GetClipboardText();
 
+    bool IsMouseInWindow { get; }
+
     void SetCursor(SystemCursor cursor);
 
     bool IsFullscreen { get; }

@@ -25,6 +25,7 @@ public static class Application
 
     public static event Action? BeginFrame;
     public static event Action? PreFrame;
+    public static event Action<bool>? FocusChanged;
 
     public static void SetWindowSize(int width, int height) => Platform.SetWindowSize(width, height);
     public static void SetWindowPosition(int x, int y) => Platform.SetWindowPosition(x, y);
@@ -75,11 +76,14 @@ public static class Application
             Y = config.Y,
             VSync = config.VSync,
             Resizable = config.Resizable,
-            IconPath = config.IconPath
+            IconPath = config.IconPath,
+            WantsToQuit = _instance.WantsToQuit,
+            BeforeQuit = _instance.BeforeQuit,
         });
 
         // Subscribe to platform events
         Platform.OnEvent += Input.ProcessEvent;
+        Platform.OnEvent += OnPlatformEvent;
 
         // Initialize subsystems
         Time.Init();
@@ -179,6 +183,7 @@ public static class Application
         Time.Shutdown();
 
         Platform.OnEvent -= Input.ProcessEvent;
+        Platform.OnEvent -= OnPlatformEvent;
         Platform.SetResizeCallback(null);
         Platform.Shutdown();
 
@@ -188,6 +193,16 @@ public static class Application
     public static void Quit()
     {
         _running = false;
+    }
+
+    public static void InvokeFocusChanged(bool focused) => FocusChanged?.Invoke(focused);
+
+    private static void OnPlatformEvent(PlatformEvent evt)
+    {
+        if (evt.Type == PlatformEventType.WindowFocus)
+            FocusChanged?.Invoke(true);
+        else if (evt.Type == PlatformEventType.WindowUnfocus)
+            FocusChanged?.Invoke(false);
     }
 
     public static void OpenURL(string url) => Platform.OpenURL(url);

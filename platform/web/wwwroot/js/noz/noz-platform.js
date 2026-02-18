@@ -4,7 +4,6 @@ let canvas = null;
 let dotNetRef = null;
 let lastClickTime = 0;
 let clickCount = 0;
-let hasMouseEntered = false;
 
 export function init(dotNet, width, height) {
     dotNetRef = dotNet;
@@ -52,6 +51,12 @@ export function init(dotNet, width, height) {
     // Without this, modifier keys get "stuck" because the keyup event never fires
     window.addEventListener('blur', onWindowBlur);
 
+    // Warn the user before leaving the page if there are unsaved changes
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    // Notify C# when tab visibility changes (focus gained/lost)
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     // Prevent default behaviors that interfere with games
     canvas.tabIndex = 1;
     canvas.focus();
@@ -65,6 +70,8 @@ export function shutdown() {
     window.removeEventListener('keyup', onKeyUp, true);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('blur', onWindowBlur);
+    window.removeEventListener('beforeunload', onBeforeUnload);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
 
     if (canvas) {
         canvas.removeEventListener('mousedown', onMouseDown);
@@ -182,26 +189,18 @@ function onMouseMove(e) {
     const dpr = window.devicePixelRatio || 1;
     const x = (e.clientX - rect.left) * dpr;
     const y = (e.clientY - rect.top) * dpr;
+    dotNetRef.invokeMethod('OnMouseEnter');
     dotNetRef.invokeMethod('OnMouseMove', x, y);
-
-    // If mouse was already over the canvas on page load, mouseenter never fires.
-    // Synthesize it on the first mousemove so the custom cursor becomes visible.
-    if (!hasMouseEntered) {
-        hasMouseEntered = true;
-        dotNetRef.invokeMethod('OnMouseEnter');
-    }
 }
 
 function onMouseEnter(e) {
-    hasMouseEntered = true;
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    dotNetRef.invokeMethod('OnMouseMove', (e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
     dotNetRef.invokeMethod('OnMouseEnter');
+    dotNetRef.invokeMethod('OnMouseMove', (e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
 }
 
 function onMouseLeave() {
-    hasMouseEntered = false;
     dotNetRef.invokeMethod('OnMouseLeave');
 }
 
@@ -253,4 +252,17 @@ function onResize() {
     }
     // Notify C# of the pixel size (not CSS size)
     dotNetRef.invokeMethod('OnResize', width, height);
+}
+
+function onBeforeUnload(e) {
+    if (dotNetRef && dotNetRef.invokeMethod('ShouldPreventUnload')) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+}
+
+function onVisibilityChange() {
+    if (dotNetRef) {
+        dotNetRef.invokeMethod('OnVisibilityChanged', document.visibilityState === 'visible');
+    }
 }

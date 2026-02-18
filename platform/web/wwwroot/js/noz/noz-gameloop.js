@@ -22,12 +22,12 @@ export function stop() {
 function tick(currentTime) {
     if (!running) return;
 
+    // Schedule next frame first so an exception in GameTick can't break the loop
+    animationFrameId = requestAnimationFrame(tick);
+
     const deltaTime = (currentTime - lastTime) / 1000.0; // Convert to seconds
     lastTime = currentTime;
 
     // Call C# game tick
     dotNetRef.invokeMethod('GameTick', deltaTime);
-
-    // Schedule next frame
-    animationFrameId = requestAnimationFrame(tick);
 }

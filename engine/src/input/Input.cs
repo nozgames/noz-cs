@@ -266,14 +266,6 @@ public static class Input
                 }
                 break;
 
-            case PlatformEventType.WindowMouseEnter:
-                MouseInWindow = true;
-                break;
-
-            case PlatformEventType.WindowMouseLeave:
-                MouseInWindow = false;
-                break;
-
             case PlatformEventType.WindowFocus:
                 for (var i = 0; i < (int)InputCode.Count; i++)
                 {
@@ -383,5 +375,5 @@ public static class Input
     public static string GetTextInput(InputScope scope) => CheckScope(scope) ? _textInput : string.Empty;
 
     public static Vector2 MousePosition { get; private set; }
-    public static bool MouseInWindow { get; private set; } = true;
+    public static bool MouseInWindow => Application.Platform.IsMouseInWindow;
 }

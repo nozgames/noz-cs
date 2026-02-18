@@ -17,6 +17,9 @@ public interface IApplication
     void LoadAssets() { }
     void UnloadAssets() { }
     void ReloadAssets() { }
+
+    bool WantsToQuit() => true;
+    void BeforeQuit() { }
 }
 
 public class ApplicationConfig

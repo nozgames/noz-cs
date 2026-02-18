@@ -28,6 +28,4 @@ public enum PlatformEventType
     WindowResize,
     WindowFocus,
     WindowUnfocus,
-    WindowMouseEnter,
-    WindowMouseLeave,
 }

@@ -20,7 +20,10 @@ public class WebPlatform : IPlatform
     private bool _shouldQuit;
     private DotNetObjectReference<WebPlatform>? _dotNetRef;
     private readonly Queue<PlatformEvent> _eventQueue = new();
+    private bool _isMouseInWindow;
+    private Func<bool>? _wantsToQuit;
 
+    public bool IsMouseInWindow => _isMouseInWindow;
     Vector2Int IPlatform.WindowSize => new((int)_windowSize.X, (int)_windowSize.Y);
     public Vector2Int WindowPosition => Vector2Int.Zero; // Not applicable for web
     public float DisplayScale => _displayScale;
@@ -51,6 +54,7 @@ public class WebPlatform : IPlatform
     {
         _windowSize = new Vector2(config.Width, config.Height);
         _dotNetRef = DotNetObjectReference.Create(this);
+        _wantsToQuit = config.WantsToQuit;
 
         _module = await _js.InvokeAsync<IJSObjectReference>("import", "/js/noz/noz-platform.js");
         var result = await _module.InvokeAsync<InitResult>("init", _dotNetRef, config.Width, config.Height);
@@ -58,8 +62,7 @@ public class WebPlatform : IPlatform
         _displayScale = result.Dpr;
         _initialized = true;
 
-        // Start with mouse outside window so custom cursor is hidden until real mouse events arrive
-        _eventQueue.Enqueue(PlatformEvent.MouseLeave());
+        // _isMouseInWindow defaults to false so custom cursor is hidden until real mouse events arrive
     }
 
     private record InitResult(int Width, int Height, float Dpr);
@@ -88,6 +91,18 @@ public class WebPlatform : IPlatform
     public void RequestQuit()
     {
         _shouldQuit = true;
+    }
+
+    [JSInvokable]
+    public bool ShouldPreventUnload()
+    {
+        return _wantsToQuit != null && !_wantsToQuit();
+    }
+
+    [JSInvokable]
+    public void OnVisibilityChanged(bool visible)
+    {
+        _eventQueue.Enqueue(visible ? PlatformEvent.Focus() : PlatformEvent.Unfocus());
     }
 
     public void SetResizeCallback(Action? callback)
@@ -200,13 +215,13 @@ public class WebPlatform : IPlatform
     [JSInvokable]
     public void OnMouseEnter()
     {
-        _eventQueue.Enqueue(PlatformEvent.MouseEnter());
+        _isMouseInWindow = true;
     }
 
     [JSInvokable]
     public void OnMouseLeave()
     {
-        _eventQueue.Enqueue(PlatformEvent.MouseLeave());
+        _isMouseInWindow = false;
     }
 
     [JSInvokable]

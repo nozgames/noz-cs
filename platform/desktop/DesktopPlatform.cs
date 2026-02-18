@@ -18,6 +18,10 @@ public unsafe partial class SDLPlatform : IPlatform
     private readonly SDL_Cursor*[] _cursors = new SDL_Cursor*[Enum.GetValues<SystemCursor>().Length];
     private SystemCursor _currentCursor = SystemCursor.Default;
     private SDL_Gamepad* _gamepad;
+    private bool _isMouseInWindow = true;
+    private Action? _beforeQuit;
+
+    public bool IsMouseInWindow => _isMouseInWindow;
 
     public Vector2Int WindowSize { get; private set; }
 
@@ -98,6 +102,8 @@ public unsafe partial class SDLPlatform : IPlatform
             _gamepad = SDL_OpenGamepad(joysticks[0]);
         SDL_free(joysticks);
         SDL_StartTextInput(_window);
+
+        _beforeQuit = config.BeforeQuit;
     }
 
     public void SetResizeCallback(Action? callback)
@@ -165,7 +171,10 @@ public unsafe partial class SDLPlatform : IPlatform
         while (SDL_PollEvent(&evt))
         {
             if (evt.Type == SDL_EventType.SDL_EVENT_QUIT)
+            {
+                _beforeQuit?.Invoke();
                 return false;
+            }
 
             ProcessEvent(evt);
         }
@@ -288,11 +297,19 @@ public unsafe partial class SDLPlatform : IPlatform
                 break;
 
             case SDL_EventType.SDL_EVENT_WINDOW_MOUSE_ENTER:
-                OnEvent?.Invoke(PlatformEvent.MouseEnter());
+                _isMouseInWindow = true;
                 break;
 
             case SDL_EventType.SDL_EVENT_WINDOW_MOUSE_LEAVE:
-                OnEvent?.Invoke(PlatformEvent.MouseLeave());
+                _isMouseInWindow = false;
+                break;
+
+            case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_GAINED:
+                OnEvent?.Invoke(PlatformEvent.Focus());
+                break;
+
+            case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST:
+                OnEvent?.Invoke(PlatformEvent.Unfocus());
                 break;
         }
     }

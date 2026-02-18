@@ -19,4 +19,7 @@ public class PlatformConfig
     public bool Resizable { get; init; } = true;
     public string? IconPath { get; init; }
     public int MsaaSamples { get; init; } = 4;
+
+    public Func<bool>? WantsToQuit { get; init; }
+    public Action? BeforeQuit { get; init; }
 }
