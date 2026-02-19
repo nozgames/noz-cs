@@ -97,7 +97,7 @@ public static class EditorStyle
         public static readonly ContainerStyle Fill = new()
         {
             Color = Color.FromRgb(0x1d1d1d),
-            Border = new BorderStyle { Radius = BorderRadius }
+            BorderRadius = BorderRadius
         };
 
         public static readonly ContainerStyle Content = new()
@@ -161,7 +161,7 @@ public static class EditorStyle
         public static readonly ContainerStyle Root = new()
         {
             Color = Color.FromRgb(0x323232),
-            Border = new BorderStyle { Radius = BorderRadius, Width = BorderWidth, Color = Color.Black20Pct},
+            BorderRadius = BorderRadius, BorderWidth = BorderWidth, BorderColor = Color.Black20Pct,
             Padding = EdgeInsets.All(BorderWidth)
         };
 
@@ -190,7 +190,7 @@ public static class EditorStyle
             AlignY = Align.Center,
             Padding = EdgeInsets.All(Control.Spacing),
             Color = FillColor,
-            Border = new BorderStyle { Radius = 14f, Width = 1.0f, Color = BorderColor }
+            BorderRadius = 14f, BorderWidth = 1.0f, BorderColor = Popup.BorderColor
         };
         public readonly static ContainerStyle Item = Control.Root;
         public readonly static ContainerStyle ItemContent = Control.Content;
@@ -242,7 +242,7 @@ public static class EditorStyle
 
         public static readonly ContainerStyle Fill = new()
         {
-            Border = new BorderStyle { Radius = Control.BorderRadius },
+            BorderRadius = Control.BorderRadius,
             Color = Color.FromRgb(0x262626)
         };
 
@@ -391,7 +391,7 @@ public static class EditorStyle
             AlignX = Align.Center,
             AlignY = Align.Center,
             Padding = EdgeInsets.LeftRight(8),
-            Border = new BorderStyle { Radius = 4f }
+            BorderRadius = 4f
         };
 
         public static readonly LabelStyle Text = Control.Text with { Color = Color.FromRgb(0x767676) };
@@ -443,7 +443,7 @@ public static class EditorStyle
             Height = Control.Height + 8,
             Padding = EdgeInsets.Symmetric(4, 12),
             Color = Popup.FillColor,
-            Border = new BorderStyle { Radius = Panel.BorderRadius }
+            BorderRadius = Panel.BorderRadius
         };
 
         public readonly static ImageStyle NotificationIcon = Control.Icon;
@@ -504,7 +504,7 @@ public static class EditorStyle
             Width = Width,
             Margin = EdgeInsets.Zero,
             Padding = EdgeInsets.All(Panel.BorderWidth),
-            Border = Panel.Root.Border with { Radius = 0 }
+            BorderRadius = 0
         };
 
         public static readonly ContainerStyle Content = new()
@@ -549,8 +549,8 @@ public static class EditorStyle
             PlaceholderColor = Color.FromRgb(0x555555),
             SelectionColor = SelectionColor,
             BackgroundColor = Color.FromRgb(0x1d1d1d),
-            Border = new BorderStyle { Radius = 4f, Width = 1f, Color = Color.FromRgb(0x2a2a2a) },
-            FocusBorder = new BorderStyle { Radius = 4f, Width = 1f, Color = SelectionColor },
+            BorderRadius = 4f, BorderWidth = 1f, BorderColor = Color.FromRgb(0x2a2a2a),
+            FocusBorderRadius = 4f, FocusBorderWidth = 1f, FocusBorderColor = SelectionColor,
             Padding = EdgeInsets.Symmetric(2, 6)
         };
 
@@ -565,13 +565,13 @@ public static class EditorStyle
         {
             Height = 28f,
             Padding = EdgeInsets.LeftRight(10),
-            Border = new BorderStyle { Radius = 6f }
+            BorderRadius = 6f
         };
 
         public static readonly ContainerStyle EmitterTabFill = new()
         {
             Color = Color.FromRgb(0x1d1d1d),
-            Border = new BorderStyle { Radius = 6f }
+            BorderRadius = 6f
         };
 
         public static readonly ContainerStyle EmitterTabSelected = EmitterTabFill with
@@ -621,7 +621,7 @@ public static class EditorStyle
         {
             Padding = EdgeInsets.All(4f),
             //Color = Panel.ContentColor,
-            Border = new BorderStyle { Radius = Panel.ContentBorderRadius }
+            BorderRadius = Panel.ContentBorderRadius
         };
 
         public static readonly ContainerStyle Palette = new()
@@ -638,14 +638,14 @@ public static class EditorStyle
 
         public static readonly ContainerStyle PaletteSelectedColor = new()
         {
-            Border = new BorderStyle { Radius = 8f },
+            BorderRadius = 8f,
             Color = SelectionColor,
             Margin = EdgeInsets.All(-1.5f),
         };
 
         public static readonly ContainerStyle PaletteDisplayColor = new()
         {
-            Border = new BorderStyle { Radius = 6f }
+            BorderRadius = 6f
         };
 
         public static readonly ContainerStyle OpacityButtonRoot = new()
@@ -706,7 +706,7 @@ public static class EditorStyle
             AlignY = Align.Max,
             Margin = EdgeInsets.Bottom(6f),
             Color = Color.FromRgb(0x252525),
-            Border = { Radius = 6 }
+            BorderRadius = 6
         };
 
         public static readonly ContainerStyle SelectedFrameDot = FrameDot with { Color = Color.Black };
@@ -814,7 +814,7 @@ public static class EditorStyle
             AlignY = Align.Center,
             Color = Popup.FillColor,
             Padding = EdgeInsets.Symmetric(Control.ContentPadding, Control.ContentPadding * 2),
-            Border = Popup.Root.Border
+            BorderRadius = Popup.Root.BorderRadius, BorderWidth = Popup.Root.BorderWidth, BorderColor = Popup.Root.BorderColor
         };
 
         public static readonly TextBoxStyle Text = new()

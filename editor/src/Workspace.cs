@@ -419,7 +419,7 @@ public static partial class Workspace
         using (UI.BeginColumn(ElementId.Toolbar))
         {
             ToolbarUI();
-            UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.Panel.Root.Border.Color });
+            UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.Panel.Root.BorderColor });
 
             using (UI.BeginFlex())
                 UI.Scene(ElementId.Scene, Camera, DrawScene, new SceneStyle 

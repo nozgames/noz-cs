@@ -17,14 +17,16 @@ public static partial class UI
 
         ref var data = ref e.Data.TextBox;
         var isFocused = e.Id != 0 && IsFocused(ref e);
-        var border = isFocused ? data.FocusBorder : data.Border;
+        var borderRadius = isFocused ? data.FocusBorderRadius : data.BorderRadius;
+        var borderWidth = isFocused ? data.FocusBorderWidth : data.BorderWidth;
+        var borderColor = isFocused ? data.FocusBorderColor : data.BorderColor;
 
         DrawTexturedRect(
             e.Rect, e.LocalToWorld, null,
             ApplyOpacity(data.BackgroundColor),
-            border.Radius,
-            border.Width,
-            ApplyOpacity(border.Color)
+            borderRadius,
+            borderWidth,
+            ApplyOpacity(borderColor)
         );
 
         if (e.Id == 0)

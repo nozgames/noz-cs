@@ -26,10 +26,18 @@ public struct ContainerStyle()
     public EdgeInsets Margin = EdgeInsets.Zero;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public Color Color = Color.Transparent;
-    public BorderStyle Border = BorderStyle.None;
+    public BorderRadius BorderRadius = BorderRadius.Zero;
+    public float BorderWidth = 0;
+    public Color BorderColor = Color.Transparent;
     public float Spacing = 0;
     public bool Clip = false;
     public ushort Order = 0;
+
+    public BorderStyle Border
+    {
+        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
+        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
+    }
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
@@ -47,7 +55,9 @@ public struct ContainerStyle()
         Margin = Margin,
         Padding = Padding,
         Color = Color,
-        Border = Border,
+        BorderRadius = BorderRadius,
+        BorderWidth = BorderWidth,
+        BorderColor = BorderColor,
         Spacing = Spacing,
         Clip = Clip,
         Order = Order
@@ -154,11 +164,27 @@ public struct TextBoxStyle()
     public Color TextColor = Color.White;
     public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
     public Color SelectionColor = new(0.2f, 0.4f, 0.8f, 0.5f);
-    public BorderStyle Border = BorderStyle.None;
-    public BorderStyle FocusBorder = BorderStyle.None;
+    public BorderRadius BorderRadius = BorderRadius.Zero;
+    public float BorderWidth = 0;
+    public Color BorderColor = Color.Transparent;
+    public BorderRadius FocusBorderRadius = BorderRadius.Zero;
+    public float FocusBorderWidth = 0;
+    public Color FocusBorderColor = Color.Transparent;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public bool IsPassword = false;
     public InputScope Scope = InputScope.All;
+
+    public BorderStyle Border
+    {
+        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
+        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
+    }
+
+    public BorderStyle FocusBorder
+    {
+        readonly get => new() { Radius = FocusBorderRadius, Width = FocusBorderWidth, Color = FocusBorderColor };
+        set { FocusBorderRadius = value.Radius; FocusBorderWidth = value.Width; FocusBorderColor = value.Color; }
+    }
 
     internal TextBoxData ToData() => new()
     {
@@ -168,8 +194,12 @@ public struct TextBoxStyle()
         TextColor = TextColor,
         PlaceholderColor = PlaceholderColor,
         SelectionColor = SelectionColor,
-        Border = Border,
-        FocusBorder = FocusBorder,
+        BorderRadius = BorderRadius,
+        BorderWidth = BorderWidth,
+        BorderColor = BorderColor,
+        FocusBorderRadius = FocusBorderRadius,
+        FocusBorderWidth = FocusBorderWidth,
+        FocusBorderColor = FocusBorderColor,
         Padding = Padding,
         Password = IsPassword,
         Scope = Scope
@@ -185,10 +215,26 @@ public struct TextAreaStyle()
     public Color TextColor = Color.White;
     public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
     public Color SelectionColor = new(0.2f, 0.4f, 0.8f, 0.5f);
-    public BorderStyle Border = BorderStyle.None;
-    public BorderStyle FocusBorder = BorderStyle.None;
+    public BorderRadius BorderRadius = BorderRadius.Zero;
+    public float BorderWidth = 0;
+    public Color BorderColor = Color.Transparent;
+    public BorderRadius FocusBorderRadius = BorderRadius.Zero;
+    public float FocusBorderWidth = 0;
+    public Color FocusBorderColor = Color.Transparent;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public InputScope Scope = InputScope.All;
+
+    public BorderStyle Border
+    {
+        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
+        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
+    }
+
+    public BorderStyle FocusBorder
+    {
+        readonly get => new() { Radius = FocusBorderRadius, Width = FocusBorderWidth, Color = FocusBorderColor };
+        set { FocusBorderRadius = value.Radius; FocusBorderWidth = value.Width; FocusBorderColor = value.Color; }
+    }
 
     internal TextAreaData ToData() => new()
     {
@@ -198,8 +244,12 @@ public struct TextAreaStyle()
         TextColor = TextColor,
         PlaceholderColor = PlaceholderColor,
         SelectionColor = SelectionColor,
-        Border = Border,
-        FocusBorder = FocusBorder,
+        BorderRadius = BorderRadius,
+        BorderWidth = BorderWidth,
+        BorderColor = BorderColor,
+        FocusBorderRadius = FocusBorderRadius,
+        FocusBorderWidth = FocusBorderWidth,
+        FocusBorderColor = FocusBorderColor,
         Padding = Padding,
         Scope = Scope
     };

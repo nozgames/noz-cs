@@ -179,15 +179,15 @@ public static partial class UI
     private static void DrawContainer(ref Element e)
     {
         ref var style = ref e.Data.Container;
-        if (style.Color.IsTransparent && style.Border.Width <= 0)
+        if (style.Color.IsTransparent && style.BorderWidth <= 0)
             return;
 
         DrawTexturedRect(
             e.Rect, e.LocalToWorld, null,
             ApplyOpacity(style.Color),
-            style.Border.Radius,
-            style.Border.Width,
-            ApplyOpacity(style.Border.Color),
+            style.BorderRadius,
+            style.BorderWidth,
+            ApplyOpacity(style.BorderColor),
             order: e.Data.Container.Order
         );
     }

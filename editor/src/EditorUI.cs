@@ -384,12 +384,12 @@ internal static partial class EditorUI
         {
             Padding = EdgeInsets.All(3),
             Color = selected ? EditorStyle.SelectionColor : Color.Transparent,
-            Border = new BorderStyle { Radius = EditorStyle.Control.BorderRadius }
+            BorderRadius = EditorStyle.Control.BorderRadius
         });
 
         if (!selected && UI.IsHovered())
             UI.Container(EditorStyle.Control.HoverFill with
-            { 
+            {
                 Margin = EdgeInsets.All(-3)
             });
 
@@ -423,7 +423,7 @@ internal static partial class EditorUI
                 UI.Container(new ContainerStyle
                 {
                     Color = displayColor,
-                    Border = new BorderStyle { Radius = EditorStyle.Control.BorderRadius - 2 }
+                    BorderRadius = EditorStyle.Control.BorderRadius - 2
                 });
 
                 if (UI.WasPressed())
@@ -564,7 +564,7 @@ internal static partial class EditorUI
                     UI.Container(new ContainerStyle
                     {
                         Color = displayColor,
-                        Border = new BorderStyle { Radius = 5 }
+                        BorderRadius = 5
                     });
                 }
             }

@@ -648,7 +648,9 @@ public static partial class UI
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = ContainerData.Default;
-        e.Data.Container.Border = style;
+        e.Data.Container.BorderRadius = style.Radius;
+        e.Data.Container.BorderWidth = style.Width;
+        e.Data.Container.BorderColor = style.Color;
         PushElement(e.Index);
     }
 

@@ -18,7 +18,9 @@ internal struct ContainerData
     public EdgeInsets Margin;
     public EdgeInsets Padding;
     public Color Color;
-    public BorderStyle Border;
+    public BorderRadius BorderRadius;
+    public float BorderWidth;
+    public Color BorderColor;
     public float Spacing;
     public bool Clip;
     public ushort Order;
@@ -37,7 +39,9 @@ internal struct ContainerData
         Margin = EdgeInsets.Zero,
         Padding = EdgeInsets.Zero,
         Color = Color.Transparent,
-        Border = BorderStyle.None,
+        BorderRadius = BorderRadius.Zero,
+        BorderWidth = 0,
+        BorderColor = Color.Transparent,
         Spacing = 0,
         Clip = false
     };
@@ -242,8 +246,12 @@ public struct TextBoxData
     public Color TextColor;
     public Color PlaceholderColor;
     public Color SelectionColor;
-    public BorderStyle Border;
-    public BorderStyle FocusBorder;
+    public BorderRadius BorderRadius;
+    public float BorderWidth;
+    public Color BorderColor;
+    public BorderRadius FocusBorderRadius;
+    public float FocusBorderWidth;
+    public Color FocusBorderColor;
     public EdgeInsets Padding;
     public UnsafeSpan<char> Placeholder;
     public bool Password;
@@ -257,8 +265,12 @@ public struct TextBoxData
         TextColor = Color.White,
         PlaceholderColor = new Color(0.4f, 0.4f, 0.4f, 1f),
         SelectionColor = new Color(0.2f, 0.4f, 0.8f, 0.5f),
-        Border = BorderStyle.None,
-        FocusBorder = BorderStyle.None,
+        BorderRadius = BorderRadius.Zero,
+        BorderWidth = 0,
+        BorderColor = Color.Transparent,
+        FocusBorderRadius = BorderRadius.Zero,
+        FocusBorderWidth = 0,
+        FocusBorderColor = Color.Transparent,
         Padding = EdgeInsets.Zero,
         Password = false,
         Placeholder = UnsafeSpan<char>.Empty
@@ -273,8 +285,12 @@ public struct TextAreaData
     public Color TextColor;
     public Color PlaceholderColor;
     public Color SelectionColor;
-    public BorderStyle Border;
-    public BorderStyle FocusBorder;
+    public BorderRadius BorderRadius;
+    public float BorderWidth;
+    public Color BorderColor;
+    public BorderRadius FocusBorderRadius;
+    public float FocusBorderWidth;
+    public Color FocusBorderColor;
     public EdgeInsets Padding;
     public UnsafeSpan<char> Placeholder;
     public InputScope Scope;
@@ -287,8 +303,12 @@ public struct TextAreaData
         TextColor = Color.White,
         PlaceholderColor = new Color(0.4f, 0.4f, 0.4f, 1f),
         SelectionColor = new Color(0.2f, 0.4f, 0.8f, 0.5f),
-        Border = BorderStyle.None,
-        FocusBorder = BorderStyle.None,
+        BorderRadius = BorderRadius.Zero,
+        BorderWidth = 0,
+        BorderColor = Color.Transparent,
+        FocusBorderRadius = BorderRadius.Zero,
+        FocusBorderWidth = 0,
+        FocusBorderColor = Color.Transparent,
         Padding = EdgeInsets.Zero,
         Placeholder = UnsafeSpan<char>.Empty
     };

@@ -225,7 +225,7 @@ internal static partial class EditorUI
                 {
                     Width = 16, Height = 16,
                     Color = color,
-                    Border = new BorderStyle { Radius = 3, Width = 1, Color = Color.FromRgb(0x555555) },
+                    BorderRadius = 3, BorderWidth = 1, BorderColor = Color.FromRgb(0x555555),
                     AlignY = Align.Center
                 })) { }
 
@@ -303,13 +303,13 @@ internal static partial class EditorUI
             {
                 Width = 24, Height = 24,
                 AlignY = Align.Center,
-                Border = new BorderStyle { Radius = 4 }
+                BorderRadius = 4
             }))
             {
                 if (UI.IsHovered())
-                    UI.Container(EditorStyle.Control.HoverFill with { Border = new BorderStyle { Radius = 4 } });
+                    UI.Container(EditorStyle.Control.HoverFill with { BorderRadius = 4 });
                 else
-                    UI.Container(EditorStyle.Control.Fill with { Border = new BorderStyle { Radius = 4 } });
+                    UI.Container(EditorStyle.Control.Fill with { BorderRadius = 4 });
 
                 if (value)
                     UI.Image(EditorAssets.Sprites.IconCheck, EditorStyle.Control.Icon);

@@ -20,7 +20,7 @@ public class HelloWorldApp : IApplication
         Size = Size2.Fit,
         Color = Color.FromRgb(0x2563EB),
         Padding = EdgeInsets.Symmetric(24, 48),
-        Border = new BorderStyle { Radius = 8 },
+        BorderRadius = 8,
     };
 
     private static readonly LabelStyle TitleStyle = new()
