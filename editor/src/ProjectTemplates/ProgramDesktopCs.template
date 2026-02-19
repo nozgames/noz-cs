@@ -16,7 +16,7 @@ Application.Init(new ApplicationConfig
     ResourceAssembly = typeof(GameVtable).Assembly,
     UI = new UIConfig
     {
-        DefaultFont = "segui",
+        DefaultFont = "seguisb",
         ScaleMode = UIScaleMode.ConstantPixelSize,
         ReferenceResolution = new(1920, 1080),
         ScreenMatchMode = ScreenMatchMode.MatchWidthOrHeight,

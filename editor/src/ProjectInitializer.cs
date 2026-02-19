@@ -198,10 +198,10 @@ internal static class ProjectInitializer
             return;
         }
 
-        var fontFiles = Directory.GetFiles(sourceFontDir, "segui.*");
+        var fontFiles = Directory.GetFiles(sourceFontDir, "seguisb*");
         if (fontFiles.Length == 0)
         {
-            Log.Warning("  Warning: segui font files not found in editor directory");
+            Log.Warning("  Warning: seguisb font files not found in editor directory");
             return;
         }
 

@@ -9,7 +9,7 @@
     private readonly GameVtable _vtable = new();
     private readonly UIConfig _uiConfig = new()
     {
-        DefaultFont = "segui",
+        DefaultFont = "seguisb",
         ScaleMode = UIScaleMode.ScaleWithScreenSize,
         ReferenceResolution = new(1920, 1080),
         ScreenMatchMode = ScreenMatchMode.MatchWidthOrHeight,
