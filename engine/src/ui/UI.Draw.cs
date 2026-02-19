@@ -232,7 +232,7 @@ public static partial class UI
             {
                 // Vertical alignment: offset the whole text block within the element
                 var wrappedHeight = TextRender.MeasureWrapped(text, font, fontSize, e.Rect.Width, cacheId: e.Id).Y;
-                var offsetY = (e.Rect.Height - wrappedHeight) * e.Data.Label.AlignY.ToFactor();
+                var offsetY = (e.Rect.Height - wrappedHeight) * e.Data.Label.Align.Y.ToFactor();
                 var displayScale = Application.Platform.DisplayScale;
                 offsetY = MathF.Round(offsetY * displayScale) / displayScale;
 
@@ -243,7 +243,7 @@ public static partial class UI
                     Graphics.SetColor(ApplyOpacity(e.Data.Label.Color));
                     Graphics.SetTransform(transform);
                     TextRender.DrawWrapped(text, font, fontSize, e.Rect.Width,
-                        e.Rect.Width, e.Data.Label.AlignX.ToFactor(), e.Rect.Height,
+                        e.Rect.Width, e.Data.Label.Align.X.ToFactor(), e.Rect.Height,
                         order: e.Data.Label.Order, cacheId: e.Id);
                 }
                 break;
@@ -256,7 +256,7 @@ public static partial class UI
                 if (textWidth > e.Rect.Width && e.Rect.Width > 0)
                     scaledFontSize = fontSize * (e.Rect.Width / textWidth);
 
-                var textOffset = GetTextOffset(text, font, scaledFontSize, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
+                var textOffset = GetTextOffset(text, font, scaledFontSize, e.Rect.Size, e.Data.Label.Align.X, e.Data.Label.Align.Y);
                 var transform = Matrix3x2.CreateTranslation(e.Rect.Position + textOffset) * e.LocalToWorld;
 
                 using (Graphics.PushState())
@@ -270,7 +270,7 @@ public static partial class UI
 
             case TextOverflow.Ellipsis:
             {
-                var textOffset = GetTextOffset(text, font, fontSize, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
+                var textOffset = GetTextOffset(text, font, fontSize, e.Rect.Size, e.Data.Label.Align.X, e.Data.Label.Align.Y);
                 var transform = Matrix3x2.CreateTranslation(e.Rect.Position + textOffset) * e.LocalToWorld;
 
                 using (Graphics.PushState())
@@ -284,7 +284,7 @@ public static partial class UI
 
             default: // TextOverflow.Overflow
             {
-                var textOffset = GetTextOffset(text, font, fontSize, e.Rect.Size, e.Data.Label.AlignX, e.Data.Label.AlignY);
+                var textOffset = GetTextOffset(text, font, fontSize, e.Rect.Size, e.Data.Label.Align.X, e.Data.Label.Align.Y);
                 var transform = Matrix3x2.CreateTranslation(e.Rect.Position + textOffset) * e.LocalToWorld;
 
                 using (Graphics.PushState())
@@ -317,7 +317,7 @@ public static partial class UI
         var srcSize = new Vector2(img.Width, img.Height);
         var scale = GetImageScale(img.Stretch, srcSize, e.Rect.Size);
         var scaledSize = scale * srcSize;
-        var offset = e.Rect.Position + (e.Rect.Size - scaledSize) * new Vector2(img.AlignX.ToFactor(), img.AlignY.ToFactor());
+        var offset = e.Rect.Position + (e.Rect.Size - scaledSize) * new Vector2(img.Align.X.ToFactor(), img.Align.Y.ToFactor());
 
         if (e.Asset is Sprite sprite)
         {

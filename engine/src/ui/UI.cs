@@ -598,8 +598,7 @@ public static partial class UI
     {
         ref var e = ref CreateElement(ElementType.Container);
         e.Data.Container = ContainerData.Default;
-        e.Data.Container.AlignX = Align.Center;
-        e.Data.Container.AlignY = Align.Center;
+        e.Data.Container.Align = Align.Center;
         PushElement(e.Index);
     }
 
@@ -798,10 +797,8 @@ public static partial class UI
         ref var e = ref CreateElement(ElementType.Popup);
         e.Data.Popup = new PopupData
         {
-            AnchorX = style.AnchorX,
-            AnchorY = style.AnchorY,
-            PopupAlignX = style.PopupAlignX,
-            PopupAlignY = style.PopupAlignY,
+            Anchor = style.Anchor,
+            PopupAlign = style.PopupAlign,
             Spacing = style.Spacing,
             ClampToScreen = style.ClampToScreen,
             AnchorRect = style.AnchorRect,
@@ -831,8 +828,7 @@ public static partial class UI
         {
             FontSize = style.FontSize > 0 ? style.FontSize : 16,
             Color = style.Color,
-            AlignX = style.AlignX,
-            AlignY = style.AlignY,
+            Align = style.Align,
             Order = style.Order,
             Overflow = style.Overflow,
             Text = AddText(text)
@@ -854,8 +850,7 @@ public static partial class UI
         {
             FontSize = style.FontSize > 0 ? style.FontSize : 16,
             Color = style.Color,
-            AlignX = style.AlignX,
-            AlignY = style.AlignY,
+            Align = style.Align,
             Order = style.Order,
             Overflow = TextOverflow.Wrap,
             Text = AddText(text)
@@ -878,8 +873,7 @@ public static partial class UI
         {
             Size = style.Size,
             Stretch = style.Stretch,
-            AlignX = style.AlignX,
-            AlignY = style.AlignY,
+            Align = style.Align,
             Scale = style.Scale,
             Color = style.Color,
             Order = style.Order,
@@ -905,8 +899,7 @@ public static partial class UI
         {
             Size = style.Size,
             Stretch = style.Stretch,
-            AlignX = style.AlignX,
-            AlignY = style.AlignY,
+            Align = style.Align,
             Scale = style.Scale,
             Color = style.Color,
             Order = style.Order,

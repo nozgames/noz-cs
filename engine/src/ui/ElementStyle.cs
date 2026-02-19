@@ -22,8 +22,7 @@ public struct ContainerStyle()
     public float MinHeight = 0;
     public float MaxWidth = float.MaxValue;
     public float MaxHeight = float.MaxValue;
-    public Align AlignX = Align.Min;
-    public Align AlignY = Align.Min;
+    public Align2 Align = NoZ.Align.Min;
     public EdgeInsets Margin = EdgeInsets.Zero;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public Color Color = Color.Transparent;
@@ -34,6 +33,8 @@ public struct ContainerStyle()
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
+    public Align AlignX { readonly get => Align.X; set => Align.X = value; }
+    public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
 
     internal ContainerData ToData() => new()
     {
@@ -42,8 +43,7 @@ public struct ContainerStyle()
         MinHeight = MinHeight,
         MaxWidth = MaxWidth,
         MaxHeight = MaxHeight,
-        AlignX = AlignX,
-        AlignY = AlignY,
+        Align = Align,
         Margin = Margin,
         Padding = Padding,
         Color = Color,
@@ -55,7 +55,7 @@ public struct ContainerStyle()
 
     public static readonly ContainerStyle Default = new();
     public static readonly ContainerStyle Fit = new() { Size = Size2.Fit };
-    public static readonly ContainerStyle Center = new() { Size = Size2.Fit, AlignX = Align.Center, AlignY = Align.Center };
+    public static readonly ContainerStyle Center = new() { Size = Size2.Fit, Align = NoZ.Align.Center };
 }
 
 public enum TextOverflow : byte
@@ -70,22 +70,23 @@ public struct LabelStyle()
 {
     public float FontSize = 16;
     public Color Color = Color.White;
-    public Align AlignX = Align.Min;
-    public Align AlignY = Align.Center;
+    public Align2 Align = new(NoZ.Align.Min, NoZ.Align.Center);
     public Font? Font = null;
     public ushort Order = 2;
     public TextOverflow Overflow = TextOverflow.Overflow;
 
+    public Align AlignX { readonly get => Align.X; set => Align.X = value; }
+    public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
+
     public static readonly LabelStyle Default = new();
-    public static readonly LabelStyle Centered = new() { AlignX = Align.Center, AlignY = Align.Center };
+    public static readonly LabelStyle Centered = new() { Align = NoZ.Align.Center };
 }
 
 public struct ImageStyle()
 {
     public Size2 Size = Size2.Default;
     public ImageStretch Stretch = ImageStretch.Uniform;
-    public Align AlignX = Align.Min;
-    public Align AlignY = Align.Min;
+    public Align2 Align = NoZ.Align.Min;
     public float Scale = 1.0f;
     public Color Color = Color.White;
     public BorderRadius BorderRadius = BorderRadius.Zero;
@@ -93,9 +94,11 @@ public struct ImageStyle()
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
+    public Align AlignX { readonly get => Align.X; set => Align.X = value; }
+    public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
 
     public static readonly ImageStyle Default = new();
-    public static readonly ImageStyle Center = new() { AlignX = Align.Center, AlignY = Align.Center };
+    public static readonly ImageStyle Center = new() { Align = NoZ.Align.Center };
 }
 
 public struct RectangleStyle()
@@ -127,16 +130,19 @@ public struct GridStyle()
 
 public struct PopupStyle()
 {
-    public Align AnchorX = Align.Min;
-    public Align AnchorY = Align.Min;
-    public Align PopupAlignX = Align.Min;
-    public Align PopupAlignY = Align.Min;
+    public Align2 Anchor = Align.Min;
+    public Align2 PopupAlign = Align.Min;
     public float Spacing = 0;
     public bool ClampToScreen = false;
     public Rect AnchorRect = Rect.Zero;
     public float MinWidth = 0;
     public bool AutoClose = true;
     public bool Interactive = true;
+
+    public Align AnchorX { readonly get => Anchor.X; set => Anchor.X = value; }
+    public Align AnchorY { readonly get => Anchor.Y; set => Anchor.Y = value; }
+    public Align PopupAlignX { readonly get => PopupAlign.X; set => PopupAlign.X = value; }
+    public Align PopupAlignY { readonly get => PopupAlign.Y; set => PopupAlign.Y = value; }
 }
 
 public struct TextBoxStyle()
@@ -243,20 +249,19 @@ public static class ElementStyle
 
     public static ContainerStyle WithAlign(this ContainerStyle style, Align align)
     {
-        style.AlignX = align;
-        style.AlignY = align;
+        style.Align = align;
         return style;
     }
 
     public static ContainerStyle WithAlignX(this ContainerStyle style, Align alignX)
     {
-        style.AlignX = alignX;
+        style.Align.X = alignX;
         return style;
     }
 
     public static ContainerStyle WithAlignY(this ContainerStyle style, Align alignY)
     {
-        style.AlignY = alignY;
+        style.Align.Y = alignY;
         return style;
     }
 

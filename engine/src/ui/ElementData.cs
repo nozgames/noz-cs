@@ -14,8 +14,7 @@ internal struct ContainerData
     public float MinHeight;
     public float MaxWidth;
     public float MaxHeight;
-    public Align AlignX;
-    public Align AlignY;
+    public Align2 Align;
     public EdgeInsets Margin;
     public EdgeInsets Padding;
     public Color Color;
@@ -34,8 +33,7 @@ internal struct ContainerData
         MinHeight = 0,
         MaxWidth = float.MaxValue,
         MaxHeight = float.MaxValue,
-        AlignX = Align.Min,
-        AlignY = Align.Min,
+        Align = NoZ.Align.Min,
         Margin = EdgeInsets.Zero,
         Padding = EdgeInsets.Zero,
         Color = Color.Transparent,
@@ -49,8 +47,7 @@ internal struct LabelData
 {
     public float FontSize;
     public Color Color;
-    public Align AlignX;
-    public Align AlignY;
+    public Align2 Align;
     public ushort Order;
     public TextOverflow Overflow;
     public UnsafeSpan<char> Text;
@@ -59,8 +56,7 @@ internal struct LabelData
     {
         FontSize = 16,
         Color = Color.White,
-        AlignX = Align.Min,
-        AlignY = Align.Center,
+        Align = new Align2(NoZ.Align.Min, NoZ.Align.Center),
         Text = new UnsafeSpan<char>(),
     };
 }
@@ -69,8 +65,7 @@ internal struct ImageData
 {
     public Size2 Size;
     public ImageStretch Stretch;
-    public Align AlignX;
-    public Align AlignY;
+    public Align2 Align;
     public float Scale;
     public Color Color;
     public ushort Order;
@@ -86,8 +81,7 @@ internal struct ImageData
     {
         Size = Size2.Default,
         Stretch = ImageStretch.Uniform,
-        AlignX = Align.Min,
-        AlignY = Align.Min,
+        Align = NoZ.Align.Min,
         Scale = 1.0f,
         Color = Color.White,
         Texture = nuint.Zero,
@@ -189,10 +183,8 @@ internal struct TransformData
 
 internal struct PopupData
 {
-    public Align AnchorX;
-    public Align AnchorY;
-    public Align PopupAlignX;
-    public Align PopupAlignY;
+    public Align2 Anchor;
+    public Align2 PopupAlign;
     public float Spacing;
     public bool ClampToScreen;
     public Rect AnchorRect;
@@ -202,10 +194,8 @@ internal struct PopupData
 
     public static PopupData Default => new()
     {
-        AnchorX = Align.Min,
-        AnchorY = Align.Min,
-        PopupAlignX = Align.Min,
-        PopupAlignY = Align.Min,
+        Anchor = Align.Min,
+        PopupAlign = Align.Min,
         Spacing = 0,
         MinWidth = 0,
         ClampToScreen = false,

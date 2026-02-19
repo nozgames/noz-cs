@@ -24,26 +24,18 @@ public static partial class UI
 
     private static Vector2 AlignElement(ref Element e, ref readonly Element p)
     {
-        Align alignX, alignY;
+        Align2 align;
         if (e.IsContainer)
-        {
-            alignX = e.Data.Container.AlignX;
-            alignY = e.Data.Container.AlignY;
-        }
+            align = e.Data.Container.Align;
         else if (e.Type == ElementType.Image)
-        {
-            alignX = e.Data.Image.AlignX;
-            alignY = e.Data.Image.AlignY;
-        }
+            align = e.Data.Image.Align;
         else
-        {
             return Vector2.Zero;
-        }
 
         // For Row children, don't apply AlignX (X position is determined by row layout)
         // For Column children, don't apply AlignY (Y position is determined by column layout)
-        var ax = p.Type == ElementType.Row ? 0 : ResolveAlign(ref e, in p, alignX, 0);
-        var ay = p.Type == ElementType.Column ? 0 : ResolveAlign(ref e, in p, alignY, 1);
+        var ax = p.Type == ElementType.Row ? 0 : ResolveAlign(ref e, in p, align.X, 0);
+        var ay = p.Type == ElementType.Column ? 0 : ResolveAlign(ref e, in p, align.Y, 1);
         return new Vector2(ax, ay);
     }
 
@@ -223,23 +215,23 @@ public static partial class UI
                     e.Rect.Width = popup.MinWidth;
 
                 // Anchor rect is in canvas space
-                var anchorX = popup.AnchorRect.X + popup.AnchorRect.Width * popup.AnchorX.ToFactor();
-                var anchorY = popup.AnchorRect.Y + popup.AnchorRect.Height * popup.AnchorY.ToFactor();
+                var anchorX = popup.AnchorRect.X + popup.AnchorRect.Width * popup.Anchor.X.ToFactor();
+                var anchorY = popup.AnchorRect.Y + popup.AnchorRect.Height * popup.Anchor.Y.ToFactor();
 
                 // Position popup so the specified edge/corner aligns with anchor point
-                e.Rect.X = anchorX - e.Rect.Width * popup.PopupAlignX.ToFactor();
-                e.Rect.Y = anchorY - e.Rect.Height * popup.PopupAlignY.ToFactor();
+                e.Rect.X = anchorX - e.Rect.Width * popup.PopupAlign.X.ToFactor();
+                e.Rect.Y = anchorY - e.Rect.Height * popup.PopupAlign.Y.ToFactor();
 
                 // Apply spacing only in directions where anchor and popup alignments differ
                 // (where there's actual separation - e.g. popup to right, popup above, etc.)
-                if (popup.AnchorX != popup.PopupAlignX)
+                if (popup.Anchor.X != popup.PopupAlign.X)
                 {
-                    var spacingDirX = 1f - 2f * popup.PopupAlignX.ToFactor();
+                    var spacingDirX = 1f - 2f * popup.PopupAlign.X.ToFactor();
                     e.Rect.X += popup.Spacing * spacingDirX;
                 }
-                if (popup.AnchorY != popup.PopupAlignY)
+                if (popup.Anchor.Y != popup.PopupAlign.Y)
                 {
-                    var spacingDirY = 1f - 2f * popup.PopupAlignY.ToFactor();
+                    var spacingDirY = 1f - 2f * popup.PopupAlign.Y.ToFactor();
                     e.Rect.Y += popup.Spacing * spacingDirY;
                 }
             }
@@ -264,8 +256,7 @@ public static partial class UI
         LogUI(e, $"Position: ({e.Rect.X}, {e.Rect.Y})", depth: 1, values: [
             ( "Offset", offset + p.ContentRect.Position, offset + p.ContentRect.Position != Vector2.Zero ),
             ( "Align", align, align != Vector2.Zero ),
-            ( "AlignX", e.Data.Container.AlignX, e.IsContainer ),
-            ( "AlignY", e.Data.Container.AlignY, e.IsContainer ),
+            ( "Align", e.Data.Container.Align, e.IsContainer ),
             ( "Margin", e.Data.Container.Margin, e.IsContainer && !e.Data.Container.Margin.IsZero)
             ]);
         LogUI(e, $"Content: {e.ContentRect}", depth: 1, condition: () => contentRect != baseContentRect);

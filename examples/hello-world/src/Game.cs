@@ -12,8 +12,7 @@ public class HelloWorldApp : IApplication
     private static readonly ContainerStyle RootStyle = new()
     {
         Size = new Size2(Size.Percent(1), Size.Percent(1)),
-        AlignX = Align.Center,
-        AlignY = Align.Center,
+        Align = Align.Center,
     };
 
     private static readonly ContainerStyle BoxStyle = new()
