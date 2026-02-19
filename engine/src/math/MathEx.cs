@@ -167,6 +167,14 @@ public static class MathEx
             : 1f + 2f * (t - 1f) * (t - 1f) * ((c + 1f) * 2f * (t - 1f) + c);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float EaseOutElastic(float t)
+    {
+        if (t <= 0f) return 0f;
+        if (t >= 1f) return 1f;
+        return MathF.Pow(2f, -10f * t) * MathF.Sin((t - 0.075f) * (2f * MathF.PI) / 0.3f) + 1f;
+    }
+
     private delegate float EasingDelegate(float t);
 
     private static readonly EasingDelegate[] EasingFunctions =
@@ -181,6 +189,7 @@ public static class MathEx
         EaseInBack,             // BackIn
         EaseOutBack,            // BackOut
         EaseInOutBack,          // BackInOut
+        EaseOutElastic,         // ElasticOut
     ];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

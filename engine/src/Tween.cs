@@ -19,6 +19,7 @@ public enum Easing
     BackIn,
     BackOut,
     BackInOut,
+    ElasticOut,
 }
 
 public enum TweenMode
