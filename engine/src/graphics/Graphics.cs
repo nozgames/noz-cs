@@ -70,6 +70,7 @@ public static unsafe partial class Graphics
     private static float _time;
     private static Shader? _spriteShader;
     private static Shader? _spriteSdfShader;
+    private static Shader? _spriteMsdfShader;
 
     public static event Action? AfterEndFrame;
 
@@ -252,6 +253,7 @@ public static unsafe partial class Graphics
         _spriteShader = Asset.Get<Shader>(AssetType.Shader, RenderConfig.SpriteShader)
             ?? throw new ArgumentNullException(nameof(RenderConfig.SpriteShader), "Sprite shader not found");
         _spriteSdfShader = Asset.Get<Shader>(AssetType.Shader, "sprite_sdf");
+        _spriteMsdfShader = Asset.Get<Shader>(AssetType.Shader, "sprite_msdf");
     }
 
     private static void UploadBones()

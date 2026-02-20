@@ -1,136 +1,118 @@
-# Multi-Channel SDF (MSDF) Sprites — Future Improvement
+# Multi-Channel SDF (MSDF) Sprites
 
-This document outlines how multi-channel signed distance fields could improve corner rendering quality in NoZ's SDF sprite system.
+NoZ uses multi-channel signed distance fields to render resolution-independent sprites with sharp corners. The implementation is a faithful port of [msdfgen](https://github.com/Chlumsky/msdfgen) by Viktor Chlumsky, located in `noz/editor/src/msdf2/`.
 
-## The Problem
+## Why MSDF
 
-Single-channel SDF produces rounded artifacts at sharp corners — both concave (inward notches) and convex (blunted tips). This happens because the distance field is a scalar: at a vertex where two edges meet, the minimum distance to either edge forms a circular iso-contour around the vertex point, rather than the sharp angle formed by the two edges.
+Single-channel SDF produces rounded artifacts at sharp corners. At a vertex where two edges meet, the minimum distance forms a circular iso-contour around the vertex, rounding the corner. This is inherent to scalar distance fields and cannot be fixed by increasing resolution.
 
-For example, a triangle tip rendered with single-channel SDF appears slightly rounded rather than perfectly sharp. A concave corner (like the inside of an L-shape) shows a small notch or pinch.
+MSDF solves this by encoding distance information across three channels (R, G, B). At sharp corners, the channels disagree about which edge is closest, and the `median(r, g, b)` reconstruction in the shader preserves the sharp boundary.
 
-This is an inherent limitation of representing a 2D boundary with a single scalar field. No amount of resolution increase eliminates it — the artifact gets smaller but never disappears.
+## Architecture
 
-## How MSDF Works
+### Source Files (`noz/editor/src/msdf2/`)
 
-Multi-channel SDF (pioneered by Viktor Chlumsky's [msdfgen](https://github.com/Chlumsky/msdfgen)) solves this by encoding distance information across three channels (R, G, B) instead of one.
+| File | Description |
+|------|-------------|
+| `Msdf2.Math.cs` | Vector math, equation solvers (quadratic/cubic), `GetOrthonormal` |
+| `Msdf2.SignedDistance.cs` | Distance + dot product for closest-edge comparison |
+| `Msdf2.EdgeColor.cs` | `EdgeColor` flags enum (RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, WHITE) |
+| `Msdf2.EdgeSegments.cs` | `LinearSegment`, `QuadraticSegment`, `CubicSegment` with signed distance, scanline intersection, bounds, split |
+| `Msdf2.Contour.cs` | Closed edge loop with shoelace winding calculation |
+| `Msdf2.Shape.cs` | Contour collection with validate, normalize, orient contours |
+| `Msdf2.EdgeColoring.cs` | `EdgeColoring.ColorSimple` — assigns R/G/B to edges at sharp corners |
+| `Msdf2.Generator.cs` | `MsdfGenerator.GenerateMSDF` (legacy algorithm) and `ErrorCorrection` |
+| `Msdf2.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf2 shapes and runs generation |
 
-### Edge Coloring
+### Pipeline
 
-Each edge (line segment or curve) of the shape is assigned one of three "colors" (corresponding to R, G, B channels). The assignment follows rules:
+1. **Shape conversion** (`MsdfSprite.FromSpritePaths`): Sprite paths and anchors are converted to msdf2 `Shape`/`Contour`/`EdgeSegment` objects. Linear anchors become `LinearSegment`, curved anchors become `QuadraticSegment` with the control point computed from the curve value.
 
-1. At every sharp corner (angle below a threshold), the two edges meeting at that corner must have **different colors**
-2. Colors alternate around the shape to minimize transitions
-3. Smooth connections (obtuse angles) can share the same color
+2. **Normalize** (`Shape.Normalize`): Single-edge contours are split into thirds so edge coloring has enough edges to assign distinct colors.
 
-### Per-Channel Distance
+3. **Edge coloring** (`EdgeColoring.ColorSimple`): Edges are assigned R/G/B channel colors. At sharp corners (where `dot(dir_a, dir_b) <= 0` or `|cross(dir_a, dir_b)| > sin(3.0)`), adjacent edges get different colors. This is the key step that creates multi-channel differentiation.
 
-Three separate distance fields are computed — one per channel. Each channel's distance field only considers edges assigned to that channel's color. At most locations, all three channels agree (same distance). But at sharp corners, the channels **disagree**: one channel sees the distance to edge A, another sees the distance to edge B.
+4. **MSDF generation** (`MsdfGenerator.GenerateMSDF`): For each pixel, the generator finds the nearest edge per channel and computes a signed distance using perpendicular distance extension (pseudo-SDF) at edge endpoints. Output is a float RGB bitmap with values in [0, 1] where 0.5 = on edge.
 
-### Reconstruction
+5. **Compositing** (`MsdfSprite.RasterizeMSDF`): Additive and subtract paths are generated separately, then composited. Subtract shapes are inverted and intersected (min) with the additive result.
 
-The fragment shader reconstructs the shape by taking the **median** of the three channel values:
+### Integration Point
 
-```wgsl
-let r = textureSample(...).r;
-let g = textureSample(...).g;
-let b = textureSample(...).b;
-let dist = median(r, g, b);
-let alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, dist);
+`Shape.Rasterize.cs` delegates `RasterizeMSDF()` to `Msdf2.MsdfSprite.RasterizeMSDF()`. The call site in `SpriteDocument.cs` passes:
+- `target`: atlas pixel data (RGBA8)
+- `targetRect`: output region in the atlas
+- `sourceOffset`: maps pixel coordinates back to shape-space
+- `pathIndices`: which paths to rasterize
+- `range`: distance range in pixels (default 1.5)
+
+### Coordinate Mapping
+
+The generator maps pixel coordinates to shape-space:
 ```
+shapePos = (pixel + 0.5) / scale - translate
+```
+Where `scale = (dpi, dpi)` and `translate = sourceOffset / dpi`. The distance range is converted from pixels to shape units: `rangeInShapeUnits = range / dpi * 2.0`.
 
-The median operation is the key insight. Along a straight edge, all three channels agree so the median equals any of them. At a sharp corner, two channels pull toward "inside" and one pulls toward "outside" (or vice versa), and the median correctly follows the sharp boundary.
+## Shader
 
-The `median(a, b, c)` function is simply:
+The MSDF shader (`noz/engine/assets/shader/texture_msdf.wgsl`) reconstructs the shape boundary:
 
 ```wgsl
 fn median(r: f32, g: f32, b: f32) -> f32 {
     return max(min(r, g), min(max(r, g), b));
 }
-```
 
-## What Would Change in NoZ
-
-### Rasterization (`Shape.Rasterize.cs`)
-
-A new `RasterizeMSDF()` method would:
-
-1. **Assign edge colors**: Walk each path's edges, assign R/G/B channel to each edge based on the angle at each vertex. At sharp corners (angle < ~157 degrees), force a color change.
-
-2. **Compute three distance fields**: For each pixel, compute three signed distances — one considering only R-colored edges, one for G, one for B.
-
-3. **Write to RGB**: Store the three distances in R, G, B channels of the atlas (A channel unused or set to max distance across all channels for compatibility).
-
-### Shader (`sprite_msdf.wgsl`)
-
-Replace single-channel sampling with median:
-
-```wgsl
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let msd = textureSample(texture_array, texture_sampler, input.uv, input.atlas).rgb;
-
-    let dx = dpdx(msd);
-    let dy = dpdy(msd);
-    let edgeWidth = 0.7 * length(vec2<f32>(
-        length(dx),
-        length(dy)
-    ));
-
+    let msd = textureSample(texture0, sampler0, input.uv).rgb;
     let dist = median(msd.r, msd.g, msd.b);
-    let alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, dist);
 
+    let dx = dpdx(dist);
+    let dy = dpdy(dist);
+    let edgeWidth = 0.7 * length(vec2<f32>(dx, dy));
+
+    let alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, dist);
     return vec4<f32>(input.color.rgb, alpha * input.color.a);
 }
 ```
 
-The edge width calculation would need adjustment since derivatives are now per-channel. A reasonable approach is to use the derivatives of the median output, or the max derivative magnitude across channels.
+The adaptive `edgeWidth` from screen-space derivatives ensures clean anti-aliasing at any zoom level.
 
-### Binary Format
+## SdfMode
 
-The sprite binary IsSDF byte could be extended to distinguish modes:
-- `0` = normal (RGBA color)
-- `1` = single-channel SDF (R only)
-- `2` = multi-channel SDF (RGB)
+The sprite binary format uses `SdfMode` to distinguish rendering modes:
+- `None` (0) — normal RGBA color
+- `Sdf` (1) — single-channel SDF (R only)
+- `Msdf` (2) — multi-channel SDF (RGB)
 
-### Atlas Impact
+MSDF uses the same atlas space as regular sprites (RGBA8). Three channels encode distance; the alpha channel is unused (set to 0).
 
-MSDF uses 3 channels (RGB) vs SDF's 1 channel (R only). Since the atlas is already RGBA8, this doesn't change atlas size — we just use 3 channels instead of 1. No additional atlas space per sprite beyond what single-channel SDF already requires.
+## Error Correction
 
-## Edge Coloring Algorithm
+The msdf2 port includes a legacy error correction pass (`MsdfGenerator.ErrorCorrection`) that detects "clashing" texels where bilinear interpolation between adjacent pixels would produce incorrect median values. **This is currently disabled** because the legacy `detectClash` algorithm is too aggressive for sprite use — it replaces multi-channel data with the median, destroying the corner sharpness that makes MSDF work.
 
-The edge coloring step is the most complex part. A simple approach:
+If artifacts appear at specific edge configurations, the modern error correction from msdfgen (which protects corners and edges via a stencil buffer) would need to be ported.
 
-1. Walk the path's edges in order
-2. Track the angle at each vertex (between incoming and outgoing edges)
-3. If the angle is "sharp" (below threshold, e.g., 157 degrees):
-   - Assign the next edge a different color than the previous edge
-   - Cycle through R, G, B
-4. If the angle is "smooth":
-   - Keep the same color as the previous edge
+## Edge Coloring Details
 
-For closed paths with an odd number of sharp corners, a third color is needed to avoid a conflict at the wrap-around point. With three channels, any planar shape can be properly colored (this follows from the four-color theorem, though three suffices for non-branching contours).
+`EdgeColoring.ColorSimple` uses msdfgen's algorithm with seed-based pseudo-random color selection:
 
-## Pseudo-Distance Enhancement
+- **No corners**: All edges get the same two-channel color (e.g., CYAN)
+- **One corner** ("teardrop"): Three color regions assigned via `symmetricalTrichotomy`, with edge splitting if fewer than 3 edges
+- **Multiple corners**: Colors switch at each corner using `switchColor` with a seed, and the last spline's color is constrained to differ from the initial color to avoid wrap-around conflicts
 
-MSDF can be further improved with "pseudo-distance" — using perpendicular distance to edge line extensions instead of clamped segment distance at endpoints. This provides better behavior far from the shape (outside the narrow band) and slightly improves rendering at very low resolutions.
+The angle threshold of 3.0 radians (~172 degrees) means any junction sharper than ~172 degrees triggers a color change.
 
-The key idea: when the closest point on a segment falls at an endpoint (parameter t=0 or t=1), extend using the perpendicular distance to the adjacent edge's line rather than the radial distance to the endpoint. This is what msdfgen calls "pseudo-SDF" and uses by default.
+## Subtract Path Handling
 
-## Complexity vs Benefit
-
-| Aspect | Single SDF | MSDF |
-|--------|-----------|------|
-| Corner quality | Rounded | Sharp |
-| Atlas channels used | 1 (R) | 3 (RGB) |
-| Atlas space | Same | Same |
-| Rasterization complexity | Low | Medium (edge coloring) |
-| Shader complexity | Low | Low (just add median) |
-| Implementation effort | Done | Medium |
-
-The main implementation cost is the edge coloring algorithm. The shader change is minimal (add median function). The per-pixel rasterization cost increases roughly 3x since three distance fields are computed instead of one, but this is an offline editor operation.
+Subtract paths (holes) are handled by generating a separate MSDF and compositing:
+1. Additive paths produce an MSDF where inside > 0.5
+2. Subtract paths produce a separate MSDF
+3. The subtract MSDF is inverted (1 - value) so its inside becomes outside
+4. The two are intersected per-channel via `min(add, inverted_sub)`
 
 ## References
 
-- [msdfgen by Viktor Chlumsky](https://github.com/Chlumsky/msdfgen) — the reference implementation
+- [msdfgen by Viktor Chlumsky](https://github.com/Chlumsky/msdfgen) — the reference C++ implementation that msdf2 is ported from
 - Chlumsky, V. (2015). "Shape Decomposition for Multi-channel Distance Fields" — the original thesis
-- [Improved Alpha-Tested Magnification for Vector Textures and Special Effects](https://steamcdn-a.akamaihd.net/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf) — Valve's original SDF paper (single-channel)
+- [Valve SDF paper](https://steamcdn-a.akamaihd.net/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf) — the original single-channel SDF technique

@@ -8,7 +8,7 @@ namespace NoZ.Editor
 {
     partial class MSDF
     {
-        struct SignedDistance
+        internal struct SignedDistance
         {
             public static readonly SignedDistance Infinite = new SignedDistance(double.NegativeInfinity, 1.0);
 

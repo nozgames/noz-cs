@@ -58,6 +58,72 @@ partial class MSDF
             }
         }
 
+        /// <summary>
+        /// Convert sprite editor paths into MSDF Shape for multi-channel distance field generation.
+        /// Each non-subtract path becomes a contour. Subtract paths become contours with reversed winding.
+        /// </summary>
+        public static Shape FromSpritePaths(
+            NoZ.Editor.Shape spriteShape,
+            ReadOnlySpan<ushort> pathIndices,
+            float pixelsPerUnit)
+        {
+            var contours = new List<Contour>();
+
+            foreach (var pathIndex in pathIndices)
+            {
+                if (pathIndex >= spriteShape.PathCount) continue;
+                ref readonly var path = ref spriteShape.GetPath(pathIndex);
+                if (path.AnchorCount < 3) continue;
+
+                var edges = new List<Edge>();
+
+                for (ushort a = 0; a < path.AnchorCount; a++)
+                {
+                    var a0Idx = (ushort)(path.AnchorStart + a);
+                    var a1Idx = (ushort)(path.AnchorStart + ((a + 1) % path.AnchorCount));
+
+                    ref readonly var anchor0 = ref spriteShape.GetAnchor(a0Idx);
+                    ref readonly var anchor1 = ref spriteShape.GetAnchor(a1Idx);
+
+                    // Positions are in shape-space (not pixel-space)
+                    var p0 = new Vector2Double(anchor0.Position.X, anchor0.Position.Y);
+                    var p1 = new Vector2Double(anchor1.Position.X, anchor1.Position.Y);
+
+                    if (Math.Abs(anchor0.Curve) < 0.0001)
+                    {
+                        // Linear segment
+                        edges.Add(new LinearEdge(p0, p1));
+                    }
+                    else
+                    {
+                        // Quadratic curve: compute control point from curve value
+                        // cp = midpoint(p0,p1) + perpendicular * curve
+                        var mid = 0.5 * (p0 + p1);
+                        var dir = p1 - p0;
+                        var perpMag = dir.Magnitude;
+                        Vector2Double perp;
+                        if (perpMag > 1e-10)
+                        {
+                            perp = new Vector2Double(-dir.y, dir.x) * (1.0 / perpMag);
+                        }
+                        else
+                        {
+                            perp = new Vector2Double(0, 1);
+                        }
+                        var cp = mid + perp * anchor0.Curve;
+                        edges.Add(new QuadraticEdge(p0, cp, p1));
+                    }
+                }
+
+                if (edges.Count > 0)
+                    contours.Add(new Contour { edges = edges.ToArray() });
+            }
+
+            var shape = new Shape { contours = contours.ToArray(), InverseYAxis = false };
+            shape.Normalize();
+            return shape;
+        }
+
         public static Shape? FromGlyph(TrueTypeFont.Glyph glyph, bool invertYAxis)
         {
             if (null == glyph)

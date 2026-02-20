@@ -11,6 +11,13 @@ namespace NoZ;
 
 public static partial class Graphics
 {
+    private static Shader GetSpriteShader(Sprite sprite) => sprite.SdfMode switch
+    {
+        SdfMode.Msdf when _spriteMsdfShader != null => _spriteMsdfShader,
+        SdfMode.Sdf when _spriteSdfShader != null => _spriteSdfShader,
+        _ => _spriteShader!
+    };
+
     public static void Draw(in Rect rect, ushort order = 0, int bone = -1) =>
         Draw(rect.X, rect.Y, rect.Width, rect.Height, order: order, bone: bone);
 
@@ -135,7 +142,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(SpriteAtlas);
-            SetShader(sprite.IsSDF && _spriteSdfShader != null ? _spriteSdfShader : _spriteShader!);
+            SetShader(GetSpriteShader(sprite));
             SetTextureFilter(sprite.TextureFilter);
 
             for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
@@ -188,7 +195,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(SpriteAtlas);
-            SetShader(sprite.IsSDF && _spriteSdfShader != null ? _spriteSdfShader : _spriteShader!);
+            SetShader(GetSpriteShader(sprite));
             SetTextureFilter(sprite.TextureFilter);
 
             for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
@@ -225,7 +232,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(SpriteAtlas);
-            SetShader(sprite.IsSDF && _spriteSdfShader != null ? _spriteSdfShader : _spriteShader!);
+            SetShader(GetSpriteShader(sprite));
             SetTextureFilter(sprite.TextureFilter);
 
             for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)

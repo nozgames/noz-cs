@@ -8,12 +8,20 @@ namespace NoZ.Editor
 {
     partial class MSDF
     {
-        enum EdgeColor
+        [Flags]
+        internal enum EdgeColor
         {
-            White
+            Black = 0,
+            Red = 1,
+            Green = 2,
+            Blue = 4,
+            Yellow = Red | Green,
+            Cyan = Green | Blue,
+            Magenta = Red | Blue,
+            White = Red | Green | Blue
         }
 
-        abstract class Edge
+        internal abstract class Edge
         {
             public EdgeColor color;
 
@@ -40,7 +48,7 @@ namespace NoZ.Editor
             }
         }
 
-        class LinearEdge : Edge
+        internal class LinearEdge : Edge
         {
             public Vector2Double p0;
             public Vector2Double p1;
@@ -82,8 +90,8 @@ namespace NoZ.Editor
                 double endpointDistance = eq.Magnitude;
 
                 // Compute orthogonal distance (used for sign in all cases)
-                // Negate to match expected inside/outside convention
-                double orthoDistance = -Vector2Double.Dot(ab.OrthoNormalize(false), aq);
+                // Matches msdfgen: positive = outside, negative = inside
+                double orthoDistance = Vector2Double.Dot(ab.OrthoNormalize(false), aq);
 
                 if (param > 0 && param < 1)
                 {
@@ -99,7 +107,7 @@ namespace NoZ.Editor
             }
         }
 
-        class QuadraticEdge : Edge
+        internal class QuadraticEdge : Edge
         {
             public Vector2Double p0;
             public Vector2Double p1;
@@ -185,7 +193,9 @@ namespace NoZ.Editor
                     if (t > 0 && t < 1)
                     {
                         Vector2Double endpoint = p0 + 2 * t * ab + t * t * br;
-                        double distance = NonZeroSign(Vector2Double.Cross(p2 - p0, endpoint - origin)) * (endpoint - origin).Magnitude;
+                        // Use tangent at t for sign (matches msdfgen: crossProduct(ab+t*br, qe))
+                        Vector2Double tangent = ab + t * br;
+                        double distance = NonZeroSign(Vector2Double.Cross(tangent, endpoint - origin)) * (endpoint - origin).Magnitude;
                         if (Math.Abs(distance) <= Math.Abs(minDistance))
                         {
                             minDistance = distance;

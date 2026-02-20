@@ -638,6 +638,24 @@ public sealed partial class Shape
             target[x + i, y] = Color32.Transparent;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double Median(double a, double b, double c)
+        => Math.Max(Math.Min(a, b), Math.Min(Math.Max(a, b), c));
+
+    /// <summary>
+    /// Rasterize paths as a multi-channel signed distance field (MSDF).
+    /// Uses msdf2 — a faithful port of msdfgen by Viktor Chlumsky.
+    /// </summary>
+    public void RasterizeMSDF(
+        PixelData<Color32> target,
+        RectInt targetRect,
+        Vector2Int sourceOffset,
+        ReadOnlySpan<ushort> pathIndices,
+        float range = 1.5f)
+    {
+        Msdf2.MsdfSprite.RasterizeMSDF(this, target, targetRect, sourceOffset, pathIndices, range);
+    }
+
     /// <summary>
     /// Rasterize paths as a signed distance field. SDF value stored in R channel.
     /// Each path is evaluated independently and results are unioned (max) for
