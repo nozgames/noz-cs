@@ -1,2 +1,2 @@
 $editorProject = Join-Path $PSScriptRoot "editor/NoZ.Editor.csproj"
-dotnet run --project $editorProject -- --project .
+dotnet run --project $editorProject -c Release -- --project .

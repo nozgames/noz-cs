@@ -37,10 +37,9 @@ for (var i = 0; i < args.Length; i++)
 if ((importOnly || initProject) && OperatingSystem.IsWindows())
     AttachConsole(-1);
 
-// Find editor path by walking up from assembly location
+// Find editor path by walking up from app base directory
 // Look for directory with BOTH library/ AND NoZ.Editor.csproj
-var assemblyPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!;
-var editorPath = assemblyPath;
+var editorPath = AppContext.BaseDirectory;
 
 while (editorPath != null)
 {
@@ -58,7 +57,7 @@ if (editorPath == null)
     {
         // For --init mode, we don't need library/ to exist yet
         // Just walk up from bin/Debug/net10.0 to editor directory
-        editorPath = Path.GetFullPath(Path.Combine(assemblyPath, "../../.."));
+        editorPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../.."));
 
         // Create library folder for init mode
         Directory.CreateDirectory(Path.Combine(editorPath, "library"));

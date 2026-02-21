@@ -22,7 +22,7 @@ MSDF solves this by encoding distance across three channels (R, G, B). Each edge
 | `Msdf.Shape.cs` | Contour collection with validate, normalize, orient contours |
 | `Msdf.EdgeColoring.cs` | `EdgeColoring.ColorSimple` — assigns R/G/B to edges at sharp corners |
 | `Msdf.ShapeClipper.cs` | Clipper2 boolean operations (union, difference) — flattens curves and merges/carves contours |
-| `Msdf.Generator.cs` | `GenerateMSDF` (OverlappingContourCombiner), `DistanceSignCorrection`, `ErrorCorrection` |
+| `Msdf.Generator.cs` | `GenerateMSDF` (OverlappingContourCombiner + LinearEdgeData fast path + deferred sqrt), `DistanceSignCorrection`, `ErrorCorrection` |
 | `Msdf.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf shapes via `AppendContour` + draw-order subtract processing, runs generation |
 | `Msdf.Font.cs` | Bridge: converts TTF glyph contours to msdf shapes and runs generation |
 
@@ -236,7 +236,27 @@ The inner loop then inlines `LinearSegment.GetSignedDistance` and the perpendicu
 
 **Result**: ~10x speedup on edge scanning (2240ms → 240ms CPU time), ~6x on total GenerateMSDF wall time (~110ms → ~19ms). No artifacts — the math is identical, just pre-computed.
 
-**Why spatial culling doesn't work with MSDF**: Both narrow-band (skipping far pixels) and contour AABB culling (skipping far contours) were attempted and produced visible seam artifacts. The OverlappingContourCombiner requires accurate per-channel distances from ALL contours at every pixel for correct channel combination. Skipping any contour creates per-channel discontinuities because R, G, B encode distances to different colored edges. This is a fundamental constraint of multi-channel SDF — single-channel SDF can use spatial culling, but MSDF cannot.
+### Deferred Sqrt
+
+The fast path's inlined `GetSignedDistance` computes the distance from a pixel to the nearest point on a line segment. When the nearest point is an endpoint (not the orthogonal projection), the actual distance requires `Math.Sqrt`. This was the single most expensive operation (~31% of gen time in Debug profiling).
+
+**Optimization**: Compute `endpointDistSq = eqx*eqx + eqy*eqy` eagerly. The orthogonal vs. endpoint comparison `Math.Abs(orthoDist) < endpointDist` is replaced with the equivalent squared form `orthoDist * orthoDist < endpointDistSq`. The `Math.Sqrt` is deferred to only the endpoint fallback path — when `param` is outside (0,1) or the orthogonal distance isn't closer.
+
+For pixels near the interior of an edge (the common case), the orthogonal path is taken and sqrt is skipped entirely. This eliminates sqrt for an estimated 60-80% of edge-pixel combinations.
+
+### Combiner Phase Optimizations
+
+The OverlappingContourCombiner distance phase (after edge scanning) had two sources of overhead:
+
+1. **Empty selector skip**: The inner/outer selectors only receive merges when specific winding/median conditions are met. When a selector receives no merges, its `Distance(p)` call (3 `ComputeDistance` calls with virtual dispatch) is skipped entirely. A sentinel value `{-double.MaxValue, ...}` is used instead — this produces identical downstream behavior because the combiner's decision tree rejects `-MaxValue` medians.
+
+2. **Cached medians**: `contourDistances[ci].Median()` and `result.Median()` were called redundantly across the combiner's decision tree (merge loop, inner/outer branches, opposite-winding loop). Per-contour medians are now computed once into a `contourMedians[]` array, and `resultMedian` is tracked as a local updated at each reassignment site.
+
+### Why Spatial Culling Doesn't Work with MSDF
+
+Both narrow-band (skipping far pixels) and contour AABB culling (skipping far contours) were attempted and produced visible seam artifacts. The OverlappingContourCombiner requires accurate per-channel distances from ALL contours at every pixel for correct channel combination. Skipping any contour creates per-channel discontinuities because R, G, B encode distances to different colored edges. This is a fundamental constraint of multi-channel SDF — single-channel SDF can use spatial culling, but MSDF cannot.
+
+Edge-level culling within a single contour is also problematic: the perpendicular distance selector tracks corner bisector extensions from ALL edges, not just the nearest one. A far-away edge's corner extension can contribute the tightest perpendicular distance at a pixel near that corner's bisector line. Skipping it would produce incorrect perpendicular distances and subtle channel artifacts.
 
 ### Editor SDF Preview (Mesh-Based)
 
@@ -254,19 +274,29 @@ The sprite editor uses **tessellated triangle meshes** for the live SDF preview 
 
 **Tiling**: The tile preview feature is disabled in mesh mode since it relies on the texture-based rendering path.
 
+## Profiling Notes
+
+Debug vs. Release profiling differs significantly. In Debug, the JIT does not inline struct methods, operators, or `Math.Abs` — these show up as expensive function calls (e.g., `SignedDistance.operator <` at 15%, `AddEdgeTrueDistance` at 20%). In Release, these are fully inlined to single instructions and nearly free. The deferred sqrt optimization benefits both modes since `Math.Sqrt` is ~20-40 cycles regardless of build config.
+
+Representative Debug profile (266×214, 8 contours, 364 edges):
+```
+Math.Sqrt (endpoint fallback)     31%
+AddEdgeTrueDistance (×3 channels) 20%
+SignedDistance.operator <          15%
+Distance() (combiner phase)        8%
+```
+
 ## Future Optimizations
 
 Potential further improvements to explore, roughly ordered by expected impact:
 
-1. **Reduce Clipper2 linearization segments** — Currently 16 segments per curve (`DefaultStepsPerCurve`). Adaptive tessellation based on curve curvature or a lower fixed count (e.g., 8) would halve edge count for curved sprites. Fewer edges = proportionally less work in the hot loop. Requires quality validation.
+1. **Reduce Clipper2 linearization segments** — Currently 16 segments per curve (`DefaultStepsPerCurve`). Adaptive tessellation based on curve curvature or a lower fixed count (e.g., 8) would halve edge count for curved sprites. Fewer edges = proportionally less work in the hot loop (gen time scales linearly with edge count). Requires quality validation.
 
-2. **SIMD vectorization of distance computation** — The inner loop computes point-to-segment distance for each edge sequentially. With `System.Runtime.Intrinsics`, 4 edges could be processed simultaneously using AVX2 (4×double). Requires restructuring edge data into SoA (struct-of-arrays) layout.
+2. **Squared-distance pre-check for edge rejection** — In the fast path, most edges are far from any given pixel and lose the `AddEdgeTrueDistance` comparison. By storing `minAbsDistSq` in the selector and comparing `endpointDistSq` against it before computing `Math.Sqrt` or calling `AddEdgeTrueDistance`, losing edges would be rejected with just a comparison — no sqrt, no function call. Sqrt would only be computed for edges that actually update the minimum. Estimated sqrt reduction: ~7x (from per-edge to ~per-channel-per-contour). Requires adding `absDistSq` field to `PerpendicularDistanceSelectorBase` and inlining the comparison in the fast path. The perpendicular distance corner comparisons (`Math.Abs(perpDist) < Math.Abs(distance.distance)`) can also use squared form (`perpDist * perpDist < absDistSq`).
 
-3. **Per-contour edge grid index** — Instead of checking all edges within a contour, partition edges into a spatial grid. For each pixel, only check edges in nearby cells. This is safe (unlike contour-level culling) because we still evaluate every contour — we just find the closest edge faster within each contour. Benefit scales with edges-per-contour; for contours with 20+ edges, could skip 80%+ of distance computations.
+3. **SIMD vectorization of distance computation** — The inner loop computes point-to-segment distance for each edge sequentially. With `System.Runtime.Intrinsics`, 4 edges could be processed simultaneously using AVX2 (4×double). Requires restructuring edge data into SoA (struct-of-arrays) layout. Challenging due to per-edge control flow (ortho vs. endpoint, perpendicular corner gating).
 
-4. **Combine phase optimization** — Currently 5% of time. The `PerpendicularDistanceSelectorBase.ComputeDistance` calls `nearEdge.DistanceToPerpendicularDistance()` via virtual dispatch for the combine phase. Could store pre-computed edge data index instead of edge reference and inline this too.
-
-5. **Bitmap allocation pooling** — `MsdfBitmap` is allocated per `RasterizeMSDF` call. A thread-local pool or reusable bitmap (resized as needed) would reduce GC pressure during rapid editing.
+4. **Bitmap allocation pooling** — `MsdfBitmap` is allocated per `RasterizeMSDF` call. A thread-local pool or reusable bitmap (resized as needed) would reduce GC pressure during rapid editing.
 
 ## References
 
