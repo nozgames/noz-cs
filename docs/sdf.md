@@ -22,7 +22,7 @@ MSDF solves this by encoding distance across three channels (R, G, B). Each edge
 | `Msdf.Shape.cs` | Contour collection with validate, normalize, orient contours |
 | `Msdf.EdgeColoring.cs` | `EdgeColoring.ColorSimple` — assigns R/G/B to edges at sharp corners |
 | `Msdf.ShapeClipper.cs` | Clipper2 boolean operations (union, difference) — flattens curves and merges/carves contours |
-| `Msdf.Generator.cs` | `GenerateMSDF` (OverlappingContourCombiner for fonts), `GenerateMSDFBasic` (grid-accelerated for sprites), `DistanceSignCorrection`, `ErrorCorrection` |
+| `Msdf.Generator.cs` | `GenerateMSDF` (OverlappingContourCombiner), `DistanceSignCorrection`, `ErrorCorrection` |
 | `Msdf.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf shapes via `AppendContour` + draw-order subtract processing, runs generation |
 | `Msdf.Font.cs` | Bridge: converts TTF glyph contours to msdf shapes and runs generation |
 
@@ -34,15 +34,15 @@ MSDF solves this by encoding distance across three channels (R, G, B). Each edge
 
 **Fonts** (`MsdfFont.FromGlyph`): TTF glyph contours are converted similarly. TTF uses Y-up coordinates; coordinates are kept in native Y-up space and the shape is marked with `inverseYAxis = true` so the generator flips output rows for screen Y-down rendering. This preserves natural contour windings.
 
-### 2. Clipper2 Boolean Union (`ShapeClipper.Union`)
+### 2. Clipper2 Boolean Operations (`ShapeClipper`)
 
-Before MSDF generation, all shapes are passed through `ShapeClipper.Union()` which uses the [Clipper2](https://github.com/AngusJohnson/Clipper2) library to resolve overlapping and self-intersecting contours.
+Before MSDF generation, shapes are passed through Clipper2 to resolve overlapping, self-intersecting, and subtract contours.
 
-**Why this is needed**: TTF fonts often use overlapping contours as a design technique (e.g., a separate contour for the stem and arch of "n" that overlap where they join). Some glyphs have self-intersecting single contours. MSDF generation produces artifacts at overlap/intersection boundaries because the distance field is ambiguous there.
+**Why this is needed**: TTF fonts often use overlapping contours as a design technique (e.g., a separate contour for the stem and arch of "n" that overlap where they join). Some glyphs have self-intersecting single contours. Sprites use subtract paths to carve holes (e.g., a half-moon cut from a circle). MSDF generation produces artifacts at overlap/intersection boundaries because the distance field is ambiguous there.
 
 **How it works**:
-1. **Flatten curves**: All `QuadraticSegment` and `CubicSegment` edges are tessellated to polylines (8 uniform samples per curve). Clipper2 only operates on line segments.
-2. **Boolean operation**: `Clipper.BooleanOp(ClipType.Union, FillRule.NonZero)` merges all paths, resolving overlaps and self-intersections into clean non-overlapping outer contours and holes. For sprites with subtract paths, `Clipper.BooleanOp(ClipType.Difference, ...)` then carves the subtract regions out of the unioned add shape.
+1. **Flatten curves**: All `QuadraticSegment` and `CubicSegment` edges are tessellated to polylines (16 uniform samples per curve). Clipper2 only operates on line segments.
+2. **Boolean operation**: `Clipper.BooleanOp(ClipType.Union, FillRule.NonZero)` merges all paths, resolving overlaps and self-intersections into clean non-overlapping outer contours and holes. For sprites with subtract paths, `Clipper.BooleanOp(ClipType.Difference, ...)` carves the subtract regions.
 3. **PolyTree traversal**: The `PolyTreeD` output is recursively converted back to `Shape` contours with `LinearSegment` edges.
 4. **Winding correction**: All output contours are reversed because Clipper2's winding convention (positive area = CCW in Y-up) is opposite to our MSDF generator's convention (positive winding = CW via shoelace `(b.X-a.X)*(a.Y+b.Y)`).
 
@@ -52,6 +52,7 @@ Before MSDF generation, all shapes are passed through `ShapeClipper.Union()` whi
 - Output is always all-linear (no curves) — this is fine for MSDF since `LinearSegment` distance computation is exact
 - Uses `ClipperPrecision = 6` (6 decimal places, giving sub-pixel accuracy for glyph coordinates in the 0-2048 range)
 - The `FillRule.NonZero` matches TTF's non-zero winding fill rule
+- `DefaultStepsPerCurve = 16` provides smooth linearization for curved sprite paths
 
 ### 3. Shape Preparation
 
@@ -60,11 +61,18 @@ Before MSDF generation, all shapes are passed through `ShapeClipper.Union()` whi
 
 Note: `OrientContours` is no longer needed since the Clipper2 union already produces correctly-oriented contours.
 
-### 4. MSDF Generation
+### 4. MSDF Generation (`GenerateMSDF`)
 
-**Fonts** use `MsdfGenerator.GenerateMSDF` — a faithful port of msdfgen's OverlappingContourCombiner with `MultiDistanceSelector` / `PerpendicularDistanceSelectorBase`. This uses perpendicular distance at shared edge endpoints for precise channel separation. The `shape.inverseYAxis` flag controls row flipping: the generator writes to `row = flipY ? h-1-y : y`, producing screen Y-down output from TTF Y-up coordinates.
+Both fonts and sprites use the same generator: `MsdfGenerator.GenerateMSDF` — a faithful port of msdfgen's OverlappingContourCombiner with `MultiDistanceSelector` / `PerpendicularDistanceSelectorBase`.
 
-**Sprites** use `MsdfGenerator.GenerateMSDFBasic` — a simplified generator that uses only true signed distance (no perpendicular distance extension). The perpendicular extension causes artifacts between separated contours in multi-shape sprites, where channel disagreements at Voronoi boundaries produce visible squiggly lines. By using true distance only and relying on error correction to clean up artifacts, sprites render cleanly even with many separated shapes.
+**How OverlappingContourCombiner works**: Each contour's MSDF is computed independently (per-contour `MultiDistanceSelector`). Then contours are combined based on winding number:
+- Positive-winding contours with positive median distance → "inner" selectors (inside outer shape)
+- Negative-winding contours with negative median distance → "outer" selectors (inside holes)
+- The combiner picks the correct per-contour result based on which winding context dominates at each pixel
+
+This correctly handles **nested contours** (holes from Clipper2 Difference, letter counters like "A", "O") without cross-contour channel interference. The perpendicular distance extension at shared edge endpoints provides precise channel separation.
+
+The `shape.inverseYAxis` flag controls row flipping: the generator writes to `row = flipY ? h-1-y : y`, producing screen Y-down output from TTF Y-up coordinates.
 
 ### 5. Error Correction
 
@@ -104,12 +112,10 @@ Sprite paths / TTF glyph contours
   |
   +--- Fonts: FromGlyph → ShapeClipper.Union → Normalize → EdgeColoring.ColorSimple
   |
-  +--- Sprites: GenerateMSDFBasic (true distance only, spatial grid acceleration)
-  |
-  +--- Fonts: GenerateMSDF (OverlappingContourCombiner + PerpendicularDistanceSelector)
+  +--- Both: GenerateMSDF (OverlappingContourCombiner + PerpendicularDistanceSelector)
   |
   v
-DistanceSignCorrection + ErrorCorrection (both fonts and sprites)
+DistanceSignCorrection + ErrorCorrection
   |
   v
 RGBA8 atlas (R=ch0, G=ch1, B=ch2, A=255)
@@ -197,25 +203,15 @@ Clipper2 and our MSDF generator use opposite winding conventions:
 
 These are negations of each other. After any Clipper2 operation, all contours must be reversed to match MSDF expectations. This is handled automatically in `ShapeClipper.Union()` and `ShapeClipper.Difference()`.
 
-## Performance Optimization
+## Performance
 
-Sprite SDF generation runs every time you leave the sprite editor, so it needs to be fast enough for interactive use. The key optimizations:
-
-### Spatial Grid (`GenerateMSDFBasic`)
-
-The naive approach checks every pixel against every edge — O(pixels × edges). For a 250×200 image with 500 edges, that's 25M distance calculations.
-
-`GenerateMSDFBasic` builds a spatial grid over the shape, with cell size equal to the SDF range. Each edge is inserted into all grid cells its expanded bounding box overlaps (expanded by half the SDF range). At render time, each pixel looks up its single grid cell and only checks the few edges in that cell.
-
-After the Clipper2 union, all edges are short linear segments (~8 per original curve). Each segment covers only 2-4 grid cells. Most cells contain 0-5 edges, so the per-pixel work drops from hundreds of distance calculations to single digits.
-
-This reduced the generate step from ~320ms to ~1-3ms (100x+ speedup).
+Sprite SDF generation runs every time you leave the sprite editor, so it needs to be fast enough for interactive use.
 
 ### Parallelization
 
 All pixel-level passes use `Parallel.For` on rows:
 
-- **`GenerateMSDFBasic`**: Each row's pixels are independent (read-only grid, write to own pixel)
+- **`GenerateMSDF`**: Each row's pixels are independent (per-contour selectors are thread-local)
 - **`DistanceSignCorrection`**: Sequential (scanline intersection state is cumulative per-row). Uses a pooled intersection list (cleared per row, not reallocated) and binary search for winding lookup on sorted intersections.
 - **`ProtectEdges`**: Single combined `Parallel.For` per row — checks horizontal, vertical, and diagonal neighbors in one pass. Writes are `|= STENCIL_PROTECTED` (same bit OR), so cross-row races are benign.
 - **`FindErrors`**: Each pixel writes only to its own stencil entry, safe to parallelize.
