@@ -14,7 +14,9 @@ public enum VfxCurveType : byte
     EaseInOut,
     Quadratic,
     Cubic,
-    Sine
+    Sine,
+    CubicBezier,
+    Bell
 }
 
 public struct VfxRange
@@ -67,6 +69,7 @@ public struct VfxFloatCurve
     public VfxCurveType Type;
     public VfxRange Start;
     public VfxRange End;
+    public Vector4 Bezier; // (x1, y1, x2, y2) control points, only used when Type == CubicBezier
 
     public static readonly VfxFloatCurve Zero = new() { Type = VfxCurveType.Linear, Start = VfxRange.Zero, End = VfxRange.Zero };
     public static readonly VfxFloatCurve One = new() { Type = VfxCurveType.Linear, Start = VfxRange.One, End = VfxRange.One };
@@ -77,6 +80,7 @@ public struct VfxColorCurve
     public VfxCurveType Type;
     public VfxColorRange Start;
     public VfxColorRange End;
+    public Vector4 Bezier;
 
     public static readonly VfxColorCurve White = new() { Type = VfxCurveType.Linear, Start = VfxColorRange.White, End = VfxColorRange.White };
 }
@@ -101,12 +105,13 @@ public struct VfxEmitterDef
     public VfxRange Angle;
     public VfxVec2Range Spawn;
     public VfxVec2Range Direction;
+    public bool WorldSpace;
     public VfxParticleDef Particle;
 }
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 1;
+    internal const ushort Version = 4;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -148,6 +153,7 @@ public class Vfx : Asset
             e.Direction = new VfxVec2Range(
                 new Vector2(reader.ReadSingle(), reader.ReadSingle()),
                 new Vector2(reader.ReadSingle(), reader.ReadSingle()));
+            e.WorldSpace = reader.ReadBoolean();
 
             // Particle def
             ref var p = ref e.Particle;
@@ -173,17 +179,20 @@ public class Vfx : Asset
 
     private static VfxFloatCurve ReadFloatCurve(BinaryReader reader)
     {
-        return new VfxFloatCurve
+        var curve = new VfxFloatCurve
         {
             Type = (VfxCurveType)reader.ReadByte(),
             Start = new VfxRange(reader.ReadSingle(), reader.ReadSingle()),
             End = new VfxRange(reader.ReadSingle(), reader.ReadSingle())
         };
+        if (curve.Type == VfxCurveType.CubicBezier)
+            curve.Bezier = new Vector4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        return curve;
     }
 
     private static VfxColorCurve ReadColorCurve(BinaryReader reader)
     {
-        return new VfxColorCurve
+        var curve = new VfxColorCurve
         {
             Type = (VfxCurveType)reader.ReadByte(),
             Start = new VfxColorRange(
@@ -193,6 +202,9 @@ public class Vfx : Asset
                 new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
                 new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()))
         };
+        if (curve.Type == VfxCurveType.CubicBezier)
+            curve.Bezier = new Vector4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        return curve;
     }
 
     internal static void RegisterDef()

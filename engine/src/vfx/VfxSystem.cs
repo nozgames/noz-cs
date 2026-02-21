@@ -45,6 +45,7 @@ public static class VfxSystem
         public Vector2 Gravity;
         public float Drag;
         public ushort EmitterIndex;
+        public bool WorldSpace;
     }
 
     private struct Emitter
@@ -64,6 +65,7 @@ public static class VfxSystem
         public Vfx Vfx;
         public Matrix3x2 Transform;
         public float Depth;
+        public int Layer;
         public int EmitterCount;
         public bool Loop;
         public uint Version;
@@ -109,12 +111,12 @@ public static class VfxSystem
         Shader = null;
     }
 
-    public static VfxHandle Play(Vfx? vfx, Vector2 position, float depth = 0f)
+    public static VfxHandle Play(Vfx? vfx, Vector2 position, float depth = 0f, int layer = 0)
     {
-        return Play(vfx, Matrix3x2.CreateTranslation(position), depth);
+        return Play(vfx, Matrix3x2.CreateTranslation(position), depth, layer);
     }
 
-    public static VfxHandle Play(Vfx? vfx, Matrix3x2 transform, float depth = 0f)
+    public static VfxHandle Play(Vfx? vfx, Matrix3x2 transform, float depth = 0f, int layer = 0)
     {
         if (vfx == null || vfx.EmitterDefs.Length == 0)
             return VfxHandle.Invalid;
@@ -127,6 +129,7 @@ public static class VfxSystem
         instance.Vfx = vfx;
         instance.Transform = transform;
         instance.Depth = depth;
+        instance.Layer = layer;
         instance.EmitterCount = 0;
         instance.Loop = vfx.Loop;
 
@@ -213,6 +216,20 @@ public static class VfxSystem
         return GetInstance(handle) >= 0;
     }
 
+    public static void SetTransform(VfxHandle handle, Matrix3x2 transform)
+    {
+        var instance = GetInstance(handle);
+        if (instance < 0)
+            return;
+
+        _instances[instance].Transform = transform;
+    }
+
+    public static void SetTransform(VfxHandle handle, Vector2 position)
+    {
+        SetTransform(handle, Matrix3x2.CreateTranslation(position));
+    }
+
     public static void Clear()
     {
         for (var i = 0; i < MaxParticles; i++)
@@ -240,10 +257,16 @@ public static class VfxSystem
         SimulateParticles();
     }
 
-    public static void Render()
+    public static void Render() => RenderInternal(int.MinValue);
+
+    public static void Render(int layer) => RenderInternal(layer);
+
+    private static void RenderInternal(int layerFilter)
     {
         if (_particleCount == 0 || Shader == null)
             return;
+
+        var filterByLayer = layerFilter != int.MinValue;
 
         using (Graphics.PushState())
         {
@@ -268,16 +291,22 @@ public static class VfxSystem
 
                 ref var inst = ref _instances[e.InstanceIndex];
 
+                if (filterByLayer && inst.Layer != layerFilter)
+                    continue;
+
                 var t = p.Elapsed / p.Lifetime;
-                var size = MathEx.Mix(p.SizeStart, p.SizeEnd, EvaluateCurve(p.SizeCurve, t));
-                var opacity = MathEx.Mix(p.OpacityStart, p.OpacityEnd, EvaluateCurve(p.OpacityCurve, t));
-                var col = Color.Mix(p.ColorStart, p.ColorEnd, EvaluateCurve(p.ColorCurve, t));
+                ref var pdef = ref e.Vfx.EmitterDefs[e.DefIndex].Particle;
+                var size = MathEx.Mix(p.SizeStart, p.SizeEnd, EvaluateCurve(p.SizeCurve, t, pdef.Size.Bezier));
+                var opacity = MathEx.Mix(p.OpacityStart, p.OpacityEnd, EvaluateCurve(p.OpacityCurve, t, pdef.Opacity.Bezier));
+                var col = Color.Mix(p.ColorStart, p.ColorEnd, EvaluateCurve(p.ColorCurve, t, pdef.Color.Bezier));
 
                 var particleTransform =
                     Matrix3x2.CreateScale(size) *
                     Matrix3x2.CreateRotation(p.Rotation) *
-                    Matrix3x2.CreateTranslation(p.Position) *
-                    inst.Transform;
+                    Matrix3x2.CreateTranslation(p.Position);
+
+                if (!p.WorldSpace)
+                    particleTransform *= inst.Transform;
 
                 Graphics.SetColor(col.WithAlpha(opacity));
                 Graphics.SetSortGroup((int)inst.Depth);
@@ -356,8 +385,11 @@ public static class VfxSystem
                 continue;
             }
 
+            ref var e = ref _emitters[p.EmitterIndex];
+            ref var pdef = ref e.Vfx.EmitterDefs[e.DefIndex].Particle;
+
             var t = p.Elapsed / p.Lifetime;
-            var curveT = EvaluateCurve(p.SpeedCurve, t);
+            var curveT = EvaluateCurve(p.SpeedCurve, t, pdef.Speed.Bezier);
             var currentSpeed = MathEx.Mix(p.SpeedStart, p.SpeedEnd, curveT);
 
             var velLen = p.Velocity.Length();
@@ -370,7 +402,7 @@ public static class VfxSystem
 
             p.Position += vel * dt;
             p.Velocity = vel;
-            p.Rotation = MathEx.Mix(p.RotationStart, p.RotationEnd, EvaluateCurve(p.RotationCurve, t));
+            p.Rotation = MathEx.Mix(p.RotationStart, p.RotationEnd, EvaluateCurve(p.RotationCurve, t, pdef.Rotation.Bezier));
         }
     }
 
@@ -399,9 +431,11 @@ public static class VfxSystem
 
         ref var p = ref _particles[particleIndex];
 
-        // Transform spawn position by instance transform
         var spawnOffset = GetRandom(def.Spawn);
-        p.Position = Vector2.TransformNormal(spawnOffset, inst.Transform);
+        p.WorldSpace = def.WorldSpace;
+        p.Position = def.WorldSpace
+            ? Vector2.Transform(spawnOffset, inst.Transform)
+            : Vector2.TransformNormal(spawnOffset, inst.Transform);
 
         p.SizeStart = GetRandom(pdef.Size.Start);
         p.SizeEnd = GetRandom(pdef.Size.End);
@@ -561,8 +595,27 @@ public static class VfxSystem
             VfxCurveType.Quadratic => t * t,
             VfxCurveType.Cubic => t * t * t,
             VfxCurveType.Sine => MathF.Sin(t * MathF.PI * 0.5f),
+            VfxCurveType.Bell => MathF.Sin(t * MathF.PI),
             _ => t
         };
+    }
+
+    internal static float EvaluateCurve(VfxCurveType curve, float t, Vector4 bezier)
+    {
+        if (curve == VfxCurveType.CubicBezier)
+            return EvaluateCubicBezier(t, bezier.X, bezier.Y, bezier.Z, bezier.W);
+        return EvaluateCurve(curve, t);
+    }
+
+    // Evaluates a cubic bezier curve at normalized time x.
+    // 4 Y control points at fixed X positions: P0=(0, 0), P1=(0.33, y1), P2=(0.66, y2), P3=(1, y3).
+    // y0 is implicitly 0. This allows bell curves (y3=0), ramps, and arbitrary shapes.
+    // Syntax: bezier(y1, y2, y3) — 3 values, or bezier(y0, y1, y2, y3) — 4 values.
+    private static float EvaluateCubicBezier(float x, float y0, float y1, float y2, float y3)
+    {
+        x = Math.Clamp(x, 0f, 1f);
+        var omt = 1f - x;
+        return omt * omt * omt * y0 + 3f * omt * omt * x * y1 + 3f * omt * x * x * y2 + x * x * x * y3;
     }
 
     // --- Random helpers ---
