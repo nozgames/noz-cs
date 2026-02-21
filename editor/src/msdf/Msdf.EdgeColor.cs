@@ -7,9 +7,6 @@ using System;
 
 namespace NoZ.Editor.Msdf;
 
-/// <summary>
-/// Edge color specifies which color channels an edge belongs to.
-/// </summary>
 [Flags]
 internal enum EdgeColor
 {

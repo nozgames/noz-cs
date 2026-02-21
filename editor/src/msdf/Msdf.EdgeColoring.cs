@@ -71,12 +71,8 @@ internal static class EdgeColoring
         return len;
     }
 
-    /// <summary>
-    /// Assigns edge colors with ink trap corner detection. Short edge segments between
-    /// adjacent corners are treated as "minor" and given derived colors, preventing
-    /// artifacts at sharp concave corners (like the V-junction of letter M).
-    /// Port of msdfgen's edgeColoringInkTrap.
-    /// </summary>
+    // Ink trap corner detection: short segments between adjacent corners get derived colors,
+    // preventing artifacts at sharp concave corners (e.g. V-junction of letter M).
     public static void ColorInkTrap(Shape shape, double angleThreshold, ulong seed = 0)
     {
         double crossThreshold = Math.Sin(angleThreshold);
@@ -222,11 +218,7 @@ internal static class EdgeColoring
         public EdgeColor color;
     }
 
-    /// <summary>
-    /// Assigns colors to edges of the shape in accordance to the multi-channel distance field technique.
-    /// May split some edges if necessary.
-    /// angleThreshold specifies the maximum angle (in radians) to be considered a corner, e.g. 3 (~172 degrees).
-    /// </summary>
+    // Simple edge coloring for MSDF. May split edges. angleThreshold in radians (e.g. 3 ≈ 172°).
     public static void ColorSimple(Shape shape, double angleThreshold, ulong seed = 0)
     {
         double crossThreshold = Math.Sin(angleThreshold);

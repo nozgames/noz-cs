@@ -7,9 +7,6 @@ using System;
 
 namespace NoZ.Editor.Msdf;
 
-/// <summary>
-/// Core math utilities ported from msdfgen's arithmetics.hpp and equation-solver.cpp
-/// </summary>
 internal static class MsdfMath
 {
     public static double Median(double a, double b, double c)
@@ -19,7 +16,6 @@ internal static class MsdfMath
 
     public static T Mix<T>(T a, T b, double weight) where T : struct
     {
-        // Specialized for double
         if (a is double da && b is double db)
             return (T)(object)((1.0 - weight) * da + weight * db);
         throw new NotSupportedException();
@@ -33,8 +29,6 @@ internal static class MsdfMath
     public static int Sign(double n) => (0.0 < n ? 1 : 0) - (n < 0.0 ? 1 : 0);
 
     public static int NonZeroSign(double n) => 2 * (n > 0.0 ? 1 : 0) - 1;
-
-    // --- Vector math helpers ---
 
     public static double Dot(Vector2Double a, Vector2Double b) => a.x * b.x + a.y * b.y;
     public static double Cross(Vector2Double a, Vector2Double b) => a.x * b.y - a.y * b.x;
@@ -50,10 +44,7 @@ internal static class MsdfMath
 
     public static double Length(Vector2Double v) => Math.Sqrt(v.x * v.x + v.y * v.y);
 
-    /// <summary>
-    /// Normalize with allowZero=false: returns (0, 1) when zero-length.
-    /// Matches msdfgen's Vector2::normalize(false).
-    /// </summary>
+    // normalize(allowZero=false): returns (0,1) for zero-length
     public static Vector2Double Normalize(Vector2Double v)
     {
         double len = Length(v);
@@ -62,10 +53,7 @@ internal static class MsdfMath
         return new Vector2Double(0, 1);
     }
 
-    /// <summary>
-    /// Normalize with allowZero=true: returns (0, 0) when zero-length.
-    /// Matches msdfgen's Vector2::normalize(true).
-    /// </summary>
+    // normalize(allowZero=true): returns (0,0) for zero-length
     public static Vector2Double NormalizeAllowZero(Vector2Double v)
     {
         double len = Length(v);
@@ -74,10 +62,6 @@ internal static class MsdfMath
         return new Vector2Double(0, 0);
     }
 
-    /// <summary>
-    /// Returns a vector with unit length orthogonal to this one.
-    /// Matches msdfgen's Vector2::getOrthonormal(polarity, allowZero=true).
-    /// </summary>
     public static Vector2Double GetOrthonormal(Vector2Double v, bool polarity = true, bool allowZero = false)
     {
         double len = Length(v);
@@ -90,18 +74,13 @@ internal static class MsdfMath
             : new Vector2Double(0, allowZero ? 0 : -1);
     }
 
-    // --- Equation solvers ---
-
-    /// <summary>
-    /// Solves ax^2 + bx + c = 0. Returns number of solutions.
-    /// </summary>
     public static int SolveQuadratic(Span<double> x, double a, double b, double c)
     {
         if (a == 0 || Math.Abs(b) > 1e12 * Math.Abs(a))
         {
             if (b == 0)
             {
-                if (c == 0) return -1; // 0 == 0
+                if (c == 0) return -1;
                 return 0;
             }
             x[0] = -c / b;
@@ -158,9 +137,6 @@ internal static class MsdfMath
         }
     }
 
-    /// <summary>
-    /// Solves ax^3 + bx^2 + cx + d = 0. Returns number of solutions.
-    /// </summary>
     public static int SolveCubic(Span<double> x, double a, double b, double c, double d)
     {
         if (a != 0)
