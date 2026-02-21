@@ -3,7 +3,6 @@
 //
 
 using System;
-using System.Diagnostics;
 
 namespace NoZ.Editor.Msdf;
 
@@ -74,7 +73,6 @@ internal static class MsdfSprite
     {
         if (pathIndices.Length == 0) return;
 
-        var totalSw = Stopwatch.StartNew();
         var dpi = EditorApplication.Config.PixelsPerUnit;
 
         // Walk paths in draw order. Add paths accumulate raw contours.
@@ -103,16 +101,12 @@ internal static class MsdfSprite
             }
         }
 
-        var shapeMs = totalSw.ElapsedMilliseconds;
-
         if (shape.contours.Count == 0) return;
 
         // Final cleanup: union resolves any remaining overlaps, then prepare for generation
-        var sw = Stopwatch.StartNew();
         shape = ShapeClipper.Union(shape);
         shape.Normalize();
         EdgeColoring.ColorSimple(shape, 3.0);
-        var prepMs = sw.ElapsedMilliseconds;
 
         var scale = new Vector2Double(dpi, dpi);
         var translate = new Vector2Double(
@@ -124,19 +118,10 @@ internal static class MsdfSprite
         double rangeInShapeUnits = range / dpi * 2.0;
 
         var bitmap = new MsdfBitmap(w, h);
-        sw.Restart();
         MsdfGenerator.GenerateMSDFBasic(bitmap, shape, rangeInShapeUnits, scale, translate);
-        var genMs = sw.ElapsedMilliseconds;
-
-        sw.Restart();
         MsdfGenerator.DistanceSignCorrection(bitmap, shape, scale, translate);
-        var signMs = sw.ElapsedMilliseconds;
-
-        sw.Restart();
         MsdfGenerator.ErrorCorrection(bitmap, shape, scale, translate, rangeInShapeUnits);
-        var errMs = sw.ElapsedMilliseconds;
 
-        sw.Restart();
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
@@ -151,12 +136,6 @@ internal static class MsdfSprite
                     255);
             }
         }
-        var copyMs = sw.ElapsedMilliseconds;
 
-        totalSw.Stop();
-        var contourCount = shape.contours.Count;
-        var edgeCount = 0;
-        foreach (var c in shape.contours) edgeCount += c.edges.Count;
-        Log.Info($"[SDF Sprite] {w}x{h} px, {pathIndices.Length} paths, {contourCount} contours, {edgeCount} edges | shape {shapeMs}ms, prep {prepMs}ms, generate {genMs}ms, signCorr {signMs}ms, errCorr {errMs}ms, copy {copyMs}ms, total {totalSw.ElapsedMilliseconds}ms");
     }
 }

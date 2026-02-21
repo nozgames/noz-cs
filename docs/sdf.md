@@ -23,14 +23,14 @@ MSDF solves this by encoding distance across three channels (R, G, B). Each edge
 | `Msdf.EdgeColoring.cs` | `EdgeColoring.ColorSimple` — assigns R/G/B to edges at sharp corners |
 | `Msdf.ShapeClipper.cs` | Clipper2 boolean operations (union, difference) — flattens curves and merges/carves contours |
 | `Msdf.Generator.cs` | `GenerateMSDF` (OverlappingContourCombiner for fonts), `GenerateMSDFBasic` (grid-accelerated for sprites), `DistanceSignCorrection`, `ErrorCorrection` |
-| `Msdf.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf shapes and runs generation |
+| `Msdf.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf shapes via `AppendContour` + draw-order subtract processing, runs generation |
 | `Msdf.Font.cs` | Bridge: converts TTF glyph contours to msdf shapes and runs generation |
 
 ## Generation Pipeline
 
 ### 1. Shape Conversion
 
-**Sprites** (`MsdfSprite.FromSpritePaths`): NoZ sprite paths are converted to `Shape`/`Contour`/`EdgeSegment` objects. Linear segments become `LinearSegment`, quadratic curves become `QuadraticSegment`. Each path becomes one contour. Sprite coordinates are already in screen-space (Y-down).
+**Sprites** (`MsdfSprite.RasterizeMSDF`): Sprite paths are processed in draw order. Each path is converted to a contour via `AppendContour` — a lightweight raw conversion (no Clipper2, no normalize, no edge coloring per path). Winding is normalized to positive for the NonZero fill rule. Add paths accumulate contours on the shape. When a subtract path is encountered, it triggers an immediate `ShapeClipper.Difference` against the accumulated shape. After all paths are processed, one final `ShapeClipper.Union` + `Normalize` + `EdgeColoring.ColorSimple` prepares the shape for generation. This avoids redundant Clipper2 work that previously dominated timing.
 
 **Fonts** (`MsdfFont.FromGlyph`): TTF glyph contours are converted similarly. TTF uses Y-up coordinates; coordinates are kept in native Y-up space and the shape is marked with `inverseYAxis = true` so the generator flips output rows for screen Y-down rendering. This preserves natural contour windings.
 
@@ -75,12 +75,13 @@ After generation, both fonts and sprites run two correction passes:
 
 ### 6. Subtract Path Handling (Sprites Only)
 
-Subtract paths carve holes out of additive paths using Clipper2 boolean difference, producing a single clean shape for MSDF generation:
+Subtract paths carve holes out of additive paths using Clipper2 boolean difference. Paths are processed in draw order so that subtract paths only affect add paths that precede them:
 
-1. Additive paths are unioned via `ShapeClipper.Union` into one shape
-2. Subtract paths are unioned via `ShapeClipper.Union` into a separate shape
-3. `ShapeClipper.Difference(addShape, subShape)` carves the subtract regions out
-4. The result is re-normalized and edge-colored, then a single MSDF is generated
+1. Add paths accumulate raw contours on the shape (no per-path Clipper2)
+2. When a subtract path is encountered, `ShapeClipper.Difference(shape, subShape)` immediately carves it from the accumulated shape
+3. After all paths: one final `ShapeClipper.Union` + normalize + edge coloring
+
+This inline approach preserves draw ordering — a subtract between two add groups only carves the first group. An add path after a subtract is unaffected by it.
 
 **Mesh slot distribution**: Subtract paths apply to all mesh slots created *before* them in draw order. When `GetMeshSlots` encounters a subtract path, it appends that path's index to every slot that already exists. Slots created after the subtract are unaffected. This means a subtract path between a white shape and a blue shape carves holes in both, but a shape added after the subtract is untouched.
 
@@ -97,21 +98,15 @@ Where `scale` and `translate` are provided by the caller. This matches msdfgen's
 ```
 Sprite paths / TTF glyph contours
   |
-  v
-Shape conversion (FromSpritePaths / FromGlyph)
+  +--- Sprites: AppendContour per path (raw conversion, no Clipper2)
+  |      Subtract paths → immediate ShapeClipper.Difference
+  |      Final: ShapeClipper.Union → Normalize → EdgeColoring.ColorSimple
   |
-  v
-ShapeClipper.Union (Clipper2 boolean union — resolves overlaps + self-intersections)
-  |  (sprites with subtract paths)
-  v
-ShapeClipper.Difference (Clipper2 boolean difference — carves subtract paths out)
-  |
-  v
-Normalize → EdgeColoring.ColorSimple
-  |
-  +--- Fonts: GenerateMSDF (OverlappingContourCombiner + PerpendicularDistanceSelector)
+  +--- Fonts: FromGlyph → ShapeClipper.Union → Normalize → EdgeColoring.ColorSimple
   |
   +--- Sprites: GenerateMSDFBasic (true distance only, spatial grid acceleration)
+  |
+  +--- Fonts: GenerateMSDF (OverlappingContourCombiner + PerpendicularDistanceSelector)
   |
   v
 DistanceSignCorrection + ErrorCorrection (both fonts and sprites)
@@ -221,20 +216,17 @@ This reduced the generate step from ~320ms to ~1-3ms (100x+ speedup).
 All pixel-level passes use `Parallel.For` on rows:
 
 - **`GenerateMSDFBasic`**: Each row's pixels are independent (read-only grid, write to own pixel)
-- **`DistanceSignCorrection`**: Sequential (scanline intersection state is cumulative per-row), but already fast at ~2-3ms
-- **`ProtectEdges`**: Three sub-passes (horizontal, vertical, diagonal) each parallelized. Writes are `|= STENCIL_PROTECTED` (same bit OR), so cross-row races are benign.
+- **`DistanceSignCorrection`**: Sequential (scanline intersection state is cumulative per-row). Uses a pooled intersection list (cleared per row, not reallocated) and binary search for winding lookup on sorted intersections.
+- **`ProtectEdges`**: Single combined `Parallel.For` per row — checks horizontal, vertical, and diagonal neighbors in one pass. Writes are `|= STENCIL_PROTECTED` (same bit OR), so cross-row races are benign.
 - **`FindErrors`**: Each pixel writes only to its own stencil entry, safe to parallelize.
 
-### Timing Debug
+### Sprite Shape Construction
 
-Both `Msdf.Sprite.cs` and `Msdf.Generator.cs` include `Log.Info` timing for each step. Example output:
+The main optimization is in `MsdfSprite.RasterizeMSDF`: paths are converted to raw contours via `AppendContour` (no Clipper2 per path), with subtract paths carved inline via `Difference`. Only one final `Union` + `Normalize` + `EdgeColoring.ColorSimple` at the end. This avoids the previous pattern of repeated union/normalize/color per batch, which dominated total time (~21ms of a 32ms total for a 33-path sprite).
 
-```
-[SDF GenBasic] 249x214, 14 contours, 503 edges, grid 82x70 (5740 cells, 4265 entries) | precompute 0ms, generate 1ms
-[SDF SignCorr] 249x214, 503 edges | scanlines 2ms, total 2ms
-[SDF ErrCorr] 249x214 | corners 0ms, protEdges 1ms, findErr 4ms, apply 0ms
-[SDF Sprite] 249x214 px, 33 paths, 14 contours, 503 edges | shape 1ms, diff 1ms, generate 2ms, signCorr 3ms, errCorr 7ms, copy 1ms, total 16ms
-```
+### Editor SDF Preview
+
+The sprite editor renders a live MSDF preview when `IsSDF` is enabled. Per mesh slot (grouped by layer/bone/fillColor), an MSDF is generated into the editor's `_image` buffer and drawn with `texture_sdf.wgsl` + `TextureFilter.Linear` + per-slot fill color from the palette. The non-SDF raster path is unchanged. Typical interactive performance is 0-5ms per regeneration.
 
 ## References
 

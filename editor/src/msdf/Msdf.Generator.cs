@@ -410,8 +410,6 @@ internal static class MsdfGenerator
         Vector2Double scale,
         Vector2Double translate)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
         double rangeLower = -0.5 * rangeValue;
         double rangeUpper = 0.5 * rangeValue;
         double rangeWidth = rangeUpper - rangeLower;
@@ -511,8 +509,6 @@ internal static class MsdfGenerator
                 }
         }
 
-        var precomputeMs = sw.ElapsedMilliseconds;
-        sw.Restart();
 
         Parallel.For(0, h, y =>
         {
@@ -556,8 +552,6 @@ internal static class MsdfGenerator
             }
         });
 
-        var genMs = sw.ElapsedMilliseconds;
-        Log.Info($"[SDF GenBasic] {w}x{h}, {contourCount} contours, {totalEdges} edges, grid {gridW}x{gridH} ({gridCells} cells, {cellOffsets[gridCells]} entries) | precompute {precomputeMs}ms, generate {genMs}ms");
     }
 
     // Scanline-based sign correction. Flips MSDF pixels where the sign disagrees
@@ -571,8 +565,6 @@ internal static class MsdfGenerator
         int w = sdf.width, h = sdf.height;
         if (w == 0 || h == 0)
             return;
-
-        var totalSw = System.Diagnostics.Stopwatch.StartNew();
 
         bool flipY = shape.inverseYAxis;
         float sdfZeroValue = 0.5f;
@@ -592,8 +584,6 @@ internal static class MsdfGenerator
         foreach (var contour in shape.contours)
             foreach (var edge in contour.edges)
                 allEdges[ei++] = edge;
-
-        var precomputeMs = totalSw.ElapsedMilliseconds;
 
         Span<double> ix = stackalloc double[3];
         Span<int> idy = stackalloc int[3];
@@ -664,8 +654,6 @@ internal static class MsdfGenerator
             }
         }
 
-        var scanlineMs = totalSw.ElapsedMilliseconds - precomputeMs;
-
         // Resolve ambiguous pixels by neighbor majority
         if (ambiguous)
         {
@@ -694,8 +682,6 @@ internal static class MsdfGenerator
             }
         }
 
-        totalSw.Stop();
-        Log.Info($"[SDF SignCorr] {w}x{h}, {totalEdges} edges | scanlines {scanlineMs}ms, total {totalSw.ElapsedMilliseconds}ms");
     }
 
     // --- Error Correction (port of msdfgen's MSDFErrorCorrection) ---
@@ -719,26 +705,13 @@ internal static class MsdfGenerator
         if (w == 0 || h == 0)
             return;
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
         var stencil = new byte[w * h];
 
         ProtectCorners(stencil, w, h, shape, scale, translate);
-        var cornersMs = sw.ElapsedMilliseconds;
-
-        sw.Restart();
         ProtectEdges(stencil, sdf, w, h, scale, rangeValue);
-        var edgesMs = sw.ElapsedMilliseconds;
-
-        sw.Restart();
         FindErrors(stencil, sdf, w, h, scale, rangeValue);
-        var findMs = sw.ElapsedMilliseconds;
-
-        sw.Restart();
         ApplyCorrection(stencil, sdf, w, h);
-        var applyMs = sw.ElapsedMilliseconds;
 
-        Log.Info($"[SDF ErrCorr] {w}x{h} | corners {cornersMs}ms, protEdges {edgesMs}ms, findErr {findMs}ms, apply {applyMs}ms");
     }
 
     private static void ProtectCorners(
