@@ -3,6 +3,7 @@
 //
 
 using System;
+using System.Diagnostics;
 
 namespace NoZ.Editor.Msdf;
 
@@ -103,10 +104,15 @@ internal static class MsdfSprite
 
         if (shape.contours.Count == 0) return;
 
+        var sw = Stopwatch.StartNew();
+
         // Final cleanup: union resolves any remaining overlaps, then prepare for generation
         shape = ShapeClipper.Union(shape);
+        var tUnion = sw.Elapsed.TotalMilliseconds; sw.Restart();
+
         shape.Normalize();
         EdgeColoring.ColorSimple(shape, 3.0);
+        var tPrepare = sw.Elapsed.TotalMilliseconds; sw.Restart();
 
         var scale = new Vector2Double(dpi, dpi);
         var translate = new Vector2Double(
@@ -119,8 +125,13 @@ internal static class MsdfSprite
 
         var bitmap = new MsdfBitmap(w, h);
         MsdfGenerator.GenerateMSDF(bitmap, shape, rangeInShapeUnits, scale, translate);
+        var tGenerate = sw.Elapsed.TotalMilliseconds; sw.Restart();
+
         MsdfGenerator.DistanceSignCorrection(bitmap, shape, scale, translate);
+        var tSignCorr = sw.Elapsed.TotalMilliseconds; sw.Restart();
+
         MsdfGenerator.ErrorCorrection(bitmap, shape, scale, translate, rangeInShapeUnits);
+        var tErrorCorr = sw.Elapsed.TotalMilliseconds; sw.Restart();
 
         for (int y = 0; y < h; y++)
         {
@@ -136,5 +147,11 @@ internal static class MsdfSprite
                     255);
             }
         }
+        var tCopy = sw.Elapsed.TotalMilliseconds;
+
+        int totalEdges = 0;
+        foreach (var c in shape.contours) totalEdges += c.edges.Count;
+        var total = tUnion + tPrepare + tGenerate + tSignCorr + tErrorCorr + tCopy;
+        NoZ.Log.Info($"[MSDF Sprite] {w}x{h} {shape.contours.Count}c {totalEdges}e | Union={tUnion:F2} Prep={tPrepare:F2} Gen={tGenerate:F2} Sign={tSignCorr:F2} Err={tErrorCorr:F2} Copy={tCopy:F2} Total={total:F2}ms");
     }
 }

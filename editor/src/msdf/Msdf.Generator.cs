@@ -320,6 +320,7 @@ internal static class MsdfGenerator
         {
             int row = flipY ? h - 1 - y : y;
             var contourSelectors = new MultiDistanceSelector[contourCount];
+            var contourDistances = new MultiDistance[contourCount];
 
             for (int x = 0; x < w; ++x)
             {
@@ -343,6 +344,7 @@ internal static class MsdfGenerator
                         for (int ei = 0; ei < edgeCount; ++ei)
                         {
                             ref readonly var ed = ref edgeData[ei];
+                            var edgeRef = edges[ei];
 
                             // Inline LinearSegment.GetSignedDistance
                             double aqx = p.x - ed.p0x;
@@ -360,7 +362,6 @@ internal static class MsdfGenerator
 
                             if (param > 0 && param < 1)
                             {
-                                // Orthogonal distance (pre-computed orthonormal)
                                 double orthoDist = ed.orthx * aqx + ed.orthy * aqy;
                                 if (Math.Abs(orthoDist) < endpointDist)
                                 {
@@ -369,34 +370,29 @@ internal static class MsdfGenerator
                                 }
                             }
 
-                            // Endpoint distance
                             {
                                 double crossVal = aqx * ed.aby - aqy * ed.abx;
                                 int sign = crossVal > 0.0 ? 1 : -1;
-                                // Dot(Normalize(ab), Normalize(eq))
-                                double eqLen = endpointDist;
                                 double dotVal;
-                                if (eqLen > 0)
-                                    dotVal = Math.Abs((ed.ndx * eqx + ed.ndy * eqy) / eqLen);
+                                if (endpointDist > 0)
+                                    dotVal = Math.Abs((ed.ndx * eqx + ed.ndy * eqy) / endpointDist);
                                 else
                                     dotVal = 0;
                                 distance = new SignedDistance(sign * endpointDist, dotVal);
                             }
 
                             addDistance:
-                            // AddEdgeTrueDistance per channel
-                            if ((ed.colorMask & 1) != 0) // RED
-                                selector.r.AddEdgeTrueDistance(edges[ei], distance, param);
-                            if ((ed.colorMask & 2) != 0) // GREEN
-                                selector.g.AddEdgeTrueDistance(edges[ei], distance, param);
-                            if ((ed.colorMask & 4) != 0) // BLUE
-                                selector.b.AddEdgeTrueDistance(edges[ei], distance, param);
+                            if ((ed.colorMask & 1) != 0)
+                                selector.r.AddEdgeTrueDistance(edgeRef, distance, param);
+                            if ((ed.colorMask & 2) != 0)
+                                selector.g.AddEdgeTrueDistance(edgeRef, distance, param);
+                            if ((ed.colorMask & 4) != 0)
+                                selector.b.AddEdgeTrueDistance(edgeRef, distance, param);
 
                             // Perpendicular distance at start corner
                             double apDotSb = aqx * ed.sbx + aqy * ed.sby;
                             if (apDotSb > 0)
                             {
-                                // GetPerpendicularDistance(ref pd, ap, -aDir)
                                 double ts = aqx * ed.negNdx + aqy * ed.negNdy;
                                 if (ts > 0)
                                 {
@@ -420,7 +416,6 @@ internal static class MsdfGenerator
                             double bpDotEb = -(bpx * ed.ebx + bpy * ed.eby);
                             if (bpDotEb > 0)
                             {
-                                // GetPerpendicularDistance(ref pd, bp, bDir=nd)
                                 double ts = bpx * ed.ndx + bpy * ed.ndy;
                                 if (ts > 0)
                                 {
@@ -462,6 +457,7 @@ internal static class MsdfGenerator
                 }
 
                 // OverlappingContourCombiner::distance()
+                // Pre-compute per-contour distances once (avoids redundant ComputeDistance calls).
                 var shapeSelector = new MultiDistanceSelector();
                 shapeSelector.Init();
                 var innerSelector = new MultiDistanceSelector();
@@ -471,11 +467,11 @@ internal static class MsdfGenerator
 
                 for (int ci = 0; ci < contourCount; ++ci)
                 {
-                    MultiDistance edgeDistance = contourSelectors[ci].Distance(p);
+                    contourDistances[ci] = contourSelectors[ci].Distance(p);
                     shapeSelector.Merge(contourSelectors[ci]);
-                    if (windings[ci] > 0 && edgeDistance.Median() >= 0)
+                    if (windings[ci] > 0 && contourDistances[ci].Median() >= 0)
                         innerSelector.Merge(contourSelectors[ci]);
-                    if (windings[ci] < 0 && edgeDistance.Median() <= 0)
+                    if (windings[ci] < 0 && contourDistances[ci].Median() <= 0)
                         outerSelector.Merge(contourSelectors[ci]);
                 }
 
@@ -499,10 +495,10 @@ internal static class MsdfGenerator
                     {
                         if (windings[ci] > 0)
                         {
-                            MultiDistance contourDistance = contourSelectors[ci].Distance(p);
-                            if (Math.Abs(contourDistance.Median()) < Math.Abs(outerScalarDistance)
-                                && contourDistance.Median() > result.Median())
-                                result = contourDistance;
+                            double cdMedian = contourDistances[ci].Median();
+                            if (Math.Abs(cdMedian) < Math.Abs(outerScalarDistance)
+                                && cdMedian > result.Median())
+                                result = contourDistances[ci];
                         }
                     }
                 }
@@ -514,10 +510,10 @@ internal static class MsdfGenerator
                     {
                         if (windings[ci] < 0)
                         {
-                            MultiDistance contourDistance = contourSelectors[ci].Distance(p);
-                            if (Math.Abs(contourDistance.Median()) < Math.Abs(innerScalarDistance)
-                                && contourDistance.Median() < result.Median())
-                                result = contourDistance;
+                            double cdMedian = contourDistances[ci].Median();
+                            if (Math.Abs(cdMedian) < Math.Abs(innerScalarDistance)
+                                && cdMedian < result.Median())
+                                result = contourDistances[ci];
                         }
                     }
                 }
@@ -535,10 +531,10 @@ internal static class MsdfGenerator
                 {
                     if (windings[ci] != winding)
                     {
-                        MultiDistance contourDistance = contourSelectors[ci].Distance(p);
-                        if (contourDistance.Median() * result.Median() >= 0
-                            && Math.Abs(contourDistance.Median()) < Math.Abs(result.Median()))
-                            result = contourDistance;
+                        double cdMedian = contourDistances[ci].Median();
+                        if (cdMedian * result.Median() >= 0
+                            && Math.Abs(cdMedian) < Math.Abs(result.Median()))
+                            result = contourDistances[ci];
                     }
                 }
 
@@ -994,6 +990,7 @@ internal static class MsdfGenerator
             {
                 var c = sdf[x, y];
                 float cm = MathF.Max(MathF.Min(c[0], c[1]), MathF.Min(MathF.Max(c[0], c[1]), c[2]));
+
                 bool isProtected = (stencil[y * w + x] & STENCIL_PROTECTED) != 0;
 
                 bool isError =
