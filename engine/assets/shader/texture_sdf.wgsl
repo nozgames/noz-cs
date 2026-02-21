@@ -3,7 +3,7 @@
 //
 //  SDF texture shader - uses texture_2d (no texture array)
 //  For editor rendering of SDF sprites
-//  SDF distance in R channel, color from vertex color
+//  Distance in RGB channels, color from vertex color
 
 // Bind group 0: Globals and texture
 struct Globals {
@@ -78,10 +78,17 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     return output;
 }
 
+fn median(r: f32, g: f32, b: f32) -> f32 {
+    return max(min(r, g), min(max(r, g), b));
+}
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    // SDF distance stored in R channel
-    let dist = textureSample(texture0, sampler0, input.uv).r;
+    // MSDF distance stored in R, G, B channels
+    let msd = textureSample(texture0, sampler0, input.uv).rgb;
+
+    // Reconstruct distance via median
+    let dist = median(msd.r, msd.g, msd.b);
 
     // Adaptive edge width based on screen-space derivatives
     let dx = dpdx(dist);

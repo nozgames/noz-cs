@@ -177,7 +177,7 @@ internal static class MsdfSprite
                     (byte)(r * 255f),
                     (byte)(g * 255f),
                     (byte)(b * 255f),
-                    0);
+                    255);
             }
         }
     }

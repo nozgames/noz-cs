@@ -1,7 +1,7 @@
 //
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
-//  SDF sprite shader - reads signed distance field from R channel
+//  SDF sprite shader - reconstructs sharp edges via median of R, G, B channels.
 //  Color and opacity come from vertex color (per-mesh fill color)
 
 // Bind group 0: Globals and textures
@@ -91,10 +91,17 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     return output;
 }
 
+fn median(r: f32, g: f32, b: f32) -> f32 {
+    return max(min(r, g), min(max(r, g), b));
+}
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    // SDF distance stored in R channel
-    let dist = textureSample(texture_array, texture_sampler, input.uv, input.atlas).r;
+    // MSDF distance stored in R, G, B channels
+    let msd = textureSample(texture_array, texture_sampler, input.uv, input.atlas).rgb;
+
+    // Reconstruct distance via median
+    let dist = median(msd.r, msd.g, msd.b);
 
     // Adaptive edge width based on screen-space derivatives
     let dx = dpdx(dist);

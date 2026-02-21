@@ -11,12 +11,8 @@ namespace NoZ;
 
 public static partial class Graphics
 {
-    private static Shader GetSpriteShader(Sprite sprite) => sprite.SdfMode switch
-    {
-        SdfMode.Msdf when _spriteMsdfShader != null => _spriteMsdfShader,
-        SdfMode.Sdf when _spriteSdfShader != null => _spriteSdfShader,
-        _ => _spriteShader!
-    };
+    private static Shader GetSpriteShader(Sprite sprite) =>
+        sprite.IsSDF && _spriteSdfShader != null ? _spriteSdfShader : _spriteShader!;
 
     public static void Draw(in Rect rect, ushort order = 0, int bone = -1) =>
         Draw(rect.X, rect.Y, rect.Width, rect.Height, order: order, bone: bone);
@@ -145,12 +141,14 @@ public static partial class Graphics
             SetShader(GetSpriteShader(sprite));
             SetTextureFilter(sprite.TextureFilter);
 
+            var baseColor = CurrentState.Color;
+
             for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
                 if (sprite.IsSDF)
-                    SetColor(mesh.FillColor);
+                    SetColor(mesh.FillColor * baseColor);
 
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;

@@ -286,7 +286,7 @@ public class FontDocument : Document
 
             var translate = new Vector2Double(
                 -glyph.Ttf.bearing.x + (SdfRange + centerX) / s,
-                glyph.Ttf.size.y - glyph.Ttf.bearing.y + (SdfRange + centerY) / s
+                glyph.Ttf.bearing.y + (SdfRange + centerY) / s
             );
 
             Msdf.MsdfFont.RenderGlyph(

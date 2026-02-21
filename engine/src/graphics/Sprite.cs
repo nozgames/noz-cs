@@ -6,13 +6,6 @@ using System.Numerics;
 
 namespace NoZ;
 
-public enum SdfMode : byte
-{
-    None = 0,
-    Sdf = 1,
-    Msdf = 2
-}
-
 public readonly struct SpriteMesh(
     Rect uv,
     short order,
@@ -48,9 +41,7 @@ public class Sprite : Asset
     public float PixelsPerUnit { get; private set; } = 64.0f;
     public float PixelsPerUnitInv { get; private set; }
     public float FrameRate { get; private set; } = 12.0f;
-    public SdfMode SdfMode { get; private set; }
-    public bool IsSDF => SdfMode != SdfMode.None;
-    public bool IsMSDF => SdfMode == SdfMode.Msdf;
+    public bool IsSDF { get; private set; }
     public TextureFilter TextureFilter { get; set; } = TextureFilter.Point;
     public SpriteMesh[] Meshes { get; private set; } = [];
     public SpriteFrameInfo[] FrameTable { get; private set; } = [];
@@ -68,11 +59,8 @@ public class Sprite : Asset
         SpriteMesh[] meshes,
         SpriteFrameInfo[] frameTable,
         float frameRate = 12.0f,
-        bool isSDF = false,
-        SdfMode sdfMode = SdfMode.None)
+        bool isSDF = false)
     {
-        // If sdfMode is explicitly set, use it; otherwise fall back to isSDF bool
-        var mode = sdfMode != SdfMode.None ? sdfMode : (isSDF ? SdfMode.Sdf : SdfMode.None);
         return new Sprite(name)
         {
             Bounds = bounds,
@@ -81,7 +69,7 @@ public class Sprite : Asset
             PixelsPerUnit = pixelsPerUnit,
             PixelsPerUnitInv = 1.0f / pixelsPerUnit,
             FrameRate = frameRate,
-            SdfMode = mode,
+            IsSDF = isSDF,
             TextureFilter = filter,
             BoneIndex = boneIndex,
             Meshes = meshes,
@@ -105,7 +93,7 @@ public class Sprite : Asset
         var boneIndex = reader.ReadInt16();
         var meshCount = reader.ReadUInt16();
         var frameRate = reader.ReadSingle();
-        var sdfMode = (SdfMode)reader.ReadByte();
+        var isSDF = reader.ReadByte() != 0;
 
         var meshes = new SpriteMesh[meshCount];
         for (int i = 0; i < meshCount; i++)
@@ -122,7 +110,7 @@ public class Sprite : Asset
             var sizeY = reader.ReadInt16();
 
             var fillColor = Color.White;
-            if (sdfMode != SdfMode.None)
+            if (isSDF)
             {
                 var fr = reader.ReadByte();
                 var fg = reader.ReadByte();
@@ -155,7 +143,7 @@ public class Sprite : Asset
         sprite.PixelsPerUnit = ppu;
         sprite.PixelsPerUnitInv = 1.0f / ppu;
         sprite.FrameRate = frameRate;
-        sprite.SdfMode = sdfMode;
+        sprite.IsSDF = isSDF;
         sprite.TextureFilter = filter;
         sprite.Meshes = meshes;
         sprite.FrameTable = frameTable;

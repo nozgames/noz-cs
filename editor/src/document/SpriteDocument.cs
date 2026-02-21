@@ -78,13 +78,9 @@ public class SpriteDocument : Document, ISpriteSource
     private readonly List<Rect> _atlasUV = new();
     private Sprite? _sprite;
     private static Shader? _textureSdfShader;
-    private static Shader? _textureMsdfShader;
 
     private static Shader GetTextureSdfShader() =>
         _textureSdfShader ??= Asset.Get<Shader>(AssetType.Shader, "texture_sdf")!;
-
-    private static Shader GetTextureMsdfShader() =>
-        _textureMsdfShader ??= Asset.Get<Shader>(AssetType.Shader, "texture_msdf")!;
 
     public readonly SpriteFrame[] Frames = new SpriteFrame[Sprite.MaxFrames];
     public ushort FrameCount;
@@ -672,7 +668,7 @@ public class SpriteDocument : Document, ISpriteSource
         using (Graphics.PushState())
         {
             Graphics.SetTexture(Atlas.Texture);
-            Graphics.SetShader(IsSDF ? GetTextureMsdfShader() : EditorAssets.Shaders.Texture);
+            Graphics.SetShader(IsSDF ? GetTextureSdfShader() : EditorAssets.Shaders.Texture);
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -714,7 +710,7 @@ public class SpriteDocument : Document, ISpriteSource
         using (Graphics.PushState())
         {
             Graphics.SetTexture(Atlas.Texture);
-            Graphics.SetShader(IsSDF ? GetTextureMsdfShader() : EditorAssets.Shaders.Texture);
+            Graphics.SetShader(IsSDF ? GetTextureSdfShader() : EditorAssets.Shaders.Texture);
             Graphics.SetColor(tint ?? Color.White);
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -1037,7 +1033,7 @@ public class SpriteDocument : Document, ISpriteSource
             meshes: allMeshes.ToArray(),
             frameTable: frameTable,
             frameRate: 12.0f,
-            sdfMode: IsSDF ? SdfMode.Msdf : SdfMode.None);
+            isSDF: IsSDF);
     }
 
     internal void MarkSpriteDirty()
@@ -1069,7 +1065,7 @@ public class SpriteDocument : Document, ISpriteSource
         writer.Write((short)-1);  // Legacy bone index field (no longer used)
         writer.Write(totalMeshes);
         writer.Write(12.0f);  // Frame rate
-        writer.Write((byte)(IsSDF ? 2 : 0));  // SDF mode: 0=normal, 1=legacy SDF, 2=MSDF
+        writer.Write((byte)(IsSDF ? 1 : 0));  // SDF: 0=normal, 1=SDF
 
         // Write all meshes per frame
         int uvIndex = 0;

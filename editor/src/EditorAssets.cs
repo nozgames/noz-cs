@@ -62,11 +62,9 @@ public static class EditorAssets
         public const string IconXray = "icon_xray";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
-        public const string SpriteMsdf = "sprite_msdf";
         public const string SpriteSdf = "sprite_sdf";
         public const string Text = "text";
         public const string Texture = "texture";
-        public const string TextureMsdf = "texture_msdf";
         public const string TextureSdf = "texture_sdf";
         public const string Ui = "ui";
     }
@@ -105,11 +103,9 @@ public static class EditorAssets
     {
         public static Shader Composite { get; private set; } = null!;
         public static Shader Sprite { get; private set; } = null!;
-        public static Shader SpriteMsdf { get; private set; } = null!;
         public static Shader SpriteSdf { get; private set; } = null!;
         public static Shader Text { get; private set; } = null!;
         public static Shader Texture { get; private set; } = null!;
-        public static Shader TextureMsdf { get; private set; } = null!;
         public static Shader TextureSdf { get; private set; } = null!;
         public static Shader Ui { get; private set; } = null!;
 
@@ -117,11 +113,9 @@ public static class EditorAssets
         {
             Composite = (Shader)Asset.Load(AssetType.Shader, Names.Composite)!;
             Sprite = (Shader)Asset.Load(AssetType.Shader, Names.Sprite)!;
-            SpriteMsdf = (Shader)Asset.Load(AssetType.Shader, Names.SpriteMsdf)!;
             SpriteSdf = (Shader)Asset.Load(AssetType.Shader, Names.SpriteSdf)!;
             Text = (Shader)Asset.Load(AssetType.Shader, Names.Text)!;
             Texture = (Shader)Asset.Load(AssetType.Shader, Names.Texture)!;
-            TextureMsdf = (Shader)Asset.Load(AssetType.Shader, Names.TextureMsdf)!;
             TextureSdf = (Shader)Asset.Load(AssetType.Shader, Names.TextureSdf)!;
             Ui = (Shader)Asset.Load(AssetType.Shader, Names.Ui)!;
         }
@@ -130,11 +124,9 @@ public static class EditorAssets
         {
             Composite?.Dispose();
             Sprite?.Dispose();
-            SpriteMsdf?.Dispose();
             SpriteSdf?.Dispose();
             Text?.Dispose();
             Texture?.Dispose();
-            TextureMsdf?.Dispose();
             TextureSdf?.Dispose();
             Ui?.Dispose();
         }

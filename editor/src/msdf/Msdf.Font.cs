@@ -11,13 +11,16 @@ internal static class MsdfFont
     /// <summary>
     /// Convert a TTF glyph into an msdf Shape with edge coloring applied,
     /// ready for MSDF generation.
+    /// When flipY is true, glyph Y coordinates are negated to convert from
+    /// TTF Y-up to screen Y-down space. This ensures correct winding for
+    /// the MSDF generator.
     /// </summary>
-    public static Shape? FromGlyph(TrueTypeFont.Glyph glyph, bool inverseYAxis)
+    public static Shape? FromGlyph(TrueTypeFont.Glyph glyph, bool flipY)
     {
         if (glyph?.contours == null || glyph.contours.Length == 0)
             return null;
 
-        var shape = new Shape { inverseYAxis = inverseYAxis };
+        var shape = new Shape();
 
         for (int ci = 0; ci < glyph.contours.Length; ci++)
         {
@@ -30,8 +33,14 @@ internal static class MsdfFont
 
             var contour = shape.AddContour();
 
-            TrueTypeFont.Point GetPoint(int index) =>
-                glyph.points[contourStart + (index % contourLength)];
+            Vector2Double GetXY(int index)
+            {
+                var p = glyph.points[contourStart + (index % contourLength)].xy;
+                return flipY ? new Vector2Double(p.x, -p.y) : p;
+            }
+
+            TrueTypeFont.CurveType GetCurve(int index) =>
+                glyph.points[contourStart + (index % contourLength)].curve;
 
             static Vector2Double Midpoint(Vector2Double a, Vector2Double b) =>
                 new((a.x + b.x) / 2, (a.y + b.y) / 2);
@@ -40,7 +49,7 @@ internal static class MsdfFont
             int firstOnCurve = -1;
             for (int p = 0; p < contourLength; p++)
             {
-                if (GetPoint(p).curve != TrueTypeFont.CurveType.Conic)
+                if (GetCurve(p) != TrueTypeFont.CurveType.Conic)
                 {
                     firstOnCurve = p;
                     break;
@@ -52,12 +61,12 @@ internal static class MsdfFont
 
             if (firstOnCurve >= 0)
             {
-                start = GetPoint(firstOnCurve).xy;
+                start = GetXY(firstOnCurve);
                 startIndex = firstOnCurve;
             }
             else
             {
-                start = Midpoint(GetPoint(0).xy, GetPoint(1).xy);
+                start = Midpoint(GetXY(0), GetXY(1));
                 startIndex = 0;
             }
 
@@ -70,31 +79,33 @@ internal static class MsdfFont
                 pIdx = (pIdx + 1) % contourLength;
                 processed++;
 
-                var point = GetPoint(pIdx);
+                var curve = GetCurve(pIdx);
+                var xy = GetXY(pIdx);
 
-                if (point.curve == TrueTypeFont.CurveType.Conic)
+                if (curve == TrueTypeFont.CurveType.Conic)
                 {
-                    var control = point.xy;
+                    var control = xy;
 
                     while (processed < contourLength)
                     {
                         int nextIdx = (pIdx + 1) % contourLength;
-                        var nextPoint = GetPoint(nextIdx);
+                        var nextCurve = GetCurve(nextIdx);
+                        var nextXY = GetXY(nextIdx);
 
-                        if (nextPoint.curve != TrueTypeFont.CurveType.Conic)
+                        if (nextCurve != TrueTypeFont.CurveType.Conic)
                         {
-                            contour.AddEdge(new QuadraticSegment(last, control, nextPoint.xy));
-                            last = nextPoint.xy;
+                            contour.AddEdge(new QuadraticSegment(last, control, nextXY));
+                            last = nextXY;
                             pIdx = nextIdx;
                             processed++;
                             break;
                         }
                         else
                         {
-                            var mid = Midpoint(control, nextPoint.xy);
+                            var mid = Midpoint(control, nextXY);
                             contour.AddEdge(new QuadraticSegment(last, control, mid));
                             last = mid;
-                            control = nextPoint.xy;
+                            control = nextXY;
                             pIdx = nextIdx;
                             processed++;
                         }
@@ -105,8 +116,8 @@ internal static class MsdfFont
                 }
                 else
                 {
-                    contour.AddEdge(new LinearSegment(last, point.xy));
-                    last = point.xy;
+                    contour.AddEdge(new LinearSegment(last, xy));
+                    last = xy;
                 }
             }
 
@@ -145,6 +156,14 @@ internal static class MsdfFont
         // Create a sub-bitmap view for the glyph region
         var glyphBitmap = new MsdfBitmap(outputSize.X, outputSize.Y);
         MsdfGenerator.GenerateMSDF(glyphBitmap, shape, range * 2.0, scale, translate);
+
+        // Error correction: fix interpolation artifacts at contour boundaries by converting
+        // clashing texels to single-channel (median). This matches msdfgen's behavior where
+        // msdfErrorCorrection is always called after MSDF generation.
+        var ecThreshold = new Vector2Double(
+            1.001 / outputSize.X,
+            1.001 / outputSize.Y);
+        MsdfGenerator.ErrorCorrection(glyphBitmap, ecThreshold);
 
         // Copy to output at the correct position
         for (int y = 0; y < outputSize.Y; y++)

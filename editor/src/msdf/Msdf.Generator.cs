@@ -256,6 +256,76 @@ internal static class MsdfGenerator
     }
 
     /// <summary>
+    /// Generate MSDF using simple nearest-edge-per-channel approach (no overlapping contour combiner).
+    /// Suitable for shapes with non-overlapping contours that follow the non-zero winding rule,
+    /// such as font glyphs where the outer contour and holes don't overlap.
+    /// </summary>
+    public static void GenerateMSDFSimple(
+        MsdfBitmap output,
+        Shape shape,
+        double rangeValue,
+        Vector2Double scale,
+        Vector2Double translate)
+    {
+        double rangeLower = -0.5 * rangeValue;
+        double rangeUpper = 0.5 * rangeValue;
+        double rangeWidth = rangeUpper - rangeLower;
+        double distScale = 1.0 / rangeWidth;
+        double distTranslate = -rangeLower;
+
+        int w = output.width;
+        int h = output.height;
+
+        Parallel.For(0, h, y =>
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                var p = new Vector2Double(x + 0.5, y + 0.5) / scale - translate;
+
+                SignedDistance rMin = new(), gMin = new(), bMin = new();
+                EdgeSegment? rEdge = null, gEdge = null, bEdge = null;
+                double rParam = 0, gParam = 0, bParam = 0;
+
+                foreach (var contour in shape.contours)
+                {
+                    foreach (var edge in contour.edges)
+                    {
+                        var distance = edge.GetSignedDistance(p, out double param);
+
+                        if (((int)edge.color & (int)EdgeColor.RED) != 0 && distance < rMin)
+                        {
+                            rMin = distance;
+                            rEdge = edge;
+                            rParam = param;
+                        }
+                        if (((int)edge.color & (int)EdgeColor.GREEN) != 0 && distance < gMin)
+                        {
+                            gMin = distance;
+                            gEdge = edge;
+                            gParam = param;
+                        }
+                        if (((int)edge.color & (int)EdgeColor.BLUE) != 0 && distance < bMin)
+                        {
+                            bMin = distance;
+                            bEdge = edge;
+                            bParam = param;
+                        }
+                    }
+                }
+
+                rEdge?.DistanceToPerpendicularDistance(ref rMin, p, rParam);
+                gEdge?.DistanceToPerpendicularDistance(ref gMin, p, gParam);
+                bEdge?.DistanceToPerpendicularDistance(ref bMin, p, bParam);
+
+                var pixel = output[x, y];
+                pixel[0] = (float)(distScale * (rMin.distance + distTranslate));
+                pixel[1] = (float)(distScale * (gMin.distance + distTranslate));
+                pixel[2] = (float)(distScale * (bMin.distance + distTranslate));
+            }
+        });
+    }
+
+    /// <summary>
     /// Merge multi-channel distance: take the closer (smaller absolute) distance per channel.
     /// This matches msdfgen's MultiDistanceSelector::merge behavior.
     /// </summary>
