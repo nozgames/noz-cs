@@ -8,21 +8,15 @@ namespace NoZ.Editor.Msdf;
 
 internal static class MsdfFont
 {
-    /// <summary>
-    /// Convert a TTF glyph into an msdf Shape with edge coloring applied,
-    /// ready for MSDF generation.
-    /// Glyph coordinates are kept in TTF Y-up space. The shape is marked with
-    /// inverseYAxis=true so the generator flips the output rows for screen
-    /// Y-down rendering. This preserves natural contour windings for the
-    /// OverlappingContourCombiner, matching msdfgen's font pipeline.
-    /// </summary>
+    // Convert a TTF glyph into an msdf Shape ready for generation.
+    // Coordinates stay in TTF Y-up space; inverseYAxis=true flips the output rows.
     public static Shape? FromGlyph(TrueTypeFont.Glyph glyph)
     {
         if (glyph?.contours == null || glyph.contours.Length == 0)
             return null;
 
         var shape = new Shape();
-        shape.inverseYAxis = true; // TTF is Y-up, output is Y-down
+        shape.inverseYAxis = true;
 
         for (int ci = 0; ci < glyph.contours.Length; ci++)
         {
@@ -47,7 +41,7 @@ internal static class MsdfFont
             static Vector2Double Midpoint(Vector2Double a, Vector2Double b) =>
                 new((a.x + b.x) / 2, (a.y + b.y) / 2);
 
-            // Find the first on-curve point, or compute implicit start if all are conic
+            // Find first on-curve point, or compute implicit start if all are conic
             int firstOnCurve = -1;
             for (int p = 0; p < contourLength; p++)
             {
@@ -104,6 +98,7 @@ internal static class MsdfFont
                         }
                         else
                         {
+                            // Consecutive off-curve: implicit on-curve at midpoint
                             var mid = Midpoint(control, nextXY);
                             contour.AddEdge(new QuadraticSegment(last, control, mid));
                             last = mid;
@@ -123,7 +118,6 @@ internal static class MsdfFont
                 }
             }
 
-            // Close the contour if needed
             if (contour.edges.Count > 0 && last != start)
             {
                 var lastEdgeEnd = contour.edges[^1].Point(1.0);
@@ -132,7 +126,6 @@ internal static class MsdfFont
             }
         }
 
-        // Boolean-union all contours to eliminate overlaps before MSDF generation.
         shape = ShapeClipper.Union(shape);
         shape.inverseYAxis = true;
 
@@ -142,10 +135,7 @@ internal static class MsdfFont
         return shape;
     }
 
-    /// <summary>
-    /// Render a glyph as MSDF into a 3-channel float bitmap.
-    /// Uses OverlappingContourCombiner (GenerateMSDF) matching msdfgen's default pipeline.
-    /// </summary>
+    // Render a glyph as MSDF with sign correction and error correction.
     public static void RenderGlyph(
         TrueTypeFont.Glyph glyph,
         MsdfBitmap output,
@@ -159,19 +149,13 @@ internal static class MsdfFont
         if (shape == null)
             return;
 
-        // Create a sub-bitmap view for the glyph region
         var glyphBitmap = new MsdfBitmap(outputSize.X, outputSize.Y);
-
         double rangeValue = range * 2.0;
 
-        // Use our own MSDF generator (OverlappingContourCombiner + PerpendicularDistanceSelector).
         MsdfGenerator.GenerateMSDF(glyphBitmap, shape, rangeValue, scale, translate);
-
-        // Sign correction + modern error correction.
         MsdfGenerator.DistanceSignCorrection(glyphBitmap, shape, scale, translate);
         MsdfGenerator.ErrorCorrection(glyphBitmap, shape, scale, translate, rangeValue);
 
-        // Copy to output at the correct position
         for (int y = 0; y < outputSize.Y; y++)
         {
             for (int x = 0; x < outputSize.X; x++)

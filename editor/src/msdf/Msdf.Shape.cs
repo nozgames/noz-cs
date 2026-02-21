@@ -9,9 +9,6 @@ using static NoZ.Editor.Msdf.MsdfMath;
 
 namespace NoZ.Editor.Msdf;
 
-/// <summary>
-/// Vector shape representation.
-/// </summary>
 internal class Shape
 {
     public List<Contour> contours = new();
@@ -44,10 +41,7 @@ internal class Shape
         return true;
     }
 
-    /// <summary>
-    /// Normalizes the shape geometry for distance field generation.
-    /// Splits single-edge contours into thirds and pushes apart convergent curves.
-    /// </summary>
+    // Split single-edge contours into thirds so edge coloring has enough edges.
     public void Normalize()
     {
         foreach (var contour in contours)
@@ -77,10 +71,7 @@ internal class Shape
         return total;
     }
 
-    /// <summary>
-    /// Assumes contours are unoriented (even-odd fill rule). Attempts to orient them
-    /// to conform to the non-zero winding rule.
-    /// </summary>
+    // Orient unoriented (even-odd) contours to conform to non-zero winding rule.
     public void OrientContours()
     {
         double ratio = 0.5 * (Math.Sqrt(5) - 1);
@@ -123,7 +114,6 @@ internal class Shape
             {
                 intersections.Sort((a, b) => a.x.CompareTo(b.x));
 
-                // Disqualify multiple intersections at same x
                 for (int j = 1; j < intersections.Count; ++j)
                 {
                     if (intersections[j].x == intersections[j - 1].x)

@@ -10,9 +10,6 @@ using static NoZ.Editor.Msdf.MsdfMath;
 
 namespace NoZ.Editor.Msdf;
 
-/// <summary>
-/// MSDF bitmap: width * height * 3 floats (RGB channels).
-/// </summary>
 internal class MsdfBitmap
 {
     public readonly int width;
@@ -29,10 +26,7 @@ internal class MsdfBitmap
     public Span<float> this[int x, int y] => pixels.AsSpan((y * width + x) * 3, 3);
 }
 
-/// <summary>
-/// Port of msdfgen's PerpendicularDistanceSelectorBase.
-/// Tracks true distance, positive/negative perpendicular distances, and nearest edge.
-/// </summary>
+// Port of msdfgen's PerpendicularDistanceSelectorBase.
 internal struct PerpendicularDistanceSelectorBase
 {
     public SignedDistance minTrueDistance;
@@ -41,13 +35,9 @@ internal struct PerpendicularDistanceSelectorBase
     public EdgeSegment? nearEdge;
     public double nearEdgeParam;
 
-    /// <summary>
-    /// Initialize to default state matching msdfgen's constructor.
-    /// minTrueDistance defaults to (-DBL_MAX, 0), perpendicular bounds derived from that.
-    /// </summary>
     public void Init()
     {
-        minTrueDistance = new SignedDistance(); // distance = -DBL_MAX, dot = 0
+        minTrueDistance = new SignedDistance();
         minNegativePerpendicularDistance = -Math.Abs(minTrueDistance.distance);
         minPositivePerpendicularDistance = Math.Abs(minTrueDistance.distance);
         nearEdge = null;
@@ -117,17 +107,11 @@ internal struct PerpendicularDistanceSelectorBase
     }
 }
 
-/// <summary>
-/// Port of msdfgen's MultiDistanceSelector.
-/// Three perpendicular distance selectors (one per R/G/B channel).
-/// </summary>
+// Port of msdfgen's MultiDistanceSelector — one PerpendicularDistanceSelector per R/G/B channel.
 internal struct MultiDistanceSelector
 {
     public PerpendicularDistanceSelectorBase r, g, b;
 
-    /// <summary>
-    /// Initialize all three channel selectors to default state.
-    /// </summary>
     public void Init()
     {
         r.Init();
@@ -213,11 +197,7 @@ internal struct MultiDistance
 
 internal static class MsdfGenerator
 {
-    /// <summary>
-    /// Generate a multi-channel signed distance field with overlap support.
-    /// Faithful port of msdfgen's OverlappingContourCombiner + MultiDistanceSelector
-    /// with ShapeDistanceFinder pattern.
-    /// </summary>
+    // Port of msdfgen's OverlappingContourCombiner + MultiDistanceSelector.
     public static void GenerateMSDF(
         MsdfBitmap output,
         Shape shape,
@@ -238,9 +218,6 @@ internal static class MsdfGenerator
 
         int contourCount = shape.contours.Count;
 
-        // Pre-compute winding direction for each contour.
-        // When invertWinding is true (e.g. because Y was negated during shape construction),
-        // negate the computed windings so the combiner's inner/outer classification is correct.
         var windings = new int[contourCount];
         for (int i = 0; i < contourCount; ++i)
             windings[i] = invertWinding ? -shape.contours[i].Winding() : shape.contours[i].Winding();
@@ -248,19 +225,15 @@ internal static class MsdfGenerator
         Parallel.For(0, h, y =>
         {
             int row = flipY ? h - 1 - y : y;
-
-            // Per-contour selectors (allocated per row for thread safety)
             var contourSelectors = new MultiDistanceSelector[contourCount];
 
             for (int x = 0; x < w; ++x)
             {
                 var p = new Vector2Double(x + 0.5, y + 0.5) / scale - translate;
 
-                // Reset selectors for this pixel
                 for (int ci = 0; ci < contourCount; ++ci)
                     contourSelectors[ci].Init();
 
-                // Feed edges to per-contour selectors with prev/next edge context
                 for (int ci = 0; ci < contourCount; ++ci)
                 {
                     var edges = shape.contours[ci].edges;
@@ -280,8 +253,7 @@ internal static class MsdfGenerator
                     }
                 }
 
-                // --- OverlappingContourCombiner::distance() ---
-                // Merge all contour selectors into shape/inner/outer
+                // OverlappingContourCombiner::distance()
                 var shapeSelector = new MultiDistanceSelector();
                 shapeSelector.Init();
                 var innerSelector = new MultiDistanceSelector();
@@ -343,9 +315,7 @@ internal static class MsdfGenerator
                 }
                 else
                 {
-                    // Fallback: return shape distance
                     result = shapeDistance;
-                    // Write and continue
                     var px0 = output[x, row];
                     px0[0] = (float)(distScale * (result.r + distTranslate));
                     px0[1] = (float)(distScale * (result.g + distTranslate));
@@ -353,7 +323,6 @@ internal static class MsdfGenerator
                     continue;
                 }
 
-                // Check opposite-winding contours
                 for (int ci = 0; ci < contourCount; ++ci)
                 {
                     if (windings[ci] != winding)
@@ -376,10 +345,7 @@ internal static class MsdfGenerator
         });
     }
 
-    /// <summary>
-    /// Generate MSDF using simple nearest-edge-per-channel approach (no overlapping contour combiner).
-    /// Suitable for shapes with non-overlapping contours that follow the non-zero winding rule.
-    /// </summary>
+    // Simple nearest-edge-per-channel MSDF (no overlapping contour combiner).
     public static void GenerateMSDFSimple(
         MsdfBitmap output,
         Shape shape,
@@ -433,14 +399,8 @@ internal static class MsdfGenerator
         });
     }
 
-    /// <summary>
-    /// Scanline-based sign correction pass. For each pixel, uses scanline intersection
-    /// to determine if the point is filled (non-zero winding rule), then flips the MSDF
-    /// distance if it disagrees with the fill state. This is critical for shapes with
-    /// overlapping contours where the OverlappingContourCombiner may produce correct
-    /// distances but incorrect signs.
-    /// Matches msdfgen's distanceSignCorrection (multiDistanceSignCorrection).
-    /// </summary>
+    // Scanline-based sign correction. Flips MSDF pixels where the sign disagrees
+    // with the non-zero winding fill state.
     public static void DistanceSignCorrection(
         MsdfBitmap sdf,
         Shape shape,
@@ -455,7 +415,7 @@ internal static class MsdfGenerator
         float sdfZeroValue = 0.5f;
         float doubleSdfZeroValue = 1.0f;
 
-        // matchMap: +1 = matched, -1 = flipped, 0 = ambiguous (exactly at edge)
+        // +1 = matched, -1 = flipped, 0 = ambiguous
         var matchMap = new sbyte[w * h];
 
         bool ambiguous = false;
@@ -468,7 +428,6 @@ internal static class MsdfGenerator
             int row = flipY ? h - 1 - y : y;
             double shapeY = (y + 0.5) / scale.y - translate.y;
 
-            // Gather all scanline intersections at this Y
             var intersections = new List<(double x, int direction)>();
             foreach (var contour in shape.contours)
             {
@@ -480,7 +439,6 @@ internal static class MsdfGenerator
                 }
             }
 
-            // Sort by x, then compute cumulative winding direction
             intersections.Sort((a, b) => a.x.CompareTo(b.x));
             int totalDirection = 0;
             for (int j = 0; j < intersections.Count; ++j)
@@ -493,8 +451,6 @@ internal static class MsdfGenerator
             {
                 double shapeX = (x + 0.5) / scale.x - translate.x;
 
-                // Determine fill: find the last intersection with x <= shapeX
-                // and check if its cumulative winding is non-zero
                 int winding = 0;
                 for (int j = intersections.Count - 1; j >= 0; --j)
                 {
@@ -504,7 +460,7 @@ internal static class MsdfGenerator
                         break;
                     }
                 }
-                bool fill = winding != 0; // non-zero fill rule
+                bool fill = winding != 0;
 
                 var pixel = sdf[x, row];
                 float sd = MathF.Max(
@@ -518,7 +474,6 @@ internal static class MsdfGenerator
                 }
                 else if ((sd > sdfZeroValue) != fill)
                 {
-                    // Sign disagrees with fill — flip
                     pixel[0] = doubleSdfZeroValue - pixel[0];
                     pixel[1] = doubleSdfZeroValue - pixel[1];
                     pixel[2] = doubleSdfZeroValue - pixel[2];
@@ -531,7 +486,7 @@ internal static class MsdfGenerator
             }
         }
 
-        // Resolve ambiguous pixels by looking at neighbors
+        // Resolve ambiguous pixels by neighbor majority
         if (ambiguous)
         {
             for (int y = 0; y < h; ++y)
@@ -560,7 +515,7 @@ internal static class MsdfGenerator
         }
     }
 
-    // --- Modern MSDF Error Correction (port of msdfgen's MSDFErrorCorrection) ---
+    // --- Error Correction (port of msdfgen's MSDFErrorCorrection) ---
 
     private const byte STENCIL_ERROR = 1;
     private const byte STENCIL_PROTECTED = 2;
@@ -568,10 +523,8 @@ internal static class MsdfGenerator
     private const double PROTECTION_RADIUS_TOLERANCE = 1.001;
     private const double DEFAULT_MIN_DEVIATION_RATIO = 1.11111111111111111;
 
-    /// <summary>
-    /// Modern error correction with corner and edge protection.
-    /// Port of msdfgen's MSDFErrorCorrection (EDGE_PRIORITY mode, DO_NOT_CHECK_DISTANCE).
-    /// </summary>
+    // Modern error correction with corner and edge protection.
+    // EDGE_PRIORITY mode, DO_NOT_CHECK_DISTANCE.
     public static void ErrorCorrection(
         MsdfBitmap sdf,
         Shape shape,
@@ -591,10 +544,6 @@ internal static class MsdfGenerator
         ApplyCorrection(stencil, sdf, w, h);
     }
 
-    /// <summary>
-    /// Flags texels near edge color-change corners as PROTECTED.
-    /// Port of MSDFErrorCorrection::protectCorners.
-    /// </summary>
     private static void ProtectCorners(
         byte[] stencil, int w, int h,
         Shape shape,
@@ -612,17 +561,13 @@ internal static class MsdfGenerator
             foreach (var edge in contour.edges)
             {
                 int commonColor = (int)prevEdge.color & (int)edge.color;
-                // If the common color has at most one bit set, this is a corner
-                // (the color changes from prevEdge to edge)
+                // Color change = corner (at most one bit set in common)
                 if ((commonColor & (commonColor - 1)) == 0)
                 {
-                    // Project the corner point (edge start) to pixel space
                     var shapePoint = edge.Point(0);
                     double px = scale.x * (shapePoint.x + translate.x) - 0.5;
                     double py = scale.y * (shapePoint.y + translate.y) - 0.5;
 
-                    // When inverseYAxis is set, the generator flipped output rows.
-                    // The stencil is indexed in flipped bitmap space, so remap y.
                     if (flipY)
                         py = h - 1 - py;
 
@@ -631,7 +576,6 @@ internal static class MsdfGenerator
                     int r = l + 1;
                     int t = b + 1;
 
-                    // Mark the 4 surrounding texels as protected
                     if (l < w && b < h && r >= 0 && t >= 0)
                     {
                         if (l >= 0 && b >= 0) stencil[b * w + l] |= STENCIL_PROTECTED;
@@ -645,10 +589,7 @@ internal static class MsdfGenerator
         }
     }
 
-    /// <summary>
-    /// Returns a bitmask of which channels contribute to a shape edge between texels a and b.
-    /// Port of edgeBetweenTexels from MSDFErrorCorrection.cpp.
-    /// </summary>
+    // Bitmask of which channels contribute to a shape edge between two texels.
     private static int EdgeBetweenTexels(Span<float> a, Span<float> b)
     {
         int mask = 0;
@@ -659,12 +600,10 @@ internal static class MsdfGenerator
             double t = (a[ch] - 0.5) / denom;
             if (t > 0 && t < 1)
             {
-                // Interpolate all channels at t
                 float c0 = (float)(a[0] + t * (b[0] - a[0]));
                 float c1 = (float)(a[1] + t * (b[1] - a[1]));
                 float c2 = (float)(a[2] + t * (b[2] - a[2]));
                 float med = MathF.Max(MathF.Min(c0, c1), MathF.Min(MathF.Max(c0, c1), c2));
-                // This is only a real edge if the zero-distance channel is the median
                 float cCh = ch == 0 ? c0 : ch == 1 ? c1 : c2;
                 if (med == cCh)
                     mask |= (1 << ch);
@@ -673,10 +612,6 @@ internal static class MsdfGenerator
         return mask;
     }
 
-    /// <summary>
-    /// Marks a texel as protected if one of its non-median channels is present in the edge mask.
-    /// Port of protectExtremeChannels from MSDFErrorCorrection.cpp.
-    /// </summary>
     private static void ProtectExtremeChannels(byte[] stencil, int idx, Span<float> msd, float m, int mask)
     {
         if ((mask & 1) != 0 && msd[0] != m ||
@@ -687,72 +622,16 @@ internal static class MsdfGenerator
         }
     }
 
-    /// <summary>
-    /// Flags texels that contribute to shape edges as PROTECTED.
-    /// Port of MSDFErrorCorrection::protectEdges.
-    /// </summary>
     private static void ProtectEdges(
         byte[] stencil, MsdfBitmap sdf, int w, int h,
         Vector2Double scale, double rangeValue)
     {
-        // Radius: how close to 0.5 a texel pair needs to be to contain an edge.
-        // This is PROTECTION_RADIUS_TOLERANCE * (1 texel of distance change in shape space) mapped back.
-        // In our framework: 1 texel apart in the bitmap = 1/scale shape units.
-        // The distance range maps [-rangeValue/2, rangeValue/2] -> [0, 1].
-        // So 1 unit of shape-space distance = 1/rangeValue in the [0,1] output.
-        // 1 texel of distance = (1/scale) / rangeValue... but that's the distance per texel.
-        // Actually, the radius check is: |lm - 0.5| + |rm - 0.5| < radius
-        // where radius represents one texel's worth of distance change in the normalized output.
-        // One texel horizontal: shape distance = 1/scale.x, normalized = (1/scale.x) * (1/rangeValue) * scale.x...
-        // Wait: distScale = 1/rangeValue, and for horizontal, one texel spans 1/scale.x in shape space,
-        // so normalized distance change per texel = (1/scale.x) / rangeValue... no.
-        // The normalized distance at a pixel encodes the shape-space distance to edge:
-        //   normalizedDist = distScale * (shapeDist + distTranslate)
-        //   distScale = 1/rangeValue, distTranslate = rangeValue/2
-        // So dNorm/dShape = 1/rangeValue.
-        // One texel apart horizontally = 1/scale.x in shape space.
-        // So the expected max change in normalized distance between adjacent texels = (1/scale.x) / rangeValue.
-        // But msdfgen computes: unprojectVector(distanceMapping(Delta(1)), 0).length()
-        //   distanceMapping(Delta(1)) maps a delta of 1 in [0,1] space to shape space = rangeValue
-        //   unprojectVector divides by scale: rangeValue / scale.x
-        //   So the radius is 1.001 * rangeValue / scale.x
-        // That doesn't match... Let me re-read msdfgen's distance mapping.
-        // Actually distanceMapping(Delta(1)) maps a 1-pixel distance delta.
-        // The DistanceMapping in msdfgen is: output = scale * distance + translate
-        // where scale = 1/(upper-lower) and translate = -lower/(upper-lower).
-        // Delta(1) → just the scale part: 1 * distMappingScale = 1/(upper-lower).
-        // Wait no — Delta(1) means 1 unit of *output* distance (in [0,1] space),
-        // which maps to 1/distMappingScale = (upper-lower) = rangeValue in shape space.
-        // Hmm, actually the DistanceMapping operator()(Delta d) returns d.value * 1/scale = d * rangeValue.
-        // Then unprojectVector(Vector2(rangeValue, 0)) = Vector2(rangeValue/scale.x, 0).
-        // So radius = 1.001 * rangeValue / scale.x.
-        // But we're comparing |lm - 0.5| + |rm - 0.5| which are in [0, 0.5] range each.
-        // This seems too large. Let me re-check...
-
-        // Actually, looking more carefully at the msdfgen code:
-        //   radius = float(PROTECTION_RADIUS_TOLERANCE*transformation.unprojectVector(
-        //       Vector2(transformation.distanceMapping(DistanceMapping::Delta(1)), 0)).length());
-        // distanceMapping has scale = 1/rangeWidth and translate = -rangeLower/rangeWidth
-        // distanceMapping(Delta(1)) means: 1 * (1/distMapScale) = 1 * rangeWidth = rangeWidth.
-        // Wait no — DistanceMapping::operator()(Delta d) = scale * d.value.
-        // So distanceMapping(Delta(1)) = scale * 1 = 1/rangeWidth.
-        // Then unprojectVector(Vector2(1/rangeWidth, 0)) = Vector2(1/(rangeWidth * scale.x), 0).
-        // length = 1/(rangeWidth * scale.x).
-        // radius = 1.001 / (rangeWidth * scale.x).
-        // In our case rangeWidth = rangeValue, so:
+        // Radius = normalized distance change per texel in each direction.
+        // Derived from msdfgen: distanceMapping(Delta(1)) = 1/rangeValue,
+        // then unprojectVector divides by scale.
         float hRadius = (float)(PROTECTION_RADIUS_TOLERANCE / (rangeValue * scale.x));
         float vRadius = (float)(PROTECTION_RADIUS_TOLERANCE / (rangeValue * scale.y));
-        float dRadius = (float)(PROTECTION_RADIUS_TOLERANCE / (rangeValue * Math.Sqrt(1.0 / (scale.x * scale.x) + 1.0 / (scale.y * scale.y))));
-
-        // Wait — for diagonal, msdfgen uses:
-        //   radius = PROTECTION_RADIUS_TOLERANCE * transformation.unprojectVector(
-        //       Vector2(transformation.distanceMapping(DistanceMapping::Delta(1)))).length()
-        // Note: Vector2(scalar) means both components are the same value.
-        // So: unprojectVector(Vector2(1/rangeWidth, 1/rangeWidth)) = Vector2(1/(rangeWidth*scale.x), 1/(rangeWidth*scale.y))
-        // length = sqrt((1/(rW*sx))^2 + (1/(rW*sy))^2) = (1/rW) * sqrt(1/sx^2 + 1/sy^2)
-        // With uniform scale (sx == sy): = (1/rW) * (1/sx) * sqrt(2) ≈ hRadius * 1.414
-        // Actually for our case scale is uniform, so let's simplify:
-        dRadius = (float)(PROTECTION_RADIUS_TOLERANCE * Math.Sqrt(1.0 / (rangeValue * rangeValue * scale.x * scale.x) + 1.0 / (rangeValue * rangeValue * scale.y * scale.y)));
+        float dRadius = (float)(PROTECTION_RADIUS_TOLERANCE * Math.Sqrt(1.0 / (rangeValue * rangeValue * scale.x * scale.x) + 1.0 / (rangeValue * rangeValue * scale.y * scale.y)));
 
         // Horizontal texel pairs
         for (int y = 0; y < h; y++)
@@ -817,11 +696,6 @@ internal static class MsdfGenerator
         }
     }
 
-    /// <summary>
-    /// Checks if interpolating between two adjacent texels creates an artifact at a point
-    /// where two color channels cross (creating a median extremum).
-    /// Port of hasLinearArtifactInner from MSDFErrorCorrection.cpp.
-    /// </summary>
     private static bool HasLinearArtifactInner(double span, bool isProtected, float am, float bm, Span<float> a, Span<float> b, float dA, float dB)
     {
         if (dA == dB) return false;
@@ -830,15 +704,11 @@ internal static class MsdfGenerator
         {
             float xm = MedianInterpolated(a, b, t);
             int flags = RangeTest(span, isProtected, 0, 1, t, am, bm, xm);
-            return (flags & 2) != 0; // CLASSIFIER_FLAG_ARTIFACT
+            return (flags & 2) != 0;
         }
         return false;
     }
 
-    /// <summary>
-    /// Checks if a linear interpolation artifact occurs between two adjacent texels.
-    /// Port of hasLinearArtifact from MSDFErrorCorrection.cpp.
-    /// </summary>
     private static bool HasLinearArtifact(double span, bool isProtected, float am, Span<float> a, Span<float> b)
     {
         float bm = MathF.Max(MathF.Min(b[0], b[1]), MathF.Min(MathF.Max(b[0], b[1]), b[2]));
@@ -848,10 +718,6 @@ internal static class MsdfGenerator
             HasLinearArtifactInner(span, isProtected, am, bm, a, b, a[0] - a[2], b[0] - b[2]));
     }
 
-    /// <summary>
-    /// Checks if a bilinear interpolation artifact occurs between two diagonally adjacent texels.
-    /// Port of hasDiagonalArtifact / hasDiagonalArtifactInner from MSDFErrorCorrection.cpp.
-    /// </summary>
     private static bool HasDiagonalArtifact(double span, bool isProtected, float am, Span<float> a, Span<float> b, Span<float> c, Span<float> d)
     {
         float dm = MathF.Max(MathF.Min(d[0], d[1]), MathF.Min(MathF.Max(d[0], d[1]), d[2]));
@@ -911,13 +777,8 @@ internal static class MsdfGenerator
         return false;
     }
 
-    /// <summary>
-    /// Port of BaseArtifactClassifier::rangeTest from MSDFErrorCorrection.cpp.
-    /// </summary>
     private static int RangeTest(double span, bool isProtected, double at, double bt, double xt, float am, float bm, float xm)
     {
-        // For protected texels, only consider inversion artifacts.
-        // For unprotected, any out-of-range median is sufficient.
         if ((am > 0.5f && bm > 0.5f && xm <= 0.5f) ||
             (am < 0.5f && bm < 0.5f && xm >= 0.5f) ||
             (!isProtected && Median(am, bm, xm) != xm))
@@ -952,15 +813,10 @@ internal static class MsdfGenerator
         return MathF.Max(MathF.Min(c0, c1), MathF.Min(MathF.Max(c0, c1), c2));
     }
 
-    /// <summary>
-    /// Finds interpolation artifacts in the MSDF, respecting PROTECTED flags.
-    /// Port of MSDFErrorCorrection::findErrors (SDF-only analysis).
-    /// </summary>
     private static void FindErrors(
         byte[] stencil, MsdfBitmap sdf, int w, int h,
         Vector2Double scale, double rangeValue)
     {
-        // Compute expected span (max distance change per texel) for each direction
         double hSpan = DEFAULT_MIN_DEVIATION_RATIO / (rangeValue * scale.x);
         double vSpan = DEFAULT_MIN_DEVIATION_RATIO / (rangeValue * scale.y);
         double dSpan = DEFAULT_MIN_DEVIATION_RATIO * Math.Sqrt(1.0 / (rangeValue * rangeValue * scale.x * scale.x) + 1.0 / (rangeValue * rangeValue * scale.y * scale.y));
@@ -989,10 +845,7 @@ internal static class MsdfGenerator
         }
     }
 
-    /// <summary>
-    /// Applies the error correction: sets all ERROR-flagged texels to single-channel median.
-    /// Port of MSDFErrorCorrection::apply.
-    /// </summary>
+    // Replace error-flagged texels with single-channel median.
     private static void ApplyCorrection(byte[] stencil, MsdfBitmap sdf, int w, int h)
     {
         for (int y = 0; y < h; y++)

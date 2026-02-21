@@ -1,5 +1,5 @@
 //
-//  Bridge between NoZ sprite shapes and msdf MSDF generation.
+//  Bridge between NoZ sprite shapes and MSDF generation.
 //
 
 using System;
@@ -8,10 +8,7 @@ namespace NoZ.Editor.Msdf;
 
 internal static class MsdfSprite
 {
-    /// <summary>
-    /// Convert NoZ sprite paths into an msdf Shape with edge coloring applied,
-    /// ready for MSDF generation.
-    /// </summary>
+    // Convert NoZ sprite paths into an msdf Shape ready for generation.
     public static Shape FromSpritePaths(
         NoZ.Editor.Shape spriteShape,
         ReadOnlySpan<ushort> pathIndices)
@@ -43,7 +40,6 @@ internal static class MsdfSprite
                 }
                 else
                 {
-                    // Compute quadratic control point from curve value:
                     // cp = midpoint(p0,p1) + perpendicular * curve
                     var mid = new Vector2Double(
                         0.5 * (p0.x + p1.x),
@@ -61,7 +57,6 @@ internal static class MsdfSprite
             }
         }
 
-        // Boolean-union all contours to eliminate overlaps.
         shape = ShapeClipper.Union(shape);
 
         shape.Normalize();
@@ -70,11 +65,8 @@ internal static class MsdfSprite
         return shape;
     }
 
-    /// <summary>
-    /// Generate an MSDF for a set of sprite paths and write the result into the target pixel data.
-    /// Add paths are unioned, subtract paths are unioned, then subtract is carved out of add
-    /// via Clipper2 boolean difference. The result is a single clean shape for MSDF generation.
-    /// </summary>
+    // Rasterize MSDF for sprite paths. Add paths are unioned, subtract paths are
+    // carved out via Clipper2 difference, then a single MSDF is generated.
     public static void RasterizeMSDF(
         NoZ.Editor.Shape spriteShape,
         PixelData<Color32> target,
@@ -87,7 +79,6 @@ internal static class MsdfSprite
 
         var dpi = EditorApplication.Config.PixelsPerUnit;
 
-        // Separate add and subtract paths
         var addPaths = new System.Collections.Generic.List<ushort>();
         var subtractPaths = new System.Collections.Generic.List<ushort>();
         foreach (var pi in pathIndices)
@@ -103,10 +94,8 @@ internal static class MsdfSprite
 
         if (addPaths.Count == 0) return;
 
-        // Build msdf shapes (each already Clipper-unioned internally)
         var shape = FromSpritePaths(spriteShape, addPaths.ToArray());
 
-        // Carve out subtract paths via Clipper2 boolean difference
         if (subtractPaths.Count > 0)
         {
             var subShape = FromSpritePaths(spriteShape, subtractPaths.ToArray());
@@ -124,11 +113,9 @@ internal static class MsdfSprite
         int h = targetRect.Height;
         double rangeInShapeUnits = range / dpi * 2.0;
 
-        // Generate single MSDF from the combined shape
         var bitmap = new MsdfBitmap(w, h);
         MsdfGenerator.GenerateMSDF(bitmap, shape, rangeInShapeUnits, scale, translate);
 
-        // Write to target pixel data
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)

@@ -1,5 +1,5 @@
 //
-//  Boolean operations on MSDF shapes using Clipper2 before MSDF generation.
+//  Clipper2 boolean operations on MSDF shapes.
 //
 
 using Clipper2Lib;
@@ -11,11 +11,7 @@ internal static class ShapeClipper
     const int DefaultStepsPerCurve = 8;
     const int ClipperPrecision = 6;
 
-    /// <summary>
-    /// Boolean-union all contours of a shape, producing a new shape
-    /// with non-overlapping contours (all linear edges).
-    /// Curves are flattened to polylines before the union.
-    /// </summary>
+    // Boolean-union all contours, producing non-overlapping linear contours.
     public static Shape Union(Shape shape, int stepsPerCurve = DefaultStepsPerCurve)
     {
         if (shape.contours.Count == 0)
@@ -25,17 +21,13 @@ internal static class ShapeClipper
         if (paths.Count == 0)
             return shape;
 
-        // Perform boolean union with non-zero fill rule
         var tree = new PolyTreeD();
         Clipper.BooleanOp(ClipType.Union, paths, null, tree, FillRule.NonZero, ClipperPrecision);
 
         return TreeToShape(tree, shape) ?? shape;
     }
 
-    /// <summary>
-    /// Boolean-difference: subject minus clip. Produces a new shape with
-    /// the clip regions carved out of the subject (all linear edges).
-    /// </summary>
+    // Boolean-difference: subject minus clip.
     public static Shape Difference(Shape subject, Shape clip, int stepsPerCurve = DefaultStepsPerCurve)
     {
         if (subject.contours.Count == 0)
@@ -57,9 +49,6 @@ internal static class ShapeClipper
         return TreeToShape(tree, subject) ?? subject;
     }
 
-    /// <summary>
-    /// Flatten all contours of a shape into Clipper2 PathsD.
-    /// </summary>
     private static PathsD ShapeToPaths(Shape shape, int stepsPerCurve)
     {
         var paths = new PathsD();
@@ -72,10 +61,7 @@ internal static class ShapeClipper
         return paths;
     }
 
-    /// <summary>
-    /// Convert a PolyTree result back to a Shape with reversed winding.
-    /// Returns null if the tree produced no contours.
-    /// </summary>
+    // Reverse all contours: Clipper2 winding is opposite to our MSDF generator's.
     private static Shape? TreeToShape(PolyTreeD tree, Shape reference)
     {
         var result = new Shape();
@@ -85,18 +71,12 @@ internal static class ShapeClipper
         if (result.contours.Count == 0)
             return null;
 
-        // Clipper2's winding convention is opposite to our MSDF generator's
-        // convention (Clipper2 positive area = our negative winding).
-        // Reverse all contours to match what the generator expects.
         foreach (var contour in result.contours)
             contour.Reverse();
 
         return result;
     }
 
-    /// <summary>
-    /// Flatten a contour's edges into a Clipper2 PathD (polyline).
-    /// </summary>
     private static PathD ContourToPath(Contour contour, int stepsPerCurve)
     {
         var path = new PathD();
@@ -105,12 +85,10 @@ internal static class ShapeClipper
             switch (edge)
             {
                 case LinearSegment lin:
-                    // Add start point only; end is next edge's start
                     path.Add(new PointD(lin.p[0].x, lin.p[0].y));
                     break;
 
                 case QuadraticSegment quad:
-                    // Flatten: sample at uniform intervals, skip t=1 (next edge's start)
                     for (int i = 0; i < stepsPerCurve; i++)
                     {
                         double t = (double)i / stepsPerCurve;
@@ -129,15 +107,9 @@ internal static class ShapeClipper
                     break;
             }
         }
-        // Clipper2 paths are implicitly closed (last->first)
         return path;
     }
 
-    /// <summary>
-    /// Recursively collect all polygons from a PolyTree into Shape contours.
-    /// All contours are emitted as-is — Clipper2 already outputs outers and holes
-    /// with opposite windings for non-zero fill rule.
-    /// </summary>
     private static void CollectContours(PolyPathD node, Shape shape)
     {
         if (node.Polygon != null && node.Polygon.Count >= 3)
@@ -153,7 +125,6 @@ internal static class ShapeClipper
             }
         }
 
-        // Recurse into children
         for (int i = 0; i < node.Count; i++)
             CollectContours(node[i], shape);
     }

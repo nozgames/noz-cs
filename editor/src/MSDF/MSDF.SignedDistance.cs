@@ -7,10 +7,6 @@ using System;
 
 namespace NoZ.Editor.Msdf;
 
-/// <summary>
-/// Represents a signed distance and alignment, which together can be compared
-/// to uniquely determine the closest edge segment.
-/// </summary>
 internal struct SignedDistance
 {
     public double distance;

@@ -69,9 +69,6 @@ internal abstract class EdgeSegment
     }
 }
 
-/// <summary>
-/// A line segment.
-/// </summary>
 internal class LinearSegment : EdgeSegment
 {
     public Vector2Double[] p = new Vector2Double[2];
@@ -137,16 +134,13 @@ internal class LinearSegment : EdgeSegment
     }
 }
 
-/// <summary>
-/// A quadratic Bezier curve.
-/// </summary>
 internal class QuadraticSegment : EdgeSegment
 {
     public Vector2Double[] p = new Vector2Double[3];
 
     public QuadraticSegment(Vector2Double p0, Vector2Double p1, Vector2Double p2, EdgeColor edgeColor = EdgeColor.WHITE) : base(edgeColor)
     {
-        // If control point is degenerate, push it to midpoint to prevent zero-length tangent
+        // Degenerate control point → push to midpoint to prevent zero-length tangent
         if (Cross(p1 - p0, p2 - p1) == 0)
             p1 = 0.5 * (p0 + p2);
         p[0] = p0;
@@ -315,9 +309,6 @@ internal class QuadraticSegment : EdgeSegment
     }
 }
 
-/// <summary>
-/// A cubic Bezier curve.
-/// </summary>
 internal class CubicSegment : EdgeSegment
 {
     public Vector2Double[] p = new Vector2Double[4];
@@ -368,7 +359,6 @@ internal class CubicSegment : EdgeSegment
                 param = Dot(epDir - (p[3] - origin), epDir) / Dot(epDir, epDir);
             }
         }
-        // Iterative minimum distance search
         for (int i = 0; i <= CUBIC_SEARCH_STARTS; ++i)
         {
             double t = 1.0 / CUBIC_SEARCH_STARTS * i;
@@ -424,7 +414,6 @@ internal class CubicSegment : EdgeSegment
             var as2 = (p[3] - p[2]) - (p[2] - p[1]) - br2;
             Span<double> t = stackalloc double[3];
             int solutions = SolveCubic(t, as2.y, 3 * br2.y, 3 * ab2.y, p[0].y - y);
-            // Sort solutions
             if (solutions >= 2)
             {
                 if (t[0] > t[1]) (t[0], t[1]) = (t[1], t[0]);

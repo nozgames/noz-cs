@@ -9,9 +9,6 @@ using static NoZ.Editor.Msdf.MsdfMath;
 
 namespace NoZ.Editor.Msdf;
 
-/// <summary>
-/// A single closed contour of a shape.
-/// </summary>
 internal class Contour
 {
     public List<EdgeSegment> edges = new();
