@@ -157,80 +157,16 @@ internal static class MsdfFont
         if (shape == null)
             return;
 
-        // Debug: dump edge coloring for 'M' glyph
-        if (glyph.codepoint == 'M')
-        {
-            Console.WriteLine($"=== MSDF DEBUG: Glyph 'M' ===");
-            Console.WriteLine($"  Contours: {shape.contours.Count}, inverseYAxis: {shape.inverseYAxis}");
-            Console.WriteLine($"  Scale: ({scale.x}, {scale.y}), Translate: ({translate.x}, {translate.y})");
-            Console.WriteLine($"  Range: {range}, OutputSize: ({outputSize.X}, {outputSize.Y})");
-            for (int ci = 0; ci < shape.contours.Count; ci++)
-            {
-                var contour = shape.contours[ci];
-                Console.WriteLine($"  Contour {ci}: {contour.edges.Count} edges, winding={contour.Winding()}");
-                for (int ei = 0; ei < contour.edges.Count; ei++)
-                {
-                    var edge = contour.edges[ei];
-                    var p0 = edge.Point(0);
-                    var p1 = edge.Point(1);
-                    double len = Math.Sqrt((p1.x-p0.x)*(p1.x-p0.x) + (p1.y-p0.y)*(p1.y-p0.y));
-                    Console.WriteLine($"    Edge {ei}: {edge.GetType().Name} color={edge.color} len={len:F3} p0=({p0.x:F3},{p0.y:F3}) p1=({p1.x:F3},{p1.y:F3})");
-                }
-            }
-        }
-
         // Create a sub-bitmap view for the glyph region
         var glyphBitmap = new MsdfBitmap(outputSize.X, outputSize.Y);
 
-        // Use OverlappingContourCombiner — handles overlapping contours natively
-        // using per-contour winding classification. No OrientContours or scanline
-        // sign correction needed.
-        MsdfGenerator.GenerateMSDF(glyphBitmap, shape, range * 2.0, scale, translate);
+        // Use Remora-style MSDF generator for comparison testing.
+        // This uses simple per-channel nearest-edge with DistanceToPseudoDistance,
+        // matching the original msdfgen approach more closely.
+        MsdfGeneratorRemora.GenerateMSDF(glyphBitmap, shape, range * 2.0, scale, translate);
 
-        // Debug: dump bitmap block around V-junction BEFORE error correction
-        if (glyph.codepoint == 'M')
-        {
-            // V-bottom in shape space is at approximately (19.4, 19.0)
-            // bitmap x = (shapeX + translate.x) * scale.x = (19.4 + 2.656) * 1 ≈ 22
-            // bitmap y (flipped) = h - 1 - (shapeY + translate.y) * scale.y = 42 - 1 - (19 + 4.384) = ~18
-            Console.WriteLine($"  === PRE-ERROR-CORRECTION: bitmap rows 15-28 (V-junction area) ===");
-            for (int py = 15; py <= 28 && py < outputSize.Y; py++)
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.Append($"  y={py:D2}: ");
-                for (int px = 17; px <= 27 && px < outputSize.X; px++)
-                {
-                    var p = glyphBitmap[px, py];
-                    float med = MathF.Max(MathF.Min(p[0], p[1]), MathF.Min(MathF.Max(p[0], p[1]), p[2]));
-                    // Show med as a compact char: . for outside, # for inside, ? for edge
-                    char c = med > 0.55f ? '#' : med < 0.45f ? '.' : '~';
-                    sb.Append($"{c}({p[0]:F2},{p[1]:F2},{p[2]:F2}) ");
-                }
-                Console.WriteLine(sb.ToString());
-            }
-        }
-
-        // Error correction: modern pipeline with corner/edge protection.
-        MsdfGenerator.ErrorCorrection(glyphBitmap, shape, scale, translate, range * 2.0);
-
-        // Debug: dump AFTER error correction
-        if (glyph.codepoint == 'M')
-        {
-            Console.WriteLine($"  === POST-ERROR-CORRECTION: bitmap rows 15-28 ===");
-            for (int py = 15; py <= 28 && py < outputSize.Y; py++)
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.Append($"  y={py:D2}: ");
-                for (int px = 17; px <= 27 && px < outputSize.X; px++)
-                {
-                    var p = glyphBitmap[px, py];
-                    float med = MathF.Max(MathF.Min(p[0], p[1]), MathF.Min(MathF.Max(p[0], p[1]), p[2]));
-                    char c = med > 0.55f ? '#' : med < 0.45f ? '.' : '~';
-                    sb.Append($"{c}({p[0]:F2},{p[1]:F2},{p[2]:F2}) ");
-                }
-                Console.WriteLine(sb.ToString());
-            }
-        }
+        // Error correction: Remora-style simple pixel clash detection.
+        MsdfGeneratorRemora.CorrectErrors(glyphBitmap, outputSize.X, outputSize.Y, range * 2.0);
 
         // Copy to output at the correct position
         for (int y = 0; y < outputSize.Y; y++)
