@@ -1,15 +1,15 @@
 //
-//  Bridge between NoZ sprite shapes and msdf2 MSDF generation.
+//  Bridge between NoZ sprite shapes and msdf MSDF generation.
 //
 
 using System;
 
-namespace NoZ.Editor.Msdf2;
+namespace NoZ.Editor.Msdf;
 
 internal static class MsdfSprite
 {
     /// <summary>
-    /// Convert NoZ sprite paths into an msdf2 Shape with edge coloring applied,
+    /// Convert NoZ sprite paths into an msdf Shape with edge coloring applied,
     /// ready for MSDF generation.
     /// </summary>
     public static Shape FromSpritePaths(
@@ -100,12 +100,12 @@ internal static class MsdfSprite
                 addPaths.Add(pi);
         }
 
-        // Build msdf2 shape from all additive paths (one contour per path)
+        // Build msdf shape from all additive paths (one contour per path)
         var addShape = addPaths.Count > 0
             ? FromSpritePaths(spriteShape, addPaths.ToArray())
             : null;
 
-        // Build msdf2 shape from all subtract paths
+        // Build msdf shape from all subtract paths
         var subShape = subtractPaths.Count > 0
             ? FromSpritePaths(spriteShape, subtractPaths.ToArray())
             : null;

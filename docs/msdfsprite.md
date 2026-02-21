@@ -1,6 +1,6 @@
-# Multi-Channel SDF (MSDF) Sprites
+# Multi-Channel SDF (MSDF) Sprites and Fonts
 
-NoZ uses multi-channel signed distance fields to render resolution-independent sprites with sharp corners. The implementation is a faithful port of [msdfgen](https://github.com/Chlumsky/msdfgen) by Viktor Chlumsky, located in `noz/editor/src/msdf2/`.
+NoZ uses multi-channel signed distance fields to render resolution-independent sprites and fonts with sharp corners. The implementation is a faithful port of [msdfgen](https://github.com/Chlumsky/msdfgen) by Viktor Chlumsky, located in `noz/editor/src/msdf/`.
 
 ## Why MSDF
 
@@ -10,23 +10,24 @@ MSDF solves this by encoding distance information across three channels (R, G, B
 
 ## Architecture
 
-### Source Files (`noz/editor/src/msdf2/`)
+### Source Files (`noz/editor/src/msdf/`)
 
 | File | Description |
 |------|-------------|
-| `Msdf2.Math.cs` | Vector math, equation solvers (quadratic/cubic), `GetOrthonormal` |
-| `Msdf2.SignedDistance.cs` | Distance + dot product for closest-edge comparison |
-| `Msdf2.EdgeColor.cs` | `EdgeColor` flags enum (RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, WHITE) |
-| `Msdf2.EdgeSegments.cs` | `LinearSegment`, `QuadraticSegment`, `CubicSegment` with signed distance, scanline intersection, bounds, split |
-| `Msdf2.Contour.cs` | Closed edge loop with shoelace winding calculation |
-| `Msdf2.Shape.cs` | Contour collection with validate, normalize, orient contours |
-| `Msdf2.EdgeColoring.cs` | `EdgeColoring.ColorSimple` — assigns R/G/B to edges at sharp corners |
-| `Msdf2.Generator.cs` | `MsdfGenerator.GenerateMSDF` (OverlappingContourCombiner algorithm) and `ErrorCorrection` |
-| `Msdf2.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf2 shapes and runs generation |
+| `Msdf.Math.cs` | Vector math, equation solvers (quadratic/cubic), `GetOrthonormal` |
+| `Msdf.SignedDistance.cs` | Distance + dot product for closest-edge comparison |
+| `Msdf.EdgeColor.cs` | `EdgeColor` flags enum (RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, WHITE) |
+| `Msdf.EdgeSegments.cs` | `LinearSegment`, `QuadraticSegment`, `CubicSegment` with signed distance, scanline intersection, bounds, split |
+| `Msdf.Contour.cs` | Closed edge loop with shoelace winding calculation |
+| `Msdf.Shape.cs` | Contour collection with validate, normalize, orient contours |
+| `Msdf.EdgeColoring.cs` | `EdgeColoring.ColorSimple` — assigns R/G/B to edges at sharp corners |
+| `Msdf.Generator.cs` | `MsdfGenerator.GenerateMSDF` (OverlappingContourCombiner algorithm) and `ErrorCorrection` |
+| `Msdf.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf shapes and runs generation |
+| `Msdf.Font.cs` | Bridge: converts TTF glyphs to msdf shapes and runs generation |
 
 ### Pipeline
 
-1. **Shape conversion** (`MsdfSprite.FromSpritePaths`): Sprite paths and anchors are converted to msdf2 `Shape`/`Contour`/`EdgeSegment` objects. Linear anchors become `LinearSegment`, curved anchors become `QuadraticSegment` with the control point computed from the curve value. Each sprite path becomes one contour.
+1. **Shape conversion** (`MsdfSprite.FromSpritePaths` / `MsdfFont.FromGlyph`): Source geometry (sprite paths or TTF glyph contours) is converted to `Shape`/`Contour`/`EdgeSegment` objects. Linear segments become `LinearSegment`, quadratic curves become `QuadraticSegment`. Each path/glyph contour becomes one msdf contour.
 
 2. **Normalize** (`Shape.Normalize`): Single-edge contours are split into thirds so edge coloring has enough edges to assign distinct colors.
 
@@ -36,16 +37,13 @@ MSDF solves this by encoding distance information across three channels (R, G, B
 
 5. **MSDF generation** (`MsdfGenerator.GenerateMSDF`): Uses the OverlappingContourCombiner algorithm (ported from msdfgen) to correctly handle multiple disjoint contours. For each pixel, per-contour distances are computed independently, then the combiner uses winding direction and distance sign to resolve which contour "owns" the pixel. Output is a float RGB bitmap with values in [0, 1] where 0.5 = on edge.
 
-6. **Compositing** (`MsdfSprite.RasterizeMSDF`): Additive and subtract paths are generated as separate shapes, then composited. Subtract shapes are inverted and intersected (min) with the additive result.
+6. **Compositing** (sprites only, `MsdfSprite.RasterizeMSDF`): Additive and subtract paths are generated as separate shapes, then composited. Subtract shapes are inverted and intersected (min) with the additive result.
 
-### Integration Point
+### Integration Points
 
-`Shape.Rasterize.cs` delegates `RasterizeMSDF()` to `Msdf2.MsdfSprite.RasterizeMSDF()`. The call site in `SpriteDocument.cs` passes:
-- `target`: atlas pixel data (RGBA8)
-- `targetRect`: output region in the atlas
-- `sourceOffset`: maps pixel coordinates back to shape-space
-- `pathIndices`: which paths to rasterize
-- `range`: distance range in pixels (default 1.5)
+**Sprites**: `Shape.Rasterize.cs` delegates `RasterizeMSDF()` to `Msdf.MsdfSprite.RasterizeMSDF()`. Sprite atlases use RGBA8 format with RGB encoding distance and A unused.
+
+**Fonts**: `FontDocument.cs` calls `Msdf.MsdfFont.RenderGlyph()` to generate MSDF glyphs. Font atlases use RGBA32 format. The `text.wgsl` shader uses `median(r, g, b)` for reconstruction.
 
 ### Coordinate Mapping
 
@@ -55,28 +53,23 @@ shapePos = (pixel + 0.5) / scale - translate
 ```
 Where `scale = (dpi, dpi)` and `translate = sourceOffset / dpi`. The distance range is converted from pixels to shape units: `rangeInShapeUnits = range / dpi * 2.0`.
 
-## Shader
+## Shaders
 
-The MSDF shader (`noz/engine/assets/shader/texture_msdf.wgsl`) reconstructs the shape boundary:
+### Sprite MSDF Shader (`sprite_msdf.wgsl`)
 
 ```wgsl
 fn median(r: f32, g: f32, b: f32) -> f32 {
     return max(min(r, g), min(max(r, g), b));
 }
 
-@fragment
-fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let msd = textureSample(texture0, sampler0, input.uv).rgb;
-    let dist = median(msd.r, msd.g, msd.b);
-
-    let dx = dpdx(dist);
-    let dy = dpdy(dist);
-    let edgeWidth = 0.7 * length(vec2<f32>(dx, dy));
-
-    let alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, dist);
-    return vec4<f32>(input.color.rgb, alpha * input.color.a);
-}
+let dist = median(msd.r, msd.g, msd.b);
+let edgeWidth = 0.7 * length(vec2<f32>(dpdx(dist), dpdy(dist)));
+let alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, dist);
 ```
+
+### Text MSDF Shader (`text.wgsl`)
+
+Same median reconstruction, with additional per-vertex outline support (outline color, width, softness).
 
 The adaptive `edgeWidth` from screen-space derivatives ensures clean anti-aliasing at any zoom level.
 
@@ -86,8 +79,6 @@ The sprite binary format uses `SdfMode` to distinguish rendering modes:
 - `None` (0) — normal RGBA color
 - `Sdf` (1) — single-channel SDF (R only)
 - `Msdf` (2) — multi-channel SDF (RGB)
-
-MSDF uses the same atlas space as regular sprites (RGBA8). Three channels encode distance; the alpha channel is unused (set to 0).
 
 ## Multi-Contour / Multi-Shape Support
 
@@ -116,7 +107,7 @@ The solution computes distances **per-contour**, then resolves which contour "wi
 
 ## Error Correction
 
-The msdf2 port includes a legacy error correction pass (`MsdfGenerator.ErrorCorrection`) that detects "clashing" texels where bilinear interpolation between adjacent pixels would produce incorrect median values. **This is currently disabled** because the legacy `detectClash` algorithm is too aggressive for sprite use — it replaces multi-channel data with the median, destroying the corner sharpness that makes MSDF work.
+The port includes a legacy error correction pass (`MsdfGenerator.ErrorCorrection`) that detects "clashing" texels where bilinear interpolation between adjacent pixels would produce incorrect median values. **This is currently disabled** because the legacy `detectClash` algorithm is too aggressive for sprite use — it replaces multi-channel data with the median, destroying the corner sharpness that makes MSDF work.
 
 If artifacts appear at specific edge configurations, the modern error correction from msdfgen (which protects corners and edges via a stencil buffer) would need to be ported.
 
@@ -140,6 +131,6 @@ Subtract paths (holes) are handled by generating a separate MSDF and compositing
 
 ## References
 
-- [msdfgen by Viktor Chlumsky](https://github.com/Chlumsky/msdfgen) — the reference C++ implementation that msdf2 is ported from
+- [msdfgen by Viktor Chlumsky](https://github.com/Chlumsky/msdfgen) — the reference C++ implementation this port is based on
 - Chlumsky, V. (2015). "Shape Decomposition for Multi-channel Distance Fields" — the original thesis
 - [Valve SDF paper](https://steamcdn-a.akamaihd.net/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf) — the original single-channel SDF technique

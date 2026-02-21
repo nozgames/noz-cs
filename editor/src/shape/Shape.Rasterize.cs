@@ -644,7 +644,7 @@ public sealed partial class Shape
 
     /// <summary>
     /// Rasterize paths as a multi-channel signed distance field (MSDF).
-    /// Uses msdf2 — a faithful port of msdfgen by Viktor Chlumsky.
+    /// Uses msdf — a faithful port of msdfgen by Viktor Chlumsky.
     /// </summary>
     public void RasterizeMSDF(
         PixelData<Color32> target,
@@ -653,7 +653,7 @@ public sealed partial class Shape
         ReadOnlySpan<ushort> pathIndices,
         float range = 1.5f)
     {
-        Msdf2.MsdfSprite.RasterizeMSDF(this, target, targetRect, sourceOffset, pathIndices, range);
+        Msdf.MsdfSprite.RasterizeMSDF(this, target, targetRect, sourceOffset, pathIndices, range);
     }
 
     /// <summary>

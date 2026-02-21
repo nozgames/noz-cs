@@ -5,9 +5,9 @@
 
 using System;
 using System.Collections.Generic;
-using static NoZ.Editor.Msdf2.MsdfMath;
+using static NoZ.Editor.Msdf.MsdfMath;
 
-namespace NoZ.Editor.Msdf2;
+namespace NoZ.Editor.Msdf;
 
 /// <summary>
 /// Vector shape representation.

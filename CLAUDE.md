@@ -25,7 +25,7 @@ noz/
 │   │   ├── EditorApplication.cs
 │   │   ├── document/           # Per-asset-type editors (Sprite, Texture, Font, Animation, Atlas, Vfx, etc.)
 │   │   ├── tool/               # Move, Rotate, Scale, Pen, Knife, BoxSelect, etc.
-│   │   ├── MSDF/               # SDF font generation
+│   │   ├── msdf/               # MSDF generation (sprites and fonts)
 │   │   ├── TTF/                # TrueType font parsing
 │   │   └── shape/              # Vector shape editing
 │   └── assets/                 # Editor UI assets
@@ -168,8 +168,8 @@ Globals uniform: `projection: mat4x4<f32>`, `time: f32`.
 
 - **Document editors**: Texture, Sprite, Font, Skeleton, Animation, Atlas, Shader, Sound, Vfx
 - **Tools**: Move, Rotate, Scale, Pen, Knife, BoxSelect, SpriteSelect, BoneSelect, Rename, Curve
-- **Font import**: TTF parsing (`TTF/TrueTypeFont.Reader.cs`) → SDF generation (`MSDF/MSDF.cs`) → binary font asset
-- **SDF**: Boundary-probe technique for overlapping contours. Range: 4px, font size: 48px.
+- **Font import**: TTF parsing (`TTF/TrueTypeFont.Reader.cs`) → MSDF generation (`msdf/Msdf.Font.cs`) → binary font asset (RGBA32 atlas)
+- **MSDF**: Multi-channel signed distance field generation for both sprites and fonts. Port of msdfgen by Viktor Chlumsky.
 - **Asset pipeline**: Source files → Importer → binary assets. AtlasManager for texture packing. AssetManifest for registry.
 - **Project init**: `--init --project .` scaffolds game project from embedded templates
 - **Style**: `EditorStyle.cs` for editor UI theme

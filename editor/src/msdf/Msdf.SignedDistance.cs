@@ -5,7 +5,7 @@
 
 using System;
 
-namespace NoZ.Editor.Msdf2;
+namespace NoZ.Editor.Msdf;
 
 /// <summary>
 /// Represents a signed distance and alignment, which together can be compared

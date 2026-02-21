@@ -5,7 +5,7 @@
 
 using System;
 
-namespace NoZ.Editor.Msdf2;
+namespace NoZ.Editor.Msdf;
 
 /// <summary>
 /// Core math utilities ported from msdfgen's arithmetics.hpp and equation-solver.cpp

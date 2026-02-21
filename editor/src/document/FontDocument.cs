@@ -70,7 +70,7 @@ public class FontDocument : Document
             throw new ImportException("No glyphs to import");
 
         var (atlasSize, atlasUsage) = PackGlyphs(glyphs);
-        using var atlas = new PixelData<byte>(atlasSize.X, atlasSize.Y);
+        using var atlas = new PixelData<Color32>(atlasSize.X, atlasSize.Y);
 
         RenderGlyphs(glyphs, atlas);
 
@@ -254,8 +254,11 @@ public class FontDocument : Document
         return (atlasSize, usage);
     }
 
-    private void RenderGlyphs(List<ImportGlyph> glyphs, PixelData<byte> atlas)
+    private void RenderGlyphs(List<ImportGlyph> glyphs, PixelData<Color32> atlas)
     {
+        // Create a float bitmap for the entire atlas, then convert to Color32
+        var msdfAtlas = new Msdf.MsdfBitmap(atlas.Width, atlas.Height);
+
         foreach (var glyph in glyphs)
         {
             if (glyph.Ttf.contours == null || glyph.Ttf.contours.Length == 0)
@@ -286,9 +289,9 @@ public class FontDocument : Document
                 glyph.Ttf.size.y - glyph.Ttf.bearing.y + (SdfRange + centerY) / s
             );
 
-            MSDF.RenderGlyph(
+            Msdf.MsdfFont.RenderGlyph(
                 glyph.Ttf,
-                atlas,
+                msdfAtlas,
                 outputPosition,
                 outputSize,
                 SdfRange / (2.0 * s),
@@ -296,13 +299,27 @@ public class FontDocument : Document
                 translate
             );
         }
+
+        // Convert float MSDF bitmap to Color32 atlas
+        for (int y = 0; y < atlas.Height; y++)
+        {
+            for (int x = 0; x < atlas.Width; x++)
+            {
+                var px = msdfAtlas[x, y];
+                atlas[x, y] = new Color32(
+                    (byte)Math.Clamp(px[0] * 255f, 0f, 255f),
+                    (byte)Math.Clamp(px[1] * 255f, 0f, 255f),
+                    (byte)Math.Clamp(px[2] * 255f, 0f, 255f),
+                    255);
+            }
+        }
     }
 
     private void WriteFontData(
         string outputPath,
         TrueTypeFont ttf,
         List<ImportGlyph> glyphs,
-        PixelData<byte> atlas,
+        PixelData<Color32> atlas,
         Vector2Int atlasSize)
     {
         var fontSizeInv = 1.0f / FontSize;
@@ -393,8 +410,9 @@ public class FontDocument : Document
             }
         }
 
-        var bytes = atlas.AsByteSpan();
-        writer.Write(bytes);
+        // Write atlas as RGBA32
+        var atlasSpan = atlas.AsByteSpan();
+        writer.Write(atlasSpan);
 
         // Build packed glyph name buffer using Unicode character names
         var nameBuffer = new System.Text.StringBuilder();
