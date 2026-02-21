@@ -23,10 +23,8 @@ MSDF solves this by encoding distance across three channels (R, G, B). Each edge
 | `Msdf.EdgeColoring.cs` | `EdgeColoring.ColorSimple` — assigns R/G/B to edges at sharp corners |
 | `Msdf.ShapeClipper.cs` | Clipper2 boolean union — flattens curves and merges overlapping/self-intersecting contours |
 | `Msdf.Generator.cs` | `PerpendicularDistanceSelectorBase`, `MultiDistanceSelector`, `GenerateMSDF` (OverlappingContourCombiner), `GenerateMSDFSimple`, `DistanceSignCorrection`, and `ErrorCorrection` |
-| `Msdf.GeneratorRemora.cs` | Bridge: converts our Shape types to CSGL's MSDFGen types and calls their generator |
 | `Msdf.Sprite.cs` | Bridge: converts NoZ sprite paths to msdf shapes and runs generation |
 | `Msdf.Font.cs` | Bridge: converts TTF glyph contours to msdf shapes and runs generation |
-| `csgl/` | Third-party CSGL MSDFGen library (used via `MsdfGeneratorRemora`) |
 
 ## Generation Pipeline
 
@@ -64,15 +62,16 @@ Note: `OrientContours` is no longer needed since the Clipper2 union already prod
 
 ### 4. MSDF Generation
 
-Both fonts and sprites use the CSGL MSDFGen library via `MsdfGeneratorRemora`. The bridge converts our `Shape` to CSGL's `MSDFGen.Shape`, calls `MSDFGen.MSDF.GenerateMSDF()`, and copies the result back to our `MsdfBitmap`.
+Both fonts and sprites use our own `MsdfGenerator.GenerateMSDF` — a faithful port of msdfgen's OverlappingContourCombiner with `MultiDistanceSelector` / `PerpendicularDistanceSelectorBase`. This uses perpendicular distance at shared edge endpoints for precise channel separation.
 
-CSGL internally performs its own `Normalize()` and `EdgeColoringSimple()` on the converted shape.
-
-The `shape.InverseYAxis` flag is passed through so CSGL flips output rows for fonts (TTF Y-up to screen Y-down).
+The `shape.inverseYAxis` flag controls row flipping: the generator writes to `row = flipY ? h-1-y : y`, producing screen Y-down output from TTF Y-up coordinates.
 
 ### 5. Error Correction
 
-**Fonts only.** After generation, `MsdfGeneratorRemora.CorrectErrors` runs CSGL's pixel clash detection to fix bilinear interpolation artifacts.
+**Fonts only.** After generation, two correction passes run:
+
+1. **`DistanceSignCorrection`** — scanline-based sign verification using non-zero winding fill rule. Flips pixels where the MSDF sign disagrees with the actual fill state.
+2. **`ErrorCorrection`** — modern artifact detection with corner and edge protection. Detects linear and diagonal interpolation artifacts and replaces error-flagged texels with single-channel median.
 
 Sprites do not currently use error correction.
 
@@ -107,10 +106,10 @@ ShapeClipper.Union (Clipper2 boolean union — resolves overlaps + self-intersec
 Normalize → EdgeColoring.ColorSimple
   |
   v
-MsdfGeneratorRemora.GenerateMSDF (via CSGL library)
+MsdfGenerator.GenerateMSDF (OverlappingContourCombiner + PerpendicularDistanceSelector)
   |  (fonts only)
   v
-MsdfGeneratorRemora.CorrectErrors (pixel clash detection)
+MsdfGenerator.DistanceSignCorrection + ErrorCorrection
   |  (sprites only)
   v
 Subtract compositing (invert + min)

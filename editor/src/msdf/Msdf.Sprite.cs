@@ -121,12 +121,12 @@ internal static class MsdfSprite
         int h = targetRect.Height;
         double rangeInShapeUnits = range / dpi * 2.0;
 
-        // Generate MSDF using Remora-style generator for comparison testing
+        // Generate MSDF using our own generator (OverlappingContourCombiner).
         MsdfBitmap? addBitmap = null;
         if (addShape != null)
         {
             addBitmap = new MsdfBitmap(w, h);
-            MsdfGeneratorRemora.GenerateMSDF(addBitmap, addShape, rangeInShapeUnits, scale, translate);
+            MsdfGenerator.GenerateMSDF(addBitmap, addShape, rangeInShapeUnits, scale, translate);
         }
 
         // Generate MSDF for subtract shape
@@ -134,7 +134,7 @@ internal static class MsdfSprite
         if (subShape != null)
         {
             subBitmap = new MsdfBitmap(w, h);
-            MsdfGeneratorRemora.GenerateMSDF(subBitmap, subShape, rangeInShapeUnits, scale, translate);
+            MsdfGenerator.GenerateMSDF(subBitmap, subShape, rangeInShapeUnits, scale, translate);
         }
 
         // Composite into target pixel data

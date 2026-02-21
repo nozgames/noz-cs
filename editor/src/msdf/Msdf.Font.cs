@@ -162,13 +162,14 @@ internal static class MsdfFont
         // Create a sub-bitmap view for the glyph region
         var glyphBitmap = new MsdfBitmap(outputSize.X, outputSize.Y);
 
-        // Use Remora-style MSDF generator for comparison testing.
-        // This uses simple per-channel nearest-edge with DistanceToPseudoDistance,
-        // matching the original msdfgen approach more closely.
-        MsdfGeneratorRemora.GenerateMSDF(glyphBitmap, shape, range * 2.0, scale, translate);
+        double rangeValue = range * 2.0;
 
-        // Error correction: Remora-style simple pixel clash detection.
-        MsdfGeneratorRemora.CorrectErrors(glyphBitmap, outputSize.X, outputSize.Y, range * 2.0);
+        // Use our own MSDF generator (OverlappingContourCombiner + PerpendicularDistanceSelector).
+        MsdfGenerator.GenerateMSDF(glyphBitmap, shape, rangeValue, scale, translate);
+
+        // Sign correction + modern error correction.
+        MsdfGenerator.DistanceSignCorrection(glyphBitmap, shape, scale, translate);
+        MsdfGenerator.ErrorCorrection(glyphBitmap, shape, scale, translate, rangeValue);
 
         // Copy to output at the correct position
         for (int y = 0; y < outputSize.Y; y++)
