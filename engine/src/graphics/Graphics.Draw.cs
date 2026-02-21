@@ -147,8 +147,8 @@ public static partial class Graphics
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                if (sprite.IsSDF)
-                    SetColor(mesh.FillColor * baseColor);
+                // For SDF sprites, pass fill color as vertex color instead of setting graphics state
+                var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
 
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
@@ -173,13 +173,16 @@ public static partial class Graphics
                 var uv = mesh.UV;
                 // Use per-mesh bone if available, otherwise use sprite default or passed bone
                 var meshBone = mesh.BoneIndex >= 0 ? mesh.BoneIndex : bone;
-                AddQuad(
-                    p0, p1, p2, p3,
-                    uv.TopLeft, new Vector2(uv.Right, uv.Top),
-                    uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-                    order: (ushort)mesh.SortOrder,
-                    atlasIndex: sprite.AtlasIndex,
-                    bone: meshBone);
+
+                Span<MeshVertex> verts =
+                [
+                    new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                ];
+                ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+                AddTriangles(verts, indices, order: (ushort)mesh.SortOrder, bone: meshBone);
             }
         }
     }
@@ -200,8 +203,7 @@ public static partial class Graphics
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                if (sprite.IsSDF)
-                    SetColor(mesh.FillColor);
+                var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
 
                 var uv = mesh.UV;
                 var meshBounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
@@ -210,13 +212,15 @@ public static partial class Graphics
                 var p2 = new Vector2(meshBounds.Right, meshBounds.Bottom);
                 var p3 = new Vector2(meshBounds.Left, meshBounds.Bottom);
 
-                AddQuad(
-                    p0, p1, p2, p3,
-                    uv.TopLeft, new Vector2(uv.Right, uv.Top),
-                    uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-                    order: order,
-                    atlasIndex: sprite.AtlasIndex,
-                    bone: bone);
+                Span<MeshVertex> verts =
+                [
+                    new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                ];
+                ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+                AddTriangles(verts, indices, order: order, bone: bone);
             }
         }
     }
@@ -237,8 +241,7 @@ public static partial class Graphics
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                if (sprite.IsSDF)
-                    SetColor(mesh.FillColor);
+                var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
 
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
@@ -261,13 +264,15 @@ public static partial class Graphics
                 var p3 = new Vector2(bounds.Left, bounds.Bottom);
 
                 var uv = mesh.UV;
-                AddQuad(
-                    p0, p1, p2, p3,
-                    uv.TopLeft, new Vector2(uv.Right, uv.Top),
-                    uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-                    order: order,
-                    atlasIndex: sprite.AtlasIndex,
-                    bone: bone);
+                Span<MeshVertex> verts =
+                [
+                    new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                    new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                ];
+                ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+                AddTriangles(verts, indices, order: order, bone: bone);
             }
         }
     }
@@ -282,8 +287,7 @@ public static partial class Graphics
         {
             ref readonly var mesh = ref sprite.Meshes[i];
 
-            if (sprite.IsSDF)
-                SetColor(mesh.FillColor);
+            var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
 
             var uv = mesh.UV;
             var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
@@ -292,13 +296,15 @@ public static partial class Graphics
             var p2 = new Vector2(bounds.Right, bounds.Bottom);
             var p3 = new Vector2(bounds.Left, bounds.Bottom);
 
-            AddQuad(
-                p0, p1, p2, p3,
-                uv.TopLeft, new Vector2(uv.Right, uv.Top),
-                uv.BottomRight, new Vector2(uv.Left, uv.Bottom),
-                order: order,
-                atlasIndex: sprite.AtlasIndex,
-                bone: bone);
+            Span<MeshVertex> verts =
+            [
+                new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+                new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = sprite.AtlasIndex, FrameCount = 1, Color = vertexColor },
+            ];
+            ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+            AddTriangles(verts, indices, order: order, bone: bone);
         }
     }
 
