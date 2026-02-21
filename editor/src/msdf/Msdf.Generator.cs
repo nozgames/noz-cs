@@ -321,6 +321,7 @@ internal static class MsdfGenerator
             int row = flipY ? h - 1 - y : y;
             var contourSelectors = new MultiDistanceSelector[contourCount];
             var contourDistances = new MultiDistance[contourCount];
+            var contourMedians = new double[contourCount];
 
             for (int x = 0; x < w; ++x)
             {
@@ -357,13 +358,13 @@ internal static class MsdfGenerator
                             else
                             { eqx = ed.p0x - p.x; eqy = ed.p0y - p.y; }
 
-                            double endpointDist = Math.Sqrt(eqx * eqx + eqy * eqy);
+                            double endpointDistSq = eqx * eqx + eqy * eqy;
                             SignedDistance distance;
 
                             if (param > 0 && param < 1)
                             {
                                 double orthoDist = ed.orthx * aqx + ed.orthy * aqy;
-                                if (Math.Abs(orthoDist) < endpointDist)
+                                if (orthoDist * orthoDist < endpointDistSq)
                                 {
                                     distance = new SignedDistance(orthoDist, 0);
                                     goto addDistance;
@@ -371,6 +372,7 @@ internal static class MsdfGenerator
                             }
 
                             {
+                                double endpointDist = Math.Sqrt(endpointDistSq);
                                 double crossVal = aqx * ed.aby - aqy * ed.abx;
                                 int sign = crossVal > 0.0 ? 1 : -1;
                                 double dotVal;
@@ -465,55 +467,93 @@ internal static class MsdfGenerator
                 var outerSelector = new MultiDistanceSelector();
                 outerSelector.Init();
 
+                bool hasInner = false, hasOuter = false;
                 for (int ci = 0; ci < contourCount; ++ci)
                 {
                     contourDistances[ci] = contourSelectors[ci].Distance(p);
+                    contourMedians[ci] = contourDistances[ci].Median();
                     shapeSelector.Merge(contourSelectors[ci]);
-                    if (windings[ci] > 0 && contourDistances[ci].Median() >= 0)
+                    if (windings[ci] > 0 && contourMedians[ci] >= 0)
+                    {
                         innerSelector.Merge(contourSelectors[ci]);
-                    if (windings[ci] < 0 && contourDistances[ci].Median() <= 0)
+                        hasInner = true;
+                    }
+                    if (windings[ci] < 0 && contourMedians[ci] <= 0)
+                    {
                         outerSelector.Merge(contourSelectors[ci]);
+                        hasOuter = true;
+                    }
                 }
 
                 MultiDistance shapeDistance = shapeSelector.Distance(p);
-                MultiDistance innerDistance = innerSelector.Distance(p);
-                MultiDistance outerDistance = outerSelector.Distance(p);
-                double innerScalarDistance = innerDistance.Median();
-                double outerScalarDistance = outerDistance.Median();
+                double shapeMedian = shapeDistance.Median();
+
+                MultiDistance innerDistance;
+                double innerScalarDistance;
+                if (hasInner)
+                {
+                    innerDistance = innerSelector.Distance(p);
+                    innerScalarDistance = innerDistance.Median();
+                }
+                else
+                {
+                    innerDistance = default;
+                    innerScalarDistance = -double.MaxValue;
+                }
+
+                MultiDistance outerDistance;
+                double outerScalarDistance;
+                if (hasOuter)
+                {
+                    outerDistance = outerSelector.Distance(p);
+                    outerScalarDistance = outerDistance.Median();
+                }
+                else
+                {
+                    outerDistance = default;
+                    outerScalarDistance = -double.MaxValue;
+                }
 
                 MultiDistance result;
                 result.r = -double.MaxValue;
                 result.g = -double.MaxValue;
                 result.b = -double.MaxValue;
+                double resultMedian;
 
                 int winding = 0;
                 if (innerScalarDistance >= 0 && Math.Abs(innerScalarDistance) <= Math.Abs(outerScalarDistance))
                 {
                     result = innerDistance;
+                    resultMedian = innerScalarDistance;
                     winding = 1;
                     for (int ci = 0; ci < contourCount; ++ci)
                     {
                         if (windings[ci] > 0)
                         {
-                            double cdMedian = contourDistances[ci].Median();
-                            if (Math.Abs(cdMedian) < Math.Abs(outerScalarDistance)
-                                && cdMedian > result.Median())
+                            if (Math.Abs(contourMedians[ci]) < Math.Abs(outerScalarDistance)
+                                && contourMedians[ci] > resultMedian)
+                            {
                                 result = contourDistances[ci];
+                                resultMedian = contourMedians[ci];
+                            }
                         }
                     }
                 }
                 else if (outerScalarDistance <= 0 && Math.Abs(outerScalarDistance) < Math.Abs(innerScalarDistance))
                 {
                     result = outerDistance;
+                    resultMedian = outerScalarDistance;
                     winding = -1;
                     for (int ci = 0; ci < contourCount; ++ci)
                     {
                         if (windings[ci] < 0)
                         {
-                            double cdMedian = contourDistances[ci].Median();
-                            if (Math.Abs(cdMedian) < Math.Abs(innerScalarDistance)
-                                && cdMedian < result.Median())
+                            if (Math.Abs(contourMedians[ci]) < Math.Abs(innerScalarDistance)
+                                && contourMedians[ci] < resultMedian)
+                            {
                                 result = contourDistances[ci];
+                                resultMedian = contourMedians[ci];
+                            }
                         }
                     }
                 }
@@ -531,14 +571,16 @@ internal static class MsdfGenerator
                 {
                     if (windings[ci] != winding)
                     {
-                        double cdMedian = contourDistances[ci].Median();
-                        if (cdMedian * result.Median() >= 0
-                            && Math.Abs(cdMedian) < Math.Abs(result.Median()))
+                        if (contourMedians[ci] * resultMedian >= 0
+                            && Math.Abs(contourMedians[ci]) < Math.Abs(resultMedian))
+                        {
                             result = contourDistances[ci];
+                            resultMedian = contourMedians[ci];
+                        }
                     }
                 }
 
-                if (result.Median() == shapeDistance.Median())
+                if (resultMedian == shapeMedian)
                     result = shapeDistance;
 
                 var pixel = output[x, row];
