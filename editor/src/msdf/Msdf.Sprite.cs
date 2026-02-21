@@ -12,7 +12,7 @@ internal static class MsdfSprite
     // Append a single sprite path as a contour to an existing shape.
     // Raw conversion only — no Clipper2 union, no normalize, no edge coloring.
     // Winding is normalized to positive for NonZero fill rule.
-    private static void AppendContour(
+    internal static void AppendContour(
         Shape shape,
         NoZ.Editor.Shape spriteShape,
         ushort pathIndex)
@@ -62,23 +62,16 @@ internal static class MsdfSprite
             contour.Reverse();
     }
 
-    // Rasterize MSDF for sprite paths. Paths are processed in draw order so that
-    // subtract paths only carve from add paths that precede them.
-    public static void RasterizeMSDF(
+    // Build a clean MSDF shape from sprite paths. Walks paths in draw order,
+    // accumulates add paths, applies subtract via Clipper2 Difference, then
+    // runs a final Union to resolve overlaps. Result is all-linear contours.
+    // Returns null if no valid contours.
+    public static Shape? BuildShape(
         NoZ.Editor.Shape spriteShape,
-        PixelData<Color32> target,
-        RectInt targetRect,
-        Vector2Int sourceOffset,
-        ReadOnlySpan<ushort> pathIndices,
-        float range = 1.5f)
+        ReadOnlySpan<ushort> pathIndices)
     {
-        if (pathIndices.Length == 0) return;
+        if (pathIndices.Length == 0) return null;
 
-        var dpi = EditorApplication.Config.PixelsPerUnit;
-
-        // Walk paths in draw order. Add paths accumulate raw contours.
-        // Subtract paths trigger a Clipper2 Difference on the accumulated shape.
-        // Clipper2 handles overlapping add contours internally via NonZero fill rule.
         var shape = new Shape();
 
         foreach (var pi in pathIndices)
@@ -102,12 +95,28 @@ internal static class MsdfSprite
             }
         }
 
-        if (shape.contours.Count == 0) return;
+        if (shape.contours.Count == 0) return null;
 
+        shape = ShapeClipper.Union(shape);
+        return shape;
+    }
+
+    // Rasterize MSDF for sprite paths. Paths are processed in draw order so that
+    // subtract paths only carve from add paths that precede them.
+    public static void RasterizeMSDF(
+        NoZ.Editor.Shape spriteShape,
+        PixelData<Color32> target,
+        RectInt targetRect,
+        Vector2Int sourceOffset,
+        ReadOnlySpan<ushort> pathIndices,
+        float range = 1.5f)
+    {
+        var shape = BuildShape(spriteShape, pathIndices);
+        if (shape == null) return;
+
+        var dpi = EditorApplication.Config.PixelsPerUnit;
         var sw = Stopwatch.StartNew();
 
-        // Final cleanup: union resolves any remaining overlaps, then prepare for generation
-        shape = ShapeClipper.Union(shape);
         var tUnion = sw.Elapsed.TotalMilliseconds; sw.Restart();
 
         shape.Normalize();

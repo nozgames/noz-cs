@@ -235,6 +235,7 @@ public class VfxDocument : Document
             emitter.Angle = ParseFloat(props.GetString(emitterName, "angle", "0"), new VfxRange(0, 360));
             emitter.Spawn = ParseVec2(props.GetString(emitterName, "spawn", "(0, 0)"), VfxVec2Range.Zero);
             emitter.Direction = ParseVec2(props.GetString(emitterName, "direction", "(0, 0)"), VfxVec2Range.Zero);
+            emitter.WorldSpace = props.GetString(emitterName, "worldSpace", "true").Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
 
             ref var p = ref emitter.Particle;
             p.Duration = ParseFloat(props.GetString(particleSection, "duration", "1.0"), VfxRange.One);
@@ -341,6 +342,7 @@ public class VfxDocument : Document
             writer.Write(e.Direction.Min.Y);
             writer.Write(e.Direction.Max.X);
             writer.Write(e.Direction.Max.Y);
+            writer.Write(e.WorldSpace);
 
             ref var p = ref e.Particle;
             writer.Write(p.Duration.Min);
@@ -369,6 +371,13 @@ public class VfxDocument : Document
         writer.Write(curve.Start.Max);
         writer.Write(curve.End.Min);
         writer.Write(curve.End.Max);
+        if (curve.Type == VfxCurveType.CubicBezier)
+        {
+            writer.Write(curve.Bezier.X);
+            writer.Write(curve.Bezier.Y);
+            writer.Write(curve.Bezier.Z);
+            writer.Write(curve.Bezier.W);
+        }
     }
 
     private static void WriteColorCurve(BinaryWriter writer, VfxColorCurve curve)
@@ -390,6 +399,13 @@ public class VfxDocument : Document
         writer.Write(curve.End.Max.G);
         writer.Write(curve.End.Max.B);
         writer.Write(curve.End.Max.A);
+        if (curve.Type == VfxCurveType.CubicBezier)
+        {
+            writer.Write(curve.Bezier.X);
+            writer.Write(curve.Bezier.Y);
+            writer.Write(curve.Bezier.Z);
+            writer.Write(curve.Bezier.W);
+        }
     }
 
     // --- Value parsers ---
@@ -504,11 +520,21 @@ public class VfxDocument : Document
         if (!ParseFloatValue(ref tk, out curve.End))
             return defaultValue;
 
-        // Check for :curvetype
+        // Check for :curvetype or :bezier(x1, y1, x2, y2)
         if (tk.ExpectDelimiter(':'))
         {
             if (tk.ExpectIdentifier(out string curveType))
-                curve.Type = ParseCurveType(curveType);
+            {
+                if (curveType.Equals("bezier", StringComparison.OrdinalIgnoreCase) && tk.ExpectVec4(out Vector4 bezierPoints))
+                {
+                    curve.Type = VfxCurveType.CubicBezier;
+                    curve.Bezier = bezierPoints;
+                }
+                else
+                {
+                    curve.Type = ParseCurveType(curveType);
+                }
+            }
         }
 
         return curve;
@@ -577,11 +603,21 @@ public class VfxDocument : Document
         if (!ParseColorValue(ref tk, out curve.End))
             return defaultValue;
 
-        // Check for :curvetype
+        // Check for :curvetype or :bezier(x1, y1, x2, y2)
         if (tk.ExpectDelimiter(':'))
         {
             if (tk.ExpectIdentifier(out string curveType))
-                curve.Type = ParseCurveType(curveType);
+            {
+                if (curveType.Equals("bezier", StringComparison.OrdinalIgnoreCase) && tk.ExpectVec4(out Vector4 bezierPoints))
+                {
+                    curve.Type = VfxCurveType.CubicBezier;
+                    curve.Bezier = bezierPoints;
+                }
+                else
+                {
+                    curve.Type = ParseCurveType(curveType);
+                }
+            }
         }
 
         return curve;
@@ -634,6 +670,7 @@ public class VfxDocument : Document
             "quadratic" => VfxCurveType.Quadratic,
             "cubic" => VfxCurveType.Cubic,
             "sine" => VfxCurveType.Sine,
+            "bell" => VfxCurveType.Bell,
             _ => VfxCurveType.Linear
         };
     }
@@ -664,6 +701,8 @@ public class VfxDocument : Document
             sw.WriteLine($"angle = {FormatRange(e.Angle)}");
             sw.WriteLine($"spawn = {FormatVec2Range(e.Spawn)}");
             sw.WriteLine($"direction = {FormatVec2Range(e.Direction)}");
+            if (!e.WorldSpace)
+                sw.WriteLine("worldSpace = false");
 
             sw.WriteLine();
             sw.WriteLine($"[{name}.particle]");
@@ -698,11 +737,13 @@ public class VfxDocument : Document
     {
         var start = FormatRange(c.Start);
         var end = FormatRange(c.End);
-        var type = FormatCurveType(c.Type);
 
         if (c.Start.Min == c.End.Min && c.Start.Max == c.End.Max)
             return start;
 
+        var type = c.Type == VfxCurveType.CubicBezier
+            ? FormatBezier(c.Bezier)
+            : FormatCurveType(c.Type);
         return $"{start}=>{end}:{type}";
     }
 
@@ -710,11 +751,13 @@ public class VfxDocument : Document
     {
         var start = FormatColorRange(c.Start);
         var end = FormatColorRange(c.End);
-        var type = FormatCurveType(c.Type);
 
         if (c.Start.Min == c.End.Min && c.Start.Max == c.End.Max)
             return start;
 
+        var type = c.Type == VfxCurveType.CubicBezier
+            ? FormatBezier(c.Bezier)
+            : FormatCurveType(c.Type);
         return $"{start}=>{end}:{type}";
     }
 
@@ -734,6 +777,9 @@ public class VfxDocument : Document
         return a == 255 ? $"#{r:X2}{g:X2}{b:X2}" : $"#{r:X2}{g:X2}{b:X2}{a:X2}";
     }
 
+    private static string FormatBezier(Vector4 b) =>
+        $"bezier({FormatFloat(b.X)}, {FormatFloat(b.Y)}, {FormatFloat(b.Z)}, {FormatFloat(b.W)})";
+
     private static string FormatCurveType(VfxCurveType type) => type switch
     {
         VfxCurveType.Linear => "linear",
@@ -743,6 +789,7 @@ public class VfxDocument : Document
         VfxCurveType.Quadratic => "quadratic",
         VfxCurveType.Cubic => "cubic",
         VfxCurveType.Sine => "sine",
+        VfxCurveType.Bell => "bell",
         _ => "linear"
     };
 }

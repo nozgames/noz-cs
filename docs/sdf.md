@@ -238,9 +238,21 @@ The inner loop then inlines `LinearSegment.GetSignedDistance` and the perpendicu
 
 **Why spatial culling doesn't work with MSDF**: Both narrow-band (skipping far pixels) and contour AABB culling (skipping far contours) were attempted and produced visible seam artifacts. The OverlappingContourCombiner requires accurate per-channel distances from ALL contours at every pixel for correct channel combination. Skipping any contour creates per-channel discontinuities because R, G, B encode distances to different colored edges. This is a fundamental constraint of multi-channel SDF — single-channel SDF can use spatial culling, but MSDF cannot.
 
-### Editor SDF Preview
+### Editor SDF Preview (Mesh-Based)
 
-The sprite editor renders a live MSDF preview when `IsSDF` is enabled. Per mesh slot (grouped by layer/bone/fillColor), an MSDF is generated into the editor's `_image` buffer and drawn with `texture_sdf.wgsl` + `TextureFilter.Linear` + per-slot fill color from the palette. The non-SDF raster path is unchanged.
+The sprite editor uses **tessellated triangle meshes** for the live SDF preview instead of generating MSDF textures in real-time. MSDF generation (~20ms+) is too slow for interactive editing, so the editor renders flat-colored meshes that show the exact shape at zero cost.
+
+**Pipeline** (`SpriteEditor.Mesh.cs`): Per mesh slot (grouped by layer/bone/fillColor):
+1. `MsdfSprite.BuildShape()` converts sprite paths → MSDF shape → Clipper2 Union (~1-2ms). Result is clean, all-linear contours.
+2. Contours are fed into **LibTessDotNet** (`Tess.Tessellate` with `WindingRule.NonZero`) which triangulates the polygons including holes.
+3. Output triangles are written into shared `MeshVertex[]` / `ushort[]` buffers (pre-allocated once per editor, sliced per slot).
+4. Drawing uses `Graphics.Draw(vertices, indices)` with `texture.wgsl` + `WhiteTexture` + per-slot fill color from the palette.
+
+**Coordinate space**: Contour points from `BuildShape` are in anchor-position space (world units) — the same space used by segment/anchor gizmo drawing. No DPI conversion is needed.
+
+**Trade-offs**: The mesh preview shows pixel-perfect shape accuracy but without SDF edge anti-aliasing. This is fine for editing — you care about shape, not rendering quality. Full MSDF generation still runs at asset export/import time.
+
+**Tiling**: The tile preview feature is disabled in mesh mode since it relies on the texture-based rendering path.
 
 ## Future Optimizations
 

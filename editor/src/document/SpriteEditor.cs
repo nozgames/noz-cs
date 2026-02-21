@@ -48,14 +48,6 @@ public partial class SpriteEditor : DocumentEditor
     private readonly Vector2[] _savedPositions = new Vector2[Shape.MaxAnchors];
     private readonly float[] _savedCurves = new float[Shape.MaxAnchors];
 
-    // SDF preview: per-slot info for multi-draw with SDF shader
-    private struct SdfSlotInfo
-    {
-        public RectInt Region;       // pixel region in _image (for UV calc)
-        public RectInt ShapeBounds;  // shape-space bounds (for quad position)
-        public Color FillColor;      // palette color + opacity
-    }
-    private readonly System.Collections.Generic.List<SdfSlotInfo> _sdfSlots = new();
 
     public SpriteEditor(SpriteDocument doc) : base(doc)
     {
@@ -660,18 +652,18 @@ public partial class SpriteEditor : DocumentEditor
         var size = bounds.Size;
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
-            _sdfSlots.Clear();
+            _meshSlots.Clear();
             _rasterDirty = false;
             return;
         }
 
         if (Document.IsSDF)
         {
-            UpdateRasterSDF(shape);
+            UpdateMeshSDF(shape);
         }
         else
         {
-            _sdfSlots.Clear();
+            _meshSlots.Clear();
 
             var rasterRect = new RectInt(0, 0, size.X + Padding * 2, size.Y + Padding * 2);
             _image.Clear(rasterRect);
@@ -697,66 +689,6 @@ public partial class SpriteEditor : DocumentEditor
         }
 
         _rasterDirty = false;
-    }
-
-    private void UpdateRasterSDF(Shape shape)
-    {
-        _sdfSlots.Clear();
-
-        var palette = PaletteManager.GetPalette(Document.Palette);
-        if (palette == null) return;
-
-        var slots = Document.GetMeshSlots(_currentFrame);
-        var slotBounds = Document.GetMeshSlotBounds(_currentFrame);
-        if (slots.Count == 0) return;
-
-        var padding2 = Padding * 2;
-        var xOffset = 0;
-        var maxHeight = 0;
-
-        for (int i = 0; i < slots.Count; i++)
-        {
-            var slot = slots[i];
-            var sb = slotBounds[i];
-            if (sb.Width <= 0 || sb.Height <= 0)
-                sb = Document.RasterBounds;
-
-            var slotWidth = sb.Size.X + padding2;
-            var slotHeight = sb.Size.Y + padding2;
-
-            var outerRect = new RectInt(xOffset, 0, slotWidth, slotHeight);
-            _image.Clear(outerRect);
-
-            if (slot.PathIndices.Count > 0)
-            {
-                shape.RasterizeMSDF(
-                    _image,
-                    outerRect,
-                    -sb.Position + new Vector2Int(Padding, Padding),
-                    CollectionsMarshal.AsSpan(slot.PathIndices));
-            }
-
-            // Get fill color from palette (same as atlas export in SpriteDocument)
-            var c = palette.Colors[slot.FillColor % palette.Colors.Length];
-            var firstPath = shape.GetPath(slot.PathIndices[0]);
-            var fillColor = c.WithAlpha(firstPath.FillOpacity);
-
-            _sdfSlots.Add(new SdfSlotInfo
-            {
-                Region = outerRect,
-                ShapeBounds = sb,
-                FillColor = fillColor
-            });
-
-            xOffset += slotWidth;
-            if (slotHeight > maxHeight) maxHeight = slotHeight;
-        }
-
-        if (xOffset > 0 && maxHeight > 0)
-        {
-            var totalRect = new RectInt(0, 0, xOffset, maxHeight);
-            _rasterTexture.Update(_image.AsByteSpan(), totalRect, _image.Width);
-        }
     }
 
     public void MarkRasterDirty()
@@ -1657,30 +1589,10 @@ public partial class SpriteEditor : DocumentEditor
                 rb.Width * texSizeInv,
                 rb.Height * texSizeInv);
 
-            if (_sdfSlots.Count > 0)
+            if (_meshSlots.Count > 0)
             {
-                // SDF mode: draw each slot with SDF shader + per-slot fill color
-                Graphics.SetShader(SpriteDocument.GetTextureSdfShader());
-                Graphics.SetTextureFilter(TextureFilter.Linear);
-
-                foreach (var slot in _sdfSlots)
-                {
-                    var slotQuad = new Rect(
-                        slot.ShapeBounds.X * invDpi,
-                        slot.ShapeBounds.Y * invDpi,
-                        slot.ShapeBounds.Width * invDpi,
-                        slot.ShapeBounds.Height * invDpi);
-
-                    var slotUv = new Rect(
-                        (slot.Region.X + Padding) * texSizeInv,
-                        (slot.Region.Y + Padding) * texSizeInv,
-                        slot.ShapeBounds.Width * texSizeInv,
-                        slot.ShapeBounds.Height * texSizeInv);
-
-                    Graphics.SetColor(slot.FillColor.WithAlpha(
-                        slot.FillColor.A * Workspace.XrayAlpha));
-                    Graphics.Draw(slotQuad, slotUv);
-                }
+                // SDF mode: draw tessellated mesh per slot
+                DrawMeshSDF();
             }
             else
             {
@@ -1690,7 +1602,7 @@ public partial class SpriteEditor : DocumentEditor
                 Graphics.Draw(quad, uv);
             }
 
-            if (Document.ShowTiling)
+            if (Document.ShowTiling && _meshSlots.Count == 0)
             {
                 var tileSize = new Vector2(rb.Width * invDpi, rb.Height * invDpi);
                 ReadOnlySpan<Vector2> offsets =
