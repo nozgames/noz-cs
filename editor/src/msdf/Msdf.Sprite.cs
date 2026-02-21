@@ -117,9 +117,6 @@ internal static class MsdfSprite
         int h = targetRect.Height;
         double rangeInShapeUnits = range / dpi * 2.0;
 
-        // Use GenerateMSDF (OverlappingContourCombiner) instead of GenerateMSDFBasic.
-        // This processes each contour independently and combines by winding,
-        // correctly handling holes from Clipper2 Difference — same as fonts.
         var bitmap = new MsdfBitmap(w, h);
         MsdfGenerator.GenerateMSDF(bitmap, shape, rangeInShapeUnits, scale, translate);
         MsdfGenerator.DistanceSignCorrection(bitmap, shape, scale, translate);

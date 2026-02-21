@@ -220,9 +220,41 @@ All pixel-level passes use `Parallel.For` on rows:
 
 The main optimization is in `MsdfSprite.RasterizeMSDF`: paths are converted to raw contours via `AppendContour` (no Clipper2 per path), with subtract paths carved inline via `Difference`. Only one final `Union` + `Normalize` + `EdgeColoring.ColorSimple` at the end. This avoids the previous pattern of repeated union/normalize/color per batch, which dominated total time (~21ms of a 32ms total for a 33-path sprite).
 
+### LinearSegment Fast Path
+
+After Clipper2 union, all edges are `LinearSegment`. The `GenerateMSDF` hot loop (edge scanning) was dominated by virtual dispatch overhead — 7 virtual calls per edge per pixel through `EdgeSegment.GetSignedDistance()`, `Point()`, `Direction()`, totaling ~32M virtual dispatches for a typical 142x143 sprite with 225 edges.
+
+The `LinearEdgeData` struct and `PrecomputeLinearEdges()` method pre-compute all per-edge data once before the parallel loop:
+
+- Endpoint coordinates (`p0`, `p1`)
+- Direction vector (`ab`) and `invAbLenSq` (replaces per-pixel division with multiplication)
+- Orthonormal vector (replaces per-pixel `GetOrthonormal` call with sqrt)
+- Normalized direction (replaces per-pixel `Normalize` with sqrt)
+- Corner bisectors (`NormalizeAllowZero(prevNd + curNd)`) — eliminates 2 normalizations per edge per pixel
+
+The inner loop then inlines `LinearSegment.GetSignedDistance` and the perpendicular distance extensions using these pre-computed values, with zero virtual dispatch. Falls back to the generic virtual-dispatch path if any edge is not `LinearSegment`.
+
+**Result**: ~10x speedup on edge scanning (2240ms → 240ms CPU time), ~6x on total GenerateMSDF wall time (~110ms → ~19ms). No artifacts — the math is identical, just pre-computed.
+
+**Why spatial culling doesn't work with MSDF**: Both narrow-band (skipping far pixels) and contour AABB culling (skipping far contours) were attempted and produced visible seam artifacts. The OverlappingContourCombiner requires accurate per-channel distances from ALL contours at every pixel for correct channel combination. Skipping any contour creates per-channel discontinuities because R, G, B encode distances to different colored edges. This is a fundamental constraint of multi-channel SDF — single-channel SDF can use spatial culling, but MSDF cannot.
+
 ### Editor SDF Preview
 
-The sprite editor renders a live MSDF preview when `IsSDF` is enabled. Per mesh slot (grouped by layer/bone/fillColor), an MSDF is generated into the editor's `_image` buffer and drawn with `texture_sdf.wgsl` + `TextureFilter.Linear` + per-slot fill color from the palette. The non-SDF raster path is unchanged. Typical interactive performance is 0-5ms per regeneration.
+The sprite editor renders a live MSDF preview when `IsSDF` is enabled. Per mesh slot (grouped by layer/bone/fillColor), an MSDF is generated into the editor's `_image` buffer and drawn with `texture_sdf.wgsl` + `TextureFilter.Linear` + per-slot fill color from the palette. The non-SDF raster path is unchanged.
+
+## Future Optimizations
+
+Potential further improvements to explore, roughly ordered by expected impact:
+
+1. **Reduce Clipper2 linearization segments** — Currently 16 segments per curve (`DefaultStepsPerCurve`). Adaptive tessellation based on curve curvature or a lower fixed count (e.g., 8) would halve edge count for curved sprites. Fewer edges = proportionally less work in the hot loop. Requires quality validation.
+
+2. **SIMD vectorization of distance computation** — The inner loop computes point-to-segment distance for each edge sequentially. With `System.Runtime.Intrinsics`, 4 edges could be processed simultaneously using AVX2 (4×double). Requires restructuring edge data into SoA (struct-of-arrays) layout.
+
+3. **Per-contour edge grid index** — Instead of checking all edges within a contour, partition edges into a spatial grid. For each pixel, only check edges in nearby cells. This is safe (unlike contour-level culling) because we still evaluate every contour — we just find the closest edge faster within each contour. Benefit scales with edges-per-contour; for contours with 20+ edges, could skip 80%+ of distance computations.
+
+4. **Combine phase optimization** — Currently 5% of time. The `PerpendicularDistanceSelectorBase.ComputeDistance` calls `nearEdge.DistanceToPerpendicularDistance()` via virtual dispatch for the combine phase. Could store pre-computed edge data index instead of edge reference and inline this too.
+
+5. **Bitmap allocation pooling** — `MsdfBitmap` is allocated per `RasterizeMSDF` call. A thread-local pool or reusable bitmap (resized as needed) would reduce GC pressure during rapid editing.
 
 ## References
 

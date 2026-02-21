@@ -195,8 +195,91 @@ internal struct MultiDistance
     public double Median() => MsdfMath.Median(r, g, b);
 }
 
+// Pre-computed edge data for the all-linear fast path.
+// After Clipper2 union, all edges are LinearSegment — we can pre-compute
+// direction vectors, normals, and corner bisectors once instead of per-pixel.
+internal struct LinearEdgeData
+{
+    public double p0x, p0y, p1x, p1y;  // endpoints
+    public double abx, aby;             // direction = p1 - p0
+    public double invAbLenSq;           // 1.0 / Dot(ab, ab), 0 if degenerate
+    public double orthx, orthy;         // orthonormal (polarity=false): (aby/len, -abx/len)
+    public double ndx, ndy;             // normalized direction
+    public double negNdx, negNdy;       // negated normalized direction (for start corner perp dist)
+    public double sbx, sby;             // start corner bisector: NormalizeAllowZero(prevNd + nd)
+    public double ebx, eby;             // end corner bisector: NormalizeAllowZero(nd + nextNd)
+    public int colorMask;               // (int)edge.color
+}
+
 internal static class MsdfGenerator
 {
+    // Pre-compute LinearEdgeData for one contour. Returns null if any edge is not LinearSegment.
+    private static LinearEdgeData[]? PrecomputeLinearEdges(Contour contour)
+    {
+        int n = contour.edges.Count;
+        if (n == 0) return null;
+
+        var data = new LinearEdgeData[n];
+
+        // First pass: compute per-edge data (everything except bisectors)
+        for (int i = 0; i < n; i++)
+        {
+            if (contour.edges[i] is not LinearSegment lin)
+                return null;
+
+            ref var d = ref data[i];
+            d.p0x = lin.p[0].x; d.p0y = lin.p[0].y;
+            d.p1x = lin.p[1].x; d.p1y = lin.p[1].y;
+            d.abx = d.p1x - d.p0x;
+            d.aby = d.p1y - d.p0y;
+            double lenSq = d.abx * d.abx + d.aby * d.aby;
+            double len = Math.Sqrt(lenSq);
+            d.invAbLenSq = lenSq > 0 ? 1.0 / lenSq : 0;
+            if (len > 0)
+            {
+                double invLen = 1.0 / len;
+                d.ndx = d.abx * invLen;
+                d.ndy = d.aby * invLen;
+                // GetOrthonormal(ab, polarity=false) = (ab.y / len, -ab.x / len)
+                d.orthx = d.aby * invLen;
+                d.orthy = -d.abx * invLen;
+            }
+            else
+            {
+                d.ndx = 0; d.ndy = 0;
+                d.orthx = 0; d.orthy = -1; // GetOrthonormal default for polarity=false
+            }
+            d.negNdx = -d.ndx;
+            d.negNdy = -d.ndy;
+            d.colorMask = (int)lin.color;
+        }
+
+        // Second pass: compute corner bisectors using adjacent edge directions.
+        // For LinearSegment, Direction(0) == Direction(1) == ab, so nd is the same.
+        for (int i = 0; i < n; i++)
+        {
+            ref var d = ref data[i];
+            int prevIdx = (i + n - 1) % n;
+            int nextIdx = (i + 1) % n;
+
+            // Start bisector: NormalizeAllowZero(prevNd + curNd)
+            double sbRawX = data[prevIdx].ndx + d.ndx;
+            double sbRawY = data[prevIdx].ndy + d.ndy;
+            double sbLen = Math.Sqrt(sbRawX * sbRawX + sbRawY * sbRawY);
+            if (sbLen > 0) { d.sbx = sbRawX / sbLen; d.sby = sbRawY / sbLen; }
+            else { d.sbx = 0; d.sby = 0; }
+
+            // End bisector: NormalizeAllowZero(curNd + nextNd)
+            double ebRawX = d.ndx + data[nextIdx].ndx;
+            double ebRawY = d.ndy + data[nextIdx].ndy;
+            double ebLen = Math.Sqrt(ebRawX * ebRawX + ebRawY * ebRawY);
+            if (ebLen > 0) { d.ebx = ebRawX / ebLen; d.eby = ebRawY / ebLen; }
+            else { d.ebx = 0; d.eby = 0; }
+        }
+
+        return data;
+    }
+
     // Port of msdfgen's OverlappingContourCombiner + MultiDistanceSelector.
     public static void GenerateMSDF(
         MsdfBitmap output,
@@ -222,6 +305,17 @@ internal static class MsdfGenerator
         for (int i = 0; i < contourCount; ++i)
             windings[i] = invertWinding ? -shape.contours[i].Winding() : shape.contours[i].Winding();
 
+        // Try to pre-compute linear edge data for the fast path.
+        // After Clipper2, all edges should be LinearSegment.
+        var contourEdgeData = new LinearEdgeData[contourCount][];
+        bool allLinear = true;
+        for (int ci = 0; ci < contourCount; ci++)
+        {
+            var data = PrecomputeLinearEdges(shape.contours[ci]);
+            if (data == null) { allLinear = false; break; }
+            contourEdgeData[ci] = data;
+        }
+
         Parallel.For(0, h, y =>
         {
             int row = flipY ? h - 1 - y : y;
@@ -234,22 +328,136 @@ internal static class MsdfGenerator
                 for (int ci = 0; ci < contourCount; ++ci)
                     contourSelectors[ci].Init();
 
-                for (int ci = 0; ci < contourCount; ++ci)
+                if (allLinear)
                 {
-                    var edges = shape.contours[ci].edges;
-                    if (edges.Count == 0)
-                        continue;
-
-                    ref var selector = ref contourSelectors[ci];
-
-                    EdgeSegment prevEdge = edges.Count >= 2 ? edges[^2] : edges[0];
-                    EdgeSegment curEdge = edges[^1];
-                    for (int ei = 0; ei < edges.Count; ++ei)
+                    // Fast path: all edges are LinearSegment, use pre-computed data.
+                    for (int ci = 0; ci < contourCount; ++ci)
                     {
-                        EdgeSegment nextEdge = edges[ei];
-                        selector.AddEdge(prevEdge, curEdge, nextEdge, p);
-                        prevEdge = curEdge;
-                        curEdge = nextEdge;
+                        var edgeData = contourEdgeData[ci];
+                        int edgeCount = edgeData.Length;
+                        if (edgeCount == 0) continue;
+
+                        var edges = shape.contours[ci].edges;
+                        ref var selector = ref contourSelectors[ci];
+
+                        for (int ei = 0; ei < edgeCount; ++ei)
+                        {
+                            ref readonly var ed = ref edgeData[ei];
+
+                            // Inline LinearSegment.GetSignedDistance
+                            double aqx = p.x - ed.p0x;
+                            double aqy = p.y - ed.p0y;
+                            double param = (aqx * ed.abx + aqy * ed.aby) * ed.invAbLenSq;
+
+                            double eqx, eqy;
+                            if (param > 0.5)
+                            { eqx = ed.p1x - p.x; eqy = ed.p1y - p.y; }
+                            else
+                            { eqx = ed.p0x - p.x; eqy = ed.p0y - p.y; }
+
+                            double endpointDist = Math.Sqrt(eqx * eqx + eqy * eqy);
+                            SignedDistance distance;
+
+                            if (param > 0 && param < 1)
+                            {
+                                // Orthogonal distance (pre-computed orthonormal)
+                                double orthoDist = ed.orthx * aqx + ed.orthy * aqy;
+                                if (Math.Abs(orthoDist) < endpointDist)
+                                {
+                                    distance = new SignedDistance(orthoDist, 0);
+                                    goto addDistance;
+                                }
+                            }
+
+                            // Endpoint distance
+                            {
+                                double crossVal = aqx * ed.aby - aqy * ed.abx;
+                                int sign = crossVal > 0.0 ? 1 : -1;
+                                // Dot(Normalize(ab), Normalize(eq))
+                                double eqLen = endpointDist;
+                                double dotVal;
+                                if (eqLen > 0)
+                                    dotVal = Math.Abs((ed.ndx * eqx + ed.ndy * eqy) / eqLen);
+                                else
+                                    dotVal = 0;
+                                distance = new SignedDistance(sign * endpointDist, dotVal);
+                            }
+
+                            addDistance:
+                            // AddEdgeTrueDistance per channel
+                            if ((ed.colorMask & 1) != 0) // RED
+                                selector.r.AddEdgeTrueDistance(edges[ei], distance, param);
+                            if ((ed.colorMask & 2) != 0) // GREEN
+                                selector.g.AddEdgeTrueDistance(edges[ei], distance, param);
+                            if ((ed.colorMask & 4) != 0) // BLUE
+                                selector.b.AddEdgeTrueDistance(edges[ei], distance, param);
+
+                            // Perpendicular distance at start corner
+                            double apDotSb = aqx * ed.sbx + aqy * ed.sby;
+                            if (apDotSb > 0)
+                            {
+                                // GetPerpendicularDistance(ref pd, ap, -aDir)
+                                double ts = aqx * ed.negNdx + aqy * ed.negNdy;
+                                if (ts > 0)
+                                {
+                                    double perpDist = aqx * ed.negNdy - aqy * ed.negNdx;
+                                    if (Math.Abs(perpDist) < Math.Abs(distance.distance))
+                                    {
+                                        double pd = -perpDist;
+                                        if ((ed.colorMask & 1) != 0)
+                                            selector.r.AddEdgePerpendicularDistance(pd);
+                                        if ((ed.colorMask & 2) != 0)
+                                            selector.g.AddEdgePerpendicularDistance(pd);
+                                        if ((ed.colorMask & 4) != 0)
+                                            selector.b.AddEdgePerpendicularDistance(pd);
+                                    }
+                                }
+                            }
+
+                            // Perpendicular distance at end corner
+                            double bpx = p.x - ed.p1x;
+                            double bpy = p.y - ed.p1y;
+                            double bpDotEb = -(bpx * ed.ebx + bpy * ed.eby);
+                            if (bpDotEb > 0)
+                            {
+                                // GetPerpendicularDistance(ref pd, bp, bDir=nd)
+                                double ts = bpx * ed.ndx + bpy * ed.ndy;
+                                if (ts > 0)
+                                {
+                                    double perpDist = bpx * ed.ndy - bpy * ed.ndx;
+                                    if (Math.Abs(perpDist) < Math.Abs(distance.distance))
+                                    {
+                                        if ((ed.colorMask & 1) != 0)
+                                            selector.r.AddEdgePerpendicularDistance(perpDist);
+                                        if ((ed.colorMask & 2) != 0)
+                                            selector.g.AddEdgePerpendicularDistance(perpDist);
+                                        if ((ed.colorMask & 4) != 0)
+                                            selector.b.AddEdgePerpendicularDistance(perpDist);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback: generic path with virtual dispatch.
+                    for (int ci = 0; ci < contourCount; ++ci)
+                    {
+                        var edges = shape.contours[ci].edges;
+                        if (edges.Count == 0) continue;
+
+                        ref var selector = ref contourSelectors[ci];
+
+                        EdgeSegment prevEdge = edges.Count >= 2 ? edges[^2] : edges[0];
+                        EdgeSegment curEdge = edges[^1];
+                        for (int ei = 0; ei < edges.Count; ++ei)
+                        {
+                            EdgeSegment nextEdge = edges[ei];
+                            selector.AddEdge(prevEdge, curEdge, nextEdge, p);
+                            prevEdge = curEdge;
+                            curEdge = nextEdge;
+                        }
                     }
                 }
 
@@ -342,6 +550,7 @@ internal static class MsdfGenerator
                 pixel[1] = (float)(distScale * (result.g + distTranslate));
                 pixel[2] = (float)(distScale * (result.b + distTranslate));
             }
+
         });
     }
 
@@ -496,12 +705,10 @@ internal static class MsdfGenerator
             return;
 
         var stencil = new byte[w * h];
-
         ProtectCorners(stencil, w, h, shape, scale, translate);
         ProtectEdges(stencil, sdf, w, h, scale, rangeValue);
         FindErrors(stencil, sdf, w, h, scale, rangeValue);
         ApplyCorrection(stencil, sdf, w, h);
-
     }
 
     private static void ProtectCorners(
