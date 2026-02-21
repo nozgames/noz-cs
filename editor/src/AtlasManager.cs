@@ -148,11 +148,7 @@ public static class AtlasManager
             return;
 
         Add(source);
-
-        if (source is SpriteDocument { IsSDF: true } spriteDoc)
-            spriteDoc.UpdateAtlas();
-        else
-            Update();
+        Update();
     }
 
     internal static void RemoveSource(ISpriteSource source)
