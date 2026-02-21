@@ -51,22 +51,28 @@ public class TextureDocument : Document, ISpriteSource
 
     public override void PostLoad()
     {
-        Texture = Asset.Load(
-            AssetType.Texture,
-            Name,
-            useRegistry: false,
-            libraryPath: EditorApplication.OutputPath) as Texture;
+        if (!IsSprite)
+        {
+            Texture = Asset.Load(
+                AssetType.Texture,
+                Name,
+                useRegistry: false,
+                libraryPath: EditorApplication.OutputPath) as Texture;
+        }
         UpdateBounds();
     }
 
     public override void Reload()
     {
-        Texture?.Dispose();
-        Texture = Asset.Load(
-            AssetType.Texture,
-            Name,
-            useRegistry: false,
-            libraryPath: EditorApplication.OutputPath) as Texture;
+        if (!IsSprite)
+        {
+            Texture?.Dispose();
+            Texture = Asset.Load(
+                AssetType.Texture,
+                Name,
+                useRegistry: false,
+                libraryPath: EditorApplication.OutputPath) as Texture;
+        }
         UpdateBounds();
     }
 
@@ -79,7 +85,16 @@ public class TextureDocument : Document, ISpriteSource
         }
         else
         {
-            Bounds = new Rect(-0.5f * Scale, -0.5f * Scale, Scale, Scale);
+            var imageSize = GetImageSize();
+            if (imageSize != Vector2Int.Zero)
+            {
+                var tsize = new Vector2(imageSize.X, imageSize.Y) / PixelsPerUnit;
+                Bounds = new Rect(-tsize.X * 0.5f, -tsize.Y * 0.5f, tsize.X, tsize.Y);
+            }
+            else
+            {
+                Bounds = new Rect(-0.5f * Scale, -0.5f * Scale, Scale, Scale);
+            }
         }
 
         Bounds = Bounds.Scale(Scale);
@@ -170,6 +185,21 @@ public class TextureDocument : Document, ISpriteSource
 
     public override void Draw()
     {
+        if (IsSprite)
+        {
+            if (Atlas == null)
+                return;
+
+            using (Graphics.PushState())
+            {
+                Graphics.SetShader(EditorAssets.Shaders.Texture);
+                Graphics.SetTexture(Atlas.Texture);
+                Graphics.SetColor(Color.White);
+                Graphics.Draw(Bounds, AtlasUV);
+            }
+            return;
+        }
+
         if (Texture == null)
             return;
 
