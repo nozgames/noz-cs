@@ -95,8 +95,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let dy = dpdy(dist);
     let edgeWidth = 0.7 * length(vec2<f32>(dx, dy));
 
-    let threshold = 0.5;
-    let alpha = smoothstep(threshold - edgeWidth, threshold + edgeWidth, dist);
+    let alpha = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, dist);
 
     // Color and opacity from vertex color
     return vec4<f32>(input.color.rgb, alpha * input.color.a);

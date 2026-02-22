@@ -3,50 +3,50 @@ h 1024
 d 128
 p 2
 
-r "asset_icon_animation" 1 1 63 47
-r "asset_icon_atlas" 64 1 118 118
-r "asset_icon_bin" 182 1 88 106
-r "asset_icon_event" 270 1 87 133
-r "asset_icon_font" 1 119 120 120
-r "asset_icon_lua" 121 119 122 124
-r "asset_icon_shader" 1 239 116 116
-r "asset_icon_sound" 1 355 92 122
-r "asset_icon_sprite" 1 48 61 60
-r "asset_icon_vfx" 1 477 122 122
-r "icon_antialias_off" 93 355 41 41
-r "icon_antialias_on" 93 396 43 43
-r "icon_bone" 117 243 56 51
-r "icon_check" 117 294 53 46
-r "icon_circle" 1 599 126 126
-r "icon_close" 93 439 38 38
-r "icon_collection" 134 340 58 50
-r "icon_connected" 173 243 52 58
-r "icon_constraint" 123 477 54 43
-r "icon_delete" 123 520 47 50
-r "icon_dropdown" 123 570 44 24
-r "icon_duplicate" 131 439 37 38
-r "icon_edit" 136 390 42 42
-r "icon_expand_down" 170 301 126 34
-r "icon_expand_up" 168 432 126 34
-r "icon_fill" 225 243 54 53
-r "icon_keyframe" 192 335 58 58
-r "icon_layer" 250 335 52 51
-r "icon_loop" 250 386 44 41
-r "icon_mirror" 243 134 52 46
-r "icon_move" 243 180 54 54
-r "icon_nofill" 296 234 68 68
-r "icon_onion" 178 393 54 37
-r "icon_opacity" 297 134 68 68
-r "icon_opacity_overlay" 357 1 68 68
-r "icon_palette" 357 69 63 63
-r "icon_play" 1 725 40 45
-r "icon_preview" 297 202 47 25
-r "icon_publish" 1 770 108 126
-r "icon_root_motion" 1 896 112 116
-r "icon_search" 41 725 42 45
-r "icon_sort" 109 725 52 52
-r "icon_stroke" 109 777 54 53
-r "icon_submenu" 344 202 31 32
-r "icon_subtract" 109 830 53 52
-r "icon_tiling" 365 132 57 57
-r "icon_xray" 420 69 59 62
+r "asset_icon_animation" 1 1 63 47 0
+r "asset_icon_atlas" 64 1 221 118 0
+r "asset_icon_bin" 285 1 160 106 0
+r "asset_icon_event" 445 1 87 133 0
+r "asset_icon_font" 285 107 120 120 0
+r "asset_icon_lua" 1 119 282 124 0
+r "asset_icon_shader" 532 1 178 116 0
+r "asset_icon_sound" 710 1 92 122 0
+r "asset_icon_sprite" 1 48 61 60 0
+r "asset_icon_vfx" 532 117 122 122 0
+r "icon_antialias_off" 654 117 41 41 0
+r "icon_antialias_on" 802 1 129 43 0
+r "icon_bone" 931 1 56 51 0
+r "icon_check" 405 134 53 46 0
+r "icon_circle" 405 180 126 126 0
+r "icon_close" 458 134 38 38 0
+r "icon_collection" 283 227 58 50 0
+r "icon_connected" 341 227 52 58 0
+r "icon_constraint" 802 44 54 43 0
+r "icon_delete" 856 44 47 50 0
+r "icon_dropdown" 802 87 44 24 0
+r "icon_duplicate" 903 52 37 38 0
+r "icon_edit" 940 52 42 42 0
+r "icon_expand_down" 846 94 126 34 0
+r "icon_expand_up" 695 123 126 34 0
+r "icon_fill" 821 128 54 53 0
+r "icon_keyframe" 695 157 58 58 0
+r "icon_layer" 753 157 52 51 0
+r "icon_loop" 972 94 44 41 0
+r "icon_mirror" 875 128 62 46 0
+r "icon_move" 937 135 54 54 0
+r "icon_nofill" 805 189 136 68 0
+r "icon_onion" 941 189 73 37 0
+r "icon_opacity" 531 257 408 68 0
+r "icon_opacity_overlay" 941 226 68 68 0
+r "icon_palette" 939 294 63 63 0
+r "icon_play" 654 158 40 45 0
+r "icon_preview" 753 208 47 25 0
+r "icon_publish" 1 243 108 126 0
+r "icon_root_motion" 109 243 112 116 0
+r "icon_search" 221 243 42 45 0
+r "icon_sort" 263 277 52 52 0
+r "icon_stroke" 315 285 54 53 0
+r "icon_submenu" 991 135 31 32 0
+r "icon_subtract" 221 329 53 52 0
+r "icon_tiling" 369 306 133 57 0
+r "icon_xray" 274 338 59 62 0

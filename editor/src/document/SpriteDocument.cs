@@ -2,7 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -62,15 +61,14 @@ public class SpriteDocument : Document, ISpriteSource
         }
     }
 
-    /// <summary>
-    /// Represents a mesh slot - a run of paths with the same layer and bone.
-    /// When IsSDF, also splits on fill color boundaries.
-    /// </summary>
-    public sealed class MeshSlot(byte layer, StringId bone, byte fillColor = 0)
+    public sealed class MeshSlot(byte layer, StringId bone, Color32 fillColor = default)
     {
         public readonly byte Layer = layer;
         public readonly StringId Bone = bone;
-        public readonly byte FillColor = fillColor;
+        public readonly Color32 FillColor = fillColor;
+        public Color32 StrokeColor;
+        public byte StrokeWidth;
+        public bool HasStroke => StrokeColor.A > 0 && StrokeWidth > 0;
         public readonly List<ushort> PathIndices = new();
     }
 
@@ -79,140 +77,32 @@ public class SpriteDocument : Document, ISpriteSource
     private Sprite? _sprite;
     private static Shader? _textureSdfShader;
 
-    internal static Shader GetTextureSdfShader() =>
-        _textureSdfShader ??= Asset.Get<Shader>(AssetType.Shader, "texture_sdf")!;
-
     public readonly SpriteFrame[] Frames = new SpriteFrame[Sprite.MaxFrames];
     public ushort FrameCount;
-    public byte Palette;
     public float Depth;
     public RectInt RasterBounds { get; private set; }
 
-    public byte CurrentFillColor = 0;
-    public byte CurrentStrokeColor = 0;
+    public Color32 CurrentFillColor = Color32.White;
+    public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
-    public float CurrentFillOpacity = 1.0f;
-    public float CurrentStrokeOpacity = 0.0f;
     public byte CurrentLayer = 0;
     public StringId CurrentBone;
-
-    public bool IsSDF { get; set; }
+    public bool CurrentSubtract;
 
     public ref readonly BitMask256 Layers => ref _layers;
 
-    /// <summary>
-    /// Gets mesh slots for a specific frame. Each slot is a run of consecutive paths
-    /// (after sorting by layer) with the same layer and bone.
-    /// </summary>
-    public List<MeshSlot> GetMeshSlots(ushort frameIndex)
+    public int MeshSlotCount
     {
-        var slots = new List<MeshSlot>();
-        var shape = Frames[frameIndex].Shape;
-        if (shape.PathCount == 0) return slots;
-
-        // Get paths sorted by layer, then by index
-        Span<ushort> sortedPaths = stackalloc ushort[shape.PathCount];
-        for (ushort i = 0; i < shape.PathCount; i++)
-            sortedPaths[i] = i;
-
-        sortedPaths.Sort((a, b) =>
+        get
         {
-            var layerA = shape.GetPath(a).Layer;
-            var layerB = shape.GetPath(b).Layer;
-            if (layerA != layerB) return layerA.CompareTo(layerB);
-            return a.CompareTo(b);
-        });
-
-        // Build runs - new slot whenever layer, bone, or (when SDF) fill color changes.
-        // When a subtract path is encountered, it is appended to all slots that
-        // were created before it (subtracts carve holes in everything above them).
-        MeshSlot? currentSlot = null;
-
-        foreach (var pathIndex in sortedPaths)
-        {
-            ref readonly var path = ref shape.GetPath(pathIndex);
-
-            if (path.IsSubtract)
-            {
-                // Apply this subtract to all existing slots
-                foreach (var slot in slots)
-                    slot.PathIndices.Add(pathIndex);
-                continue;
-            }
-
-            if (currentSlot == null || path.Layer != currentSlot.Layer || path.Bone != currentSlot.Bone
-                || (IsSDF && path.FillColor != currentSlot.FillColor))
-            {
-                // Start new slot
-                currentSlot = new MeshSlot(path.Layer, path.Bone, path.FillColor);
-                slots.Add(currentSlot);
-            }
-
-            currentSlot.PathIndices.Add(pathIndex);
+            var slots = GetMeshSlots();
+            var count = slots.Count;
+            foreach (var slot in slots)
+                if (slot.HasStroke) count++;
+            return Math.Max(1, count);
         }
-
-        return slots;
     }
-
-    /// <summary>
-    /// Gets mesh slots for frame 0 (used for atlas layout).
-    /// </summary>
-    public List<MeshSlot> GetMeshSlots() => GetMeshSlots(0);
-
-    public int MeshSlotCount => Math.Max(1, GetMeshSlots().Count);
-
-    /// <summary>
-    /// Computes tight bounds for each mesh slot, unioned across all frames.
-    /// Returns a list aligned with GetMeshSlots() indices.
-    /// </summary>
-    public List<RectInt> GetMeshSlotBounds()
-    {
-        var slots = GetMeshSlots();
-        var result = new List<RectInt>(slots.Count);
-
-        foreach (var slot in slots)
-        {
-            var bounds = RectInt.Zero;
-            for (ushort fi = 0; fi < FrameCount; fi++)
-            {
-                var shape = Frames[fi].Shape;
-                var slotBounds = shape.GetRasterBoundsFor(slot.Layer, slot.Bone, IsSDF ? slot.FillColor : null);
-                if (slotBounds.Width <= 0 || slotBounds.Height <= 0)
-                    continue;
-                bounds = bounds.Width <= 0 ? slotBounds : RectInt.Union(bounds, slotBounds);
-            }
-            result.Add(bounds);
-        }
-        return result;
-    }
-
-    public List<RectInt> GetMeshSlotBounds(ushort frameIndex)
-    {
-        var slots = GetMeshSlots(frameIndex);
-        var result = new List<RectInt>(slots.Count);
-        var shape = Frames[frameIndex].Shape;
-        foreach (var slot in slots)
-            result.Add(shape.GetRasterBoundsFor(slot.Layer, slot.Bone, IsSDF ? slot.FillColor : null));
-        return result;
-    }
-
-    public Vector2Int GetFrameAtlasSize(ushort frameIndex)
-    {
-        var padding2 = EditorApplication.Config.AtlasPadding * 2;
-        var slotBounds = GetMeshSlotBounds(frameIndex);
-
-        if (slotBounds.Count == 0)
-            return new(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2);
-
-        var totalWidth = 0;
-        var maxHeight = 0;
-        foreach (var bounds in slotBounds)
-        {
-            totalWidth += (bounds.Width > 0 ? bounds.Size.X : RasterBounds.Size.X) + padding2;
-            maxHeight = Math.Max(maxHeight, (bounds.Height > 0 ? bounds.Size.Y : RasterBounds.Size.Y) + padding2);
-        }
-        return new(totalWidth, maxHeight);
-    }
+    
     public bool ShowInSkeleton { get; set; }
     public bool ShowTiling { get; set; }
     public bool ShowSkeletonOverlay { get; set; }
@@ -363,7 +253,6 @@ public class SpriteDocument : Document, ISpriteSource
 
     private static void NewFile(StreamWriter writer)
     {
-        writer.WriteLine("antialias true");
     }
 
     public override void Load()
@@ -388,10 +277,8 @@ public class SpriteDocument : Document, ISpriteSource
             }
             else if (tk.ExpectIdentifier("palette"))
             {
-                var paletteId = tk.ExpectQuotedString();
-                Palette = PaletteManager.TryGetPalette(paletteId, out var paletteDef)
-                    ? (byte)paletteDef.Row
-                    : (byte)0;
+                // Legacy: palette keyword is ignored, colors are stored directly
+                tk.ExpectQuotedString();
             }
             else if (tk.ExpectIdentifier("frame"))
             {
@@ -405,11 +292,13 @@ public class SpriteDocument : Document, ISpriteSource
             }
             else if (tk.ExpectIdentifier("antialias"))
             {
-                IsAntiAliased = tk.ExpectBool();
+                // Legacy: silently consume
+                tk.ExpectBool();
             }
             else if (tk.ExpectIdentifier("sdf"))
             {
-                IsSDF = tk.ExpectBool();
+                // Legacy: silently consume
+                tk.ExpectBool();
             }
             else
             {
@@ -425,12 +314,11 @@ public class SpriteDocument : Document, ISpriteSource
 
     private void ParsePath(SpriteFrame f, ref Tokenizer tk)
     {
-        var pathIndex = f.Shape.AddPath();
-        byte fillColor = 0;
-        var fillOpacity = 1.0f;
-        byte strokeColor = 0;
-        var strokeOpacity = 0.0f;
+        var pathIndex = f.Shape.AddPath(Color32.White);
+        var fillColor = Color32.White;
+        var strokeColor = new Color32(0, 0, 0, 0);
         var strokeWidth = 1;
+        var subtract = false;
         byte layer = 0;
         var bone = StringId.None;
 
@@ -438,19 +326,36 @@ public class SpriteDocument : Document, ISpriteSource
         {
             if (tk.ExpectIdentifier("fill"))
             {
-                fillColor = (byte)tk.ExpectInt();
-                fillOpacity = MathEx.Clamp01(tk.ExpectFloat(fillOpacity));
+                // Support: rgba(r,g,b,a), #RRGGBB, #RRGGBBAA, or legacy int palette index
+                if (tk.ExpectColor(out var color))
+                {
+                    fillColor = color.ToColor32();
+                }
+                else
+                {
+                    fillColor = PaletteManager.GetColor(0, tk.ExpectInt()).ToColor32();
+                    // Legacy format had separate opacity float after the index
+                    var legacyOpacity = tk.ExpectFloat(1.0f);
+                    fillColor = fillColor.WithAlpha(legacyOpacity);
+                }
             }
             else if (tk.ExpectIdentifier("stroke"))
             {
-                strokeColor = (byte)tk.ExpectInt();
-                strokeOpacity = MathEx.Clamp01(tk.ExpectFloat(strokeOpacity));
+                if (tk.ExpectColor(out var color))
+                {
+                    strokeColor = color.ToColor32();
+                }
+                else
+                {
+                    strokeColor = PaletteManager.GetColor(0, tk.ExpectInt()).ToColor32();
+                    var legacyOpacity = tk.ExpectFloat(0.0f);
+                    strokeColor = strokeColor.WithAlpha(legacyOpacity);
+                }
                 strokeWidth = tk.ExpectInt(strokeWidth);
             }
             else if (tk.ExpectIdentifier("subtract"))
             {
-                if (tk.ExpectBool())
-                    fillOpacity = float.MinValue;
+                subtract = tk.ExpectBool();
             }
             else if (tk.ExpectIdentifier("layer"))
                 layer = EditorApplication.Config.TryGetSpriteLayer(tk.ExpectQuotedString(), out var sg)
@@ -458,7 +363,6 @@ public class SpriteDocument : Document, ISpriteSource
                     : (byte)0;
             else if (tk.ExpectIdentifier("bone"))
             {
-                // Bone name - stored directly as Name
                 var boneName = tk.ExpectQuotedString();
                 if (!string.IsNullOrEmpty(boneName))
                     bone = StringId.Get(boneName);
@@ -469,8 +373,10 @@ public class SpriteDocument : Document, ISpriteSource
                 break;
         }
 
-        f.Shape.SetPathFillColor(pathIndex, fillColor, fillOpacity);
-        f.Shape.SetPathStroke(pathIndex, strokeColor, strokeOpacity, (byte)strokeWidth);
+        f.Shape.SetPathFillColor(pathIndex, fillColor);
+        f.Shape.SetPathStroke(pathIndex, strokeColor, (byte)strokeWidth);
+        if (subtract)
+            f.Shape.SetPathSubtract(pathIndex, true);
         f.Shape.SetPathLayer(pathIndex, layer);
         f.Shape.SetPathBone(pathIndex, bone);
     }
@@ -589,12 +495,6 @@ public class SpriteDocument : Document, ISpriteSource
         if (Binding.IsBound)
             writer.WriteLine($"skeleton \"{Binding.SkeletonName}\"");
 
-        writer.WriteLine($"antialias {(IsAntiAliased ? "true" : "false")}");
-        writer.WriteLine($"sdf {(IsSDF ? "true" : "false")}");
-
-        if (PaletteManager.TryGetPaletteByRow(Palette, out var paletteDef))
-            writer.WriteLine($"palette \"{paletteDef.Id}\"");
-
         writer.WriteLine();
 
         for (ushort frameIndex = 0; frameIndex < FrameCount; frameIndex++)
@@ -612,9 +512,9 @@ public class SpriteDocument : Document, ISpriteSource
 
             if (frameIndex < FrameCount - 1)
                 writer.WriteLine();
-        }        
+        }
     }
-    
+
     private void SaveFrame(SpriteFrame f, StreamWriter writer)
     {
         var shape = f.Shape;
@@ -625,11 +525,10 @@ public class SpriteDocument : Document, ISpriteSource
             writer.WriteLine("path");
             if (path.IsSubtract)
                 writer.WriteLine("subtract true");
-            else
-                writer.WriteLine($"fill {path.FillColor} {path.FillOpacity}");
+            writer.WriteLine($"fill {FormatColor(path.FillColor)}");
 
-            if (path.StrokeOpacity > float.Epsilon)
-                writer.WriteLine($"stroke {path.StrokeColor} {path.StrokeOpacity} {path.StrokeWidth}");
+            if (path.StrokeColor.A > 0)
+                writer.WriteLine($"stroke {FormatColor(path.StrokeColor)} {path.StrokeWidth}");
 
             if (EditorApplication.Config.TryGetSpriteLayer(path.Layer, out var layerDef))
                 writer.WriteLine($"layer \"{layerDef.Id}\"");
@@ -648,6 +547,13 @@ public class SpriteDocument : Document, ISpriteSource
 
             writer.WriteLine();
         }
+    }
+
+    private static string FormatColor(Color32 c)
+    {
+        if (c.A < 255)
+            return $"rgba({c.R},{c.G},{c.B},{c.A / 255f:G})";
+        return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
     }
 
     public override void Draw()
@@ -678,7 +584,7 @@ public class SpriteDocument : Document, ISpriteSource
         using (Graphics.PushState())
         {
             Graphics.SetTexture(Atlas.Texture);
-            Graphics.SetShader(IsSDF ? GetTextureSdfShader() : EditorAssets.Shaders.Texture);
+            Graphics.SetShader(GetTextureSdfShader());
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -687,8 +593,7 @@ public class SpriteDocument : Document, ISpriteSource
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                if (IsSDF)
-                    Graphics.SetColor(mesh.FillColor.WithAlpha(mesh.FillColor.A * alpha * Workspace.XrayAlpha));
+                Graphics.SetColor(mesh.FillColor.WithAlpha(mesh.FillColor.A * alpha * Workspace.XrayAlpha));
 
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
@@ -720,7 +625,7 @@ public class SpriteDocument : Document, ISpriteSource
         using (Graphics.PushState())
         {
             Graphics.SetTexture(Atlas.Texture);
-            Graphics.SetShader(IsSDF ? GetTextureSdfShader() : EditorAssets.Shaders.Texture);
+            Graphics.SetShader(GetTextureSdfShader());
             Graphics.SetColor(tint ?? Color.White);
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -744,8 +649,7 @@ public class SpriteDocument : Document, ISpriteSource
                     bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
                 }
 
-                if (IsSDF)
-                    Graphics.SetColor(mesh.FillColor);
+                Graphics.SetColor(mesh.FillColor);
 
                 var boneIndex = mesh.BoneIndex >= 0 ? mesh.BoneIndex : 0;
                 var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
@@ -759,17 +663,13 @@ public class SpriteDocument : Document, ISpriteSource
     {
         var src = (SpriteDocument)source;
         FrameCount = src.FrameCount;
-        Palette = src.Palette;
         Depth = src.Depth;
         Bounds = src.Bounds;
         CurrentFillColor = src.CurrentFillColor;
         CurrentStrokeColor = src.CurrentStrokeColor;
         CurrentStrokeWidth = src.CurrentStrokeWidth;
-        CurrentFillOpacity = src.CurrentFillOpacity;
-        CurrentStrokeOpacity = src.CurrentStrokeOpacity;
         CurrentLayer = src.CurrentLayer;
         CurrentBone = src.CurrentBone;
-        IsSDF = src.IsSDF;
 
         Binding.CopyFrom(src.Binding);
 
@@ -850,8 +750,7 @@ public class SpriteDocument : Document, ISpriteSource
     void ISpriteSource.Rasterize(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
         var frameIndex = rect.FrameIndex;
-        var palette = PaletteManager.GetPalette(Palette);
-        if (palette == null) return;
+        var dpi = EditorApplication.Config.PixelsPerUnit;
 
         var frame = GetFrame(frameIndex);
         var slots = GetMeshSlots(frameIndex);
@@ -873,44 +772,54 @@ public class SpriteDocument : Document, ISpriteSource
             var outerRect = new RectInt(
                 rect.Rect.Position + new Vector2Int(xOffset, 0),
                 new Vector2Int(slotWidth, slotRasterBounds.Size.Y + padding2));
-            var rasterRect = new RectInt(
-                outerRect.Position + new Vector2Int(padding, padding),
-                slotRasterBounds.Size);
 
             if (slot.PathIndices.Count > 0)
             {
-                if (IsSDF)
-                {
-                    // Rasterize MSDF into the full outer rect (including padding)
-                    // so the distance field extends naturally into the padding area
-                    frame.Shape.RasterizeMSDF(
-                        image,
-                        outerRect,
-                        -slotRasterBounds.Position + new Vector2Int(padding, padding),
-                        CollectionsMarshal.AsSpan(slot.PathIndices));
-                }
-                else
-                {
-                    frame.Shape.Rasterize(
-                        image,
-                        rasterRect,
-                        -slotRasterBounds.Position,
-                        palette.Colors,
-                        CollectionsMarshal.AsSpan(slot.PathIndices),
-                        IsAntiAliased);
-                }
-            }
+                var sourceOffset = -slotRasterBounds.Position + new Vector2Int(padding, padding);
 
-            if (!IsSDF)
-            {
-                image.BleedColors(rasterRect);
+                // Rasterize full shape MSDF
+                frame.Shape.RasterizeMSDF(
+                    image,
+                    outerRect,
+                    sourceOffset,
+                    CollectionsMarshal.AsSpan(slot.PathIndices));
 
-                for (int p = padding - 1; p >= 0; p--)
+                // For stroked slots, rasterize a contracted shape as a second MSDF sub-rect
+                if (slot.HasStroke)
                 {
-                    var padRect = new RectInt(
-                        outerRect.Position + new Vector2Int(p, p),
-                        outerRect.Size - new Vector2Int(p * 2, p * 2));
-                    image.ExtrudeEdges(padRect);
+                    xOffset += slotWidth;
+                    var outerRect2 = new RectInt(
+                        rect.Rect.Position + new Vector2Int(xOffset, 0),
+                        new Vector2Int(slotWidth, slotRasterBounds.Size.Y + padding2));
+
+                    var halfStroke = slot.StrokeWidth * Shape.StrokeScale;
+                    var msdfShape = Msdf.MsdfSprite.BuildShape(frame.Shape, CollectionsMarshal.AsSpan(slot.PathIndices));
+                    if (msdfShape != null)
+                    {
+                        var paths = Msdf.ShapeClipper.ShapeToPaths(msdfShape, 8);
+                        var contracted = Clipper2Lib.Clipper.InflatePaths(paths, -halfStroke,
+                            Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
+
+                        var contractedShape = new Msdf.Shape();
+                        foreach (var path in contracted)
+                        {
+                            if (path.Count < 3) continue;
+                            var contour = contractedShape.AddContour();
+                            for (int j = 0; j < path.Count; j++)
+                            {
+                                int next = (j + 1) % path.Count;
+                                contour.AddEdge(new Msdf.LinearSegment(
+                                    new Vector2Double(path[j].x, path[j].y),
+                                    new Vector2Double(path[next].x, path[next].y)));
+                            }
+                        }
+
+                        if (contractedShape.contours.Count > 0)
+                        {
+                            Msdf.MsdfSprite.RasterizeMSDF(contractedShape, image, outerRect2,
+                                sourceOffset, dpi);
+                        }
+                    }
                 }
             }
 
@@ -950,14 +859,23 @@ public class SpriteDocument : Document, ISpriteSource
                 var slotSize = (bounds.Width > 0 && bounds.Height > 0)
                     ? bounds.Size
                     : RasterBounds.Size;
+                var slotWidth = slotSize.X + padding2;
 
                 var u = (rect.Rect.Left + padding + xOffset) / ts;
                 var v = (rect.Rect.Top + padding) / ts;
                 var s = u + slotSize.X / ts;
                 var t = v + slotSize.Y / ts;
-                SetAtlasUV(uvIndex, Rect.FromMinMax(u, v, s, t));
-                uvIndex++;
-                xOffset += slotSize.X + padding2;
+                SetAtlasUV(uvIndex++, Rect.FromMinMax(u, v, s, t));
+                xOffset += slotWidth;
+
+                // Stroked slots have a second sub-rect for the contracted fill
+                if (slots[slotIndex].HasStroke)
+                {
+                    u = (rect.Rect.Left + padding + xOffset) / ts;
+                    s = u + slotSize.X / ts;
+                    SetAtlasUV(uvIndex++, Rect.FromMinMax(u, v, s, t));
+                    xOffset += slotWidth;
+                }
             }
         }
     }
@@ -981,6 +899,7 @@ public class SpriteDocument : Document, ISpriteSource
             return;
         }
 
+        var dpi = EditorApplication.Config.PixelsPerUnit;
         var allMeshes = new List<SpriteMesh>();
         var frameTable = new SpriteFrameInfo[FrameCount];
         int uvIndex = 0;
@@ -1009,41 +928,56 @@ public class SpriteDocument : Document, ISpriteSource
                 if (Binding.IsBound && Binding.Skeleton != null)
                     boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
 
-                var fillColor = Color.White;
-                if (IsSDF)
-                {
-                    var palette = PaletteManager.GetPalette(Palette);
-                    if (palette != null)
-                    {
-                        var c = palette.Colors[slot.FillColor % palette.Colors.Length];
-                        // Find the fill opacity from the first path in this slot
-                        var firstPath = Frames[frameIndex].Shape.GetPath(slot.PathIndices[0]);
-                        fillColor = c.WithAlpha(firstPath.FillOpacity);
-                    }
-                }
+                var firstPath = Frames[frameIndex].Shape.GetPath(slot.PathIndices[0]);
+                var fillColor = firstPath.FillColor.ToColor();
 
-                allMeshes.Add(new SpriteMesh(
-                    uv,
-                    (short)slot.Layer,
-                    boneIndex,
-                    bounds.Position,
-                    bounds.Size,
-                    fillColor));
+                if (slot.HasStroke)
+                {
+                    var fillUV = GetAtlasUV(uvIndex++);
+
+                    // Stroke mesh (drawn first, behind) — full shape MSDF
+                    allMeshes.Add(new SpriteMesh(
+                        uv,
+                        (short)slot.Layer,
+                        boneIndex,
+                        bounds.Position,
+                        bounds.Size,
+                        slot.StrokeColor.ToColor()));
+
+                    // Fill mesh (drawn second, on top) — contracted shape MSDF
+                    allMeshes.Add(new SpriteMesh(
+                        fillUV,
+                        (short)slot.Layer,
+                        boneIndex,
+                        bounds.Position,
+                        bounds.Size,
+                        fillColor));
+                }
+                else
+                {
+                    allMeshes.Add(new SpriteMesh(
+                        uv,
+                        (short)slot.Layer,
+                        boneIndex,
+                        bounds.Position,
+                        bounds.Size,
+                        fillColor));
+                }
             }
 
-            frameTable[frameIndex] = new SpriteFrameInfo(meshStart, (ushort)frameSlots.Count);
+            frameTable[frameIndex] = new SpriteFrameInfo(meshStart, (ushort)(allMeshes.Count - meshStart));
         }
 
         _sprite = Sprite.Create(
             name: Name,
             bounds: RasterBounds,
             pixelsPerUnit: EditorApplication.Config.PixelsPerUnit,
-            filter: IsSDF ? TextureFilter.Linear : TextureFilter.Point,
+            filter: TextureFilter.Linear,
             boneIndex: -1,
             meshes: allMeshes.ToArray(),
             frameTable: frameTable,
             frameRate: 12.0f,
-            isSDF: IsSDF);
+            isSDF: true);
     }
 
     internal void MarkSpriteDirty()
@@ -1057,10 +991,16 @@ public class SpriteDocument : Document, ISpriteSource
         Binding.Resolve();
         UpdateBounds();
 
-        // Count total meshes across all frames
+        var dpi = EditorApplication.Config.PixelsPerUnit;
+
+        // Count total meshes across all frames (slots with stroke produce 2 meshes)
         ushort totalMeshes = 0;
         for (ushort fi = 0; fi < FrameCount; fi++)
-            totalMeshes += (ushort)GetMeshSlots(fi).Count;
+        {
+            var slots = GetMeshSlots(fi);
+            foreach (var slot in slots)
+                totalMeshes += slot.HasStroke ? (ushort)2 : (ushort)1;
+        }
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
@@ -1071,11 +1011,11 @@ public class SpriteDocument : Document, ISpriteSource
         writer.Write((short)RasterBounds.Right);
         writer.Write((short)RasterBounds.Bottom);
         writer.Write((float)EditorApplication.Config.PixelsPerUnit);
-        writer.Write((byte)(IsAntiAliased ? TextureFilter.Linear : TextureFilter.Point));
+        writer.Write((byte)TextureFilter.Linear);
         writer.Write((short)-1);  // Legacy bone index field (no longer used)
         writer.Write(totalMeshes);
         writer.Write(12.0f);  // Frame rate
-        writer.Write((byte)(IsSDF ? 1 : 0));  // SDF: 0=normal, 1=SDF
+        writer.Write((byte)1);  // SDF: always 1
 
         // Write all meshes per frame
         int uvIndex = 0;
@@ -1088,54 +1028,41 @@ public class SpriteDocument : Document, ISpriteSource
             var frameSlots = GetMeshSlots(frameIndex);
             var frameSlotBounds = GetMeshSlotBounds(frameIndex);
             meshStarts[frameIndex] = meshOffset;
-            meshCounts[frameIndex] = (ushort)frameSlots.Count;
+            ushort frameMeshCount = 0;
 
             for (int slotIndex = 0; slotIndex < frameSlots.Count; slotIndex++)
             {
                 var slot = frameSlots[slotIndex];
                 var uv = GetAtlasUV(uvIndex++);
-                writer.Write(uv.Left);
-                writer.Write(uv.Top);
-                writer.Write(uv.Right);
-                writer.Write(uv.Bottom);
-                writer.Write((short)slot.Layer);  // Sort order
-                var boneIndex = (short)-1;
-                if (Binding.IsBound && Binding.Skeleton != null)
-                    boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
-                writer.Write(boneIndex);
-
                 var bounds = frameSlotBounds[slotIndex];
                 if (bounds.Width <= 0 || bounds.Height <= 0)
                     bounds = RasterBounds;
-                writer.Write((short)bounds.X);
-                writer.Write((short)bounds.Y);
-                writer.Write((short)bounds.Width);
-                writer.Write((short)bounds.Height);
 
-                if (IsSDF)
+                var boneIndex = (short)-1;
+                if (Binding.IsBound && Binding.Skeleton != null)
+                    boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
+
+                var firstPath = Frames[frameIndex].Shape.GetPath(slot.PathIndices[0]);
+
+                if (slot.HasStroke)
                 {
-                    var palette = PaletteManager.GetPalette(Palette);
-                    if (palette != null)
-                    {
-                        var c = palette.Colors[slot.FillColor % palette.Colors.Length].ToColor32();
-                        var firstPath = Frames[frameIndex].Shape.GetPath(slot.PathIndices[0]);
-                        var alpha = (byte)(MathEx.Clamp01(firstPath.FillOpacity) * 255);
-                        writer.Write(c.R);
-                        writer.Write(c.G);
-                        writer.Write(c.B);
-                        writer.Write(alpha);
-                    }
-                    else
-                    {
-                        writer.Write((byte)255);
-                        writer.Write((byte)255);
-                        writer.Write((byte)255);
-                        writer.Write((byte)255);
-                    }
+                    var fillUV = GetAtlasUV(uvIndex++);
+
+                    // Stroke mesh — full shape MSDF
+                    WriteMesh(writer, uv, (short)slot.Layer, boneIndex, bounds, slot.StrokeColor);
+                    // Fill mesh — contracted shape MSDF
+                    WriteMesh(writer, fillUV, (short)slot.Layer, boneIndex, bounds, firstPath.FillColor);
+                    frameMeshCount += 2;
+                }
+                else
+                {
+                    WriteMesh(writer, uv, (short)slot.Layer, boneIndex, bounds, firstPath.FillColor);
+                    frameMeshCount += 1;
                 }
             }
 
-            meshOffset += (ushort)frameSlots.Count;
+            meshCounts[frameIndex] = frameMeshCount;
+            meshOffset += frameMeshCount;
         }
 
         // Write frame table
@@ -1146,10 +1073,138 @@ public class SpriteDocument : Document, ISpriteSource
         }
     }
 
+    private static void WriteMesh(BinaryWriter writer, Rect uv, short sortOrder, short boneIndex, RectInt bounds, Color32 fillColor)
+    {
+        writer.Write(uv.Left);
+        writer.Write(uv.Top);
+        writer.Write(uv.Right);
+        writer.Write(uv.Bottom);
+        writer.Write(sortOrder);
+        writer.Write(boneIndex);
+        writer.Write((short)bounds.X);
+        writer.Write((short)bounds.Y);
+        writer.Write((short)bounds.Width);
+        writer.Write((short)bounds.Height);
+        writer.Write(fillColor.R);
+        writer.Write(fillColor.G);
+        writer.Write(fillColor.B);
+        writer.Write(fillColor.A);
+    }
+
     public override void OnUndoRedo()
     {
         UpdateBounds();
-        AtlasManager.UpdateSource(this);
         base.OnUndoRedo();
+    }
+
+    public List<RectInt> GetMeshSlotBounds()
+    {
+        var slots = GetMeshSlots();
+        var result = new List<RectInt>(slots.Count);
+
+        foreach (var slot in slots)
+        {
+            var bounds = RectInt.Zero;
+            for (ushort fi = 0; fi < FrameCount; fi++)
+            {
+                var shape = Frames[fi].Shape;
+                var slotBounds = shape.GetRasterBoundsFor(slot.Layer, slot.Bone, slot.FillColor);
+                if (slotBounds.Width <= 0 || slotBounds.Height <= 0)
+                    continue;
+                bounds = bounds.Width <= 0 ? slotBounds : RectInt.Union(bounds, slotBounds);
+            }
+            result.Add(bounds);
+        }
+        return result;
+    }
+
+    public List<RectInt> GetMeshSlotBounds(ushort frameIndex)
+    {
+        var slots = GetMeshSlots(frameIndex);
+        var result = new List<RectInt>(slots.Count);
+        var shape = Frames[frameIndex].Shape;
+        foreach (var slot in slots)
+            result.Add(shape.GetRasterBoundsFor(slot.Layer, slot.Bone, slot.FillColor));
+        return result;
+    }
+
+    public Vector2Int GetFrameAtlasSize(ushort frameIndex)
+    {
+        var padding2 = EditorApplication.Config.AtlasPadding * 2;
+        var slotBounds = GetMeshSlotBounds(frameIndex);
+
+        if (slotBounds.Count == 0)
+            return new(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2);
+
+        var slots = GetMeshSlots(frameIndex);
+        var totalWidth = 0;
+        var maxHeight = 0;
+        for (int i = 0; i < slotBounds.Count; i++)
+        {
+            var bounds = slotBounds[i];
+            var slotWidth = (bounds.Width > 0 ? bounds.Size.X : RasterBounds.Size.X) + padding2;
+            var slotHeight = (bounds.Height > 0 ? bounds.Size.Y : RasterBounds.Size.Y) + padding2;
+            // Stroked slots need two sub-rects (full shape + contracted fill)
+            totalWidth += slots[i].HasStroke ? slotWidth * 2 : slotWidth;
+            maxHeight = Math.Max(maxHeight, slotHeight);
+        }
+        return new(totalWidth, maxHeight);
+    }
+
+    internal static Shader GetTextureSdfShader() =>
+        _textureSdfShader ??= Asset.Get<Shader>(AssetType.Shader, "texture_sdf")!;
+
+    public List<MeshSlot> GetMeshSlots() => GetMeshSlots(0);
+
+    public List<MeshSlot> GetMeshSlots(ushort frameIndex)
+    {
+        var slots = new List<MeshSlot>();
+        var shape = Frames[frameIndex].Shape;
+        if (shape.PathCount == 0) return slots;
+
+        // Get paths sorted by layer, then by index
+        Span<ushort> sortedPaths = stackalloc ushort[shape.PathCount];
+        for (ushort i = 0; i < shape.PathCount; i++)
+            sortedPaths[i] = i;
+
+        sortedPaths.Sort((a, b) =>
+        {
+            var layerA = shape.GetPath(a).Layer;
+            var layerB = shape.GetPath(b).Layer;
+            if (layerA != layerB) return layerA.CompareTo(layerB);
+            return a.CompareTo(b);
+        });
+
+        // Build runs - new slot whenever layer, bone, or fill color changes.
+        // When a subtract path is encountered, it is appended to all slots that
+        // were created before it (subtracts carve holes in everything above them).
+        MeshSlot? currentSlot = null;
+
+        foreach (var pathIndex in sortedPaths)
+        {
+            ref readonly var path = ref shape.GetPath(pathIndex);
+
+            if (path.IsSubtract)
+            {
+                // Apply this subtract to all existing slots
+                foreach (var slot in slots)
+                    slot.PathIndices.Add(pathIndex);
+                continue;
+            }
+
+            if (currentSlot == null || path.Layer != currentSlot.Layer || path.Bone != currentSlot.Bone
+                || path.FillColor != currentSlot.FillColor)
+            {
+                // Start new slot
+                currentSlot = new MeshSlot(path.Layer, path.Bone, path.FillColor);
+                currentSlot.StrokeColor = path.StrokeColor;
+                currentSlot.StrokeWidth = path.StrokeWidth;
+                slots.Add(currentSlot);
+            }
+
+            currentSlot.PathIndices.Add(pathIndex);
+        }
+
+        return slots;
     }
 }

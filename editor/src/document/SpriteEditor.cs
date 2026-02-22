@@ -9,18 +9,11 @@ namespace NoZ.Editor;
 
 public partial class SpriteEditor : DocumentEditor
 {
-    private const int Padding = 8;
-
     [ElementId("Root")]
-    [ElementId("PaletteButton")]
     [ElementId("TileButton")]
     [ElementId("BoneBindButton")]
     [ElementId("BoneUnbindButton")]
-    [ElementId("OpacityButton")]
-    [ElementId("OpacityPopup")]
     [ElementId("SubtractButton")]
-    [ElementId("AntiAliasButton")]
-    [ElementId("SDFButton")]
     [ElementId("FirstOpacity")]
     [ElementId("PreviewButton")]
     [ElementId("SkeletonOverlayButton")]
@@ -40,25 +33,15 @@ public partial class SpriteEditor : DocumentEditor
     private ushort _currentFrame;
     private bool _isPlaying;
     private float _playTimer;
-    private readonly PixelData<Color32> _image = new(
-        EditorApplication.Config!.AtlasSize,
-        EditorApplication.Config!.AtlasSize);
-    private readonly Texture _rasterTexture;
     private bool _rasterDirty = true;
     private readonly Vector2[] _savedPositions = new Vector2[Shape.MaxAnchors];
     private readonly float[] _savedCurves = new float[Shape.MaxAnchors];
+    private Action<Color32>? _previewFillColor;
+    private Action<Color32>? _previewStrokeColor;
 
 
     public SpriteEditor(SpriteDocument doc) : base(doc)
     {
-        _rasterTexture = Texture.Create(
-            _image.Width,
-            _image.Height,
-            _image.AsByteSpan(),
-            TextureFormat.RGBA8,
-            TextureFilter.Point,
-            "SpriteEditor");
-
         Workspace.XrayModeChanged += OnXrayModeChanged;
 
         var deleteCommand = new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete };
@@ -153,8 +136,6 @@ public partial class SpriteEditor : DocumentEditor
         if (Document.IsModified)
             AtlasManager.UpdateSource(Document);
 
-        _rasterTexture.Dispose();
-        _image.Dispose();
         base.Dispose();
     }
 
@@ -204,20 +185,32 @@ public partial class SpriteEditor : DocumentEditor
     {
         using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
 
-        var color = (int)Document.CurrentFillColor;
-        var opacity = Document.CurrentFillOpacity;
+        // Fill color picker
+        var fillColor = Document.CurrentFillColor;
+        if (EditorUI.ColorPickerButton(
+            ElementId.FillColorButton,
+            ref fillColor,
+            onPreview: _previewFillColor ??= PreviewFillColor,
+            icon: EditorAssets.Sprites.IconFill))
+        {
+            SetFill(fillColor);
+        }
 
-        if (EditorUI.ColorButton(ElementId.FillColorButton, Document.Palette, ref color, ref opacity, EditorAssets.Sprites.IconFill))
-            SetFillColor((byte)color, opacity);
+        // Stroke color picker
+        var strokeColor = Document.CurrentStrokeColor;
+        if (EditorUI.ColorPickerButton(
+            ElementId.StrokeColorButton,
+            ref strokeColor,
+            onPreview: _previewStrokeColor ??= PreviewStrokeColor,
+            icon: EditorAssets.Sprites.IconStroke))
+        {
+            SetStroke(strokeColor);
+        }
 
-        var strokeColor = (int)Document.CurrentStrokeColor;
-        var strokeOpacity = Document.CurrentStrokeOpacity;
-        var strokeWidth = (int)Document.CurrentStrokeWidth;
-        if (EditorUI.ColorButton(ElementId.StrokeColorButton, Document.Palette, ref strokeColor, ref strokeOpacity, ref strokeWidth, EditorAssets.Sprites.IconStroke))
-            SetStroke((byte)strokeColor, strokeOpacity, (byte)strokeWidth);
+        StrokeWidthButtonUI();
 
-        // Palette 
-        PaletteButtonUI();
+        if (EditorUI.Button(ElementId.SubtractButton, EditorAssets.Sprites.IconSubtract, selected: Document.CurrentSubtract, toolbar: true))
+            ToggleSubtract();
 
         EditorUI.ToolbarSpacer();
 
@@ -232,32 +225,6 @@ public partial class SpriteEditor : DocumentEditor
             TogglePlayback();
 
         UI.Flex();
-
-        if (EditorUI.Button(
-            ElementId.AntiAliasButton,
-            Document.IsAntiAliased
-                ? EditorAssets.Sprites.IconAntialiasOn
-                : EditorAssets.Sprites.IconAntialiasOff,
-            Document.IsAntiAliased,
-            toolbar: true))
-        {
-            Undo.Record(Document);
-            MarkRasterDirty();
-            Document.MarkModified();
-            Document.IsAntiAliased = !Document.IsAntiAliased;
-        }
-
-        if (EditorUI.Button(
-            ElementId.SDFButton,
-            EditorAssets.Sprites.IconCircle,
-            Document.IsSDF,
-            toolbar: true))
-        {
-            Undo.Record(Document);
-            MarkRasterDirty();
-            Document.MarkModified();
-            Document.IsSDF = !Document.IsSDF;
-        }
 
         if (EditorUI.Button(ElementId.TileButton, EditorAssets.Sprites.IconTiling, Document.ShowTiling, toolbar: true))
         {
@@ -291,25 +258,6 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
-    private void PaletteButtonUI()
-    {
-        if (PaletteManager.Palettes.Count < 2) return;
-
-        void ButtonContent()
-        {
-            EditorUI.ControlIcon(EditorAssets.Sprites.IconPalette);
-            EditorUI.ControlText(PaletteManager.GetPalette(Document.Palette).Label);
-            UI.Spacer(EditorStyle.Control.Spacing);
-        }
-
-        if (EditorUI.Control(
-            ElementId.PaletteButton,
-            ButtonContent,
-            selected: EditorUI.IsPopupOpen(ElementId.PaletteButton)))
-            EditorUI.TogglePopup(ElementId.PaletteButton);
-
-        PalettePopupUI();
-    }
 
     private void SkeletonBindingUI()
     {
@@ -394,12 +342,11 @@ public partial class SpriteEditor : DocumentEditor
             if (!path.IsSelected) continue;
 
             Document.CurrentFillColor = path.FillColor;
-            Document.CurrentFillOpacity = path.FillOpacity;
             Document.CurrentStrokeColor = path.StrokeColor;
-            Document.CurrentStrokeOpacity = path.StrokeOpacity;
             Document.CurrentLayer = path.Layer;
             Document.CurrentBone = path.Bone;
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
+            Document.CurrentSubtract = path.IsSubtract;
             return;
         }
     }
@@ -415,27 +362,6 @@ public partial class SpriteEditor : DocumentEditor
         return false;
     }
 
-    private void PalettePopupUI()
-    {
-        void Content()
-        {
-            for (int i=0; i<PaletteManager.Palettes.Count; i++)
-            {
-                if (EditorUI.PopupItem(
-                    PaletteManager.Palettes[i].Label,
-                    selected: PaletteManager.Palettes[i].Row == Document.Palette))
-                {
-                    Undo.Record(Document);
-                    Document.Palette = (byte)PaletteManager.Palettes[i].Row;
-                    Document.MarkModified();
-                    MarkRasterDirty();
-                    EditorUI.ClosePopup();
-                }
-            }
-        }
-
-        EditorUI.Popup(ElementId.PaletteButton, Content);
-    }
 
     private void ConstraintsButtonUI()
     {
@@ -649,7 +575,6 @@ public partial class SpriteEditor : DocumentEditor
 
         Document.UpdateBounds();
         var bounds = Document.RasterBounds;
-        var size = bounds.Size;
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
             _meshSlots.Clear();
@@ -657,37 +582,7 @@ public partial class SpriteEditor : DocumentEditor
             return;
         }
 
-        if (Document.IsSDF)
-        {
-            UpdateMeshSDF(shape);
-        }
-        else
-        {
-            _meshSlots.Clear();
-
-            var rasterRect = new RectInt(0, 0, size.X + Padding * 2, size.Y + Padding * 2);
-            _image.Clear(rasterRect);
-            var palette = PaletteManager.GetPalette(Document.Palette);
-            if (palette != null)
-                shape.Rasterize(
-                    _image,
-                    rasterRect.Expand(-Padding),
-                    -Document.RasterBounds.Position,
-                    palette.Colors,
-                    options: new Shape.RasterizeOptions {
-                        AntiAlias = Document.IsAntiAliased,
-                        Color = Color.White
-                    });
-
-            for (int p = Padding - 1; p >= 0; p--)
-                _image.ExtrudeEdges(new RectInt(
-                    p,
-                    p,
-                    size.X + (Padding - p) * 2, size.Y + (Padding - p) * 2));
-
-            _rasterTexture.Update(_image.AsByteSpan(), rasterRect, _image.Width);
-        }
-
+        UpdateMeshSDF(shape);
         _rasterDirty = false;
     }
 
@@ -783,10 +678,33 @@ public partial class SpriteEditor : DocumentEditor
         Document.MarkModified();
     }
 
-    public void SetFillColor(byte color, float opacity)
+    private void PreviewFillColor(Color32 color)
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+            shape.SetPathFillColor(p, color);
+        }
+        MarkRasterDirty();
+    }
+
+    private void PreviewStrokeColor(Color32 color)
+    {
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+            shape.SetPathStroke(p, color, Document.CurrentStrokeWidth);
+        }
+        MarkRasterDirty();
+    }
+
+    public void SetFill(Color32 color)
     {
         Document.CurrentFillColor = color;
-        Document.CurrentFillOpacity = opacity;
 
         Undo.Record(Document);
 
@@ -795,18 +713,16 @@ public partial class SpriteEditor : DocumentEditor
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
-            shape.SetPathFillColor(p, Document.CurrentFillColor, Document.CurrentFillOpacity);
+            shape.SetPathFillColor(p, color);
         }
 
         Document.MarkModified();
         MarkRasterDirty();
     }
 
-    public void SetStroke(byte color, float opacity, int width)
+    public void SetStroke(Color32 color)
     {
         Document.CurrentStrokeColor = color;
-        Document.CurrentStrokeOpacity = opacity;
-        Document.CurrentStrokeWidth = (byte)Math.Max(1, width);
 
         Undo.Record(Document);
 
@@ -815,15 +731,87 @@ public partial class SpriteEditor : DocumentEditor
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
-            shape.SetPathStroke(
-                p,
-                Document.CurrentStrokeColor,
-                Document.CurrentStrokeOpacity,
-                Document.CurrentStrokeWidth);
+            shape.SetPathStroke(p, color, Document.CurrentStrokeWidth);
         }
 
         Document.MarkModified();
         MarkRasterDirty();
+    }
+
+    private void SetStrokeWidth(byte width)
+    {
+        Document.CurrentStrokeWidth = width;
+
+        Undo.Record(Document);
+
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+            shape.SetPathStroke(p, path.StrokeColor, width);
+        }
+
+        Document.MarkModified();
+        MarkRasterDirty();
+    }
+
+    private void ToggleSubtract()
+    {
+        Document.CurrentSubtract = !Document.CurrentSubtract;
+
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        var anySelected = false;
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+            if (!anySelected)
+            {
+                Undo.Record(Document);
+                anySelected = true;
+            }
+            shape.SetPathSubtract(p, Document.CurrentSubtract);
+        }
+
+        if (anySelected)
+        {
+            Document.MarkModified();
+            MarkRasterDirty();
+        }
+    }
+
+    private void StrokeWidthButtonUI()
+    {
+        void ButtonContent()
+        {
+            EditorUI.ControlText($"{Document.CurrentStrokeWidth}px");
+        }
+
+        if (EditorUI.Control(
+            ElementId.StrokeWidth,
+            ButtonContent,
+            selected: EditorUI.IsPopupOpen(ElementId.StrokeWidth)))
+            EditorUI.TogglePopup(ElementId.StrokeWidth);
+
+        StrokeWidthPopupUI();
+    }
+
+    private void StrokeWidthPopupUI()
+    {
+        void Content()
+        {
+            for (var i = 1; i <= 8; i++)
+            {
+                if (EditorUI.PopupItem($"{i}px", selected: Document.CurrentStrokeWidth == i))
+                {
+                    SetStrokeWidth((byte)i);
+                    EditorUI.ClosePopup();
+                }
+            }
+        }
+
+        EditorUI.Popup(ElementId.StrokeWidth, Content);
     }
 
     public void SetPathLayer(byte layer)
@@ -882,11 +870,10 @@ public partial class SpriteEditor : DocumentEditor
             var srcPath = shape.GetPath(pathsToDuplicate[i]);
             var newPathIndex = shape.AddPath(
                 fillColor: srcPath.FillColor,
-                fillOpacity: srcPath.FillOpacity,
                 strokeColor: srcPath.StrokeColor,
                 strokeWidth: srcPath.StrokeWidth,
-                strokeOpacity: srcPath.StrokeOpacity,
-                layer: srcPath.Layer);
+                layer: srcPath.Layer,
+                subtract: srcPath.IsSubtract);
             if (newPathIndex == ushort.MaxValue)
                 break;
 
@@ -1484,7 +1471,7 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginPenTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor));
+        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor, Document.CurrentSubtract));
     }
 
     private void BeginKnifeTool()
@@ -1501,23 +1488,13 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginRectangleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(
-            this,
-            shape,
-            Document.CurrentFillColor,
-            ShapeType.Rectangle,
-            opacity: Document.CurrentFillOpacity));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentSubtract));
     }
 
     private void BeginCircleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(
-            this,
-            shape,
-            Document.CurrentFillColor,
-            ShapeType.Circle,
-            opacity: Document.CurrentFillOpacity));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle, Document.CurrentSubtract));
     }
 
     private void InsertAnchorAtHover()
@@ -1565,82 +1542,7 @@ public partial class SpriteEditor : DocumentEditor
         if (rb.Width <= 0 || rb.Height <= 0)
             return;
 
-        var dpi = EditorApplication.Config.PixelsPerUnit;
-        var invDpi = 1f / dpi;
-        var texSizeInv = 1.0f / (float)_image.Width;
-
-        using (Graphics.PushState())
-        {
-            Graphics.SetSortGroup(3);
-            Graphics.SetLayer(EditorLayer.DocumentEditor);
-            Graphics.SetTransform(Document.Transform);
-            Graphics.SetTexture(_rasterTexture);
-
-            // Raster bounds quad/uv (used for tiling and raster mode)
-            var quad = new Rect(
-                rb.X * invDpi,
-                rb.Y * invDpi,
-                rb.Width * invDpi,
-                rb.Height * invDpi);
-
-            var uv = new Rect(
-                Padding * texSizeInv,
-                Padding * texSizeInv,
-                rb.Width * texSizeInv,
-                rb.Height * texSizeInv);
-
-            if (_meshSlots.Count > 0)
-            {
-                // SDF mode: draw tessellated mesh per slot
-                DrawMeshSDF();
-            }
-            else
-            {
-                // Raster mode: single quad with normal texture shader
-                Graphics.SetShader(EditorAssets.Shaders.Texture);
-                Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
-                Graphics.Draw(quad, uv);
-            }
-
-            if (Document.ShowTiling && _meshSlots.Count == 0)
-            {
-                var tileSize = new Vector2(rb.Width * invDpi, rb.Height * invDpi);
-                ReadOnlySpan<Vector2> offsets =
-                [
-                    // Outer ring (5x5)
-                    new(-2 * tileSize.X, -2 * tileSize.Y),
-                    new(-tileSize.X, -2 * tileSize.Y),
-                    new(0f, -2 * tileSize.Y),
-                    new(tileSize.X, -2 * tileSize.Y),
-                    new(2 * tileSize.X, -2 * tileSize.Y),
-                    new(-2 * tileSize.X, -tileSize.Y),
-                    new(2 * tileSize.X, -tileSize.Y),
-                    new(-2 * tileSize.X, 0f),
-                    new(2 * tileSize.X, 0f),
-                    new(-2 * tileSize.X, tileSize.Y),
-                    new(2 * tileSize.X, tileSize.Y),
-                    new(-2 * tileSize.X, 2 * tileSize.Y),
-                    new(-tileSize.X, 2 * tileSize.Y),
-                    new(0f, 2 * tileSize.Y),
-                    new(tileSize.X, 2 * tileSize.Y),
-                    new(2 * tileSize.X, 2 * tileSize.Y),
-                    // Inner ring (3x3)
-                    new(-tileSize.X, -tileSize.Y),
-                    new(0f, -tileSize.Y),
-                    new(tileSize.X, -tileSize.Y),
-                    new(-tileSize.X, 0f),
-                    new(tileSize.X, 0f),
-                    new(-tileSize.X, tileSize.Y),
-                    new(0f, tileSize.Y),
-                    new(tileSize.X, tileSize.Y),
-                ];
-
-                Graphics.SetTextureFilter(TextureFilter.Point);
-                Graphics.SetColor(Color.White.WithAlpha(0.85f));
-                foreach (var offset in offsets)
-                    Graphics.Draw(new Rect(quad.X + offset.X, quad.Y + offset.Y, quad.Width, quad.Height), uv, order: 2);
-            }
-        }
+        DrawMeshSDF();
     }
 
     private static void DrawSegment(Shape shape, ushort pathIndex, ushort segmentIndex, float width, ushort order = 0)

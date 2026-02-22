@@ -17,12 +17,14 @@ public static partial class UI
     private static bool _mouseRightPressed;
     private static bool _mouseLeftDown;
     private static bool _mouseLeftDoubleClickPressed;
-    private static Vector2 _mousePosition;
+    private static int _captureElementId;
+
+    public static Vector2 MouseWorldPosition { get; private set; }
 
     private static void HandleInput()
     {
         var mouse = Camera!.ScreenToWorld(Input.MousePosition);
-        _mousePosition = mouse;
+        MouseWorldPosition = mouse;
         _mouseLeftPressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
         _mouseLeftDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
         _mouseLeftDoubleClickPressed = Input.WasButtonPressedRaw(InputCode.MouseLeftDoubleClick);
@@ -30,6 +32,18 @@ public static partial class UI
         _mouseRightPressed = Input.WasButtonPressedRaw(InputCode.MouseRight);
         _mouseRightElementId = 0;
         _mouseDoubleClickElementId = 0;
+
+        // Auto-release UI capture when mouse is no longer down or element is gone
+        if (_captureElementId != 0)
+        {
+            if (!_mouseLeftDown)
+                _captureElementId = 0;
+            else if (!IsValidElement(_captureElementId))
+            {
+                _captureElementId = 0;
+                Input.ReleaseMouseCapture();
+            }
+        }
 
         LogUI("Input:", values: [("FocusElementId", _focusElementId, true)]);
 
@@ -177,6 +191,7 @@ public static partial class UI
             if (!_mouseLeftDown)
             {
                 _scrollbarDragging = false;
+                Input.ReleaseMouseCapture();
                 return;
             }
 
@@ -228,6 +243,7 @@ public static partial class UI
                 _scrollbarDragElementId = e.Id;
                 _scrollbarDragStartOffset = e.Data.Scrollable.Offset;
                 _scrollbarDragStartMouseY = mouse.Y;
+                Input.CaptureMouse();
                 ClearElementPress();
                 return;
             }
@@ -306,6 +322,9 @@ public static partial class UI
         return false;
     }
 
+    private static bool IsValidElement(int elementId) =>
+        elementId > 0 && elementId <= MaxElementId && _elementStates[elementId].LastFrame == _frame;
+
     private static bool _mouseOverScene;
 
     private static void HandleElementInput(Vector2 mouse)
@@ -367,7 +386,13 @@ public static partial class UI
             var wasHovered = es.IsHovered;
             es.SetFlags(ElementFlags.Hovered, mouseOver ? ElementFlags.Hovered : ElementFlags.None);
             es.SetFlags(ElementFlags.HoverChanged, wasHovered != es.IsHovered ? ElementFlags.HoverChanged : ElementFlags.None);
-            es.SetFlags(ElementFlags.Down, mouseOver && _mouseLeftDown ? ElementFlags.Down : ElementFlags.None);
+
+            // When another element has capture, only the captured element gets Down
+            var isCaptured = _captureElementId != 0 && e.Id == _captureElementId;
+            var isDown = isCaptured
+                ? _mouseLeftDown
+                : (_captureElementId == 0 && mouseOver && _mouseLeftDown);
+            es.SetFlags(ElementFlags.Down, isDown ? ElementFlags.Down : ElementFlags.None);
 
             // Scene elements pass input through to the application; when the mouse
             // is over a Scene, prevent parent elements from consuming input too.
@@ -376,7 +401,7 @@ public static partial class UI
 
             var consumesInput = e.Type != ElementType.Scene && !_mouseOverScene;
 
-            if (mouseOver && _mouseLeftDoubleClickPressed && _mouseDoubleClickElementId == 0 && consumesInput)
+            if (_captureElementId == 0 && mouseOver && _mouseLeftDoubleClickPressed && _mouseDoubleClickElementId == 0 && consumesInput)
             {
                 _mouseDoubleClickElementId = e.Id;
                 es.SetFlags(ElementFlags.DoubleClick, ElementFlags.DoubleClick);
@@ -384,7 +409,7 @@ public static partial class UI
             else
                 es.SetFlags(ElementFlags.DoubleClick, ElementFlags.None);
 
-            if (mouseOver && _mouseLeftPressed && _mouseLeftElementId == 0 && consumesInput)
+            if (_captureElementId == 0 && mouseOver && _mouseLeftPressed && _mouseLeftElementId == 0 && consumesInput)
             {
                 es.SetFlags(ElementFlags.Pressed, ElementFlags.Pressed);
                 _mouseLeftElementId = e.Id;
@@ -395,7 +420,7 @@ public static partial class UI
                 es.SetFlags(ElementFlags.Pressed, ElementFlags.None);
             }
 
-            if (mouseOver && _mouseRightPressed && _mouseRightElementId == 0 && consumesInput)
+            if (_captureElementId == 0 && mouseOver && _mouseRightPressed && _mouseRightElementId == 0 && consumesInput)
             {
                 es.SetFlags(ElementFlags.RightClick, ElementFlags.RightClick);
                 _mouseRightElementId = e.Id;
@@ -415,6 +440,8 @@ public static partial class UI
 
         if (!_mouseLeftDown)
         {
+            if (_activeScrollId != 0)
+                Input.ReleaseMouseCapture();
             _activeScrollId = 0;
         }
         else if (_activeScrollId != 0)
@@ -455,6 +482,7 @@ public static partial class UI
                     {
                         _activeScrollId = e.Id;
                         _lastScrollMouseY = mouse.Y;
+                        Input.CaptureMouse();
                         break;
                     }
                 }
@@ -512,7 +540,7 @@ public static partial class UI
             if (_activePopupCount > 0 && !IsInsidePopup(i))
                 continue;
 
-            var localMouse = Vector2.Transform(_mousePosition, e.WorldToLocal);
+            var localMouse = Vector2.Transform(MouseWorldPosition, e.WorldToLocal);
             if (!e.Rect.Contains(localMouse))
                 continue;
 

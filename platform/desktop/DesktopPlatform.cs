@@ -19,9 +19,11 @@ public unsafe partial class SDLPlatform : IPlatform
     private SystemCursor _currentCursor = SystemCursor.Default;
     private SDL_Gamepad* _gamepad;
     private bool _isMouseInWindow = true;
+    private bool _isMouseCaptured;
     private Action? _beforeQuit;
 
     public bool IsMouseInWindow => _isMouseInWindow;
+    public bool IsMouseCaptured => _isMouseCaptured;
 
     public Vector2Int WindowSize { get; private set; }
 
@@ -37,6 +39,13 @@ public unsafe partial class SDLPlatform : IPlatform
         }
     }
 
+    public void SetMouseCapture(bool enabled)
+    {
+        if (_isMouseCaptured == enabled) return;
+        _isMouseCaptured = enabled;
+        SDL_CaptureMouse(enabled);
+    }
+        
     public void SetWindowSize(int width, int height)
     {
         if (_window == null) return;
@@ -301,7 +310,8 @@ public unsafe partial class SDLPlatform : IPlatform
                 break;
 
             case SDL_EventType.SDL_EVENT_WINDOW_MOUSE_LEAVE:
-                _isMouseInWindow = false;
+                if (!_isMouseCaptured)
+                    _isMouseInWindow = false;
                 break;
 
             case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_GAINED:
@@ -309,6 +319,8 @@ public unsafe partial class SDLPlatform : IPlatform
                 break;
 
             case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST:
+                if (_isMouseCaptured)
+                    SetMouseCapture(false);
                 OnEvent?.Invoke(PlatformEvent.Unfocus());
                 break;
         }

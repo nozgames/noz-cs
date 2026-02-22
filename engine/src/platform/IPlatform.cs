@@ -64,6 +64,9 @@ public interface IPlatform
 
     bool IsMouseInWindow { get; }
 
+    bool IsMouseCaptured { get; }
+    void SetMouseCapture(bool enabled);
+
     void SetCursor(SystemCursor cursor);
 
     bool IsFullscreen { get; }

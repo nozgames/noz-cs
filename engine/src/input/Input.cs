@@ -207,6 +207,15 @@ public static class Input
                 }
 
                 Buttons[(int)InputCode.MouseLeftDoubleClick].Logical = false;
+
+                // Auto-release capture when all mouse buttons are released
+                if (Application.Platform.IsMouseCaptured &&
+                    !Buttons[(int)InputCode.MouseLeft].Physical &&
+                    !Buttons[(int)InputCode.MouseRight].Physical &&
+                    !Buttons[(int)InputCode.MouseMiddle].Physical)
+                {
+                    Application.Platform.SetMouseCapture(false);
+                }
                 break;
 
             case PlatformEventType.MouseMove:
@@ -376,4 +385,10 @@ public static class Input
 
     public static Vector2 MousePosition { get; private set; }
     public static bool MouseInWindow => Application.Platform.IsMouseInWindow;
+
+    public static bool IsMouseCaptured => Application.Platform.IsMouseCaptured;
+
+    public static void CaptureMouse() => Application.Platform.SetMouseCapture(true);
+
+    public static void ReleaseMouseCapture() => Application.Platform.SetMouseCapture(false);
 }
