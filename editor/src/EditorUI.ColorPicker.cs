@@ -223,7 +223,10 @@ internal static partial class EditorUI
 
                 DrawCrosshair(_sat * SVSize, (1 - _val) * SVSize);
 
-                if (UI.IsDown())
+                if (UI.WasPressed())
+                    UI.SetCapture();
+
+                if (UI.HasCapture())
                 {
                     var norm = GetNormalizedMouseInElement(ColorPickerIds.ColorPickerSVArea);
                     _sat = norm.X;
@@ -257,7 +260,10 @@ internal static partial class EditorUI
 
                 DrawIndicatorH(_hue / 360f * HueBarHeight, HueBarWidth);
 
-                if (UI.IsDown())
+                if (UI.WasPressed())
+                    UI.SetCapture();
+
+                if (UI.HasCapture())
                 {
                     var norm = GetNormalizedMouseInElement(ColorPickerIds.ColorPickerHueBar);
                     _hue = norm.Y * 360f;
@@ -289,7 +295,10 @@ internal static partial class EditorUI
 
                 DrawIndicatorV(_alpha * AlphaBarWidth, AlphaBarHeight);
 
-                if (UI.IsDown())
+                if (UI.WasPressed())
+                    UI.SetCapture();
+
+                if (UI.HasCapture())
                 {
                     var norm = GetNormalizedMouseInElement(ColorPickerIds.ColorPickerAlphaBar);
                     _alpha = norm.X;

@@ -24,6 +24,7 @@ public class WebPlatform : IPlatform
     private Func<bool>? _wantsToQuit;
 
     public bool IsMouseInWindow => _isMouseInWindow;
+    public bool IsMouseCaptured => false;
     Vector2Int IPlatform.WindowSize => new((int)_windowSize.X, (int)_windowSize.Y);
     public Vector2Int WindowPosition => Vector2Int.Zero; // Not applicable for web
     public float DisplayScale => _displayScale;
@@ -33,7 +34,8 @@ public class WebPlatform : IPlatform
 
     public void SetWindowSize(int width, int height) { } // Not applicable for web
     public void SetWindowPosition(int x, int y) { } // Not applicable for web
-
+    public void SetMouseCapture(bool enabled) { }
+       
     public nint GetGraphicsProcAddress(string name) => nint.Zero; // Not applicable for web
 
     public WebPlatform(IJSRuntime js)

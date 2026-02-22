@@ -364,6 +364,28 @@ public static partial class UI
     public static bool WasPressed(int elementId) => GetElementState(elementId).IsPressed;
     public static bool IsDown() => GetElementState(ref GetTopId()).IsDown;
 
+    public static void SetCapture(int elementId)
+    {
+        _captureElementId = elementId;
+        Input.CaptureMouse();
+    }
+
+    public static void SetCapture() => SetCapture(GetTopId().Id);
+
+    public static bool HasCapture(int elementId) => _captureElementId != 0 && _captureElementId == elementId;
+
+    public static bool HasCapture()
+    {
+        if (!HasCurrentElement()) return false;
+        return _captureElementId != 0 && GetTopId().Id == _captureElementId;
+    }
+
+    public static void ReleaseCapture()
+    {
+        _captureElementId = 0;
+        Input.ReleaseMouseCapture();
+    }
+
     public static ref Tween GetElementTween(int elementId) => ref GetElementState(elementId).Tween;
 
     public static float GetScrollOffset(int elementId)
