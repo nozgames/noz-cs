@@ -10,6 +10,7 @@ namespace NoZ.Editor;
 
 public sealed unsafe partial class Shape : IDisposable
 {
+    internal const float StrokeScale = 0.005f;
     public struct HitResult
     {
         public ushort AnchorIndex;
@@ -1850,5 +1851,18 @@ public sealed unsafe partial class Shape : IDisposable
         var yMax = (int)MathF.Ceiling(max.Y * dpi - 0.001f);
 
         return new RectInt(xMin, yMin, xMax - xMin, yMax - yMin);
+    }
+
+    /// <summary>
+    /// Rasterize paths as a multi-channel signed distance field (MSDF).
+    /// </summary>
+    public void RasterizeMSDF(
+        PixelData<Color32> target,
+        RectInt targetRect,
+        Vector2Int sourceOffset,
+        ReadOnlySpan<ushort> pathIndices,
+        float range = 1.5f)
+    {
+        Msdf.MsdfSprite.RasterizeMSDF(this, target, targetRect, sourceOffset, pathIndices, range);
     }
 }

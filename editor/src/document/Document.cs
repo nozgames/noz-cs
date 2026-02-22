@@ -34,7 +34,6 @@ public abstract class Document : IDisposable
     public bool Loaded { get; set; }
     public bool PostLoaded { get; set; }
     public bool IsEditorOnly { get; set; }
-    public bool IsAntiAliased { get; set; }
     public bool SilentImport { get; set; }
 
     public virtual void Load() { }

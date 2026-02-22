@@ -49,7 +49,7 @@ internal static class ShapeClipper
         return TreeToShape(tree, subject) ?? subject;
     }
 
-    private static PathsD ShapeToPaths(Shape shape, int stepsPerCurve)
+    internal static PathsD ShapeToPaths(Shape shape, int stepsPerCurve)
     {
         var paths = new PathsD();
         foreach (var contour in shape.contours)

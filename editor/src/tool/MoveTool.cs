@@ -51,27 +51,6 @@ public class MoveTool(Action<Vector2> update, Action<Vector2> commit, Action can
         _update(updateDelta);
     }
 
-    public override void Draw()
-    {
-        if (_deltaScale.X == 0 || _deltaScale.Y == 0)
-        {
-            Graphics.PushState();
-            Graphics.SetLayer(EditorLayer.Tool);
-            Graphics.SetColor(EditorStyle.SelectionColor.WithAlpha(0.5f));
-
-            var camera = Workspace.Camera;
-            var bounds = camera.WorldBounds;
-            var thickness = EditorStyle.Workspace.DocumentBoundsLineWidth / Workspace.Zoom;
-
-            if (_deltaScale.X > 0)
-                Graphics.Draw(bounds.X, Workspace.MouseWorldPosition.Y - thickness, bounds.Width, thickness * 2);
-            else
-                Graphics.Draw(Workspace.MouseWorldPosition.X - thickness, bounds.Y, thickness * 2, bounds.Height);
-
-            Graphics.PopState();
-        }
-    }
-
     public override void Cancel()
     {
         _cancel();

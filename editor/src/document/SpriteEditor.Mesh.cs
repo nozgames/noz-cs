@@ -6,6 +6,7 @@
 //
 
 using System.Runtime.InteropServices;
+using Clipper2Lib;
 using LibTessDotNet;
 using NoZ.Editor.Msdf;
 
@@ -56,67 +57,115 @@ public partial class SpriteEditor
                 CollectionsMarshal.AsSpan(slot.PathIndices));
             if (msdfShape == null) continue;
 
-            // Tessellate
-            var tess = new Tess();
+            // Internal stroke: the fill tessellation below draws the full shape with stroke color.
+            // We then overlay a contracted fill on top. The stroke band is the ring between them.
+            // For non-stroked slots, fillColor is used directly.
+            var hasStroke = slot.HasStroke;
+            Color strokeColor = default;
+            PathsD? contractedPaths = null;
 
-            foreach (var contour in msdfShape.contours)
+            if (hasStroke)
             {
-                if (contour.edges.Count < 3) continue;
-
-                var verts = new ContourVertex[contour.edges.Count];
-                for (int e = 0; e < contour.edges.Count; e++)
+                strokeColor = slot.StrokeColor.ToColor();
+                var halfStroke = slot.StrokeWidth * Shape.StrokeScale;
+                var originalPaths = ShapeClipper.ShapeToPaths(msdfShape, 8);
+                if (originalPaths.Count > 0)
                 {
-                    var p = contour.edges[e].Point(0);
-                    verts[e].Position = new Vec3((float)p.x, (float)p.y, 0);
+                    // Contract inward by half-stroke width (precision 6 matches ShapeClipper)
+                    contractedPaths = Clipper.InflatePaths(originalPaths, -halfStroke,
+                        JoinType.Round, EndType.Polygon, precision: 6);
                 }
-
-                tess.AddContour(verts);
             }
 
-            tess.Tessellate(WindingRule.NonZero, LibTessDotNet.ElementType.Polygons, 3);
-
-            if (tess.ElementCount == 0) continue;
-
-            var vertCount = tess.VertexCount;
-            var idxCount = tess.ElementCount * 3;
-
-            // Bounds check — skip slot if it would overflow shared buffers
-            if (vertexOffset + vertCount > MaxMeshVertices ||
-                indexOffset + idxCount > MaxMeshIndices)
+            // Tessellate full shape — used as stroke background (if stroked) or fill
+            if (!TessellatePaths(msdfShape, ref vertexOffset, ref indexOffset,
+                    hasStroke ? strokeColor : shape.GetPath(slot.PathIndices[0]).FillColor.ToColor()))
                 continue;
 
-            // Copy vertices into shared buffer
-            for (int v = 0; v < vertCount; v++)
+            // For stroked slots, tessellate the contracted fill on top
+            if (hasStroke && contractedPaths is { Count: > 0 })
             {
-                ref var tv = ref tess.Vertices[v];
-                _meshVertices[vertexOffset + v] = new MeshVertex(
-                    tv.Position.X, tv.Position.Y, 0, 0, Color.White);
+                TessellateClipper(contractedPaths, ref vertexOffset, ref indexOffset,
+                    shape.GetPath(slot.PathIndices[0]).FillColor.ToColor());
             }
-
-            // Copy indices into shared buffer
-            for (int e = 0; e < tess.ElementCount; e++)
-            {
-                _meshIndices[indexOffset + e * 3 + 0] = (ushort)tess.Elements[e * 3 + 0];
-                _meshIndices[indexOffset + e * 3 + 1] = (ushort)tess.Elements[e * 3 + 1];
-                _meshIndices[indexOffset + e * 3 + 2] = (ushort)tess.Elements[e * 3 + 2];
-            }
-
-            // Get fill color directly from path
-            var firstPath = shape.GetPath(slot.PathIndices[0]);
-            var fillColor = firstPath.FillColor.ToColor();
-
-            _meshSlots.Add(new MeshSlotData
-            {
-                VertexOffset = vertexOffset,
-                VertexCount = vertCount,
-                IndexOffset = indexOffset,
-                IndexCount = idxCount,
-                FillColor = fillColor,
-            });
-
-            vertexOffset += vertCount;
-            indexOffset += idxCount;
         }
+    }
+
+    /// Tessellate an MSDF shape (contours with edges) into the shared mesh buffers.
+    private bool TessellatePaths(Msdf.Shape msdfShape, ref int vertexOffset, ref int indexOffset, Color color)
+    {
+        var tess = new Tess();
+        foreach (var contour in msdfShape.contours)
+        {
+            if (contour.edges.Count < 3) continue;
+            var verts = new ContourVertex[contour.edges.Count];
+            for (int e = 0; e < contour.edges.Count; e++)
+            {
+                var p = contour.edges[e].Point(0);
+                verts[e].Position = new Vec3((float)p.x, (float)p.y, 0);
+            }
+            tess.AddContour(verts);
+        }
+
+        tess.Tessellate(WindingRule.NonZero, LibTessDotNet.ElementType.Polygons, 3);
+        return EmitTessellation(tess, ref vertexOffset, ref indexOffset, color);
+    }
+
+    /// Tessellate Clipper2 paths into the shared mesh buffers.
+    private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color)
+    {
+        var tess = new Tess();
+        foreach (var path in paths)
+        {
+            if (path.Count < 3) continue;
+            var verts = new ContourVertex[path.Count];
+            for (int j = 0; j < path.Count; j++)
+                verts[j].Position = new Vec3((float)path[j].x, (float)path[j].y, 0);
+            tess.AddContour(verts);
+        }
+
+        tess.Tessellate(WindingRule.NonZero, LibTessDotNet.ElementType.Polygons, 3);
+        return EmitTessellation(tess, ref vertexOffset, ref indexOffset, color);
+    }
+
+    /// Copy tessellation results into shared vertex/index buffers and add a MeshSlotData.
+    private bool EmitTessellation(Tess tess, ref int vertexOffset, ref int indexOffset, Color color)
+    {
+        if (tess.ElementCount == 0) return false;
+
+        var vertCount = tess.VertexCount;
+        var idxCount = tess.ElementCount * 3;
+
+        if (vertexOffset + vertCount > MaxMeshVertices ||
+            indexOffset + idxCount > MaxMeshIndices)
+            return false;
+
+        for (int v = 0; v < vertCount; v++)
+        {
+            ref var tv = ref tess.Vertices[v];
+            _meshVertices[vertexOffset + v] = new MeshVertex(
+                tv.Position.X, tv.Position.Y, 0, 0, Color.White);
+        }
+
+        for (int e = 0; e < tess.ElementCount; e++)
+        {
+            _meshIndices[indexOffset + e * 3 + 0] = (ushort)tess.Elements[e * 3 + 0];
+            _meshIndices[indexOffset + e * 3 + 1] = (ushort)tess.Elements[e * 3 + 1];
+            _meshIndices[indexOffset + e * 3 + 2] = (ushort)tess.Elements[e * 3 + 2];
+        }
+
+        _meshSlots.Add(new MeshSlotData
+        {
+            VertexOffset = vertexOffset,
+            VertexCount = vertCount,
+            IndexOffset = indexOffset,
+            IndexCount = idxCount,
+            FillColor = color,
+        });
+
+        vertexOffset += vertCount;
+        indexOffset += idxCount;
+        return true;
     }
 
     private void DrawMeshSDF()
