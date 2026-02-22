@@ -209,6 +209,9 @@ public partial class SpriteEditor : DocumentEditor
 
         StrokeWidthButtonUI();
 
+        if (EditorUI.Button(ElementId.SubtractButton, EditorAssets.Sprites.IconSubtract, selected: Document.CurrentSubtract, toolbar: true))
+            ToggleSubtract();
+
         EditorUI.ToolbarSpacer();
 
         LayerButtonUI();
@@ -343,6 +346,7 @@ public partial class SpriteEditor : DocumentEditor
             Document.CurrentLayer = path.Layer;
             Document.CurrentBone = path.Bone;
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
+            Document.CurrentSubtract = path.IsSubtract;
             return;
         }
     }
@@ -750,6 +754,31 @@ public partial class SpriteEditor : DocumentEditor
 
         Document.MarkModified();
         MarkRasterDirty();
+    }
+
+    private void ToggleSubtract()
+    {
+        Document.CurrentSubtract = !Document.CurrentSubtract;
+
+        var shape = Document.GetFrame(_currentFrame).Shape;
+        var anySelected = false;
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+            if (!anySelected)
+            {
+                Undo.Record(Document);
+                anySelected = true;
+            }
+            shape.SetPathSubtract(p, Document.CurrentSubtract);
+        }
+
+        if (anySelected)
+        {
+            Document.MarkModified();
+            MarkRasterDirty();
+        }
     }
 
     private void StrokeWidthButtonUI()
@@ -1442,7 +1471,7 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginPenTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor));
+        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor, Document.CurrentSubtract));
     }
 
     private void BeginKnifeTool()
@@ -1459,13 +1488,13 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginRectangleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentSubtract));
     }
 
     private void BeginCircleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle, Document.CurrentSubtract));
     }
 
     private void InsertAnchorAtHover()

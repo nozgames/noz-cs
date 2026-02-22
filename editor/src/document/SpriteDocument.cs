@@ -87,6 +87,7 @@ public class SpriteDocument : Document, ISpriteSource
     public byte CurrentStrokeWidth = 1;
     public byte CurrentLayer = 0;
     public StringId CurrentBone;
+    public bool CurrentSubtract;
 
     public ref readonly BitMask256 Layers => ref _layers;
 
@@ -1093,7 +1094,6 @@ public class SpriteDocument : Document, ISpriteSource
     public override void OnUndoRedo()
     {
         UpdateBounds();
-        AtlasManager.UpdateSource(this);
         base.OnUndoRedo();
     }
 
