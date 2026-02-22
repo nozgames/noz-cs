@@ -15,8 +15,6 @@ public partial class SpriteEditor : DocumentEditor
     [ElementId("TileButton")]
     [ElementId("BoneBindButton")]
     [ElementId("BoneUnbindButton")]
-    [ElementId("OpacityButton")]
-    [ElementId("OpacityPopup")]
     [ElementId("SubtractButton")]
     [ElementId("AntiAliasButton")]
     [ElementId("SDFButton")]

@@ -20,10 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\engine\NoZ.csproj" />
-    <ProjectReference Include="..\widgets\NoZ.Widgets.csproj" />
-    <ProjectReference Include="..\generators\NoZ.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\generators\NoZ.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\platform\desktop\NoZ.Desktop.csproj" />
     <ProjectReference Include="..\platform\webgpu\NoZ.WebGPU.csproj" />
   </ItemGroup>
@@ -39,8 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="src\ProjectTemplates\*.template"
-                      LogicalName="ProjectTemplates.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="src\ProjectTemplates\*.template" LogicalName="ProjectTemplates.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.Desktop", "platform\des
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.WebGPU", "platform\webgpu\NoZ.WebGPU.csproj", "{808B7A86-8B7C-3ECD-FB10-EAADC804D423}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.Widgets", "widgets\NoZ.Widgets.csproj", "{A2C74005-1116-46F8-89CB-4E6DBC64508E}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.Generators", "generators\NoZ.Generators.csproj", "{48DE019D-1EF9-4CF6-B85B-9F68806C5F7D}"
 EndProject
 Global
@@ -73,18 +71,6 @@ Global
 		{808B7A86-8B7C-3ECD-FB10-EAADC804D423}.Release|x64.Build.0 = Release|Any CPU
 		{808B7A86-8B7C-3ECD-FB10-EAADC804D423}.Release|x86.ActiveCfg = Release|Any CPU
 		{808B7A86-8B7C-3ECD-FB10-EAADC804D423}.Release|x86.Build.0 = Release|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Debug|x64.Build.0 = Debug|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Debug|x86.Build.0 = Debug|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Release|x64.ActiveCfg = Release|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Release|x64.Build.0 = Release|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Release|x86.ActiveCfg = Release|Any CPU
-		{A2C74005-1116-46F8-89CB-4E6DBC64508E}.Release|x86.Build.0 = Release|Any CPU
 		{48DE019D-1EF9-4CF6-B85B-9F68806C5F7D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{48DE019D-1EF9-4CF6-B85B-9F68806C5F7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{48DE019D-1EF9-4CF6-B85B-9F68806C5F7D}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -100,8 +86,5 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {222B3C1B-36D6-4EC9-8B18-0BFEE0E92D79}
 	EndGlobalSection
 EndGlobal
