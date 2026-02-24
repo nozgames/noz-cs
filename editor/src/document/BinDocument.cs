@@ -11,6 +11,7 @@ public class BinDocument : Document
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = AssetType.Bin,
+            Name = "Bin",
             Extension = ".bin",
             Factory = () => new BinDocument(),
             Icon = () => EditorAssets.Sprites.AssetIconBin

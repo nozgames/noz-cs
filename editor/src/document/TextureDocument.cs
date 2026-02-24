@@ -29,6 +29,7 @@ public class TextureDocument : Document, ISpriteSource
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = AssetType.Texture,
+            Name = "Texture",
             Extension = ".png",
             Factory = () => new TextureDocument(),
             EditorFactory = doc => new TextureEditor((TextureDocument)doc),

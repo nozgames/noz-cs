@@ -21,6 +21,7 @@ public class ShaderDocument : Document
         DocumentManager.RegisterDef(new DocumentDef 
         {
             Type = AssetType.Shader,
+            Name = "Shader",
             Extension = ".wgsl",
             Factory = () => new ShaderDocument()
         });

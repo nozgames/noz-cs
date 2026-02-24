@@ -114,6 +114,7 @@ internal class AnimationDocument : Document
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = AssetType.Animation,
+            Name = "Animation",
             Extension = ".anim",
             Factory = () => new AnimationDocument(),
             EditorFactory = doc => new AnimationEditor((AnimationDocument)doc),

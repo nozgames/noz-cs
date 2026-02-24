@@ -142,6 +142,7 @@ public class SpriteDocument : Document, ISpriteSource
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = AssetType.Sprite,
+            Name = "Sprite",
             Extension = ".sprite",
             Factory = () => new SpriteDocument(),
             EditorFactory = doc => new SpriteEditor((SpriteDocument)doc),

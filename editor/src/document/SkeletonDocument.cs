@@ -81,6 +81,7 @@ public class SkeletonDocument : Document
     {
         DocumentManager.RegisterDef(new DocumentDef {
             Type = AssetType.Skeleton,
+            Name = "Skeleton",
             Extension = ".skel",
             Factory = () => new SkeletonDocument(),
             EditorFactory = doc => new SkeletonEditor((SkeletonDocument)doc),
