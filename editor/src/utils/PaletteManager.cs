@@ -2,117 +2,91 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-
 namespace NoZ.Editor;
 
 public class PaletteDef
 {
-    public const int ColorCount = 64;
-    public const int CellSize = 8;
+    public const int MaxColorCount = 256;
 
     public string Id { get; }
-    public int Row { get; }
     public string? DisplayName { get; }
     public string Label { get; }
-    public Color[] Colors { get; } = new Color[ColorCount];
-    public int Count { get; private set; }
+    public Color[] Colors { get; } = new Color[MaxColorCount];
+    public string?[] ColorNames { get; } = new string?[MaxColorCount];
+    public int Count { get; internal set; }
 
-    public PaletteDef(string id, int row, string? displayName)
+    internal PaletteDocument? SourceDocument { get; set; }
+
+    public PaletteDef(string id, string? displayName)
     {
         Id = id;
-        Row = row;
         DisplayName = displayName;
         Label = displayName ?? id;
-
-        for (int i = 0; i < ColorCount; i++)
-            Colors[i] = Color.Purple;
     }
 
-    public void SampleColors(Image<Rgba32> image)
+    internal void SyncFromDocument()
     {
-        if (image.Width != 512 || image.Height != 512) return;
+        if (SourceDocument == null) return;
 
-        int count = 0;
-        image.ProcessPixelRows(accessor =>
+        Count = SourceDocument.ColorCount;
+        for (int i = 0; i < Count; i++)
         {
-            int y = Row * CellSize + CellSize / 2;
-            Span<Rgba32> row = accessor.GetRowSpan(y);
-
-            for (int c = 0; c < ColorCount; c++)
-            {
-                ref var p = ref row[c * CellSize + CellSize / 2];
-                Colors[c] = new Color(
-                    p.R / 255f,
-                    p.G / 255f,
-                    p.B / 255f,
-                    p.A / 255f
-                );
-
-                if (p.A > 0)
-                    count = c + 1;
-            }
-        });
-        Count = count;
+            Colors[i] = SourceDocument.Colors[i];
+            ColorNames[i] = SourceDocument.ColorNames[i];
+        }
     }
 }
 
 public static class PaletteManager
 {
     private static readonly List<PaletteDef> _palettes = [];
-    private static readonly Dictionary<int, int> _paletteRowMap = [];
     private static readonly Dictionary<string, int> _paletteIdMap = [];
-    private static string? _paletteTextureName;
-    private static TextureDocument? _paletteTexture;
 
     public static IReadOnlyList<PaletteDef> Palettes => _palettes;
 
-    public static int DefaultRow => _palettes.Count > 0 ? _palettes[0].Row : 0;
-
-    public static void Init(EditorConfig config)
+    public static void Init()
     {
         _palettes.Clear();
-        _paletteRowMap.Clear();
+        _paletteIdMap.Clear();
+    }
+
+    public static void DiscoverPalettes()
+    {
+        _palettes.Clear();
         _paletteIdMap.Clear();
 
-        _paletteTextureName = config.Palette;
-
-        foreach (var id in config.GetKeys("palettes"))
+        foreach (var doc in DocumentManager.Documents)
         {
-            var value = config.GetString("palettes", id, "0");
-            var tk = new Tokenizer(value);
+            if (doc is not PaletteDocument palDoc) continue;
 
-            int row = 0;
-            string? displayName = null;
+            var id = palDoc.Name;
+            var def = new PaletteDef(id, null);
+            def.SourceDocument = palDoc;
+            def.SyncFromDocument();
 
-            if (tk.ExpectInt(out var intVal))
-                row = intVal;
-
-            displayName = tk.ExpectQuotedString();
-
-            _paletteRowMap[row] = _palettes.Count;
             _paletteIdMap[id.ToLower()] = _palettes.Count;
-            _palettes.Add(new PaletteDef(id, row, displayName));
+            _palettes.Add(def);
         }
 
-        ReloadPaletteColors();
+        if (_palettes.Count > 0)
+            Log.Info($"Discovered {_palettes.Count} palette(s)");
     }
 
     public static void Shutdown()
     {
         _palettes.Clear();
-        _paletteRowMap.Clear();
         _paletteIdMap.Clear();
-        _paletteTextureName = null;
-        _paletteTexture = null;
     }
 
-    public static PaletteDef GetPalette(int row) =>
-        _paletteRowMap.TryGetValue(row, out var index) ? _palettes[index] : _palettes[0];
+    public static PaletteDef? GetPalette(int index)
+    {
+        if (_palettes.Count == 0) return null;
+        if (index < 0 || index >= _palettes.Count) return _palettes[0];
+        return _palettes[index];
+    }
 
     public static PaletteDef? GetPalette(string id) =>
-        _paletteIdMap.TryGetValue(id, out var index) ? _palettes[index] : null;
+        _paletteIdMap.TryGetValue(id.ToLower(), out var index) ? _palettes[index] : null;
 
     public static bool TryGetPalette(string? id, out PaletteDef palette)
     {
@@ -125,21 +99,10 @@ public static class PaletteManager
         return false;
     }
 
-    public static bool TryGetPaletteByRow(int row, out PaletteDef palette)
+    public static Color GetColor(int paletteIndex, int colorId)
     {
-        if (_paletteRowMap.TryGetValue(row, out var index))
-        {
-            palette = _palettes[index];
-            return true;
-        }
-        palette = _palettes.Count > 0 ? _palettes[0] : null!;
-        return false;
-    }
-
-    public static Color GetColor(int paletteRow, int colorId)
-    {
-        var palette = GetPalette(paletteRow);
-        if (palette == null || colorId < 0 || colorId >= PaletteDef.ColorCount)
+        var palette = GetPalette(paletteIndex);
+        if (palette == null || colorId < 0 || colorId >= PaletteDef.MaxColorCount)
             return Color.White;
         return palette.Colors[colorId];
     }
@@ -147,15 +110,16 @@ public static class PaletteManager
     public static Color GetColor(string paletteName, int colorId)
     {
         var palette = GetPalette(paletteName);
-        if (palette == null || colorId < 0 || colorId >= PaletteDef.ColorCount)
+        if (palette == null || colorId < 0 || colorId >= PaletteDef.MaxColorCount)
             return Color.White;
         return palette.Colors[colorId];
     }
 
-    public static byte FindColorIndex(int paletteRow, Color32 color)
+    public static byte FindColorIndex(int paletteIndex, Color32 color)
     {
-        var palette = GetPalette(paletteRow);
-        for (int i = 0; i < palette.Colors.Length; i++)
+        var palette = GetPalette(paletteIndex);
+        if (palette == null) return 0;
+        for (int i = 0; i < palette.Count; i++)
         {
             var pc = palette.Colors[i].ToColor32();
             if (pc.R == color.R && pc.G == color.G && pc.B == color.B)
@@ -166,29 +130,9 @@ public static class PaletteManager
 
     public static void ReloadPaletteColors()
     {
-        if (string.IsNullOrEmpty(_paletteTextureName))
-            return;
+        foreach (var palette in _palettes)
+            palette.SyncFromDocument();
 
-        _paletteTexture = DocumentManager.Find(AssetType.Texture, _paletteTextureName) as TextureDocument;
-        if (_paletteTexture == null)
-        {
-            Log.Error($"Palette texture not found: {_paletteTextureName}.png");
-            return;
-        }
-
-        _paletteTexture.IsVisible = false;
-
-        try
-        {
-            var image = Image.Load<Rgba32>(_paletteTexture.Path);
-            foreach (var palette in _palettes)
-                palette.SampleColors(image);
-
-            Log.Info($"Loaded palette {_paletteTexture.Path}");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to load palette texture: {ex.Message}");
-        }
+        AssetManifest.IsModified = true;
     }
 }

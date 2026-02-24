@@ -237,6 +237,7 @@ public static partial class EditorApplication
         AnimationDocument.RegisterDef();
         VfxDocument.RegisterDef();
         BinDocument.RegisterDef();
+        PaletteDocument.RegisterDef();
 
         config.RegisterDocumentTypes?.Invoke();
 
@@ -246,8 +247,9 @@ public static partial class EditorApplication
 
         CollectionManager.Init(Config);
         DocumentManager.Init(Config.SourcePaths, Config.OutputPath);
-        PaletteManager.Init(Config);
+        PaletteManager.Init();
         DocumentManager.LoadAll();
+        PaletteManager.DiscoverPalettes();
         AtlasManager.Init();
         Importer.Init(clean);
         AssetManifest.Generate();

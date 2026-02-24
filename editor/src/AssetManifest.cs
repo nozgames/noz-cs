@@ -198,6 +198,7 @@ public static class AssetManifest
                 writer.WriteLine($"        public static class {paletteName}");
                 writer.WriteLine("        {");
 
+                var usedNames = new HashSet<string>();
                 for (int c = 0; c < palette.Count; c++)
                 {
                     var color = palette.Colors[c];
@@ -205,7 +206,17 @@ public static class AssetManifest
                     var g = (byte)(color.G * 255f);
                     var b = (byte)(color.B * 255f);
                     var a = (byte)(color.A * 255f);
-                    writer.WriteLine($"            public static readonly Color Color{c} = new({r}, {g}, {b}, {a});");
+
+                    var colorName = palette.ColorNames[c];
+                    var fieldName = !string.IsNullOrEmpty(colorName)
+                        ? ToPascalCase(colorName)
+                        : $"Color{c}";
+
+                    // Handle duplicate names by appending index
+                    if (!usedNames.Add(fieldName))
+                        fieldName = $"{fieldName}{c}";
+
+                    writer.WriteLine($"            public static readonly Color {fieldName} = new({r}, {g}, {b}, {a});");
                 }
 
                 writer.WriteLine("        }");

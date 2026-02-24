@@ -15,6 +15,10 @@ internal static partial class EditorUI
     [ElementId("ColorPickerHexBox")]
     [ElementId("ColorPickerNoneButton")]
     [ElementId("ColorPickerSwatchItem", count: 64)]
+    [ElementId("ColorPickerModeColor")]
+    [ElementId("ColorPickerModePalette")]
+    [ElementId("ColorPickerPaletteScroll")]
+    [ElementId("ColorPickerPaletteItem", count: 256)]
     private static partial class ColorPickerIds { }
 
     /// <summary>
@@ -90,6 +94,9 @@ internal static partial class EditorUI
         // false when it's a live preview during drag. Callers should only record undo on commit.
         internal static bool _committed;
         internal static Color32 CurrentColor => HsvToColor32(_hue, _sat, _val, _alpha);
+
+        // Palette mode toggle
+        private static bool _paletteMode;
 
         // Hex string cache
         private static string _hexCache = "";
@@ -167,19 +174,39 @@ internal static partial class EditorUI
 
             using var col = UI.BeginColumn(EditorStyle.Popup.Root with { Spacing = Spacing, Padding = EdgeInsets.All(8) });
 
-            using (UI.BeginRow(new ContainerStyle { Spacing = Spacing }))
+            // Mode toggle: Color / Palette
+            if (PaletteManager.Palettes.Count > 0)
             {
-                SaturationValueArea();
-                HueBar();
+                using (UI.BeginRow(new ContainerStyle { Spacing = 2, Height = 28 }))
+                {
+                    if (Button(ColorPickerIds.ColorPickerModeColor, "Color", selected: !_paletteMode, toolbar: true))
+                        _paletteMode = false;
+                    if (Button(ColorPickerIds.ColorPickerModePalette, "Palette", selected: _paletteMode, toolbar: true))
+                        _paletteMode = true;
+                }
             }
 
-            AlphaBar();
-            PreviewRow();
-            HexInput();
-            NoneButton();
+            if (!_paletteMode)
+            {
+                using (UI.BeginRow(new ContainerStyle { Spacing = Spacing }))
+                {
+                    SaturationValueArea();
+                    HueBar();
+                }
 
-            if (_swatches != null && _swatchCount > 0)
-                SwatchGrid();
+                AlphaBar();
+                PreviewRow();
+                HexInput();
+                NoneButton();
+
+                if (_swatches != null && _swatchCount > 0)
+                    SwatchGrid();
+            }
+            else
+            {
+                PaletteSwatchGrid();
+                NoneButton();
+            }
 
             color = HsvToColor32(_hue, _sat, _val, _alpha);
         }
@@ -403,6 +430,50 @@ internal static partial class EditorUI
                         _alpha = c32.A / 255f;
                         InvalidateSVTexture();
                         _committed = true;
+                    }
+                }
+            }
+        }
+
+        private static void PaletteSwatchGrid()
+        {
+            var nextPaletteItemId = ColorPickerIds.ColorPickerPaletteItem;
+
+            foreach (var palette in PaletteManager.Palettes)
+            {
+                UI.Label(palette.Label, EditorStyle.Control.Text);
+
+                using var grid = UI.BeginGrid(new GridStyle
+                {
+                    CellHeight = SwatchCellSize,
+                    CellWidth = SwatchCellSize,
+                    Columns = SwatchColumns
+                });
+
+                for (int i = 0; i < palette.Count; i++)
+                {
+                    var swatchColor = palette.Colors[i];
+                    if (swatchColor.A <= float.Epsilon) continue;
+
+                    var itemId = nextPaletteItemId++;
+                    var c32 = swatchColor.ToColor32();
+                    var isSelected = IsSwatchSelected(c32);
+
+                    using (BeginColorContainer(itemId, isSelected))
+                    {
+                        UI.Container(new ContainerStyle
+                        {
+                            Color = swatchColor,
+                            BorderRadius = EditorStyle.Control.BorderRadius - 2
+                        });
+
+                        if (UI.WasPressed())
+                        {
+                            RgbToHsv(c32, out _hue, out _sat, out _val);
+                            _alpha = c32.A / 255f;
+                            InvalidateSVTexture();
+                            _committed = true;
+                        }
                     }
                 }
             }

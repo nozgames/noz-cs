@@ -24,6 +24,8 @@ public static class Time
 
     public static float Fps => UnscaledDeltaTime > 0 ? 1f / UnscaledDeltaTime : 0;
 
+    public static float AvergeFps { get; private set; }
+
     internal static void Init()
     {
         _startTicks = Stopwatch.GetTimestamp();
@@ -31,7 +33,7 @@ public static class Time
         DeltaTime = 0;
         UnscaledDeltaTime = 0;
         TotalTime = 0;
-        FrameCount = 0;
+        FrameCount = 0;        
     }
 
     internal static void Update()
@@ -46,6 +48,11 @@ public static class Time
         DeltaTime = UnscaledDeltaTime * _timeScale;
         TotalTime += DeltaTime;
         FrameCount++;
+
+        if (AvergeFps > 0)
+            AvergeFps = AvergeFps * 0.95f + Fps * 0.05f;
+        else
+            AvergeFps = Fps;
     }
 
     internal static void Shutdown()
