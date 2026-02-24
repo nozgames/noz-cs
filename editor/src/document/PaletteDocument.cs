@@ -20,6 +20,7 @@ public class PaletteDocument : Document
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = PaletteAssetType,
+            Name = "Palette",
             Extension = ".pal",
             Factory = () => new PaletteDocument(),
             EditorFactory = doc => new PaletteEditor((PaletteDocument)doc),

@@ -25,6 +25,7 @@ public class FontDocument : Document
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = AssetType.Font,
+            Name = "Font",
             Extension = ".ttf",
             Factory = () => new FontDocument()
         });

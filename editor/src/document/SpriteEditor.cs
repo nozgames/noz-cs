@@ -130,6 +130,7 @@ public partial class SpriteEditor : DocumentEditor
     public override void Dispose()
     {
         ClearSelection();
+        EditorUI.ClosePopup();
 
         Workspace.XrayModeChanged -= OnXrayModeChanged;
 

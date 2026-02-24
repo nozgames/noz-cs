@@ -16,6 +16,7 @@ public class SoundDocument : Document
         DocumentManager.RegisterDef(new DocumentDef 
         {
             Type = AssetType.Sound,
+            Name = "Sound",
             Extension = ".wav",
             Factory = () => new SoundDocument()
         });

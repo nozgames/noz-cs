@@ -205,11 +205,11 @@ public static partial class Workspace
         if (creatableDefs.Length > 0)
         {
             items.Add(PopupMenuItem.Submenu("New"));
-            foreach (var def in creatableDefs.OrderBy(d => d.Type.ToString()))
+            foreach (var def in creatableDefs.OrderBy(d => d.Name))
             {
                 var assetType = def.Type;
                 items.Add(PopupMenuItem.Item(
-                    def.Type.ToString(),
+                    def.Name,
                     () => CreateNewDocument(assetType),
                     level: 1,
                     icon: def.Icon?.Invoke()));

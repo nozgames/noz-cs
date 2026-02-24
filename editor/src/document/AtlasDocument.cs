@@ -43,6 +43,7 @@ internal class AtlasDocument : Document
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = AssetType.Atlas,
+            Name = "Atlas",
             Extension = ".atlas",
             Factory = () => new AtlasDocument(),
             NewFile = NewFile,

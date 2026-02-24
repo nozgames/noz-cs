@@ -51,7 +51,14 @@ internal static partial class EditorUI
         {
             if (ColorPicker._committed)
                 return true;
-            onPreview?.Invoke(color);
+
+            // Only trigger preview when the picker's own output changed (user dragged
+            // in the picker), not when Document.CurrentFillColor changed externally
+            // (e.g. due to a selection change while the popup is open).
+            if (color != ColorPicker._lastOutputColor)
+                onPreview?.Invoke(color);
+
+            ColorPicker._lastOutputColor = color;
         }
 
         return false;
@@ -95,6 +102,10 @@ internal static partial class EditorUI
         internal static bool _committed;
         internal static Color32 CurrentColor => HsvToColor32(_hue, _sat, _val, _alpha);
 
+        // Tracks the picker's own output to distinguish user interaction from external
+        // CurrentFillColor changes (e.g. selection change while popup is open).
+        internal static Color32 _lastOutputColor;
+
         // Palette mode toggle
         private static bool _paletteMode;
 
@@ -105,6 +116,7 @@ internal static partial class EditorUI
         internal static void Open(Color32 color, Color[]? swatches, int swatchCount)
         {
             _originalColor = color;
+            _lastOutputColor = color;
             RgbToHsv(color, out _hue, out _sat, out _val);
             _alpha = color.A / 255f;
             _swatches = swatches;

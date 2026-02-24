@@ -90,6 +90,7 @@ public class VfxDocument : Document
         DocumentManager.RegisterDef(new DocumentDef
         {
             Type = AssetType.Vfx,
+            Name = "Vfx",
             Extension = ".vfx",
             Factory = () => new VfxDocument(),
             EditorFactory = doc => new VfxEditor((VfxDocument)doc),
