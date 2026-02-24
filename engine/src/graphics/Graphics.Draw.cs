@@ -11,8 +11,6 @@ namespace NoZ;
 
 public static partial class Graphics
 {
-    private static Shader GetSpriteShader(Sprite sprite) =>
-        sprite.IsSDF && _spriteSdfShader != null ? _spriteSdfShader : _spriteShader!;
 
     public static void Draw(in Rect rect, ushort order = 0, int bone = -1) =>
         Draw(rect.X, rect.Y, rect.Width, rect.Height, order: order, bone: bone);
@@ -138,7 +136,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(SpriteAtlas);
-            SetShader(GetSpriteShader(sprite));
+            SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
             var baseColor = CurrentState.Color;
@@ -148,7 +146,7 @@ public static partial class Graphics
                 ref readonly var mesh = ref sprite.Meshes[i];
 
                 // For SDF sprites, pass fill color as vertex color instead of setting graphics state
-                var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
+                var vertexColor = Color.White;
 
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
@@ -196,14 +194,14 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(SpriteAtlas);
-            SetShader(GetSpriteShader(sprite));
+            SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
             for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
+                var vertexColor = Color.White;
 
                 var uv = mesh.UV;
                 var meshBounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
@@ -234,14 +232,14 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(SpriteAtlas);
-            SetShader(GetSpriteShader(sprite));
+            SetShader(_spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
             for (int i = fi.MeshStart; i < fi.MeshStart + fi.MeshCount; i++)
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
+                var vertexColor = Color.White;
 
                 // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
@@ -287,7 +285,7 @@ public static partial class Graphics
         {
             ref readonly var mesh = ref sprite.Meshes[i];
 
-            var vertexColor = sprite.IsSDF ? mesh.FillColor : Color.White;
+            var vertexColor = Color.White;
 
             var uv = mesh.UV;
             var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);

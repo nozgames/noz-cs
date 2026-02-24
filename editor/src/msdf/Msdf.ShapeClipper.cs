@@ -1,7 +1,8 @@
 //
-//  Clipper2 boolean operations on MSDF shapes.
+//  Clipper2 boolean operations on MSDF shapes, plus sprite path conversion.
 //
 
+using System;
 using Clipper2Lib;
 
 namespace NoZ.Editor.Msdf;
@@ -139,5 +140,55 @@ internal static class ShapeClipper
             if (contour.Winding() < 0)
                 contour.Reverse();
         }
+    }
+
+    // Append a single sprite path as a contour to an existing shape.
+    // Raw conversion only — no Clipper2 union, no normalize, no edge coloring.
+    // Winding is normalized to positive for NonZero fill rule.
+    internal static void AppendContour(
+        Shape shape,
+        NoZ.Editor.Shape spriteShape,
+        ushort pathIndex)
+    {
+        if (pathIndex >= spriteShape.PathCount) return;
+        ref readonly var path = ref spriteShape.GetPath(pathIndex);
+        if (path.AnchorCount < 3) return;
+
+        var contour = shape.AddContour();
+
+        for (ushort a = 0; a < path.AnchorCount; a++)
+        {
+            var a0Idx = (ushort)(path.AnchorStart + a);
+            var a1Idx = (ushort)(path.AnchorStart + ((a + 1) % path.AnchorCount));
+
+            ref readonly var anchor0 = ref spriteShape.GetAnchor(a0Idx);
+            ref readonly var anchor1 = ref spriteShape.GetAnchor(a1Idx);
+
+            var p0 = new Vector2Double(anchor0.Position.X, anchor0.Position.Y);
+            var p1 = new Vector2Double(anchor1.Position.X, anchor1.Position.Y);
+
+            if (Math.Abs(anchor0.Curve) < 0.0001)
+            {
+                contour.AddEdge(new LinearSegment(p0, p1));
+            }
+            else
+            {
+                var mid = new Vector2Double(
+                    0.5 * (p0.x + p1.x),
+                    0.5 * (p0.y + p1.y));
+                var dir = p1 - p0;
+                double perpMag = MsdfMath.Length(dir);
+                Vector2Double perp;
+                if (perpMag > 1e-10)
+                    perp = new Vector2Double(-dir.y / perpMag, dir.x / perpMag);
+                else
+                    perp = new Vector2Double(0, 1);
+                var cp = mid + perp * anchor0.Curve;
+                contour.AddEdge(new QuadraticSegment(p0, cp, p1));
+            }
+        }
+
+        if (contour.Winding() < 0)
+            contour.Reverse();
     }
 }

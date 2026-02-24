@@ -1,8 +1,8 @@
 //
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
-//  Mesh-based SDF preview: tessellates vector shapes into flat-colored
-//  triangle meshes for real-time editing feedback (no MSDF generation).
+//  Mesh-based preview: tessellates vector shapes into flat-colored
+//  triangle meshes for real-time editing feedback.
 //
 
 using System.Runtime.InteropServices;
@@ -39,7 +39,6 @@ public partial class SpriteEditor
         _meshSlots.Clear();
 
         var slots = Document.GetMeshSlots(_currentFrame);
-        var slotBounds = Document.GetMeshSlotBounds(_currentFrame);
         if (slots.Count == 0) return;
 
         var vertexOffset = 0;
@@ -50,87 +49,89 @@ public partial class SpriteEditor
             var slot = slots[i];
             if (slot.PathIndices.Count == 0) continue;
 
-            // Build the clean shape (Clipper2 union, all-linear contours)
-            // Contour points are in anchor-position space (world units).
-            var msdfShape = MsdfSprite.BuildShape(
-                shape,
-                CollectionsMarshal.AsSpan(slot.PathIndices));
-            if (msdfShape == null) continue;
-
-            // Internal stroke: the fill tessellation below draws the full shape with stroke color.
-            // We then overlay a contracted fill on top. The stroke band is the ring between them.
-            // For non-stroked slots, fillColor is used directly.
-            // When fill is transparent (A==0), we only draw the stroke ring (no fill overlay).
-            var hasStroke = slot.HasStroke;
-            var fillColor = shape.GetPath(slot.PathIndices[0]).FillColor;
-            var hasFill = fillColor.A > 0;
-
-            if (hasStroke)
+            // Collect subtract paths for this slot
+            PathsD? subtractPaths = null;
+            foreach (var pi in slot.PathIndices)
             {
-                var strokeColor = slot.StrokeColor.ToColor();
-                var halfStroke = slot.StrokeWidth * Shape.StrokeScale;
-                var originalPaths = ShapeClipper.ShapeToPaths(msdfShape, 8);
-                PathsD? contractedPaths = null;
-                if (originalPaths.Count > 0)
+                ref readonly var path = ref shape.GetPath(pi);
+                if (!path.IsSubtract || path.AnchorCount < 3) continue;
+
+                var subShape = new Msdf.Shape();
+                ShapeClipper.AppendContour(subShape, shape, pi);
+                var subContours = ShapeClipper.ShapeToPaths(subShape, 8);
+                if (subContours.Count > 0)
                 {
-                    // Contract inward by half-stroke width (precision 6 matches ShapeClipper)
-                    contractedPaths = Clipper.InflatePaths(originalPaths, -halfStroke,
-                        JoinType.Round, EndType.Polygon, precision: 6);
+                    subtractPaths ??= new PathsD();
+                    subtractPaths.AddRange(subContours);
+                }
+            }
+
+            // Tessellate each non-subtract path individually (preserves per-path colors)
+            foreach (var pi in slot.PathIndices)
+            {
+                ref readonly var path = ref shape.GetPath(pi);
+                if (path.IsSubtract || path.AnchorCount < 3) continue;
+
+                var pathShape = new Msdf.Shape();
+                ShapeClipper.AppendContour(pathShape, shape, pi);
+                pathShape = ShapeClipper.Union(pathShape);
+                var contours = ShapeClipper.ShapeToPaths(pathShape, 8);
+                if (contours.Count == 0) continue;
+
+                // Apply subtract paths
+                if (subtractPaths is { Count: > 0 })
+                {
+                    contours = Clipper.BooleanOp(ClipType.Difference,
+                        contours, subtractPaths, FillRule.NonZero, precision: 6);
+                    if (contours.Count == 0) continue;
                 }
 
-                if (hasFill)
+                var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
+                var fillColor = path.FillColor;
+                var hasFill = fillColor.A > 0;
+
+                if (hasStroke)
                 {
-                    // Tessellate full shape as stroke background, then overlay contracted fill
-                    if (!TessellatePaths(msdfShape, ref vertexOffset, ref indexOffset, strokeColor))
-                        continue;
-                    if (contractedPaths is { Count: > 0 })
-                        TessellateClipper(contractedPaths, ref vertexOffset, ref indexOffset, fillColor.ToColor());
-                }
-                else
-                {
-                    // Stroke only — tessellate the ring (full shape minus contracted interior)
-                    if (contractedPaths is { Count: > 0 })
+                    var strokeColor = path.StrokeColor.ToColor();
+                    var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                    PathsD? contractedPaths = null;
+                    if (contours.Count > 0)
                     {
-                        var strokeRing = Clipper.BooleanOp(ClipType.Difference,
-                            originalPaths, contractedPaths, FillRule.NonZero, precision: 6);
-                        if (strokeRing.Count > 0)
-                            TessellateClipper(strokeRing, ref vertexOffset, ref indexOffset, strokeColor);
+                        contractedPaths = Clipper.InflatePaths(contours, -halfStroke,
+                            JoinType.Round, EndType.Polygon, precision: 6);
+                    }
+
+                    if (hasFill)
+                    {
+                        // Tessellate full shape as stroke background, then overlay contracted fill
+                        TessellateClipper(contours, ref vertexOffset, ref indexOffset, strokeColor);
+                        if (contractedPaths is { Count: > 0 })
+                            TessellateClipper(contractedPaths, ref vertexOffset, ref indexOffset, fillColor.ToColor());
                     }
                     else
                     {
-                        // Contracted paths collapsed — stroke fills the entire shape
-                        TessellatePaths(msdfShape, ref vertexOffset, ref indexOffset, strokeColor);
+                        // Stroke only — tessellate the ring
+                        if (contractedPaths is { Count: > 0 })
+                        {
+                            var strokeRing = Clipper.BooleanOp(ClipType.Difference,
+                                contours, contractedPaths, FillRule.NonZero, precision: 6);
+                            if (strokeRing.Count > 0)
+                                TessellateClipper(strokeRing, ref vertexOffset, ref indexOffset, strokeColor);
+                        }
+                        else
+                        {
+                            TessellateClipper(contours, ref vertexOffset, ref indexOffset, strokeColor);
+                        }
                     }
                 }
-            }
-            else if (hasFill)
-            {
-                TessellatePaths(msdfShape, ref vertexOffset, ref indexOffset, fillColor.ToColor());
+                else if (hasFill)
+                {
+                    TessellateClipper(contours, ref vertexOffset, ref indexOffset, fillColor.ToColor());
+                }
             }
         }
     }
 
-    /// Tessellate an MSDF shape (contours with edges) into the shared mesh buffers.
-    private bool TessellatePaths(Msdf.Shape msdfShape, ref int vertexOffset, ref int indexOffset, Color color)
-    {
-        var tess = new Tess();
-        foreach (var contour in msdfShape.contours)
-        {
-            if (contour.edges.Count < 3) continue;
-            var verts = new ContourVertex[contour.edges.Count];
-            for (int e = 0; e < contour.edges.Count; e++)
-            {
-                var p = contour.edges[e].Point(0);
-                verts[e].Position = new Vec3((float)p.x, (float)p.y, 0);
-            }
-            tess.AddContour(verts);
-        }
-
-        tess.Tessellate(WindingRule.NonZero, LibTessDotNet.ElementType.Polygons, 3);
-        return EmitTessellation(tess, ref vertexOffset, ref indexOffset, color);
-    }
-
-    /// Tessellate Clipper2 paths into the shared mesh buffers.
     private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color)
     {
         var tess = new Tess();
@@ -147,7 +148,6 @@ public partial class SpriteEditor
         return EmitTessellation(tess, ref vertexOffset, ref indexOffset, color);
     }
 
-    /// Copy tessellation results into shared vertex/index buffers and add a MeshSlotData.
     private bool EmitTessellation(Tess tess, ref int vertexOffset, ref int indexOffset, Color color)
     {
         if (tess.ElementCount == 0) return false;

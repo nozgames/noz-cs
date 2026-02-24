@@ -1853,16 +1853,4 @@ public sealed unsafe partial class Shape : IDisposable
         return new RectInt(xMin, yMin, xMax - xMin, yMax - yMin);
     }
 
-    /// <summary>
-    /// Rasterize paths as a multi-channel signed distance field (MSDF).
-    /// </summary>
-    public void RasterizeMSDF(
-        PixelData<Color32> target,
-        RectInt targetRect,
-        Vector2Int sourceOffset,
-        ReadOnlySpan<ushort> pathIndices,
-        float range = 1.5f)
-    {
-        Msdf.MsdfSprite.RasterizeMSDF(this, target, targetRect, sourceOffset, pathIndices, range);
-    }
 }

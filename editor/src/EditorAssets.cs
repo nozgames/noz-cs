@@ -23,8 +23,6 @@ public static class EditorAssets
         public const string Composite = "composite";
         public const string EditorPalette = "editor_palette";
         public const string EditorSprites000 = "editor_sprites000";
-        public const string IconAntialiasOff = "icon_antialias_off";
-        public const string IconAntialiasOn = "icon_antialias_on";
         public const string IconBone = "icon_bone";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
@@ -62,10 +60,8 @@ public static class EditorAssets
         public const string IconXray = "icon_xray";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
-        public const string SpriteSdf = "sprite_sdf";
         public const string Text = "text";
         public const string Texture = "texture";
-        public const string TextureSdf = "texture_sdf";
         public const string Ui = "ui";
     }
 
@@ -103,20 +99,16 @@ public static class EditorAssets
     {
         public static Shader Composite { get; private set; } = null!;
         public static Shader Sprite { get; private set; } = null!;
-        public static Shader SpriteSdf { get; private set; } = null!;
         public static Shader Text { get; private set; } = null!;
         public static Shader Texture { get; private set; } = null!;
-        public static Shader TextureSdf { get; private set; } = null!;
         public static Shader Ui { get; private set; } = null!;
 
         public static void Load()
         {
             Composite = (Shader)Asset.Load(AssetType.Shader, Names.Composite)!;
             Sprite = (Shader)Asset.Load(AssetType.Shader, Names.Sprite)!;
-            SpriteSdf = (Shader)Asset.Load(AssetType.Shader, Names.SpriteSdf)!;
             Text = (Shader)Asset.Load(AssetType.Shader, Names.Text)!;
             Texture = (Shader)Asset.Load(AssetType.Shader, Names.Texture)!;
-            TextureSdf = (Shader)Asset.Load(AssetType.Shader, Names.TextureSdf)!;
             Ui = (Shader)Asset.Load(AssetType.Shader, Names.Ui)!;
         }
 
@@ -124,10 +116,8 @@ public static class EditorAssets
         {
             Composite?.Dispose();
             Sprite?.Dispose();
-            SpriteSdf?.Dispose();
             Text?.Dispose();
             Texture?.Dispose();
-            TextureSdf?.Dispose();
             Ui?.Dispose();
         }
     }
@@ -144,8 +134,6 @@ public static class EditorAssets
         public static Sprite AssetIconSound { get; private set; } = null!;
         public static Sprite AssetIconSprite { get; private set; } = null!;
         public static Sprite AssetIconVfx { get; private set; } = null!;
-        public static Sprite IconAntialiasOff { get; private set; } = null!;
-        public static Sprite IconAntialiasOn { get; private set; } = null!;
         public static Sprite IconBone { get; private set; } = null!;
         public static Sprite IconCheck { get; private set; } = null!;
         public static Sprite IconCircle { get; private set; } = null!;
@@ -194,8 +182,6 @@ public static class EditorAssets
             AssetIconSound = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconSound)!;
             AssetIconSprite = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconSprite)!;
             AssetIconVfx = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconVfx)!;
-            IconAntialiasOff = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAntialiasOff)!;
-            IconAntialiasOn = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAntialiasOn)!;
             IconBone = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone)!;
             IconCheck = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCheck)!;
             IconCircle = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCircle)!;
@@ -245,8 +231,6 @@ public static class EditorAssets
             AssetIconSound?.Dispose();
             AssetIconSprite?.Dispose();
             AssetIconVfx?.Dispose();
-            IconAntialiasOff?.Dispose();
-            IconAntialiasOn?.Dispose();
             IconBone?.Dispose();
             IconCheck?.Dispose();
             IconCircle?.Dispose();
@@ -297,26 +281,6 @@ public static class EditorAssets
         public static void Unload()
         {
             EditorPalette?.Dispose();
-        }
-    }
-
-    public static class Palettes
-    {
-        public static class Default
-        {
-            public static readonly Color Color0 = new(255, 255, 255, 255);
-            public static readonly Color Color1 = new(0, 0, 0, 255);
-            public static readonly Color Color2 = new(15, 14, 17, 255);
-            public static readonly Color Color3 = new(45, 44, 50, 255);
-            public static readonly Color Color4 = new(64, 64, 73, 255);
-            public static readonly Color Color5 = new(82, 84, 91, 255);
-            public static readonly Color Color6 = new(108, 113, 120, 255);
-            public static readonly Color Color7 = new(125, 131, 136, 255);
-            public static readonly Color Color8 = new(169, 178, 181, 255);
-            public static readonly Color Color9 = new(213, 213, 213, 255);
-            public static readonly Color Color10 = new(237, 234, 225, 255);
-            public static readonly Color Color11 = new(66, 165, 245, 255);
-            public static readonly Color Color12 = new(245, 72, 66, 255);
         }
     }
 
