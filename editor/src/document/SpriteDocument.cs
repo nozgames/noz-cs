@@ -1095,6 +1095,10 @@ public class SpriteDocument : Document, ISpriteSource
     public override void OnUndoRedo()
     {
         UpdateBounds();
+
+        if (!IsEditing)
+            AtlasManager.UpdateSource(this);
+
         base.OnUndoRedo();
     }
 
