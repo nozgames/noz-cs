@@ -82,7 +82,7 @@ public class SpriteDocument : Document, ISpriteSource
     public byte CurrentStrokeWidth = 1;
     public byte CurrentLayer = 0;
     public StringId CurrentBone;
-    public bool CurrentSubtract;
+    public PathOperation CurrentOperation;
 
     public ref readonly BitMask256 Layers => ref _layers;
 
@@ -301,7 +301,7 @@ public class SpriteDocument : Document, ISpriteSource
         var fillColor = Color32.White;
         var strokeColor = new Color32(0, 0, 0, 0);
         var strokeWidth = 1;
-        var subtract = false;
+        var operation = PathOperation.Normal;
         byte layer = 0;
         var bone = StringId.None;
 
@@ -338,7 +338,13 @@ public class SpriteDocument : Document, ISpriteSource
             }
             else if (tk.ExpectIdentifier("subtract"))
             {
-                subtract = tk.ExpectBool();
+                if (tk.ExpectBool())
+                    operation = PathOperation.Subtract;
+            }
+            else if (tk.ExpectIdentifier("clip"))
+            {
+                if (tk.ExpectBool())
+                    operation = PathOperation.Clip;
             }
             else if (tk.ExpectIdentifier("layer"))
                 layer = EditorApplication.Config.TryGetSpriteLayer(tk.ExpectQuotedString(), out var sg)
@@ -358,8 +364,8 @@ public class SpriteDocument : Document, ISpriteSource
 
         f.Shape.SetPathFillColor(pathIndex, fillColor);
         f.Shape.SetPathStroke(pathIndex, strokeColor, (byte)strokeWidth);
-        if (subtract)
-            f.Shape.SetPathSubtract(pathIndex, true);
+        if (operation != PathOperation.Normal)
+            f.Shape.SetPathOperation(pathIndex, operation);
         f.Shape.SetPathLayer(pathIndex, layer);
         f.Shape.SetPathBone(pathIndex, bone);
     }
@@ -508,6 +514,8 @@ public class SpriteDocument : Document, ISpriteSource
             writer.WriteLine("path");
             if (path.IsSubtract)
                 writer.WriteLine("subtract true");
+            if (path.IsClip)
+                writer.WriteLine("clip true");
             writer.WriteLine($"fill {FormatColor(path.FillColor)}");
 
             if (path.StrokeColor.A > 0)
@@ -775,8 +783,8 @@ public class SpriteDocument : Document, ISpriteSource
         Vector2Int sourceOffset,
         int dpi)
     {
-        // Collect subtract paths — they apply to all paths in the slot
-        Clipper2Lib.PathsD? subtractPaths = null;
+        // Collect subtract paths with their indices — each only affects paths below it
+        List<(ushort PathIndex, Clipper2Lib.PathsD Contours)>? subtractEntries = null;
         foreach (var pi in slot.PathIndices)
         {
             ref readonly var path = ref shape.GetPath(pi);
@@ -787,12 +795,15 @@ public class SpriteDocument : Document, ISpriteSource
             var subContours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
             if (subContours.Count > 0)
             {
-                subtractPaths ??= new Clipper2Lib.PathsD();
-                subtractPaths.AddRange(subContours);
+                subtractEntries ??= new();
+                subtractEntries.Add((pi, subContours));
             }
         }
 
         // Rasterize each non-subtract path: stroke first, then fill on top
+        // Track accumulated geometry for clip operations
+        Clipper2Lib.PathsD? accumulatedPaths = null;
+
         foreach (var pi in slot.PathIndices)
         {
             ref readonly var path = ref shape.GetPath(pi);
@@ -805,12 +816,52 @@ public class SpriteDocument : Document, ISpriteSource
             var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
             if (contours.Count == 0) continue;
 
-            // Apply subtract paths
-            if (subtractPaths is { Count: > 0 })
+            if (path.IsClip)
             {
-                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
-                    contours, subtractPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                // Clip: intersect with accumulated geometry below
+                if (accumulatedPaths is not { Count: > 0 }) continue;
+                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Intersection,
+                    contours, accumulatedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
                 if (contours.Count == 0) continue;
+            }
+            else
+            {
+                // Normal path: add fill area to accumulated geometry for future clips
+                // Use contracted contours (excluding stroke) so clip paths don't cover strokes
+                var accContours = contours;
+                if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
+                {
+                    var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                    var contracted = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
+                        Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
+                    if (contracted.Count > 0)
+                        accContours = contracted;
+                }
+
+                if (accumulatedPaths == null)
+                    accumulatedPaths = new Clipper2Lib.PathsD(accContours);
+                else
+                    accumulatedPaths = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Union,
+                        accumulatedPaths, accContours, Clipper2Lib.FillRule.NonZero, precision: 6);
+            }
+
+            // Apply subtract paths that are above this path (higher index = on top)
+            if (subtractEntries != null)
+            {
+                Clipper2Lib.PathsD? subtractPaths = null;
+                foreach (var (subIdx, subContours) in subtractEntries)
+                {
+                    if (subIdx <= pi) continue;
+                    subtractPaths ??= new Clipper2Lib.PathsD();
+                    subtractPaths.AddRange(subContours);
+                }
+
+                if (subtractPaths is { Count: > 0 })
+                {
+                    contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                        contours, subtractPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                    if (contours.Count == 0) continue;
+                }
             }
 
             var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;

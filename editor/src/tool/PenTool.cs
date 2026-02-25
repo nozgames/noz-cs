@@ -19,7 +19,7 @@ public class PenTool : Tool
     private readonly SpriteEditor _editor;
     private readonly Shape _shape;
     private readonly Color32 _fillColor;
-    private readonly bool _isSubtract;
+    private readonly PathOperation _operation;
     private readonly PenPoint[] _points = new PenPoint[MaxPoints];
     private int _pointCount;
 
@@ -32,12 +32,12 @@ public class PenTool : Tool
     private bool _snappingToGrid;
     private Vector2 _gridSnapPosition;
 
-    public PenTool(SpriteEditor editor, Shape shape, Color32 fillColor, bool subtract = false)
+    public PenTool(SpriteEditor editor, Shape shape, Color32 fillColor, PathOperation operation = PathOperation.Normal)
     {
         _editor = editor;
         _shape = shape;
         _fillColor = fillColor;
-        _isSubtract = subtract;
+        _operation = operation;
     }
 
     public override void Begin()
@@ -296,7 +296,7 @@ public class PenTool : Tool
             signedArea += (v1.X - v0.X) * (v1.Y + v0.Y);
         }
 
-        var pathIndex = _shape.AddPath(_fillColor, subtract: _isSubtract);
+        var pathIndex = _shape.AddPath(_fillColor, operation: _operation);
         if (pathIndex == ushort.MaxValue)
         {
             Finish();

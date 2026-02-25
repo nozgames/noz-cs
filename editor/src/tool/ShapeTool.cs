@@ -17,13 +17,13 @@ public class ShapeTool(
     Shape shape,
     Color32 fillColor,
     ShapeType shapeType,
-    bool subtract = false) : Tool
+    PathOperation operation = PathOperation.Normal) : Tool
 {
     private readonly SpriteEditor _editor = editor;
     private readonly Shape _shape = shape;
     private readonly Color32 _fillColor = fillColor;
     private readonly ShapeType _shapeType = shapeType;
-    private readonly bool _isSubtract = subtract;
+    private readonly PathOperation _operation = operation;
 
     private Vector2 _startLocal;
     private Vector2 _currentLocal;
@@ -174,7 +174,7 @@ public class ShapeTool(
         _shape.ClearAnchorSelection();
 
         var firstAnchor = _shape.AnchorCount;
-        var pathIndex = _shape.AddPath(_fillColor, subtract: _isSubtract);
+        var pathIndex = _shape.AddPath(_fillColor, operation: _operation);
         if (pathIndex == ushort.MaxValue)
         {
             Finish();

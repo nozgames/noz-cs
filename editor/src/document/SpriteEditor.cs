@@ -210,8 +210,14 @@ public partial class SpriteEditor : DocumentEditor
 
         StrokeWidthButtonUI();
 
-        if (EditorUI.Button(ElementId.SubtractButton, EditorAssets.Sprites.IconSubtract, selected: Document.CurrentSubtract, toolbar: true))
-            ToggleSubtract();
+        {
+            var opIcon = Document.CurrentOperation == PathOperation.Clip
+                ? EditorAssets.Sprites.IconClip
+                : EditorAssets.Sprites.IconSubtract;
+            var opSelected = Document.CurrentOperation != PathOperation.Normal;
+            if (EditorUI.Button(ElementId.SubtractButton, opIcon, selected: opSelected, toolbar: true))
+                CyclePathOperation();
+        }
 
         EditorUI.ToolbarSpacer();
 
@@ -347,7 +353,7 @@ public partial class SpriteEditor : DocumentEditor
             Document.CurrentLayer = path.Layer;
             Document.CurrentBone = path.Bone;
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
-            Document.CurrentSubtract = path.IsSubtract;
+            Document.CurrentOperation = path.Operation;
             return;
         }
     }
@@ -757,9 +763,15 @@ public partial class SpriteEditor : DocumentEditor
         MarkRasterDirty();
     }
 
-    private void ToggleSubtract()
+    private void CyclePathOperation()
     {
-        Document.CurrentSubtract = !Document.CurrentSubtract;
+        // Cycle: Normal → Subtract → Clip → Normal
+        Document.CurrentOperation = Document.CurrentOperation switch
+        {
+            PathOperation.Normal => PathOperation.Subtract,
+            PathOperation.Subtract => PathOperation.Clip,
+            _ => PathOperation.Normal,
+        };
 
         var shape = Document.GetFrame(_currentFrame).Shape;
         var anySelected = false;
@@ -772,7 +784,7 @@ public partial class SpriteEditor : DocumentEditor
                 Undo.Record(Document);
                 anySelected = true;
             }
-            shape.SetPathSubtract(p, Document.CurrentSubtract);
+            shape.SetPathOperation(p, Document.CurrentOperation);
         }
 
         if (anySelected)
@@ -874,7 +886,7 @@ public partial class SpriteEditor : DocumentEditor
                 strokeColor: srcPath.StrokeColor,
                 strokeWidth: srcPath.StrokeWidth,
                 layer: srcPath.Layer,
-                subtract: srcPath.IsSubtract);
+                operation: srcPath.Operation);
             if (newPathIndex == ushort.MaxValue)
                 break;
 
@@ -1472,7 +1484,7 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginPenTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor, Document.CurrentSubtract));
+        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor, Document.CurrentOperation));
     }
 
     private void BeginKnifeTool()
@@ -1489,13 +1501,13 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginRectangleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentSubtract));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentOperation));
     }
 
     private void BeginCircleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle, Document.CurrentSubtract));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle, Document.CurrentOperation));
     }
 
     private void InsertAnchorAtHover()

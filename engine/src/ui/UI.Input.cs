@@ -396,7 +396,8 @@ public static partial class UI
 
             // Scene elements pass input through to the application; when the mouse
             // is over a Scene, prevent parent elements from consuming input too.
-            if (mouseOver && e.Type == ElementType.Scene)
+            // Only mark as over-scene if no UI element on top already claimed the click.
+            if (mouseOver && e.Type == ElementType.Scene && _mouseLeftElementId == 0 && _mouseRightElementId == 0 && _mouseDoubleClickElementId == 0)
                 _mouseOverScene = true;
 
             var consumesInput = e.Type != ElementType.Scene && !_mouseOverScene;

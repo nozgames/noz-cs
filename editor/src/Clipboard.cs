@@ -49,7 +49,7 @@ public sealed class PathClipboardData
         public Color32 FillColor;
         public Color32 StrokeColor;
         public byte StrokeWidth;
-        public bool IsSubtract;
+        public PathOperation Operation;
         public Vector2[] Anchors;
         public float[] Curves;
     }
@@ -87,7 +87,7 @@ public sealed class PathClipboardData
                 FillColor = srcPath.FillColor,
                 StrokeColor = srcPath.StrokeColor,
                 StrokeWidth = srcPath.StrokeWidth,
-                IsSubtract = srcPath.IsSubtract,
+                Operation = srcPath.Operation,
                 Anchors = [.. selectedAnchors],
                 Curves = [.. selectedCurves]
             });
@@ -116,7 +116,7 @@ public sealed class PathClipboardData
                 fillColor: pathData.FillColor,
                 strokeColor: pathData.StrokeColor,
                 strokeWidth: pathData.StrokeWidth,
-                subtract: pathData.IsSubtract);
+                operation: pathData.Operation);
             if (newPathIndex == ushort.MaxValue)
                 break;
 
