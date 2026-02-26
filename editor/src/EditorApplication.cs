@@ -50,6 +50,7 @@ public static partial class EditorApplication
         string? initProjectName = null;
         var clean = false;
         string? projectArg = null;
+        string? editorPathArg = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -63,6 +64,8 @@ public static partial class EditorApplication
                 importOnly = true;
             else if (args[i] == "--project" && i + 1 < args.Length)
                 projectArg = args[++i];
+            else if (args[i] == "--editor-path" && i + 1 < args.Length)
+                editorPathArg = args[++i];
             else if (args[i] == "--clean")
                 clean = true;
         }
@@ -72,16 +75,24 @@ public static partial class EditorApplication
         if ((importOnly || initProject) && OperatingSystem.IsWindows())
             AttachConsole(-1);
 
-        // Find editor path by walking up from app base directory
-        // Look for directory with BOTH library/ AND NoZ.Editor.csproj
-        var editorPath = AppContext.BaseDirectory;
-        while (editorPath != null)
+        // Resolve editor path: use --editor-path if provided, otherwise walk up from app base directory
+        string? editorPath = null;
+        if (editorPathArg != null)
         {
-            if (Directory.Exists(Path.Combine(editorPath, "library")) &&
-                File.Exists(Path.Combine(editorPath, "NoZ.Editor.csproj")))
-                break;
+            editorPath = Path.GetFullPath(editorPathArg);
+        }
+        else
+        {
+            // Look for directory with BOTH library/ AND NoZ.Editor.csproj
+            editorPath = AppContext.BaseDirectory;
+            while (editorPath != null)
+            {
+                if (Directory.Exists(Path.Combine(editorPath, "library")) &&
+                    File.Exists(Path.Combine(editorPath, "NoZ.Editor.csproj")))
+                    break;
 
-            editorPath = Path.GetDirectoryName(editorPath);
+                editorPath = Path.GetDirectoryName(editorPath);
+            }
         }
 
         if (editorPath == null)
