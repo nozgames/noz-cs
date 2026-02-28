@@ -76,6 +76,7 @@ public class SpriteDocument : Document, ISpriteSource
     public ushort FrameCount;
     public float Depth;
     public RectInt RasterBounds { get; private set; }
+    public EdgeInsets Edges { get; set; } = EdgeInsets.Zero;
 
     public Color32 CurrentFillColor = Color32.White;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
@@ -257,6 +258,28 @@ public class SpriteDocument : Document, ISpriteSource
         Loaded = true;
     }
 
+    public override void Reload()
+    {
+        // Clear existing frame data
+        for (var i = 0; i < FrameCount; i++)
+            Frames[i].Shape.Clear();
+
+        FrameCount = 0;
+        Edges = EdgeInsets.Zero;
+        Binding.Clear();
+
+        // Re-read and re-parse the .sprite file
+        var contents = File.ReadAllText(Path);
+        var tk = new Tokenizer(contents);
+        Load(ref tk);
+
+        // Resolve skeleton binding
+        Binding.Resolve();
+
+        // Update bounds and mark sprite dirty
+        UpdateBounds();
+    }
+
     private void Load(ref Tokenizer tk)
     {
         SpriteFrame? f = null;
@@ -278,6 +301,11 @@ public class SpriteDocument : Document, ISpriteSource
                 f = Frames[FrameCount++];
                 if (tk.ExpectIdentifier("hold"))
                     f.Hold = tk.ExpectInt();
+            }
+            else if (tk.ExpectIdentifier("edges"))
+            {
+                if (tk.ExpectVec4(out var edgesVec))
+                    Edges = new EdgeInsets(edgesVec.X, edgesVec.Y, edgesVec.Z, edgesVec.W);
             }
             else if (tk.ExpectIdentifier("skeleton"))
             {
@@ -481,6 +509,9 @@ public class SpriteDocument : Document, ISpriteSource
     // :save
     public override void Save(StreamWriter writer)
     {
+        if (!Edges.IsZero)
+            writer.WriteLine($"edges ({Edges.T},{Edges.L},{Edges.B},{Edges.R})");
+
         if (Binding.IsBound)
             writer.WriteLine($"skeleton \"{Binding.SkeletonName}\"");
 
@@ -567,7 +598,7 @@ public class SpriteDocument : Document, ISpriteSource
 
     public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f, int frame = 0)
     {
-        if (Atlas == null) return;
+        if (Atlas?.Texture == null) return;
 
         var sprite = Sprite;
         if (sprite == null) return;
@@ -606,7 +637,7 @@ public class SpriteDocument : Document, ISpriteSource
 
     public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform, int frame = 0, Color? tint = null)
     {
-        if (Atlas == null) return;
+        if (Atlas?.Texture == null) return;
 
         var sprite = Sprite;
         if (sprite == null) return;
@@ -660,6 +691,7 @@ public class SpriteDocument : Document, ISpriteSource
         CurrentLayer = src.CurrentLayer;
         CurrentBone = src.CurrentBone;
 
+        Edges = src.Edges;
         Binding.CopyFrom(src.Binding);
 
         for (var i = 0; i < src.FrameCount; i++)
@@ -1007,7 +1039,9 @@ public class SpriteDocument : Document, ISpriteSource
             boneIndex: -1,
             meshes: allMeshes.ToArray(),
             frameTable: frameTable,
-            frameRate: 12.0f);
+            frameRate: 12.0f,
+            edges: ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero,
+            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero));
     }
 
     internal void MarkSpriteDirty()
@@ -1039,6 +1073,14 @@ public class SpriteDocument : Document, ISpriteSource
         writer.Write((short)-1);  // Legacy bone index field
         writer.Write(totalMeshes);
         writer.Write(12.0f);  // Frame rate
+
+        // 9-slice edges (version 10) — only active with a constrained size
+        var activeEdges = ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero;
+        writer.Write((short)activeEdges.T);
+        writer.Write((short)activeEdges.L);
+        writer.Write((short)activeEdges.B);
+        writer.Write((short)activeEdges.R);
+        writer.Write(Sprite.CalculateSliceMask(RasterBounds, activeEdges));
 
         int uvIndex = 0;
         var meshStarts = new ushort[FrameCount];

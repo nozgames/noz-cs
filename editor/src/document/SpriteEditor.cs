@@ -172,6 +172,9 @@ public partial class SpriteEditor : DocumentEditor
 
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
+
+        if (!Document.Edges.IsZero && Document.ConstrainedSize.HasValue)
+            DrawEdges();
     }
 
     public override void LateUpdate()
@@ -1629,6 +1632,55 @@ public partial class SpriteEditor : DocumentEditor
             ref readonly var anchor = ref shape.GetAnchor(i);
             if (!anchor.IsSelected) continue;
             DrawSelectedAnchor(anchor.Position);
+        }
+    }
+
+    private void DrawEdges()
+    {
+        var bounds = Document.Bounds;
+        var edges = Document.Edges;
+        var ppu = 1.0f / EditorApplication.Config.PixelsPerUnit;
+
+        var edgeL = edges.L * ppu;
+        var edgeR = edges.R * ppu;
+        var edgeT = edges.T * ppu;
+        var edgeB = edges.B * ppu;
+
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
+        {
+            Graphics.SetTransform(Document.Transform);
+            Graphics.SetSortGroup(6);
+            Gizmos.SetColor(new Color(0.2f, 0.9f, 0.2f, 0.8f));
+
+            var lineWidth = EditorStyle.Workspace.DocumentBoundsLineWidth;
+
+            // Top edge
+            if (edgeT > 0)
+            {
+                var y = bounds.Top + edgeT;
+                Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
+            }
+
+            // Bottom edge
+            if (edgeB > 0)
+            {
+                var y = bounds.Bottom - edgeB;
+                Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
+            }
+
+            // Left edge
+            if (edgeL > 0)
+            {
+                var x = bounds.Left + edgeL;
+                Gizmos.DrawLine(new Vector2(x, bounds.Top), new Vector2(x, bounds.Bottom), lineWidth);
+            }
+
+            // Right edge
+            if (edgeR > 0)
+            {
+                var x = bounds.Right - edgeR;
+                Gizmos.DrawLine(new Vector2(x, bounds.Top), new Vector2(x, bounds.Bottom), lineWidth);
+            }
         }
     }
 

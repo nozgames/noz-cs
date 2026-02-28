@@ -321,13 +321,23 @@ public static partial class UI
 
         if (e.Asset is Sprite sprite)
         {
-            offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-            var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld;
             using var _ = Graphics.PushState();
-            Graphics.SetTransform(transform);
             Graphics.SetColor(ApplyOpacity(img.Color));
             Graphics.SetTextureFilter(sprite.TextureFilter);
-            Graphics.DrawFlat(sprite, order: img.Order, bone: -1);
+
+            if (sprite.IsSliced)
+            {
+                var transform = e.LocalToWorld;
+                Graphics.SetTransform(transform);
+                Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y), order: img.Order);
+            }
+            else
+            {
+                offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * e.LocalToWorld;
+                Graphics.SetTransform(transform);
+                Graphics.DrawFlat(sprite, order: img.Order, bone: -1);
+            }
         }
         else if (e.Asset is Texture texture)
         {
