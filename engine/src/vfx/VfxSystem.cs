@@ -11,7 +11,7 @@ public struct VfxHandle
     public uint Id;
     public uint Version;
 
-    public static readonly VfxHandle Invalid = new() { Id = uint.MaxValue, Version = uint.MaxValue };
+    public static readonly VfxHandle Invalid = default;
 }
 
 public static class VfxSystem
@@ -98,6 +98,10 @@ public static class VfxSystem
         _instances = new Instance[MaxInstances];
         _instanceValid = new bool[MaxInstances];
         _instanceCount = 0;
+
+        // Start versions at 1 so a default VfxHandle (all zeros) is always invalid
+        for (int i = 0; i < MaxInstances; i++)
+            _instances[i].Version = 1;
     }
 
     public static void Shutdown()
@@ -473,7 +477,7 @@ public static class VfxSystem
 
     private static int GetInstance(VfxHandle handle)
     {
-        if (handle.Id == VfxHandle.Invalid.Id && handle.Version == VfxHandle.Invalid.Version)
+        if (handle.Version == 0)
             return -1;
 
         if (handle.Id >= MaxInstances)

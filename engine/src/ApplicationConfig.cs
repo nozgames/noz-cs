@@ -9,6 +9,8 @@ namespace NoZ;
 
 public interface IApplication
 {
+    void Init() { }
+    void Shutdown() { }
     void Update();
     void FixedUpdate() { }
     void UpdateUI() { }

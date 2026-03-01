@@ -106,6 +106,8 @@ public static class Application
         // Set resize callback after all subsystems are initialized to avoid early resize events
         Platform.SetResizeCallback(RenderFrame);
 
+        _instance.Init();
+
         _running = true;
     }
 
@@ -183,6 +185,7 @@ public static class Application
 
     public static void Shutdown()
     {
+        _instance.Shutdown();
         _instance.SaveConfig();
         _instance.UnloadAssets();
 
