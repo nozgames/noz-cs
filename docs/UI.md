@@ -2,62 +2,66 @@
 
 Immediate-mode UI system. No retained widget objects — every element is drawn every frame, layout is computed automatically. All methods live on the static `UI` class in the `NoZ` namespace.
 
-## Screen Structure
+## Interaction (Hover & Press)
 
-Each screen is a `static partial class` with a nested `ElementId` class and a `Draw()` method.
+Containers with an element ID can be hovered and pressed. This is the primary way to build buttons and clickable elements.
 
 ```csharp
-public static partial class MyScreen
+using (UI.BeginContainer(ElementId.MyButton, style))
 {
-    [ElementId("Root")]
-    [ElementId("SubmitButton")]
-    [ElementId("NameInput")]
-    [ElementId("ItemBase", 100)]   // reserves 100 IDs for a dynamic list
-    private static partial class ElementId { }
-
-    private static readonly ContainerStyle CardStyle = new()
-    {
-        Width = 400,
-        Height = Size.Fit,
-        Align = Align.Center,
-        Color = new Color(30, 30, 35),
-        BorderRadius = BorderRadius.Circular(12),
-        Padding = new EdgeInsets(32, 32, 32, 32),
-    };
-
-    private static readonly LabelStyle TitleStyle = new()
-    {
-        FontSize = 24,
-        Color = Color.White,
-        Align = Align.Center,
-    };
-
-    public static void Draw()
-    {
-        using (UI.BeginContainer(ElementId.Root, new ContainerStyle { Align = Align.Center }))
-        {
-            using (UI.BeginColumn(CardStyle))
-            {
-                UI.Label("Hello", TitleStyle);
-            }
-        }
-    }
+    UI.Label("Click Me", labelStyle);
+    if (UI.WasPressed())
+        DoAction();
 }
 ```
 
-`[ElementId("Name")]` attributes generate `public const int` fields via source generator. `[ElementId("Base", 100)]` reserves a range — use `ElementId.ItemBase + i` in loops.
+**The no-arg overloads (`IsHovered()`, `WasPressed()`, `IsDown()`) reference the nearest ancestor element with an ID in the current hierarchy.** This is the most common usage — call them inside the container's `using` block.
+
+The overloads with an explicit ID (`IsHovered(id)`, `WasPressed(id)`) can be called anywhere:
+
+```csharp
+var hovered = UI.IsHovered(ElementId.MyButton);
+using (UI.BeginContainer(ElementId.MyButton, hovered ? hoverStyle : normalStyle))
+{
+    UI.Label("Click", labelStyle);
+}
+```
+
+Focus:
+```csharp
+UI.SetFocus(ElementId.Input);
+UI.ClearFocus();
+bool focused = UI.IsFocused(ElementId.Input);
+bool anyFocus = UI.HasFocus();
+```
+
+## ElementId
+
+`[ElementId("Name")]` attributes on a `partial class` generate `public const int` fields via source generator. These integer IDs are used for hover/press detection, scroll state, focus, and layout caching.
+
+```csharp
+[ElementId("Root")]
+[ElementId("SubmitButton")]
+[ElementId("ItemBase", 100)]   // reserves 100 consecutive IDs for dynamic lists
+private static partial class ElementId { }
+
+// Generated: ElementId.Root, ElementId.SubmitButton, ElementId.ItemBase
+// Dynamic indexing: ElementId.ItemBase + i
+```
+
+The `count` parameter reserves a range of IDs for use in loops.
 
 ## Layout Containers
 
 Three container types control child layout direction:
 
-| Method | Children layout |
-|--------|----------------|
-| `BeginContainer` / `EndContainer` | No layout direction — children overlay each other |
-| `BeginColumn` / `EndColumn` | Vertical (top to bottom) |
-| `BeginRow` / `EndRow` | Horizontal (left to right) |
+| Method | Description |
+|--------|-------------|
+| `BeginContainer` | Children overlay each other (no layout direction) |
+| `BeginColumn` | Children laid out top to bottom |
+| `BeginRow` | Children laid out left to right |
 
-All return disposable auto-structs for the `using()` pattern:
+All return disposable auto-structs for the `using()` pattern. Overloads: `()`, `(id)`, `(style)`, `(id, style)`.
 
 ```csharp
 using (UI.BeginRow(ElementId.MyRow, rowStyle))
@@ -65,8 +69,6 @@ using (UI.BeginRow(ElementId.MyRow, rowStyle))
     // children laid out left-to-right
 }
 ```
-
-Overloads: `()`, `(id)`, `(style)`, `(id, style)`.
 
 ## Sizing
 
@@ -77,32 +79,36 @@ new Size(200)         // fixed 200 pixels
 Size.Percent(0.5f)    // 50% of parent
 ```
 
-Set via `ContainerStyle`:
-```csharp
-Width = 240,          // fixed 240px
-Height = Size.Fit,    // shrink to content
-```
-
-Both `Width` and `Height` are `Size` — when omitted they default to `Size.Default`.
+Set via `ContainerStyle.Width` / `ContainerStyle.Height`. When omitted they default to `Size.Default`.
 
 ## Flex & Spacers
 
-`Flex` takes remaining space in a Row or Column (like CSS `flex-grow`):
+**Flex** takes remaining space proportionally in a Row or Column (like CSS `flex-grow`):
 
 ```csharp
 using (UI.BeginRow())
 {
     using (UI.BeginContainer(sidebarStyle)) { ... }  // fixed width
-    using (UI.BeginFlex()) { ... }                    // fills remaining
+    using (UI.BeginFlex()) { ... }                    // fills remaining space
 }
 ```
 
-`Spacer` inserts a fixed gap:
+`UI.Flex()` (without Begin) creates an empty flexible spacer with no children — useful for pushing elements apart:
+
+```csharp
+using (UI.BeginRow(rowStyle))
+{
+    UI.Label("Left", labelStyle);
+    UI.Flex();                          // pushes next element to the right
+    UI.Label("Right", labelStyle);
+}
+```
+
+**Spacer** inserts a fixed-size gap. It is always a fixed size, never flexible:
+
 ```csharp
 UI.Spacer(16);  // 16px gap
 ```
-
-`UI.Spacer(0)` in a Row pushes the next element to the far right (acts as a flexible spacer between siblings).
 
 ## Alignment
 
@@ -116,21 +122,33 @@ Align.Max       // right / bottom
 
 ```csharp
 Align = Align.Center,                            // both axes centered
-Align = new Align2(Align.Min, Align.Center),      // left-aligned, vertically centered
+Align = new Align2(Align.Min, Align.Center),      // left, vertically centered
 ```
 
-Container `Align` positions children within the container. Label `Align` positions text within the label bounds.
+**What Align does on each element type:**
+
+- **Container / Image**: Positions the element within its parent's bounds.
+- **Label**: Positions text within the parent's bounds (label rect fills its parent by default).
+
+In a **Row**, AlignX is ignored (X position is determined by row layout). In a **Column**, AlignY is ignored (Y position is determined by column layout). In a plain **Container** parent, both axes apply.
 
 ## Elements
 
-### Label
+### Label — single-line text
 
 ```csharp
 UI.Label("Hello World", style);
-UI.WrappedLabel(elementId, "Long text that wraps", style);  // needs ID for layout cache
 ```
 
-### TextBox (single-line input)
+### WrappedLabel — multi-line text with word wrapping
+
+Requires an ID for layout caching.
+
+```csharp
+UI.WrappedLabel(elementId, "Long text that wraps", style);
+```
+
+### TextBox — single-line text input
 
 ```csharp
 if (UI.TextBox(ElementId.EmailBox, inputStyle, "placeholder text"))
@@ -138,31 +156,30 @@ if (UI.TextBox(ElementId.EmailBox, inputStyle, "placeholder text"))
     // text changed this frame
 }
 
-// Read/write text
 var text = UI.GetTextBoxText(ElementId.EmailBox);
 UI.SetTextBoxText(ElementId.EmailBox, "new value");
 ```
 
-### TextArea (multi-line input)
+### TextArea — multi-line text input
 
 ```csharp
 if (UI.TextArea(ElementId.NotesArea, textAreaStyle, "placeholder"))
 {
-    // text changed
+    // text changed this frame
 }
 
 var text = UI.GetTextAreaText(ElementId.NotesArea);
 UI.SetTextAreaText(ElementId.NotesArea, "new value");
 ```
 
-### Image
+### Image — displays a sprite or texture
 
 ```csharp
 UI.Image(sprite, imageStyle);
 UI.Image(texture, imageStyle);
 ```
 
-### Scene (viewport)
+### Scene — renders world-space content inside UI layout
 
 ```csharp
 UI.Scene(ElementId.GameScene, camera, () =>
@@ -171,7 +188,7 @@ UI.Scene(ElementId.GameScene, camera, () =>
 }, new SceneStyle { Color = new Color(20, 20, 25) });
 ```
 
-### Empty Container (rectangle)
+### Container — empty rectangle (separator, dot, colored block)
 
 ```csharp
 UI.Container(new ContainerStyle
@@ -179,48 +196,13 @@ UI.Container(new ContainerStyle
     Width = 32,
     Height = 32,
     Color = new Color(70, 130, 230),
-    BorderRadius = BorderRadius.Circular(16),  // circle
+    BorderRadius = BorderRadius.Circular(16),
 });
-```
-
-## Interaction
-
-### Hover & Press
-
-```csharp
-var hovered = UI.IsHovered(ElementId.MyButton);
-using (UI.BeginContainer(ElementId.MyButton, hovered ? hoverStyle : normalStyle))
-{
-    UI.Label("Click Me", labelStyle);
-}
-
-if (UI.WasPressed(ElementId.MyButton))
-{
-    // handle click
-}
-```
-
-`IsHovered()` and `WasPressed()` also have no-arg overloads that check the most recently begun element.
-
-### Focus
-
-```csharp
-UI.SetFocus(ElementId.Input);
-UI.ClearFocus();
-bool focused = UI.IsFocused(ElementId.Input);
-bool anyFocus = UI.HasFocus();
-```
-
-### Scrolling
-
-```csharp
-float offset = UI.GetScrollOffset(ElementId.MyScroll);
-UI.SetScrollOffset(ElementId.MyScroll, 0);  // scroll to top
 ```
 
 ## Scrollable
 
-Wraps content in a vertically scrollable region. Typically inside a `Flex` so it gets a bounded height:
+Wraps content in a vertically scrollable region. **Must have a constrained height** — `Size.Fit` does not work because it grows to fit all content, leaving nothing to scroll. Any bounded height works: fixed size, percentage, or flex.
 
 ```csharp
 using (UI.BeginFlex())
@@ -238,163 +220,94 @@ using (UI.BeginFlex())
 }
 ```
 
+Scroll offset control (only works on scrollable elements):
+
+```csharp
+float offset = UI.GetScrollOffset(ElementId.MyScroll);
+UI.SetScrollOffset(ElementId.MyScroll, 0);  // scroll to top
+```
+
 ## Style Reference
 
 ### ContainerStyle
 
-```csharp
-new ContainerStyle
-{
-    Width = Size.Default,              // Size — default fills parent axis
-    Height = Size.Default,             // Size
-    MinWidth = 0,                      // float
-    MinHeight = 0,                     // float
-    MaxWidth = float.MaxValue,         // float
-    MaxHeight = float.MaxValue,        // float
-    Align = Align.Min,                 // Align2 — child positioning
-    Margin = EdgeInsets.Zero,          // EdgeInsets — outer spacing
-    Padding = EdgeInsets.Zero,         // EdgeInsets — inner spacing
-    Color = Color.Transparent,         // Color — background fill
-    BorderRadius = BorderRadius.Zero,  // BorderRadius — rounded corners
-    BorderWidth = 0,                   // float
-    BorderColor = Color.Transparent,   // Color
-    Spacing = 0,                       // float — gap between children (Column/Row)
-    Clip = false,                      // bool — clip children to bounds
-    Order = 0,                         // ushort — draw order
-}
-```
+| Property | Description |
+|----------|-------------|
+| `Width`, `Height` | `Size` — element dimensions. Default fills parent axis |
+| `MinWidth`, `MinHeight` | Minimum size constraints |
+| `MaxWidth`, `MaxHeight` | Maximum size constraints |
+| `Align` | Positions this container within its parent (Min/Center/Max per axis) |
+| `Margin` | Outer spacing (EdgeInsets — TLBR order) |
+| `Padding` | Inner spacing |
+| `Color` | Background fill color |
+| `Border` | Composite setter for `BorderRadius`, `BorderWidth`, `BorderColor` |
+| `Spacing` | Gap between children (Row/Column only) |
+| `Clip` | Clip children that overflow bounds |
+| `Order` | Draw sort order (higher draws later/on top) |
 
-`ContainerStyle.Fit` is a preset with `Width = Size.Fit, Height = Size.Fit`.
+Presets: `ContainerStyle.Fit` (both axes Fit), `ContainerStyle.Center` (Fit + Center align).
 
 ### LabelStyle
 
-```csharp
-new LabelStyle
-{
-    FontSize = 16,                       // float
-    Color = Color.White,                 // Color
-    Align = new Align2(Align.Min, Align.Center),  // Align2
-    Font = null,                         // Font? — null uses default
-    Overflow = TextOverflow.Overflow,    // TextOverflow
-    Order = 2,                           // ushort
-}
-```
-
-`TextOverflow` enum: `Overflow`, `Ellipsis`, `Scale`, `Wrap`.
+| Property | Description |
+|----------|-------------|
+| `FontSize` | Text size (default 16) |
+| `Color` | Text color |
+| `Align` | Text positioning within parent bounds (default: left, vertically centered) |
+| `Font` | Custom font (null = default) |
+| `Overflow` | `TextOverflow.Overflow`, `Ellipsis`, `Scale`, `Wrap` |
+| `Order` | Draw sort order |
 
 ### TextBoxStyle
 
-```csharp
-new TextBoxStyle
-{
-    Height = Size.Default,               // Size
-    FontSize = 16,                       // float
-    BackgroundColor = Color.Transparent,  // Color
-    TextColor = Color.White,             // Color
-    PlaceholderColor = ...,              // Color
-    SelectionColor = ...,               // Color
-    BorderRadius = BorderRadius.Zero,    // BorderRadius
-    BorderWidth = 0,                     // float
-    BorderColor = Color.Transparent,     // Color
-    FocusBorderRadius = BorderRadius.Zero, // BorderRadius — when focused
-    FocusBorderWidth = 0,                // float — when focused
-    FocusBorderColor = Color.Transparent, // Color — when focused
-    Padding = EdgeInsets.Zero,           // EdgeInsets
-    IsPassword = false,                  // bool — mask input
-    Scope = InputScope.All,             // InputScope
-}
-```
+| Property | Description |
+|----------|-------------|
+| `Height` | Element height |
+| `FontSize` | Text size |
+| `BackgroundColor`, `TextColor`, `PlaceholderColor`, `SelectionColor` | Colors |
+| `BorderRadius`, `BorderWidth`, `BorderColor` | Border styling |
+| `FocusBorderRadius`, `FocusBorderWidth`, `FocusBorderColor` | Border styling when focused |
+| `Padding` | Inner spacing |
+| `IsPassword` | Mask input characters |
+| `Scope` | `InputScope` filter |
 
 `TextAreaStyle` is the same as `TextBoxStyle` without `IsPassword`.
 
 ### ImageStyle
 
-```csharp
-new ImageStyle
-{
-    Width = Size.Default,     // Size
-    Height = Size.Default,    // Size
-    Stretch = ImageStretch.Uniform,  // ImageStretch: None, Fill, Uniform
-    Align = Align.Min,        // Align2
-    Scale = 1.0f,             // float
-    Color = Color.White,      // Color — tint
-    BorderRadius = BorderRadius.Zero,
-    Order = 1,
-}
-```
+| Property | Description |
+|----------|-------------|
+| `Width`, `Height` | `Size` — element dimensions |
+| `Stretch` | `ImageStretch.None`, `Fill`, `Uniform` — how image fills bounds |
+| `Align` | Positions image within parent AND image content within element bounds |
+| `Scale` | Image scale multiplier |
+| `Color` | Tint/multiply color |
+| `BorderRadius` | Corner rounding (Texture images only) |
+| `Order` | Draw sort order |
 
 ### ScrollableStyle
 
-```csharp
-new ScrollableStyle
-{
-    ScrollSpeed = 30f,
-    Scrollbar = ScrollbarVisibility.Auto,  // Auto, Always, Never
-    ScrollbarWidth = 8f,
-    ScrollbarMinThumbHeight = 20f,
-    ScrollbarTrackColor = ...,
-    ScrollbarThumbColor = ...,
-    ScrollbarThumbHoverColor = ...,
-    ScrollbarPadding = 2f,
-    ScrollbarBorderRadius = 4f,
-}
-```
+Controls scrollbar appearance only — no layout properties.
 
-### SceneStyle
+| Property | Description |
+|----------|-------------|
+| `ScrollSpeed` | Scroll speed (default 30) |
+| `Scrollbar` | `ScrollbarVisibility.Auto`, `Always`, `Never` |
+| `ScrollbarWidth` | Scrollbar track width |
+| `ScrollbarMinThumbHeight` | Minimum thumb size |
+| `ScrollbarTrackColor`, `ScrollbarThumbColor`, `ScrollbarThumbHoverColor` | Colors |
+| `ScrollbarPadding` | Padding around scrollbar |
+| `ScrollbarBorderRadius` | Thumb corner rounding |
 
-```csharp
-new SceneStyle
-{
-    Width = Size.Default,
-    Height = Size.Default,
-    Color = Color.Transparent,  // clear color
-    SampleCount = 1,            // MSAA samples
-}
-```
+## Other Elements
 
-### PopupStyle
+These exist but are less commonly used:
 
-```csharp
-new PopupStyle
-{
-    Anchor = Align.Min,         // Align2 — anchor point on trigger element
-    PopupAlign = Align.Min,     // Align2 — alignment of popup relative to anchor
-    Spacing = 0,                // float — gap between anchor and popup
-    ClampToScreen = false,      // bool
-    AnchorRect = Rect.Zero,     // Rect — manual anchor rect
-    MinWidth = 0,               // float
-    AutoClose = true,           // bool — close on click outside
-    Interactive = true,         // bool
-}
-```
-
-### GridStyle
-
-```csharp
-new GridStyle
-{
-    Spacing = 0,           // float
-    Columns = 3,           // int
-    CellWidth = 100,       // float
-    CellHeight = 100,      // float
-    CellMinWidth = 0,      // float — auto-adjust columns
-    CellHeightOffset = 0,  // float
-    VirtualCount = 0,      // int — total items for virtualization
-    StartIndex = 0,        // int — first visible item
-}
-```
-
-### TransformStyle
-
-```csharp
-new TransformStyle
-{
-    Origin = new Vector2(0.5f, 0.5f),  // pivot point (0-1)
-    Translate = Vector2.Zero,
-    Rotate = 0,             // radians
-    Scale = Vector2.One,
-}
-```
+- `UI.BeginOpacity(float)` — draws children at reduced opacity
+- `UI.BeginTransformed(TransformStyle)` — applies translate/rotate/scale to children (pivot via `Origin`)
+- `UI.BeginPopup(id, PopupStyle)` — anchored popup overlay; check `UI.IsClosed()` for dismissal
+- `UI.BeginGrid(GridStyle)` — grid layout with fixed cell sizes and optional virtualization
+- `UI.BeginCursor(SystemCursor)` — changes cursor on hover for children
 
 ## Value Types
 
@@ -405,14 +318,9 @@ Constructor order: **top, left, bottom, right** (TLBR).
 ```csharp
 new EdgeInsets(8, 16, 8, 16)           // T=8, L=16, B=8, R=16
 new EdgeInsets(12)                      // all sides 12
-EdgeInsets.All(10)
 EdgeInsets.Symmetric(8, 16)            // vertical=8, horizontal=16
-EdgeInsets.Top(10)
-EdgeInsets.Bottom(10)
-EdgeInsets.Left(10)
-EdgeInsets.Right(10)
-EdgeInsets.LeftRight(16)
-EdgeInsets.TopBottom(8)
+EdgeInsets.Top(10)  .Bottom(10)  .Left(10)  .Right(10)
+EdgeInsets.LeftRight(16)  .TopBottom(8)
 EdgeInsets.Zero
 ```
 
@@ -426,171 +334,14 @@ BorderRadius.Horizontal(left: 8, right: 0)
 BorderRadius.Zero
 ```
 
+Implicit conversion from `float`: `Border = new BorderStyle { Radius = 8f }`
+
 ### Color
 
 ```csharp
 new Color(70, 130, 230)         // RGB (0-255 ints)
 new Color(0, 0, 0, 128)         // RGBA
-Color.White
-Color.Black
-Color.Transparent
-```
-
-## Advanced Elements
-
-### Opacity
-
-```csharp
-using (UI.BeginOpacity(0.5f))
-{
-    // children drawn at 50% opacity
-}
-```
-
-### Transform
-
-```csharp
-using (UI.BeginTransformed(new TransformStyle
-{
-    Rotate = MathF.PI / 4,  // 45 degrees
-    Scale = new Vector2(1.2f, 1.2f),
-}))
-{
-    // children rotated and scaled
-}
-```
-
-### Popup
-
-```csharp
-using (UI.BeginPopup(ElementId.Menu, new PopupStyle
-{
-    Anchor = new Align2(Align.Min, Align.Max),
-    AutoClose = true,
-}))
-{
-    // popup content
-}
-
-if (UI.IsClosed())
-    _menuOpen = false;
-```
-
-### Grid
-
-```csharp
-using (UI.BeginGrid(new GridStyle { Columns = 3, CellWidth = 100, CellHeight = 100, Spacing = 8 }))
-{
-    for (int i = 0; i < items.Count; i++)
-    {
-        // each item fills one cell
-    }
-}
-```
-
-### Cursor
-
-```csharp
-using (UI.BeginCursor(SystemCursor.Hand))
-{
-    // children show hand cursor on hover
-}
-```
-
-## Common Patterns
-
-### Hover Button
-
-```csharp
-var hovered = UI.IsHovered(ElementId.MyButton);
-using (UI.BeginContainer(ElementId.MyButton, hovered ? hoverStyle : normalStyle))
-{
-    UI.Label("Click", labelStyle);
-}
-if (UI.WasPressed(ElementId.MyButton))
-    DoAction();
-```
-
-### Fixed Sidebar + Flex Content
-
-```csharp
-using (UI.BeginRow())
-{
-    using (UI.BeginContainer(new ContainerStyle { Width = 240, Color = sidebarColor }))
-    {
-        Sidebar.Draw();
-    }
-    UI.Container(new ContainerStyle { Width = 1, Color = separatorColor });
-    using (UI.BeginFlex())
-    {
-        ContentScreen.Draw();
-    }
-}
-```
-
-### Scrollable List
-
-```csharp
-using (UI.BeginFlex())
-{
-    using (UI.BeginScrollable(ElementId.ListScroll))
-    {
-        using (UI.BeginColumn())
-        {
-            for (int i = 0; i < items.Count; i++)
-            {
-                var id = ElementId.ItemBase + i;
-                var hovered = UI.IsHovered(id);
-                using (UI.BeginRow(id, hovered ? itemHoverStyle : itemStyle))
-                {
-                    UI.Label(items[i].Name, nameStyle);
-                }
-                if (UI.WasPressed(id))
-                    SelectItem(items[i]);
-            }
-        }
-    }
-}
-```
-
-### Overlay / Modal
-
-Later children in a `Container` render on top of earlier ones:
-
-```csharp
-using (UI.BeginContainer(ElementId.Root))
-{
-    // Main content
-    DrawContent();
-
-    // Modal overlay drawn on top
-    if (_showModal)
-    {
-        using (UI.BeginContainer(ElementId.Backdrop, new ContainerStyle
-        {
-            Color = new Color(0, 0, 0, 128),
-            Align = Align.Center,
-        }))
-        {
-            DrawModalCard();
-        }
-        if (UI.WasPressed(ElementId.Backdrop))
-            _showModal = false;
-    }
-}
-```
-
-### Push Element to Far End
-
-Use `UI.Spacer(0)` as a flexible spacer in a Row:
-
-```csharp
-using (UI.BeginRow(rowStyle))
-{
-    UI.Label("Left", labelStyle);
-    UI.Spacer(0);                       // pushes next element to the right
-    UI.Label("Right", labelStyle);
-}
+Color.White  Color.Black  Color.Transparent
 ```
 
 ## Debug Dump (Ctrl+F12)
