@@ -96,7 +96,8 @@
 
         // Start game loop
         _dotNetRef = DotNetObjectReference.Create(this);
-        _gameLoop = await JS.InvokeAsync<IJSObjectReference>("import", "/js/noz/noz-gameloop.js");
+        var baseUri = await JS.InvokeAsync<string>("eval", "new URL('./', document.baseURI).href");
+        _gameLoop = await JS.InvokeAsync<IJSObjectReference>("import", baseUri + "js/noz/noz-gameloop.js");
         await _gameLoop.InvokeVoidAsync("start", _dotNetRef);
     }
 

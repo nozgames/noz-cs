@@ -62,7 +62,8 @@ public class WebPlatform : IPlatform
         _dotNetRef = DotNetObjectReference.Create(this);
         _wantsToQuit = config.WantsToQuit;
 
-        _module = await _js.InvokeAsync<IJSObjectReference>("import", "/js/noz/noz-platform.js");
+        var baseUri = await _js.InvokeAsync<string>("eval", "new URL('./', document.baseURI).href");
+        _module = await _js.InvokeAsync<IJSObjectReference>("import", baseUri + "js/noz/noz-platform.js");
         var result = await _module.InvokeAsync<InitResult>("init", _dotNetRef, config.Width, config.Height);
         _windowSize = new Vector2(result.Width, result.Height);
         _displayScale = result.Dpr;

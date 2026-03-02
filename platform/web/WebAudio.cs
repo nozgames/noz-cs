@@ -59,7 +59,8 @@ public class WebAudio : IAudioDriver
 
     public async Task InitAsync()
     {
-        _module = await _js.InvokeAsync<IJSObjectReference>("import", "/js/noz/noz-audio.js");
+        var baseUri = await _js.InvokeAsync<string>("eval", "new URL('./', document.baseURI).href");
+        _module = await _js.InvokeAsync<IJSObjectReference>("import", baseUri + "js/noz/noz-audio.js");
         await _module.InvokeVoidAsync("init");
     }
 

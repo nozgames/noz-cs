@@ -9,8 +9,10 @@ let gameLoop = null;
 export async function init(dotNet, width, height) {
     dotNetRef = dotNet;
 
-    // Import game loop module so we can pause/resume on visibility change
-    gameLoop = await import('/js/noz/noz-gameloop.js');
+    // Import game loop using import.meta.url (the actual URL of THIS module).
+    // Bare relative imports and document.baseURI both fail under Blazor's JS interop
+    // when hosted at a subpath (e.g. itch.io), but import.meta.url is always correct.
+    gameLoop = await import(new URL('./noz-gameloop.js', import.meta.url).href);
 
     // Use the canvas created by Blazor (same one WebGPU uses)
     canvas = document.getElementById('canvas');

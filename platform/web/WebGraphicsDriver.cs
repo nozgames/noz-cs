@@ -200,8 +200,8 @@ public class WebGraphicsDriver : IGraphicsDriver
     public async Task InitAsync()
     {
         // Import the JS module first before calling any JSImport functions
-        // Use absolute path from web root (not relative, which resolves from _framework/)
-        await JSHost.ImportAsync("noz-webgpu", "/js/noz/noz-webgpu.js");
+        // JSHost.ImportAsync resolves relative to _framework/, so go up one level
+        await JSHost.ImportAsync("noz-webgpu", "../js/noz/noz-webgpu.js");
 
         var result = await WebGPUInterop.InitAsync("#canvas");
 
