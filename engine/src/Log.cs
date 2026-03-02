@@ -10,6 +10,7 @@ public static class Log
     private static bool _initialized;
 
     public static string? Path { get; set; }
+    public static bool Muted { get; set; }
 
     private static void EnsureInitialized()
     {
@@ -37,6 +38,8 @@ public static class Log
 
     private static void Write(string message)
     {
+        if (Muted) return;
+
         // Console.WriteLine for web browser console
         Console.WriteLine(message);
         // Debug.WriteLine for Windows debug output (VS, debugger)

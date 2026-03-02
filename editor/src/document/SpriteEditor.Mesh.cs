@@ -49,8 +49,8 @@ public partial class SpriteEditor
             var slot = slots[i];
             if (slot.PathIndices.Count == 0) continue;
 
-            // Collect subtract paths for this slot
-            PathsD? subtractPaths = null;
+            // Collect subtract paths with their indices — each only affects paths below it
+            List<(ushort PathIndex, PathsD Contours)>? subtractEntries = null;
             foreach (var pi in slot.PathIndices)
             {
                 ref readonly var path = ref shape.GetPath(pi);
@@ -61,12 +61,15 @@ public partial class SpriteEditor
                 var subContours = ShapeClipper.ShapeToPaths(subShape, 8);
                 if (subContours.Count > 0)
                 {
-                    subtractPaths ??= new PathsD();
-                    subtractPaths.AddRange(subContours);
+                    subtractEntries ??= new();
+                    subtractEntries.Add((pi, subContours));
                 }
             }
 
             // Tessellate each non-subtract path individually (preserves per-path colors)
+            // Track accumulated geometry for clip operations
+            PathsD? accumulatedPaths = null;
+
             foreach (var pi in slot.PathIndices)
             {
                 ref readonly var path = ref shape.GetPath(pi);
@@ -78,12 +81,52 @@ public partial class SpriteEditor
                 var contours = ShapeClipper.ShapeToPaths(pathShape, 8);
                 if (contours.Count == 0) continue;
 
-                // Apply subtract paths
-                if (subtractPaths is { Count: > 0 })
+                if (path.IsClip)
                 {
-                    contours = Clipper.BooleanOp(ClipType.Difference,
-                        contours, subtractPaths, FillRule.NonZero, precision: 6);
+                    // Clip: intersect with accumulated geometry below
+                    if (accumulatedPaths is not { Count: > 0 }) continue;
+                    contours = Clipper.BooleanOp(ClipType.Intersection,
+                        contours, accumulatedPaths, FillRule.NonZero, precision: 6);
                     if (contours.Count == 0) continue;
+                }
+                else
+                {
+                    // Normal path: add fill area to accumulated geometry for future clips
+                    // Use contracted contours (excluding stroke) so clip paths don't cover strokes
+                    var accContours = contours;
+                    if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
+                    {
+                        var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                        var contracted = Clipper.InflatePaths(contours, -halfStroke,
+                            JoinType.Round, EndType.Polygon, precision: 6);
+                        if (contracted.Count > 0)
+                            accContours = contracted;
+                    }
+
+                    if (accumulatedPaths == null)
+                        accumulatedPaths = new PathsD(accContours);
+                    else
+                        accumulatedPaths = Clipper.BooleanOp(ClipType.Union,
+                            accumulatedPaths, accContours, FillRule.NonZero, precision: 6);
+                }
+
+                // Apply subtract paths that are above this path (higher index = on top)
+                if (subtractEntries != null)
+                {
+                    PathsD? subtractPaths = null;
+                    foreach (var (subIdx, subContours) in subtractEntries)
+                    {
+                        if (subIdx <= pi) continue;
+                        subtractPaths ??= new PathsD();
+                        subtractPaths.AddRange(subContours);
+                    }
+
+                    if (subtractPaths is { Count: > 0 })
+                    {
+                        contours = Clipper.BooleanOp(ClipType.Difference,
+                            contours, subtractPaths, FillRule.NonZero, precision: 6);
+                        if (contours.Count == 0) continue;
+                    }
                 }
 
                 var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;

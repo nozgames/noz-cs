@@ -76,13 +76,14 @@ public class SpriteDocument : Document, ISpriteSource
     public ushort FrameCount;
     public float Depth;
     public RectInt RasterBounds { get; private set; }
+    public EdgeInsets Edges { get; set; } = EdgeInsets.Zero;
 
     public Color32 CurrentFillColor = Color32.White;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
     public byte CurrentLayer = 0;
     public StringId CurrentBone;
-    public bool CurrentSubtract;
+    public PathOperation CurrentOperation;
 
     public ref readonly BitMask256 Layers => ref _layers;
 
@@ -257,6 +258,28 @@ public class SpriteDocument : Document, ISpriteSource
         Loaded = true;
     }
 
+    public override void Reload()
+    {
+        // Clear existing frame data
+        for (var i = 0; i < FrameCount; i++)
+            Frames[i].Shape.Clear();
+
+        FrameCount = 0;
+        Edges = EdgeInsets.Zero;
+        Binding.Clear();
+
+        // Re-read and re-parse the .sprite file
+        var contents = File.ReadAllText(Path);
+        var tk = new Tokenizer(contents);
+        Load(ref tk);
+
+        // Resolve skeleton binding
+        Binding.Resolve();
+
+        // Update bounds and mark sprite dirty
+        UpdateBounds();
+    }
+
     private void Load(ref Tokenizer tk)
     {
         SpriteFrame? f = null;
@@ -278,6 +301,11 @@ public class SpriteDocument : Document, ISpriteSource
                 f = Frames[FrameCount++];
                 if (tk.ExpectIdentifier("hold"))
                     f.Hold = tk.ExpectInt();
+            }
+            else if (tk.ExpectIdentifier("edges"))
+            {
+                if (tk.ExpectVec4(out var edgesVec))
+                    Edges = new EdgeInsets(edgesVec.X, edgesVec.Y, edgesVec.Z, edgesVec.W);
             }
             else if (tk.ExpectIdentifier("skeleton"))
             {
@@ -301,7 +329,7 @@ public class SpriteDocument : Document, ISpriteSource
         var fillColor = Color32.White;
         var strokeColor = new Color32(0, 0, 0, 0);
         var strokeWidth = 1;
-        var subtract = false;
+        var operation = PathOperation.Normal;
         byte layer = 0;
         var bone = StringId.None;
 
@@ -338,7 +366,13 @@ public class SpriteDocument : Document, ISpriteSource
             }
             else if (tk.ExpectIdentifier("subtract"))
             {
-                subtract = tk.ExpectBool();
+                if (tk.ExpectBool())
+                    operation = PathOperation.Subtract;
+            }
+            else if (tk.ExpectIdentifier("clip"))
+            {
+                if (tk.ExpectBool())
+                    operation = PathOperation.Clip;
             }
             else if (tk.ExpectIdentifier("layer"))
                 layer = EditorApplication.Config.TryGetSpriteLayer(tk.ExpectQuotedString(), out var sg)
@@ -358,8 +392,8 @@ public class SpriteDocument : Document, ISpriteSource
 
         f.Shape.SetPathFillColor(pathIndex, fillColor);
         f.Shape.SetPathStroke(pathIndex, strokeColor, (byte)strokeWidth);
-        if (subtract)
-            f.Shape.SetPathSubtract(pathIndex, true);
+        if (operation != PathOperation.Normal)
+            f.Shape.SetPathOperation(pathIndex, operation);
         f.Shape.SetPathLayer(pathIndex, layer);
         f.Shape.SetPathBone(pathIndex, bone);
     }
@@ -475,6 +509,9 @@ public class SpriteDocument : Document, ISpriteSource
     // :save
     public override void Save(StreamWriter writer)
     {
+        if (!Edges.IsZero)
+            writer.WriteLine($"edges ({Edges.T},{Edges.L},{Edges.B},{Edges.R})");
+
         if (Binding.IsBound)
             writer.WriteLine($"skeleton \"{Binding.SkeletonName}\"");
 
@@ -508,6 +545,8 @@ public class SpriteDocument : Document, ISpriteSource
             writer.WriteLine("path");
             if (path.IsSubtract)
                 writer.WriteLine("subtract true");
+            if (path.IsClip)
+                writer.WriteLine("clip true");
             writer.WriteLine($"fill {FormatColor(path.FillColor)}");
 
             if (path.StrokeColor.A > 0)
@@ -559,7 +598,7 @@ public class SpriteDocument : Document, ISpriteSource
 
     public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f, int frame = 0)
     {
-        if (Atlas == null) return;
+        if (Atlas?.Texture == null) return;
 
         var sprite = Sprite;
         if (sprite == null) return;
@@ -598,7 +637,7 @@ public class SpriteDocument : Document, ISpriteSource
 
     public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform, int frame = 0, Color? tint = null)
     {
-        if (Atlas == null) return;
+        if (Atlas?.Texture == null) return;
 
         var sprite = Sprite;
         if (sprite == null) return;
@@ -652,6 +691,7 @@ public class SpriteDocument : Document, ISpriteSource
         CurrentLayer = src.CurrentLayer;
         CurrentBone = src.CurrentBone;
 
+        Edges = src.Edges;
         Binding.CopyFrom(src.Binding);
 
         for (var i = 0; i < src.FrameCount; i++)
@@ -758,11 +798,10 @@ public class SpriteDocument : Document, ISpriteSource
             if (slot.PathIndices.Count > 0)
                 RasterizeSlot(frame.Shape, slot, image, targetRect, sourceOffset, dpi);
 
-            // Bleed RGB into transparent pixels to prevent fringing with linear filtering
-            var rasterRect = new RectInt(
-                targetRect.X + padding, targetRect.Y + padding,
-                slotRasterBounds.Size.X, slotRasterBounds.Size.Y);
-            image.BleedColors(rasterRect);
+            // Bleed RGB into transparent pixels to prevent fringing with linear filtering.
+            // Use the full targetRect (including padding) so bleed extends into the
+            // padding region — linear filtering can sample there.
+            image.BleedColors(targetRect);
 
             xOffset += slotWidth;
         }
@@ -776,8 +815,8 @@ public class SpriteDocument : Document, ISpriteSource
         Vector2Int sourceOffset,
         int dpi)
     {
-        // Collect subtract paths — they apply to all paths in the slot
-        Clipper2Lib.PathsD? subtractPaths = null;
+        // Collect subtract paths with their indices — each only affects paths below it
+        List<(ushort PathIndex, Clipper2Lib.PathsD Contours)>? subtractEntries = null;
         foreach (var pi in slot.PathIndices)
         {
             ref readonly var path = ref shape.GetPath(pi);
@@ -788,12 +827,15 @@ public class SpriteDocument : Document, ISpriteSource
             var subContours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
             if (subContours.Count > 0)
             {
-                subtractPaths ??= new Clipper2Lib.PathsD();
-                subtractPaths.AddRange(subContours);
+                subtractEntries ??= new();
+                subtractEntries.Add((pi, subContours));
             }
         }
 
         // Rasterize each non-subtract path: stroke first, then fill on top
+        // Track accumulated geometry for clip operations
+        Clipper2Lib.PathsD? accumulatedPaths = null;
+
         foreach (var pi in slot.PathIndices)
         {
             ref readonly var path = ref shape.GetPath(pi);
@@ -806,12 +848,52 @@ public class SpriteDocument : Document, ISpriteSource
             var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
             if (contours.Count == 0) continue;
 
-            // Apply subtract paths
-            if (subtractPaths is { Count: > 0 })
+            if (path.IsClip)
             {
-                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
-                    contours, subtractPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                // Clip: intersect with accumulated geometry below
+                if (accumulatedPaths is not { Count: > 0 }) continue;
+                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Intersection,
+                    contours, accumulatedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
                 if (contours.Count == 0) continue;
+            }
+            else
+            {
+                // Normal path: add fill area to accumulated geometry for future clips
+                // Use contracted contours (excluding stroke) so clip paths don't cover strokes
+                var accContours = contours;
+                if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
+                {
+                    var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                    var contracted = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
+                        Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
+                    if (contracted.Count > 0)
+                        accContours = contracted;
+                }
+
+                if (accumulatedPaths == null)
+                    accumulatedPaths = new Clipper2Lib.PathsD(accContours);
+                else
+                    accumulatedPaths = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Union,
+                        accumulatedPaths, accContours, Clipper2Lib.FillRule.NonZero, precision: 6);
+            }
+
+            // Apply subtract paths that are above this path (higher index = on top)
+            if (subtractEntries != null)
+            {
+                Clipper2Lib.PathsD? subtractPaths = null;
+                foreach (var (subIdx, subContours) in subtractEntries)
+                {
+                    if (subIdx <= pi) continue;
+                    subtractPaths ??= new Clipper2Lib.PathsD();
+                    subtractPaths.AddRange(subContours);
+                }
+
+                if (subtractPaths is { Count: > 0 })
+                {
+                    contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                        contours, subtractPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                    if (contours.Count == 0) continue;
+                }
             }
 
             var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
@@ -957,7 +1039,9 @@ public class SpriteDocument : Document, ISpriteSource
             boneIndex: -1,
             meshes: allMeshes.ToArray(),
             frameTable: frameTable,
-            frameRate: 12.0f);
+            frameRate: 12.0f,
+            edges: ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero,
+            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero));
     }
 
     internal void MarkSpriteDirty()
@@ -989,6 +1073,14 @@ public class SpriteDocument : Document, ISpriteSource
         writer.Write((short)-1);  // Legacy bone index field
         writer.Write(totalMeshes);
         writer.Write(12.0f);  // Frame rate
+
+        // 9-slice edges (version 10) — only active with a constrained size
+        var activeEdges = ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero;
+        writer.Write((short)activeEdges.T);
+        writer.Write((short)activeEdges.L);
+        writer.Write((short)activeEdges.B);
+        writer.Write((short)activeEdges.R);
+        writer.Write(Sprite.CalculateSliceMask(RasterBounds, activeEdges));
 
         int uvIndex = 0;
         var meshStarts = new ushort[FrameCount];

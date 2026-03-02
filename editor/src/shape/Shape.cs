@@ -8,6 +8,13 @@ using System.Runtime.InteropServices;
 
 namespace NoZ.Editor;
 
+public enum PathOperation : byte
+{
+    Normal,
+    Subtract,
+    Clip
+}
+
 public sealed unsafe partial class Shape : IDisposable
 {
     internal const float StrokeScale = 0.005f;
@@ -65,7 +72,6 @@ public sealed unsafe partial class Shape : IDisposable
         None = 0,
         Selected = 1 << 0,
         Dirty = 1 << 1,
-        Subtract = 1 << 2
     }
 
     public struct Anchor
@@ -88,9 +94,11 @@ public sealed unsafe partial class Shape : IDisposable
         public byte Layer;
         public StringId Bone;  // bone name (None = root when skeleton bound)
         public PathFlags Flags;
+        public PathOperation Operation;
 
         public readonly bool IsSelected => (Flags & PathFlags.Selected) != 0;
-        public readonly bool IsSubtract => (Flags & PathFlags.Subtract) != 0;
+        public readonly bool IsSubtract => Operation == PathOperation.Subtract;
+        public readonly bool IsClip => Operation == PathOperation.Clip;
 
         public static readonly Path Default = new() { FillColor = Color32.White, StrokeColor = new Color32(0, 0, 0, 0) };
     }
@@ -836,13 +844,9 @@ public sealed unsafe partial class Shape : IDisposable
         path.FillColor = color;
     }
 
-    public void SetPathSubtract(ushort pathIndex, bool subtract)
+    public void SetPathOperation(ushort pathIndex, PathOperation operation)
     {
-        ref var path = ref _paths[pathIndex];
-        if (subtract)
-            path.Flags |= PathFlags.Subtract;
-        else
-            path.Flags &= ~PathFlags.Subtract;
+        _paths[pathIndex].Operation = operation;
     }
 
     public void SetPathStroke(ushort pathIndex, Color32 color, byte width)
@@ -869,7 +873,7 @@ public sealed unsafe partial class Shape : IDisposable
         byte strokeWidth = 1,
         byte layer = 0,
         StringId bone = default,
-        bool subtract = false)
+        PathOperation operation = PathOperation.Normal)
     {
         if (PathCount >= MaxPaths) return ushort.MaxValue;
 
@@ -883,7 +887,7 @@ public sealed unsafe partial class Shape : IDisposable
             StrokeWidth = strokeWidth,
             Layer = layer,
             Bone = bone,
-            Flags = subtract ? PathFlags.Subtract : PathFlags.None,
+            Operation = operation,
         };
 
         UpdateLayers();
@@ -1593,7 +1597,7 @@ public sealed unsafe partial class Shape : IDisposable
             StrokeColor = srcPath.StrokeColor,
             Layer = srcPath.Layer,
             Bone = srcPath.Bone,
-            Flags = srcPath.Flags & PathFlags.Subtract
+            Operation = srcPath.Operation
         };
 
         // Copy path2 anchors to the end

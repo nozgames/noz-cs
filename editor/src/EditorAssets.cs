@@ -26,6 +26,7 @@ public static class EditorAssets
         public const string IconBone = "icon_bone";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
+        public const string IconClip = "icon_clip";
         public const string IconClose = "icon_close";
         public const string IconCollection = "icon_collection";
         public const string IconConnected = "icon_connected";
@@ -137,6 +138,7 @@ public static class EditorAssets
         public static Sprite IconBone { get; private set; } = null!;
         public static Sprite IconCheck { get; private set; } = null!;
         public static Sprite IconCircle { get; private set; } = null!;
+        public static Sprite IconClip { get; private set; } = null!;
         public static Sprite IconClose { get; private set; } = null!;
         public static Sprite IconCollection { get; private set; } = null!;
         public static Sprite IconConnected { get; private set; } = null!;
@@ -185,6 +187,7 @@ public static class EditorAssets
             IconBone = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone)!;
             IconCheck = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCheck)!;
             IconCircle = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCircle)!;
+            IconClip = (Sprite)Asset.Load(AssetType.Sprite, Names.IconClip)!;
             IconClose = (Sprite)Asset.Load(AssetType.Sprite, Names.IconClose)!;
             IconCollection = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCollection)!;
             IconConnected = (Sprite)Asset.Load(AssetType.Sprite, Names.IconConnected)!;
@@ -234,6 +237,7 @@ public static class EditorAssets
             IconBone?.Dispose();
             IconCheck?.Dispose();
             IconCircle?.Dispose();
+            IconClip?.Dispose();
             IconClose?.Dispose();
             IconCollection?.Dispose();
             IconConnected?.Dispose();

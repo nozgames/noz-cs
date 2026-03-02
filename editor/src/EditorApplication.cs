@@ -15,6 +15,11 @@ public class EditorApplicationConfig
     public string? IconPath { get; init; }
     public Action? RegisterAssetTypes { get; init; }
     public Action? RegisterDocumentTypes { get; init; }
+    public Action? Update { get; init; }
+    public Action? UpdateUI { get; init; }
+    public Action<PropertySet>? LoadUserSettings { get; init; }
+    public Action<PropertySet>? SaveUserSettings { get; init; }
+    public Action<List<Command>>? RegisterCommands { get; init; }
 }
 
 internal class EditorApplicationInstance : IApplication
@@ -38,6 +43,8 @@ public static partial class EditorApplication
 {
     private static readonly Queue<Action> _mainThreadQueue = new();
 
+    internal static EditorApplicationConfig AppConfig { get; private set; } = null!;
+
     public static EditorConfig Config { get; private set; } = null!;
     public static string OutputPath { get; private set; } = null!;
     public static string EditorPath { get; private set; } = null!;
@@ -45,11 +52,13 @@ public static partial class EditorApplication
 
     public static void Run(EditorApplicationConfig config, string[] args)
     {
+        AppConfig = config;
         var initProject = false;
         var importOnly = false;
         string? initProjectName = null;
         var clean = false;
         string? projectArg = null;
+        string? editorPathArg = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -63,6 +72,8 @@ public static partial class EditorApplication
                 importOnly = true;
             else if (args[i] == "--project" && i + 1 < args.Length)
                 projectArg = args[++i];
+            else if (args[i] == "--editor-path" && i + 1 < args.Length)
+                editorPathArg = args[++i];
             else if (args[i] == "--clean")
                 clean = true;
         }
@@ -72,16 +83,24 @@ public static partial class EditorApplication
         if ((importOnly || initProject) && OperatingSystem.IsWindows())
             AttachConsole(-1);
 
-        // Find editor path by walking up from app base directory
-        // Look for directory with BOTH library/ AND NoZ.Editor.csproj
-        var editorPath = AppContext.BaseDirectory;
-        while (editorPath != null)
+        // Resolve editor path: use --editor-path if provided, otherwise walk up from app base directory
+        string? editorPath = null;
+        if (editorPathArg != null)
         {
-            if (Directory.Exists(Path.Combine(editorPath, "library")) &&
-                File.Exists(Path.Combine(editorPath, "NoZ.Editor.csproj")))
-                break;
+            editorPath = Path.GetFullPath(editorPathArg);
+        }
+        else
+        {
+            // Look for directory with BOTH library/ AND NoZ.Editor.csproj
+            editorPath = AppContext.BaseDirectory;
+            while (editorPath != null)
+            {
+                if (Directory.Exists(Path.Combine(editorPath, "library")) &&
+                    File.Exists(Path.Combine(editorPath, "NoZ.Editor.csproj")))
+                    break;
 
-            editorPath = Path.GetDirectoryName(editorPath);
+                editorPath = Path.GetDirectoryName(editorPath);
+            }
         }
 
         if (editorPath == null)
@@ -237,6 +256,7 @@ public static partial class EditorApplication
         AnimationDocument.RegisterDef();
         VfxDocument.RegisterDef();
         BinDocument.RegisterDef();
+        BundleDocument.RegisterDef();
         PaletteDocument.RegisterDef();
 
         config.RegisterDocumentTypes?.Invoke();
@@ -307,6 +327,7 @@ public static partial class EditorApplication
         PopupMenu.Update();
         Notifications.Update();
         Workspace.Update();
+        AppConfig.Update?.Invoke();
     }
 
     internal static void UpdateUI()
@@ -316,6 +337,7 @@ public static partial class EditorApplication
         PopupMenu.UpdateUI();
         CommandPalette.UpdateUI();
         ConfirmDialog.UpdateUI();
+        AppConfig.UpdateUI?.Invoke();
     }
 
     internal static void LateUpdate()

@@ -362,6 +362,63 @@ public static partial class Graphics
     public static void DrawText(in ReadOnlySpan<char> text, float fontSize, Rect rect, TextOverflow overflow, int order = 0) =>
         DrawText(text, UI.DefaultFont, fontSize, rect, overflow, order);
 
+    public static void DrawSliced(Sprite sprite, in Rect targetRect, ushort order = 0, int bone = -1, int frame = 0)
+    {
+        if (sprite == null || SpriteAtlas == null || !sprite.IsSliced)
+        {
+            if (sprite != null) Draw(sprite, bone, frame);
+            return;
+        }
+
+        var fi = sprite.FrameTable[frame];
+        if (fi.MeshCount == 0) return;
+        ref readonly var mesh = ref sprite.Meshes[fi.MeshStart];
+
+        var edges = sprite.Edges;
+        var mask = sprite.SliceMask;
+
+        // Edge sizes in target rect units (same coordinate space as targetRect)
+        var edgeL = edges.L;
+        var edgeR = edges.R;
+        var edgeT = edges.T;
+        var edgeB = edges.B;
+
+        // 4 x-positions and 4 y-positions defining the 3x3 grid
+        Span<float> xs = [targetRect.Left, targetRect.Left + edgeL, targetRect.Right - edgeR, targetRect.Right];
+        Span<float> ys = [targetRect.Top, targetRect.Top + edgeT, targetRect.Bottom - edgeB, targetRect.Bottom];
+
+        // UV splits proportional to edge pixel ratios
+        var uv = mesh.UV;
+        var spriteW = (float)sprite.Size.X;
+        var spriteH = (float)sprite.Size.Y;
+
+        Span<float> us = [uv.Left, uv.Left + (edges.L / spriteW) * uv.Width, uv.Right - (edges.R / spriteW) * uv.Width, uv.Right];
+        Span<float> vs = [uv.Top, uv.Top + (edges.T / spriteH) * uv.Height, uv.Bottom - (edges.B / spriteH) * uv.Height, uv.Bottom];
+
+        var drawBone = bone >= 0 ? bone : sprite.BoneIndex;
+
+        using (PushState())
+        {
+            SetTexture(SpriteAtlas);
+            SetShader(_spriteShader!);
+            SetTextureFilter(sprite.TextureFilter);
+
+            for (int row = 0; row < 3; row++)
+            {
+                for (int col = 0; col < 3; col++)
+                {
+                    if ((mask & (1 << (row * 3 + col))) == 0) continue;
+
+                    var cellW = xs[col + 1] - xs[col];
+                    var cellH = ys[row + 1] - ys[row];
+                    if (cellW <= 0 || cellH <= 0) continue;
+
+                    Draw(xs[col], ys[row], cellW, cellH, us[col], vs[row], us[col + 1], vs[row + 1], order: order, bone: drawBone);
+                }
+            }
+        }
+    }
+
     public static Vector2 MeasureText(ReadOnlySpan<char> text, float fontSize) =>
         TextRender.Measure(text, UI.DefaultFont, fontSize);
 

@@ -172,6 +172,9 @@ public partial class SpriteEditor : DocumentEditor
 
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
+
+        if (!Document.Edges.IsZero && Document.ConstrainedSize.HasValue)
+            DrawEdges();
     }
 
     public override void LateUpdate()
@@ -210,8 +213,14 @@ public partial class SpriteEditor : DocumentEditor
 
         StrokeWidthButtonUI();
 
-        if (EditorUI.Button(ElementId.SubtractButton, EditorAssets.Sprites.IconSubtract, selected: Document.CurrentSubtract, toolbar: true))
-            ToggleSubtract();
+        {
+            var opIcon = Document.CurrentOperation == PathOperation.Clip
+                ? EditorAssets.Sprites.IconClip
+                : EditorAssets.Sprites.IconSubtract;
+            var opSelected = Document.CurrentOperation != PathOperation.Normal;
+            if (EditorUI.Button(ElementId.SubtractButton, opIcon, selected: opSelected, toolbar: true))
+                CyclePathOperation();
+        }
 
         EditorUI.ToolbarSpacer();
 
@@ -347,7 +356,7 @@ public partial class SpriteEditor : DocumentEditor
             Document.CurrentLayer = path.Layer;
             Document.CurrentBone = path.Bone;
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
-            Document.CurrentSubtract = path.IsSubtract;
+            Document.CurrentOperation = path.Operation;
             return;
         }
     }
@@ -757,9 +766,15 @@ public partial class SpriteEditor : DocumentEditor
         MarkRasterDirty();
     }
 
-    private void ToggleSubtract()
+    private void CyclePathOperation()
     {
-        Document.CurrentSubtract = !Document.CurrentSubtract;
+        // Cycle: Normal → Subtract → Clip → Normal
+        Document.CurrentOperation = Document.CurrentOperation switch
+        {
+            PathOperation.Normal => PathOperation.Subtract,
+            PathOperation.Subtract => PathOperation.Clip,
+            _ => PathOperation.Normal,
+        };
 
         var shape = Document.GetFrame(_currentFrame).Shape;
         var anySelected = false;
@@ -772,7 +787,7 @@ public partial class SpriteEditor : DocumentEditor
                 Undo.Record(Document);
                 anySelected = true;
             }
-            shape.SetPathSubtract(p, Document.CurrentSubtract);
+            shape.SetPathOperation(p, Document.CurrentOperation);
         }
 
         if (anySelected)
@@ -874,7 +889,7 @@ public partial class SpriteEditor : DocumentEditor
                 strokeColor: srcPath.StrokeColor,
                 strokeWidth: srcPath.StrokeWidth,
                 layer: srcPath.Layer,
-                subtract: srcPath.IsSubtract);
+                operation: srcPath.Operation);
             if (newPathIndex == ushort.MaxValue)
                 break;
 
@@ -1472,7 +1487,7 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginPenTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor, Document.CurrentSubtract));
+        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor, Document.CurrentOperation));
     }
 
     private void BeginKnifeTool()
@@ -1489,13 +1504,13 @@ public partial class SpriteEditor : DocumentEditor
     private void BeginRectangleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentSubtract));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentOperation));
     }
 
     private void BeginCircleTool()
     {
         var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle, Document.CurrentSubtract));
+        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle, Document.CurrentOperation));
     }
 
     private void InsertAnchorAtHover()
@@ -1617,6 +1632,55 @@ public partial class SpriteEditor : DocumentEditor
             ref readonly var anchor = ref shape.GetAnchor(i);
             if (!anchor.IsSelected) continue;
             DrawSelectedAnchor(anchor.Position);
+        }
+    }
+
+    private void DrawEdges()
+    {
+        var bounds = Document.Bounds;
+        var edges = Document.Edges;
+        var ppu = 1.0f / EditorApplication.Config.PixelsPerUnit;
+
+        var edgeL = edges.L * ppu;
+        var edgeR = edges.R * ppu;
+        var edgeT = edges.T * ppu;
+        var edgeB = edges.B * ppu;
+
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
+        {
+            Graphics.SetTransform(Document.Transform);
+            Graphics.SetSortGroup(6);
+            Gizmos.SetColor(new Color(0.2f, 0.9f, 0.2f, 0.8f));
+
+            var lineWidth = EditorStyle.Workspace.DocumentBoundsLineWidth;
+
+            // Top edge
+            if (edgeT > 0)
+            {
+                var y = bounds.Top + edgeT;
+                Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
+            }
+
+            // Bottom edge
+            if (edgeB > 0)
+            {
+                var y = bounds.Bottom - edgeB;
+                Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
+            }
+
+            // Left edge
+            if (edgeL > 0)
+            {
+                var x = bounds.Left + edgeL;
+                Gizmos.DrawLine(new Vector2(x, bounds.Top), new Vector2(x, bounds.Bottom), lineWidth);
+            }
+
+            // Right edge
+            if (edgeR > 0)
+            {
+                var x = bounds.Right - edgeR;
+                Gizmos.DrawLine(new Vector2(x, bounds.Top), new Vector2(x, bounds.Bottom), lineWidth);
+            }
         }
     }
 
