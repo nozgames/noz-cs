@@ -1,38 +1,39 @@
 
+layer "Layer 1"
 path
-fill 0
-anchor 0.1875 0.09375
-anchor 0 0.1796875
-anchor -0.1875 0.09375
-anchor 0 0.015625
+fill #FFFFFF
+anchor 0.22625515 0.113127574
+anchor 0 0.21682785
+anchor -0.22625515 0.113127574
+anchor 0 0.018854596
 
 path
-fill 0
 subtract true
-anchor 0.1875 0.015625
-anchor -0 0.1015625
-anchor -0.1875 0.015625
-anchor -0 -0.078125
+fill #FFFFFF
+anchor 0.22625515 0.018854596
+anchor 0 0.12255487
+anchor -0.22625515 0.018854596
+anchor 0 -0.09427298
 
 path
-fill 0
-anchor 0.1875 -0.0078125
-anchor 0 0.078125
-anchor -0.1875 -0.0078125
-anchor 0 -0.0859375
+fill #FFFFFF
+anchor 0.22625515 -0.009427298
+anchor 0 0.09427298
+anchor -0.22625515 -0.009427298
+anchor 0 -0.10370028
 
 path
-fill 0
 subtract true
-anchor 0.1875 -0.0859375
-anchor 0 -0
-anchor -0.1875 -0.0859375
-anchor 0 -0.1796875
+fill #FFFFFF
+anchor 0.22625515 -0.10370028
+anchor 0 0
+anchor -0.22625515 -0.10370028
+anchor 0 -0.21682785
 
 path
-fill 0
-anchor 0.1875 -0.109375
-anchor 0 -0.0234375
-anchor -0.1875 -0.109375
-anchor 0 -0.1875
+fill #FFFFFF
+anchor 0.22625515 -0.13198218
+anchor 0 -0.028281894
+anchor -0.22625515 -0.13198218
+anchor 0 -0.22625515
 

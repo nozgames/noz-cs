@@ -60,10 +60,13 @@ public static class EditorStyle
 
     public static class Palette
     {
+        public static readonly Color Selection = Color.FromRgb(0x54a3f6);
+
         public static readonly Color Workspace = Color.FromRgb(0x333333);
         public static readonly Color Grid = Color.FromRgb(0x434343);
 
-        public static readonly Color Panel = Color.FromRgb(0x1A191C);
+        public static readonly Color Panel = Color.FromRgb(0x191919);
+        public static readonly Color PanelSeparator = Color.FromRgb(0x212121);
 
         public static readonly Color IconPrimary = Color.FromRgb(0xCCCCCC);
         public static readonly Color IconSecondary = Color.FromRgb(0x757575);
@@ -79,16 +82,20 @@ public static class EditorStyle
     // :icon
     public static class Icon
     {
+        private const float Size = 20.0f;
+        private const float SmallSize = Size * SmallWidget.Scale;
+
         public static readonly ImageStyle Primary = new()
         {
             Color = Palette.IconPrimary,
-            Size = 20.0f,
+            Size = Size,
             Align = Align.Center
         };
 
         public static readonly ImageStyle Secondary = Primary with { Color = Palette.IconSecondary };
 
-        public static readonly ImageStyle SecondarySmall = Secondary with { Size = 12.0f };
+        public static readonly ImageStyle PrimarySmall = Primary with { Size = SmallSize };
+        public static readonly ImageStyle SecondarySmall = Secondary with { Size = SmallSize };
     }
 
     // :text
@@ -104,6 +111,8 @@ public static class EditorStyle
 
         public readonly static LabelStyle Secondary = Primary with { Color = Palette.TextSecondary };
         public readonly static LabelStyle Disabled = Primary with { Color = Palette.TextDisabled };
+
+        public readonly static LabelStyle SecondarySmall = Secondary with { FontSize = 14.0f };
     }
 
     // :workspace
@@ -209,6 +218,29 @@ public static class EditorStyle
         public static readonly ImageStyle HoveredIcon = Icon with { Color = Color.FromRgb(0xffffff) };
     }
 
+    // :smallcontrol
+    public static class SmallWidget
+    {
+        public const float Scale = 0.75f;
+        public const float Height = Control.Height * Scale;
+        public const float BorderRadius = Control.BorderRadius * Scale;        
+        public const float Spacing = Control.Spacing * Scale;
+
+        public static readonly ContainerStyle Root = new()
+        {
+            Height = Height,
+            Spacing = Spacing
+        };
+
+        public static readonly ContainerStyle RootHovered = Root with
+        {
+            BorderWidth = 2,
+            BorderColor = Palette.ControlBorder,
+            BorderRadius = BorderRadius
+        };
+
+    }
+
     // :panel
     public static class Panel
     {
@@ -238,6 +270,18 @@ public static class EditorStyle
         public static readonly ContainerStyle UnpaddedContent = Content with
         {
             Padding = EdgeInsets.Zero
+        };
+
+        public static readonly ContainerStyle SeparatorHorizontal = new()
+        {
+            Height = 1,
+            Color = Palette.PanelSeparator
+        };
+
+        public static readonly ContainerStyle SeparatorVertical = new()
+        {
+            Width = 1,
+            Color = Palette.PanelSeparator
         };
     }
 
@@ -333,6 +377,74 @@ public static class EditorStyle
         public static readonly ContainerStyle Content = new()
         {
             Padding = EdgeInsets.LeftRight(3)
+        };
+
+
+
+
+        public static readonly ContainerStyle Toggle = Control.Root with
+        {
+            Padding = 4,
+            Size = Control.Height
+        };
+
+        public static readonly ContainerStyle ToggleHovered = Control.RootHovered with
+        {
+            Padding = 4,
+            Size = Control.Height
+        };
+
+        public static readonly ContainerStyle ToggleChecked = new ContainerStyle()
+        {
+            Color = Palette.ControlChecked,
+            BorderRadius = 6
+        };
+
+        public static readonly ContainerStyle Icon = new()
+        {
+            Padding = 4,            
+            Size = Control.Height,
+        };
+
+        public static readonly ContainerStyle IconHovered = new()
+        {
+            Padding = 4,
+            Color = Palette.ControlChecked,
+            BorderRadius = Control.BorderRadius,
+            Size = Control.Height
+        };
+
+
+        public static readonly ContainerStyle SmallIcon = new()
+        {
+            Padding = 2,
+            Size = SmallWidget.Height,
+        };
+
+        public static readonly ContainerStyle SmallIconHovered = new()
+        {
+            Padding = 2,
+            Color = Palette.ControlChecked,
+            BorderRadius = SmallWidget.BorderRadius,
+            Size = SmallWidget.Height
+        };
+
+        public static readonly ContainerStyle SmallToggle = SmallWidget.Root with
+        {
+            Size = SmallWidget.Height,
+            Padding = 2
+        };
+
+        public static readonly ContainerStyle SmallToggleHovered = Control.RootHovered with
+        {
+            Padding = 4,
+            Size = SmallWidget.Height
+        };
+
+        public static readonly ContainerStyle SmallToggleChecked = new()
+        {
+            Color = Palette.ControlChecked,
+            BorderRadius = SmallWidget.BorderRadius * 0.8f
         };
     }
 
@@ -551,11 +663,9 @@ public static class EditorStyle
     {
         public static readonly ContainerStyle Root = new()
         {
-            Color = Color.FromRgb(0x323232),
+            Color = Palette.Panel,
             AlignY = Align.Max,
-            Height = Size.Fit,
-            Margin = Panel.BottomMargin,
-            Padding = EdgeInsets.Bottom(Control.Spacing * 3)
+            Height = Size.Fit
         };
     }
 
@@ -676,23 +786,6 @@ public static class EditorStyle
 
 
 
-        public static readonly ContainerStyle ToggleButton = Control.Root with
-        {
-            Padding = 4,
-            Size = Control.Height
-        };
-
-        public static readonly ContainerStyle ToggleButtonHovered = Control.RootHovered with
-        {
-            Padding = 4,
-            Size = Control.Height
-        };
-
-        public static readonly ContainerStyle ToggleButtonChecked = new ContainerStyle()
-        {
-            Color = Palette.ControlChecked,
-            BorderRadius = 6
-        };
     }
 
     // :animationeditor
@@ -709,6 +802,36 @@ public static class EditorStyle
     // :spriteeditor
     public static class SpriteEditor
     {
+        public const float LayerColumnWidth = 200f;
+
+        public static readonly ContainerStyle Toolbar = new()
+        {
+            Height = Control.Height,
+        };
+
+        public static readonly ContainerStyle LayerToolbar = new()
+        {
+            Width = LayerColumnWidth,
+            Height = Control.Height,
+        };
+
+        public static readonly ContainerStyle LayerRow = new()
+        {
+            Height = SmallWidget.Height,
+        };
+
+        public static readonly ContainerStyle LayerNameContainer = new()
+        {
+            Width = EditorStyle.SpriteEditor.LayerColumnWidth,
+            Padding = EdgeInsets.LeftRight(4),
+        };
+
+        public static readonly ContainerStyle LayerNameContainerActive = LayerNameContainer with
+        {
+            Color = Palette.Selection
+        };
+
+
         public static readonly Color UndefinedColor = new(0f, 0f, 0f, 0.1f);
         public const float ButtonSize = 40f;
         public const float ButtonMarginY = 6f;
@@ -724,11 +847,6 @@ public static class EditorStyle
             Padding = EdgeInsets.All(4f),
             //Color = Panel.ContentColor,
             BorderRadius = Panel.ContentBorderRadius
-        };
-
-        public static readonly ContainerStyle Palette = new()
-        {
-
         };
 
         public static readonly ContainerStyle PaletteColor = new()
@@ -797,7 +915,7 @@ public static class EditorStyle
     public static class Dopesheet
     {
         public const float FrameWidth = 18.0f;
-        public const float FrameHeight = 27.0f;
+        public const float FrameHeight = SmallWidget.Height;
         public const float FrameSpacerWidth = 1.0f;
 
         public static readonly ContainerStyle FrameDot = new()
@@ -815,19 +933,18 @@ public static class EditorStyle
 
         public static readonly ContainerStyle HeaderContainer = new()
         {
-            Height = FrameHeight
+            Height = Control.Height
         };
 
         public static readonly ContainerStyle TimeBlock = new()
         {
             Width = FrameWidth * 4 + (FrameSpacerWidth * 3),
-            Padding = EdgeInsets.BottomLeft(3, 3)
+            Padding = EdgeInsets.BottomLeft(0, 3)
         };
 
-        public static readonly LabelStyle TimeText = new()
+        public static readonly LabelStyle TimeText = Text.SecondarySmall with 
         {
-            Color = Color.FromRgb(0x949494),
-            FontSize = 15.0f
+            AlignY = Align.Max
         };
 
         public static readonly ContainerStyle FrameContainer = new()

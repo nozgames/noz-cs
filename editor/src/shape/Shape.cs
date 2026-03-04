@@ -421,6 +421,15 @@ public sealed unsafe partial class Shape : IDisposable
             _paths[i].Flags &= ~PathFlags.Selected;
     }
 
+    public void SelectAll()
+    {
+        for (var i = 0; i < AnchorCount; i++)
+            _anchors[i].Flags |= AnchorFlags.Selected;
+
+        for (var i = 0; i < PathCount; i++)
+            _paths[i].Flags |= PathFlags.Selected;
+    }
+
     public void ClearAnchorSelection()
     {
         for (var i = 0; i < AnchorCount; i++)

@@ -13,18 +13,14 @@ internal static partial class EditorUI
     [ElementId("ColorPickerHueBar")]
     [ElementId("ColorPickerAlphaBar")]
     [ElementId("ColorPickerHexBox")]
-    [ElementId("ColorPickerNoneButton")]
     [ElementId("ColorPickerSwatchItem", count: 64)]
+    [ElementId("ColorPickerModeNone")]
     [ElementId("ColorPickerModeColor")]
     [ElementId("ColorPickerModePalette")]
     [ElementId("ColorPickerPaletteScroll")]
     [ElementId("ColorPickerPaletteItem", count: 256)]
     private static partial class ColorPickerIds { }
 
-    /// <summary>
-    /// Returns true on commit (popup closed or swatch clicked).
-    /// Calls onPreview each frame the color changes during drag.
-    /// </summary>
     public static bool ColorPickerButton(
         int id,
         ref Color32 color,
@@ -66,6 +62,13 @@ internal static partial class EditorUI
 
     internal static class ColorPicker
     {
+        private enum ColorMode
+        {
+            None,
+            Color,
+            Palette
+        }
+
         private const int SVSize = 160;
         private const int HueBarWidth = 20;
         private const int HueBarHeight = SVSize;
@@ -75,7 +78,6 @@ internal static partial class EditorUI
         private const int SwatchCellSize = 28;
         private const int SwatchColumns = 8;
 
-        // HSV state
         private static float _hue;
         private static float _sat;
         private static float _val;
@@ -106,8 +108,7 @@ internal static partial class EditorUI
         // CurrentFillColor changes (e.g. selection change while popup is open).
         internal static Color32 _lastOutputColor;
 
-        // Palette mode toggle
-        private static bool _paletteMode;
+        private static ColorMode _paletteMode = ColorMode.None;
 
         // Hex string cache
         private static string _hexCache = "";
@@ -121,6 +122,26 @@ internal static partial class EditorUI
             _alpha = color.A / 255f;
             _swatches = swatches;
             _swatchCount = swatchCount > 0 ? swatchCount : (swatches?.Length ?? 0);
+
+            if (color.A == 0)
+                _paletteMode = ColorMode.None;
+            else
+            {
+                _paletteMode = ColorMode.Color;
+
+                foreach (var palette in PaletteManager.Palettes)
+                {
+                    for (int i = 0; i < palette.Count; i++)
+                    {
+                        var swatchColor = palette.Colors[i];
+                        if (swatchColor.ToColor32() == color)
+                        {
+                            _paletteMode = ColorMode.Palette;
+                            return;
+                        }
+                    }
+                }
+            }
         }
 
         internal static void ButtonContent()
@@ -168,8 +189,8 @@ internal static partial class EditorUI
                 {
                     AnchorX = Align.Min,
                     AnchorY = Align.Min,
-                    PopupAlignX = Align.Min,
-                    PopupAlignY = Align.Max,
+                    PopupAlignX = Align.Max,
+                    PopupAlignY = Align.Min,
                     Spacing = 2,
                     ClampToScreen = true,
                     AnchorRect = anchorRect,
@@ -178,27 +199,43 @@ internal static partial class EditorUI
             if (UI.IsClosed())
             {
                 _popupId = -1;
-                color = HsvToColor32(_hue, _sat, _val, _alpha);
+                color = _paletteMode != ColorMode.None ? HsvToColor32(_hue, _sat, _val, _alpha) : Color.Transparent;
                 if (color != _originalColor)
                     _committed = true;
                 return;
             }
 
-            using var col = UI.BeginColumn(EditorStyle.Popup.Root with { Spacing = Spacing, Padding = EdgeInsets.All(8) });
+            using var col = UI.BeginColumn(EditorStyle.Popup.Root with {
+                Spacing = Spacing,
+                Padding = EdgeInsets.All(8),
+                Width = 200,
+                Height = 400
+                });
 
-            // Mode toggle: Color / Palette
-            if (PaletteManager.Palettes.Count > 0)
+            using (UI.BeginRow(new ContainerStyle { Spacing = 2, Height = 28 }))
             {
-                using (UI.BeginRow(new ContainerStyle { Spacing = 2, Height = 28 }))
+                UI.Flex();
+
+                if (ToggleButton(ColorPickerIds.ColorPickerModeNone, EditorAssets.Sprites.IconNofill, _paletteMode == ColorMode.None))
+                    _paletteMode = ColorMode.None;
+
+                if (ToggleButton(ColorPickerIds.ColorPickerModeColor, EditorAssets.Sprites.IconFill, _paletteMode == ColorMode.Color))
                 {
-                    if (Button(ColorPickerIds.ColorPickerModeColor, "Color", selected: !_paletteMode, toolbar: true))
-                        _paletteMode = false;
-                    if (Button(ColorPickerIds.ColorPickerModePalette, "Palette", selected: _paletteMode, toolbar: true))
-                        _paletteMode = true;
+                    _paletteMode = ColorMode.Color;
+                    if (_alpha == 0)
+                        _alpha = 1;
                 }
+
+                if (PaletteManager.Palettes.Count > 0)
+                    if (ToggleButton(ColorPickerIds.ColorPickerModePalette, EditorAssets.Sprites.IconPalette, _paletteMode == ColorMode.Palette))
+                        _paletteMode = ColorMode.Palette;
+
+                UI.Flex();
             }
 
-            if (!_paletteMode)
+            UI.Spacer(EditorStyle.Control.Spacing);
+
+            if (_paletteMode == ColorMode.Color)
             {
                 using (UI.BeginRow(new ContainerStyle { Spacing = Spacing }))
                 {
@@ -209,18 +246,21 @@ internal static partial class EditorUI
                 AlphaBar();
                 PreviewRow();
                 HexInput();
-                NoneButton();
 
                 if (_swatches != null && _swatchCount > 0)
                     SwatchGrid();
+
+                color = HsvToColor32(_hue, _sat, _val, _alpha);
+            }
+            else if (_paletteMode == ColorMode.None)
+            {
+                color = Color.Transparent;
             }
             else
             {
                 PaletteSwatchGrid();
-                NoneButton();
+                color = HsvToColor32(_hue, _sat, _val, _alpha);
             }
-
-            color = HsvToColor32(_hue, _sat, _val, _alpha);
         }
 
         private static Vector2 GetNormalizedMouseInElement(int elementId)
@@ -391,15 +431,6 @@ internal static partial class EditorUI
                         }
                     }
                 }
-            }
-        }
-
-        private static void NoneButton()
-        {
-            if (Button(ColorPickerIds.ColorPickerNoneButton, EditorAssets.Sprites.IconNofill, selected: _alpha <= 0f))
-            {
-                _alpha = 0f;
-                _committed = true;
             }
         }
 

@@ -62,7 +62,7 @@ internal partial class VfxEditor : DocumentEditor
 
         UI.Flex();
 
-        if (EditorUI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, selected: Document.IsPlaying, toolbar: true))
+        if (EditorUI.ToggleButton(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, isChecked: Document.IsPlaying))
             TogglePlayback();
 
         UI.Flex();
@@ -166,7 +166,7 @@ internal partial class VfxEditor : DocumentEditor
                 }
 
                 // Add button
-                if (EditorUI.Button(ElementId.AddEmitterButton, EditorAssets.Sprites.IconDuplicate, toolbar: true))
+                if (EditorUI.Button(ElementId.AddEmitterButton, EditorAssets.Sprites.IconDuplicate))
                     Document.AddEmitter($"emitter{Document.EmitterCount}");
 
                 UI.Flex();
@@ -174,7 +174,7 @@ internal partial class VfxEditor : DocumentEditor
                 // Remove button (only if selected)
                 if (Document.EmitterCount > 0)
                 {
-                    if (EditorUI.Button(ElementId.RemoveEmitterButton, EditorAssets.Sprites.IconDelete, toolbar: true))
+                    if (EditorUI.Button(ElementId.RemoveEmitterButton, EditorAssets.Sprites.IconDelete))
                         Document.RemoveEmitter(Document.SelectedEmitterIndex);
                 }
             }

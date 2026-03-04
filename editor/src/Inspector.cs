@@ -103,24 +103,22 @@ internal static partial class Inspector
 
     public static bool ToggleProperty(Sprite icon, ref bool value, bool enabled=true)
     {
-        var propertyId = GetNextPropertyId();
-
-        var hovered = UI.IsHovered(propertyId);
-        var pressed = false;
-        using (UI.BeginContainer(propertyId, hovered ? EditorStyle.Inspector.ToggleButtonHovered : EditorStyle.Inspector.ToggleButton))
+        if (EditorUI.ToggleButton(GetNextPropertyId(), icon, isChecked: value, isEnabled: enabled))
         {
-            if (value)
-                UI.Container(EditorStyle.Inspector.ToggleButtonChecked);
-
-            UI.Image(icon, EditorStyle.Icon.Primary);
-
-            pressed = UI.WasPressed();
+            value = !value;
+            return true;
         }
 
-        if (pressed)
-            value = !value;
+        return false;
+    }        
 
-        return pressed;
+    public static bool ColorProperty(Sprite icon, ref Color32 color, Action<Color32>? onPreview = null)
+    {
+        return EditorUI.ColorPickerButton(
+            GetNextPropertyId(),
+            ref color,
+            onPreview: onPreview,
+            icon: icon);
     }
 }
 

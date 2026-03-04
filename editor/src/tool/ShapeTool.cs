@@ -170,7 +170,7 @@ public class ShapeTool(
         }
 
         // Don't create paths on locked layers
-        var currentLayer = _editor.Document.GetCurrentDocumentLayer();
+        var currentLayer = _editor.Document.ActiveLayer;
         if (currentLayer is { Locked: true })
         {
             Finish();

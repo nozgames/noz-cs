@@ -361,7 +361,7 @@ public static partial class Workspace
         CollectionUI();
 
         UI.Flex();
-        if (EditorUI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, toolbar: true, selected: XrayMode))
+        if (EditorUI.ToggleButton(ElementId.XrayButton, EditorAssets.Sprites.IconXray, isChecked: XrayMode))
         {
             XrayMode = !XrayMode;
             XrayModeChanged?.Invoke(XrayMode);

@@ -163,13 +163,13 @@ internal partial class AnimationEditor : DocumentEditor
         using (UI.BeginFlex())
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
         {
-            if (EditorUI.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe, toolbar: true))
+            if (EditorUI.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
                 InsertFrameAfter();
-            if (EditorUI.Button(ElementId.MirrorButton, EditorAssets.Sprites.IconMirror, toolbar: true))
+            if (EditorUI.Button(ElementId.MirrorButton, EditorAssets.Sprites.IconMirror))
                 MirrorPose();
         }
 
-        if (EditorUI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, selected: Document.IsPlaying, toolbar: true))
+        if (EditorUI.ToggleButton(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, isChecked: Document.IsPlaying))
             TogglePlayback();
 
         using (UI.BeginFlex())
@@ -177,16 +177,16 @@ internal partial class AnimationEditor : DocumentEditor
         {
             UI.Flex();
 
-            if (EditorUI.Button(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview, selected: _showSkeleton, toolbar: true))
+            if (EditorUI.ToggleButton(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview, isChecked: _showSkeleton))
                 _showSkeleton = !_showSkeleton;
 
-            if (EditorUI.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, selected: Document.IsLooping, toolbar: true))
+            if (EditorUI.ToggleButton(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, isChecked: Document.IsLooping))
             {
                 Undo.Record(Document);
                 Document.IsLooping = !Document.IsLooping;
             }
 
-            if (EditorUI.Button(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion, selected: _onionSkin, toolbar: true))
+            if (EditorUI.ToggleButton(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion, isChecked: _onionSkin))
                 _onionSkin = !_onionSkin;
         }
 

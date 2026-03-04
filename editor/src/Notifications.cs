@@ -45,6 +45,9 @@ public static class Notifications
 
     private static void OnImported(Document doc)
     {
+        if (doc.SilentImport)
+            return;
+
         AddDeferred(NotificationType.Info, $"imported '{doc.Name}'");
     }
 

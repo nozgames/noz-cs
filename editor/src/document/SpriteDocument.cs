@@ -2,10 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Data.Common;
+using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -15,143 +14,7 @@ using SixLabors.ImageSharp.Processing;
 
 namespace NoZ.Editor;
 
-public class GenerationConfig
-{
-    public string Prompt = "";
-    public string NegativePrompt = "";
-    public string Style = "";
-    public long Seed;
-    public float ControlNetStrength = 0.3f;
-    public float StyleStrength = 0.7f;
-    public bool Auto;
-
-    // Editor-only state (not persisted)
-    public Texture? GeneratedTexture;
-    public bool IsGenerating;
-
-    public bool HasPrompt => !string.IsNullOrEmpty(Prompt);
-
-    public GenerationConfig Clone() => new()
-    {
-        Prompt = Prompt,
-        NegativePrompt = NegativePrompt,
-        Style = Style,
-        Seed = Seed,
-        ControlNetStrength = ControlNetStrength,
-        StyleStrength = StyleStrength,
-        Auto = Auto,
-    };
-}
-
-public class DocumentLayer
-{
-    public string Name = "";
-    public bool Visible = true;
-    public bool Locked;
-    public float Opacity = 1.0f;
-    public byte SortOrder;
-    public StringId Bone;
-
-    /// <summary>Non-null when this layer is generative.</summary>
-    public GenerationConfig? Generation;
-
-    // Per-layer frame timeline
-    public readonly LayerFrame[] Frames = new LayerFrame[Sprite.MaxFrames];
-    public ushort FrameCount = 1;
-
-    public bool IsGenerated => Generation != null;
-    public bool HasGeneration => Generation is { HasPrompt: true };
-
-    /// <summary>Total time slots this layer occupies (each frame = 1 + Hold slots).</summary>
-    public int TotalTimeSlots
-    {
-        get
-        {
-            var total = 0;
-            for (var i = 0; i < FrameCount; i++)
-                total += 1 + Frames[i].Hold;
-            return total;
-        }
-    }
-
-    public DocumentLayer()
-    {
-        for (var i = 0; i < Frames.Length; i++)
-            Frames[i] = new LayerFrame();
-    }
-
-    public int InsertFrame(int insertAt)
-    {
-        if (FrameCount >= Sprite.MaxFrames)
-            return -1;
-
-        FrameCount++;
-        var copyFrame = Math.Max(0, insertAt - 1);
-
-        for (var i = FrameCount - 1; i > insertAt; i--)
-        {
-            Frames[i].Shape.CopyFrom(Frames[i - 1].Shape);
-            Frames[i].Hold = Frames[i - 1].Hold;
-        }
-
-        if (copyFrame >= 0 && copyFrame < FrameCount)
-            Frames[insertAt].Shape.CopyFrom(Frames[copyFrame].Shape);
-
-        Frames[insertAt].Hold = 0;
-        return insertAt;
-    }
-
-    public int DeleteFrame(int frameIndex)
-    {
-        if (FrameCount <= 1)
-            return frameIndex;
-
-        for (var i = frameIndex; i < FrameCount - 1; i++)
-        {
-            Frames[i].Shape.CopyFrom(Frames[i + 1].Shape);
-            Frames[i].Hold = Frames[i + 1].Hold;
-        }
-
-        Frames[FrameCount - 1].Shape.Clear();
-        Frames[FrameCount - 1].Hold = 0;
-        FrameCount--;
-        return Math.Min(frameIndex, FrameCount - 1);
-    }
-
-    public DocumentLayer Clone()
-    {
-        var clone = new DocumentLayer
-        {
-            Name = Name,
-            Visible = Visible,
-            Locked = Locked,
-            Opacity = Opacity,
-            SortOrder = SortOrder,
-            Bone = Bone,
-            Generation = Generation?.Clone(),
-            FrameCount = FrameCount,
-        };
-        for (var i = 0; i < FrameCount; i++)
-        {
-            clone.Frames[i].Shape.CopyFrom(Frames[i].Shape);
-            clone.Frames[i].Hold = Frames[i].Hold;
-        }
-        return clone;
-    }
-}
-
-public class LayerFrame : IDisposable
-{
-    public readonly Shape Shape = new();
-    public int Hold;
-
-    public void Dispose()
-    {
-        Shape.Dispose();
-    }
-}
-
-public class SpriteDocument : Document, ISpriteSource
+public partial class SpriteDocument : Document, ISpriteSource
 {
     public override bool CanSave => true;
 
@@ -202,7 +65,7 @@ public class SpriteDocument : Document, ISpriteSource
 
     public const int MaxDocumentLayers = 32;
 
-    private readonly List<DocumentLayer> _documentLayers = new();
+    private readonly List<SpriteLayer> _layers = new();
     private readonly List<Rect> _atlasUV = new();
     private Sprite? _sprite;
     public float Depth;
@@ -212,10 +75,12 @@ public class SpriteDocument : Document, ISpriteSource
     public Color32 CurrentFillColor = Color32.White;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
-    public int CurrentDocumentLayer;
+    public int ActiveLayerIndex;
     public PathOperation CurrentOperation;
 
-    public IReadOnlyList<DocumentLayer> Layers => _documentLayers;
+    public IReadOnlyList<SpriteLayer> Layers => _layers;
+
+    public SpriteLayer ActiveLayer => _layers[ActiveLayerIndex];
 
     /// <summary>Total time slots across the longest layer.</summary>
     public int GlobalTimeSlots
@@ -223,7 +88,7 @@ public class SpriteDocument : Document, ISpriteSource
         get
         {
             var max = 1;
-            foreach (var layer in _documentLayers)
+            foreach (var layer in _layers)
                 max = Math.Max(max, layer.TotalTimeSlots);
             return max;
         }
@@ -235,16 +100,14 @@ public class SpriteDocument : Document, ISpriteSource
         get
         {
             ushort max = 1;
-            foreach (var layer in _documentLayers)
+            foreach (var layer in _layers)
                 max = Math.Max(max, layer.FrameCount);
             return max;
         }
     }
 
-    /// <summary>Given a global time slot, return which frame index a specific layer is showing.</summary>
-    public int GetLayerFrameAtTimeSlot(int layerIndex, int globalTimeSlot)
+    public static int GetLayerFrameAtTimeSlot(SpriteLayer layer, int globalTimeSlot)
     {
-        var layer = _documentLayers[layerIndex];
         var accumulated = 0;
         for (var f = 0; f < layer.FrameCount; f++)
         {
@@ -253,9 +116,12 @@ public class SpriteDocument : Document, ISpriteSource
                 return f;
             accumulated += slots;
         }
-        // Past the end: hold last frame
+
         return layer.FrameCount - 1;
     }
+
+    public int GetLayerFrameAtTimeSlot(int layerIndex, int globalTimeSlot) =>
+        GetLayerFrameAtTimeSlot(_layers[layerIndex], globalTimeSlot);
 
     public int MeshSlotCount
     {
@@ -271,71 +137,14 @@ public class SpriteDocument : Document, ISpriteSource
     public bool ShowSkeletonOverlay { get; set; }
     public Vector2Int? ConstrainedSize { get; set; }
 
-    public bool HasGeneration => _documentLayers.Any(l => l.HasGeneration);
+    public bool HasGeneration => _layers.Any(l => l.HasGeneration);
 
-    public bool IsGenerating => _documentLayers.Any(l => l.Generation?.IsGenerating == true);
+    public bool IsGenerating => _layers.Any(l => l.Generation?.IsGenerating == true);
 
     public void EnsureDefaultLayer()
     {
-        if (_documentLayers.Count == 0)
-            _documentLayers.Add(new DocumentLayer { Name = "Layer 1" });
-    }
-
-    public DocumentLayer? GetCurrentDocumentLayer() =>
-        CurrentDocumentLayer >= 0 && CurrentDocumentLayer < _documentLayers.Count
-            ? _documentLayers[CurrentDocumentLayer]
-            : null;
-
-    public int AddDocumentLayer(bool generated = false)
-    {
-        if (_documentLayers.Count >= MaxDocumentLayers)
-            return -1;
-
-        var name = generated
-            ? $"Generated {_documentLayers.Count(l => l.IsGenerated) + 1}"
-            : $"Layer {_documentLayers.Count + 1}";
-
-        _documentLayers.Add(new DocumentLayer { Name = name, Generation = generated ? new GenerationConfig() : null });
-        CurrentDocumentLayer = _documentLayers.Count - 1;
-        IncrementVersion();
-        return CurrentDocumentLayer;
-    }
-
-    public void DeleteDocumentLayer(int index)
-    {
-        if (index < 0 || index >= _documentLayers.Count || _documentLayers.Count <= 1)
-            return;
-
-        _documentLayers.RemoveAt(index);
-
-        if (CurrentDocumentLayer >= _documentLayers.Count)
-            CurrentDocumentLayer = _documentLayers.Count - 1;
-
-        IncrementVersion();
-        UpdateBounds();
-    }
-
-    public void MoveDocumentLayer(int fromIndex, int toIndex)
-    {
-        if (fromIndex < 0 || fromIndex >= _documentLayers.Count ||
-            toIndex < 0 || toIndex >= _documentLayers.Count ||
-            fromIndex == toIndex)
-            return;
-
-        var layer = _documentLayers[fromIndex];
-        _documentLayers.RemoveAt(fromIndex);
-        _documentLayers.Insert(toIndex, layer);
-
-        // Track the selected layer
-        if (CurrentDocumentLayer == fromIndex)
-            CurrentDocumentLayer = toIndex;
-        else if (fromIndex < toIndex && CurrentDocumentLayer > fromIndex && CurrentDocumentLayer <= toIndex)
-            CurrentDocumentLayer--;
-        else if (fromIndex > toIndex && CurrentDocumentLayer >= toIndex && CurrentDocumentLayer < fromIndex)
-            CurrentDocumentLayer++;
-
-        IncrementVersion();
-        UpdateBounds();
+        if (_layers.Count == 0)
+            _layers.Add(new SpriteLayer { Name = "Layer 1" });
     }
 
     ushort ISpriteSource.FrameCount => (ushort)GlobalTimeSlots;
@@ -390,7 +199,7 @@ public class SpriteDocument : Document, ISpriteSource
                 continue;
 
             var modified = false;
-            foreach (var layer in doc._documentLayers)
+            foreach (var layer in doc._layers)
             {
                 if (layer.Bone == oldBoneName)
                 {
@@ -414,7 +223,7 @@ public class SpriteDocument : Document, ISpriteSource
                 continue;
 
             var modified = false;
-            foreach (var layer in doc._documentLayers)
+            foreach (var layer in doc._layers)
             {
                 if (layer.Bone == removedBoneName)
                 {
@@ -433,7 +242,7 @@ public class SpriteDocument : Document, ISpriteSource
 
     /// <summary>Get the current document layer's shape for a given layer frame index.</summary>
     public Shape GetLayerShape(int layerIndex, int frameIndex) =>
-        _documentLayers[layerIndex].Frames[frameIndex].Shape;
+        _layers[layerIndex].Frames[frameIndex].Shape;
 
     private static void NewFile(StreamWriter writer)
     {
@@ -452,7 +261,7 @@ public class SpriteDocument : Document, ISpriteSource
     {
         Edges = EdgeInsets.Zero;
         Binding.Clear();
-        _documentLayers.Clear();
+        _layers.Clear();
 
         // Re-read and re-parse the .sprite file
         var contents = File.ReadAllText(Path);
@@ -472,9 +281,9 @@ public class SpriteDocument : Document, ISpriteSource
         var legacyPaths = new List<(ushort frameIndex, ushort pathIndex, byte sortOrder, StringId bone)>();
         var hasDocLayers = false;
         var legacyFrameCount = (ushort)0;
-        var legacyFrames = new LayerFrame[Sprite.MaxFrames];
+        var legacyFrames = new SpriteFrame[Sprite.MaxFrames];
         for (var i = 0; i < legacyFrames.Length; i++)
-            legacyFrames[i] = new LayerFrame();
+            legacyFrames[i] = new SpriteFrame();
 
         // Track if any non-layer-0 layer has holds (old format detection)
         var layer0HoldsOnly = true;
@@ -485,10 +294,10 @@ public class SpriteDocument : Document, ISpriteSource
             if (tk.ExpectIdentifier("layer"))
             {
                 // Layer is the top-level concept — everything after belongs to this layer
-                var currentLayerIndex = _documentLayers.Count;
+                var currentLayerIndex = _layers.Count;
                 ParseDocumentLayer(ref tk);
                 hasDocLayers = true;
-                var layer = _documentLayers[currentLayerIndex];
+                var layer = _layers[currentLayerIndex];
 
                 // Parse frames/paths within this layer
                 while (!tk.IsEOF)
@@ -579,6 +388,9 @@ public class SpriteDocument : Document, ISpriteSource
             }
         }
 
+        for (int i = 0; i < _layers.Count; i++)
+            _layers[i].Index = i;
+
         // Migrate legacy per-path layers/bones to document layers
         if (!hasDocLayers && legacyFrameCount > 0)
         {
@@ -586,12 +398,12 @@ public class SpriteDocument : Document, ISpriteSource
         }
 
         // Old format migration: if only layer 0 had holds, copy them to all layers
-        if (hasDocLayers && layer0HoldsOnly && _documentLayers.Count > 1)
+        if (hasDocLayers && layer0HoldsOnly && _layers.Count > 1)
         {
-            var layer0 = _documentLayers[0];
-            for (var li = 1; li < _documentLayers.Count; li++)
+            var layer0 = _layers[0];
+            for (var li = 1; li < _layers.Count; li++)
             {
-                var layer = _documentLayers[li];
+                var layer = _layers[li];
                 var minFrames = Math.Min(layer0.FrameCount, layer.FrameCount);
                 for (var fi = 0; fi < minFrames; fi++)
                     layer.Frames[fi].Hold = layer0.Frames[fi].Hold;
@@ -603,8 +415,10 @@ public class SpriteDocument : Document, ISpriteSource
 
     private void ParseDocumentLayer(ref Tokenizer tk)
     {
-        var layer = new DocumentLayer();
-        layer.Name = tk.ExpectQuotedString() ?? $"Layer {_documentLayers.Count + 1}";
+        var layer = new SpriteLayer
+        {
+            Name = tk.ExpectQuotedString() ?? $"Layer {_layers.Count + 1}"
+        };
 
         // Parse optional flags: sort N, generated, locked, hidden, bone "name"
         while (!tk.IsEOF)
@@ -629,12 +443,12 @@ public class SpriteDocument : Document, ISpriteSource
                 break;
         }
 
-        _documentLayers.Add(layer);
+        _layers.Add(layer);
     }
 
     private void MigrateLegacyLayers(
         List<(ushort frameIndex, ushort pathIndex, byte sortOrder, StringId bone)> legacyPaths,
-        LayerFrame[] legacyFrames,
+        SpriteFrame[] legacyFrames,
         ushort legacyFrameCount)
     {
         // Group by (sortOrder, bone) to create document layers
@@ -645,11 +459,11 @@ public class SpriteDocument : Document, ISpriteSource
             var key = (sortOrder, bone);
             if (!layerMap.ContainsKey(key))
             {
-                var docLayerIndex = (byte)_documentLayers.Count;
-                var name = $"Layer {_documentLayers.Count + 1}";
+                var docLayerIndex = (byte)_layers.Count;
+                var name = $"Layer {_layers.Count + 1}";
                 if (EditorApplication.Config.TryGetSortOrder(sortOrder, out var sortDef))
                     name = sortDef.Label;
-                _documentLayers.Add(new DocumentLayer
+                _layers.Add(new SpriteLayer
                 {
                     Name = name,
                     SortOrder = sortOrder,
@@ -668,18 +482,18 @@ public class SpriteDocument : Document, ISpriteSource
         }
 
         // If no legacy layer info, create a default layer
-        if (_documentLayers.Count == 0)
-            _documentLayers.Add(new DocumentLayer { Name = "Layer 1" });
+        if (_layers.Count == 0)
+            _layers.Add(new SpriteLayer { Name = "Layer 1" });
 
         // Distribute paths from legacy frames to per-layer frames
         DistributeLegacyFrames(legacyFrames, legacyFrameCount, pathLayerMap);
     }
 
-    private void DistributeLegacyFrames(LayerFrame[] legacyFrames, ushort legacyFrameCount,
+    private void DistributeLegacyFrames(SpriteFrame[] legacyFrames, ushort legacyFrameCount,
         Dictionary<(ushort frameIndex, ushort pathIndex), byte> pathLayerMap)
     {
         // Set frame counts
-        foreach (var layer in _documentLayers)
+        foreach (var layer in _layers)
             layer.FrameCount = Math.Max((ushort)1, legacyFrameCount);
 
         for (ushort fi = 0; fi < legacyFrameCount; fi++)
@@ -687,7 +501,7 @@ public class SpriteDocument : Document, ISpriteSource
             var srcShape = legacyFrames[fi].Shape;
 
             // Copy hold to all layers
-            foreach (var layer in _documentLayers)
+            foreach (var layer in _layers)
                 layer.Frames[fi].Hold = legacyFrames[fi].Hold;
 
             // Distribute paths to per-layer shapes
@@ -696,9 +510,9 @@ public class SpriteDocument : Document, ISpriteSource
                 ref readonly var path = ref srcShape.GetPath(pi);
                 byte layerIdx = 0;
                 if (pathLayerMap.TryGetValue((fi, pi), out var mapped))
-                    layerIdx = Math.Min(mapped, (byte)(_documentLayers.Count - 1));
+                    layerIdx = Math.Min(mapped, (byte)(_layers.Count - 1));
 
-                var dstShape = _documentLayers[layerIdx].Frames[fi].Shape;
+                var dstShape = _layers[layerIdx].Frames[fi].Shape;
 
                 // Copy path and its anchors to the destination layer shape
                 var dstPathIdx = dstShape.AddPath(path.FillColor, path.StrokeColor, path.StrokeWidth, operation: path.Operation);
@@ -713,7 +527,7 @@ public class SpriteDocument : Document, ISpriteSource
         }
     }
 
-    private void ParsePathInLayer(LayerFrame f, ref Tokenizer tk)
+    private void ParsePathInLayer(SpriteFrame f, ref Tokenizer tk)
     {
         var pathIndex = f.Shape.AddPath(Color32.White);
         var fillColor = Color32.White;
@@ -769,7 +583,7 @@ public class SpriteDocument : Document, ISpriteSource
     }
 
     /// <summary>Parse a path in legacy format (no document layers). Used for backwards compatibility.</summary>
-    private void ParseLegacyPath(LayerFrame f, ushort frameIndex, ref Tokenizer tk,
+    private void ParseLegacyPath(SpriteFrame f, ushort frameIndex, ref Tokenizer tk,
         List<(ushort, ushort, byte, StringId)> legacyPaths)
     {
         var pathIndex = f.Shape.AddPath(Color32.White);
@@ -876,7 +690,7 @@ public class SpriteDocument : Document, ISpriteSource
             return;
         }
 
-        if (_documentLayers.Count == 0)
+        if (_layers.Count == 0)
         {
             Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
             return;
@@ -887,7 +701,7 @@ public class SpriteDocument : Document, ISpriteSource
         var bounds = Rect.Zero;
         RasterBounds = RectInt.Zero;
 
-        foreach (var layer in _documentLayers)
+        foreach (var layer in _layers)
         {
             for (ushort fi = 0; fi < layer.FrameCount; fi++)
             {
@@ -979,13 +793,13 @@ public class SpriteDocument : Document, ISpriteSource
         if (Binding.IsBound)
             writer.WriteLine($"skeleton \"{Binding.SkeletonName}\"");
 
-        if (_documentLayers.Count > 0)
+        if (_layers.Count > 0)
             writer.WriteLine();
 
         // Layers are the top-level concept — each layer contains its own frames/paths
-        for (var layerIndex = 0; layerIndex < _documentLayers.Count; layerIndex++)
+        for (var layerIndex = 0; layerIndex < _layers.Count; layerIndex++)
         {
-            var layer = _documentLayers[layerIndex];
+            var layer = _layers[layerIndex];
 
             // Write layer definition with properties
             writer.Write($"layer \"{layer.Name}\"");
@@ -1022,7 +836,7 @@ public class SpriteDocument : Document, ISpriteSource
                     SaveLayerFrame(shape, writer);
             }
 
-            if (layerIndex < _documentLayers.Count - 1)
+            if (layerIndex < _layers.Count - 1)
                 writer.WriteLine();
         }
     }
@@ -1071,7 +885,7 @@ public class SpriteDocument : Document, ISpriteSource
         if (size.X <= 0 || size.Y <= 0 || Atlas == null)
             return;
 
-        var hasContent = _documentLayers.Any(l => l.Frames[0].Shape.PathCount > 0);
+        var hasContent = _layers.Any(l => l.Frames[0].Shape.PathCount > 0);
         if (!hasContent)
         {
             DrawBounds();
@@ -1172,13 +986,13 @@ public class SpriteDocument : Document, ISpriteSource
         CurrentFillColor = src.CurrentFillColor;
         CurrentStrokeColor = src.CurrentStrokeColor;
         CurrentStrokeWidth = src.CurrentStrokeWidth;
-        CurrentDocumentLayer = src.CurrentDocumentLayer;
+        ActiveLayerIndex = src.ActiveLayerIndex;
 
         Edges = src.Edges;
         Binding.CopyFrom(src.Binding);
 
-        _documentLayers.Clear();
-        _documentLayers.AddRange(src._documentLayers.Select(l => l.Clone()));
+        _layers.Clear();
+        _layers.AddRange(src._layers.Select(l => l.Clone()));
     }
 
     public override void LoadMetadata(PropertySet meta)
@@ -1189,9 +1003,9 @@ public class SpriteDocument : Document, ISpriteSource
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
 
         // Load per-layer generation params from meta (new format: [generate.layer0], [generate.layer1], ...)
-        for (var i = 0; i < _documentLayers.Count; i++)
+        for (var i = 0; i < _layers.Count; i++)
         {
-            var layer = _documentLayers[i];
+            var layer = _layers[i];
             if (!layer.IsGenerated)
                 continue;
             var gen = layer.Generation!;
@@ -1207,14 +1021,14 @@ public class SpriteDocument : Document, ISpriteSource
 
         // Legacy migration: old [generate] section at document level
         var legacyPrompt = meta.GetString("generate", "prompt", "");
-        if (!string.IsNullOrEmpty(legacyPrompt) && !_documentLayers.Any(l => l.HasGeneration))
+        if (!string.IsNullOrEmpty(legacyPrompt) && !_layers.Any(l => l.HasGeneration))
         {
             // Find or create a generated layer for the legacy config
-            var genLayer = _documentLayers.FirstOrDefault(l => l.IsGenerated);
+            var genLayer = _layers.FirstOrDefault(l => l.IsGenerated);
             if (genLayer == null)
             {
-                genLayer = new DocumentLayer { Name = "Generated", Generation = new GenerationConfig() };
-                _documentLayers.Insert(0, genLayer); // insert at bottom
+                genLayer = new SpriteLayer { Name = "Generated", Generation = new GenerationConfig() };
+                _layers.Insert(0, genLayer); // insert at bottom
             }
             var gen = genLayer.Generation!;
             gen.Prompt = legacyPrompt;
@@ -1253,9 +1067,9 @@ public class SpriteDocument : Document, ISpriteSource
         meta.ClearGroup("generate");  // Legacy cleanup - generation now per-layer
 
         // Save per-layer generation params
-        for (var i = 0; i < _documentLayers.Count; i++)
+        for (var i = 0; i < _layers.Count; i++)
         {
-            var layer = _documentLayers[i];
+            var layer = _layers[i];
             var section = $"generate.layer{i}";
             if (layer.HasGeneration)
             {
@@ -1296,9 +1110,9 @@ public class SpriteDocument : Document, ISpriteSource
 
     internal void LoadGeneratedTextures()
     {
-        for (var i = 0; i < _documentLayers.Count; i++)
+        for (var i = 0; i < _layers.Count; i++)
         {
-            var layer = _documentLayers[i];
+            var layer = _layers[i];
             if (!layer.IsGenerated)
                 continue;
 
@@ -1481,22 +1295,22 @@ public class SpriteDocument : Document, ISpriteSource
         // Find the target generated layer
         if (layerIndex < 0)
         {
-            layerIndex = CurrentDocumentLayer;
-            if (layerIndex < 0 || layerIndex >= _documentLayers.Count ||
-                !_documentLayers[layerIndex].IsGenerated)
+            layerIndex = ActiveLayerIndex;
+            if (layerIndex < 0 || layerIndex >= _layers.Count ||
+                !_layers[layerIndex].IsGenerated)
             {
                 // Find first generated layer
-                layerIndex = _documentLayers.FindIndex(l => l.IsGenerated);
+                layerIndex = _layers.FindIndex(l => l.IsGenerated);
             }
         }
 
-        if (layerIndex < 0 || layerIndex >= _documentLayers.Count)
+        if (layerIndex < 0 || layerIndex >= _layers.Count)
         {
             Log.Error($"No generated layer found for '{Name}'");
             return;
         }
 
-        var genLayer = _documentLayers[layerIndex];
+        var genLayer = _layers[layerIndex];
         var gen = genLayer.Generation!;
         if (gen.IsGenerating)
             return;
@@ -1690,8 +1504,8 @@ public class SpriteDocument : Document, ISpriteSource
             var hasContent = false;
             foreach (var (layerIdx, layerShape) in slot.LayerShapes)
             {
-                if (layerIdx >= _documentLayers.Count) continue;
-                var docLayer = _documentLayers[layerIdx];
+                if (layerIdx >= _layers.Count) continue;
+                var docLayer = _layers[layerIdx];
 
                 if (docLayer.IsGenerated)
                 {
@@ -2109,7 +1923,7 @@ public class SpriteDocument : Document, ISpriteSource
         foreach (var (layerIdx, _) in slot.LayerShapes)
         {
             var frameIdx = GetLayerFrameAtTimeSlot(layerIdx, timeSlot);
-            var shape = _documentLayers[layerIdx].Frames[frameIdx].Shape;
+            var shape = _layers[layerIdx].Frames[frameIdx].Shape;
             var sb = shape.GetRasterBounds();
             if (sb.Width <= 0 || sb.Height <= 0) continue;
             bounds = first ? sb : RectInt.Union(bounds, sb);
@@ -2151,9 +1965,9 @@ public class SpriteDocument : Document, ISpriteSource
         // Adjacent layers with same (SortOrder, Bone) auto-merge into one MeshSlot.
         MeshSlot? currentSlot = null;
 
-        for (var layerIdx = 0; layerIdx < _documentLayers.Count; layerIdx++)
+        for (var layerIdx = 0; layerIdx < _layers.Count; layerIdx++)
         {
-            var docLayer = _documentLayers[layerIdx];
+            var docLayer = _layers[layerIdx];
             var sortOrder = docLayer.SortOrder;
             var bone = docLayer.Bone;
             var frameIdx = GetLayerFrameAtTimeSlot(layerIdx, timeSlot);

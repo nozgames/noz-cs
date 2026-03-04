@@ -110,24 +110,6 @@ internal static partial class EditorUI
             UI.Image(icon, EditorStyle.Control.HoveredIcon);
         else
             UI.Image(icon, EditorStyle.Control.Icon);
-
-    }
-
-    public static bool Button(int id, Sprite icon, bool selected = false, bool disabled = false, bool toolbar = false)
-    {
-        bool pressed = false;
-        using (UI.BeginContainer(id, EditorStyle.Button.RootWithIcon))
-        {
-            _controlDisabled = disabled;
-            _controlHovered = UI.IsHovered();
-            _controlSelected = selected;
-
-            ButtonFill(selected, UI.IsHovered(), disabled, toolbar: toolbar);
-            ButtonIcon(icon);
-            pressed = !disabled && UI.WasPressed();
-        }
-
-        return pressed;
     }
 
     public static bool Button(int id, Action content, bool selected = false, bool disabled = false, bool toolbar = false)
@@ -684,5 +666,13 @@ internal static partial class EditorUI
         UI.Container(EditorStyle.Dopesheet.LayerSeparator);
 
         return oldCurrentFrame != currentFrame;
+    }
+
+    public static void PanelSeparator()
+    {
+        if (UI.IsRow())
+            UI.Container(EditorStyle.Panel.SeparatorVertical);
+        else if (UI.IsColumn())
+            UI.Container(EditorStyle.Panel.SeparatorHorizontal);
     }
 }

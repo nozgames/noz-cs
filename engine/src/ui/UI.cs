@@ -215,7 +215,7 @@ public static partial class UI
     }
 
     public static bool IsRow() => GetSelf().Type == ElementType.Row;
-    public static bool IsColumn() => GetSelf().Type == ElementType.Row;
+    public static bool IsColumn() => GetSelf().Type == ElementType.Column;
 
     private static ref NativeArray<char> GetTextBuffer() => ref _textBuffers[_currentTextBuffer];
 
