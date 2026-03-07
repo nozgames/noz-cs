@@ -19,6 +19,7 @@ internal enum ElementFlags : ushort
     DoubleClick = 1 << 6,
     RightClick = 1 << 7,
     HoverChanged = 1 << 8,
+    Disabled = 1 << 9,
 }
 
 internal struct ScrollableState

@@ -110,6 +110,7 @@ public static partial class PopupMenu
         UI.ClearHot();
 
         _scope = Input.PushScope();
+        Input.ConsumeButton(InputCode.MouseLeft);
     }
 
     public static void Close()

@@ -538,7 +538,7 @@ public partial class GenSpriteDocument : Document, IShapeDocument
                 Steps = refine.Steps,
                 GuidanceScale = refine.GuidanceScale,
             },
-            Seed = primaryGen.Seed == 0 ? null : primaryGen.Seed,
+            Seed = primaryGen.Seed == 0 ? Random.Shared.NextInt64(1, long.MaxValue) : primaryGen.Seed,
             StyleReferences = Style != null ? GenerationClient.LoadStyleReferences(Style.StyleReferences) : null,
         };
 

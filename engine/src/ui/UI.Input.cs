@@ -128,11 +128,26 @@ public static partial class UI
             {
                 ref var popup = ref _elements[_popups[i]];
                 if (!popup.Data.Popup.AutoClose) continue;
-                var localMouse = Vector2.Transform(mouse, popup.WorldToLocal);
-                if (popup.Rect.Contains(localMouse))
+
+                // Use ElementTree popup rect (correctly sized) if available
+                if (i < _etPopupCount)
                 {
-                    clickInsideAutoClosePopup = true;
-                    break;
+                    ref var etPopup = ref ElementTree.GetElement(_etPopupOffsets[i]);
+                    var localMouse = Vector2.Transform(mouse, etPopup.WorldToLocal);
+                    if (etPopup.Rect.Contains(localMouse))
+                    {
+                        clickInsideAutoClosePopup = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    var localMouse = Vector2.Transform(mouse, popup.WorldToLocal);
+                    if (popup.Rect.Contains(localMouse))
+                    {
+                        clickInsideAutoClosePopup = true;
+                        break;
+                    }
                 }
             }
 

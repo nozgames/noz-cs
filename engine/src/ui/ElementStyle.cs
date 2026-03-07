@@ -6,6 +6,46 @@ using System.Numerics;
 
 namespace NoZ;
 
+public struct StyleValue<T> where T : unmanaged
+{
+    public T Normal;
+    public T? Hovered;
+    public T? Pressed;
+    public T? Disabled;
+    public T? Checked;
+
+    public StyleValue()
+    {
+    }
+
+    public static implicit operator StyleValue<T>(T value)
+    {
+        return new StyleValue<T> { Normal = value };
+    }
+
+    internal T Resolve(ElementFlags flags)
+    {
+        if (Disabled.HasValue && (flags & ElementFlags.Disabled) != 0)
+            return Disabled.Value;
+        if (Pressed.HasValue && (flags & ElementFlags.Down) != 0)
+            return Pressed.Value;
+        if (Hovered.HasValue && (flags & ElementFlags.Hovered) != 0)
+            return Hovered.Value;
+        return Normal;
+    }
+}
+
+public struct NewContainerStyle()
+{
+    public StyleValue<Color> BackgroundColor;
+    public StyleValue<Color> BorderColor;
+    public StyleValue<float> BorderWidth;
+    public StyleValue<float> BorderRadius;
+    public Size Width = Size.Fit;
+    public Size Height = Size.Fit;
+    public EdgeInsets Padding;
+}
+
 public struct BorderStyle
 {
     public BorderRadius Radius;

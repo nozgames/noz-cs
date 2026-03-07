@@ -27,6 +27,7 @@ internal enum NewElementType : byte
     Label,
     Image,
     EditableText,
+    Popup,
 }
 
 internal struct BaseElement
@@ -131,6 +132,17 @@ internal struct ImageElement
     public float Width;
     public float Height;
     public ushort AssetIndex;
+}
+
+internal struct PopupElement
+{
+    public Rect AnchorRect;
+    public float AnchorFactorX;
+    public float AnchorFactorY;
+    public float PopupAlignFactorX;
+    public float PopupAlignFactorY;
+    public float Spacing;
+    public bool ClampToScreen;
 }
 
 public static unsafe partial class ElementTree
@@ -482,6 +494,26 @@ public static unsafe partial class ElementTree
     public static void EndFlex() => EndElement(NewElementType.Flex);
 
     // ──────────────────────────────────────────────
+    // Popup (absolute positioning container)
+    // ──────────────────────────────────────────────
+
+    internal static int BeginPopup(Rect anchorRect, Align2 anchor, Align2 popupAlign, float spacing, bool clampToScreen)
+    {
+        ref var e = ref BeginElement<PopupElement>(NewElementType.Popup);
+        ref var d = ref GetElementData<PopupElement>(ref e);
+        d.AnchorRect = anchorRect;
+        d.AnchorFactorX = anchor.X.ToFactor();
+        d.AnchorFactorY = anchor.Y.ToFactor();
+        d.PopupAlignFactorX = popupAlign.X.ToFactor();
+        d.PopupAlignFactorY = popupAlign.Y.ToFactor();
+        d.Spacing = spacing;
+        d.ClampToScreen = clampToScreen;
+        return GetOffset(ref e);
+    }
+
+    internal static void EndPopup() => EndElement(NewElementType.Popup);
+
+    // ──────────────────────────────────────────────
     // Spacer (leaf)
     // ──────────────────────────────────────────────
 
@@ -551,6 +583,8 @@ public static unsafe partial class ElementTree
         Debug.Assert(w.Id > 0 && w.Id < MaxId);
         return ref _widgetStates[w.Id];
     }
+
+    internal static ElementFlags GetCurrentWidgetFlags() => GetCurrentWidgetState().Flags;
 
     public static bool IsHovered() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Hovered);
     public static bool WasPressed() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Pressed);
@@ -951,6 +985,9 @@ public static unsafe partial class ElementTree
             case NewElementType.EditableText:
                 return FitEditableTextAxis(ref e, axis);
 
+            case NewElementType.Popup:
+                return e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, -1) : 0;
+
             default:
                 return 0;
         }
@@ -1046,6 +1083,7 @@ public static unsafe partial class ElementTree
         NewElementType.Label => sizeof(BaseElement) + sizeof(LabelElement),
         NewElementType.Image => sizeof(BaseElement) + sizeof(ImageElement),
         NewElementType.EditableText => sizeof(BaseElement) + sizeof(EditableTextElement),
+        NewElementType.Popup => sizeof(BaseElement) + sizeof(PopupElement),
         _ => sizeof(BaseElement)
     };
 
@@ -1164,6 +1202,10 @@ public static unsafe partial class ElementTree
                 size = LayoutEditableTextAxis(ref e, axis, available);
                 break;
 
+            case NewElementType.Popup:
+                size = e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, -1) : 0;
+                break;
+
             default:
                 size = 0;
                 break;
@@ -1171,6 +1213,20 @@ public static unsafe partial class ElementTree
 
         e.Rect[axis] = position;
         e.Rect[axis + 2] = size;
+
+        // Popup: override position to anchor rect after size is known
+        if (e.Type == NewElementType.Popup)
+        {
+            ref var pd = ref GetElementData<PopupElement>(ref e);
+            var anchorPos = pd.AnchorRect[axis] + pd.AnchorRect[axis + 2] * (axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY);
+            var popupAlignFactor = axis == 0 ? pd.PopupAlignFactorX : pd.PopupAlignFactorY;
+            var anchorFactor = axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY;
+            e.Rect[axis] = anchorPos - size * popupAlignFactor;
+            if (anchorFactor != popupAlignFactor)
+                e.Rect[axis] += pd.Spacing * (1f - 2f * popupAlignFactor);
+            if (pd.ClampToScreen)
+                e.Rect[axis] = Math.Clamp(e.Rect[axis], 0, ScreenSize[axis] - size);
+        }
 
         // Recurse children
         switch (e.Type)
@@ -1225,6 +1281,9 @@ public static unsafe partial class ElementTree
                 break;
             }
             case NewElementType.Flex:
+                LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
+                break;
+            case NewElementType.Popup:
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
                 break;
             default:
@@ -1428,11 +1487,14 @@ public static unsafe partial class ElementTree
     // Drawing (self-contained)
     // ──────────────────────────────────────────────
 
+    private static int _drawSortGroup;
+
     internal static void Draw()
     {
         if (_elements.Length == 0) return;
 
         _drawOpacity = 1.0f;
+        _drawSortGroup = 0;
         using var _ = Graphics.PushState();
         Graphics.SetBlendMode(BlendMode.Alpha);
         Graphics.SetShader(_shader);
@@ -1513,6 +1575,13 @@ public static unsafe partial class ElementTree
                 _drawOpacity *= d.Opacity;
                 break;
             }
+        }
+
+        // Popup: bump sort group so popup content renders on top
+        if (e.Type == NewElementType.Popup)
+        {
+            _drawSortGroup++;
+            Graphics.SetSortGroup(_drawSortGroup);
         }
 
         // Recurse children
@@ -1858,6 +1927,12 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref GetElementData<SpacerElement>(ref e);
                 sb.Append($" {d.Size.X:0}x{d.Size.Y:0}");
+                break;
+            }
+            case NewElementType.Popup:
+            {
+                ref var d = ref GetElementData<PopupElement>(ref e);
+                sb.Append($" anchor={d.AnchorRect.X:0},{d.AnchorRect.Y:0}");
                 break;
             }
         }

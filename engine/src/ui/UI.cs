@@ -69,6 +69,10 @@ public static partial class UI
     private static readonly byte[] _etWrapperCounts = new byte[128];
     private static int _etWrapperIndex;
 
+    // ElementTree popup offsets (parallel to _popups array)
+    private static readonly int[] _etPopupOffsets = new int[4];
+    private static int _etPopupCount;
+
     // Scrollbar drag state
     private static bool _scrollbarDragging;
     private static int _scrollbarDragElementId;
@@ -539,6 +543,7 @@ public static partial class UI
         _elementCount = 0;
         _etWrapperIndex = 0;
         _popupCount = 0;
+        _etPopupCount = 0;
         _activePopupCount = 0;
         _currentTextBuffer = 1 - _currentTextBuffer;
         _textBuffers[_currentTextBuffer].Clear();
@@ -620,6 +625,30 @@ public static partial class UI
         _etWrapperCounts[_etWrapperIndex++] = (byte)(count | (hasWidget ? 0x80 : 0));
     }
 
+    private static void BeginContainerImpl(int id, in NewContainerStyle style, int axis)
+    {
+        int count = 0;
+        bool hasWidget = id != 0;
+        if (hasWidget) ElementTree.BeginWidget(id);
+
+        var flags = hasWidget ? ElementTree.GetCurrentWidgetFlags() : ElementFlags.None;
+        var bgColor = style.BackgroundColor.Resolve(flags);
+        var borderColor = style.BorderColor.Resolve(flags);
+        var borderWidth = style.BorderWidth.Resolve(flags);
+        var borderRadius = BorderRadius.Circular(style.BorderRadius.Resolve(flags));
+
+        if (borderWidth > 0)
+            { ElementTree.BeginBorder(borderWidth, borderColor, borderRadius); count++; }
+        ElementTree.BeginSize(new Size2(style.Width, style.Height)); count++;
+        if (!bgColor.IsTransparent)
+            { ElementTree.BeginFill(bgColor, borderRadius); count++; }
+        if (style.Padding.L != 0 || style.Padding.R != 0 || style.Padding.T != 0 || style.Padding.B != 0)
+            { ElementTree.BeginPadding(style.Padding); count++; }
+        if (axis == 0) { ElementTree.BeginRow(0); count++; }
+        else if (axis == 1) { ElementTree.BeginColumn(0); count++; }
+        _etWrapperCounts[_etWrapperIndex++] = (byte)(count | (hasWidget ? 0x80 : 0));
+    }
+
     private static void EndContainerImpl()
     {
         var packed = _etWrapperCounts[--_etWrapperIndex];
@@ -641,6 +670,12 @@ public static partial class UI
 
     public static AutoContainer BeginContainer(in ContainerStyle style) =>
         BeginContainer(0, style);
+
+    public static AutoContainer BeginContainer(int id, in NewContainerStyle style)
+    {
+        BeginContainerImpl(id, style, -1);
+        return new AutoContainer();
+    }
 
     public static void EndContainer() => EndContainerImpl();
 
@@ -674,6 +709,12 @@ public static partial class UI
     public static AutoColumn BeginColumn() =>
         BeginColumn(0, ContainerStyle.Default);
 
+    public static AutoColumn BeginColumn(int id, in NewContainerStyle style)
+    {
+        BeginContainerImpl(id, style, 1);
+        return new AutoColumn();
+    }
+
     public static void EndColumn() => EndContainerImpl();
 
     public static AutoRow BeginRow(int id, in ContainerStyle style)
@@ -690,6 +731,12 @@ public static partial class UI
 
     public static AutoRow BeginRow() =>
         BeginRow(0, ContainerStyle.Default);
+
+    public static AutoRow BeginRow(int id, in NewContainerStyle style)
+    {
+        BeginContainerImpl(id, style, 0);
+        return new AutoRow();
+    }
 
     public static void EndRow() => EndContainerImpl();
 
@@ -743,13 +790,12 @@ public static partial class UI
 
     public static AutoOpacity BeginOpacity(float opacity)
     {
-        ref var e = ref CreateElement(ElementType.Opacity);
-        e.Data.Opacity = new OpacityData { Value = opacity };
-        PushElement(e.Index);
+        ElementTree.BeginOpacity(opacity);
+        _etWrapperCounts[_etWrapperIndex++] = 1;
         return new AutoOpacity();
     }
 
-    public static void EndOpacity() => EndElement(ElementType.Opacity);
+    public static void EndOpacity() => EndContainerImpl();
 
     public static AutoCursor BeginCursor(Sprite sprite)
     {
@@ -882,10 +928,23 @@ public static partial class UI
         _popups[_popupCount++] = e.Index;
         if (style.Interactive)
             _activePopupCount++;
+
+        // Also push ElementTree popup for positioning content
+        _etPopupOffsets[_etPopupCount++] = ElementTree.BeginPopup(
+            style.AnchorRect,
+            style.Anchor,
+            style.PopupAlign,
+            style.Spacing,
+            style.ClampToScreen);
+
         return new AutoPopup();
     }
 
-    public static void EndPopup() => EndElement(ElementType.Popup);
+    public static void EndPopup()
+    {
+        ElementTree.EndPopup();
+        EndElement(ElementType.Popup);
+    }
 
     // :label
     public static void Label(ReadOnlySpan<char> text) =>
@@ -954,8 +1013,6 @@ public static partial class UI
 
         Graphics.SetCamera(Camera);
 
-        HandleInput();
-
         // Flush any pending world-space rendering before drawing UI
         // SetCamera also sets u_projection uniform which UIRender will use
         Graphics.SetCamera(Camera);
@@ -966,6 +1023,10 @@ public static partial class UI
         ElementTree.EndSize();
         ElementTree.MouseWorldPosition = MouseWorldPosition;
         ElementTree.End();
+
+        // HandleInput after ElementTree layout so popup rects are available
+        HandleInput();
+
         ElementTree.Draw();
 
         for (int i = _elementCount; i < _previousElementCount; i++)
