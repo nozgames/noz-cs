@@ -586,6 +586,13 @@ public static unsafe partial class ElementTree
 
     internal static ElementFlags GetCurrentWidgetFlags() => GetCurrentWidgetState().Flags;
 
+    internal static void SetWidgetFlag(ElementFlags flag, bool value)
+    {
+        ref var ws = ref GetCurrentWidgetState();
+        if (value) ws.Flags |= flag;
+        else ws.Flags &= ~flag;
+    }
+
     public static bool IsHovered() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Hovered);
     public static bool WasPressed() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Pressed);
     public static bool IsDown() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Down);

@@ -420,6 +420,11 @@ public static partial class UI
         return GetElementState(ref GetTopId()).IsDown;
     }
 
+    public static void SetDisabled(bool disabled = true) => ElementTree.SetWidgetFlag(ElementFlags.Disabled, disabled);
+    public static void SetChecked(bool isChecked = true) => ElementTree.SetWidgetFlag(ElementFlags.Checked, isChecked);
+    public static bool IsDisabled() => ElementTree.HasCurrentWidget() && (ElementTree.GetCurrentWidgetFlags() & ElementFlags.Disabled) != 0;
+    public static bool IsChecked() => ElementTree.HasCurrentWidget() && (ElementTree.GetCurrentWidgetFlags() & ElementFlags.Checked) != 0;
+
     public static void SetCapture(int elementId)
     {
         _captureElementId = elementId;
@@ -607,13 +612,19 @@ public static partial class UI
         int count = 0;
         bool hasWidget = id != 0;
         if (hasWidget) ElementTree.BeginWidget(id);
+
+        var flags = ElementTree.HasCurrentWidget() ? ElementTree.GetCurrentWidgetFlags() : ElementFlags.None;
+        var bgColor = style.Color.Resolve(flags);
+        var borderColor = style.BorderColor.Resolve(flags);
+        var borderWidth = style.BorderWidth.Resolve(flags);
+
         if (style.Margin.L != 0 || style.Margin.R != 0 || style.Margin.T != 0 || style.Margin.B != 0)
             { ElementTree.BeginMargin(style.Margin); count++; }
-        if (style.BorderWidth > 0)
-            { ElementTree.BeginBorder(style.BorderWidth, style.BorderColor, style.BorderRadius); count++; }
+        if (borderWidth > 0)
+            { ElementTree.BeginBorder(borderWidth, borderColor, style.BorderRadius); count++; }
         ElementTree.BeginSize(style.Size); count++;
-        if (!style.Color.IsTransparent)
-            { ElementTree.BeginFill(style.Color, style.BorderRadius); count++; }
+        if (!bgColor.IsTransparent)
+            { ElementTree.BeginFill(bgColor, style.BorderRadius); count++; }
         if (style.Padding.L != 0 || style.Padding.R != 0 || style.Padding.T != 0 || style.Padding.B != 0)
             { ElementTree.BeginPadding(style.Padding); count++; }
         if (style.Clip)
@@ -622,30 +633,6 @@ public static partial class UI
             { ElementTree.BeginAlign(style.Align); count++; }
         if (axis == 0) { ElementTree.BeginRow(style.Spacing); count++; }
         else if (axis == 1) { ElementTree.BeginColumn(style.Spacing); count++; }
-        _etWrapperCounts[_etWrapperIndex++] = (byte)(count | (hasWidget ? 0x80 : 0));
-    }
-
-    private static void BeginContainerImpl(int id, in NewContainerStyle style, int axis)
-    {
-        int count = 0;
-        bool hasWidget = id != 0;
-        if (hasWidget) ElementTree.BeginWidget(id);
-
-        var flags = hasWidget ? ElementTree.GetCurrentWidgetFlags() : ElementFlags.None;
-        var bgColor = style.BackgroundColor.Resolve(flags);
-        var borderColor = style.BorderColor.Resolve(flags);
-        var borderWidth = style.BorderWidth.Resolve(flags);
-        var borderRadius = BorderRadius.Circular(style.BorderRadius.Resolve(flags));
-
-        if (borderWidth > 0)
-            { ElementTree.BeginBorder(borderWidth, borderColor, borderRadius); count++; }
-        ElementTree.BeginSize(new Size2(style.Width, style.Height)); count++;
-        if (!bgColor.IsTransparent)
-            { ElementTree.BeginFill(bgColor, borderRadius); count++; }
-        if (style.Padding.L != 0 || style.Padding.R != 0 || style.Padding.T != 0 || style.Padding.B != 0)
-            { ElementTree.BeginPadding(style.Padding); count++; }
-        if (axis == 0) { ElementTree.BeginRow(0); count++; }
-        else if (axis == 1) { ElementTree.BeginColumn(0); count++; }
         _etWrapperCounts[_etWrapperIndex++] = (byte)(count | (hasWidget ? 0x80 : 0));
     }
 
@@ -671,11 +658,6 @@ public static partial class UI
     public static AutoContainer BeginContainer(in ContainerStyle style) =>
         BeginContainer(0, style);
 
-    public static AutoContainer BeginContainer(int id, in NewContainerStyle style)
-    {
-        BeginContainerImpl(id, style, -1);
-        return new AutoContainer();
-    }
 
     public static void EndContainer() => EndContainerImpl();
 
@@ -709,11 +691,6 @@ public static partial class UI
     public static AutoColumn BeginColumn() =>
         BeginColumn(0, ContainerStyle.Default);
 
-    public static AutoColumn BeginColumn(int id, in NewContainerStyle style)
-    {
-        BeginContainerImpl(id, style, 1);
-        return new AutoColumn();
-    }
 
     public static void EndColumn() => EndContainerImpl();
 
@@ -732,11 +709,6 @@ public static partial class UI
     public static AutoRow BeginRow() =>
         BeginRow(0, ContainerStyle.Default);
 
-    public static AutoRow BeginRow(int id, in NewContainerStyle style)
-    {
-        BeginContainerImpl(id, style, 0);
-        return new AutoRow();
-    }
 
     public static void EndRow() => EndContainerImpl();
 
@@ -954,7 +926,8 @@ public static partial class UI
     {
         var font = style.Font ?? _defaultFont!;
         var fontSize = style.FontSize > 0 ? style.FontSize : 16f;
-        ElementTree.Label(ElementTree.Text(text), font, fontSize, style.Color, style.Align, style.Overflow);
+        var flags = ElementTree.HasCurrentWidget() ? ElementTree.GetCurrentWidgetFlags() : ElementFlags.None;
+        ElementTree.Label(ElementTree.Text(text), font, fontSize, style.Color.Resolve(flags), style.Align, style.Overflow);
     }
 
     public static void Label(string text) => Label(text.AsSpan(), new LabelStyle());
@@ -965,7 +938,8 @@ public static partial class UI
     {
         var font = style.Font ?? _defaultFont!;
         var fontSize = style.FontSize > 0 ? style.FontSize : 16f;
-        ElementTree.Label(ElementTree.Text(text), font, fontSize, style.Color, style.Align, TextOverflow.Wrap);
+        var flags = ElementTree.HasCurrentWidget() ? ElementTree.GetCurrentWidgetFlags() : ElementFlags.None;
+        ElementTree.Label(ElementTree.Text(text), font, fontSize, style.Color.Resolve(flags), style.Align, TextOverflow.Wrap);
     }
 
     // :image
@@ -974,7 +948,8 @@ public static partial class UI
     public static void Image(Sprite? sprite, in ImageStyle style)
     {
         if (sprite == null) return;
-        ElementTree.Image(sprite, style.Size, style.Stretch, style.Color, style.Scale);
+        var flags = ElementTree.HasCurrentWidget() ? ElementTree.GetCurrentWidgetFlags() : ElementFlags.None;
+        ElementTree.Image(sprite, style.Size, style.Stretch, style.Color.Resolve(flags), style.Scale);
     }
 
     public static void Image(Texture texture) => Image(texture, new ImageStyle());
@@ -983,13 +958,14 @@ public static partial class UI
     {
         ref var e = ref CreateElement(ElementType.Image);
         e.Asset = texture;
+        var flags = ElementTree.HasCurrentWidget() ? ElementTree.GetCurrentWidgetFlags() : ElementFlags.None;
         e.Data.Image = new ImageData
         {
             Size = style.Size,
             Stretch = style.Stretch,
             Align = style.Align,
             Scale = style.Scale,
-            Color = style.Color,
+            Color = style.Color.Resolve(flags),
             Order = style.Order,
             Texture = texture.Handle,
             UV0 = Vector2.Zero,

@@ -27,23 +27,14 @@ public struct StyleValue<T> where T : unmanaged
     {
         if (Disabled.HasValue && (flags & ElementFlags.Disabled) != 0)
             return Disabled.Value;
+        if (Checked.HasValue && (flags & ElementFlags.Checked) != 0)
+            return Checked.Value;
         if (Pressed.HasValue && (flags & ElementFlags.Down) != 0)
             return Pressed.Value;
         if (Hovered.HasValue && (flags & ElementFlags.Hovered) != 0)
             return Hovered.Value;
         return Normal;
     }
-}
-
-public struct NewContainerStyle()
-{
-    public StyleValue<Color> BackgroundColor;
-    public StyleValue<Color> BorderColor;
-    public StyleValue<float> BorderWidth;
-    public StyleValue<float> BorderRadius;
-    public Size Width = Size.Fit;
-    public Size Height = Size.Fit;
-    public EdgeInsets Padding;
 }
 
 public struct BorderStyle
@@ -65,17 +56,17 @@ public struct ContainerStyle()
     public Align2 Align = NoZ.Align.Min;
     public EdgeInsets Margin = EdgeInsets.Zero;
     public EdgeInsets Padding = EdgeInsets.Zero;
-    public Color Color = Color.Transparent;
+    public StyleValue<Color> Color = NoZ.Color.Transparent;
     public BorderRadius BorderRadius = BorderRadius.Zero;
-    public float BorderWidth = 0;
-    public Color BorderColor = Color.Transparent;
+    public StyleValue<float> BorderWidth;
+    public StyleValue<Color> BorderColor = NoZ.Color.Transparent;
     public float Spacing = 0;
     public bool Clip = false;
     public ushort Order = 0;
 
     public BorderStyle Border
     {
-        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
+        readonly get => new() { Radius = BorderRadius, Width = BorderWidth.Normal, Color = BorderColor.Normal };
         set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
     }
 
@@ -83,25 +74,6 @@ public struct ContainerStyle()
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
     public Align AlignX { readonly get => Align.X; set => Align.X = value; }
     public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
-
-    internal ContainerData ToData() => new()
-    {
-        Size = Size,
-        MinWidth = MinWidth,
-        MinHeight = MinHeight,
-        MaxWidth = MaxWidth,
-        MaxHeight = MaxHeight,
-        Align = Align,
-        Margin = Margin,
-        Padding = Padding,
-        Color = Color,
-        BorderRadius = BorderRadius,
-        BorderWidth = BorderWidth,
-        BorderColor = BorderColor,
-        Spacing = Spacing,
-        Clip = Clip,
-        Order = Order
-    };
 
     public static readonly ContainerStyle Default = new();
     public static readonly ContainerStyle Fit = new() { Size = Size2.Fit };
@@ -119,7 +91,7 @@ public enum TextOverflow : byte
 public struct LabelStyle()
 {
     public float FontSize = 16;
-    public Color Color = Color.White;
+    public StyleValue<Color> Color = NoZ.Color.White;
     public Align2 Align = new(NoZ.Align.Min, NoZ.Align.Center);
     public Font? Font = null;
     public ushort Order = 2;
@@ -138,7 +110,7 @@ public struct ImageStyle()
     public ImageStretch Stretch = ImageStretch.Uniform;
     public Align2 Align = NoZ.Align.Min;
     public float Scale = 1.0f;
-    public Color Color = Color.White;
+    public StyleValue<Color> Color = NoZ.Color.White;
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public ushort Order = 1;
 
@@ -293,7 +265,7 @@ public struct SceneStyle()
 
 public static class ElementStyle
 {
-    public static ContainerStyle WithColor(this ContainerStyle style, Color color)
+    public static ContainerStyle WithColor(this ContainerStyle style, StyleValue<Color> color)
     {
         style.Color = color;
         return style;
@@ -344,7 +316,7 @@ public static class ElementStyle
         return style;
     }
 
-    public static LabelStyle WithColor(this LabelStyle style, Color color)
+    public static LabelStyle WithColor(this LabelStyle style, StyleValue<Color> color)
     {
         style.Color = color;
         return style;
