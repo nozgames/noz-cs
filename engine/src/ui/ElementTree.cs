@@ -61,6 +61,7 @@ internal struct WidgetElement
 internal struct FillElement
 {
     public Color Color;
+    public BorderRadius Radius;
 }
 
 internal struct BorderElement
@@ -202,6 +203,7 @@ public static unsafe partial class ElementTree
     internal static void Begin()
     {
         _frame++;
+        _layoutCycleLogged = false;
         _currentStatePool ^= 1;
         _statePools[_currentStatePool].Clear();
         _assetCount = 0;
@@ -213,6 +215,7 @@ public static unsafe partial class ElementTree
     internal static void End()
     {
         if (_elements.Length == 0) return;
+
         LayoutAxis(0, 0, ScreenSize.X, 0, -1);  // Width pass
         LayoutAxis(0, 0, ScreenSize.Y, 1, -1);  // Height pass
         UpdateTransforms(0, Matrix3x2.Identity, Vector2.Zero);
@@ -255,11 +258,24 @@ public static unsafe partial class ElementTree
         Debug.Assert(e.Type == type);
     }
 
+    internal static void EndElement()
+    {
+        Debug.Assert(_elementStackCount > 0);
+        var elementOffset = _elementStack[--_elementStackCount];
+        _nextSibling = elementOffset;
+        ref var e = ref GetElement(elementOffset);
+        e.NextSibling = (ushort)_elements.Length;
+    }
+
+    internal static bool HasCurrentWidget() => _currentWidget != 0;
+
     private static void BeginElementInternal(NewElementType type, ref BaseElement e)
     {
         e.Type = type;
         e.Parent = _elementStackCount > 0 ? _elementStack[_elementStackCount - 1] : (ushort)0;
         e.NextSibling = 0;
+        e.ChildCount = 0;
+        e.FirstChild = 0;
         if (_elementStackCount > 0)
         {
             ref var p = ref GetElement(e.Parent);
@@ -267,6 +283,7 @@ public static unsafe partial class ElementTree
             if (p.FirstChild == 0)
                 p.FirstChild = (ushort)((byte*)Unsafe.AsPointer(ref e) - _elements.Ptr);
         }
+
     }
 
     internal static int GetOffset(ref BaseElement element)
@@ -331,11 +348,12 @@ public static unsafe partial class ElementTree
     // Fill (single-child wrapper)
     // ──────────────────────────────────────────────
 
-    public static int BeginFill(Color color)
+    public static int BeginFill(Color color, BorderRadius radius = default)
     {
         ref var e = ref BeginElement<FillElement>(NewElementType.Fill);
         ref var d = ref GetElementData<FillElement>(ref e);
         d.Color = color;
+        d.Radius = radius;
         return GetOffset(ref e);
     }
 
@@ -442,7 +460,7 @@ public static unsafe partial class ElementTree
     public static void EndColumn() => EndElement(NewElementType.Column);
 
     // ──────────────────────────────────────────────
-    // Flex (leaf in tree, parent distributes space)
+    // Flex (leaf or container, parent distributes space)
     // ──────────────────────────────────────────────
 
     public static int Flex(float flex = 1.0f)
@@ -452,6 +470,16 @@ public static unsafe partial class ElementTree
         d.Flex = flex;
         return GetOffset(ref e);
     }
+
+    public static int BeginFlex(float flex = 1.0f)
+    {
+        ref var e = ref BeginElement<FlexElement>(NewElementType.Flex);
+        ref var d = ref GetElementData<FlexElement>(ref e);
+        d.Flex = flex;
+        return GetOffset(ref e);
+    }
+
+    public static void EndFlex() => EndElement(NewElementType.Flex);
 
     // ──────────────────────────────────────────────
     // Spacer (leaf)
@@ -527,8 +555,52 @@ public static unsafe partial class ElementTree
     public static bool IsHovered() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Hovered);
     public static bool WasPressed() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Pressed);
     public static bool IsDown() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.Down);
+    public static bool HoverEnter() { ref var ws = ref GetCurrentWidgetState(); return ws.Flags.HasFlag(ElementFlags.HoverChanged) && ws.Flags.HasFlag(ElementFlags.Hovered); }
+    public static bool HoverExit() { ref var ws = ref GetCurrentWidgetState(); return ws.Flags.HasFlag(ElementFlags.HoverChanged) && !ws.Flags.HasFlag(ElementFlags.Hovered); }
+    public static bool HoverChanged() => GetCurrentWidgetState().Flags.HasFlag(ElementFlags.HoverChanged);
     public static bool HasFocus() => _focusId == GetCurrentWidget().Id;
     public static bool HasFocusOn(int id) => _focusId == id;
+
+    internal static bool IsWidgetId(int id) => id > 0 && id < MaxId && _widgets[id] != 0 && _widgetStates[id].LastFrame >= (ushort)(_frame - 1);
+
+    internal static bool IsHoveredById(int id)
+    {
+        if (!IsWidgetId(id)) return false;
+        return _widgetStates[id].Flags.HasFlag(ElementFlags.Hovered);
+    }
+
+    internal static bool WasPressedById(int id)
+    {
+        if (!IsWidgetId(id)) return false;
+        return _widgetStates[id].Flags.HasFlag(ElementFlags.Pressed);
+    }
+
+    internal static bool IsDownById(int id)
+    {
+        if (!IsWidgetId(id)) return false;
+        return _widgetStates[id].Flags.HasFlag(ElementFlags.Down);
+    }
+
+    internal static bool HoverChangedById(int id)
+    {
+        if (!IsWidgetId(id)) return false;
+        return _widgetStates[id].Flags.HasFlag(ElementFlags.HoverChanged);
+    }
+
+    internal static Rect GetWidgetWorldRect(int id)
+    {
+        if (!IsWidgetId(id)) return Rect.Zero;
+        ref var e = ref GetElement(_widgets[id]);
+        var topLeft = Vector2.Transform(e.Rect.Position, e.LocalToWorld);
+        var bottomRight = Vector2.Transform(e.Rect.Position + e.Rect.Size, e.LocalToWorld);
+        return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
+    }
+
+    internal static Rect GetWidgetRect(int id)
+    {
+        if (!IsWidgetId(id)) return Rect.Zero;
+        return GetElement(_widgets[id]).Rect;
+    }
 
     public static bool HasCapture()
     {
@@ -851,7 +923,7 @@ public static unsafe partial class ElementTree
             }
 
             case NewElementType.Flex:
-                return 0;
+                return e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
 
             case NewElementType.Spacer:
             {
@@ -892,7 +964,12 @@ public static unsafe partial class ElementTree
         for (int i = 0; i < e.ChildCount; i++)
         {
             ref var child = ref GetElement(childOffset);
-            if (child.Type != NewElementType.Flex)
+            if (child.Type == NewElementType.Flex)
+            {
+                if (axis != containerAxis)
+                    fit = Math.Max(fit, FitAxis(childOffset, axis, containerAxis));
+            }
+            else
             {
                 var childFit = FitAxis(childOffset, axis, containerAxis);
                 if (axis == containerAxis)
@@ -908,7 +985,71 @@ public static unsafe partial class ElementTree
         return fit;
     }
 
+    private static int _layoutDepth;
+    private static bool _layoutCycleLogged;
+
     private static void LayoutAxis(int offset, float position, float available, int axis, int layoutAxis)
+    {
+        if (_layoutDepth > 200)
+        {
+            if (!_layoutCycleLogged)
+            {
+                _layoutCycleLogged = true;
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"ElementTree: LayoutAxis depth > 200 at offset {offset}, axis={axis}, layoutAxis={layoutAxis}");
+                sb.AppendLine($"Tree has {_elements.Length} bytes. Linear dump:");
+                DebugDumpLinear(sb);
+                Log.Error(sb.ToString());
+            }
+            return;
+        }
+        _layoutDepth++;
+        LayoutAxisImpl(offset, position, available, axis, layoutAxis);
+        _layoutDepth--;
+    }
+
+    private static void DebugDumpLinear(System.Text.StringBuilder sb)
+    {
+        var offset = 0;
+        var count = 0;
+        while (offset < _elements.Length && count < 200)
+        {
+            ref var e = ref GetElement(offset);
+            var elemSize = GetElementSize(e.Type);
+            sb.Append($"  [{offset}] {e.Type} parent={e.Parent} first={e.FirstChild} next={e.NextSibling} children={e.ChildCount}");
+            if (e.Type == NewElementType.Widget)
+            {
+                ref var d = ref GetElementData<WidgetElement>(ref e);
+                sb.Append($" id={d.Id}");
+            }
+            sb.AppendLine();
+            offset += elemSize;
+            count++;
+        }
+    }
+
+    private static int GetElementSize(NewElementType type) => type switch
+    {
+        NewElementType.Widget => sizeof(BaseElement) + sizeof(WidgetElement),
+        NewElementType.Size => sizeof(BaseElement) + sizeof(SizeElement),
+        NewElementType.Padding => sizeof(BaseElement) + sizeof(PaddingElement),
+        NewElementType.Fill => sizeof(BaseElement) + sizeof(FillElement),
+        NewElementType.Border => sizeof(BaseElement) + sizeof(BorderElement),
+        NewElementType.Margin => sizeof(BaseElement) + sizeof(MarginElement),
+        NewElementType.Row => sizeof(BaseElement) + sizeof(RowElement),
+        NewElementType.Column => sizeof(BaseElement) + sizeof(ColumnElement),
+        NewElementType.Flex => sizeof(BaseElement) + sizeof(FlexElement),
+        NewElementType.Align => sizeof(BaseElement) + sizeof(AlignElement),
+        NewElementType.Clip => sizeof(BaseElement) + sizeof(ClipElement),
+        NewElementType.Spacer => sizeof(BaseElement) + sizeof(SpacerElement),
+        NewElementType.Opacity => sizeof(BaseElement) + sizeof(OpacityElement),
+        NewElementType.Label => sizeof(BaseElement) + sizeof(LabelElement),
+        NewElementType.Image => sizeof(BaseElement) + sizeof(ImageElement),
+        NewElementType.EditableText => sizeof(BaseElement) + sizeof(EditableTextElement),
+        _ => sizeof(BaseElement)
+    };
+
+    private static void LayoutAxisImpl(int offset, float position, float available, int axis, int layoutAxis)
     {
         ref var e = ref GetElement(offset);
         float size;
@@ -919,12 +1060,13 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref GetElementData<SizeElement>(ref e);
                 var mode = d.Size[axis].Mode;
-                if (mode == SizeMode.Default)
+                var isDefault = mode == SizeMode.Default;
+                if (isDefault)
                     mode = (layoutAxis == axis) ? SizeMode.Fit : SizeMode.Percent;
                 size = mode switch
                 {
                     SizeMode.Fixed => d.Size[axis].Value,
-                    SizeMode.Percent => available < float.MaxValue ? available * d.Size[axis].Value : 0,
+                    SizeMode.Percent => available * (isDefault ? 1.0f : d.Size[axis].Value),
                     SizeMode.Fit => e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0,
                     _ => 0
                 };
@@ -935,7 +1077,7 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref GetElementData<PaddingElement>(ref e);
                 var inset = EdgeInset(d.Padding, axis);
-                size = available < float.MaxValue
+                size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0) + inset;
                 break;
@@ -945,7 +1087,7 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref GetElementData<MarginElement>(ref e);
                 var inset = EdgeInset(d.Margin, axis);
-                size = available < float.MaxValue
+                size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0) + inset;
                 break;
@@ -955,7 +1097,7 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref GetElementData<BorderElement>(ref e);
                 var inset = d.Width * 2;
-                size = available < float.MaxValue
+                size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0) + inset;
                 break;
@@ -965,7 +1107,7 @@ public static unsafe partial class ElementTree
             case NewElementType.Clip:
             case NewElementType.Opacity:
             case NewElementType.Widget:
-                size = available < float.MaxValue
+                size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0);
                 break;
@@ -975,13 +1117,13 @@ public static unsafe partial class ElementTree
                 break;
 
             case NewElementType.Row:
-                size = available < float.MaxValue
+                size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitAxis(offset, axis, 0) : 0);
                 break;
 
             case NewElementType.Column:
-                size = available < float.MaxValue
+                size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitAxis(offset, axis, 1) : 0);
                 break;
@@ -1074,6 +1216,17 @@ public static unsafe partial class ElementTree
                 LayoutChildrenAxis(ref e, childPos, childAvail, axis, layoutAxis);
                 break;
             }
+            case NewElementType.Size:
+            {
+                ref var d = ref GetElementData<SizeElement>(ref e);
+                var mode = d.Size[axis].Mode;
+                var isFit = mode == SizeMode.Fit || (mode == SizeMode.Default && layoutAxis == axis);
+                LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, isFit ? layoutAxis : -1);
+                break;
+            }
+            case NewElementType.Flex:
+                LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
+                break;
             default:
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, layoutAxis);
                 break;
@@ -1109,7 +1262,7 @@ public static unsafe partial class ElementTree
         for (int i = 0; i < e.ChildCount; i++)
         {
             ref var child = ref GetElement(childOffset);
-            LayoutAxis(childOffset, pos, avail, axis, axis == 0 ? 0 : 1);
+            LayoutAxis(childOffset, pos, avail, axis, axis == 0 ? 1 : 0);
             childOffset = child.NextSibling;
         }
     }
@@ -1169,7 +1322,7 @@ public static unsafe partial class ElementTree
             }
             else
             {
-                LayoutAxis(childOffset, childPos, float.MaxValue, axis, containerAxis);
+                LayoutAxis(childOffset, childPos, e.Rect.GetSize(axis), axis, containerAxis);
                 offset += child.Rect.GetSize(axis);
             }
 
@@ -1306,7 +1459,7 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref GetElementData<FillElement>(ref e);
                 if (!d.Color.IsTransparent)
-                    DrawTexturedRect(e.Rect, e.LocalToWorld, null, ApplyOpacity(d.Color));
+                    DrawTexturedRect(e.Rect, e.LocalToWorld, null, ApplyOpacity(d.Color), d.Radius);
                 break;
             }
 
@@ -1586,4 +1739,141 @@ public static unsafe partial class ElementTree
 
     internal static Vector2 ScreenSize;
     internal static Vector2 MouseWorldPosition;
+
+#if DEBUG
+    internal static string DebugDumpTree()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"ElementTree: {_elements.Length} bytes, Frame={_frame}, Screen={ScreenSize.X:0}x{ScreenSize.Y:0}");
+        sb.AppendLine("───────────────────────────────");
+
+        if (_elements.Length == 0)
+        {
+            sb.AppendLine("(empty)");
+            return sb.ToString();
+        }
+
+        DebugDumpElement(sb, 0, 0);
+        return sb.ToString();
+    }
+
+    private static void DebugDumpElement(System.Text.StringBuilder sb, int offset, int depth)
+    {
+        if (offset < 0 || offset >= _elements.Length) return;
+        if (depth > 100) { sb.AppendLine($"{new string(' ', depth * 2)}... (depth limit)"); return; }
+
+        ref var e = ref GetElement(offset);
+        var indent = new string(' ', depth * 2);
+
+        sb.Append($"{indent}[{offset}] {e.Type}");
+        sb.Append($" {e.Rect.X:0},{e.Rect.Y:0} {e.Rect.Width:0}x{e.Rect.Height:0}");
+        sb.Append($" children={e.ChildCount} first={e.FirstChild} next={e.NextSibling}");
+
+        switch (e.Type)
+        {
+            case NewElementType.Widget:
+            {
+                ref var d = ref GetElementData<WidgetElement>(ref e);
+                sb.Append($" id={d.Id}");
+                var name = UI.DebugGetElementName(d.Id);
+                if (name.Length > 0) sb.Append($" \"{name}\"");
+                break;
+            }
+            case NewElementType.Size:
+            {
+                ref var d = ref GetElementData<SizeElement>(ref e);
+                sb.Append($" size={d.Size}");
+                break;
+            }
+            case NewElementType.Fill:
+            {
+                ref var d = ref GetElementData<FillElement>(ref e);
+                sb.Append($" color=#{(int)(d.Color.R*255):X2}{(int)(d.Color.G*255):X2}{(int)(d.Color.B*255):X2}");
+                break;
+            }
+            case NewElementType.Padding:
+            {
+                ref var d = ref GetElementData<PaddingElement>(ref e);
+                sb.Append($" pad={d.Padding.T:0},{d.Padding.R:0},{d.Padding.B:0},{d.Padding.L:0}");
+                break;
+            }
+            case NewElementType.Margin:
+            {
+                ref var d = ref GetElementData<MarginElement>(ref e);
+                sb.Append($" margin={d.Margin.T:0},{d.Margin.R:0},{d.Margin.B:0},{d.Margin.L:0}");
+                break;
+            }
+            case NewElementType.Row:
+            {
+                ref var d = ref GetElementData<RowElement>(ref e);
+                if (d.Spacing > 0) sb.Append($" spacing={d.Spacing:0}");
+                break;
+            }
+            case NewElementType.Column:
+            {
+                ref var d = ref GetElementData<ColumnElement>(ref e);
+                if (d.Spacing > 0) sb.Append($" spacing={d.Spacing:0}");
+                break;
+            }
+            case NewElementType.Flex:
+            {
+                ref var d = ref GetElementData<FlexElement>(ref e);
+                if (d.Flex != 1f) sb.Append($" flex={d.Flex}");
+                break;
+            }
+            case NewElementType.Align:
+            {
+                ref var d = ref GetElementData<AlignElement>(ref e);
+                sb.Append($" align={d.Align.X},{d.Align.Y}");
+                break;
+            }
+            case NewElementType.Label:
+            {
+                ref var d = ref GetElementData<LabelElement>(ref e);
+                var text = d.Text.AsReadOnlySpan().ToString();
+                if (text.Length > 40) text = text[..37] + "...";
+                sb.Append($" \"{text}\" size={d.FontSize:0}");
+                break;
+            }
+            case NewElementType.Image:
+            {
+                ref var d = ref GetElementData<ImageElement>(ref e);
+                var asset = _assets[d.AssetIndex];
+                if (asset != null) sb.Append($" asset={asset}");
+                break;
+            }
+            case NewElementType.Border:
+            {
+                ref var d = ref GetElementData<BorderElement>(ref e);
+                sb.Append($" width={d.Width:0}");
+                break;
+            }
+            case NewElementType.Opacity:
+            {
+                ref var d = ref GetElementData<OpacityElement>(ref e);
+                sb.Append($" opacity={d.Opacity:0.##}");
+                break;
+            }
+            case NewElementType.Spacer:
+            {
+                ref var d = ref GetElementData<SpacerElement>(ref e);
+                sb.Append($" {d.Size.X:0}x{d.Size.Y:0}");
+                break;
+            }
+        }
+
+        sb.AppendLine();
+
+        // Recurse children
+        var childOffset = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            if (childOffset <= 0 && i > 0) break; // safety
+            if (childOffset >= _elements.Length) break;
+            DebugDumpElement(sb, childOffset, depth + 1);
+            ref var child = ref GetElement(childOffset);
+            childOffset = child.NextSibling;
+        }
+    }
+#endif
 }

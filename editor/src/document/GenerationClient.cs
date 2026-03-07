@@ -139,6 +139,39 @@ public static class GenerationClient
         }, cancellationToken);
     }
 
+    public static List<GenerationStyleReference>? LoadStyleReferences(List<(string TextureName, float Strength)>? styles)
+    {
+        if (styles == null || styles.Count == 0)
+            return null;
+
+        var refs = new List<GenerationStyleReference>();
+        foreach (var (name, strength) in styles)
+        {
+            var doc = DocumentManager.Find(AssetType.Texture, name);
+            if (doc == null)
+            {
+                Log.Warning($"Style reference texture '{name}' not found");
+                continue;
+            }
+
+            if (!File.Exists(doc.Path))
+            {
+                Log.Warning($"Style reference file not found: {doc.Path}");
+                continue;
+            }
+
+            var bytes = File.ReadAllBytes(doc.Path);
+            var base64 = Convert.ToBase64String(bytes);
+            refs.Add(new GenerationStyleReference
+            {
+                Image = base64,
+                Strength = strength
+            });
+        }
+
+        return refs.Count > 0 ? refs : null;
+    }
+
     private static GenerationStatus MapJobToStatus(GenerationJobResponse job)
     {
         var state = job.Status switch
@@ -175,6 +208,14 @@ public class GenerationRequest
     public List<GenerationShape> Shapes { get; set; } = [];
     public GenerationRefine? Refine { get; set; }
     public long? Seed { get; set; }
+    public List<GenerationStyleReference>? StyleReferences { get; set; }
+}
+
+public class GenerationStyleReference
+{
+    public string Image { get; set; } = "";
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float Strength { get; set; } = 0.5f;
 }
 
 public class GenerationShape

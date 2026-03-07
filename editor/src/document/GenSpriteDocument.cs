@@ -23,6 +23,8 @@ public partial class GenSpriteDocument : Document, IShapeDocument
     public Vector2Int ConstrainedSize { get; set; } = new(256, 256);
     public GenerationImage Generation { get; } = new();
     public GenerationConfig? Refine;
+    public string? StyleName;
+    public GenStyleDocument? Style;
     public int ActiveLayerIndex;
 
     public IReadOnlyList<GenSpriteLayer> Layers => _layers;
@@ -73,6 +75,9 @@ public partial class GenSpriteDocument : Document, IShapeDocument
     public override void PostLoad()
     {
         LoadGeneratedTexture();
+
+        if (!string.IsNullOrEmpty(StyleName))
+            Style = DocumentManager.Find(GenStyleDocument.AssetTypeGenStyle, StyleName) as GenStyleDocument;
     }
 
     private void Parse(ref Tokenizer tk)
@@ -266,11 +271,17 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         {
             ConstrainedSize = new Vector2Int(w, h);
         }
+
+        var style = meta.GetString("gensprite", "style", "");
+        StyleName = string.IsNullOrEmpty(style) ? null : style;
     }
 
     public override void SaveMetadata(PropertySet meta)
     {
         meta.SetString("gensprite", "constrained_size", $"{ConstrainedSize.X}x{ConstrainedSize.Y}");
+
+        if (!string.IsNullOrEmpty(StyleName))
+            meta.SetString("gensprite", "style", StyleName);
     }
 
     #endregion
@@ -481,8 +492,8 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         if (Generation.IsGenerating)
             return;
 
-        var globalPrompt = EditorApplication.Config?.GenerationPrompt ?? "";
-        var globalNegPrompt = EditorApplication.Config?.GenerationNegativePrompt ?? "";
+        var globalPrompt = Style?.Prompt ?? "";
+        var globalNegPrompt = Style?.NegativePrompt ?? "";
 
         var shapes = new List<GenerationShape>();
         foreach (var (layerIndex, layer) in genLayers)
@@ -528,6 +539,7 @@ public partial class GenSpriteDocument : Document, IShapeDocument
                 GuidanceScale = refine.GuidanceScale,
             },
             Seed = primaryGen.Seed == 0 ? null : primaryGen.Seed,
+            StyleReferences = Style != null ? GenerationClient.LoadStyleReferences(Style.StyleReferences) : null,
         };
 
         Log.Info($"Starting generation for '{Name}' ({shapes.Count} shapes) on {server}...");

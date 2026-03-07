@@ -110,6 +110,49 @@ public partial class GenSpriteEditor : DocumentEditor
 
     #region Inspector
 
+    private void ConstraintUI()
+    {
+        var sizes = EditorApplication.Config.SpriteSizes;
+        var constraintLabel = "256x256";
+        for (int i = 0; i < sizes.Length; i++)
+            if (Document.ConstrainedSize == sizes[i].Size)
+            {
+                constraintLabel = sizes[i].Label;
+                break;
+            }
+
+        static PopupMenuItem[] GetItems() =>
+        [
+            ..EditorApplication.Config.SpriteSizes.Select(s =>
+            new PopupMenuItem { Label = s.Label, Handler = () => ((GenSpriteEditor)Workspace.ActiveEditor!).SetConstraint(s.Size) })
+        ];
+
+        Inspector.DropdownProperty(
+            constraintLabel,
+            getItems: GetItems,
+            icon: EditorAssets.Sprites.IconConstraint);
+    }
+
+    private void StyleUI()
+    {
+        static PopupMenuItem[] GetItems()
+        {
+            var editor = (GenSpriteEditor)Workspace.ActiveEditor!;
+            var items = new List<PopupMenuItem>
+            {
+                new() { Label = "None", Handler = () => editor.SetStyle(null) }
+            };
+            foreach (var doc in DocumentManager.Documents)
+            {
+                if (doc is GenStyleDocument styleDoc)
+                    items.Add(new PopupMenuItem { Label = styleDoc.Name, Handler = () => editor.SetStyle(styleDoc) });
+            }
+            return [..items];
+        }
+
+        Inspector.DropdownProperty(Document.StyleName ?? "None", getItems: GetItems, name: "Style");
+    }
+
     private void GenSpriteInspectorUI()
     {
         if (_hasPathSelection)
@@ -118,28 +161,21 @@ public partial class GenSpriteEditor : DocumentEditor
         using var _ = Inspector.BeginSection("GENSPRITE");
 
         using (Inspector.BeginRow())
-        {
-            using (UI.BeginFlex())
-            {
-                var sizes = EditorApplication.Config.SpriteSizes;
-                var constraintLabel = "256x256";
-                for (int i = 0; i < sizes.Length; i++)
-                    if (Document.ConstrainedSize == sizes[i].Size)
-                    {
-                        constraintLabel = sizes[i].Label;
-                        break;
-                    }
+        using (UI.BeginFlex())
+            ConstraintUI();
 
-                Inspector.DropdownProperty(
-                    constraintLabel,
-                    () => [
-                        ..EditorApplication.Config.SpriteSizes.Select(s =>
-                            new PopupMenuItem { Label = s.Label, Handler = () => SetConstraint(s.Size) }
-                        )
-                    ],
-                    icon: EditorAssets.Sprites.IconConstraint);
-            }
-        }
+        using (Inspector.BeginRow())
+        using (UI.BeginFlex())
+            StyleUI();
+    }
+
+    private void SetStyle(GenStyleDocument? style)
+    {
+        Undo.Record(Document);
+        Document.StyleName = style?.Name;
+        Document.Style = style;
+        Document.SaveMetadata();
+        Document.IncrementVersion();
     }
 
     private void SetConstraint(Vector2Int size)

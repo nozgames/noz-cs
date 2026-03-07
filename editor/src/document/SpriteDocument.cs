@@ -1372,6 +1372,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
                 GuidanceScale = refine.GuidanceScale,
             },
             Seed = primaryGen.Seed == 0 ? null : primaryGen.Seed,
+            StyleReferences = null,
         };
 
         Log.Info($"Starting generation for '{Name}' ({shapes.Count} shapes) on {server}...");
