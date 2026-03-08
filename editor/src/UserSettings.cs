@@ -18,6 +18,7 @@ public static class UserSettings
 
         CollectionManager.LoadUserSettings(props);
         Workspace.LoadUserSettings(props);
+        ChatPanel.LoadUserSettings(props);
     }
 
     public static void Save()
@@ -29,6 +30,7 @@ public static class UserSettings
         var props = new PropertySet();
         Workspace.SaveUserSettings(props);
         CollectionManager.SaveUserSettings(props);
+        ChatPanel.SaveUserSettings(props);
         props.Save(UserConfigPath);
     }
 }
