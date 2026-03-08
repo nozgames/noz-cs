@@ -12,10 +12,12 @@ internal partial class SkeletonEditor : DocumentEditor
     private const int SortGroupBones = 1;
     private const int SortGroupSelectedBones = 2;
 
-    [ElementId("Root")]
-    [ElementId("PreviewButton")]
-    [ElementId("ConnectedButton")]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId PreviewButton { get; }
+        public static partial WidgetId ConnectedButton { get; }
+    }
 
     private struct SavedBone
     {
@@ -58,15 +60,15 @@ internal partial class SkeletonEditor : DocumentEditor
 
         bool HasSelection() => Document.SelectedBoneCount > 0;
 
-        _contextMenuItems = [
-            PopupMenuItem.FromCommand(renameCommand, enabled: () => Document.SelectedBoneCount == 1),
-            PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
-            PopupMenuItem.Separator(),
-            PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
-            PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
-            PopupMenuItem.Separator(),
-            PopupMenuItem.FromCommand(exitEditCommand),
-        ];
+        //_contextMenuItems = [
+        //    PopupMenuItem.FromCommand(renameCommand, enabled: () => Document.SelectedBoneCount == 1),
+        //    PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
+        //    PopupMenuItem.Separator(),
+        //    PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
+        //    PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
+        //    PopupMenuItem.Separator(),
+        //    PopupMenuItem.FromCommand(exitEditCommand),
+        //];
 
         Commands = _commands;
         ClearSelection();

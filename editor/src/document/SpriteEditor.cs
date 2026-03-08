@@ -9,34 +9,36 @@ namespace NoZ.Editor;
 
 public partial class SpriteEditor : DocumentEditor
 {
-    [ElementId("Root")]
-    [ElementId("TileButton")]
-    [ElementId("BoneBindButton")]
-    [ElementId("BoneUnbindButton")]
-    [ElementId("SubtractButton")]
-    [ElementId("FirstOpacity")]
-    [ElementId("DopeSheet")]
-    [ElementId("FillColorButton")]
-    [ElementId("StrokeColorButton")]
-    [ElementId("LayerButton")]
-    [ElementId("BonePathButton")]
-    [ElementId("StrokeWidth")]
-    [ElementId("AddFrameButton")]
-    [ElementId("GenerateButton")]
-    [ElementId("PlayButton")]
-    [ElementId("AllLayerVisibility")]
-    [ElementId("AllLayerLocked")]
-    [ElementId("HideAllLayers")]
-    [ElementId("LayerPanel")]
-    [ElementId("LayerPanelScroll")]
-    [ElementId("LayerItem", 32)]
-    [ElementId("LayerVisibility", 32)]
-    [ElementId("LayerLock", 32)]
-    [ElementId("LayerSortOrder", 32)]
-    [ElementId("AddVectorLayerBtn")]
-    [ElementId("AddLayerButton")]
-    [ElementId("RemoveLayerButton")]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId TileButton { get; }
+        public static partial WidgetId BoneBindButton { get; }
+        public static partial WidgetId BoneUnbindButton { get; }
+        public static partial WidgetId SubtractButton { get; }
+        public static partial WidgetId FirstOpacity { get; }
+        public static partial WidgetId DopeSheet { get; }
+        public static partial WidgetId FillColorButton { get; }
+        public static partial WidgetId StrokeColorButton { get; }
+        public static partial WidgetId LayerButton { get; }
+        public static partial WidgetId BonePathButton { get; }
+        public static partial WidgetId StrokeWidth { get; }
+        public static partial WidgetId AddFrameButton { get; }
+        public static partial WidgetId GenerateButton { get; }
+        public static partial WidgetId PlayButton { get; }
+        public static partial WidgetId AllLayerVisibility { get; }
+        public static partial WidgetId AllLayerLocked { get; }
+        public static partial WidgetId HideAllLayers { get; }
+        public static partial WidgetId LayerPanel { get; }
+        public static partial WidgetId LayerPanelScroll { get; }
+        public static partial WidgetId LayerItem { get; }
+        public static partial WidgetId LayerVisibility { get; }
+        public static partial WidgetId LayerLock { get; }
+        public static partial WidgetId LayerSortOrder { get; }
+        public static partial WidgetId AddVectorLayerBtn { get; }
+        public static partial WidgetId AddLayerButton { get; }
+        public static partial WidgetId RemoveLayerButton { get; }
+    }
 
     private int _currentTimeSlot;
     private bool _isPlaying;
@@ -114,6 +116,7 @@ public partial class SpriteEditor : DocumentEditor
         bool HasSelection() => CurrentShape.HasSelection();
         bool HasSelectedPaths() => CurrentShape.HasSelectedPaths();
 
+#if false
         _contextMenuItems = [
             PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
             PopupMenuItem.FromCommand(pasteCommand, enabled: () => Clipboard.Is<PathClipboardData>()),
@@ -137,6 +140,7 @@ public partial class SpriteEditor : DocumentEditor
             PopupMenuItem.Separator(),
             PopupMenuItem.FromCommand(exitEditCommand),
         ];
+#endif
     }
 
     public int CurrentTimeSlot => _currentTimeSlot;
@@ -153,7 +157,7 @@ public partial class SpriteEditor : DocumentEditor
         base.Dispose();
     }
 
-    public override void OpenContextMenu(int id)
+    public override void OpenContextMenu(WidgetId id)
     {
         PopupMenu.Open(id, _contextMenuItems, "Sprite");
     }

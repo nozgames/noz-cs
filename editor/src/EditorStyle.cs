@@ -4,7 +4,6 @@
 
 namespace NoZ.Editor;
 
-
 public static class EditorStyle
 {
     // :palette — Colors from Components.md style guide
@@ -341,8 +340,6 @@ public static class EditorStyle
     {
         public const float IconSize = 16.0f;
 
-        // --- Complete button styles (use with UI.Button) ---
-
         public static readonly ButtonStyle Primary = new()
         {
             Width = Size.Fit,
@@ -357,8 +354,15 @@ public static class EditorStyle
             Padding = EdgeInsets.LeftRight(12),
             Resolve = (s, f) =>
             {
-                if ((f & WidgetFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight, ContentColor = Palette.Placeholder };
-                if ((f & WidgetFlags.Hovered) != 0) return s with { Color = Palette.PrimaryHover };
+                if ((f & WidgetFlags.Disabled) != 0) return s with 
+                {
+                    Color = Palette.DisabledLight,
+                    ContentColor = Palette.Placeholder
+                };
+                if ((f & WidgetFlags.Hovered) != 0) return s with
+                {
+                    Color = Palette.PrimaryHover
+                };
                 return s;
             },
         };

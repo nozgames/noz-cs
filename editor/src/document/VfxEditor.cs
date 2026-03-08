@@ -6,19 +6,21 @@ namespace NoZ.Editor;
 
 internal partial class VfxEditor : DocumentEditor
 {
-    [ElementId("Root")]
-    [ElementId("ToolbarRoot")]
-    [ElementId("PlayButton")]
-    [ElementId("LoopButton")]
-    [ElementId("AddEmitterButton")]
-    [ElementId("InspectorRoot")]
-    [ElementId("InspectorScroll")]
-    [ElementId("EmitterTab", 32)]
-    [ElementId("RemoveEmitterButton")]
-    [ElementId("Field", 256)]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId ToolbarRoot { get; }
+        public static partial WidgetId PlayButton { get; }
+        public static partial WidgetId LoopButton { get; }
+        public static partial WidgetId AddEmitterButton { get; }
+        public static partial WidgetId InspectorRoot { get; }
+        public static partial WidgetId InspectorScroll { get; }
+        public static partial WidgetId EmitterTab { get; }
+        public static partial WidgetId RemoveEmitterButton { get; }
+        public static partial WidgetId Field { get; }
+    }
 
-    private int _nextFieldId;
+    private WidgetId _nextFieldId;
 
     public new VfxDocument Document => (VfxDocument)base.Document;
 
@@ -108,7 +110,7 @@ internal partial class VfxEditor : DocumentEditor
 #endif
 
 
-    private int NextFieldId(int count = 1)
+    private WidgetId NextFieldId(int count = 1)
     {
         var id = _nextFieldId;
         _nextFieldId += count;

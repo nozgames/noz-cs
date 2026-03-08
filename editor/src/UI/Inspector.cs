@@ -19,21 +19,23 @@ internal static partial class Inspector
         public byte Collapsed;
     }
 
-    [ElementId("Root")]
-    [ElementId("Section", MaxSections)]
-    [ElementId("Property", MaxProperties)]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId Section { get; }
+        public static partial WidgetId Property { get; }
+    }
 
-    private static int _nextPropertyId = 0;
-    private static int _nextSectionId = 0;
-    private static int _propertyId;
+    private static WidgetId _nextPropertyId;
+    private static WidgetId _nextSectionId;
+    private static WidgetId _propertyId;
     private static bool _propertyEnabled;
     private static bool _propertyHovered;
     private static bool _sectionCollapsed;
     private static string? _dropdownText = null!;
     private static Color32 _valueColor;
 
-    private static int GetNextPropertyId() => _nextPropertyId++;
+    private static WidgetId GetNextPropertyId() => _nextPropertyId++;
 
     public static bool IsSectionCollapsed => _sectionCollapsed;
 
@@ -107,7 +109,7 @@ internal static partial class Inspector
     public static bool Property(Action content, string? name = null, Sprite? icon = null, bool isEnabled = true, bool forceHovered=false) =>
         Property(GetNextPropertyId(), content, name, icon, isEnabled, forceHovered);
 
-    private static bool Property(int id, Action content, string? name = null, Sprite? icon = null, bool isEnabled = true, bool forceHovered = false)
+    private static bool Property(WidgetId id, Action content, string? name = null, Sprite? icon = null, bool isEnabled = true, bool forceHovered = false)
     {
         _propertyId = id;
         _propertyEnabled = isEnabled;

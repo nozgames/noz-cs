@@ -22,12 +22,12 @@ public static unsafe partial class ElementTree
     internal static bool HasCurrentWidget => _currentWidget != 0;
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsValidWidgetId(int id) => id > 0 && id <= MaxId && _widgets[id].IsValid;
+    private static bool IsValidWidgetId(WidgetId id) => id > 0 && _widgets.ContainsKey(id);
 
-    private static ref WidgetState GetWidgetState(int id) =>
+    private static ref WidgetState GetWidgetState(WidgetId id) =>
         ref Unsafe.AsRef<WidgetState>(_widgets[id].Ptr);
 
-    public static ref T GetWidgetState<T>(int id) where T : unmanaged =>
+    public static ref T GetWidgetState<T>(WidgetId id) where T : unmanaged =>
         ref *((T*)(_widgets[id].Ptr + 1));
 
     public static ref T GetWidgetState<T>() where T : unmanaged =>
@@ -35,12 +35,12 @@ public static unsafe partial class ElementTree
 
     public static WidgetFlags GetWidgetFlags() => GetWidgetFlags(_currentWidget);
 
-    public static WidgetFlags GetWidgetFlags(int id) => IsValidWidgetId(id)
+    public static WidgetFlags GetWidgetFlags(WidgetId id) => IsValidWidgetId(id)
         ? GetWidgetState(id).Flags
         : WidgetFlags.None;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref Element GetWidget(int id) =>
+    private static ref Element GetWidget(WidgetId id) =>
         ref GetElement(_widgets[id].Ptr->Index);
 
     internal static void SetWidgetFlag(WidgetFlags flag, bool value)
@@ -59,17 +59,17 @@ public static unsafe partial class ElementTree
     public static bool HoverExit() { var f = GetWidgetFlags(); return f.HasFlag(WidgetFlags.HoverChanged) && !f.HasFlag(WidgetFlags.Hovered); }
     public static bool HoverChanged() => GetWidgetFlags().HasFlag(WidgetFlags.HoverChanged);
     public static bool HasFocus() => false; //  _focusId == CurrentWidget.Data.Widget.Id;
-    public static bool HasFocusOn(int id) => _focusId == id;
+    public static bool HasFocusOn(WidgetId id) => _focusId == id;
 
-    internal static bool IsHovered(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
-    internal static bool WasPressed(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Pressed);
-    internal static bool IsDown(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Down);
-    internal static bool HoverChanged(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.HoverChanged);
+    internal static bool IsHovered(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
+    internal static bool WasPressed(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Pressed);
+    internal static bool IsDown(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Down);
+    internal static bool HoverChanged(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.HoverChanged);
 
     internal static bool IsParentRow() => GetElement(_stack[^1]).Type == ElementType.Row;
     internal static bool IsParentColumn() => GetElement(_stack[^1]).Type == ElementType.Column;
 
-    internal static Rect GetWidgetWorldRect(int id)
+    internal static Rect GetWidgetWorldRect(WidgetId id)
     {
         if (!IsValidWidgetId(id)) return Rect.Zero;
         ref readonly var state = ref GetWidgetState(id);
@@ -78,7 +78,7 @@ public static unsafe partial class ElementTree
         return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
     }
 
-    internal static Rect GetWidgetRect(int id)
+    internal static Rect GetWidgetRect(WidgetId id)
     {
         if (!IsValidWidgetId(id)) return Rect.Zero;
         ref readonly var state = ref GetWidgetState(id);
@@ -93,11 +93,11 @@ public static unsafe partial class ElementTree
         _focusId = _currentWidget;
     }
 
-    internal static void SetFocusById(int id) => _focusId = id;
+    internal static void SetFocusById(WidgetId id) => _focusId = id;
 
     public static void ClearFocus()
     {
-        _focusId = 0;
+        _focusId = WidgetId.None;
     }
 
     public static void SetCapture()
@@ -106,32 +106,32 @@ public static unsafe partial class ElementTree
         Input.CaptureMouse();
     }
 
-    internal static void SetCaptureById(int id)
+    internal static void SetCaptureById(WidgetId id)
     {
         _captureId = id;
         Input.CaptureMouse();
     }
 
-    internal static bool HasCaptureById(int id) => _captureId != 0 && _captureId == id;
+    internal static bool HasCaptureById(WidgetId id) => _captureId != 0 && _captureId == id;
 
     public static void ReleaseCapture()
     {
-        _captureId = 0;
+        _captureId = WidgetId.None;
         Input.ReleaseMouseCapture();
     }
 
     public static Vector2 GetLocalMousePosition()
     {
-        ref var e = ref GetElement(_currentWidget);
-        Matrix3x2.Invert(e.Transform, out var inv);
-        return Vector2.Transform(MouseWorldPosition, inv);
+        //ref var e = ref GetElement(_currentWidget);
+        //Matrix3x2.Invert(e.Transform, out var inv);
+        //return Vector2.Transform(MouseWorldPosition, inv);
+        return Vector2.Zero;
     }
 
-    private static UnsafeRef<WidgetState> BeginWidgetInternal(int id, int stateSize)
+    private static UnsafeRef<WidgetState> BeginWidgetInternal(WidgetId id, int stateSize)
     {
         Debug.Assert(id >= 0);
-        Debug.Assert(id <= MaxId, $"Widget ID {id} exceeds maximum of {MaxId}");
-
+        
         stateSize += sizeof(WidgetState);   
         var state = new UnsafeRef<WidgetState>((WidgetState*)AllocData(stateSize).Ptr);
         if (IsValidWidgetId(id))
@@ -139,23 +139,21 @@ public static unsafe partial class ElementTree
 
         ref var e = ref BeginElement(ElementType.Widget);
         e.Data = default;
-        e.Data.Widget.Id = (ushort)id;
+        e.Data.Widget.Id = id;
         e.Data.Widget.LastFrame = _frame;
 
         state.Ptr->Index = e.Index;
         _widgets[id] = state;
-        _currentWidget = e.Index;
+        _currentWidget = id;
         return state;
     }
 
-    public static ref T BeginWidget<T>(int id) where T : unmanaged =>
+    public static ref T BeginWidget<T>(WidgetId id) where T : unmanaged =>
         ref *((T*)BeginWidgetInternal(id, sizeof(T)).Ptr);
 
-    public static void BeginWidget(int id)
+    public static void BeginWidget(WidgetId id)
     {
         Debug.Assert(id >= 0);
-        Debug.Assert(id <= MaxId, $"Widget ID {id} exceeds maximum of {MaxId}");
-
         BeginWidgetInternal(id, 0);
     }
 
@@ -163,47 +161,19 @@ public static unsafe partial class ElementTree
     {
         EndElement(ElementType.Widget);
 
-        _currentWidget = 0;
+        _currentWidget = WidgetId.None;
         for (int i = _stack.Length - 1; i >= 0; i--)
         {
             ref var e = ref GetElement(_stack[i]);
             if (e.Type == ElementType.Widget)
             {
-                _currentWidget = _stack[i];
+                _currentWidget = e.Data.Widget.Id;
                 break;
             }
         }
     }
 
-    public static bool Button(int id, ReadOnlySpan<char> text, Font font, float fontSize,
-        Color textColor, Color bgColor, Color hoverColor,
-        EdgeInsets padding = default, BorderRadius radius = default)
-    {
-        BeginWidget(id);
-
-        var hovered = IsHovered();
-        var down = IsDown();
-        var fillColor = down ? hoverColor : (hovered ? hoverColor : bgColor);
-
-        if (radius.TopLeft > 0 || radius.TopRight > 0 || radius.BottomLeft > 0 || radius.BottomRight > 0)
-            BeginBorder(0, Color.Transparent, radius);
-
-        BeginFill(fillColor);
-        BeginPadding(padding);
-        BeginAlign(Align.Center);
-        Text(text, font, fontSize, textColor);
-        EndAlign();
-        EndPadding();
-        EndFill();
-
-        if (radius.TopLeft > 0 || radius.TopRight > 0 || radius.BottomLeft > 0 || radius.BottomRight > 0)
-            EndBorder();
-
-        var pressed = WasPressed();
-        EndWidget();
-        return pressed;
-    }
-
+    #if false
     public static bool Toggle(int id, bool value, Sprite icon, Color color, Color activeColor)
     {
         BeginWidget(id);
@@ -276,4 +246,5 @@ public static unsafe partial class ElementTree
         EndWidget();
         return changed;
     }
+#endif
 }

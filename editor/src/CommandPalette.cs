@@ -8,11 +8,13 @@ public static partial class CommandPalette
 {
     private const int MaxFilteredCommands = 32;
 
-    [ElementId("Close")]
-    [ElementId("Search")]
-    [ElementId("CommandList")]
-    [ElementId("Command", MaxFilteredCommands)]
-    private static partial class ElementId { }
+    private static partial class WidgetIds 
+    {
+        public static partial WidgetId Close { get; }
+        public static partial WidgetId Search { get; }
+        public static partial WidgetId CommandList { get; }
+        public static partial WidgetId Command { get; }
+    }
 
     private static string _text = string.Empty;
     private static string _lastFilterText = string.Empty;
@@ -33,7 +35,7 @@ public static partial class CommandPalette
         _filteredCount = 0;
 
         UpdateFilteredCommands();
-        UI.SetHot(ElementId.Search);
+        UI.SetHot(WidgetIds.Search);
     }
 
     public static void Close()
@@ -91,7 +93,7 @@ public static partial class CommandPalette
     {
         if (!IsOpen) return;
 
-        using (UI.BeginContainer(ElementId.Close))
+        using (UI.BeginContainer(WidgetIds.Close))
             if (UI.WasPressed())
                 Close();
 
@@ -103,7 +105,7 @@ public static partial class CommandPalette
                     UI.Image(EditorAssets.Sprites.IconSearch, EditorStyle.Control.Icon);
                    
                 using (UI.BeginFlex())
-                    _text = UI.TextInput(ElementId.Search, _text, EditorStyle.CommandPalette.SearchTextBox, "Search...");
+                    _text = UI.TextInput(WidgetIds.Search, _text, EditorStyle.CommandPalette.SearchTextBox, "Search...");
             }
 
             UI.Container(EditorStyle.Popup.Separator);
@@ -117,7 +119,7 @@ public static partial class CommandPalette
         var execute = false;
 
         using (UI.BeginContainer(EditorStyle.CommandPalette.CommandList))
-        using (UI.BeginScrollable(ElementId.CommandList))
+        using (UI.BeginScrollable(WidgetIds.CommandList))
         using (UI.BeginColumn())
         {
             var selectedIndex = _selectedIndex;
@@ -129,7 +131,7 @@ public static partial class CommandPalette
                 var isSelected = i == selectedIndex;
 
                 using (UI.BeginContainer(
-                    id: ElementId.Command + i,
+                    id: WidgetIds.Command + i,
                     style: isSelected
                         ? EditorStyle.CommandPalette.SelectedCommand
                         : EditorStyle.CommandPalette.Command))
@@ -194,7 +196,7 @@ public static partial class CommandPalette
 
     private static void ScrollToSelection()
     {
-        var scrollableRect = UI.GetElementRect(ElementId.CommandList);
+        var scrollableRect = UI.GetElementRect(WidgetIds.CommandList);
 
         if (scrollableRect.Height <= 0)
             return;
@@ -202,7 +204,7 @@ public static partial class CommandPalette
         var itemTop = _selectedIndex * EditorStyle.List.ItemHeight;
         var itemBottom = itemTop + EditorStyle.List.ItemHeight;
 
-        var currentScroll = UI.GetScrollOffset(ElementId.CommandList);
+        var currentScroll = UI.GetScrollOffset(WidgetIds.CommandList);
         var viewTop = currentScroll;
         var viewBottom = currentScroll + scrollableRect.Height;
         var newScroll = currentScroll;
@@ -213,6 +215,6 @@ public static partial class CommandPalette
             newScroll = itemBottom - scrollableRect.Height;
 
         if (newScroll != currentScroll)
-            UI.SetScrollOffset(ElementId.CommandList, newScroll);
+            UI.SetScrollOffset(WidgetIds.CommandList, newScroll);
     }
 }

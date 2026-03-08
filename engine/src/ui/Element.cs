@@ -73,7 +73,7 @@ internal struct ElementData
 
 internal struct WidgetElement
 {
-    public ushort Id;
+    public WidgetId Id;
     public UnsafeSpan<byte> State;
     public ushort LastFrame;
 }

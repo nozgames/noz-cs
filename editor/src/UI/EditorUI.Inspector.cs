@@ -21,7 +21,7 @@ internal static partial class EditorUI
         UI.Container(EditorStyle.Inspector.Separator);
     }
 
-    public static bool FloatField(int id, ref float value, string? placeholder = null)
+    public static bool FloatField(WidgetId id, ref float value, string? placeholder = null)
     {
         var changed = false;
         Span<char> buf = stackalloc char[32];
@@ -41,7 +41,7 @@ internal static partial class EditorUI
         return changed;
     }
 
-    public static bool IntField(int id, ref int value, string? placeholder = null)
+    public static bool IntField(WidgetId id, ref int value, string? placeholder = null)
     {
         var changed = false;
         Span<char> buf = stackalloc char[16];
@@ -72,7 +72,7 @@ internal static partial class EditorUI
             UI.Text(label, EditorStyle.Inspector.Label);
     }
 
-    public static bool RangeField(int id, string label, ref VfxRange value)
+    public static bool RangeField(WidgetId id, string label, ref VfxRange value)
     {
         _fieldFloat = value.Min;
         _fieldFloat2 = value.Max;
@@ -91,7 +91,7 @@ internal static partial class EditorUI
         return changed;
     }
 
-    public static bool IntRangeField(int id, string label, ref VfxIntRange value)
+    public static bool IntRangeField(WidgetId id, string label, ref VfxIntRange value)
     {
         _fieldInt = value.Min;
         _fieldInt2 = value.Max;
@@ -110,7 +110,7 @@ internal static partial class EditorUI
         return changed;
     }
 
-    public static bool Vec2RangeField(int id, string label, ref VfxVec2Range value)
+    public static bool Vec2RangeField(WidgetId id, string label, ref VfxVec2Range value)
     {
         var changed = false;
         var minX = value.Min.X;
@@ -140,7 +140,7 @@ internal static partial class EditorUI
         return changed;
     }
 
-    public static bool FloatCurveField(int id, string label, ref VfxFloatCurve curve)
+    public static bool FloatCurveField(WidgetId id, string label, ref VfxFloatCurve curve)
     {
         var changed = false;
 
@@ -173,7 +173,7 @@ internal static partial class EditorUI
         return changed;
     }
 
-    public static bool ColorCurveField(int id, string label, ref VfxColorCurve curve)
+    public static bool ColorCurveField(WidgetId id, string label, ref VfxColorCurve curve)
     {
         var changed = false;
 
@@ -211,7 +211,7 @@ internal static partial class EditorUI
         return changed;
     }
 
-    public static bool ColorField(int id, ref Color color)
+    public static bool ColorField(WidgetId id, ref Color color)
     {
         var changed = false;
         var hex = ColorToHex(color);
@@ -253,7 +253,7 @@ internal static partial class EditorUI
 
     private static VfxCurveType _curveTypeValue;
 
-    public static bool CurveTypeButton(int id, ref VfxCurveType curveType)
+    public static bool CurveTypeButton(WidgetId id, ref VfxCurveType curveType)
     {
         var oldType = curveType;
         _curveTypeValue = curveType;
@@ -288,7 +288,7 @@ internal static partial class EditorUI
         return curveType != oldType;
     }
 
-    public static bool ToggleField(int id, string label, ref bool value)
+    public static bool ToggleField(WidgetId id, string label, ref bool value)
     {
         var changed = false;
 

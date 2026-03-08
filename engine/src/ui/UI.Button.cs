@@ -24,13 +24,13 @@ public struct ButtonStyle()
 
 public static partial class UI
 {
-    public static bool Button(int id, string text, in ButtonStyle style) =>
+    public static bool Button(WidgetId id, string text, in ButtonStyle style) =>
         Button(id, text, null, style);
 
-    public static bool Button(int id, Sprite icon, in ButtonStyle style) =>
+    public static bool Button(WidgetId id, Sprite icon, in ButtonStyle style) =>
         Button(id, null, icon, style);
 
-    public static bool Button(int id, string? text, Sprite? icon, in ButtonStyle style)
+    public static bool Button(WidgetId id, string? text, Sprite? icon, in ButtonStyle style)
     {
         ElementTree.BeginTree();
         ElementTree.BeginWidget(id);

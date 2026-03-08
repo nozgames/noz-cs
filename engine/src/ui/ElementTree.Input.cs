@@ -58,14 +58,14 @@ public static unsafe partial class ElementTree
         }
     }
 
-    private static bool IsInsidePopup(int offset)
+    private static bool IsInsidePopup(int index)
     {
         for (var i = 0; i < _popupCount; i++)
         {
             ref var pe = ref GetElement(_popups[i]);
             ref var pd = ref pe.Data.Popup;
             if (!pd.Interactive) continue;
-            if (IsDescendantOf(offset, _popups[i]))
+            if (IsDescendantOf(index, _popups[i]))
                 return true;
         }
         return false;
@@ -109,7 +109,7 @@ public static unsafe partial class ElementTree
 
         if (_captureId != 0 && !_inputMouseDown)
         {
-            _captureId = 0;
+            _captureId = WidgetId.None;
             Input.ReleaseMouseCapture();
         }
 
@@ -467,7 +467,7 @@ public static unsafe partial class ElementTree
         return e.Rect.Height;
     }
 
-    internal static float GetScrollOffset(int widgetId)
+    internal static float GetScrollOffset(WidgetId id)
     {
 #if false
         if (widgetId <= 0) return 0;
@@ -477,7 +477,7 @@ public static unsafe partial class ElementTree
         return 0;
     }
 
-    internal static void SetScrollOffset(int widgetId, float offset)
+    internal static void SetScrollOffset(WidgetId id, float offset)
     {
         //if (widgetId <= 0) return;
         //ref var state = ref GetWidgetData<ScrollableState>(widgetId);
@@ -505,63 +505,54 @@ public static unsafe partial class ElementTree
         }
     }
 
+    private static void HandleWidgetInput(ref Element e)
+    {
+        ref var d = ref e.Data.Widget;
+        ref var state = ref GetWidgetState(d.Id);
+        var prevFlags = state.Flags;
+        state.Flags = WidgetFlags.None;
+
+        // Block input for widgets outside popups when popups are open
+        if (_activePopupCount > 0 && !IsInsidePopup(e.Index))
+            return;
+
+        if (IsInsideNonInteractivePopup(e.Index))
+            return;
+
+        Matrix3x2.Invert(e.Transform, out var widgetInv);
+        var localMouse = Vector2.Transform(MouseWorldPosition, widgetInv);
+        var hovered = e.Rect.Contains(localMouse);
+
+        if (hovered)
+            state.Flags |= WidgetFlags.Hovered;
+
+        if (hovered && _inputMousePressed && (_captureId == 0 || _captureId == d.Id))
+            state.Flags |= WidgetFlags.Pressed;
+
+        var isCaptured = _captureId != 0 && _captureId == d.Id;
+        if (isCaptured ? _inputMouseDown : (hovered && _inputMouseDown))
+            state.Flags |= WidgetFlags.Down;
+
+        if (_focusId == d.Id)
+            state.Flags |= WidgetFlags.Focus;
+
+        if ((state.Flags & WidgetFlags.Hovered) != (prevFlags & WidgetFlags.Hovered))
+            state.Flags |= WidgetFlags.HoverChanged;
+    }
 
     private static void HandleInputElement(int offset)
     {
         ref var e = ref GetElement(offset);
 
         if (e.Type == ElementType.Widget)
-        {
-            ref var d = ref e.Data.Widget;
-            if (d.Id > 0 && d.Id < MaxId)
-            {
-                ref var state = ref GetWidgetState(d.Id);
-                var prevFlags = state.Flags;
-                state.Flags = WidgetFlags.None;
+            HandleWidgetInput(ref e);        
 
-                // Block input for widgets outside popups when popups are open
-                if (_activePopupCount > 0 && !IsInsidePopup(offset))
-                {
-                    //ws.LastFrame = _frame;
-                    goto recurse;
-                }
-                if (IsInsideNonInteractivePopup(offset))
-                {
-                    //ws.LastFrame = _frame;
-                    goto recurse;
-                }
-
-                Matrix3x2.Invert(e.Transform, out var widgetInv);
-                var localMouse = Vector2.Transform(MouseWorldPosition, widgetInv);
-                var hovered = e.Rect.Contains(localMouse);
-
-                if (hovered)
-                    state.Flags |= WidgetFlags.Hovered;
-
-                if (hovered && _inputMousePressed && (_captureId == 0 || _captureId == d.Id))
-                    state.Flags |= WidgetFlags.Pressed;
-
-                var isCaptured = _captureId != 0 && _captureId == d.Id;
-                if (isCaptured ? _inputMouseDown : (hovered && _inputMouseDown))
-                    state.Flags |= WidgetFlags.Down;
-
-                if (_focusId == d.Id)
-                    state.Flags |= WidgetFlags.Focus;
-
-                if ((state.Flags & WidgetFlags.Hovered) != (prevFlags & WidgetFlags.Hovered))
-                    state.Flags |= WidgetFlags.HoverChanged;
-
-                //ws.LastFrame = _frame;
-            }
-        }
-
-        recurse:
-        var childOffset = (int)e.FirstChild;
+        var childIndex = (int)e.FirstChild;
         for (int i = 0; i < e.ChildCount; i++)
         {
-            ref var child = ref GetElement(childOffset);
-            HandleInputElement(childOffset);
-            childOffset = child.NextSibling;
+            ref var child = ref GetElement(childIndex);
+            HandleInputElement(childIndex);
+            childIndex = child.NextSibling;
         }
     }
 }

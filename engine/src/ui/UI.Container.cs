@@ -6,7 +6,7 @@ namespace NoZ;
 
 public static partial class UI
 {
-    private static void BeginContainerImpl(int id, in ContainerStyle style, int axis)
+    private static void BeginContainerImpl(WidgetId id, in ContainerStyle style, int axis)
     {
         ElementTree.BeginTree();
 
@@ -52,51 +52,49 @@ public static partial class UI
 
     #region Container
 
-    public static AutoContainer BeginContainer(int id = default) =>
+    public static AutoContainer BeginContainer(WidgetId id = default) =>
         BeginContainer(id, ContainerStyle.Default);
 
-    public static AutoContainer BeginContainer(int id, in ContainerStyle style)
+    public static AutoContainer BeginContainer(WidgetId id, in ContainerStyle style)
     {
         BeginContainerImpl(id, style, -1);
         return new AutoContainer();
     }
 
     public static AutoContainer BeginContainer(in ContainerStyle style) =>
-        BeginContainer(0, style);
+        BeginContainer(WidgetId.None, style);
 
     public static void EndContainer() => EndContainerImpl();
 
-    public static void Container(int id = 0)
-    {
-        using var _ = BeginContainer(id: id);
-    }
-
-    public static void Container(int id, ContainerStyle style)
+    public static void Container(WidgetId id, ContainerStyle style)
     {
         using var _ = BeginContainer(id, style);
     }
 
+    public static void Container(WidgetId id) =>
+         Container(id, ContainerStyle.Default);
+
     public static void Container(ContainerStyle style) =>
-        Container(0, style);
+        Container(WidgetId.None, style);
 
     #endregion
 
     #region Column
 
-    public static AutoColumn BeginColumn(int id, in ContainerStyle style)
+    public static AutoColumn BeginColumn(WidgetId id, in ContainerStyle style)
     {
         BeginContainerImpl(id, style, 1);
         return new AutoColumn();
     }
 
-    public static AutoColumn BeginColumn(int id) =>
+    public static AutoColumn BeginColumn(WidgetId id) =>
         BeginColumn(id, ContainerStyle.Default);
 
     public static AutoColumn BeginColumn(in ContainerStyle style) =>
-        BeginColumn(0, style);
+        BeginColumn(WidgetId.None, style);
 
     public static AutoColumn BeginColumn() =>
-        BeginColumn(0, ContainerStyle.Default);
+        BeginColumn(WidgetId.None, ContainerStyle.Default);
 
     public static void EndColumn() => EndContainerImpl();
 
@@ -104,20 +102,20 @@ public static partial class UI
 
     #region Row
 
-    public static AutoRow BeginRow(int id, in ContainerStyle style)
+    public static AutoRow BeginRow(WidgetId id, in ContainerStyle style)
     {
         BeginContainerImpl(id, style, 0);
         return new AutoRow();
     }
 
-    public static AutoRow BeginRow(int id) =>
-        BeginRow(id, ContainerStyle.Default);
+    public static AutoRow BeginRow(WidgetId id) =>
+        BeginRow(WidgetId.None, ContainerStyle.Default);
 
     public static AutoRow BeginRow(in ContainerStyle style) =>
-        BeginRow(0, style);
+        BeginRow(WidgetId.None, style);
 
     public static AutoRow BeginRow() =>
-        BeginRow(0, ContainerStyle.Default);
+        BeginRow(WidgetId.None, ContainerStyle.Default);
 
     public static void EndRow() => EndContainerImpl();
 

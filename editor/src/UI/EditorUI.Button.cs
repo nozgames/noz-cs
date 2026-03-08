@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 internal static partial class EditorUI
 {
-    public static bool ToggleButton(int id, Sprite icon, bool isChecked, bool isEnabled = true, string? tooltip = null, bool small = false)
+    public static bool ToggleButton(WidgetId id, Sprite icon, bool isChecked, bool isEnabled = true, string? tooltip = null, bool small = false)
     {
         var isHovered = UI.IsHovered(id);
         var isPressed = false;
@@ -24,7 +24,7 @@ internal static partial class EditorUI
         return isPressed;
     }
 
-    public static bool SmallToggleButton(int id, Sprite icon, bool isChecked, bool isEnabled=true, string? tooltip = null)
+    public static bool SmallToggleButton(WidgetId id, Sprite icon, bool isChecked, bool isEnabled=true, string? tooltip = null)
     {
         var hovered = UI.IsHovered(id);
         var pressed = false;
@@ -43,7 +43,7 @@ internal static partial class EditorUI
         return pressed;
     }
 
-    public static bool Button(int id, Sprite icon, bool isEnabled=true, string? tooltip = null)
+    public static bool Button(WidgetId id, Sprite icon, bool isEnabled=true, string? tooltip = null)
     {
         var isHovered = UI.IsHovered(id);
         var isPressed = false;
@@ -58,7 +58,7 @@ internal static partial class EditorUI
         return isPressed;
     }
 
-    public static bool SmallButton(int id, Sprite icon, bool isEnabled = true, string? tooltip = null)
+    public static bool SmallButton(WidgetId id, Sprite icon, bool isEnabled = true, string? tooltip = null)
     {
         var pressed = false;
 

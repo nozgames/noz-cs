@@ -8,12 +8,14 @@ namespace NoZ.Editor;
 
 public partial class GenSpriteEditor : DocumentEditor
 {
-    [ElementId("Root")]
-    [ElementId("LayerItem", GenSpriteDocument.MaxDocumentLayers)]
-    [ElementId("GenerateButton")]
-    [ElementId("AddLayerButton")]
-    [ElementId("RemoveLayerButton")]
-    private static partial class ElementId { }
+    private static partial class ElementId 
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId LayerItem { get; }
+        public static partial WidgetId GenerateButton { get; }
+        public static partial WidgetId AddLayerButton { get; }
+        public static partial WidgetId RemoveLayerButton { get; }
+    }
 
     private readonly Vector2[] _savedPositions = new Vector2[Shape.MaxAnchors];
     private readonly float[] _savedCurves = new float[Shape.MaxAnchors];

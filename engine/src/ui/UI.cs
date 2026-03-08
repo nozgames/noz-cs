@@ -123,28 +123,28 @@ public static partial class UI
     public static bool IsRow() => ElementTree.IsParentRow();
     public static bool IsColumn() => ElementTree.IsParentColumn();
 
-    public static Rect GetElementRect(int elementId)
+    public static Rect GetElementRect(WidgetId id)
     {
-        if (elementId == 0) return Rect.Zero;
-        return ElementTree.GetWidgetRect(elementId);
+        if (id == 0) return Rect.Zero;
+        return ElementTree.GetWidgetRect(id);
     }
 
-    public static Rect GetElementWorldRect(int elementId)
+    public static Rect GetElementWorldRect(WidgetId id)
     {
-        if (elementId == 0) return Rect.Zero;
-        return ElementTree.GetWidgetWorldRect(elementId);
+        if (id == 0) return Rect.Zero;
+        return ElementTree.GetWidgetWorldRect(id);
     }
 
-    public static bool IsHovered(int elementId) => ElementTree.IsHovered(elementId);
+    public static bool IsHovered(WidgetId id) => ElementTree.IsHovered(id);
     public static bool IsHovered() => ElementTree.IsHovered();
     public static bool HoverEnter() => ElementTree.HoverEnter();
-    public static bool HoverEnter(int elementId) => ElementTree.HoverChanged(elementId) && ElementTree.IsHovered(elementId);
+    public static bool HoverEnter(WidgetId id) => ElementTree.HoverChanged(id) && ElementTree.IsHovered(id);
     public static bool HoverExit() => ElementTree.HoverExit();
-    public static bool HoverExit(int elementId) => ElementTree.HoverChanged(elementId) && !ElementTree.IsHovered(elementId);
+    public static bool HoverExit(WidgetId id) => ElementTree.HoverChanged(id) && !ElementTree.IsHovered(id);
     public static bool HoverChanged() => ElementTree.HoverChanged();
-    public static bool HoverChanged(int elementId) => ElementTree.HoverChanged(elementId);
+    public static bool HoverChanged(WidgetId id) => ElementTree.HoverChanged(id);
     public static bool WasPressed() => ElementTree.WasPressed();
-    public static bool WasPressed(int elementId) => ElementTree.WasPressed(elementId);
+    public static bool WasPressed(WidgetId id) => ElementTree.WasPressed(id);
     public static bool IsDown() => ElementTree.IsDown();
 
     public static void SetDisabled(bool disabled = true) => ElementTree.SetWidgetFlag(WidgetFlags.Disabled, disabled);
@@ -152,13 +152,13 @@ public static partial class UI
     public static bool IsDisabled() => ElementTree.IsDisabled();
     public static bool IsChecked() => ElementTree.IsChecked();
 
-    public static void SetCapture(int elementId) => ElementTree.SetCaptureById(elementId);
+    public static void SetCapture(WidgetId id) => ElementTree.SetCaptureById(id);
     public static void SetCapture() => ElementTree.SetCapture();
-    public static bool HasCapture(int elementId) => ElementTree.HasCaptureById(elementId);
+    public static bool HasCapture(WidgetId id) => ElementTree.HasCaptureById(id);
     public static bool HasCapture() => ElementTree.HasCapture();
     public static void ReleaseCapture() => ElementTree.ReleaseCapture();
 
-    public static ReadOnlySpan<char> GetElementText(int id)
+    public static ReadOnlySpan<char> GetElementText(WidgetId id)
     {
         //if (_lastChangedTextId == id)
         //    return _lastChangedText.AsSpan();
@@ -170,15 +170,15 @@ public static partial class UI
         return default;
     }
 
-    public static void SetElementText(int elementId, ReadOnlySpan<char> value, bool selectAll = false)
+    public static void SetElementText(WidgetId id, ReadOnlySpan<char> value, bool selectAll = false)
     {
         //ElementTree.SetEditableText(elementId, value, selectAll);
     }
 
-    public static float GetScrollOffset(int elementId) =>
-        ElementTree.GetScrollOffset(elementId);
+    public static float GetScrollOffset(WidgetId id) =>
+        ElementTree.GetScrollOffset(id);
 
-    public static void SetScrollOffset(int elementId, float offset) =>
+    public static void SetScrollOffset(WidgetId elementId, float offset) =>
         ElementTree.SetScrollOffset(elementId, offset);
 
     /// <summary>
@@ -186,7 +186,7 @@ public static partial class UI
     /// Returns (startIndex, endIndex) where endIndex is exclusive.
     /// </summary>
     public static (int startIndex, int endIndex) GetGridCellRange(
-        int scrollId,
+        WidgetId scrollId,
         int columns,
         float cellHeight,
         float spacing,
@@ -218,7 +218,7 @@ public static partial class UI
     internal static void Begin()
     {
         _prevHotId = _hotId;
-        _hotId = 0;
+        _hotId = WidgetId.None;
         _valueChanged = false;
 
         _frame++;
@@ -291,7 +291,7 @@ public static partial class UI
 
     public static void BeginCenter()
     {
-        BeginContainerImpl(0, ContainerStyle.Center, -1);
+        BeginContainerImpl(WidgetId.None, ContainerStyle.Center, -1);
     }
 
     public static void EndCenter() => EndContainerImpl();
@@ -349,10 +349,10 @@ public static partial class UI
 
     public static void EndCursor() => EndContainerImpl();
 
-    public static AutoScrollable BeginScrollable(int id) =>
+    public static AutoScrollable BeginScrollable(WidgetId id) =>
         BeginScrollable(id, new ScrollableStyle());
 
-    public static AutoScrollable BeginScrollable(int id, in ScrollableStyle style)
+    public static AutoScrollable BeginScrollable(WidgetId id, in ScrollableStyle style)
     {
         Debug.Assert(id != 0);
         ElementTree.BeginWidget<ScrollableState>(id);
@@ -389,19 +389,22 @@ public static partial class UI
 
     public static void EndGrid() => EndContainerImpl();
 
-    public static void Scene(int id, Camera camera, Action draw) =>
+    public static void Scene(WidgetId id, Camera camera, Action draw) =>
         Scene(id, camera, draw, new SceneStyle());
 
-    public static void Scene(int id, Camera camera, Action draw, SceneStyle style = default)
+    public static void Scene(WidgetId id, Camera camera, Action draw, SceneStyle style = default)
     {
         if (id != 0) ElementTree.BeginWidget(id);
         ElementTree.Scene(camera, draw, style.Size, style.Color, style.SampleCount);
         if (id != 0) ElementTree.EndWidget();
     }
 
-    public static void Scene(Camera camera, Action draw, SceneStyle style = default) => Scene(0, camera, draw, style);
+    public static void Scene(
+        Camera camera,
+        Action draw,
+        SceneStyle style = default) => Scene(WidgetId.None, camera, draw, style);
 
-    public static AutoPopup BeginPopup(int id, PopupStyle style)
+    public static AutoPopup BeginPopup(WidgetId id, PopupStyle style)
     {
         ElementTree.BeginPopup(
             style.AnchorRect,
@@ -463,7 +466,7 @@ public static partial class UI
     #endregion
 
 
-    public static Rect WorldToSceneLocal(Camera camera, int sceneElementId, Rect worldRect)
+    public static Rect WorldToSceneLocal(Camera camera, WidgetId sceneElementId, Rect worldRect)
     {
         var viewport = camera.Viewport;
         var elementRect = UI.GetElementRect(sceneElementId);

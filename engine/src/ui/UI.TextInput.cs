@@ -7,7 +7,7 @@ namespace NoZ;
 public static partial class UI
 {
     public static string TextInput(
-        int id,
+        WidgetId id,
         string value,
         TextInputStyle style,
         string? placeholder = null,

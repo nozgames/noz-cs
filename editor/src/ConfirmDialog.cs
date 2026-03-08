@@ -6,10 +6,12 @@ namespace NoZ.Editor;
 
 public static partial class ConfirmDialog
 {
-    [ElementId("Yes")]
-    [ElementId("No")]
-    [ElementId("Close")]
-    private static partial class ElementId { }
+    private static partial class ElementId 
+    {
+        public static partial WidgetId Yes { get; }
+        public static partial WidgetId No { get; }
+        public static partial WidgetId Close { get; }
+    }
 
     private static bool _visible;
     private static string _message = string.Empty;

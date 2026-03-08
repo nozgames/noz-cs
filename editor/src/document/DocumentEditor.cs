@@ -22,5 +22,5 @@ public abstract class DocumentEditor(Document document) : IDisposable
     }
 
     public virtual void InspectorUI() { }
-    public virtual void OpenContextMenu(int popupId) { }
+    public virtual void OpenContextMenu(WidgetId popupId) { }
 }

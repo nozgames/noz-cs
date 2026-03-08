@@ -145,7 +145,7 @@ public static unsafe partial class ElementTree
 
     internal static void EndGrid() => EndElement(ElementType.Grid);
 
-    internal static int BeginScrollable(int widgetId, in ScrollableStyle style)
+    internal static int BeginScrollable(ulong widgetId, in ScrollableStyle style)
     {
         ref var e = ref BeginElement(ElementType.Scroll);
         ref var d = ref e.Data.Scroll;
@@ -158,7 +158,7 @@ public static unsafe partial class ElementTree
         d.ScrollbarThumbHoverColor = style.ScrollbarThumbHoverColor;
         d.ScrollbarPadding = style.ScrollbarPadding;
         d.ScrollbarBorderRadius = style.ScrollbarBorderRadius;
-        d.WidgetId = widgetId;
+        //d.WidgetId = widgetId;
         return e.Index;
     }
 

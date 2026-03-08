@@ -8,9 +8,11 @@ namespace NoZ.Editor;
 
 internal static partial class EditorUI
 {
-    [ElementId("Popup")]
-    [ElementId("PopupItem", count: 64)]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Popup { get; }
+        public static partial WidgetId PopupItem { get; }
+    }
 
     private static readonly string[] OpacityStrings = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"];
     internal static readonly string[] FrameTimeStrings = ["0", "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60"];
@@ -20,8 +22,8 @@ internal static partial class EditorUI
     private static bool _controlHovered = false;
     private static bool _controlSelected = false;
     private static bool _controlDisabled = false;
-    private static int _popupId = -1;
-    private static int _nextPopupItemId = -1;
+    private static WidgetId _popupId;
+    private static WidgetId _nextPopupItemId;
     
     private static void SetState(bool selected, bool disabled)
     {
@@ -80,7 +82,7 @@ internal static partial class EditorUI
             UI.Container(EditorStyle.Button.Fill);
     }
 
-    public static bool Button(int id, string text, bool selected = false, bool disabled = false, bool toolbar = false)
+    public static bool Button(WidgetId id, string text, bool selected = false, bool disabled = false, bool toolbar = false)
     {
         bool pressed = false;
         using (UI.BeginContainer(id, EditorStyle.Button.Root))
@@ -107,7 +109,7 @@ internal static partial class EditorUI
             UI.Image(icon, EditorStyle.Control.Icon);
     }
 
-    public static bool Button(int id, Action content, bool selected = false, bool disabled = false, bool toolbar = false)
+    public static bool Button(WidgetId id, Action content, bool selected = false, bool disabled = false, bool toolbar = false)
     {
         bool pressed = false;
         using (UI.BeginContainer(id, EditorStyle.Button.RootWithContent))
@@ -161,7 +163,7 @@ internal static partial class EditorUI
         PopupItem(_nextPopupItemId++, text, content, selected, disabled);
 
     public static bool PopupItem(
-        int id,
+        WidgetId id,
         string text,
         Action? content = null,
         bool selected = false,
@@ -178,7 +180,7 @@ internal static partial class EditorUI
         PopupItem(_nextPopupItemId++, icon, text, content, selected, disabled, showIcon);
 
     public static bool PopupItem(
-        int id,
+        WidgetId id,
         Sprite? icon,
         string? text,
         Action? content = null,
@@ -215,28 +217,28 @@ internal static partial class EditorUI
         return pressed;
     }
 
-    public static void OpenPopup(int id)
+    public static void OpenPopup(WidgetId id)
     {
         _popupId = id;
     }
 
     public static void ClosePopup()
     {
-        _popupId = -1;
+        _popupId = WidgetId.None;
     }
 
-    public static void TogglePopup(int id)
+    public static void TogglePopup(WidgetId id)
     {
         if (_popupId == id)
-            _popupId = -1;
+            _popupId = WidgetId.None;
         else
             _popupId = id;
     }
 
-    public static bool IsPopupOpen(int id) =>
+    public static bool IsPopupOpen(WidgetId id) =>
         _popupId == id;
 
-    public static bool Popup(int id, Action content, PopupStyle? style = null, Vector2 offset = default)
+    public static bool Popup(WidgetId id, Action content, PopupStyle? style = null, Vector2 offset = default)
     {
         if (_popupId != id) return false;
 
@@ -259,7 +261,7 @@ internal static partial class EditorUI
 
         if (UI.IsClosed())
         {
-            _popupId = -1;
+            _popupId = WidgetId.None;
             return false;
         }
 
@@ -283,7 +285,7 @@ internal static partial class EditorUI
     }
 
     public static bool Control(
-        int id,
+        WidgetId id,
         Action content,
         bool selected = false,
         bool disabled = false,
@@ -355,7 +357,7 @@ internal static partial class EditorUI
         UI.Container(EditorStyle.Toolbar.Spacer);
     }
 
-    private static UI.AutoContainer BeginColorContainer(int id, bool selected)
+    private static UI.AutoContainer BeginColorContainer(WidgetId id, bool selected)
     {
         var container = UI.BeginContainer(id, new ContainerStyle
         {
@@ -378,7 +380,7 @@ internal static partial class EditorUI
         public int Hold;
     }
 
-    public static bool DopeSheet(int baseId, ReadOnlySpan<DopeSheetFrame> frames, ref int currentFrame, int maxFrames, bool isPlaying)
+    public static bool DopeSheet(WidgetId baseId, ReadOnlySpan<DopeSheetFrame> frames, ref int currentFrame, int maxFrames, bool isPlaying)
     {
         int oldCurrentFrame = currentFrame;
 

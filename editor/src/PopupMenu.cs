@@ -6,37 +6,6 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public struct PopupMenuItem
-{
-    public string? Label;
-    public Action? Handler;
-    public int Level;
-    public InputCode Key;
-    public bool Ctrl;
-    public bool Alt;
-    public bool Shift;
-    public Sprite? Icon;
-    public Func<bool>? GetEnabled;
-    public Func<bool>? GetChecked;
-    public bool ShowChecked;
-    public bool ShowIcons;
-
-    public readonly bool IsEnabled => GetEnabled?.Invoke() ?? true;
-    public readonly bool IsChecked => GetChecked?.Invoke() ?? false;
-
-    public static PopupMenuItem Item(string label, Action handler, InputCode key = InputCode.None, bool ctrl = false, bool alt = false, bool shift = false, int level = 0, Func<bool>? enabled = null, Func<bool>? isChecked = null, Sprite? icon = null) =>
-        new() { Label = label, Handler = handler, Level = level, Key = key, Ctrl = ctrl, Alt = alt, Shift = shift, GetEnabled = enabled, GetChecked = isChecked, Icon = icon, ShowChecked = true };
-
-    public static PopupMenuItem Submenu(string label, int level = 0, bool showChecked = false, bool showIcons = true, Func<bool>? isChecked = null) =>
-        new() { Label = label, Handler = null, Level = level, ShowChecked = showChecked, ShowIcons = showIcons, GetChecked = isChecked };
-
-    public static PopupMenuItem Separator(int level = 0) =>
-        new() { Label = null, Handler = null, Level = level };
-
-    public static PopupMenuItem FromCommand(Command cmd, int level = 0, Func<bool>? enabled = null, Func<bool>? isChecked = null) =>
-        new() { Label = cmd.Name, Handler = cmd.Handler, Level = level, Key = cmd.Key, Ctrl = cmd.Ctrl, Alt = cmd.Alt, Shift = cmd.Shift, GetEnabled = enabled, GetChecked = isChecked, Icon = cmd.Icon, ShowChecked = true };
-}
-
 public static partial class PopupMenu
 {
     private const int MaxItems = 64;
@@ -49,11 +18,13 @@ public static partial class PopupMenu
         public bool ShowIcons;
     }
 
-    [ElementId("Menu", count: MaxSubmenuDepth)]
-    [ElementId("Item", count: MaxItems)]
-    private static partial class ElementId { }
+    private static partial class ElementId 
+    {
+        public static partial WidgetId Menu { get; }
+        public static partial WidgetId Item { get; }
+    }
 
-    private static int _id;
+    private static WidgetId _id;
     private static bool _visible;
     private static Vector2 _worldPosition;
     private static PopupMenuItem[] _items = new PopupMenuItem[MaxItems];
@@ -78,7 +49,7 @@ public static partial class PopupMenu
     }
 
     public static void Open(
-        int id,
+        WidgetId id,
         ReadOnlySpan<PopupMenuItem> items,
         string? title = null) => Open(
             id,
@@ -89,7 +60,7 @@ public static partial class PopupMenu
             title);
 
     public static void Open(
-        int id,
+        WidgetId id,
         ReadOnlySpan<PopupMenuItem> items,
         PopupStyle style,
         string? title = null)
@@ -118,12 +89,12 @@ public static partial class PopupMenu
         _visible = false;
         _itemCount = 0;
         _title = null;
-        _id = 0;
+        _id = WidgetId.None;
         UI.ClearHot();
         Input.PopScope(_scope);
     }
 
-    public static bool IsOpen(int id) => _visible && _id == id;
+    public static bool IsOpen(WidgetId id) => _visible && _id == id;
 
     public static void Update()
     {
@@ -189,7 +160,7 @@ public static partial class PopupMenu
         var startIndex = level == 0 ? 0 : parentIndex + 1;
         var parentLevel = level == 0 ? -1 : _items![parentIndex].Level;
         
-        using var _ = UI.BeginPopup((byte)(ElementId.Menu+ level), style);
+        using var _ = UI.BeginPopup(ElementId.Menu + level, style);
 
         if (UI.IsClosed())
             shouldClose = true;
@@ -247,7 +218,7 @@ public static partial class PopupMenu
         }
     }
 
-    private static void SubmenuItemUI(int level, int index, int itemId, ref PopupMenuItem item, bool enabled, bool isSubmenuOpen, ref Action? executed, ref bool shouldClose)
+    private static void SubmenuItemUI(int level, int index, WidgetId itemId, ref PopupMenuItem item, bool enabled, bool isSubmenuOpen, ref Action? executed, ref bool shouldClose)
     {
         static void Content()
         {

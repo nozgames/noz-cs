@@ -16,16 +16,18 @@ internal partial class AnimationEditor : DocumentEditor
 {
     private static readonly string[] FrameTimeStrings = ["0", "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60"];
 
-    [ElementId("Root")]
-    [ElementId("OnionSkinButton")]
-    [ElementId("PlayButton")]
-    [ElementId("LoopButton")]
-    [ElementId("AddFrameButton")]
-    [ElementId("SkeletonButton")]
-    [ElementId("ShowSkeletonButton")]
-    [ElementId("MirrorButton")]
-    [ElementId("FirstFrame")]
-    private static partial class ElementId { }
+    private static partial class ElementId 
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId OnionSkinButton { get; }
+        public static partial WidgetId PlayButton { get; }
+        public static partial WidgetId LoopButton { get; }
+        public static partial WidgetId AddFrameButton { get; }
+        public static partial WidgetId SkeletonButton { get; }
+        public static partial WidgetId ShowSkeletonButton { get; }
+        public static partial WidgetId MirrorButton { get; }
+        public static partial WidgetId FirstFrame { get; }        
+    }
 
     private AnimationEditorState _state = AnimationEditorState.Default;
     private bool _showSkeleton = true;
@@ -76,10 +78,10 @@ internal partial class AnimationEditor : DocumentEditor
         bool HasSelection() => Document.SelectedBoneCount > 0;
 
         _contextMenuItems = [
-            PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
-            PopupMenuItem.FromCommand(pasteCommand, enabled: Clipboard.Is<AnimationFrameData>),
-            PopupMenuItem.Separator(),
-            PopupMenuItem.FromCommand(exitEditCommand),
+            //PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
+            //PopupMenuItem.FromCommand(pasteCommand, enabled: Clipboard.Is<AnimationFrameData>),
+            //PopupMenuItem.Separator(),
+            //PopupMenuItem.FromCommand(exitEditCommand),
         ];
 
         ClearSelection();

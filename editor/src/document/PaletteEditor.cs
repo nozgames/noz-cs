@@ -6,10 +6,12 @@ namespace NoZ.Editor;
 
 internal partial class PaletteEditor : DocumentEditor
 {
-    [ElementId("InspectorRoot")]
-    [ElementId("InspectorScroll")]
-    [ElementId("ColorItem", 256)]
-    private static partial class ElementId { }
+    private static partial class WidgetIds 
+    {
+        public static partial WidgetId InspectorRoot { get; }
+        public static partial WidgetId InspectorScroll { get; }
+        public static partial WidgetId ColorItem { get; }
+    }
 
     public new PaletteDocument Document => (PaletteDocument)base.Document;
 
@@ -30,11 +32,11 @@ internal partial class PaletteEditor : DocumentEditor
 
     public override void UpdateUI()
     {
-        using (UI.BeginColumn(ElementId.InspectorRoot, EditorStyle.Inspector.Root))
+        using (UI.BeginColumn(WidgetIds.InspectorRoot, EditorStyle.Inspector.Root))
         {
             EditorUI.SectionHeader($"{Document.ColorCount} colors");
 
-            using (UI.BeginScrollable(ElementId.InspectorScroll, new ScrollableStyle
+            using (UI.BeginScrollable(WidgetIds.InspectorScroll, new ScrollableStyle
             {
                 ScrollSpeed = 40
             }))
@@ -46,7 +48,7 @@ internal partial class PaletteEditor : DocumentEditor
                     Columns = 6
                 }))
                 {
-                    var nextId = ElementId.ColorItem;
+                    var nextId = WidgetIds.ColorItem;
                     for (int i = 0; i < Document.ColorCount; i++)
                     {
                         var color = Document.Colors[i];

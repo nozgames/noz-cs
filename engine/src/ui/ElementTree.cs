@@ -16,7 +16,7 @@ public static unsafe partial class ElementTree
 {
     private const int MaxElements = 1024;
     private const int MaxDataSize = 8192;
-    private const int MaxId = 0x7FFF;
+    private const int MaxWidgets = 1024;
     private const int MaxElementDepth = 512;
 
     private const int MaxElementSize = 65535;
@@ -29,12 +29,12 @@ public static unsafe partial class ElementTree
 
     private static NativeArray<byte>[] _data = null!;
     private static NativeArray<Element> _elements;
-    private static NativeArray<UnsafeRef<WidgetState>> _widgets;
+    private static NativeHashMap<UnsafeRef<WidgetState>> _widgets;
     private static NativeArray<ushort> _stack;    
     private static NativeArray<ushort> _trees;
     private static ushort _frame;
     private static ushort _nextSibling;
-    private static ushort _currentWidget;
+    private static WidgetId _currentWidget;
 
     private static readonly object?[] _assets = new object?[MaxAssets];
     private static int _assetCount;
@@ -47,8 +47,8 @@ public static unsafe partial class ElementTree
     internal static int ActivePopupCount => _activePopupCount;
 
     // Input state
-    private static int _focusId;
-    private static int _captureId;
+    private static WidgetId _focusId;
+    private static WidgetId _captureId;
 
     // Drawing state (self-contained, not shared with UI)
     private static RenderMesh _mesh;
@@ -60,7 +60,7 @@ public static unsafe partial class ElementTree
     public static void Init()
     {
         _elements = new NativeArray<Element>(MaxElements);
-        _widgets = new NativeArray<UnsafeRef<WidgetState>>(MaxId + 1, MaxId + 1);
+        _widgets = new NativeHashMap<UnsafeRef<WidgetState>>(MaxWidgets);
         _data = [
             new NativeArray<byte>(MaxDataSize),
             new NativeArray<byte>(MaxDataSize)
@@ -98,7 +98,7 @@ public static unsafe partial class ElementTree
         _data[_frame & 1].Clear();
 
         _assetCount = 0;
-        _currentWidget = 0;
+        _currentWidget = WidgetId.None;
         _popupCount = 0;
         _activePopupCount = 0;
         ClosePopups = false;

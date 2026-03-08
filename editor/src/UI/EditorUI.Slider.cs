@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 internal static partial class EditorUI
 {
-    public static bool Slider(int id, ref float value, float min = 0f, float max = 1f)
+    public static bool Slider(WidgetId id, ref float value, float min = 0f, float max = 1f)
     {
         var changed = false;
         var t = max > min ? Math.Clamp((value - min) / (max - min), 0f, 1f) : 0f;

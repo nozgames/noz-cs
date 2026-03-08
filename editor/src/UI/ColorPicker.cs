@@ -12,17 +12,19 @@ internal static partial class ColorPicker
     private const float SwatchCellSize = 28;
     private const float SwatchColumns = 8;
 
-    [ElementId("Hue")]
-    [ElementId("Alpha")]
-    [ElementId("Close")]
-    [ElementId("Popup")]
-    [ElementId("SaturationAndValue")]    
-    [ElementId("ModeNone")]
-    [ElementId("ModeColor")]
-    [ElementId("ModePalette")]
-    [ElementId("ColorPickerPaletteScroll")]
-    [ElementId("ColorPickerPaletteItem", count: 256)]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Hue { get; }
+        public static partial WidgetId Alpha { get; }
+        public static partial WidgetId Close { get; }
+        public static partial WidgetId Popup { get; }
+        public static partial WidgetId SaturationAndValue { get; }
+        public static partial WidgetId ModeNone { get; }
+        public static partial WidgetId ModeColor { get; }
+        public static partial WidgetId ModePalette { get; }
+        public static partial WidgetId ColorPickerPaletteScroll { get; }
+        public static partial WidgetId ColorPickerPaletteItem { get; }
+    }
 
     private enum ColorMode
     {
@@ -31,7 +33,7 @@ internal static partial class ColorPicker
         Palette
     }
 
-    private static int _popupId;
+    private static WidgetId _popupId;
     private static float _hue;
     private static float _sat;
     private static float _val;
@@ -53,9 +55,9 @@ internal static partial class ColorPicker
 
     private static ColorMode _paletteMode = ColorMode.None;
 
-        public static bool IsOpen(int id) => _popupId == id;
+    public static bool IsOpen(WidgetId id) => _popupId == id;
 
-    internal static void Open(int id, Color32 color)
+    internal static void Open(WidgetId id, Color32 color)
     {
         _popupId = id;
         _originalColor = color;
@@ -85,7 +87,7 @@ internal static partial class ColorPicker
         }
     }
 
-    private static void PopupInternal(int id, ref Color32 color)
+    private static void PopupInternal(WidgetId id, ref Color32 color)
     {
         var anchorRect = UI.GetElementWorldRect(id);
         using var popup = UI.BeginPopup(
@@ -106,7 +108,7 @@ internal static partial class ColorPicker
             color = _paletteMode != ColorMode.None ? HsvToColor32(_hue, _sat, _val, _alpha) : Color.Transparent;
             if (color != _prevColor)
                 UI.NotifyChanged(color.GetHashCode());
-            _popupId = -1;
+            _popupId = WidgetId.None;
             return;
         }
 
@@ -138,7 +140,7 @@ internal static partial class ColorPicker
             {
                 // Cancel: reset hash to original so IsChanged() returns false
                 UI.NotifyChanged(_originalColor.GetHashCode());
-                _popupId = -1;
+                _popupId = WidgetId.None;
                 return;
             }
 
@@ -169,15 +171,15 @@ internal static partial class ColorPicker
         }
     }
 
-    internal static void Popup(int id, ref Color32 color)
+    internal static void Popup(WidgetId id, ref Color32 color)
     {
         if (_popupId == id)
             PopupInternal(id, ref color);
     }
 
-    private static Vector2 GetNormalizedMouseInElement(int elementId)
+    private static Vector2 GetNormalizedMouseInElement(WidgetId id)
     {
-        var rect = UI.GetElementWorldRect(elementId);
+        var rect = UI.GetElementWorldRect(id);
         var mouse = UI.MouseWorldPosition;
 
         if (rect.Width <= 0 || rect.Height <= 0)
@@ -258,7 +260,7 @@ internal static partial class ColorPicker
         }
     }
 
-    private static UI.AutoContainer BeginColorContainer(int id, bool selected)
+    private static UI.AutoContainer BeginColorContainer(WidgetId id, bool selected)
     {
         var container = UI.BeginContainer(id, new ContainerStyle
         {

@@ -11,8 +11,10 @@ public partial class RenameTool(
     Func<Vector2> getWorldPosition,
     Action<string> commit) : Tool
 {
-    [ElementId("TextBox")]
-    private static partial class ElementId { }
+    private static partial class ElementId 
+    {
+        public static partial WidgetId TextBox { get; }
+    }
 
     private readonly string _originalName = originalName;
     private readonly Func<Vector2> _getWorldPosition = getWorldPosition;

@@ -14,12 +14,14 @@ public enum WorkspaceState
 
 public static partial class Workspace
 {
-    [ElementId("Toolbar")]
-    [ElementId("XrayButton")]
-    [ElementId("CollectionButton")]
-    [ElementId("ContextMenu")]
-    [ElementId("Scene")]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Toolbar { get; }
+        public static partial WidgetId XrayButton { get; }
+        public static partial WidgetId CollectionButton { get; }
+        public static partial WidgetId ContextMenu { get; }
+        public static partial WidgetId Scene { get; }
+    }
 
     private const float ZoomMin = 0.2f;
     private const float ZoomMax = 200f;
@@ -232,11 +234,11 @@ public static partial class Workspace
             items.Add(PopupMenuItem.Separator());
         }
 
-        items.Add(PopupMenuItem.FromCommand(editCommand, enabled: () => SelectedCount == 1));
-        items.Add(PopupMenuItem.FromCommand(duplicateCommand));
-        items.Add(PopupMenuItem.FromCommand(renameCommand));
-        items.Add(PopupMenuItem.FromCommand(deleteCommand));
-        items.Add(PopupMenuItem.FromCommand(moveCommand));
+        //items.Add(PopupMenuItem.FromCommand(editCommand, enabled: () => SelectedCount == 1));
+        //items.Add(PopupMenuItem.FromCommand(duplicateCommand));
+        //items.Add(PopupMenuItem.FromCommand(renameCommand));
+        //items.Add(PopupMenuItem.FromCommand(deleteCommand));
+        //items.Add(PopupMenuItem.FromCommand(moveCommand));
         _workspacePopupItems = [.. items];
     }
 
