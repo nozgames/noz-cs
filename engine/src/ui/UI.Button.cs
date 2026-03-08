@@ -32,6 +32,7 @@ public static partial class UI
 
     public static bool Button(int id, string? text, Sprite? icon, in ButtonStyle style)
     {
+        ElementTree.BeginTree();
         ElementTree.BeginWidget(id);
 
         var flags = ElementTree.CurrentWidgetFlags;
@@ -64,19 +65,7 @@ public static partial class UI
                 new Align2(Align.Center, Align.Center), TextOverflow.Overflow);
         }
 
-        ElementTree.EndRow();
-        ElementTree.EndAlign();
-
-        if (hasPadding)
-            ElementTree.EndPadding();
-
-        ElementTree.EndFill();
-        ElementTree.EndSize();
-
-        if (s.BorderWidth > 0)
-            ElementTree.EndBorder();
-
-        ElementTree.EndWidget();
+        ElementTree.EndTree();
 
         return flags.HasFlag(ElementFlags.Pressed);
     }

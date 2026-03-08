@@ -9,7 +9,6 @@ namespace NoZ;
 
 internal enum ElementType : byte
 {
-    Root,
     Widget,
     Size,
     Padding,

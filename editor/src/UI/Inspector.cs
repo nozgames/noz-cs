@@ -53,6 +53,8 @@ internal static partial class Inspector
     {
         var sectionId = _nextSectionId++;
 
+        UI.BeginColumn();
+
 #if false
         var headerStyle = isActive
             ? EditorStyle.Inspector.SectionHeaderActive

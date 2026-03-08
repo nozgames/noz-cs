@@ -265,14 +265,11 @@ public static partial class UI
         Camera!.SetExtents(new Rect(0, 0, _size.X, _size.Y));
         Camera!.Update();
 
-        ElementTree.ScreenSize = _size;
-        ElementTree.Begin();
-        ElementTree.BeginSize(Size.Percent(1), Size.Percent(1));
+        ElementTree.Begin(_size);
     }
 
     internal static void End()
     {
-        ElementTree.EndSize();
         ElementTree.MouseWorldPosition = MouseWorldPosition;
         ElementTree.End();
 

@@ -6,6 +6,7 @@ using NoZ.Platform;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace NoZ;
 
@@ -89,14 +90,17 @@ public static unsafe partial class ElementTree
         Graphics.Driver.DestroyMesh(_mesh.Handle);
     }
 
-    internal static void Begin()
+    internal static void Begin(Vector2 size)
     {
+        ScreenSize = size;
+
         _frame++;
         _layoutCycleLogged = false;
         _currentBuffer ^= 1;
         ref var buffer = ref CurrentBuffer;
         buffer.Data.Clear();
         buffer.Elements.Clear();
+        NativeMemory.Clear(buffer.Widgets.Ptr, (nuint)(buffer.Widgets.Capacity * sizeof(ushort)));
 
         _stack.Clear();
         _trees.Clear();
@@ -109,7 +113,8 @@ public static unsafe partial class ElementTree
 
         ref var e = ref CurrentBuffer.Elements.Add();
         e = default;
-        e.Type = ElementType.Root;
+        e.Type = ElementType.Size;
+        e.Data.Size = new Size2(size.X, size.Y);
         _stack.Add(0);
     }
 
@@ -136,7 +141,8 @@ public static unsafe partial class ElementTree
         Debug.Assert(_trees.Length > 0);
         var stackIndex = _trees[^1];
         _trees.RemoveLast();
-        while(_stack.Length > stackIndex)
+
+        while (_stack.Length > stackIndex)
         {
             ref var e = ref GetElement(_stack[^1]);
             EndElement(e.Type);
@@ -158,12 +164,14 @@ public static unsafe partial class ElementTree
         e.NextSibling = 0;
         e.ChildCount = 0;
         e.FirstChild = 0;
+        e.Index = (ushort)index;
+        _stack.Add((ushort)index);
 
         ref var p = ref GetElement(e.Parent);
         p.ChildCount++;
         if (p.FirstChild == 0)
             p.FirstChild = (ushort)index;
-        _stack.Add((ushort)index);
+
         return ref e;
     }
 
@@ -176,6 +184,7 @@ public static unsafe partial class ElementTree
         
         ref var e = ref GetElement(index);
         e.NextSibling = (ushort)CurrentBuffer.Elements.Length;
+
         Debug.Assert(e.Type == type);
     }
 

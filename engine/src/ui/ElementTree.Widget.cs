@@ -183,7 +183,7 @@ public static unsafe partial class ElementTree
         Debug.Assert(id <= MaxId, $"Widget ID {id} exceeds maximum of {MaxId}");
 
         ref var e = ref BeginElement(ElementType.Widget);
-        e = default;
+        e.Data = default;
 
         if (WasWidgetInPrevFrame(id))
         {

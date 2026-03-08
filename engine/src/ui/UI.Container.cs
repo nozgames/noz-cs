@@ -68,14 +68,12 @@ public static partial class UI
 
     public static void Container(int id = 0)
     {
-        BeginContainer(id: id);
-        EndContainer();
+        using var _ = BeginContainer(id: id);
     }
 
     public static void Container(int id, ContainerStyle style)
     {
-        BeginContainer(id, style);
-        EndContainer();
+        using var _ = BeginContainer(id, style);
     }
 
     public static void Container(ContainerStyle style) =>
