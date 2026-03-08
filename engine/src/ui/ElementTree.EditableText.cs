@@ -53,7 +53,7 @@ public static unsafe partial class ElementTree
             state.CursorIndex = value.Length;
             state.SelectionStart = 0;
 
-            d.Text = Text(value);
+            d.Text = AllocString(value);
         }
 
         // Mouse click-to-position and drag-to-select
@@ -76,7 +76,7 @@ public static unsafe partial class ElementTree
         var displayColor = showPlaceholder ? placeholderColor : textColor;
         var overflow = multiLine ? TextOverflow.Wrap : TextOverflow.Overflow;
 
-        d.Text = Text(displayText);
+        d.Text = AllocString(displayText);
         d.FontSize = fontSize;
         d.TextColor = displayColor;
         d.CursorColor = cursorColor;

@@ -140,9 +140,9 @@ public static class EditorStyle
             BorderRadius = BorderRadius,
             Resolve = (s, f) =>
             {
-                if ((f & ElementFlags.Disabled) != 0) return s with { Color = Color.Transparent };
-                if ((f & ElementFlags.Checked) != 0) return s with { Color = Palette.Active };
-                if ((f & ElementFlags.Hovered) != 0) return s with { Color = Palette.Active };
+                if ((f & WidgetFlags.Disabled) != 0) return s with { Color = Color.Transparent };
+                if ((f & WidgetFlags.Checked) != 0) return s with { Color = Palette.Active };
+                if ((f & WidgetFlags.Hovered) != 0) return s with { Color = Palette.Active };
                 return s;
             },
         };
@@ -169,7 +169,7 @@ public static class EditorStyle
             AlignY = Align.Center,
             Resolve = (s, f) =>
             {
-                if ((f & ElementFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight };
+                if ((f & WidgetFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight };
                 return s;
             },
         };
@@ -186,8 +186,8 @@ public static class EditorStyle
             AlignY = Align.Center,
             Resolve = (s, f) =>
             {
-                if ((f & ElementFlags.Checked) != 0) return s with { Color = Palette.HeaderText };
-                if ((f & ElementFlags.Hovered) != 0) return s with { Color = Palette.Label };
+                if ((f & WidgetFlags.Checked) != 0) return s with { Color = Palette.HeaderText };
+                if ((f & WidgetFlags.Hovered) != 0) return s with { Color = Palette.Label };
                 return s;
             },
         };
@@ -210,7 +210,7 @@ public static class EditorStyle
             AlignY = Align.Center,
             Resolve = (s, f) =>
             {
-                if ((f & ElementFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight };
+                if ((f & WidgetFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight };
                 return s;
             },
         };
@@ -357,8 +357,8 @@ public static class EditorStyle
             Padding = EdgeInsets.LeftRight(12),
             Resolve = (s, f) =>
             {
-                if ((f & ElementFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight, ContentColor = Palette.Placeholder };
-                if ((f & ElementFlags.Hovered) != 0) return s with { Color = Palette.PrimaryHover };
+                if ((f & WidgetFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight, ContentColor = Palette.Placeholder };
+                if ((f & WidgetFlags.Hovered) != 0) return s with { Color = Palette.PrimaryHover };
                 return s;
             },
         };
@@ -377,8 +377,8 @@ public static class EditorStyle
             Padding = EdgeInsets.LeftRight(12),
             Resolve = (s, f) =>
             {
-                if ((f & ElementFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight, ContentColor = Palette.Placeholder };
-                if ((f & ElementFlags.Hovered) != 0) return s with { Color = Palette.Active, ContentColor = Palette.Content };
+                if ((f & WidgetFlags.Disabled) != 0) return s with { Color = Palette.DisabledLight, ContentColor = Palette.Placeholder };
+                if ((f & WidgetFlags.Hovered) != 0) return s with { Color = Palette.Active, ContentColor = Palette.Content };
                 return s;
             },
         };
@@ -410,9 +410,9 @@ public static class EditorStyle
             Color = Palette.Secondary,
             Resolve = (s, f) =>
             {
-                if ((f & ElementFlags.Disabled) != 0) return s with { Color = Color.Transparent };
-                if ((f & ElementFlags.Checked) != 0) return s with { Color = Palette.Active };
-                if ((f & ElementFlags.Hovered) != 0) return s with { Color = Palette.Active };
+                if ((f & WidgetFlags.Disabled) != 0) return s with { Color = Color.Transparent };
+                if ((f & WidgetFlags.Checked) != 0) return s with { Color = Palette.Active };
+                if ((f & WidgetFlags.Hovered) != 0) return s with { Color = Palette.Active };
                 return s;
             },
         };

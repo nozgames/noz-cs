@@ -32,7 +32,7 @@ public struct ContainerStyle()
     public float Spacing = 0;
     public bool Clip = false;
     public ushort Order = 0;
-    public Func<ContainerStyle, ElementFlags, ContainerStyle>? Resolve;
+    public Func<ContainerStyle, WidgetFlags, ContainerStyle>? Resolve;
 
     public BorderStyle Border
     {
@@ -66,7 +66,7 @@ public struct LabelStyle()
     public Font? Font = null;
     public ushort Order = 2;
     public TextOverflow Overflow = TextOverflow.Overflow;
-    public Func<LabelStyle, ElementFlags, LabelStyle>? Resolve;
+    public Func<LabelStyle, WidgetFlags, LabelStyle>? Resolve;
 
     public Align AlignX { readonly get => Align.X; set => Align.X = value; }
     public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
@@ -84,7 +84,7 @@ public struct ImageStyle()
     public Color Color = NoZ.Color.White;
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public ushort Order = 1;
-    public Func<ImageStyle, ElementFlags, ImageStyle>? Resolve;
+    public Func<ImageStyle, WidgetFlags, ImageStyle>? Resolve;
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
@@ -159,7 +159,7 @@ public struct TextInputStyle()
     public InputScope Scope = InputScope.All;
     public bool MultiLine = false;
 
-    public Func<TextInputStyle, ElementFlags, TextInputStyle>? Resolve;
+    public Func<TextInputStyle, WidgetFlags, TextInputStyle>? Resolve;
 }
 
 public struct TextAreaStyle()

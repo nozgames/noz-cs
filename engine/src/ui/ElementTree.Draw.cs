@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 namespace NoZ;
 
-public static unsafe partial class ElementTree
+public static partial class ElementTree
 {
     private static int _drawSortGroup;
 
@@ -28,7 +28,7 @@ public static unsafe partial class ElementTree
 
     internal static void Draw()
     {
-        if (CurrentBuffer.Elements.Length < 2) return;
+        if (_elements.Length < 2) return;
 
         _drawOpacity = 1.0f;
         _drawSortGroup = 0;
@@ -72,22 +72,16 @@ public static unsafe partial class ElementTree
             }
 
             case ElementType.Text:
-            {
                 DrawLabel(ref e);
                 break;
-            }
 
             case ElementType.Image:
-            {                
                 DrawImage(ref e);
                 break;
-            }
 
             case ElementType.Scene:
-            {
                 DrawScene(ref e);
                 break;
-            }
 
             case ElementType.EditableText:
                 DrawEditableText(ref e);
@@ -100,10 +94,8 @@ public static unsafe partial class ElementTree
                 break;
 
             case ElementType.Opacity:
-            {
                 _drawOpacity *= e.Data.Opacity;
                 break;
-            }
         }
 
         // Popup: bump sort group so popup content renders on top
@@ -355,8 +347,8 @@ public static unsafe partial class ElementTree
     private static void DrawScene(ref Element e)
     {
         ref var d = ref e.Data.Scene;
-        if (_assets[d.AssetIndex] is not (Camera camera, Action draw))
-            return;
+        var camera = (Camera)_assets[d.Camera]!;
+        var draw = (Action)_assets[d.DrawCallback]!;
 
         ref var t = ref e.Transform;
         var topLeft = Vector2.Transform(e.Rect.Position, t);
@@ -443,10 +435,10 @@ public static unsafe partial class ElementTree
     internal static string DebugDumpTree()
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"ElementTree: {CurrentBuffer.Elements.Length} elements, Frame={_frame}, Screen={ScreenSize.X:0}x{ScreenSize.Y:0}");
+        sb.AppendLine($"ElementTree: {_elements.Length} elements, Frame={_frame}, Screen={ScreenSize.X:0}x{ScreenSize.Y:0}");
         sb.AppendLine("───────────────────────────────");
 
-        if (CurrentBuffer.Elements.Length == 0)
+        if (_elements.Length == 0)
         {
             sb.AppendLine("(empty)");
             return sb.ToString();
@@ -458,7 +450,7 @@ public static unsafe partial class ElementTree
 
     private static void DebugDumpElement(System.Text.StringBuilder sb, int index, int depth)
     {
-        if (index < 0 || index >= CurrentBuffer.Elements.Length) return;
+        if (index < 0 || index >= _elements.Length) return;
         if (depth > 100) { sb.AppendLine($"{new string(' ', depth * 2)}... (depth limit)"); return; }
 
         ref var e = ref GetElement(index);
@@ -577,7 +569,7 @@ public static unsafe partial class ElementTree
         for (int i = 0; i < e.ChildCount; i++)
         {
             if (childOffset <= 0 && i > 0) break; // safety
-            if (childOffset >= CurrentBuffer.Elements.Length) break;
+            if (childOffset >= _elements.Length) break;
             DebugDumpElement(sb, childOffset, depth + 1);
             ref var child = ref GetElement(childOffset);
             childOffset = child.NextSibling;

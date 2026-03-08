@@ -10,6 +10,8 @@ using System.Runtime.InteropServices;
 
 namespace NoZ;
 
+
+
 public static unsafe partial class ElementTree
 {
     private const int MaxElements = 1024;
@@ -23,17 +25,11 @@ public static unsafe partial class ElementTree
     private const int MaxIndices = 32768;
     private const int MaxPopups = 4;
 
-    private struct Buffer
-    {
-        public NativeArray<Element> Elements;
-        public NativeArray<byte> Data;
-        public NativeArray<ushort> Widgets;
-    }
-
     private static readonly byte* _zeroState = (byte*)System.Runtime.InteropServices.NativeMemory.AllocZeroed(256);
 
-    private static Buffer[] _buffers = null!;
-    private static int _currentBuffer;
+    private static NativeArray<byte>[] _data = null!;
+    private static NativeArray<Element> _elements;
+    private static NativeArray<UnsafeRef<WidgetState>> _widgets;
     private static NativeArray<ushort> _stack;    
     private static NativeArray<ushort> _trees;
     private static ushort _frame;
@@ -61,14 +57,13 @@ public static unsafe partial class ElementTree
     private static Shader _shader = null!;
     private static float _drawOpacity = 1.0f;
 
-    private static ref Buffer CurrentBuffer => ref _buffers[_currentBuffer];
-    private static ref Buffer PreviousBuffer => ref _buffers[_currentBuffer ^ 1];
-
     public static void Init()
     {
-        _buffers = [
-            new Buffer { Elements = new NativeArray<Element>(MaxElements), Data = new NativeArray<byte>(MaxDataSize), Widgets = new NativeArray<ushort>(MaxId + 1, MaxId + 1) },
-            new Buffer { Elements = new NativeArray<Element>(MaxElements), Data = new NativeArray<byte>(MaxDataSize), Widgets = new NativeArray<ushort>(MaxId + 1, MaxId + 1) }
+        _elements = new NativeArray<Element>(MaxElements);
+        _widgets = new NativeArray<UnsafeRef<WidgetState>>(MaxId + 1, MaxId + 1);
+        _data = [
+            new NativeArray<byte>(MaxDataSize),
+            new NativeArray<byte>(MaxDataSize)
         ];
 
         _stack = new NativeArray<ushort>(MaxElementDepth);
@@ -81,10 +76,10 @@ public static unsafe partial class ElementTree
 
     internal static void Shutdown()
     {
-        _buffers[0].Elements.Dispose();
-        _buffers[0].Data.Dispose();
-        _buffers[1].Elements.Dispose();
-        _buffers[1].Data.Dispose();
+        _elements.Dispose();
+        _widgets.Dispose();
+        _data[0].Dispose();
+        _data[1].Dispose();
         _vertices.Dispose();
         _indices.Dispose();
         Graphics.Driver.DestroyMesh(_mesh.Handle);
@@ -96,14 +91,11 @@ public static unsafe partial class ElementTree
 
         _frame++;
         _layoutCycleLogged = false;
-        _currentBuffer ^= 1;
-        ref var buffer = ref CurrentBuffer;
-        buffer.Data.Clear();
-        buffer.Elements.Clear();
-        NativeMemory.Clear(buffer.Widgets.Ptr, (nuint)(buffer.Widgets.Capacity * sizeof(ushort)));
 
+        _elements.Clear();
         _stack.Clear();
         _trees.Clear();
+        _data[_frame & 1].Clear();
 
         _assetCount = 0;
         _currentWidget = 0;
@@ -111,7 +103,7 @@ public static unsafe partial class ElementTree
         _activePopupCount = 0;
         ClosePopups = false;
 
-        ref var e = ref CurrentBuffer.Elements.Add();
+        ref var e = ref _elements.Add();
         e = default;
         e.Type = ElementType.Size;
         e.Data.Size = new Size2(size.X, size.Y);
@@ -123,10 +115,10 @@ public static unsafe partial class ElementTree
         Debug.Assert(_stack.Length == 1, "Mismatched Begin/End calls. Stack length: " + _stack.Length);
         Debug.Assert(_trees.Length == 0, "Mismatched BeginTree/EndTree calls. Trees length: " + _trees.Length);
 
-        if (CurrentBuffer.Elements.Length < 2) return;
+        if (_elements.Length < 2) return;
 
-        LayoutAxis(0, 0, ScreenSize.X, 0, -1);  // Width pass
-        LayoutAxis(0, 0, ScreenSize.Y, 1, -1);  // Height pass
+        LayoutAxis(0, 0, ScreenSize.X, 0, -1);
+        LayoutAxis(0, 0, ScreenSize.Y, 1, -1);
         UpdateTransforms(0, Matrix3x2.Identity, Vector2.Zero);
         HandleInput();
     }
@@ -149,16 +141,13 @@ public static unsafe partial class ElementTree
         }
     }
 
-    internal static ref Element GetElement(int index) =>
-        ref CurrentBuffer.Elements[index];
-
-    private static ref Element GetElementFromPrevFrame(int index) =>
-        ref PreviousBuffer.Elements[index];
+    private static ref Element GetElement(int index) =>
+        ref _elements[index];
 
     private static ref Element BeginElement(ElementType type)
     {
-        var index = CurrentBuffer.Elements.Length;
-        ref var e = ref CurrentBuffer.Elements.Add();
+        var index = _elements.Length;
+        ref var e = ref _elements.Add();
         e.Type = type;
         e.Parent = _stack[^1];
         e.NextSibling = 0;
@@ -183,7 +172,7 @@ public static unsafe partial class ElementTree
         _nextSibling = index;
         
         ref var e = ref GetElement(index);
-        e.NextSibling = (ushort)CurrentBuffer.Elements.Length;
+        e.NextSibling = (ushort)_elements.Length;
 
         Debug.Assert(e.Type == type);
     }
@@ -198,32 +187,23 @@ public static unsafe partial class ElementTree
 
     internal static object? GetObject(ushort index) => _assets[index];
 
-    internal static UnsafeSpan<char> Text(ReadOnlySpan<char> text)
+    internal static UnsafeSpan<char> AllocString(ReadOnlySpan<char> value)
     {
-        if (text.Length == 0) return UnsafeSpan<char>.Empty;
-        var byteCount = text.Length * sizeof(char);
-        if (!CurrentBuffer.Data.CheckCapacity(byteCount))
-            return UnsafeSpan<char>.Empty;
-        var dest = CurrentBuffer.Data.AddRange(byteCount);
-        var charPtr = (char*)dest.GetUnsafePtr();
-        text.CopyTo(new Span<char>(charPtr, text.Length));
-        return new UnsafeSpan<char>(charPtr, text.Length);
+        var data = AllocString(value.Length);
+        value.CopyTo(data.AsSpan());
+        return data;
     }
 
-    internal static UnsafeSpan<char> AllocText(int charCount)
+    internal static UnsafeSpan<char> AllocString(int length)
     {
-        if (charCount <= 0) return UnsafeSpan<char>.Empty;
-        var byteCount = charCount * sizeof(char);
-        if (!CurrentBuffer.Data.CheckCapacity(byteCount))
-            return UnsafeSpan<char>.Empty;
-        var dest = CurrentBuffer.Data.AddRange(byteCount);
-        return new UnsafeSpan<char>((char*)dest.GetUnsafePtr(), charCount);
+        if (length <= 0) return UnsafeSpan<char>.Empty;
+        var data = AllocData(length * sizeof(char));
+        return new UnsafeSpan<char>((char*)data.Ptr, length);
     }
 
     internal static UnsafeSpan<char> InsertText(ReadOnlySpan<char> text, int start, ReadOnlySpan<char> insert)
     {
-        var result = AllocText(text.Length + insert.Length);
-        if (result.Length == 0) return result;
+        var result = AllocString(text.Length + insert.Length);
         for (int i = 0; i < result.Length; i++)
             result[i] = ' ';
         if (start > 0)
@@ -238,7 +218,7 @@ public static unsafe partial class ElementTree
     {
         if (text.Length - count <= 0)
             return UnsafeSpan<char>.Empty;
-        var result = AllocText(text.Length - count);
+        var result = AllocString(text.Length - count);
         if (result.Length == 0) return result;
         text[..start].CopyTo(result.AsSpan(0, start));
         text[(start + count)..].CopyTo(result.AsSpan(start, text.Length - start - count));
@@ -248,23 +228,17 @@ public static unsafe partial class ElementTree
     internal static UnsafeSpan<byte> AllocData(int count)
     {
         if (count <= 0) return UnsafeSpan<byte>.Empty;
-        ref var buffer = ref CurrentBuffer;
-        if (!buffer.Data.CheckCapacity(count))
+        ref var data = ref _data[_frame & 1];
+        if (!data.CheckCapacity(count))
             return UnsafeSpan<byte>.Empty;
-        return buffer.Data.AddRange(count);
+        return data.AddRange(count);
     }
 
     internal static ref T AllocData<T>() where T : unmanaged
     {
         var data = AllocData(sizeof(T));
-        ref var data_ref = ref Unsafe.AsRef<T>((T*)AllocData(sizeof(T)).GetUnsafePtr());
+        ref var data_ref = ref Unsafe.AsRef<T>((T*)data.Ptr);
         data_ref = default;
         return ref data_ref;
-    }
-
-    internal static ref T GetDataFromPrevFrame<T>(ushort offset) where T : unmanaged
-    {
-        ref var buffer = ref PreviousBuffer;
-        return ref Unsafe.AsRef<T>((T*)(buffer.Data.Ptr + offset));
     }
 }

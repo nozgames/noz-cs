@@ -147,8 +147,8 @@ public static partial class UI
     public static bool WasPressed(int elementId) => ElementTree.WasPressed(elementId);
     public static bool IsDown() => ElementTree.IsDown();
 
-    public static void SetDisabled(bool disabled = true) => ElementTree.SetWidgetFlag(ElementFlags.Disabled, disabled);
-    public static void SetChecked(bool isChecked = true) => ElementTree.SetWidgetFlag(ElementFlags.Checked, isChecked);
+    public static void SetDisabled(bool disabled = true) => ElementTree.SetWidgetFlag(WidgetFlags.Disabled, disabled);
+    public static void SetChecked(bool isChecked = true) => ElementTree.SetWidgetFlag(WidgetFlags.Checked, isChecked);
     public static bool IsDisabled() => ElementTree.IsDisabled();
     public static bool IsChecked() => ElementTree.IsChecked();
 
@@ -432,7 +432,7 @@ public static partial class UI
 
     public static void Text(ReadOnlySpan<char> text, LabelStyle style)
     {
-        var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.CurrentWidgetFlags) : style;
+        var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags()) : style;
         var font = resolved.Font ?? _defaultFont!;
         var fontSize = resolved.FontSize > 0 ? resolved.FontSize : 16f;
         ElementTree.Text(text, font, fontSize, resolved.Color, resolved.Align, resolved.Overflow);
@@ -448,7 +448,7 @@ public static partial class UI
     public static void Image(Sprite? sprite, in ImageStyle style)
     {
         if (sprite == null) return;
-        var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.CurrentWidgetFlags) : style;
+        var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags()) : style;
         ElementTree.Image(sprite, resolved.Size, resolved.Stretch, resolved.Color, resolved.Scale, resolved.Align);
     }
 
@@ -456,7 +456,7 @@ public static partial class UI
 
     public static void Image(Texture texture, in ImageStyle style)
     {
-        var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.CurrentWidgetFlags) : style;
+        var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags()) : style;
         ElementTree.Image(texture, resolved.Size, resolved.Stretch, resolved.Color, resolved.Scale, resolved.Align);
     }
 

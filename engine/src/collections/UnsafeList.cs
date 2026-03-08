@@ -49,7 +49,7 @@ public unsafe struct UnsafeList<T> : IDisposable where T : unmanaged
     public void AddRange(UnsafeSpan<T> items)
     {
         Debug.Assert(Length + items.Length <= _capacity, "UnsafeList has reached its capacity.");
-        NativeMemory.Copy(_ptr + Length, items.GetUnsafePtr(), (nuint)(items.Length * sizeof(T)));
+        NativeMemory.Copy(_ptr + Length, items.Ptr, (nuint)(items.Length * sizeof(T)));
         Length += items.Length;
     }
 

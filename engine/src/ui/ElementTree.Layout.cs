@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ;
 
-public static unsafe partial class ElementTree
+public static partial class ElementTree
 {
     private static int _layoutDepth;
     private static bool _layoutCycleLogged;
@@ -150,7 +150,7 @@ public static unsafe partial class ElementTree
                 _layoutCycleLogged = true;
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine($"ElementTree: LayoutAxis depth > 200 at offset {offset}, axis={axis}, layoutAxis={layoutAxis}");
-                sb.AppendLine($"Tree has {CurrentBuffer.Elements.Length} elements. Dump:");
+                sb.AppendLine($"Tree has {_elements.Length} elements. Dump:");
                 DebugDumpTree(sb, 0, 0);
                 Log.Error(sb.ToString());
             }
@@ -585,6 +585,14 @@ public static unsafe partial class ElementTree
             e.Transform = worldTransform;
             e.Rect.X = 0;
             e.Rect.Y = 0;
+        }
+
+        // Copy rect and transform to widget state when ready
+        if (e.Type == ElementType.Widget)
+        {
+            ref var state = ref GetWidgetState(e.Data.Widget.Id);
+            state.Transform = worldTransform;
+            state.Rect = e.Rect;
         }
 
         // Apply scroll offset for Scrollable elements

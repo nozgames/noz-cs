@@ -249,7 +249,7 @@ public static unsafe partial class ElementTree
     {
         ref var e = ref BeginElement(ElementType.Text);
         ref var d = ref e.Data.Text;
-        d.Text = Text(value);
+        d.Text = AllocString(value);
         d.FontSize = fontSize;
         d.Color = color;
         d.Align = align;
@@ -312,7 +312,8 @@ public static unsafe partial class ElementTree
         d.Size = size;
         d.ClearColor = clearColor;
         d.SampleCount = sampleCount;
-        d.AssetIndex = AddObject((camera, draw));
+        d.Camera = AddObject(camera);
+        d.DrawCallback = AddObject(draw);
         EndElement(ElementType.Scene);
         return e.Index;
     }

@@ -515,8 +515,9 @@ public static unsafe partial class ElementTree
             ref var d = ref e.Data.Widget;
             if (d.Id > 0 && d.Id < MaxId)
             {
-                var prevFlags = d.Flags;
-                d.Flags = ElementFlags.None;
+                ref var state = ref GetWidgetState(d.Id);
+                var prevFlags = state.Flags;
+                state.Flags = WidgetFlags.None;
 
                 // Block input for widgets outside popups when popups are open
                 if (_activePopupCount > 0 && !IsInsidePopup(offset))
@@ -535,20 +536,20 @@ public static unsafe partial class ElementTree
                 var hovered = e.Rect.Contains(localMouse);
 
                 if (hovered)
-                    d.Flags |= ElementFlags.Hovered;
+                    state.Flags |= WidgetFlags.Hovered;
 
                 if (hovered && _inputMousePressed && (_captureId == 0 || _captureId == d.Id))
-                    d.Flags |= ElementFlags.Pressed;
+                    state.Flags |= WidgetFlags.Pressed;
 
                 var isCaptured = _captureId != 0 && _captureId == d.Id;
                 if (isCaptured ? _inputMouseDown : (hovered && _inputMouseDown))
-                    d.Flags |= ElementFlags.Down;
+                    state.Flags |= WidgetFlags.Down;
 
                 if (_focusId == d.Id)
-                    d.Flags |= ElementFlags.Focus;
+                    state.Flags |= WidgetFlags.Focus;
 
-                if ((d.Flags & ElementFlags.Hovered) != (prevFlags & ElementFlags.Hovered))
-                    d.Flags |= ElementFlags.HoverChanged;
+                if ((state.Flags & WidgetFlags.Hovered) != (prevFlags & WidgetFlags.Hovered))
+                    state.Flags |= WidgetFlags.HoverChanged;
 
                 //ws.LastFrame = _frame;
             }

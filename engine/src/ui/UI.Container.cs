@@ -10,11 +10,11 @@ public static partial class UI
     {
         ElementTree.BeginTree();
 
-        var flags = ElementFlags.None;
+        var flags = WidgetFlags.None;
         if (id != 0)
         {
             ElementTree.BeginWidget(id);
-            flags = ElementTree.CurrentWidgetFlags;
+            flags = ElementTree.GetWidgetFlags();
         }
 
         var resolved = style.Resolve != null ? style.Resolve(style, flags) : style;

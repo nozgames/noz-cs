@@ -19,7 +19,7 @@ public readonly unsafe struct UnsafeRef<T> where T : unmanaged
     public UnsafeRef(in UnsafeSpan<T> span, int index)
     {
         Debug.Assert(index >= 0 && index < span.Length, "Index is out of bounds for the given span.");
-        _ptr = span.GetUnsafePtr() + index;
+        _ptr = span.Ptr + index;
     }
 
     /// <summary>

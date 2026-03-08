@@ -19,7 +19,7 @@ public struct ButtonStyle()
     public Color BorderColor = Color.Transparent;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public Font? Font = null;
-    public Func<ButtonStyle, ElementFlags, ButtonStyle>? Resolve;
+    public Func<ButtonStyle, WidgetFlags, ButtonStyle>? Resolve;
 }
 
 public static partial class UI
@@ -35,8 +35,10 @@ public static partial class UI
         ElementTree.BeginTree();
         ElementTree.BeginWidget(id);
 
-        var flags = ElementTree.CurrentWidgetFlags;
-        var s = style.Resolve != null ? style.Resolve(style, flags) : style;
+        var flags = ElementTree.GetWidgetFlags();
+        var s = style.Resolve != null
+            ? style.Resolve(style, flags)
+            : style;
 
         ElementTree.BeginSize(new Size2(s.Width, s.Height));
 
@@ -54,19 +56,29 @@ public static partial class UI
 
         if (icon != null)
         {
-            ElementTree.Image(icon, new Size2(s.IconSize, s.IconSize), ImageStretch.Uniform, s.ContentColor, 1.0f,
+            ElementTree.Image(
+                icon,
+                s.IconSize,
+                ImageStretch.Uniform,
+                s.ContentColor,
+                1.0f,
                 new Align2(Align.Min, Align.Center));
         }
 
         if (text != null)
         {
             var font = s.Font ?? _defaultFont!;
-            ElementTree.Text(text, font, s.FontSize, s.ContentColor,
-                new Align2(Align.Center, Align.Center), TextOverflow.Overflow);
+            ElementTree.Text(
+                text,
+                font,
+                s.FontSize,
+                s.ContentColor,
+                new Align2(Align.Center, Align.Center),
+                TextOverflow.Overflow);
         }
 
         ElementTree.EndTree();
 
-        return flags.HasFlag(ElementFlags.Pressed);
+        return flags.HasFlag(WidgetFlags.Pressed);
     }
 }

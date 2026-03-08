@@ -5,87 +5,66 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace NoZ;
 
 public static unsafe partial class ElementTree
 {
-    internal static bool HasCurrentWidget => _currentWidget != 0;
-    internal static ElementFlags CurrentWidgetFlags => CurrentWidget.Data.Widget.Flags;
-
-    private static ref Element CurrentWidget
+    private struct WidgetState
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get
-        {
-            Debug.Assert(_currentWidget != 0);
-            return ref GetWidget(_currentWidget);    
-        }
+        public int Index;
+        public Rect Rect;
+        public Matrix3x2 Transform;
+        public WidgetFlags Flags;
     }
 
+    internal static bool HasCurrentWidget => _currentWidget != 0;
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsValidWidgetId(int id) => id > 0 && id <= MaxId && CurrentBuffer.Widgets[id] != 0;
+    private static bool IsValidWidgetId(int id) => id > 0 && id <= MaxId && _widgets[id].IsValid;
+
+    private static ref WidgetState GetWidgetState(int id) =>
+        ref Unsafe.AsRef<WidgetState>(_widgets[id].Ptr);
+
+    public static ref T GetWidgetState<T>(int id) where T : unmanaged =>
+        ref *((T*)(_widgets[id].Ptr + 1));
+
+    public static ref T GetWidgetState<T>() where T : unmanaged =>
+        ref GetWidgetState<T>(_currentWidget);
+
+    public static WidgetFlags GetWidgetFlags() => GetWidgetFlags(_currentWidget);
+
+    public static WidgetFlags GetWidgetFlags(int id) => IsValidWidgetId(id)
+        ? GetWidgetState(id).Flags
+        : WidgetFlags.None;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref Element GetWidget(int id) =>
-        ref GetElement(CurrentBuffer.Widgets[id]);
+        ref GetElement(_widgets[id].Ptr->Index);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool WasWidgetInPrevFrame(int id)
+    internal static void SetWidgetFlag(WidgetFlags flag, bool value)
     {
-        Debug.Assert(id != 0 && id <= MaxId);
-        return PreviousBuffer.Widgets[id] != 0;
+        //ref var e = ref CurrentWidget;
+        //if (value) e.Data.Widget.Flags |= flag;
+        //else e.Data.Widget.Flags &= ~flag;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref Element GetWidgetFromPrevFrame(int id) =>
-        ref GetElementFromPrevFrame(PreviousBuffer.Widgets[id]);
-
-    internal static void SetWidgetFlag(ElementFlags flag, bool value)
-    {
-        ref var e = ref CurrentWidget;
-        if (value) e.Data.Widget.Flags |= flag;
-        else e.Data.Widget.Flags &= ~flag;
-    }
-
-    public static bool IsHovered() => CurrentWidgetFlags.HasFlag(ElementFlags.Hovered);
-    public static bool IsDisabled() => CurrentWidgetFlags.HasFlag(ElementFlags.Disabled);
-    public static bool IsChecked() => CurrentWidgetFlags.HasFlag(ElementFlags.Checked);
-    public static bool WasPressed() => CurrentWidgetFlags.HasFlag(ElementFlags.Pressed);
-    public static bool IsDown() => CurrentWidgetFlags.HasFlag(ElementFlags.Down);
-    public static bool HoverEnter() { var f = CurrentWidgetFlags; return f.HasFlag(ElementFlags.HoverChanged) && f.HasFlag(ElementFlags.Hovered); }
-    public static bool HoverExit() { var f = CurrentWidgetFlags; return f.HasFlag(ElementFlags.HoverChanged) && !f.HasFlag(ElementFlags.Hovered); }
-    public static bool HoverChanged() => CurrentWidgetFlags.HasFlag(ElementFlags.HoverChanged);
-    public static bool HasFocus() => _focusId == CurrentWidget.Data.Widget.Id;
+    public static bool IsHovered() => GetWidgetFlags().HasFlag(WidgetFlags.Hovered);
+    public static bool IsDisabled() => GetWidgetFlags().HasFlag(WidgetFlags.Disabled);
+    public static bool IsChecked() => GetWidgetFlags().HasFlag(WidgetFlags.Checked);
+    public static bool WasPressed() => GetWidgetFlags().HasFlag(WidgetFlags.Pressed);
+    public static bool IsDown() => GetWidgetFlags().HasFlag(WidgetFlags.Down);
+    public static bool HoverEnter() { var f = GetWidgetFlags(); return f.HasFlag(WidgetFlags.HoverChanged) && f.HasFlag(WidgetFlags.Hovered); }
+    public static bool HoverExit() { var f = GetWidgetFlags(); return f.HasFlag(WidgetFlags.HoverChanged) && !f.HasFlag(WidgetFlags.Hovered); }
+    public static bool HoverChanged() => GetWidgetFlags().HasFlag(WidgetFlags.HoverChanged);
+    public static bool HasFocus() => false; //  _focusId == CurrentWidget.Data.Widget.Id;
     public static bool HasFocusOn(int id) => _focusId == id;
 
-    internal static bool IsHovered(int id)
-    {
-        if (!IsValidWidgetId(id)) return false;
-        ref var e = ref GetWidget(id);
-        return e.Data.Widget.Flags.HasFlag(ElementFlags.Hovered);
-    }
-
-    internal static bool WasPressed(int id)
-    {
-        if (!IsValidWidgetId(id)) return false;
-        ref var e = ref GetWidget(id);
-        return e.Data.Widget.Flags.HasFlag(ElementFlags.Pressed);
-    }
-
-    internal static bool IsDown(int id)
-    {
-        if (!IsValidWidgetId(id)) return false;
-        ref var e = ref GetWidget(id);
-        return e.Data.Widget.Flags.HasFlag(ElementFlags.Down);
-    }
-
-    internal static bool HoverChanged(int id)
-    {
-        if (!IsValidWidgetId(id)) return false;
-        ref var e = ref GetWidget(id);
-        return e.Data.Widget.Flags.HasFlag(ElementFlags.HoverChanged);
-    }
+    internal static bool IsHovered(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
+    internal static bool WasPressed(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Pressed);
+    internal static bool IsDown(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Down);
+    internal static bool HoverChanged(int id) => GetWidgetFlags(id).HasFlag(WidgetFlags.HoverChanged);
 
     internal static bool IsParentRow() => GetElement(_stack[^1]).Type == ElementType.Row;
     internal static bool IsParentColumn() => GetElement(_stack[^1]).Type == ElementType.Column;
@@ -93,29 +72,25 @@ public static unsafe partial class ElementTree
     internal static Rect GetWidgetWorldRect(int id)
     {
         if (!IsValidWidgetId(id)) return Rect.Zero;
-        ref var e = ref GetWidget(id);
-        ref var ltw = ref e.Transform;
-        var topLeft = Vector2.Transform(e.Rect.Position, ltw);
-        var bottomRight = Vector2.Transform(e.Rect.Position + e.Rect.Size, ltw);
+        ref readonly var state = ref GetWidgetState(id);
+        var topLeft = Vector2.Transform(state.Rect.Position, state.Transform);
+        var bottomRight = Vector2.Transform(state.Rect.Position + state.Rect.Size, state.Transform);
         return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
     }
 
     internal static Rect GetWidgetRect(int id)
     {
         if (!IsValidWidgetId(id)) return Rect.Zero;
-        return GetWidget(id).Rect;
+        ref readonly var state = ref GetWidgetState(id);
+        return state.Rect;
     }
 
-    public static bool HasCapture()
-    {
-        ref var e = ref CurrentWidget;
-        return _captureId != 0 && _captureId == e.Data.Widget.Id;
-    }
+    public static bool HasCapture() =>
+        _captureId != 0 && _captureId == _currentWidget;
 
     public static void SetFocus()
     {
-        ref var e = ref CurrentWidget;
-        _focusId = e.Data.Widget.Id;
+        _focusId = _currentWidget;
     }
 
     internal static void SetFocusById(int id) => _focusId = id;
@@ -127,8 +102,7 @@ public static unsafe partial class ElementTree
 
     public static void SetCapture()
     {
-        ref var e = ref CurrentWidget;
-        _captureId = e.Data.Widget.Id;
+        _captureId = _currentWidget;
         Input.CaptureMouse();
     }
 
@@ -146,13 +120,6 @@ public static unsafe partial class ElementTree
         Input.ReleaseMouseCapture();
     }
 
-    public static ref T GetWidgetState<T>() where T : unmanaged
-    {
-        ref var w = ref CurrentWidget;
-        Debug.Assert(w.Data.Widget.Id != 0);
-        return ref *(T*)(w.Data.Widget.State.GetUnsafePtr());
-    }
-
     public static Vector2 GetLocalMousePosition()
     {
         ref var e = ref GetElement(_currentWidget);
@@ -160,43 +127,36 @@ public static unsafe partial class ElementTree
         return Vector2.Transform(MouseWorldPosition, inv);
     }
 
-    public static ref T BeginWidget<T>(int id) where T : unmanaged
-    {
-        ref var buffer = ref CurrentBuffer;
-        var data = AllocData(sizeof(T));
-
-        if (WasWidgetInPrevFrame(id))
-        {
-            ref var prev_e = ref GetWidgetFromPrevFrame(id);
-            *((T*)data.GetUnsafePtr()) = *((T*)prev_e.Data.Widget.State.GetUnsafePtr());
-        }
-
-        BeginWidget(id);
-        ref var e = ref GetElement(_currentWidget);
-        e.Data.Widget.State = data;
-        return ref *(T*)data.GetUnsafePtr();
-    }
-
-    public static int BeginWidget(int id)
+    private static UnsafeRef<WidgetState> BeginWidgetInternal(int id, int stateSize)
     {
         Debug.Assert(id >= 0);
         Debug.Assert(id <= MaxId, $"Widget ID {id} exceeds maximum of {MaxId}");
 
+        stateSize += sizeof(WidgetState);   
+        var state = new UnsafeRef<WidgetState>((WidgetState*)AllocData(stateSize).Ptr);
+        if (IsValidWidgetId(id))
+            NativeMemory.Copy(_widgets[id].Ptr, state.Ptr, (nuint)stateSize);        
+
         ref var e = ref BeginElement(ElementType.Widget);
         e.Data = default;
-
-        if (WasWidgetInPrevFrame(id))
-        {
-            ref var prev_e = ref GetWidgetFromPrevFrame(id);
-            e.Data.Widget = prev_e.Data.Widget;
-        }
-
         e.Data.Widget.Id = (ushort)id;
         e.Data.Widget.LastFrame = _frame;
 
-        CurrentBuffer.Widgets[id] = e.Index;
+        state.Ptr->Index = e.Index;
+        _widgets[id] = state;
         _currentWidget = e.Index;
-        return _currentWidget;
+        return state;
+    }
+
+    public static ref T BeginWidget<T>(int id) where T : unmanaged =>
+        ref *((T*)BeginWidgetInternal(id, sizeof(T)).Ptr);
+
+    public static void BeginWidget(int id)
+    {
+        Debug.Assert(id >= 0);
+        Debug.Assert(id <= MaxId, $"Widget ID {id} exceeds maximum of {MaxId}");
+
+        BeginWidgetInternal(id, 0);
     }
 
     public static void EndWidget()

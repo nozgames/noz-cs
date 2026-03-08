@@ -75,7 +75,6 @@ internal struct WidgetElement
 {
     public ushort Id;
     public UnsafeSpan<byte> State;
-    public ElementFlags Flags;
     public ushort LastFrame;
 }
 
@@ -154,7 +153,8 @@ internal struct SceneElement
     public Size2 Size;
     public Color ClearColor;
     public int SampleCount;
-    public ushort AssetIndex; // stores (Camera, Action) tuple
+    public ushort Camera;
+    public ushort DrawCallback;
 }
 
 internal struct ScrollElement

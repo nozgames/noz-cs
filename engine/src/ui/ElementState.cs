@@ -5,7 +5,7 @@
 namespace NoZ;
 
 [Flags]
-public enum ElementFlags : ushort
+public enum WidgetFlags : ushort
 {
     None = 0,
     Hovered = 1 << 0,
