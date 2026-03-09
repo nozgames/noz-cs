@@ -217,8 +217,9 @@ public static partial class UI
 
     internal static void Begin()
     {
-        _prevHotId = _hotId;
-        _hotId = WidgetId.None;
+        _prevHotId = ElementTree._hotId;
+        ElementTree._prevHotId = ElementTree._hotId;
+        ElementTree._hotId = WidgetId.None;
         _valueChanged = false;
 
         _frame++;
@@ -270,7 +271,9 @@ public static partial class UI
 
     internal static void End()
     {
-        ElementTree.MouseWorldPosition = MouseWorldPosition;
+        var mouse = Camera!.ScreenToWorld(Input.MousePosition);
+        MouseWorldPosition = mouse;
+        ElementTree.MouseWorldPosition = mouse;
         ElementTree.End();
 
         Graphics.SetCamera(Camera);

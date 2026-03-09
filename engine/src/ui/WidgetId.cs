@@ -16,4 +16,6 @@ public readonly struct WidgetId(ulong value)
     public static WidgetId operator ++(WidgetId id) => new(id.Value + 1);
 
     public bool IsNone => Value == 0;
+
+    public override string ToString() => Value.ToString();
 }

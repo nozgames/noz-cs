@@ -31,6 +31,7 @@ internal enum ElementType : byte
     Grid,
     Scene,
     Scroll,
+    Track,
 }
 
 internal struct Element
@@ -63,6 +64,7 @@ internal struct ElementData
     [FieldOffset(0)] public TransformElement Transform;
     [FieldOffset(0)] public GridElement Grid;
     [FieldOffset(0)] public ScrollElement Scroll;
+    [FieldOffset(0)] public TrackElement Track;
     [FieldOffset(0)] public float Spacing;
     [FieldOffset(0)] public float Flex;
     [FieldOffset(0)] public PopupElement Popup;
@@ -177,6 +179,18 @@ internal struct ScrollableState
     public float ContentHeight;
 }
 
+internal struct TrackElement
+{
+    public WidgetId Id;
+    public float ThumbSize;
+    public bool Vertical;
+}
+
+internal struct TrackState
+{
+    public float Value;
+}
+
 internal struct CursorElement
 {
     public SystemCursor SystemCursor;
@@ -201,10 +215,12 @@ internal unsafe struct EditableTextElement
 {
     public EditableTextState* State;
     public UnsafeSpan<char> Text;
+    public UnsafeSpan<char> Placeholder;
     public float FontSize;
     public Color TextColor;
     public Color CursorColor;
     public Color SelectionColor;
+    public Color PlaceholderColor;
     public bool MultiLine;
     public bool Focused;
     public bool CommitOnEnter;

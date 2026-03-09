@@ -56,8 +56,19 @@ public static unsafe partial class ElementTree
             state.WasCancelled = 0;
         }
 
-        // Populate element for layout and draw
+        // Detect external defocus: state thinks we're focused but we weren't hot last frame
         var focused = state.Focused != 0;
+        if (focused)
+            Log.Info($"[EditText.Build] widget={_currentWidget} prevHot={_prevHotId} match={_prevHotId == _currentWidget}");
+        if (focused && _prevHotId != _currentWidget)
+        {
+            Log.Info($"[EditText.Build] DEFOCUS widget={_currentWidget}");
+            state.FocusExited = 1;
+            state.Focused = 0;
+            focused = false;
+        }
+
+        // Populate element for layout and draw
         if (focused)
         {
             // Re-alloc editing buffer from previous frame's (still valid) pool into current pool
@@ -66,16 +77,15 @@ public static unsafe partial class ElementTree
         }
         else
         {
-            var showPlaceholder = value.Length == 0 && placeholder != null && placeholder.Length > 0;
-            var displayText = showPlaceholder ? placeholder.AsSpan() : value.AsSpan();
-            d.Text = AllocString(displayText);
-            textColor = showPlaceholder ? placeholderColor : textColor;
+            d.Text = AllocString(value.AsSpan());
         }
 
         d.FontSize = fontSize;
         d.TextColor = textColor;
         d.CursorColor = cursorColor;
         d.SelectionColor = selectionColor;
+        d.PlaceholderColor = placeholderColor;
+        d.Placeholder = placeholder != null ? AllocString(placeholder.AsSpan()) : default;
         d.MultiLine = multiLine;
         d.CommitOnEnter = commitOnEnter;
         d.Focused = focused;
@@ -94,15 +104,21 @@ public static unsafe partial class ElementTree
         var font = (Font)_assets[d.Font]!;
         var focused = state.Focused != 0;
 
-        // Hit test mouse against element rect
+        // Hit test against parent widget rect (covers padding/border area)
+        var widgetId = FindParentWidgetId(e.Index);
+        ref var widgetEl = ref GetWidget(widgetId);
+        Matrix3x2.Invert(widgetEl.Transform, out var widgetInv);
+        var widgetMouse = Vector2.Transform(MouseWorldPosition, widgetInv);
+        var mouseInside = widgetEl.Rect.Contains(widgetMouse);
+
+        // Local mouse relative to EditableText element (for cursor positioning)
         Matrix3x2.Invert(e.Transform, out var inv);
         var localMouse = Vector2.Transform(MouseWorldPosition, inv);
-        var mouseInside = e.Rect.Contains(localMouse);
 
         // Focus enter
         if (_inputMousePressed && mouseInside && !focused)
         {
-            _focusId = FindParentWidgetId(e.Index);
+            _hotId = widgetId;
             state.Focused = 1;
             state.EditText = AllocString(d.Text.AsReadOnlySpan());
             state.PrevTextHash = string.GetHashCode(state.EditText.AsReadOnlySpan());
@@ -117,16 +133,6 @@ public static unsafe partial class ElementTree
             d.Text = state.EditText;
             d.CursorIndex = state.CursorIndex;
             d.SelectionStart = state.SelectionStart;
-            return;
-        }
-
-        // Focus exit on click outside
-        if (focused && _inputMousePressed && !mouseInside)
-        {
-            state.FocusExited = 1;
-            state.Focused = 0;
-            ClearFocus();
-            d.Focused = false;
             return;
         }
 
@@ -183,7 +189,7 @@ public static unsafe partial class ElementTree
             state.WasCancelled = 1;
             state.FocusExited = 1;
             state.Focused = 0;
-            ClearFocus();
+            ClearHot();
             return;
         }
 
@@ -192,7 +198,7 @@ public static unsafe partial class ElementTree
         {
             state.FocusExited = 1;
             state.Focused = 0;
-            ClearFocus();
+            ClearHot();
             return;
         }
 
@@ -211,7 +217,7 @@ public static unsafe partial class ElementTree
             {
                 state.FocusExited = 1;
                 state.Focused = 0;
-                ClearFocus();
+                ClearHot();
             }
             return;
         }
@@ -364,12 +370,15 @@ public static unsafe partial class ElementTree
         ref var d = ref e.Data.EditableText;
         var font = (Font)_assets[d.Font]!;
         var text = d.Text.AsReadOnlySpan();
+        var lineHeight = font.LineHeight * d.FontSize;
 
         if (axis == 1 && d.MultiLine && e.Rect.Width > 0)
-            return TextRender.MeasureWrapped(text, font, d.FontSize, e.Rect.Width).Y;
+            return Math.Max(TextRender.MeasureWrapped(text, font, d.FontSize, e.Rect.Width).Y, lineHeight);
 
-        var measure = TextRender.Measure(text, font, d.FontSize);
-        return measure[axis];
+        if (axis == 1)
+            return Math.Max(TextRender.Measure(text, font, d.FontSize).Y, lineHeight);
+
+        return TextRender.Measure(text, font, d.FontSize).X;
     }
 
     private static float LayoutEditableTextAxis(ref Element e, int axis, float available)
@@ -377,12 +386,15 @@ public static unsafe partial class ElementTree
         ref var d = ref e.Data.EditableText;
         var font = (Font)_assets[d.Font]!;
         var text = d.Text.AsReadOnlySpan();
+        var lineHeight = font.LineHeight * d.FontSize;
 
-        if (axis == 1 && d.MultiLine && e.Rect.Width > 0)
-            return TextRender.MeasureWrapped(text, font, d.FontSize, e.Rect.Width).Y;
+        if (available > 0)
+            return Math.Max(available, lineHeight);
 
-        var measure = TextRender.Measure(text, font, d.FontSize);
-        return measure[axis];
+        if (axis == 1)
+            return Math.Max(TextRender.Measure(text, font, d.FontSize).Y, lineHeight);
+
+        return TextRender.Measure(text, font, d.FontSize).X;
     }
 
     private static void DrawEditableText(ref Element e)
@@ -394,9 +406,33 @@ public static unsafe partial class ElementTree
         var fontSize = d.FontSize;
 
         var focused = d.Focused;
+        var lineHeight = font.LineHeight * fontSize;
 
-        // text
-        if (text.Length > 0)
+        // selection (drawn before text so text is visible on top)
+        if (focused && d.CursorIndex != d.SelectionStart)
+        {
+            var selStart = Math.Min(d.CursorIndex, d.SelectionStart);
+            var selEnd = Math.Max(d.CursorIndex, d.SelectionStart);
+
+            if (d.MultiLine && e.Rect.Width > 0)
+            {
+                DrawMultilineSelection(ref e, ref d, font, text, fontSize, lineHeight, selStart, selEnd);
+            }
+            else
+            {
+                var x0 = MeasureTextWidth(text[..selStart], font, fontSize);
+                var x1 = MeasureTextWidth(text[..selEnd], font, fontSize);
+                var selRect = new Rect(e.Rect.X + x0, e.Rect.Y, x1 - x0, lineHeight);
+                DrawTexturedRect(selRect, t, null, ApplyOpacity(d.SelectionColor));
+            }
+        }
+
+        // text or placeholder
+        var showPlaceholder = text.Length == 0 && !focused && d.Placeholder.Length > 0;
+        var displayText = showPlaceholder ? d.Placeholder.AsReadOnlySpan() : text;
+        var displayColor = showPlaceholder ? d.PlaceholderColor : d.TextColor;
+
+        if (displayText.Length > 0)
         {
             if (d.MultiLine && e.Rect.Width > 0)
             {
@@ -404,50 +440,27 @@ public static unsafe partial class ElementTree
 
                 using (Graphics.PushState())
                 {
-                    Graphics.SetColor(ApplyOpacity(d.TextColor));
+                    Graphics.SetColor(ApplyOpacity(displayColor));
                     Graphics.SetTransform(transform);
-                    TextRender.DrawWrapped(text, font, fontSize, e.Rect.Width,
+                    TextRender.DrawWrapped(displayText, font, fontSize, e.Rect.Width,
                         e.Rect.Width, 0f, e.Rect.Height);
                 }
             }
             else
             {
-                var textOffset = GetTextOffset(text, font, fontSize, e.Rect.Size, Align.Min, Align.Center);
+                var textOffset = GetTextOffset(displayText, font, fontSize, e.Rect.Size, Align.Min, Align.Center);
                 var transform = Matrix3x2.CreateTranslation(e.Rect.Position + textOffset) * t;
 
                 using (Graphics.PushState())
                 {
-                    Graphics.SetColor(ApplyOpacity(d.TextColor));
+                    Graphics.SetColor(ApplyOpacity(displayColor));
                     Graphics.SetTransform(transform);
-                    TextRender.Draw(text, font, fontSize);
+                    TextRender.Draw(displayText, font, fontSize);
                 }
             }
         }
 
         if (!focused) return;
-
-        var editText = text;
-        var lineHeight = font.LineHeight * fontSize;
-
-        // selection
-        if (d.CursorIndex != d.SelectionStart)
-        {
-            var selStart = Math.Min(d.CursorIndex, d.SelectionStart);
-            var selEnd = Math.Max(d.CursorIndex, d.SelectionStart);
-
-            if (d.MultiLine && e.Rect.Width > 0)
-            {
-                DrawMultilineSelection(ref e, ref d, font, editText, fontSize, lineHeight, selStart, selEnd);
-            }
-            else
-            {
-                var textOffsetY = (e.Rect.Height - lineHeight) * 0.5f;
-                var x0 = MeasureTextWidth(editText[..selStart], font, fontSize);
-                var x1 = MeasureTextWidth(editText[..selEnd], font, fontSize);
-                var selRect = new Rect(e.Rect.X + x0, e.Rect.Y + textOffsetY, x1 - x0, lineHeight);
-                DrawTexturedRect(selRect, t, null, ApplyOpacity(d.SelectionColor));
-            }
-        }
 
         // cursor
         if (Time.TotalTime % 1.0f < 0.5f)
@@ -456,12 +469,12 @@ public static unsafe partial class ElementTree
 
             if (d.MultiLine && e.Rect.Width > 0)
             {
-                GetCursorPositionWrapped(editText, font, fontSize, e.Rect.Width, d.CursorIndex, out cursorX, out cursorY);
+                GetCursorPositionWrapped(text, font, fontSize, e.Rect.Width, d.CursorIndex, out cursorX, out cursorY);
             }
             else
             {
-                cursorX = MeasureTextWidth(editText[..d.CursorIndex], font, fontSize);
-                cursorY = (e.Rect.Height - lineHeight) * 0.5f;
+                cursorX = MeasureTextWidth(text[..d.CursorIndex], font, fontSize);
+                cursorY = 0;
             }
 
             var cursorRect = new Rect(e.Rect.X + cursorX, e.Rect.Y + cursorY, 1.5f, lineHeight);

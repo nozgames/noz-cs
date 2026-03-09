@@ -11,7 +11,7 @@ public enum WidgetFlags : ushort
     Hovered = 1 << 0,
     Pressed = 1 << 1,
     Down = 1 << 2,
-    Focus = 1 << 3,
+    Hot = 1 << 3,
     Dragging = 1 << 4,
     Changed = 1 << 5,
     DoubleClick = 1 << 6,

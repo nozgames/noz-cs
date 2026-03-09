@@ -58,8 +58,8 @@ public static unsafe partial class ElementTree
     public static bool HoverEnter() { var f = GetWidgetFlags(); return f.HasFlag(WidgetFlags.HoverChanged) && f.HasFlag(WidgetFlags.Hovered); }
     public static bool HoverExit() { var f = GetWidgetFlags(); return f.HasFlag(WidgetFlags.HoverChanged) && !f.HasFlag(WidgetFlags.Hovered); }
     public static bool HoverChanged() => GetWidgetFlags().HasFlag(WidgetFlags.HoverChanged);
-    public static bool HasFocus() => _focusId == _currentWidget;
-    public static bool HasFocusOn(WidgetId id) => _focusId == id;
+    public static bool IsHot() => _hotId == _currentWidget;
+    public static bool IsHot(WidgetId id) => _hotId == id;
 
     internal static bool IsHovered(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
     internal static bool WasPressed(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Pressed);
@@ -88,16 +88,16 @@ public static unsafe partial class ElementTree
     public static bool HasCapture() =>
         _captureId != 0 && _captureId == _currentWidget;
 
-    public static void SetFocus()
+    public static void SetHot()
     {
-        _focusId = _currentWidget;
+        _hotId = _currentWidget;
     }
 
-    internal static void SetFocusById(WidgetId id) => _focusId = id;
+    internal static void SetHotById(WidgetId id) => _hotId = id;
 
-    public static void ClearFocus()
+    public static void ClearHot()
     {
-        _focusId = WidgetId.None;
+        _hotId = WidgetId.None;
     }
 
     public static void SetCapture()
@@ -177,78 +177,21 @@ public static unsafe partial class ElementTree
         }
     }
 
-    #if false
-    public static bool Toggle(int id, bool value, Sprite icon, Color color, Color activeColor)
+    internal static ref TrackState BeginTrack(WidgetId id, float thumbSize, bool vertical = false)
     {
-        BeginWidget(id);
-        var fillColor = value ? activeColor : (IsHovered() ? activeColor.WithAlpha(0.5f) : Color.Transparent);
-        BeginFill(fillColor);
-        Image(icon, color: value ? Color.White : color);
-        EndFill();
-        var toggled = WasPressed();
-        EndWidget();
-        return toggled;
+        ref var trackState = ref BeginWidget<TrackState>(id);
+
+        ref var e = ref BeginElement(ElementType.Track);
+        e.Data.Track.Id = id;
+        e.Data.Track.ThumbSize = thumbSize;
+        e.Data.Track.Vertical = vertical;
+
+        return ref trackState;
     }
 
-    public static bool Slider(int id, ref float value, float min = 0f, float max = 1f,
-        Color trackColor = default, Color fillColor = default, Color thumbColor = default,
-        float height = 20f, float trackHeight = 4f)
+    internal static void EndTrack()
     {
-        if (trackColor.IsTransparent) trackColor = new Color(0.3f, 0.3f, 0.3f, 1f);
-        if (fillColor.IsTransparent) fillColor = new Color(0.4f, 0.6f, 1f, 1f);
-        if (thumbColor.IsTransparent) thumbColor = Color.White;
-
-        var changed = false;
-        var t = max > min ? Math.Clamp((value - min) / (max - min), 0f, 1f) : 0f;
-
-        BeginWidget(id);
-        BeginSize(Size.Percent(1), new Size(height));
-
-        // Track background (centered vertically)
-        BeginAlign(new Align2(Align.Min, Align.Center));
-        BeginSize(Size.Percent(1), new Size(trackHeight));
-        BeginFill(trackColor);
-        EndFill();
-        EndSize();
-        EndAlign();
-
-        // Fill bar
-        if (t > 0)
-        {
-            BeginAlign(new Align2(Align.Min, Align.Center));
-            BeginSize(Size.Percent(t), new Size(trackHeight));
-            BeginFill(IsDown() ? fillColor : fillColor.WithAlpha(0.8f));
-            EndFill();
-            EndSize();
-            EndAlign();
-        }
-
-        // Input: capture on down, update value while captured
-        if (IsDown() && !HasCapture())
-            SetCapture();
-
-        if (HasCapture())
-        {
-            var localMouse = GetLocalMousePosition();
-            ref var we = ref GetElement(_currentWidget);
-            var widgetWidth = we.Rect.Width;
-            if (widgetWidth > 0)
-            {
-                var localX = Math.Clamp(localMouse.X / widgetWidth, 0f, 1f);
-                var newValue = min + localX * (max - min);
-                newValue = Math.Clamp(newValue, min, max);
-
-                if (newValue != value)
-                {
-                    value = newValue;
-                    changed = true;
-                }
-            }
-        }
-
-        EndSize();
+        EndElement(ElementType.Track);
         EndWidget();
-        return changed;
     }
-#endif
 }

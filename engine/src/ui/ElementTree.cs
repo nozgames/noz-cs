@@ -48,7 +48,8 @@ public static unsafe partial class ElementTree
     internal static int ActivePopupCount => _activePopupCount;
 
     // Input state
-    private static WidgetId _focusId;
+    internal static WidgetId _hotId;
+    internal static WidgetId _prevHotId;
     private static WidgetId _captureId;
 
     // Drawing state (self-contained, not shared with UI)

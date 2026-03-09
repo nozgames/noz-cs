@@ -10,10 +10,10 @@ public static class EditorStyle
     public static class Palette
     {
         // Surface Backgrounds
-        public static readonly Color Canvas = Color.FromRgb(0x161616);
+        public static readonly Color Canvas = Color.FromRgb(0x353535);
         public static readonly Color PageBG = Color.FromRgb(0x1A1A1A);
         public static readonly Color Body = Color.FromRgb(0x212121);
-        public static readonly Color Grid = Color.FromRgb(0x222222);
+        public static readonly Color Grid = Color.FromRgb(0x3E3E3E);
         public static readonly Color Header = Color.FromRgb(0x2D2D2D);
         public static readonly Color Secondary = Color.FromRgb(0x333333);
         public static readonly Color Active = Color.FromRgb(0x3D3D3D);
@@ -30,9 +30,9 @@ public static class EditorStyle
         public static readonly Color DisabledLight = Color.FromRgb(0x333333);
 
         // State
-        public static readonly Color TextSelection = Color.FromRgba(0xE83A3A, 0x44);
-        public static readonly Color SelectionOutline = Color.FromRgba(0xE83A3A, 0x66);
-        public static readonly Color SelectionFill = Color.FromRgba(0xE83A3A, 0x11);
+        public static readonly Color TextSelection = Color.FromRgba(0xE83A3A44);
+        public static readonly Color SelectionOutline = Color.FromRgba(0xE83A3A66);
+        public static readonly Color SelectionFill = Color.FromRgba(0xE83A3A11);
         public static readonly Color FocusRing = Primary;
 
         // Separators / Grid
@@ -864,7 +864,7 @@ public static class EditorStyle
 
         private static readonly Func<TextInputStyle, WidgetFlags, TextInputStyle> TextInputResolve = (s, f) =>
         {
-            if (f.HasFlag(WidgetFlags.Focus) || f.HasFlag(WidgetFlags.Hovered))
+            if (f.HasFlag(WidgetFlags.Hot) || f.HasFlag(WidgetFlags.Hovered))
                 s.BorderColor = Palette.FocusRing;
             return s;
         };
@@ -894,6 +894,7 @@ public static class EditorStyle
             BorderWidth = 1,
             BorderColor = Color.Transparent,
             Padding = EdgeInsets.Symmetric(8, 10),
+            MultiLine = true,
             Resolve = TextInputResolve,
         };
 

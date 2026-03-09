@@ -59,6 +59,7 @@ public static partial class ElementTree
             case ElementType.Transform:
             case ElementType.Scroll:
             case ElementType.Widget:
+            case ElementType.Track:
             case ElementType.Align:
                 return e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
 
@@ -243,6 +244,7 @@ public static partial class ElementTree
             case ElementType.Transform:
             case ElementType.Scroll:
             case ElementType.Widget:
+            case ElementType.Track:
                 size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0);

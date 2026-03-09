@@ -198,6 +198,136 @@
               "fill": "#3E3E3E",
               "width": 1,
               "height": 720
+            },
+            {
+              "type": "frame",
+              "id": "1PQq6",
+              "x": 688,
+              "y": 636,
+              "name": "Notification Stack",
+              "width": 300,
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AFptb",
+                  "name": "Error Toast",
+                  "width": 300,
+                  "height": 36,
+                  "fill": "#2D2D2D",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E83A3A66"
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "qNa6v",
+                      "name": "errIcon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "circle-x",
+                      "iconFontFamily": "lucide",
+                      "fill": "#E83A3A"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ROGFG",
+                      "name": "errTxt",
+                      "fill": "#FFFFFF",
+                      "content": "Failed to save: file is read-only",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "KHUUD",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "Wd2YV",
+                      "name": "errX",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "x",
+                      "iconFontFamily": "lucide",
+                      "fill": "#555555"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "VDHfM",
+                  "name": "Success Toast",
+                  "width": 300,
+                  "height": 36,
+                  "fill": "#2D2D2D",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#2ECC7166"
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "ZFIXe",
+                      "name": "successIcon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "circle-check",
+                      "iconFontFamily": "lucide",
+                      "fill": "#2ECC71"
+                    },
+                    {
+                      "type": "text",
+                      "id": "8PG6w",
+                      "name": "successTxt",
+                      "fill": "#FFFFFF",
+                      "content": "Build completed successfully",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "AyzLW",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "IcJKy",
+                      "name": "successX",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "x",
+                      "iconFontFamily": "lucide",
+                      "fill": "#555555"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },

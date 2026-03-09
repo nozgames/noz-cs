@@ -12,13 +12,15 @@ public static partial class UI
 
     private static void HandleInput()
     {
-        var mouse = Camera!.ScreenToWorld(Input.MousePosition);
-        MouseWorldPosition = mouse;
-
-        // Clear hot focus when clicking outside the hot element
+        // Clear hot when clicking outside the hot element
         var mousePressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
-        if (mousePressed && _hotId != 0 && !ElementTree.WasPressed(_hotId))
-            ElementTree.ClearFocus();
+        if (mousePressed && ElementTree._hotId != 0)
+        {
+            var wasPressed = ElementTree.WasPressed(ElementTree._hotId);
+            Log.Info($"[UI.HandleInput] hotId={ElementTree._hotId} wasPressed={wasPressed} prevHot={_prevHotId}");
+            if (!wasPressed)
+                ClearHot();
+        }
 
         // Don't consume mouse buttons when hovering over a Scene element (pass-through),
         // but still consume when popups are open or scrollbar is being used.

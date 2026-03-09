@@ -487,6 +487,42 @@ public static unsafe partial class ElementTree
         //state.Offset = offset;
     }
 
+    private static void HandleTrackInput(ref Element e)
+    {
+        ref var d = ref e.Data.Track;
+        var widgetId = d.Id;
+
+        if (IsDown(widgetId) && !HasCaptureById(widgetId))
+            SetCaptureById(widgetId);
+
+        if (!HasCaptureById(widgetId))
+            return;
+
+        var worldRect = GetWidgetWorldRect(widgetId);
+        if (d.Vertical)
+        {
+            var trackSize = worldRect.Height;
+            if (trackSize <= 0) return;
+            var thumbHalf = d.ThumbSize / 2;
+            var usable = trackSize - d.ThumbSize;
+            if (usable <= 0) return;
+            var norm = MathEx.Clamp01((MouseWorldPosition.Y - worldRect.Y - thumbHalf) / usable);
+            ref var state = ref GetWidgetState<TrackState>(widgetId);
+            state.Value = norm;
+        }
+        else
+        {
+            var trackSize = worldRect.Width;
+            if (trackSize <= 0) return;
+            var thumbHalf = d.ThumbSize / 2;
+            var usable = trackSize - d.ThumbSize;
+            if (usable <= 0) return;
+            var norm = MathEx.Clamp01((MouseWorldPosition.X - worldRect.X - thumbHalf) / usable);
+            ref var state = ref GetWidgetState<TrackState>(widgetId);
+            state.Value = norm;
+        }
+    }
+
     private static void HandleSceneInput(int offset)
     {
         ref var e = ref GetElement(offset);
@@ -561,8 +597,8 @@ public static unsafe partial class ElementTree
         if (isCaptured ? _inputMouseDown : (isHovered && _inputMouseDown))
             state.Flags |= WidgetFlags.Down;
 
-        if (_focusId == d.Id)
-            state.Flags |= WidgetFlags.Focus;
+        if (_hotId == d.Id)
+            state.Flags |= WidgetFlags.Hot;
 
         if ((state.Flags & WidgetFlags.Hovered) != (prevFlags & WidgetFlags.Hovered))
             state.Flags |= WidgetFlags.HoverChanged;
@@ -574,6 +610,9 @@ public static unsafe partial class ElementTree
 
         if (e.Type == ElementType.Widget)
             HandleWidgetInput(ref e);
+
+        if (e.Type == ElementType.Track)
+            HandleTrackInput(ref e);
 
         if (e.Type == ElementType.EditableText)
             HandleEditableTextInput(ref e);

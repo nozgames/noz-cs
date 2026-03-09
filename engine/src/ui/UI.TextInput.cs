@@ -17,7 +17,11 @@ public static partial class UI
 
         ref var state = ref ElementTree.BeginWidget<EditableTextState>(id);
 
+        // Use _prevHotId to resolve style — SetHot happens after defocus check below
+        var wasHot = ElementTree._prevHotId == id;
         var flags = ElementTree.GetWidgetFlags();
+        if (wasHot)
+            flags |= WidgetFlags.Hot;
         var s = style.Resolve != null ? style.Resolve(style, flags) : style;
 
         var font = s.Font ?? DefaultFont;
@@ -48,6 +52,10 @@ public static partial class UI
             s.MultiLine,
             false,
             s.Scope);
+
+        // Set hot AFTER EditableText's defocus check runs
+        if (state.Focused != 0)
+            SetHot(id);
 
         ElementTree.EndTree();
 
