@@ -234,6 +234,7 @@ public class GenerationRequest
     public GenerationRefine? Refine { get; set; }
     public GenerationStyleBlock? Style { get; set; }
     public List<GenerationLora>? Loras { get; set; }
+    public float Detail { get; set; } = 1.0f;
 }
 
 public class GenerationStyleBlock

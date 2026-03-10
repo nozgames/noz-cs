@@ -587,6 +587,7 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         {
             Server = server,
             Shapes = shapes,
+            Detail = Style?.Detail ?? 1f,
             Refine = new GenerationRefine
             {
                 Prompt = refinePrompt,

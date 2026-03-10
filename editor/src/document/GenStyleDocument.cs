@@ -63,6 +63,7 @@ public class GenStyleDocument : Document
     // LoRA
     public string? LoraName;
     public float LoraStrength = 0.8f;
+    public float Detail = 1.0f;
 
     // Style references
     public List<string> StyleReferences = new();
@@ -110,6 +111,8 @@ public class GenStyleDocument : Document
                 ParseLayer(ref tk);
             else if (tk.ExpectIdentifier("refine"))
                 ParseRefine(ref tk);
+            else if (tk.ExpectIdentifier("detail"))
+                Detail = tk.ExpectFloat(1.0f);
             else if (tk.ExpectIdentifier("lora"))
                 LoraName = tk.ExpectQuotedString();
             else if (tk.ExpectIdentifier("lora_strength"))
@@ -226,6 +229,9 @@ public class GenStyleDocument : Document
             writer.WriteLine($"lora \"{LoraName}\"");
             writer.WriteLine(string.Format(CultureInfo.InvariantCulture, "lora_strength {0}", LoraStrength));
         }
+
+        if (Detail < 1.0f)
+            writer.WriteLine($"detail {Detail}");
 
         // Style references
         if (StyleReferences.Count > 0)

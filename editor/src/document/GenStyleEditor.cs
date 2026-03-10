@@ -22,6 +22,7 @@ public partial class GenStyleEditor : DocumentEditor
         public static partial WidgetId StyleStrength { get; }
         public static partial WidgetId LoraDropDown { get; }
         public static partial WidgetId LoraStrength { get; }
+        public static partial WidgetId Detail { get; }
         public static partial WidgetId StyleRefDelete { get; }
         public static partial WidgetId AddStyleRefDropDown { get; }
     }
@@ -46,9 +47,9 @@ public partial class GenStyleEditor : DocumentEditor
 
     public override void InspectorUI()
     {
+        StyleUI();
         LayerDefaultsUI();
         RefineDefaultsUI();
-        StyleUI();
     }
 
     private void LayerDefaultsUI()
@@ -187,6 +188,17 @@ public partial class GenStyleEditor : DocumentEditor
         var loras = GenerationClient.CachedLoras;
 
         using (Inspector.BeginRow())
+        using (UI.BeginFlex())
+        {
+            var detail = Document.Detail;
+            if (UI.NumberInput(WidgetIds.Detail, ref detail, EditorStyle.TextInput, min: 0, max: 1.0f, step: 0.05f, format: "0.00", icon: EditorAssets.Sprites.IconAi))
+            {
+                Undo.Record(Document);
+                Document.Detail = detail;
+            }
+        }
+
+        using (Inspector.BeginRow())
         {
             using (UI.BeginFlex())
                 UI.DropDown(WidgetIds.LoraDropDown, () =>
@@ -212,7 +224,7 @@ public partial class GenStyleEditor : DocumentEditor
                             }));
                     }
                     return loraItems.ToArray();
-                }, Document.LoraName ?? "None");
+                }, Document.LoraName ?? "None", icon: EditorAssets.Sprites.IconPalette);
 
             if (!string.IsNullOrEmpty(Document.LoraName))
             {
