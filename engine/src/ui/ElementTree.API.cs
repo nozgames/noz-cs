@@ -231,6 +231,7 @@ public static unsafe partial class ElementTree
     {
         ref var e = ref BeginElement(ElementType.Spacer);
         e.Data.Spacing = size;
+        EndElement(ElementType.Spacer);
         return e.Index;
     }
 
