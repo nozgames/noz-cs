@@ -299,16 +299,20 @@ public static unsafe partial class ElementTree
 
         if (e.Type == ElementType.Widget)
         {
+            var skipHover = false;
+
             if (_activePopupCount > 0 && !IsInsidePopup(e.Index))
-                return;
+                skipHover = true;
+            else if (IsInsideNonInteractivePopup(e.Index))
+                skipHover = true;
 
-            if (IsInsideNonInteractivePopup(e.Index))
-                return;
-
-            Matrix3x2.Invert(e.Transform, out var inv);
-            var localMouse = Vector2.Transform(MouseWorldPosition, inv);
-            if (e.Rect.Contains(localMouse))
-                _hoveredWidget = e.Data.Widget.Id;
+            if (!skipHover)
+            {
+                Matrix3x2.Invert(e.Transform, out var inv);
+                var localMouse = Vector2.Transform(MouseWorldPosition, inv);
+                if (e.Rect.Contains(localMouse))
+                    _hoveredWidget = e.Data.Widget.Id;
+            }
         }
 
         var childIndex = (int)e.FirstChild;
@@ -343,7 +347,7 @@ public static unsafe partial class ElementTree
         if (isHovered && _inputMousePressed && (_captureId == 0 || _captureId == d.Id))
             state.Flags |= WidgetFlags.Pressed;
 
-        if (isCaptured ? _inputMouseDown : (isHovered && _inputMouseDown))
+        if (isCaptured ? _inputMouseDown : (isHovered && _inputMouseDown && _captureId == 0))
             state.Flags |= WidgetFlags.Down;
 
         if (_hotId == d.Id)

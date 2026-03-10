@@ -22,7 +22,7 @@ public static class EditorStyle
         public static readonly Color PrimaryHover = Color.FromRgb(0xF04848);
 
         // Text & Icon
-        public static readonly Color Content = Color.FromRgb(0xE0E0E0);
+        public static readonly Color Content = Color.FromRgb(0xDDDDDD);
         public static readonly Color HeaderText = Color.FromRgb(0xAAAAAA);
         public static readonly Color SecondaryText = Color.FromRgb(0x999999);
         public static readonly Color Label = Color.FromRgb(0x777777);
@@ -61,8 +61,8 @@ public static class EditorStyle
     // :icon
     public static class Icon
     {
-        private const float Size = 14.0f;
-        private const float SmallSize = Size * SmallWidget.Scale;
+        public const float Size = 18.0f;
+        public const float SmallSize = Size * SmallWidget.Scale;
 
         public static readonly ImageStyle Primary = new()
         {
@@ -119,8 +119,8 @@ public static class EditorStyle
     // :control — Global control dimensions (toolbar, popups, etc.)
     public static class Control
     {
-        public const float TextSize = 16.0f;
-        public const float IconSize = 14.0f;
+        public const float TextSize = 20.0f;
+        public const float IconSize = EditorStyle.Icon.Size;
         public const float Height = 40.0f;
         public const float BorderRadius = 4.0f;
         public const float Spacing = 6.0f;
@@ -497,30 +497,21 @@ public static class EditorStyle
         SelectionColor = Palette.TextSelection,
         BackgroundColor = Palette.PageBG,
         BorderRadius = Control.BorderRadius,
-        BorderWidth = 1,
-        BorderColor = Color.Transparent,
-        Padding = EdgeInsets.Symmetric(0, 8),
+        BorderWidth = 1.25f,
+        BorderColor = Palette.PageBG,
+        Padding = EdgeInsets.Symmetric(6, 8),
         IconSize = Control.IconSize,
         IconColor = Palette.Label,
+        LabelFontSize = 9,
+        LabelColor = Palette.Label,
         Resolve = TextInputResolve,
     };
 
-    public static readonly TextInputStyle TextArea = new()
+    public static readonly TextInputStyle TextArea = TextInput with 
     {
-        Height = Control.Height * 3,
-        FontSize = Control.TextSize,
-        TextColor = Palette.Content,
-        PlaceholderColor = Palette.Placeholder,
-        SelectionColor = Palette.TextSelection,
-        BackgroundColor = Palette.PageBG,
         BorderRadius = Control.BorderRadius,
-        BorderWidth = 1,
-        BorderColor = Color.Transparent,
-        Padding = EdgeInsets.Symmetric(8, 10),
-        MultiLine = true,
+        //Padding = EdgeInsets.Symmetric(8, 10),
         PlaceholderMode = PlaceholderMode.FloatingLabel,
-        LabelFontSize = 9,
-        LabelColor = Palette.Label,
         Resolve = TextInputResolve,
     };
 
@@ -785,9 +776,7 @@ public static class EditorStyle
     {
         // Inspector-specific sizes (28px controls, not the global 40px)
         public const float FontSize = 11f;
-        public const float HeaderFontSize = 12f;
         public const float LabelFontSize = 9f;
-        public const float IconSize = 12f;
         public const float BorderRadius = 4f;
         public const float BodyPaddingV = 10f;
         public const float BodyPaddingH = 12f;
@@ -798,7 +787,7 @@ public static class EditorStyle
 
         public static readonly ContainerStyle Root = Panel with
         {
-            Width = 300.0f,
+            Width = 400.0f,
             Padding = EdgeInsets.Symmetric(BodyPaddingV, BodyPaddingH)
         };
 
@@ -810,18 +799,10 @@ public static class EditorStyle
             Spacing = HeaderGap,
         };
 
-        public static readonly LabelStyle SectionText = new()
-        {
-            FontSize = HeaderFontSize,
-            Color = Palette.HeaderText,
-            AlignX = Align.Min,
-            AlignY = Align.Center
-        };
-
         public static readonly ImageStyle ChevronIcon = new()
         {
             Color = Palette.HeaderText,
-            Size = IconSize,
+            Size = Control.IconSize,
             AlignX = Align.Center,
             AlignY = Align.Center
         };
@@ -831,11 +812,6 @@ public static class EditorStyle
         public static readonly ContainerStyle SectionHeaderActive = SectionHeader with
         {
             Color = Palette.Active
-        };
-
-        public static readonly LabelStyle SectionTextActive = SectionText with
-        {
-            Color = Palette.Content
         };
 
         public static readonly ContainerStyle Section = new()
@@ -1249,6 +1225,7 @@ public static class EditorStyle
 
         Style.DropDown = DropDown;
         Style.PopupMenu = ContextMenu.Style;
+        Style.TextInput = EditorStyle.TextInput;
     }
 
     public static void Shutdown()

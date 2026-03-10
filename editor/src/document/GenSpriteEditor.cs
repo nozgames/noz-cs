@@ -256,11 +256,7 @@ public partial class GenSpriteEditor : DocumentEditor
             Spacing = 10,
         }))
         {
-            UI.Text("PROGRESS", EditorStyle.Inspector.SectionText with
-            {
-                FontSize = EditorStyle.Inspector.LabelFontSize,
-                Color = EditorStyle.Palette.Label,
-            });
+            ElementTree.Text("PROGRESS", UI.DefaultFont, EditorStyle.Control.TextSize, EditorStyle.Palette.Label);
 
             var progressText = genImage.GenerationState switch
             {
@@ -275,7 +271,7 @@ public partial class GenSpriteEditor : DocumentEditor
 
             using (UI.BeginRow(new ContainerStyle { Spacing = 8 }))
             {
-                UI.Text(progressText, EditorStyle.Text.Primary with { FontSize = EditorStyle.Inspector.HeaderFontSize });
+                UI.Text(progressText, EditorStyle.Text.Primary with { FontSize = EditorStyle.Control.TextSize});
                 UI.Flex();
                 if (UI.Button(WidgetIds.CancelButton, EditorAssets.Sprites.IconClose, EditorStyle.Button.SmallIconOnly))
                     genImage.CancelGeneration();
@@ -362,11 +358,11 @@ public partial class GenSpriteEditor : DocumentEditor
 
                     using (Inspector.BeginRow())
                     using (UI.BeginFlex())
-                        gen.Prompt = UI.TextInput(WidgetIds.LayerPrompt + i, gen.Prompt, EditorStyle.TextArea, "Prompt", Document);
+                        gen.Prompt = UI.TextInput(WidgetIds.LayerPrompt + i, gen.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
 
                     using (Inspector.BeginRow())
                     using (UI.BeginFlex())
-                        gen.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt + i, gen.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document);
+                        gen.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt + i, gen.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
                 }
             }
         }
@@ -401,11 +397,11 @@ public partial class GenSpriteEditor : DocumentEditor
 
                 using (Inspector.BeginRow())
                 using (UI.BeginFlex())
-                    refine.Prompt = UI.TextInput(WidgetIds.RefinePrompt, refine.Prompt, EditorStyle.TextArea, "Refine Prompt", Document);
+                    refine.Prompt = UI.TextInput(WidgetIds.RefinePrompt, refine.Prompt, EditorStyle.TextArea, "Refine Prompt", Document, multiLine: true);
 
                 using (Inspector.BeginRow())
                 using (UI.BeginFlex())
-                    refine.NegativePrompt = UI.TextInput(WidgetIds.RefineNegativePrompt, refine.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document);
+                    refine.NegativePrompt = UI.TextInput(WidgetIds.RefineNegativePrompt, refine.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
             }
         }
     }
@@ -465,7 +461,7 @@ public partial class GenSpriteEditor : DocumentEditor
 
     private void GenerationParamsUI(WidgetId stepsId, WidgetId strengthId, WidgetId guidanceId, GenerationConfig gen)
     {
-        using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+        using (Inspector.BeginRow())
         {
             using (UI.BeginFlex())
             {

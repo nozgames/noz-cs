@@ -278,6 +278,13 @@ public class TextureDocument : Document, ISpriteSource
         writer.Write((ushort)1);
         writer.Write(12.0f);
 
+        // 9-slice data (version 10+)
+        writer.Write((short)0);
+        writer.Write((short)0);
+        writer.Write((short)0);
+        writer.Write((short)0);
+        writer.Write((ushort)0);
+
         // Mesh
         writer.Write(AtlasUV.Left);
         writer.Write(AtlasUV.Top);

@@ -9,6 +9,108 @@ namespace NoZ;
 
 public static unsafe partial class ElementTree
 {
+    private enum UndoEditKind : byte { None, Insert, Delete }
+
+    private class EditableTextHelper
+    {
+        private const int MaxUndo = 64;
+        private const float CoalesceTimeout = 0.5f;
+
+        private struct UndoSnapshot
+        {
+            public string Text;
+            public int CursorIndex;
+            public int SelectionStart;
+        }
+
+        private readonly UndoSnapshot[] _undo = new UndoSnapshot[MaxUndo];
+        private int _undoCount;
+        private int _undoCurrent;
+        private UndoEditKind _lastEditKind;
+        private float _lastEditTime;
+
+        public bool CanUndo => _undoCurrent > 0;
+        public bool CanRedo => _undoCurrent < _undoCount - 1;
+
+        public void Clear()
+        {
+            _undoCount = 0;
+            _undoCurrent = 0;
+            _lastEditKind = UndoEditKind.None;
+            _lastEditTime = 0;
+        }
+
+        public void Record(string text, int cursorIndex, int selectionStart, UndoEditKind kind = UndoEditKind.None)
+        {
+            var now = Time.TotalTime;
+            var shouldCoalesce = kind != UndoEditKind.None
+                && kind == _lastEditKind
+                && (now - _lastEditTime) < CoalesceTimeout
+                && _undoCount > 0
+                && _undoCurrent == _undoCount - 1;
+
+            _lastEditKind = kind;
+            _lastEditTime = now;
+
+            if (shouldCoalesce)
+            {
+                // Update the current entry in place
+                _undo[_undoCurrent] = new UndoSnapshot
+                {
+                    Text = text,
+                    CursorIndex = cursorIndex,
+                    SelectionStart = selectionStart
+                };
+                return;
+            }
+
+            // Discard any redo history beyond current position
+            _undoCount = _undoCurrent + 1;
+
+            if (_undoCount >= MaxUndo)
+            {
+                // Shift everything down to make room
+                Array.Copy(_undo, 1, _undo, 0, MaxUndo - 1);
+                _undoCount = MaxUndo - 1;
+            }
+
+            _undo[_undoCount] = new UndoSnapshot
+            {
+                Text = text,
+                CursorIndex = cursorIndex,
+                SelectionStart = selectionStart
+            };
+            _undoCurrent = _undoCount;
+            _undoCount++;
+        }
+
+        public void Undo(ref EditableTextState state)
+        {
+            if (!CanUndo) return;
+            _undoCurrent--;
+            _lastEditKind = UndoEditKind.None;
+            ref var s = ref _undo[_undoCurrent];
+            state.EditText = AllocString(s.Text.AsSpan());
+            state.CursorIndex = s.CursorIndex;
+            state.SelectionStart = s.SelectionStart;
+            state.TextHash = string.GetHashCode(state.EditText.AsReadOnlySpan());
+        }
+
+        public void Redo(ref EditableTextState state)
+        {
+            if (!CanRedo) return;
+            _undoCurrent++;
+            _lastEditKind = UndoEditKind.None;
+            ref var s = ref _undo[_undoCurrent];
+            state.EditText = AllocString(s.Text.AsSpan());
+            state.CursorIndex = s.CursorIndex;
+            state.SelectionStart = s.SelectionStart;
+            state.TextHash = string.GetHashCode(state.EditText.AsReadOnlySpan());
+        }
+    }
+
+    private static readonly EditableTextHelper _editableTextHelper = new();
+
     public static string EditableText(
         ref EditableTextState state,
         string value,
@@ -119,6 +221,11 @@ public static unsafe partial class ElementTree
             state.EditText = AllocString(d.Text.AsReadOnlySpan());
             state.PrevTextHash = string.GetHashCode(state.EditText.AsReadOnlySpan());
             state.TextHash = state.PrevTextHash;
+
+            // Initialize undo history with the original text
+            _editableTextHelper.Clear();
+            var initialText = new string(state.EditText.AsReadOnlySpan());
+            _editableTextHelper.Record(initialText, 0, initialText.Length);
 
             // Select all on focus enter — drag will override if mouse moves to a different char
             var clickIndex = HitTestCharIndex(state.EditText.AsReadOnlySpan(), font, d.FontSize,
@@ -247,6 +354,7 @@ public static unsafe partial class ElementTree
                 state.CursorIndex++;
                 state.SelectionStart = state.CursorIndex;
                 state.TextHash = string.GetHashCode(text.AsReadOnlySpan());
+                _editableTextHelper.Record(new string(text.AsReadOnlySpan()), state.CursorIndex, state.SelectionStart);
             }
             else
             {
@@ -262,6 +370,21 @@ public static unsafe partial class ElementTree
         {
             state.SelectionStart = 0;
             state.CursorIndex = text.AsReadOnlySpan().Length;
+            return;
+        }
+
+        // Ctrl+Z — undo
+        if (ctrl && !shift && Input.WasButtonPressed(InputCode.KeyZ, true, scope))
+        {
+            _editableTextHelper.Undo(ref state);
+            return;
+        }
+
+        // Ctrl+Y or Ctrl+Shift+Z — redo
+        if ((ctrl && Input.WasButtonPressed(InputCode.KeyY, true, scope)) ||
+            (ctrl && shift && Input.WasButtonPressed(InputCode.KeyZ, true, scope)))
+        {
+            _editableTextHelper.Redo(ref state);
             return;
         }
 
@@ -289,6 +412,7 @@ public static unsafe partial class ElementTree
                 Application.Platform.SetClipboardText(new string(editText[selStart..selEnd]));
                 RemoveSelected(ref state);
                 state.TextHash = string.GetHashCode(text.AsReadOnlySpan());
+                _editableTextHelper.Record(new string(text.AsReadOnlySpan()), state.CursorIndex, state.SelectionStart);
             }
             return;
         }
@@ -304,6 +428,7 @@ public static unsafe partial class ElementTree
                 state.CursorIndex += clipboard.Length;
                 state.SelectionStart = state.CursorIndex;
                 state.TextHash = string.GetHashCode(text.AsReadOnlySpan());
+                _editableTextHelper.Record(new string(text.AsReadOnlySpan()), state.CursorIndex, state.SelectionStart);
             }
             return;
         }
@@ -311,7 +436,8 @@ public static unsafe partial class ElementTree
         // Backspace
         if (Input.WasButtonPressed(InputCode.KeyBackspace, true, scope))
         {
-            if (state.CursorIndex != state.SelectionStart)
+            var hadSelection = state.CursorIndex != state.SelectionStart;
+            if (hadSelection)
             {
                 RemoveSelected(ref state);
             }
@@ -322,13 +448,16 @@ public static unsafe partial class ElementTree
                 state.SelectionStart = state.CursorIndex;
             }
             state.TextHash = string.GetHashCode(text.AsReadOnlySpan());
+            _editableTextHelper.Record(new string(text.AsReadOnlySpan()), state.CursorIndex, state.SelectionStart,
+                hadSelection ? UndoEditKind.None : UndoEditKind.Delete);
             return;
         }
 
         // Delete
         if (Input.WasButtonPressed(InputCode.KeyDelete, true, scope))
         {
-            if (state.CursorIndex != state.SelectionStart)
+            var hadSelection = state.CursorIndex != state.SelectionStart;
+            if (hadSelection)
             {
                 RemoveSelected(ref state);
             }
@@ -337,6 +466,8 @@ public static unsafe partial class ElementTree
                 text = RemoveText(text.AsReadOnlySpan(), state.CursorIndex, 1);
             }
             state.TextHash = string.GetHashCode(text.AsReadOnlySpan());
+            _editableTextHelper.Record(new string(text.AsReadOnlySpan()), state.CursorIndex, state.SelectionStart,
+                hadSelection ? UndoEditKind.None : UndoEditKind.Delete);
             return;
         }
 
@@ -387,6 +518,7 @@ public static unsafe partial class ElementTree
             state.CursorIndex += textInput.Length;
             state.SelectionStart = state.CursorIndex;
             state.TextHash = string.GetHashCode(text.AsReadOnlySpan());
+            _editableTextHelper.Record(new string(text.AsReadOnlySpan()), state.CursorIndex, state.SelectionStart, UndoEditKind.Insert);
         }
     }
 
@@ -532,6 +664,8 @@ public static unsafe partial class ElementTree
         var lineCount = TextRender.GetWrapLines(text, font, fontSize, e.Rect.Width, 0, lines);
         if (lineCount == 0) return;
 
+        var leadingOffset = font.InternalLeading * 0.5f * fontSize;
+
         for (var i = 0; i < lineCount; i++)
         {
             var line = lines[i];
@@ -543,7 +677,7 @@ public static unsafe partial class ElementTree
 
             var x0 = MeasureTextWidth(lineText[..lineSelStart], font, fontSize);
             var x1 = MeasureTextWidth(lineText[..lineSelEnd], font, fontSize);
-            var y = i * lineHeight;
+            var y = i * lineHeight + leadingOffset;
 
             var selRect = new Rect(e.Rect.X + x0, e.Rect.Y + y, x1 - x0, lineHeight);
             DrawTexturedRect(selRect, e.Transform, null, ApplyOpacity(d.SelectionColor));

@@ -22,22 +22,19 @@ public static partial class UI
         if (!style.Margin.IsZero)
             ElementTree.BeginMargin(style.Margin);
 
-        if (resolved.BorderWidth > 0)
-            ElementTree.BeginBorder(resolved.BorderWidth, resolved.BorderColor, style.BorderRadius);
+        if (style.Align.X != Align.Min || style.Align.Y != Align.Min)
+            ElementTree.BeginAlign(style.Align);
 
         ElementTree.BeginSize(style.Size);
 
-        if (!resolved.Color.IsTransparent)
-            ElementTree.BeginFill(resolved.Color, style.BorderRadius);
+        if (!resolved.Color.IsTransparent || resolved.BorderWidth > 0)
+            ElementTree.BeginFill(resolved.Color, style.BorderRadius, resolved.BorderWidth, resolved.BorderColor);
 
         if (style.Clip)
             ElementTree.BeginClip(style.BorderRadius);
 
         if (!style.Padding.IsZero)
             ElementTree.BeginPadding(style.Padding);
-
-        if (style.Align.X != Align.Min || style.Align.Y != Align.Min)
-            ElementTree.BeginAlign(style.Align);
         
         if (axis == 0)
             ElementTree.BeginRow(style.Spacing);

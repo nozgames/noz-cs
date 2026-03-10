@@ -9,7 +9,7 @@ namespace NoZ.Editor;
 
 public partial class SpriteEditor : DocumentEditor
 {
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId TileButton { get; }
@@ -224,7 +224,7 @@ public partial class SpriteEditor : DocumentEditor
         {
             UI.Flex();
 
-            using (UI.BeginColumn(ElementId.Root, EditorStyle.DocumentEditor.Root))
+            using (UI.BeginColumn(WidgetIds.Root, EditorStyle.DocumentEditor.Root))
             {
                 ToolbarUI();
                 UI.Separator(EditorStyle.Palette.PanelSeparator);
@@ -237,7 +237,7 @@ public partial class SpriteEditor : DocumentEditor
     private void LayerUI(int layerIndex, SpriteLayer layer)
     {
         var isActive = Document.ActiveLayerIndex == layerIndex;
-        using (UI.BeginRow(ElementId.LayerItem + layerIndex, isActive ? EditorStyle.SpriteEditor.LayerNameContainerActive : EditorStyle.SpriteEditor.LayerNameContainer))
+        using (UI.BeginRow(WidgetIds.LayerItem + layerIndex, isActive ? EditorStyle.SpriteEditor.LayerNameContainerActive : EditorStyle.SpriteEditor.LayerNameContainer))
         {
             var isHovered = UI.IsHovered();
 
@@ -248,7 +248,7 @@ public partial class SpriteEditor : DocumentEditor
             var icon = !layer.Visible
                 ? EditorAssets.Sprites.IconHidden
                 : (isHovered ? EditorAssets.Sprites.IconPreview : EditorAssets.Sprites.IconEmpty);
-            if (UI.Button(ElementId.LayerVisibility + layerIndex, icon, EditorStyle.Button.SmallIconOnly))
+            if (UI.Button(WidgetIds.LayerVisibility + layerIndex, icon, EditorStyle.Button.SmallIconOnly))
             {
                 Undo.Record(Document);
                 layer.Visible = !layer.Visible;
@@ -260,7 +260,7 @@ public partial class SpriteEditor : DocumentEditor
             icon = layer.Locked
                 ? EditorAssets.Sprites.IconLock
                 : (isHovered ? EditorAssets.Sprites.IconUnlock: EditorAssets.Sprites.IconEmpty);
-            if (UI.Button(ElementId.LayerLock + layerIndex, icon, EditorStyle.Button.SmallIconOnly))
+            if (UI.Button(WidgetIds.LayerLock + layerIndex, icon, EditorStyle.Button.SmallIconOnly))
             {
                 Undo.Record(Document);
                 layer.Locked = !layer.Locked;
@@ -285,13 +285,13 @@ public partial class SpriteEditor : DocumentEditor
             {
                 using (UI.BeginRow(EditorStyle.SpriteEditor.LayerNameContainer))
                 {
-                    if (UI.Button(ElementId.AddLayerButton, EditorAssets.Sprites.IconLayer, EditorStyle.Button.IconOnly))
+                    if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconLayer, EditorStyle.Button.IconOnly))
                     {
                         Undo.Record(Document);
                         Document.AddLayer();
                     }
 
-                    if (UI.Button(ElementId.RemoveLayerButton, EditorAssets.Sprites.IconDelete, EditorStyle.Button.IconOnly))
+                    if (UI.Button(WidgetIds.RemoveLayerButton, EditorAssets.Sprites.IconDelete, EditorStyle.Button.IconOnly))
                     {
                         Undo.Record(Document);
                         Document.RemoveLayer(Document.ActiveLayerIndex);
@@ -299,8 +299,8 @@ public partial class SpriteEditor : DocumentEditor
 
                     UI.Flex();
 
-                    UI.Button(ElementId.AllLayerVisibility, EditorAssets.Sprites.IconHidden, EditorStyle.Button.IconOnly);
-                    UI.Button(ElementId.AllLayerLocked, EditorAssets.Sprites.IconLock, EditorStyle.Button.IconOnly);
+                    UI.Button(WidgetIds.AllLayerVisibility, EditorAssets.Sprites.IconHidden, EditorStyle.Button.IconOnly);
+                    UI.Button(WidgetIds.AllLayerLocked, EditorAssets.Sprites.IconLock, EditorStyle.Button.IconOnly);
                 }
 
                 UI.Separator(EditorStyle.Palette.PanelSeparator);
@@ -338,7 +338,7 @@ public partial class SpriteEditor : DocumentEditor
                     {
                         var isCurrentSlot = IsTimeSlotInRange(i, fi, _currentTimeSlot);
 
-                        using (UI.BeginRow(ElementId.DopeSheet + i * Sprite.MaxFrames + fi))
+                        using (UI.BeginRow(WidgetIds.DopeSheet + i * Sprite.MaxFrames + fi))
                         {
                             if (UI.WasPressed())
                             {
@@ -497,7 +497,7 @@ public partial class SpriteEditor : DocumentEditor
         }
 
         // TODO: migrate to UI.PopupMenu
-        EditorUI.Popup(ElementId.LayerSortOrder + layerIndex, Content);
+        EditorUI.Popup(WidgetIds.LayerSortOrder + layerIndex, Content);
     }
 
     private void BoneBindingUI()
@@ -509,8 +509,8 @@ public partial class SpriteEditor : DocumentEditor
         var currentLayer = Document.ActiveLayer;
         var currentBone = currentLayer?.Bone ?? StringId.None;
 
-        UI.SetChecked(EditorUI.IsPopupOpen(ElementId.BonePathButton));
-        if (UI.Button(ElementId.BonePathButton, () =>
+        UI.SetChecked(EditorUI.IsPopupOpen(WidgetIds.BonePathButton));
+        if (UI.Button(WidgetIds.BonePathButton, () =>
         {
             UI.Image(EditorAssets.Sprites.IconBone, EditorStyle.Icon.Primary);
             if (!currentBone.IsNone)
@@ -520,7 +520,7 @@ public partial class SpriteEditor : DocumentEditor
             UI.Spacer(EditorStyle.Control.Spacing);
         }, EditorStyle.Button.Secondary))
             // TODO: migrate to UI.PopupMenu
-            EditorUI.TogglePopup(ElementId.BonePathButton);
+            EditorUI.TogglePopup(WidgetIds.BonePathButton);
 
         BoneBindingPopupUI();
     }
@@ -561,7 +561,7 @@ public partial class SpriteEditor : DocumentEditor
         }
 
         // TODO: migrate to UI.PopupMenu
-        EditorUI.Popup(ElementId.BonePathButton, Content);
+        EditorUI.Popup(WidgetIds.BonePathButton, Content);
     }
 
     public void SetLayerBone(StringId bone)
@@ -778,13 +778,13 @@ public partial class SpriteEditor : DocumentEditor
 
     private void StrokeWidthButtonUI()
     {
-        UI.SetChecked(EditorUI.IsPopupOpen(ElementId.StrokeWidth));
-        if (UI.Button(ElementId.StrokeWidth, () =>
+        UI.SetChecked(EditorUI.IsPopupOpen(WidgetIds.StrokeWidth));
+        if (UI.Button(WidgetIds.StrokeWidth, () =>
         {
             UI.Text($"{Document.CurrentStrokeWidth}px", EditorStyle.Control.Text);
         }, EditorStyle.Button.Secondary))
             // TODO: migrate to UI.PopupMenu
-            EditorUI.TogglePopup(ElementId.StrokeWidth);
+            EditorUI.TogglePopup(WidgetIds.StrokeWidth);
 
         StrokeWidthPopupUI();
     }
@@ -806,7 +806,7 @@ public partial class SpriteEditor : DocumentEditor
         }
 
         // TODO: migrate to UI.PopupMenu
-        EditorUI.Popup(ElementId.StrokeWidth, Content);
+        EditorUI.Popup(WidgetIds.StrokeWidth, Content);
     }
 
     public void DeleteSelected()
@@ -1765,7 +1765,7 @@ public partial class SpriteEditor : DocumentEditor
                 ),
                 new PopupMenuItem { Label = "None", Handler = () => SetConstraint(null)}
                 ];
-                UI.DropDown(ElementId.ConstraintDropDown, items, constraintLabel, EditorAssets.Sprites.IconConstraint);
+                UI.DropDown(WidgetIds.ConstraintDropDown, items, constraintLabel, EditorAssets.Sprites.IconConstraint);
             }
 
         }
@@ -1791,13 +1791,13 @@ public partial class SpriteEditor : DocumentEditor
                 }
 
                 skeletonItems.Add(new PopupMenuItem { Label = "None", Handler = ClearSkeletonBinding });
-                UI.DropDown(ElementId.SkeletonDropDown, skeletonItems.ToArray(), skeletonLabel, EditorAssets.Sprites.IconBone);
+                UI.DropDown(WidgetIds.SkeletonDropDown, skeletonItems.ToArray(), skeletonLabel, EditorAssets.Sprites.IconBone);
             }
 
             if (Document.Binding.IsBound)
             {
                 UI.SetChecked(Document.ShowInSkeleton);
-                if (UI.Button(ElementId.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
+                if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
                 {
                     Undo.Record(Document);
                     Document.ShowInSkeleton = !Document.ShowInSkeleton;
@@ -1805,7 +1805,7 @@ public partial class SpriteEditor : DocumentEditor
                 }
 
                 UI.SetChecked(Document.ShowSkeletonOverlay);
-                if (UI.Button(ElementId.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon))
+                if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon))
                 {
                     Undo.Record(Document);
                     Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
@@ -1827,15 +1827,15 @@ public partial class SpriteEditor : DocumentEditor
                 using (Inspector.BeginRow())
                 {
                     UI.SetChecked(Document.CurrentOperation == PathOperation.Normal);
-                    if (UI.Button(ElementId.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
+                    if (UI.Button(WidgetIds.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
                         SetPathOperation(PathOperation.Normal);
 
                     UI.SetChecked(Document.CurrentOperation == PathOperation.Subtract);
-                    if (UI.Button(ElementId.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon))
+                    if (UI.Button(WidgetIds.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon))
                         SetPathOperation(PathOperation.Subtract);
 
                     UI.SetChecked(Document.CurrentOperation == PathOperation.Clip);
-                    if (UI.Button(ElementId.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon))
+                    if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon))
                         SetPathOperation(PathOperation.Clip);
                 }
             }
@@ -1849,7 +1849,7 @@ public partial class SpriteEditor : DocumentEditor
                 {
                     using var __ = UI.BeginFlex();
                     var fillColor = Document.CurrentFillColor;
-                    if (EditorUI.ColorButton(ElementId.FillColor, ref fillColor, EditorStyle.Inspector.ColorButton))
+                    if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor, EditorStyle.Inspector.ColorButton))
                     {
                         UI.HandleChange(Document);
                         SetFillColor(fillColor);
@@ -1866,7 +1866,7 @@ public partial class SpriteEditor : DocumentEditor
                 {
                     using var __ = UI.BeginFlex();
                     var strokeColor = Document.CurrentStrokeColor;
-                    if (EditorUI.ColorButton(ElementId.StrokeColor, ref strokeColor, EditorStyle.Inspector.ColorButton))
+                    if (EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor, EditorStyle.Inspector.ColorButton))
                     {
                         UI.HandleChange(Document);
                         SetStrokeColor(strokeColor);

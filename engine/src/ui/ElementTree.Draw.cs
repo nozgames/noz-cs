@@ -58,16 +58,8 @@ public static partial class ElementTree
             case ElementType.Fill:
             {
                 ref var d = ref e.Data.Fill;
-                if (!d.Color.IsTransparent)
-                    DrawTexturedRect(e.Rect, t, null, ApplyOpacity(d.Color), d.Radius);
-                break;
-            }
-
-            case ElementType.Border:
-            {
-                ref var d = ref e.Data.Border;
-                if (d.Width > 0)
-                    DrawTexturedRect(e.Rect, t, null, Color.Transparent, d.Radius, d.Width, ApplyOpacity(d.Color));
+                if (!d.Color.IsTransparent || d.BorderWidth > 0)
+                    DrawTexturedRect(e.Rect, t, null, ApplyOpacity(d.Color), d.Radius, d.BorderWidth, ApplyOpacity(d.BorderColor));
                 break;
             }
 
@@ -99,6 +91,7 @@ public static partial class ElementTree
         }
 
         // Popup: bump sort group so popup content renders on top
+        var prevSortGroup = _drawSortGroup;
         if (e.Type == ElementType.Popup)
         {
             _drawSortGroup++;
@@ -112,6 +105,12 @@ public static partial class ElementTree
             ref var child = ref GetElement(childOffset);
             DrawElement(childOffset);
             childOffset = child.NextSibling;
+        }
+
+        if (e.Type == ElementType.Popup)
+        {
+            _drawSortGroup = prevSortGroup;
+            Graphics.SetSortGroup(_drawSortGroup);
         }
 
         if (setScissor)
@@ -307,7 +306,10 @@ public static partial class ElementTree
         if (asset == null) return;
 
         var srcSize = new Vector2(d.Width, d.Height);
-        var scale = GetImageScale(d.Stretch, srcSize, e.Rect.Size);
+        var dstSize = new Vector2(
+            d.Size.Width.IsPercent ? e.Rect.Width * d.Size.Width.Value : e.Rect.Width,
+            d.Size.Height.IsPercent ? e.Rect.Height * d.Size.Height.Value : e.Rect.Height);
+        var scale = GetImageScale(d.Stretch, srcSize, dstSize);
         var scaledSize = scale * srcSize;
         var offset = e.Rect.Position + (e.Rect.Size - scaledSize) * new Vector2(d.Align.X.ToFactor(), d.Align.Y.ToFactor());
 
@@ -482,12 +484,6 @@ public static partial class ElementTree
                 ref var d = ref e.Data.Image;
                 var asset = _assets[d.Asset];
                 if (asset != null) sb.Append($" asset={asset}");
-                break;
-            }
-            case ElementType.Border:
-            {
-                ref var d = ref e.Data.Border;
-                sb.Append($" width={d.Width:0}");
                 break;
             }
             case ElementType.Opacity:

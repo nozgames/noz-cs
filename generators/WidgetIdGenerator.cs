@@ -141,7 +141,7 @@ public class WidgetIdGenerator : IIncrementalGenerator
             if (baseId == 0) baseId = 0x0000000000010000UL;
 
             sb.AppendLine($"{indent}// {prop.FullyQualifiedName}");
-            sb.AppendLine($"{indent}public static partial WidgetId {prop.Name} => new(0x{baseId:X16}UL);");
+            sb.AppendLine($"{indent}public static partial NoZ.WidgetId {prop.Name} => new(0x{baseId:X16}UL);");
             sb.AppendLine();
         }
 

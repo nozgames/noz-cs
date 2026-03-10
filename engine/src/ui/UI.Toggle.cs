@@ -39,9 +39,7 @@ public static partial class UI
 
         // Check box
         ElementTree.BeginSize(new Size2(s.Size, s.Size));
-        if (s.BorderWidth > 0)
-            ElementTree.BeginBorder(s.BorderWidth, s.BorderColor, s.BorderRadius);
-        ElementTree.BeginFill(isChecked ? s.CheckedColor : s.Color, s.BorderRadius);
+        ElementTree.BeginFill(isChecked ? s.CheckedColor : s.Color, s.BorderRadius, s.BorderWidth, s.BorderColor);
 
         if (isChecked && checkIcon != null)
         {
@@ -55,10 +53,7 @@ public static partial class UI
                 Align.Center);
         }
 
-        // End the box elements (fill, border, size) — need to close before label
         ElementTree.EndFill();
-        if (s.BorderWidth > 0)
-            ElementTree.EndBorder();
         ElementTree.EndSize();
 
         // Label

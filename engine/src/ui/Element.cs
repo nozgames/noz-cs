@@ -13,7 +13,6 @@ internal enum ElementType : byte
     Size,
     Padding,
     Fill,
-    Border,
     Margin,
     Row,
     Column,
@@ -54,7 +53,6 @@ internal struct ElementData
     [FieldOffset(0)] public WidgetElement Widget;
     [FieldOffset(0)] public FillElement Fill;
     [FieldOffset(0)] public EditableTextElement EditableText;
-    [FieldOffset(0)] public BorderElement Border;
     [FieldOffset(0)] public EdgeInsets Margin;
     [FieldOffset(0)] public EdgeInsets Padding;
     [FieldOffset(0)] public Align2 Align;
@@ -84,13 +82,8 @@ internal struct FillElement
 {
     public Color Color;
     public BorderRadius Radius;
-}
-
-internal struct BorderElement
-{
-    public float Width;
-    public Color Color;
-    public BorderRadius Radius;
+    public float BorderWidth;
+    public Color BorderColor;
 }
 
 internal struct FlexElement

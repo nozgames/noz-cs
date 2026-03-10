@@ -55,6 +55,7 @@ internal static partial class ColorPicker
     private static Color32 _prevColor;
 
     private static ColorMode _paletteMode = ColorMode.None;
+    private static bool _trackNeedsInit;
 
     public static bool IsOpen(WidgetId id) => _popupId == id;
 
@@ -63,6 +64,7 @@ internal static partial class ColorPicker
         _popupId = id;
         _originalColor = color;
         _prevColor = color;
+        _trackNeedsInit = true;
         UI.SetHot<Color32>(id, color);
         RgbToHsv(color, out _hue, out _sat, out _val);
         _alpha = color.A / 255f;
@@ -158,6 +160,7 @@ internal static partial class ColorPicker
             SaturationAndValue();
             Hue();
             Alpha();
+            _trackNeedsInit = false;
             color = HsvToColor32(_hue, _sat, _val, _alpha);
         }
         else if (_paletteMode == ColorMode.None)
@@ -187,7 +190,21 @@ internal static partial class ColorPicker
     {
         EnsureSVTexture();
 
-        using (UI.BeginContainer(ElementId.SaturationAndValue, EditorStyle.ColorPicker.SaturationAndValue))
+        ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.SaturationAndValue);
+        ElementTree.BeginTrack(ref trackState, ElementId.SaturationAndValue, 1, 1);
+
+        if (_trackNeedsInit)
+        {
+            trackState.X = _sat;
+            trackState.Y = 1 - _val;
+        }
+        else
+        {
+            _sat = trackState.X;
+            _val = 1 - trackState.Y;
+        }
+
+        using (UI.BeginContainer(EditorStyle.ColorPicker.SaturationAndValue))
         {
             if (_svTexture != null)
                 UI.Image(_svTexture, ImageStyle.Fill);
@@ -195,59 +212,57 @@ internal static partial class ColorPicker
             DrawCrosshair(
                 _sat * SVSize,
                 (1 - _val) * SVSize);
-
-            if (UI.WasPressed())
-                UI.SetCapture(ElementId.SaturationAndValue);
-
-            if (UI.HasCapture(ElementId.SaturationAndValue))
-            {
-                var worldRect = UI.GetElementWorldRect(ElementId.SaturationAndValue);
-                if (worldRect.Width > 0 && worldRect.Height > 0)
-                {
-                    var mouse = UI.MouseWorldPosition;
-                    _sat = MathEx.Clamp01((mouse.X - worldRect.X) / worldRect.Width);
-                    _val = 1 - MathEx.Clamp01((mouse.Y - worldRect.Y) / worldRect.Height);
-                }
-            }
         }
+
+        ElementTree.EndTrack();
+        ElementTree.EndWidget();
     }
 
     private static void Hue()
     {
         EnsureHueTexture();
 
-        using (UI.BeginContainer(ElementId.Hue, EditorStyle.ColorPicker.Slider))
+        ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Hue);
+        ElementTree.BeginTrack(ref trackState, ElementId.Hue, ThumbSize);
+
+        if (_trackNeedsInit)
+            trackState.X = _hue / 360f;
+        else
+        {
+            var newHue = trackState.X * 360f;
+            if (newHue != _hue)
+            {
+                _hue = newHue;
+                InvalidateSVTexture();
+            }
+        }
+
+        using (UI.BeginContainer(EditorStyle.ColorPicker.Slider))
         {
             if (_hueTexture != null)
                 UI.Image(_hueTexture, EditorStyle.ColorPicker.SliderImage);
 
-            var t = _hue / 360f;
             var color = HsvToColor(_hue, 1f, 1f);
-            SliderThumb(t, color, Color.Black);
-
-            if (UI.WasPressed())
-                UI.SetCapture(ElementId.Hue);
-
-            if (UI.HasCapture(ElementId.Hue))
-            {
-                var worldRect = UI.GetElementWorldRect(ElementId.Hue);
-                if (worldRect.Width > 0)
-                {
-                    var mouse = UI.MouseWorldPosition;
-                    var inset = 1 + ThumbRadius;
-                    var travel = worldRect.Width - SliderHeight - 2;
-                    _hue = MathEx.Clamp01((mouse.X - worldRect.X - inset) / travel) * 360f;
-                    InvalidateSVTexture();
-                }
-            }
+            SliderThumb(_hue / 360f, color, Color.Black);
         }
+
+        ElementTree.EndTrack();
+        ElementTree.EndWidget();
     }
 
     private static void Alpha()
     {
         EnsureCheckerTexture();
 
-        using (UI.BeginContainer(ElementId.Alpha, EditorStyle.ColorPicker.Slider))
+        ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Alpha);
+        ElementTree.BeginTrack(ref trackState, ElementId.Alpha, ThumbSize);
+
+        if (_trackNeedsInit)
+            trackState.X = _alpha;
+        else
+            _alpha = trackState.X;
+
+        using (UI.BeginContainer(EditorStyle.ColorPicker.Slider))
         {
             if (_checkerTexture != null)
                 UI.Image(_checkerTexture, EditorStyle.ColorPicker.SliderImage);
@@ -256,29 +271,15 @@ internal static partial class ColorPicker
                 _alpha,
                 Color.Mix(Color.Black, Color.White, _alpha),
                 Color.Mix(Color.White, Color.Black, _alpha));
-
-            if (UI.WasPressed())
-                UI.SetCapture(ElementId.Alpha);
-
-            if (UI.HasCapture(ElementId.Alpha))
-            {
-                var worldRect = UI.GetElementWorldRect(ElementId.Alpha);
-                if (worldRect.Width > 0)
-                {
-                    var mouse = UI.MouseWorldPosition;
-                    var inset = 1 + ThumbRadius;
-                    var travel = worldRect.Width - SliderHeight - 2;
-                    _alpha = MathEx.Clamp01((mouse.X - worldRect.X - inset) / travel);
-                }
-            }
         }
+
+        ElementTree.EndTrack();
+        ElementTree.EndWidget();
     }
 
     private static void SliderThumb(float t, Color color, Color borderColor)
     {
-        var sliderWidth = EditorStyle.ColorPicker.SliderWidth;
-        sliderWidth -= SliderHeight;
-        sliderWidth -= 2;
+        var travel = EditorStyle.ColorPicker.SliderWidth - ThumbSize;
 
         UI.Container(new ContainerStyle
         {
@@ -287,7 +288,7 @@ internal static partial class ColorPicker
             BorderRadius = ThumbRadius,
             BorderColor = borderColor,
             BorderWidth = 1.5f,
-            Margin = EdgeInsets.TopLeft(1, 1 + t * sliderWidth)
+            Margin = EdgeInsets.TopLeft(1, t * travel)
         });
     }
 

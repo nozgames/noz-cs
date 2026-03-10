@@ -6,15 +6,6 @@ using System.Numerics;
 
 namespace NoZ;
 
-public struct BorderStyle
-{
-    public BorderRadius Radius;
-    public float Width;
-    public Color Color;
-
-    public static readonly BorderStyle None = new() { Radius = BorderRadius.Zero, Width = 0, Color = Color.Transparent };
-}
-
 public struct ContainerStyle()
 {
     public Size2 Size = new(NoZ.Size.Default, NoZ.Size.Default);
@@ -33,12 +24,6 @@ public struct ContainerStyle()
     public bool Clip = false;
     public ushort Order = 0;
     public Func<ContainerStyle, WidgetFlags, ContainerStyle>? Resolve;
-
-    public BorderStyle Border
-    {
-        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
-        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
-    }
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
@@ -164,47 +149,14 @@ public struct TextInputStyle()
     public EdgeInsets Padding = EdgeInsets.Zero;
     public bool IsPassword = false;
     public InputScope Scope = InputScope.All;
-    public bool MultiLine = false;
     public PlaceholderMode PlaceholderMode = PlaceholderMode.Inline;
     public float LabelFontSize = 9;
     public Color LabelColor = new(0.47f, 0.47f, 0.47f, 1f);
     public float IconSize = 14;
+    public float IconSpacing = 4;
     public Color IconColor = new(0.6f, 0.6f, 0.6f, 1f);
 
     public Func<TextInputStyle, WidgetFlags, TextInputStyle>? Resolve;
-}
-
-public struct TextAreaStyle()
-{
-    public Size Height = Size.Default;
-    public float FontSize = 16;
-    public Font? Font = null;
-    public Color BackgroundColor = Color.Transparent;
-    public Color TextColor = Color.White;
-    public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
-    public Color SelectionColor = new(0.2f, 0.4f, 0.8f, 0.5f);
-    public BorderRadius BorderRadius = BorderRadius.Zero;
-    public float BorderWidth = 0;
-    public Color BorderColor = Color.Transparent;
-    public BorderRadius FocusBorderRadius = BorderRadius.Zero;
-    public float FocusBorderWidth = 0;
-    public Color FocusBorderColor = Color.Transparent;
-    public EdgeInsets Padding = EdgeInsets.Zero;
-    public InputScope Scope = InputScope.All;
-    public bool CommitOnEnter = false;
-
-    public BorderStyle Border
-    {
-        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
-        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
-    }
-
-    public BorderStyle FocusBorder
-    {
-        readonly get => new() { Radius = FocusBorderRadius, Width = FocusBorderWidth, Color = FocusBorderColor };
-        set { FocusBorderRadius = value.Radius; FocusBorderWidth = value.Width; FocusBorderColor = value.Color; }
-    }
-
 }
 
 public struct ScrollableStyle()

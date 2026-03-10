@@ -25,4 +25,5 @@ public static class Style
 
     public static DropDownStyle DropDown = new();
     public static PopupMenuStyle PopupMenu = new();
+    public static TextInputStyle TextInput = new();
 }

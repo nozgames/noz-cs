@@ -74,8 +74,14 @@ public static unsafe partial class ElementTree
 
     internal static Rect GetWidgetWorldRect(WidgetId id)
     {
-        if (!IsValidWidgetId(id)) return Rect.Zero;
-        ref readonly var state = ref GetWidgetState(id);
+        if (id <= 0) return Rect.Zero;
+        WidgetState state;
+        if (_widgets.ContainsKey(id))
+            state = Unsafe.AsRef<WidgetState>(_widgets[id].Ptr);
+        else if (_widgetsPrev.ContainsKey(id))
+            state = Unsafe.AsRef<WidgetState>(_widgetsPrev[id].Ptr);
+        else
+            return Rect.Zero;
         var topLeft = Vector2.Transform(state.Rect.Position, state.Transform);
         var bottomRight = Vector2.Transform(state.Rect.Position + state.Rect.Size, state.Transform);
         return new Rect(topLeft.X, topLeft.Y, bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y);
@@ -83,9 +89,12 @@ public static unsafe partial class ElementTree
 
     internal static Rect GetWidgetRect(WidgetId id)
     {
-        if (!IsValidWidgetId(id)) return Rect.Zero;
-        ref readonly var state = ref GetWidgetState(id);
-        return state.Rect;
+        if (id <= 0) return Rect.Zero;
+        if (_widgets.ContainsKey(id))
+            return Unsafe.AsRef<WidgetState>(_widgets[id].Ptr).Rect;
+        if (_widgetsPrev.ContainsKey(id))
+            return Unsafe.AsRef<WidgetState>(_widgetsPrev[id].Ptr).Rect;
+        return Rect.Zero;
     }
 
     public static bool HasCapture() =>

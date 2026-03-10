@@ -192,6 +192,7 @@ internal partial class VfxEditor : DocumentEditor
 
     private void EmitterPropertiesUI()
     {
+#if false
         var index = Document.SelectedEmitterIndex;
         if (index < 0 || index >= Document.EmitterCount)
             return;
@@ -212,10 +213,12 @@ internal partial class VfxEditor : DocumentEditor
 
         if (changed)
             Document.ApplyChanges();
+#endif
     }
 
     private void ParticlePropertiesUI()
     {
+#if false
         var index = Document.SelectedEmitterIndex;
         if (index < 0 || index >= Document.EmitterCount)
             return;
@@ -243,6 +246,7 @@ internal partial class VfxEditor : DocumentEditor
 
         if (changed)
             Document.ApplyChanges();
+#endif
     }
 
     private void TogglePlayback()

@@ -219,9 +219,7 @@ internal static partial class EditorUI
         var s = style.Resolve != null ? style.Resolve(style, flags) : style;
 
         ElementTree.BeginSize(new Size2(s.Size, s.Size));
-        if (s.BorderWidth > 0)
-            ElementTree.BeginBorder(s.BorderWidth, s.BorderColor, s.BorderRadius);
-        ElementTree.BeginFill(color.ToColor(), s.BorderRadius);
+        ElementTree.BeginFill(color.ToColor(), s.BorderRadius, s.BorderWidth, s.BorderColor);
         ElementTree.EndTree();
 
         if (flags.HasFlag(WidgetFlags.Pressed))

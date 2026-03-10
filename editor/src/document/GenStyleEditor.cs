@@ -88,11 +88,11 @@ public partial class GenStyleEditor : DocumentEditor
 
         using (Inspector.BeginRow())
         using (UI.BeginFlex())
-            Document.Prompt = UI.TextInput(WidgetIds.LayerPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt", Document);
+            Document.Prompt = UI.TextInput(WidgetIds.LayerPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
 
         using (Inspector.BeginRow())
         using (UI.BeginFlex())
-            Document.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document);
+            Document.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
     }
 
     private void RefineDefaultsUI()
@@ -135,11 +135,11 @@ public partial class GenStyleEditor : DocumentEditor
 
         using (Inspector.BeginRow())
         using (UI.BeginFlex())
-            Document.RefinePrompt = UI.TextInput(WidgetIds.RefinePrompt, Document.RefinePrompt, EditorStyle.TextArea, "Refine Prompt", Document);
+            Document.RefinePrompt = UI.TextInput(WidgetIds.RefinePrompt, Document.RefinePrompt, EditorStyle.TextArea, "Refine Prompt", Document, multiLine: true);
 
         using (Inspector.BeginRow())
         using (UI.BeginFlex())
-            Document.RefineNegativePrompt = UI.TextInput(WidgetIds.RefineNegativePrompt, Document.RefineNegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document);
+            Document.RefineNegativePrompt = UI.TextInput(WidgetIds.RefineNegativePrompt, Document.RefineNegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
     }
 
     private void StyleReferencesUI()

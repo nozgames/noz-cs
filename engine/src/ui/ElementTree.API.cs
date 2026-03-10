@@ -29,27 +29,17 @@ public static unsafe partial class ElementTree
 
     public static void EndPadding() => EndElement(ElementType.Padding);
 
-    public static int BeginFill(Color color, BorderRadius radius = default)
+    public static int BeginFill(Color color, BorderRadius radius = default, float borderWidth = 0, Color borderColor = default)
     {
         ref var e = ref BeginElement(ElementType.Fill);
         e.Data.Fill.Color = color;
         e.Data.Fill.Radius = radius;
+        e.Data.Fill.BorderWidth = borderWidth;
+        e.Data.Fill.BorderColor = borderColor;
         return e.Index;
     }
 
     public static void EndFill() => EndElement(ElementType.Fill);
-
-    public static int BeginBorder(float width, Color color, BorderRadius radius = default)
-    {
-        ref var e = ref BeginElement(ElementType.Border);
-        ref var d = ref e.Data.Border;
-        d.Width = width;
-        d.Color = color;
-        d.Radius = radius;
-        return e.Index;
-    }
-
-    public static void EndBorder() => EndElement(ElementType.Border);
 
     public static int BeginMargin(EdgeInsets margin)
     {

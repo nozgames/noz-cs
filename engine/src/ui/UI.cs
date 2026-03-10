@@ -342,22 +342,13 @@ public static partial class UI
             Container(new ContainerStyle { Width = Size.Percent(1), Height = thickness, Color = color });
     }
 
-    public static void BeginBorder(BorderStyle style)
-    {
-        int count = 0;
-        if (style.Width > 0)
-            { ElementTree.BeginBorder(style.Width, style.Color, style.Radius); count++; }
-    }
-
-    public static void EndBorder() => EndContainerImpl();
-
     public static AutoTransformed BeginTransformed(TransformStyle style)
     {
         ElementTree.BeginTransform(style.Origin, style.Translate, style.Rotate, style.Scale);
         return new AutoTransformed();
     }
 
-    public static void EndTransformed() => EndContainerImpl();
+    public static void EndTransformed() => ElementTree.EndTransform();
 
     public static AutoOpacity BeginOpacity(float opacity)
     {
@@ -365,7 +356,7 @@ public static partial class UI
         return new AutoOpacity();
     }
 
-    public static void EndOpacity() => EndContainerImpl();
+    public static void EndOpacity() => ElementTree.EndOpacity();
 
     public static AutoCursor BeginCursor(Sprite sprite)
     {
@@ -379,7 +370,7 @@ public static partial class UI
         return new AutoCursor();
     }
 
-    public static void EndCursor() => EndContainerImpl();
+    public static void EndCursor() => ElementTree.EndCursor();
 
     public static AutoScrollable BeginScrollable(WidgetId id) =>
         BeginScrollable(id, new ScrollableStyle());
@@ -423,7 +414,7 @@ public static partial class UI
         return (columns, cellWidth, cellHeight);
     }
 
-    public static void EndGrid() => EndContainerImpl();
+    public static void EndGrid() => ElementTree.EndGrid();
 
     public static void Scene(WidgetId id, Camera camera, Action draw) =>
         Scene(id, camera, draw, new SceneStyle());

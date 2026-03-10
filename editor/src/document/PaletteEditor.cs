@@ -32,6 +32,7 @@ internal partial class PaletteEditor : DocumentEditor
 
     public override void UpdateUI()
     {
+#if false
         using (UI.BeginColumn(WidgetIds.InspectorRoot, EditorStyle.Inspector.Root))
         {
             UI.Spacer(EditorStyle.Control.Spacing / 2);
@@ -75,5 +76,6 @@ internal partial class PaletteEditor : DocumentEditor
                 }
             }
         }
+#endif
     }
 }

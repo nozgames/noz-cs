@@ -54,8 +54,8 @@ internal static partial class Inspector
         // Outer section wrapper
         ElementTree.BeginColumn();
         var borderColor = isActive ? EditorStyle.Palette.Primary : Color.Transparent;
-        ElementTree.BeginBorder(1, borderColor);
-        ElementTree.BeginPadding(EdgeInsets.All(1));
+        ElementTree.BeginFill(Color.Transparent, default, 1.25f, borderColor);
+        ElementTree.BeginPadding(EdgeInsets.All(1 + 1.25f));
         ElementTree.BeginColumn();
 
         // Header (self-contained tree)
@@ -75,17 +75,17 @@ internal static partial class Inspector
             ? EditorAssets.Sprites.IconFoldoutClosed
             : EditorAssets.Sprites.IconFoldoutOpen;
 
-        ElementTree.BeginSize(Size.Default, EditorStyle.Inspector.SectionHeaderHeight);
+        ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
         ElementTree.BeginFill(headerBg);
         ElementTree.BeginPadding(EdgeInsets.LeftRight(8));
         ElementTree.BeginRow(EditorStyle.Inspector.HeaderGap);
 
-        ElementTree.Image(chevron, EditorStyle.Inspector.IconSize, ImageStretch.Uniform, iconColor, 1.0f, new Align2(Align.Center, Align.Center));
+        ElementTree.Image(chevron, EditorStyle.Icon.SmallSize, ImageStretch.Uniform, iconColor, 1.0f, Align.Center);
 
         if (icon != null)
-            ElementTree.Image(icon, EditorStyle.Inspector.IconSize, ImageStretch.Uniform, iconColor, 1.0f, new Align2(Align.Center, Align.Center));
+            ElementTree.Image(icon, EditorStyle.Control.IconSize, ImageStretch.Uniform, iconColor, 1.0f, new Align2(Align.Center, Align.Center));
 
-        ElementTree.Text(name, UI.DefaultFont, EditorStyle.Inspector.HeaderFontSize, iconColor, new Align2(Align.Min, Align.Center));
+        ElementTree.Text(name, UI.DefaultFont, EditorStyle.Control.TextSize, iconColor, new Align2(Align.Min, Align.Center));
 
         ElementTree.Flex();
 
@@ -124,7 +124,7 @@ internal static partial class Inspector
 
         ElementTree.EndColumn();
         ElementTree.EndPadding();
-        ElementTree.EndBorder();
+        ElementTree.EndFill();
 
         ElementTree.EndColumn();
         _sectionActive = false;

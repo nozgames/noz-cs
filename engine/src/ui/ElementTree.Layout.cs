@@ -45,13 +45,6 @@ public static unsafe partial class ElementTree
                 return child + EdgeInset(e.Data.Margin, axis);
             }
 
-            case ElementType.Border:
-            {
-                ref var d = ref e.Data.Border;
-                var child = e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
-                return child + d.Width * 2;
-            }
-
             case ElementType.Fill:
             case ElementType.Clip:
             case ElementType.Opacity:
@@ -92,6 +85,7 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref e.Data.Image;
                 if (d.Size[axis].IsFixed) return d.Size[axis].Value;
+                if (d.Size[axis].IsPercent) return 0;
                 return (axis == 0 ? d.Width : d.Height) * d.Scale;
             }
 
@@ -227,16 +221,6 @@ public static unsafe partial class ElementTree
                 break;
             }
 
-            case ElementType.Border:
-            {
-                ref var d = ref e.Data.Border;
-                var inset = d.Width * 2;
-                size = layoutAxis != axis
-                    ? available
-                    : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0) + inset;
-                break;
-            }
-
             case ElementType.Fill:
             case ElementType.Clip:
             case ElementType.Opacity:
@@ -251,7 +235,9 @@ public static unsafe partial class ElementTree
                 break;
 
             case ElementType.Align:
-                size = available;
+                size = layoutAxis != axis
+                    ? available
+                    : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0);
                 break;
 
             case ElementType.Row:
@@ -290,12 +276,12 @@ public static unsafe partial class ElementTree
             case ElementType.Image:
             {
                 ref var d = ref e.Data.Image;
-                float contentSize;
                 if (d.Size[axis].IsFixed)
-                    contentSize = d.Size[axis].Value;
+                    size = d.Size[axis].Value;
+                else if (d.Size[axis].IsPercent)
+                    size = available;
                 else
-                    contentSize = (axis == 0 ? d.Width : d.Height) * d.Scale;
-                size = Math.Max(contentSize, available);
+                    size = Math.Max((axis == 0 ? d.Width : d.Height) * d.Scale, available);
                 break;
             }
 
@@ -396,14 +382,6 @@ public static unsafe partial class ElementTree
                 var inset = EdgeInset(d, axis);
                 var childPos = e.Rect[axis] + EdgeMin(d, axis);
                 var childAvail = Math.Max(0, size - inset);
-                LayoutChildrenAxis(ref e, childPos, childAvail, axis, layoutAxis);
-                break;
-            }
-            case ElementType.Border:
-            {
-                ref var d = ref e.Data.Border;
-                var childPos = e.Rect[axis] + d.Width;
-                var childAvail = Math.Max(0, size - d.Width * 2);
                 LayoutChildrenAxis(ref e, childPos, childAvail, axis, layoutAxis);
                 break;
             }

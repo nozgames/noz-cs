@@ -12,7 +12,8 @@ public static partial class UI
         TextInputStyle style,
         string? placeholder = null,
         IChangeHandler? handler = null,
-        Sprite? icon = null)
+        Sprite? icon = null,
+        bool multiLine = false)
     {
         ElementTree.BeginTree();
 
@@ -44,11 +45,8 @@ public static partial class UI
         if (!floatingLabel)
             ElementTree.BeginSize(s.Width, new Size(height));
 
-        if (s.BorderWidth > 0)
-            ElementTree.BeginBorder(s.BorderWidth, s.BorderColor, s.BorderRadius);
-
-        if (s.BackgroundColor.A > 0)
-            ElementTree.BeginFill(s.BackgroundColor, s.BorderRadius);
+        if (s.BackgroundColor.A > 0 || s.BorderWidth > 0)
+            ElementTree.BeginFill(s.BackgroundColor, s.BorderRadius, s.BorderWidth, s.BorderColor);
 
         var hasPadding = !s.Padding.IsZero;
         if (hasPadding)
@@ -56,7 +54,7 @@ public static partial class UI
 
         var hasIcon = icon != null;
         if (hasIcon)
-            ElementTree.BeginRow(4);
+            ElementTree.BeginRow(style.IconSpacing);
 
         if (hasIcon)
         {
@@ -85,7 +83,7 @@ public static partial class UI
             s.SelectionColor,
             floatingLabel ? null : placeholder,
             s.PlaceholderColor,
-            s.MultiLine,
+            multiLine,
             false,
             s.Scope);
 
