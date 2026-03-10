@@ -277,7 +277,7 @@ public static unsafe partial class ElementTree
             {
                 ref var d = ref e.Data.Image;
                 if (d.Size[axis].IsFixed)
-                    size = Math.Max(d.Size[axis].Value, available);
+                    size = d.Size[axis].Value;
                 else if (d.Size[axis].IsPercent)
                     size = available;
                 else
@@ -335,22 +335,27 @@ public static unsafe partial class ElementTree
         e.Rect[axis] = position;
         e.Rect[axis + 2] = size;
 
-        // Popup: override position to anchor rect after size is known
+        // Popup: override position and size after content sizing
         if (e.Type == ElementType.Popup)
         {
             ref var pd = ref e.Data.Popup;
-            var defaultAnchor = pd.AnchorRect.Width == 0 && pd.AnchorRect.Height == 0;
-            var anchorRect = defaultAnchor ? new Rect(0, 0, ScreenSize.X, ScreenSize.Y) : pd.AnchorRect;
-            var anchorFactorX = defaultAnchor ? 0.5f : pd.AnchorFactorX;
-            var anchorFactorY = defaultAnchor ? 0.5f : pd.AnchorFactorY;
-            var anchorFactor = axis == 0 ? anchorFactorX : anchorFactorY;
-            var anchorPos = anchorRect[axis] + anchorRect[axis + 2] * anchorFactor;
-            var popupAlignFactor = axis == 0 ? pd.PopupAlignFactorX : pd.PopupAlignFactorY;
-            e.Rect[axis] = anchorPos - size * popupAlignFactor;
-            if (anchorFactor != popupAlignFactor)
-                e.Rect[axis] += pd.Spacing * (1f - 2f * popupAlignFactor);
-            if (pd.ClampToScreen)
-                e.Rect[axis] = Math.Clamp(e.Rect[axis], 0, ScreenSize[axis] - size);
+            if (pd.AnchorRect == Rect.Zero)
+            {
+                // No anchor: fill the screen, children handle alignment
+                e.Rect[axis] = 0;
+                e.Rect[axis + 2] = ScreenSize[axis];
+            }
+            else
+            {
+                var anchorPos = pd.AnchorRect[axis] + pd.AnchorRect[axis + 2] * (axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY);
+                var popupAlignFactor = axis == 0 ? pd.PopupAlignFactorX : pd.PopupAlignFactorY;
+                var anchorFactor = axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY;
+                e.Rect[axis] = anchorPos - size * popupAlignFactor;
+                if (anchorFactor != popupAlignFactor)
+                    e.Rect[axis] += pd.Spacing * (1f - 2f * popupAlignFactor);
+                if (pd.ClampToScreen)
+                    e.Rect[axis] = Math.Clamp(e.Rect[axis], 0, ScreenSize[axis] - size);
+            }
         }
 
         // Recurse children
@@ -400,7 +405,7 @@ public static unsafe partial class ElementTree
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
                 break;
             case ElementType.Popup:
-                LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
+                LayoutChildrenAxis(ref e, e.Rect[axis], e.Rect.GetSize(axis), axis, -1);
                 break;
             case ElementType.Grid:
                 LayoutGridAxis(ref e, axis);
@@ -491,6 +496,15 @@ public static unsafe partial class ElementTree
         {
             ref var child = ref GetElement(childOffset);
             LayoutAxis(childOffset, pos, avail, axis, axis == 0 ? 1 : 0);
+
+            // Stretch cross-axis children to fill available space
+            // This lets leaf elements (Image, Text) use draw-time alignment for centering
+            if (child.Rect.GetSize(axis) < avail)
+            {
+                child.Rect[axis] = pos;
+                child.Rect[axis + 2] = avail;
+            }
+
             childOffset = child.NextSibling;
         }
     }
