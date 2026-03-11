@@ -2,14 +2,133 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.IO;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 
 namespace NoZ.Editor;
+
+public class GenerationRequest
+{
+    [JsonIgnore]
+    public string Server { get; set; } = "";
+
+    public string Workflow { get; set; } = "sprite";
+    public List<GenerationShape> Layers { get; set; } = [];
+    public GenerationRefine? Refine { get; set; }
+    public GenerationStyleBlock? Style { get; set; }
+    public List<GenerationLora>? Loras { get; set; }
+    public float Detail { get; set; } = 1.0f;
+}
+
+public class GenerationStyleBlock
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float Strength { get; set; } = 0.5f;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float InpaintStrength { get; set; } = 0.2f;
+    public List<GenerationStyleReference>? References { get; set; }
+}
+
+public class GenerationStyleReference
+{
+    public string Image { get; set; } = "";
+}
+
+public class GenerationLora
+{
+    public string Name { get; set; } = "";
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float Strength { get; set; } = 0.8f;
+}
+
+public class GenerationShape
+{
+    public string? Image { get; set; }
+    public string Prompt { get; set; } = "";
+    public string? NegativePrompt { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float Strength { get; set; } = 0.8f;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public int Steps { get; set; } = 10;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float GuidanceScale { get; set; } = 6.0f;
+    public long? Seed { get; set; }
+}
+
+public class LoraInfo
+{
+    public string Name { get; set; } = "";
+    public float DefaultStrength { get; set; } = 0.8f;
+}
+
+public class GenerationRefine
+{
+    public string Prompt { get; set; } = "";
+    public string? NegativePrompt { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float Strength { get; set; } = 0.64f;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public int Steps { get; set; } = 10;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public float GuidanceScale { get; set; } = 6.0f;
+    public long? Seed { get; set; }
+}
+
+public class GenerationResponse
+{
+    public string Image { get; set; } = "";
+    public long Seed { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+}
+
+public enum GenerationState
+{
+    Queued,
+    Running,
+    Completed,
+    Failed
+}
+
+public class GenerationStatus
+{
+    public GenerationState State { get; set; }
+    public string? JobId { get; set; }
+
+    // Queued
+    public int QueuePosition { get; set; }
+
+    // Running
+    public float Progress { get; set; }
+
+    // Completed
+    public GenerationResponse? Result { get; set; }
+
+    // Failed
+    public string? Error { get; set; }
+    public bool IsTerminal => State is GenerationState.Completed or GenerationState.Failed;
+}
+
+// POST /generate response
+public class GenerationSubmitResponse
+{
+    public string JobId { get; set; } = "";
+    public string Status { get; set; } = "";
+    public int Position { get; set; }
+}
+
+// GET /jobs/{job_id} response
+public class GenerationJobResponse
+{
+    public string JobId { get; set; } = "";
+    public string Status { get; set; } = "";
+    public int? QueuePosition { get; set; }
+    public float? Progress { get; set; }
+    public GenerationResponse? Result { get; set; }
+    public string? Error { get; set; }
+}
+
 
 public static class GenerationClient
 {
@@ -222,125 +341,4 @@ public static class GenerationClient
             Error = job.Error ?? (state == GenerationState.Failed ? "Unknown error" : null)
         };
     }
-}
-
-public class GenerationRequest
-{
-    [JsonIgnore]
-    public string Server { get; set; } = "";
-
-    public string Workflow { get; set; } = "sprite";
-    public List<GenerationShape> Shapes { get; set; } = [];
-    public GenerationRefine? Refine { get; set; }
-    public GenerationStyleBlock? Style { get; set; }
-    public List<GenerationLora>? Loras { get; set; }
-    public float Detail { get; set; } = 1.0f;
-}
-
-public class GenerationStyleBlock
-{
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.5f;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float InpaintStrength { get; set; } = 0.2f;
-    public List<GenerationStyleReference>? References { get; set; }
-}
-
-public class GenerationStyleReference
-{
-    public string Image { get; set; } = "";
-}
-
-public class GenerationLora
-{
-    public string Name { get; set; } = "";
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.8f;
-}
-
-public class GenerationShape
-{
-    public string? Mask { get; set; }
-    public string Prompt { get; set; } = "";
-    public string? NegativePrompt { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.8f;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public int Steps { get; set; } = 10;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float GuidanceScale { get; set; } = 6.0f;
-    public long? Seed { get; set; }
-}
-
-public class LoraInfo
-{
-    public string Name { get; set; } = "";
-    public float DefaultStrength { get; set; } = 0.8f;
-}
-
-public class GenerationRefine
-{
-    public string Prompt { get; set; } = "";
-    public string? NegativePrompt { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.64f;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public int Steps { get; set; } = 10;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float GuidanceScale { get; set; } = 6.0f;
-    public long? Seed { get; set; }
-}
-
-public class GenerationResponse
-{
-    public string Image { get; set; } = "";
-    public long Seed { get; set; }
-    public int Width { get; set; }
-    public int Height { get; set; }
-}
-
-public enum GenerationState
-{
-    Queued,
-    Running,
-    Completed,
-    Failed
-}
-
-public class GenerationStatus
-{
-    public GenerationState State { get; set; }
-    public string? JobId { get; set; }
-
-    // Queued
-    public int QueuePosition { get; set; }
-
-    // Running
-    public float Progress { get; set; }
-
-    // Completed
-    public GenerationResponse? Result { get; set; }
-
-    // Failed
-    public string? Error { get; set; }
-    public bool IsTerminal => State is GenerationState.Completed or GenerationState.Failed;
-}
-
-// POST /generate response
-public class GenerationSubmitResponse
-{
-    public string JobId { get; set; } = "";
-    public string Status { get; set; } = "";
-    public int Position { get; set; }
-}
-
-// GET /jobs/{job_id} response
-public class GenerationJobResponse
-{
-    public string JobId { get; set; } = "";
-    public string Status { get; set; } = "";
-    public int? QueuePosition { get; set; }
-    public float? Progress { get; set; }
-    public GenerationResponse? Result { get; set; }
-    public string? Error { get; set; }
 }

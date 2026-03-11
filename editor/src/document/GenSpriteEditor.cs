@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using CrypticWizard.RandomWordGenerator;
 
 namespace NoZ.Editor;
 
@@ -30,6 +31,8 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId AddComponentPopup { get; }
         public static partial WidgetId CancelButton { get; }
     }
+
+    private static readonly WordGenerator _wordGenerator = new();
 
     private readonly ShapeEditor _shapeEditor;
 
@@ -339,18 +342,11 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
                     using (Inspector.BeginRow())
                     {
                         using (UI.BeginFlex())
-                        {
-                            var seed = (float)layer.Seed;
-                            if (UI.NumberInput(WidgetIds.LayerSeed + i, ref seed, EditorStyle.TextInput, min: 0, max: float.MaxValue, step: 1, format: "0", icon: EditorAssets.Sprites.IconSeed))
-                            {
-                                Undo.Record(Document);
-                                layer.Seed = (long)seed;
-                            }
-                        }
+                            layer.Seed = UI.TextInput(WidgetIds.LayerSeed + i, layer.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
                         if (UI.Button(WidgetIds.LayerSeedDice + i, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))
                         {
                             Undo.Record(Document);
-                            layer.Seed = Random.Shared.NextInt64(1, long.MaxValue);
+                            layer.Seed = GenerateRandomSeed();
                         }
                     }
 
@@ -431,14 +427,13 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
         var shift = Input.IsShiftDown(InputScope.All);
 
-        // Hit test all layers from top to bottom
+        // First pass: check all layers for anchor/segment hits (priority over path containment)
         for (int layerIdx = Document.Layers.Count - 1; layerIdx >= 0; layerIdx--)
         {
             var layer = Document.Layers[layerIdx];
             var shape = layer.Shape;
             var result = shape.HitTest(localMousePos);
 
-            // Anchor/segment selection does NOT switch active layer
             if (result.AnchorIndex != ushort.MaxValue)
             {
                 _shapeEditor.SelectAnchor(shape, result.AnchorIndex, shift);
@@ -450,8 +445,15 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
                 _shapeEditor.SelectSegment(shape, result.SegmentIndex, shift);
                 return;
             }
+        }
 
-            // Path selection switches active layer
+        // Second pass: check for path containment (selects layer)
+        for (int layerIdx = Document.Layers.Count - 1; layerIdx >= 0; layerIdx--)
+        {
+            var layer = Document.Layers[layerIdx];
+            var shape = layer.Shape;
+            var result = shape.HitTest(localMousePos);
+
             if (result.PathIndex != ushort.MaxValue)
             {
                 Document.ActiveLayerIndex = layerIdx;
@@ -505,6 +507,13 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
     }
 
     void IShapeEditorHost.InvalidateMesh() => _meshVersion = -1;
+
+    private static string GenerateRandomSeed()
+    {
+        var adj = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.adj);
+        var noun = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.noun);
+        return $"{adj}-{noun}";
+    }
 
     Shape? IShapeEditorHost.GetShapeWithSelection()
     {

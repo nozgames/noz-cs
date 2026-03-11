@@ -10,7 +10,7 @@ public class GenSpriteLayer : IDisposable
     public readonly Shape Shape = new();
     public string Prompt = "";
     public string NegativePrompt = "";
-    public long Seed;
+    public string Seed = "";
     public bool CombineMasks;
     public int Index;
 

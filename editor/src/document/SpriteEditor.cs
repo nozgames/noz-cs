@@ -863,7 +863,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         var shift = Input.IsShiftDown(InputScope.All);
         var layers = Document.Layers;
 
-        // Hit test all visible/unlocked layers from top to bottom (highest index = on top)
+        // First pass: check all layers for anchor/segment hits (priority over path containment)
         for (int layerIdx = layers.Count - 1; layerIdx >= 0; layerIdx--)
         {
             var layer = layers[layerIdx];
@@ -877,10 +877,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
             Span<ushort> anchorHits = stackalloc ushort[hitCount];
             Span<ushort> segmentHits = stackalloc ushort[hitCount];
-            Span<ushort> pathHits = stackalloc ushort[Shape.MaxPaths];
             var anchorCount = 0;
             var segmentCount = 0;
-            var pathCount = shape.GetPathsContainingPoint(localMousePos, pathHits);
 
             for (var i = 0; i < hitCount; i++)
             {
@@ -890,17 +888,12 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                     segmentHits[segmentCount++] = hits[i].SegmentIndex;
             }
 
-            if (anchorCount == 0 && segmentCount == 0 && pathCount == 0)
+            if (anchorCount == 0 && segmentCount == 0)
                 continue;
 
-            // Sort by path index descending (higher path index = drawn on top)
             SortByPathIndexDescending(shape, anchorHits[..anchorCount]);
             SortByPathIndexDescending(shape, segmentHits[..segmentCount]);
-            pathHits[..pathCount].Reverse();
 
-            // Priority: anchors > segments > paths
-            // Anchor/segment selection does NOT switch active layer.
-            // Path selection switches active layer.
             if (anchorCount > 0)
             {
                 if (shift)
@@ -911,7 +904,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                     _shapeEditor.SelectAnchor(shape, anchorHits[nextIdx], toggle: false);
                 }
             }
-            else if (segmentCount > 0)
+            else
             {
                 if (shift)
                     ShiftSelectNextSegment(shape, segmentHits[..segmentCount]);
@@ -921,17 +914,36 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                     _shapeEditor.SelectSegment(shape, segmentHits[nextIdx], toggle: false);
                 }
             }
-            else if (pathCount > 0)
-            {
-                Document.ActiveLayerIndex = layerIdx;
 
-                if (shift)
-                    ShiftSelectNext(pathHits[..pathCount], shape.IsPathSelected, i => shape.SetPathSelected(i, true), i => shape.SetPathSelected(i, false));
-                else
-                {
-                    var nextIdx = FindNextInCycle(pathHits[..pathCount], shape.IsPathSelected);
-                    _shapeEditor.SelectPath(shape, pathHits[nextIdx], toggle: false);
-                }
+            _shapeEditor.UpdateSelection();
+            return;
+        }
+
+        // Second pass: check for path containment (selects layer)
+        for (int layerIdx = layers.Count - 1; layerIdx >= 0; layerIdx--)
+        {
+            var layer = layers[layerIdx];
+            if (!layer.Visible || layer.Locked) continue;
+
+            var frameIdx = Document.GetLayerFrameAtTimeSlot(layerIdx, _currentTimeSlot);
+            var shape = layer.Frames[frameIdx].Shape;
+
+            Span<ushort> pathHits = stackalloc ushort[Shape.MaxPaths];
+            var pathCount = shape.GetPathsContainingPoint(localMousePos, pathHits);
+
+            if (pathCount == 0)
+                continue;
+
+            pathHits[..pathCount].Reverse();
+
+            Document.ActiveLayerIndex = layerIdx;
+
+            if (shift)
+                ShiftSelectNext(pathHits[..pathCount], shape.IsPathSelected, i => shape.SetPathSelected(i, true), i => shape.SetPathSelected(i, false));
+            else
+            {
+                var nextIdx = FindNextInCycle(pathHits[..pathCount], shape.IsPathSelected);
+                _shapeEditor.SelectPath(shape, pathHits[nextIdx], toggle: false);
             }
 
             _shapeEditor.UpdateSelection();

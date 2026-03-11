@@ -3,6 +3,7 @@
 //
 
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Numerics;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -32,6 +33,16 @@ public partial class GenSpriteDocument : Document, IShapeDocument
 
     public bool HasGeneration => _layers.Any(l => l.HasPrompt);
     public bool IsGenerating => Generation.IsGenerating;
+
+    private static long HashSeed(string seed)
+    {
+        if (string.IsNullOrEmpty(seed))
+            return 0;
+
+        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed));
+        var hash = BitConverter.ToInt64(bytes, 0);
+        return (hash & 0x7FFFFFFFFFFFFFFF) | 1; // Ensure positive and non-zero
+    }
 
     public static void RegisterDef()
     {
@@ -174,7 +185,12 @@ public partial class GenSpriteDocument : Document, IShapeDocument
             else if (tk.ExpectIdentifier("prompt_neg"))
                 layer.NegativePrompt = tk.ExpectQuotedString() ?? "";
             else if (tk.ExpectIdentifier("seed"))
-                layer.Seed = tk.ExpectInt();
+            {
+                if (tk.ExpectQuotedString(out var seedStr))
+                    layer.Seed = seedStr;
+                else
+                    layer.Seed = tk.ExpectInt().ToString();
+            }
             else if (tk.ExpectIdentifier("combine"))
                 layer.CombineMasks = tk.ExpectBool();
             // Backward compat: consume old fields
@@ -246,7 +262,8 @@ public partial class GenSpriteDocument : Document, IShapeDocument
             writer.WriteLine($"prompt \"{layer.Prompt.Replace("\"", "\\\"")}\"");
         if (!string.IsNullOrEmpty(layer.NegativePrompt))
             writer.WriteLine($"prompt_neg \"{layer.NegativePrompt.Replace("\"", "\\\"")}\"");
-        writer.WriteLine(string.Format(CultureInfo.InvariantCulture, "seed {0}", layer.Seed));
+        if (!string.IsNullOrEmpty(layer.Seed))
+            writer.WriteLine($"seed \"{layer.Seed}\"");
         if (layer.CombineMasks)
             writer.WriteLine("combine true");
     }
@@ -534,11 +551,12 @@ public partial class GenSpriteDocument : Document, IShapeDocument
             if (!string.IsNullOrEmpty(globalNegPrompt))
                 negPrompt = string.IsNullOrEmpty(negPrompt) ? globalNegPrompt : $"{negPrompt}, {globalNegPrompt}";
 
-            var seed = layer.Seed == 0 ? Random.Shared.NextInt64(1, long.MaxValue) : layer.Seed;
+            var hashedSeed = HashSeed(layer.Seed);
+            var seed = hashedSeed == 0 ? Random.Shared.NextInt64(1, long.MaxValue) : hashedSeed;
 
             shapes.Add(new GenerationShape
             {
-                Mask = maskBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(maskBytes)}" : null,
+                Image = maskBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(maskBytes)}" : null,
                 Prompt = prompt,
                 NegativePrompt = string.IsNullOrEmpty(negPrompt) ? null : negPrompt,
                 Strength = layerStrength,
@@ -553,10 +571,10 @@ public partial class GenSpriteDocument : Document, IShapeDocument
                 layerNegPrompts.Add(layer.NegativePrompt);
         }
 
-        // Compute a stable refine seed from the sum of all layer seeds
+        // Compute a stable refine seed from the sum of all shape seeds
         long refineSeed = 0;
-        foreach (var shape in shapes)
-            refineSeed += shape.Seed ?? 0;
+        foreach (var s in shapes)
+            refineSeed += s.Seed ?? 0;
 
         // Auto-build refine: concatenate layer prompts + style refine prompt
         var refinePromptParts = new List<string>(layerPrompts);
@@ -595,7 +613,7 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         var request = new GenerationRequest
         {
             Server = server,
-            Shapes = shapes,
+            Layers = shapes,
             Detail = Style?.Detail ?? 1f,
             Refine = new GenerationRefine
             {
@@ -685,8 +703,8 @@ public partial class GenSpriteDocument : Document, IShapeDocument
                         {
                             foreach (var (_, layer) in genLayers)
                             {
-                                if (layer.Seed == 0)
-                                    layer.Seed = status.Result.Seed;
+                                if (string.IsNullOrEmpty(layer.Seed))
+                                    layer.Seed = status.Result.Seed.ToString();
                             }
                         }
 
