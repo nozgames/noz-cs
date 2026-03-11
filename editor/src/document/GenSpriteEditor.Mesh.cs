@@ -1,8 +1,8 @@
 //
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
-//  Mesh preview for generated sprites: tessellates mask shapes as white
-//  regions and composites the generated image underneath.
+//  Mesh preview for generated sprites: tessellates mask shapes with
+//  per-path fill/stroke colors and composites the generated image.
 //
 
 using Clipper2Lib;
@@ -20,29 +20,50 @@ public partial class GenSpriteEditor
     private readonly ushort[] _meshIndices = new ushort[MaxMeshIndices];
     private int _meshVersion = -1;
 
-    private int _meshVertexCount;
-    private int _meshIndexCount;
+    private struct MeshSlotData
+    {
+        public int VertexOffset;
+        public int VertexCount;
+        public int IndexOffset;
+        public int IndexCount;
+        public Color FillColor;
+    }
+
+    private readonly List<MeshSlotData> _meshSlots = new();
 
     private void UpdateMesh()
     {
         if (_meshVersion == Document.Version) return;
         _meshVersion = Document.Version;
+        _meshSlots.Clear();
 
         var vertexOffset = 0;
         var indexOffset = 0;
 
-        // Tessellate all layers' mask shapes as white
         foreach (var layer in Document.Layers)
         {
             var shape = layer.Shape;
 
-            var positivePaths = new PathsD();
+            // Collect subtract paths
             var negativePaths = new PathsD();
-
             for (ushort pi = 0; pi < shape.PathCount; pi++)
             {
                 ref readonly var path = ref shape.GetPath(pi);
-                if (path.AnchorCount < 3) continue;
+                if (!path.IsSubtract || path.AnchorCount < 3) continue;
+
+                var subShape = new Msdf.Shape();
+                ShapeClipper.AppendContour(subShape, shape, pi);
+                subShape = ShapeClipper.Union(subShape);
+                var contours = ShapeClipper.ShapeToPaths(subShape, 8);
+                if (contours.Count > 0)
+                    negativePaths.AddRange(contours);
+            }
+
+            // Tessellate each normal/clip path with its own fill/stroke color
+            for (ushort pi = 0; pi < shape.PathCount; pi++)
+            {
+                ref readonly var path = ref shape.GetPath(pi);
+                if (path.IsSubtract || path.AnchorCount < 3) continue;
 
                 var pathShape = new Msdf.Shape();
                 ShapeClipper.AppendContour(pathShape, shape, pi);
@@ -50,34 +71,59 @@ public partial class GenSpriteEditor
                 var contours = ShapeClipper.ShapeToPaths(pathShape, 8);
                 if (contours.Count == 0) continue;
 
-                if (path.IsSubtract)
-                    negativePaths.AddRange(contours);
-                else
-                    positivePaths.AddRange(contours);
-            }
+                // Apply subtract paths
+                if (negativePaths.Count > 0)
+                {
+                    contours = Clipper.BooleanOp(ClipType.Difference,
+                        contours, negativePaths, FillRule.NonZero, precision: 6);
+                    if (contours.Count == 0) continue;
+                }
 
-            if (positivePaths.Count == 0) continue;
+                var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
+                var fillColor = path.FillColor;
+                var hasFill = fillColor.A > 0;
 
-            PathsD maskPaths;
-            if (negativePaths.Count > 0)
-            {
-                maskPaths = Clipper.BooleanOp(ClipType.Difference,
-                    positivePaths, negativePaths, FillRule.NonZero, precision: 6);
-            }
-            else
-            {
-                maskPaths = positivePaths;
-            }
+                if (hasStroke)
+                {
+                    var strokeColor = path.StrokeColor.ToColor();
+                    var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                    PathsD? contractedPaths = null;
+                    if (contours.Count > 0)
+                    {
+                        contractedPaths = Clipper.InflatePaths(contours, -halfStroke,
+                            JoinType.Round, EndType.Polygon, precision: 6);
+                    }
 
-            if (maskPaths.Count > 0)
-                TessellatePaths(maskPaths, ref vertexOffset, ref indexOffset);
+                    if (hasFill)
+                    {
+                        TessellateClipper(contours, ref vertexOffset, ref indexOffset, strokeColor);
+                        if (contractedPaths is { Count: > 0 })
+                            TessellateClipper(contractedPaths, ref vertexOffset, ref indexOffset, fillColor.ToColor());
+                    }
+                    else
+                    {
+                        if (contractedPaths is { Count: > 0 })
+                        {
+                            var strokeRing = Clipper.BooleanOp(ClipType.Difference,
+                                contours, contractedPaths, FillRule.NonZero, precision: 6);
+                            if (strokeRing.Count > 0)
+                                TessellateClipper(strokeRing, ref vertexOffset, ref indexOffset, strokeColor);
+                        }
+                        else
+                        {
+                            TessellateClipper(contours, ref vertexOffset, ref indexOffset, strokeColor);
+                        }
+                    }
+                }
+                else if (hasFill)
+                {
+                    TessellateClipper(contours, ref vertexOffset, ref indexOffset, fillColor.ToColor());
+                }
+            }
         }
-
-        _meshVertexCount = vertexOffset;
-        _meshIndexCount = indexOffset;
     }
 
-    private void TessellatePaths(PathsD paths, ref int vertexOffset, ref int indexOffset)
+    private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color)
     {
         var tess = new Tess();
         foreach (var path in paths)
@@ -91,14 +137,14 @@ public partial class GenSpriteEditor
 
         tess.Tessellate(WindingRule.NonZero, LibTessDotNet.ElementType.Polygons, 3);
 
-        if (tess.ElementCount == 0) return;
+        if (tess.ElementCount == 0) return false;
 
         var vertCount = tess.VertexCount;
         var idxCount = tess.ElementCount * 3;
 
         if (vertexOffset + vertCount > MaxMeshVertices ||
             indexOffset + idxCount > MaxMeshIndices)
-            return;
+            return false;
 
         for (int v = 0; v < vertCount; v++)
         {
@@ -109,34 +155,48 @@ public partial class GenSpriteEditor
 
         for (int e = 0; e < tess.ElementCount; e++)
         {
-            _meshIndices[indexOffset + e * 3 + 0] = (ushort)(tess.Elements[e * 3 + 0] + vertexOffset);
-            _meshIndices[indexOffset + e * 3 + 1] = (ushort)(tess.Elements[e * 3 + 1] + vertexOffset);
-            _meshIndices[indexOffset + e * 3 + 2] = (ushort)(tess.Elements[e * 3 + 2] + vertexOffset);
+            _meshIndices[indexOffset + e * 3 + 0] = (ushort)tess.Elements[e * 3 + 0];
+            _meshIndices[indexOffset + e * 3 + 1] = (ushort)tess.Elements[e * 3 + 1];
+            _meshIndices[indexOffset + e * 3 + 2] = (ushort)tess.Elements[e * 3 + 2];
         }
+
+        _meshSlots.Add(new MeshSlotData
+        {
+            VertexOffset = vertexOffset,
+            VertexCount = vertCount,
+            IndexOffset = indexOffset,
+            IndexCount = idxCount,
+            FillColor = color,
+        });
 
         vertexOffset += vertCount;
         indexOffset += idxCount;
+        return true;
     }
 
-    private void DrawMaskMesh()
+    private void DrawColoredMesh(int sortGroup)
     {
-        if (_meshVertexCount == 0) return;
+        if (_meshSlots.Count == 0) return;
 
         using (Graphics.PushState())
         {
-            Graphics.SetSortGroup(3);
+            Graphics.SetSortGroup(sortGroup);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
             Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(Graphics.WhiteTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetColor(new Color(1f, 1f, 1f, 0.3f * Workspace.XrayAlpha));
-            Graphics.Draw(
-                _meshVertices.AsSpan(0, _meshVertexCount),
-                _meshIndices.AsSpan(0, _meshIndexCount));
+
+            foreach (var slot in _meshSlots)
+            {
+                Graphics.SetColor(slot.FillColor);
+                Graphics.Draw(
+                    _meshVertices.AsSpan(slot.VertexOffset, slot.VertexCount),
+                    _meshIndices.AsSpan(slot.IndexOffset, slot.IndexCount));
+            }
         }
     }
 
-    private void DrawGeneratedImage()
+    private void DrawGeneratedImage(int sortGroup, float alpha)
     {
         var texture = Document.Generation.Texture;
         if (texture == null) return;
@@ -152,12 +212,12 @@ public partial class GenSpriteEditor
 
         using (Graphics.PushState())
         {
-            Graphics.SetSortGroup(2);
+            Graphics.SetSortGroup(sortGroup);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
             Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
+            Graphics.SetColor(Color.White.WithAlpha(alpha));
             Graphics.Draw(rect);
         }
     }

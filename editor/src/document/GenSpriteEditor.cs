@@ -27,6 +27,8 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId PathNormal { get; }
         public static partial WidgetId PathSubtract { get; }
         public static partial WidgetId PathClip { get; }
+        public static partial WidgetId FillColor { get; }
+        public static partial WidgetId StrokeColor { get; }
         public static partial WidgetId AddComponentButton { get; }
         public static partial WidgetId AddComponentPopup { get; }
         public static partial WidgetId CancelButton { get; }
@@ -66,15 +68,16 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
-            Graphics.SetSortGroup(5);
+            Graphics.SetSortGroup(6);
             Document.DrawOrigin();
-            Graphics.SetSortGroup(4);
+            Graphics.SetSortGroup(5);
             DrawAllLayerWireframes();
         }
 
         UpdateMesh();
-        DrawMaskMesh();
-        DrawGeneratedImage();
+        DrawGeneratedImage(sortGroup: 1, alpha: 1f);
+        DrawColoredMesh(sortGroup: 2);
+        DrawGeneratedImage(sortGroup: 3, alpha: 0.3f);
     }
 
     public override void LateUpdate()
@@ -381,6 +384,40 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
                 }
             }
         }
+
+        using (Inspector.BeginSection("FILL"))
+        {
+            if (!Inspector.IsSectionCollapsed)
+            {
+                using (Inspector.BeginRow())
+                {
+                    using var __ = UI.BeginFlex();
+                    var fillColor = Document.CurrentFillColor;
+                    if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor, EditorStyle.Inspector.ColorButton))
+                    {
+                        UI.HandleChange(Document);
+                        SetFillColor(fillColor);
+                    }
+                }
+            }
+        }
+
+        using (Inspector.BeginSection("STROKE"))
+        {
+            if (!Inspector.IsSectionCollapsed)
+            {
+                using (Inspector.BeginRow())
+                {
+                    using var __ = UI.BeginFlex();
+                    var strokeColor = Document.CurrentStrokeColor;
+                    if (EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor, EditorStyle.Inspector.ColorButton))
+                    {
+                        UI.HandleChange(Document);
+                        SetStrokeColor(strokeColor);
+                    }
+                }
+            }
+        }
     }
 
     private void PathToggle(WidgetId id, Sprite icon, string label, bool isChecked, PathOperation op)
@@ -414,6 +451,34 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
 
             if (UI.WasPressed())
                 _shapeEditor.SetPathOperation(op);
+        }
+    }
+
+    private void SetFillColor(Color32 color)
+    {
+        Document.CurrentFillColor = color;
+
+        var shape = CurrentShape;
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+            shape.SetPathFillColor(p, color);
+            _meshVersion = -1;
+        }
+    }
+
+    private void SetStrokeColor(Color32 color)
+    {
+        Document.CurrentStrokeColor = color;
+
+        var shape = CurrentShape;
+        for (ushort p = 0; p < shape.PathCount; p++)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+            shape.SetPathStroke(p, color, path.StrokeWidth);
+            _meshVersion = -1;
         }
     }
 
@@ -495,10 +560,26 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
 
     Document IShapeEditorHost.Document => base.Document;
     Shape IShapeEditorHost.CurrentShape => CurrentShape;
-    Color32 IShapeEditorHost.NewPathFillColor => Color32.White;
+    Color32 IShapeEditorHost.NewPathFillColor => Document.CurrentFillColor;
     PathOperation IShapeEditorHost.NewPathOperation => PathOperation.Normal;
     bool IShapeEditorHost.SnapToPixelGrid => false;
-    void IShapeEditorHost.OnSelectionChanged(bool hasSelection) { }
+
+    void IShapeEditorHost.OnSelectionChanged(bool hasSelection)
+    {
+        foreach (var layer in Document.Layers)
+        {
+            var shape = layer.Shape;
+            for (ushort p = (ushort)(shape.PathCount - 1); p < shape.PathCount; p--)
+            {
+                ref readonly var path = ref shape.GetPath(p);
+                if (!path.IsSelected) continue;
+
+                Document.CurrentFillColor = path.FillColor;
+                Document.CurrentStrokeColor = path.StrokeColor;
+                return;
+            }
+        }
+    }
 
     void IShapeEditorHost.ClearAllSelections()
     {

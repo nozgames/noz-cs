@@ -25,6 +25,7 @@ public partial class GenStyleEditor : DocumentEditor
         public static partial WidgetId Detail { get; }
         public static partial WidgetId StyleRefDelete { get; }
         public static partial WidgetId AddStyleRefDropDown { get; }
+        public static partial WidgetId WorkflowDropDown { get; }
     }
 
     public new GenStyleDocument Document => (GenStyleDocument)base.Document;
@@ -180,6 +181,25 @@ public partial class GenStyleEditor : DocumentEditor
     {
         using var _ = Inspector.BeginSection("STYLE");
         if (Inspector.IsSectionCollapsed) return;
+
+        // Workflow
+        using (Inspector.BeginRow())
+        using (UI.BeginFlex())
+        {
+            var workflows = Enum.GetValues<GenerationWorkflow>();
+            UI.DropDown(WidgetIds.WorkflowDropDown, () =>
+            {
+                var items = new List<PopupMenuItem>();
+                foreach (var wf in workflows)
+                    items.Add(PopupMenuItem.Item(wf.ToString(), () =>
+                    {
+                        Undo.Record(Document);
+                        Document.Workflow = wf;
+                        Document.IncrementVersion();
+                    }));
+                return items.ToArray();
+            }, Document.Workflow.ToString(), icon: EditorAssets.Sprites.IconAi);
+        }
 
         // LoRA
         var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";

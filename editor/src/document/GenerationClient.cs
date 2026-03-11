@@ -83,6 +83,12 @@ public class GenerationResponse
     public int Height { get; set; }
 }
 
+public enum GenerationWorkflow
+{
+    Sprite,
+    SpriteV2,
+}
+
 public enum GenerationState
 {
     Queued,
@@ -289,6 +295,8 @@ public static class GenerationClient
 
     private static List<LoraInfo>? _cachedLoras;
     private static string? _cachedLorasServer;
+    private static bool _fetchingLoras;
+    private static double _loraRetryTime;
 
     public static List<LoraInfo>? CachedLoras => _cachedLoras;
 
@@ -297,7 +305,14 @@ public static class GenerationClient
         if (_cachedLorasServer == server && _cachedLoras != null)
             return;
 
+        if (_fetchingLoras)
+            return;
+
+        if (_cachedLorasServer == server && Time.TotalTime < _loraRetryTime)
+            return;
+
         _cachedLorasServer = server;
+        _fetchingLoras = true;
         Task.Run(async () =>
         {
             try
@@ -306,16 +321,30 @@ public static class GenerationClient
                 if (!response.IsSuccessStatusCode)
                 {
                     Log.Warning($"Failed to fetch LoRAs: {response.StatusCode}");
+                    EditorApplication.RunOnMainThread(() =>
+                    {
+                        _fetchingLoras = false;
+                        _loraRetryTime = Time.TotalTime + 5.0;
+                    });
                     return;
                 }
 
                 var json = await response.Content.ReadAsStringAsync();
                 var loras = JsonSerializer.Deserialize<List<LoraInfo>>(json, _jsonOptions);
-                EditorApplication.RunOnMainThread(() => _cachedLoras = loras ?? []);
+                EditorApplication.RunOnMainThread(() =>
+                {
+                    _cachedLoras = loras ?? [];
+                    _fetchingLoras = false;
+                });
             }
             catch (Exception ex)
             {
                 Log.Warning($"Failed to fetch LoRAs: {ex.Message}");
+                EditorApplication.RunOnMainThread(() =>
+                {
+                    _fetchingLoras = false;
+                    _loraRetryTime = Time.TotalTime + 5.0;
+                });
             }
         });
     }

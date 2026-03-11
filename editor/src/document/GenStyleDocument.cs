@@ -60,6 +60,9 @@ public class GenStyleDocument : Document
     public float RefineGuidanceScale = 6.0f;
     public float StyleStrength = 0.5f;
 
+    // Workflow
+    public GenerationWorkflow Workflow = GenerationWorkflow.Sprite;
+
     // LoRA
     public string? LoraName;
     public float LoraStrength = 0.8f;
@@ -111,6 +114,12 @@ public class GenStyleDocument : Document
                 ParseLayer(ref tk);
             else if (tk.ExpectIdentifier("refine"))
                 ParseRefine(ref tk);
+            else if (tk.ExpectIdentifier("workflow"))
+            {
+                var wf = tk.ExpectQuotedString() ?? "sprite";
+                Workflow = Enum.TryParse<GenerationWorkflow>(wf, ignoreCase: true, out var parsed)
+                    ? parsed : GenerationWorkflow.Sprite;
+            }
             else if (tk.ExpectIdentifier("detail"))
                 Detail = tk.ExpectFloat(1.0f);
             else if (tk.ExpectIdentifier("lora"))
@@ -199,6 +208,10 @@ public class GenStyleDocument : Document
 
     public override void Save(StreamWriter writer)
     {
+        // Workflow
+        writer.WriteLine($"workflow \"{Workflow.ToString().ToLowerInvariant()}\"");
+        writer.WriteLine();
+
         // Layer section
         writer.WriteLine("layer");
         if (!string.IsNullOrEmpty(Prompt))

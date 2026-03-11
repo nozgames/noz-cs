@@ -26,6 +26,8 @@ public partial class GenSpriteDocument : Document, IShapeDocument
     public string? StyleName;
     public GenStyleDocument? Style;
     public int ActiveLayerIndex;
+    public Color32 CurrentFillColor = Color32.White;
+    public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
 
     public IReadOnlyList<GenSpriteLayer> Layers => _layers;
     public GenSpriteLayer ActiveLayer => _layers[ActiveLayerIndex];
@@ -41,7 +43,7 @@ public partial class GenSpriteDocument : Document, IShapeDocument
 
         var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed));
         var hash = BitConverter.ToInt64(bytes, 0);
-        return (hash & 0x7FFFFFFFFFFFFFFF) | 1; // Ensure positive and non-zero
+        return (hash & 0x3FFFFFFFFFFFF) | 1; // 50-bit max for JS safety, positive and non-zero
     }
 
     public static void RegisterDef()
@@ -147,11 +149,25 @@ public partial class GenSpriteDocument : Document, IShapeDocument
     private static void ParsePath(Shape shape, ref Tokenizer tk)
     {
         var pathIndex = shape.AddPath(Color32.White);
+        var fillColor = Color32.White;
+        var strokeColor = new Color32(0, 0, 0, 0);
+        var strokeWidth = 0;
         var operation = PathOperation.Normal;
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("subtract"))
+            if (tk.ExpectIdentifier("fill"))
+            {
+                if (tk.ExpectColor(out var color))
+                    fillColor = color.ToColor32();
+            }
+            else if (tk.ExpectIdentifier("stroke"))
+            {
+                if (tk.ExpectColor(out var color))
+                    strokeColor = color.ToColor32();
+                strokeWidth = tk.ExpectInt(strokeWidth);
+            }
+            else if (tk.ExpectIdentifier("subtract"))
             {
                 if (tk.ExpectBool())
                     operation = PathOperation.Subtract;
@@ -172,6 +188,9 @@ public partial class GenSpriteDocument : Document, IShapeDocument
                 break;
         }
 
+        shape.SetPathFillColor(pathIndex, fillColor);
+        if (strokeColor.A > 0)
+            shape.SetPathStroke(pathIndex, strokeColor, (byte)strokeWidth);
         if (operation != PathOperation.Normal)
             shape.SetPathOperation(pathIndex, operation);
     }
@@ -279,6 +298,9 @@ public partial class GenSpriteDocument : Document, IShapeDocument
                 writer.WriteLine("subtract true");
             if (path.IsClip)
                 writer.WriteLine("clip true");
+            writer.WriteLine($"fill {FormatColor(path.FillColor)}");
+            if (path.StrokeColor.A > 0)
+                writer.WriteLine($"stroke {FormatColor(path.StrokeColor)} {path.StrokeWidth}");
 
             for (ushort aIdx = 0; aIdx < path.AnchorCount; aIdx++)
             {
@@ -291,6 +313,13 @@ public partial class GenSpriteDocument : Document, IShapeDocument
 
             writer.WriteLine();
         }
+    }
+
+    private static string FormatColor(Color32 c)
+    {
+        if (c.A < 255)
+            return $"rgba({c.R},{c.G},{c.B},{c.A / 255f:G})";
+        return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
     }
 
     #endregion
@@ -430,20 +459,23 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         }
     }
 
+    private const int RasterizeSize = 1024;
+
     private byte[] RasterizeMaskToPng(int targetLayerIndex, bool combineMasks = false)
     {
         UpdateBounds();
-        var dpi = EditorApplication.Config.PixelsPerUnit;
         var cs = ConstrainedSize;
-        var w = cs.X;
-        var h = cs.Y;
-        if (w <= 0 || h <= 0)
+        if (cs.X <= 0 || cs.Y <= 0)
             return [];
+
+        var w = RasterizeSize;
+        var h = RasterizeSize;
+        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
 
         using var pixels = new PixelData<Color32>(w, h);
         pixels.Clear(new Color32(0, 0, 0, 255));
         var targetRect = new RectInt(0, 0, w, h);
-        var sourceOffset = new Vector2Int(cs.X / 2, cs.Y / 2);
+        var sourceOffset = new Vector2Int(w / 2, h / 2);
         var white = new Color32(255, 255, 255, 255);
 
         var positivePaths = new Clipper2Lib.PathsD();
@@ -514,6 +546,132 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         return pngBytes;
     }
 
+    private byte[] RasterizeColorLayerToPng(int targetLayerIndex, bool combineMasks = false)
+    {
+        UpdateBounds();
+        var cs = ConstrainedSize;
+        if (cs.X <= 0 || cs.Y <= 0)
+            return [];
+
+        var w = RasterizeSize;
+        var h = RasterizeSize;
+        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
+
+        using var pixels = new PixelData<Color32>(w, h);
+        pixels.Clear(new Color32(255, 255, 255, 255));
+        var targetRect = new RectInt(0, 0, w, h);
+        var sourceOffset = new Vector2Int(w / 2, h / 2);
+
+        var startLayer = combineMasks ? 0 : targetLayerIndex;
+        var endLayer = combineMasks ? _layers.Count - 1 : targetLayerIndex;
+        for (int li = startLayer; li <= endLayer; li++)
+        {
+            var shape = _layers[li].Shape;
+
+            // Collect subtract paths for this layer
+            var negativePaths = new Clipper2Lib.PathsD();
+            for (ushort pi = 0; pi < shape.PathCount; pi++)
+            {
+                ref readonly var path = ref shape.GetPath(pi);
+                if (!path.IsSubtract || path.AnchorCount < 3) continue;
+
+                var subShape = new Msdf.Shape();
+                Msdf.ShapeClipper.AppendContour(subShape, shape, pi);
+                subShape = Msdf.ShapeClipper.Union(subShape);
+                var contours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
+                if (contours.Count > 0)
+                    negativePaths.AddRange(contours);
+            }
+
+            // Render each normal/clip path with its fill and stroke colors
+            for (ushort pi = 0; pi < shape.PathCount; pi++)
+            {
+                ref readonly var path = ref shape.GetPath(pi);
+                if (path.IsSubtract || path.AnchorCount < 3) continue;
+
+                var pathShape = new Msdf.Shape();
+                Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
+                pathShape = Msdf.ShapeClipper.Union(pathShape);
+                var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
+                if (contours.Count == 0) continue;
+
+                // Apply subtract paths
+                if (negativePaths.Count > 0)
+                {
+                    contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                        contours, negativePaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                    if (contours.Count == 0) continue;
+                }
+
+                var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
+                var fillColor = path.FillColor;
+                var hasFill = fillColor.A > 0;
+
+                if (hasStroke)
+                {
+                    var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                    Clipper2Lib.PathsD? contractedPaths = null;
+                    if (contours.Count > 0)
+                    {
+                        contractedPaths = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
+                            Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
+                    }
+
+                    if (hasFill)
+                    {
+                        // Stroke as outer ring, fill as inner
+                        Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                        if (contractedPaths is { Count: > 0 })
+                            Rasterizer.Fill(contractedPaths, pixels, targetRect, sourceOffset, dpi, fillColor);
+                    }
+                    else
+                    {
+                        // Stroke ring only
+                        if (contractedPaths is { Count: > 0 })
+                        {
+                            var strokeRing = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                                contours, contractedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                            if (strokeRing.Count > 0)
+                                Rasterizer.Fill(strokeRing, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                        }
+                        else
+                        {
+                            Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                        }
+                    }
+                }
+                else if (hasFill)
+                {
+                    Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, fillColor);
+                }
+            }
+        }
+
+        using var img = new Image<Rgba32>(w, h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var c = pixels[x, y];
+                img[x, y] = new Rgba32(c.R, c.G, c.B, 255);
+            }
+        }
+
+        using var ms = new MemoryStream();
+        img.SaveAsPng(ms);
+        var pngBytes = ms.ToArray();
+
+        try
+        {
+            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+            Directory.CreateDirectory(tmpDir);
+            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_color_L{targetLayerIndex}.png"), pngBytes);
+        }
+        catch { }
+
+        return pngBytes;
+    }
+
     public void GenerateAsync()
     {
         var genLayers = new List<(int Index, GenSpriteLayer Layer)>();
@@ -542,9 +700,13 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         var layerPrompts = new List<string>();
         var layerNegPrompts = new List<string>();
 
+        var workflow = Style?.Workflow ?? GenerationWorkflow.Sprite;
+
         foreach (var (layerIndex, layer) in genLayers)
         {
-            var maskBytes = RasterizeMaskToPng(layerIndex, layer.CombineMasks);
+            var maskBytes = workflow == GenerationWorkflow.SpriteV2
+                ? RasterizeColorLayerToPng(layerIndex, layer.CombineMasks)
+                : RasterizeMaskToPng(layerIndex, layer.CombineMasks);
 
             var prompt = string.IsNullOrEmpty(globalPrompt) ? layer.Prompt : $"{layer.Prompt}, {globalPrompt}";
             var negPrompt = layer.NegativePrompt;
@@ -613,6 +775,7 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         var request = new GenerationRequest
         {
             Server = server,
+            Workflow = (Style?.Workflow ?? GenerationWorkflow.Sprite).ToString().ToLowerInvariant(),
             Layers = shapes,
             Detail = Style?.Detail ?? 1f,
             Refine = new GenerationRefine
@@ -782,6 +945,8 @@ public partial class GenSpriteDocument : Document, IShapeDocument
 
         ActiveLayerIndex = src.ActiveLayerIndex;
         ConstrainedSize = src.ConstrainedSize;
+        CurrentFillColor = src.CurrentFillColor;
+        CurrentStrokeColor = src.CurrentStrokeColor;
 
         if (src.Generation.HasImageData)
             Generation.ImageData = (byte[])src.Generation.ImageData!.Clone();
