@@ -293,15 +293,21 @@ public static partial class UI
         ElementTree.Begin(_size);
     }
 
-    internal static void End()
+    internal static void ProcessInput()
     {
-        var mouse = Camera!.ScreenToWorld(Input.MousePosition);
+        if (Camera == null) return;
+        var mouse = Camera.ScreenToWorld(Input.MousePosition);
         MouseWorldPosition = mouse;
         ElementTree.MouseWorldPosition = mouse;
+        ElementTree.HandleInput();
+        HandleInput();
+    }
+
+    internal static void End()
+    {
         ElementTree.End();
 
         Graphics.SetCamera(Camera);
-        HandleInput();
 
         ElementTree.Draw();
 
@@ -424,7 +430,7 @@ public static partial class UI
 
     public static void Scene(WidgetId id, Camera camera, Action draw, SceneStyle style = default)
     {
-        if (id != 0) ElementTree.BeginWidget(id);
+        if (id != 0) ElementTree.BeginWidget(id, interactive: false);
         ElementTree.Scene(camera, draw, style.Size, style.Color, style.SampleCount);
         if (id != 0) ElementTree.EndWidget();
     }

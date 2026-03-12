@@ -175,6 +175,7 @@ public static class Application
             _instance.FixedUpdate();
         Time.DeltaTime = savedDt;
 
+        UI.ProcessInput();
         _instance.Update();
         UI.Begin();
         _instance.UpdateUI();
@@ -243,6 +244,7 @@ public static class Application
         if (!Graphics.BeginFrame())
             return;
 
+        UI.ProcessInput();
         _instance.Update();
         UI.Begin();
         _instance.UpdateUI();

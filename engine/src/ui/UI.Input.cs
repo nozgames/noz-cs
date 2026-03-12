@@ -20,19 +20,11 @@ public static partial class UI
                 ClearHot();
         }
 
-        // Don't consume mouse buttons when hovering over a Scene element (pass-through),
-        // but still consume when popups are open or scrollbar is being used.
-        var popupCount = ElementTree.ActivePopupCount;
-        if (!ElementTree.MouseOverScene || popupCount > 0)
+        if (ElementTree.ActivePopupCount > 0)
         {
-            if (popupCount > 0)
-                Input.ConsumeButton(InputCode.MouseLeft);
-
-            if (popupCount > 0)
-            {
-                Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
-                Input.ConsumeButton(InputCode.MouseRight);
-            }
+            Input.ConsumeButton(InputCode.MouseLeft);
+            Input.ConsumeButton(InputCode.MouseLeftDoubleClick);
+            Input.ConsumeButton(InputCode.MouseRight);
         }
     }
 }

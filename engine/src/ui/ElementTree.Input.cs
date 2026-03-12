@@ -124,11 +124,12 @@ public static unsafe partial class ElementTree
     private static Sprite? _savedCursorSprite;
     private static SystemCursor _savedSystemCursor;
 
-    private static void HandleInput()
+    internal static void HandleInput()
     {
+        if (_elements.Length < 2) return;
+
         _inputMousePressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
         _inputMouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
-        MouseOverScene = false;
 
         if (_captureId != 0 && !_inputMouseDown)
         {
@@ -138,7 +139,6 @@ public static unsafe partial class ElementTree
 
         _hoveredWidget = WidgetId.None;
         FindHoveredWidget(0);
-        HandleSceneInput(0);
         HandlePopupAutoClose();
         HandleInputElement(0);
         HandleScrollableInput();
@@ -294,27 +294,6 @@ public static unsafe partial class ElementTree
         }
     }
 
-    private static void HandleSceneInput(int offset)
-    {
-        ref var e = ref GetElement(offset);
-
-        if (e.Type == ElementType.Scene)
-        {
-            Matrix3x2.Invert(e.Transform, out var sceneInv);
-            var localMouse = Vector2.Transform(MouseWorldPosition, sceneInv);
-            if (e.Rect.Contains(localMouse))
-                MouseOverScene = true;
-        }
-
-        var childOffset = (int)e.FirstChild;
-        for (int i = 0; i < e.ChildCount; i++)
-        {
-            ref var child = ref GetElement(childOffset);
-            HandleSceneInput(childOffset);
-            childOffset = child.NextSibling;
-        }
-    }
-
     private static void FindHoveredWidget(int index)
     {
         ref var e = ref GetElement(index);
@@ -371,7 +350,7 @@ public static unsafe partial class ElementTree
         if (isHovered && _inputMousePressed && (_captureId == 0 || _captureId == d.Id))
         {
             state.Flags |= WidgetFlags.Pressed;
-            if (!MouseOverScene)
+            if (d.IsInteractive)
                 Input.ConsumeButton(InputCode.MouseLeft);
         }
 

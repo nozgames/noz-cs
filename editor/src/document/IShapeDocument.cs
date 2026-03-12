@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 /// <summary>
 /// Interface for documents that support shape editing tools (pen, knife, shape).
-/// Implemented by SpriteDocument and GenSpriteDocument.
+/// Implemented by SpriteDocument.
 /// </summary>
 public interface IShapeDocument
 {

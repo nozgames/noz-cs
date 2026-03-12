@@ -4,6 +4,7 @@
 
 using System.Globalization;
 using System.Numerics;
+using System.Security.Cryptography;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -65,6 +66,17 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
     public PathOperation CurrentOperation;
+
+    // Generation (optional — editor-only, stripped on Import)
+    public string Prompt = "";
+    public string NegativePrompt = "";
+    public string Seed = "";
+    public GenerationImage Generation { get; } = new();
+    public string? StyleName;
+    public GenStyleDocument? Style;
+
+    public bool HasGeneration => !string.IsNullOrEmpty(Prompt);
+    public bool IsGenerating => Generation.IsGenerating;
 
     public bool IsActiveLayerLocked => false;
 
@@ -133,6 +145,9 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
     {
         Edges = EdgeInsets.Zero;
         Binding.Clear();
+        Prompt = "";
+        NegativePrompt = "";
+        Seed = "";
 
         for (var fi = 0; fi < FrameCount; fi++)
             Frames[fi].Shape.Clear();
@@ -143,6 +158,8 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         Load(ref tk);
 
         Binding.Resolve();
+        if (HasGeneration)
+            LoadGeneratedTexture();
         UpdateBounds();
     }
 
@@ -152,63 +169,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("layer"))
-            {
-                // Backward compat: skip layer name and properties, parse contents into our frames
-                tk.ExpectQuotedString(); // layer name — discard
-                SkipLayerProperties(ref tk);
-
-                // Parse frames/paths within this layer block
-                while (!tk.IsEOF)
-                {
-                    if (tk.ExpectIdentifier("frame"))
-                    {
-                        var fi = FrameCount;
-                        if (fi >= Sprite.MaxFrames)
-                            break;
-
-                        if (fi > 0 || Frames[0].Shape.PathCount > 0)
-                            FrameCount = (ushort)(fi + 1);
-                        else
-                            FrameCount = 1;
-
-                        var f = Frames[FrameCount - 1];
-
-                        if (tk.ExpectIdentifier("hold"))
-                            f.Hold = tk.ExpectInt();
-
-                        while (!tk.IsEOF && tk.ExpectIdentifier("path"))
-                            ParsePath(f, ref tk);
-
-                        if (FrameCount == 0)
-                            FrameCount = 1;
-                    }
-                    else if (tk.ExpectIdentifier("image"))
-                    {
-                        // Legacy per-frame image — skip
-                        if (FrameCount == 0)
-                            FrameCount = 1;
-                        tk.ExpectQuotedString();
-                    }
-                    else if (tk.ExpectIdentifier("path"))
-                    {
-                        if (FrameCount == 0)
-                            FrameCount = 1;
-                        ParsePath(Frames[FrameCount - 1], ref tk);
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-
-                if (FrameCount == 0)
-                    FrameCount = 1;
-
-                // Only parse the first layer block — discard remaining layers
-                break;
-            }
-            else if (tk.ExpectIdentifier("frame"))
+            if (tk.ExpectIdentifier("frame"))
             {
                 var fi = FrameCount;
                 if (fi >= Sprite.MaxFrames)
@@ -245,29 +206,9 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             {
                 Binding.SkeletonName = StringId.Get(tk.ExpectQuotedString());
             }
-            else if (tk.ExpectIdentifier("palette"))
+            else if (tk.ExpectIdentifier("generate"))
             {
-                // Legacy: palette keyword is ignored
-                tk.ExpectQuotedString();
-            }
-            else if (tk.ExpectIdentifier("gen_image"))
-            {
-                // Legacy — skip
-                tk.ExpectQuotedString();
-            }
-            else if (tk.ExpectIdentifier("refine"))
-            {
-                // Legacy — skip generation config tokens
-                while (!tk.IsEOF)
-                {
-                    if (tk.ExpectIdentifier("prompt")) tk.ExpectQuotedString();
-                    else if (tk.ExpectIdentifier("prompt_neg")) tk.ExpectQuotedString();
-                    else if (tk.ExpectIdentifier("seed")) tk.ExpectInt();
-                    else if (tk.ExpectIdentifier("strength")) tk.ExpectFloat(0);
-                    else if (tk.ExpectIdentifier("steps")) tk.ExpectInt();
-                    else if (tk.ExpectIdentifier("guidance_scale")) tk.ExpectFloat(0);
-                    else break;
-                }
+                ParseGeneration(ref tk);
             }
             else
             {
@@ -281,33 +222,29 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             FrameCount = 1;
     }
 
-    private static void SkipLayerProperties(ref Tokenizer tk)
+    private void ParseGeneration(ref Tokenizer tk)
     {
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("sort"))
-                tk.ExpectInt();
-            else if (tk.ExpectIdentifier("generate"))
+            if (tk.ExpectIdentifier("prompt"))
+                Prompt = tk.ExpectQuotedString() ?? "";
+            else if (tk.ExpectIdentifier("prompt_neg"))
+                NegativePrompt = tk.ExpectQuotedString() ?? "";
+            else if (tk.ExpectIdentifier("seed"))
             {
-                while (!tk.IsEOF)
-                {
-                    if (tk.ExpectIdentifier("prompt")) tk.ExpectQuotedString();
-                    else if (tk.ExpectIdentifier("prompt_neg")) tk.ExpectQuotedString();
-                    else if (tk.ExpectIdentifier("seed")) tk.ExpectInt();
-                    else if (tk.ExpectIdentifier("strength")) tk.ExpectFloat(0);
-                    else if (tk.ExpectIdentifier("steps")) tk.ExpectInt();
-                    else if (tk.ExpectIdentifier("guidance_scale")) tk.ExpectFloat(0);
-                    else break;
-                }
+                if (tk.ExpectQuotedString(out var seedStr))
+                    Seed = seedStr;
+                else
+                    Seed = tk.ExpectInt().ToString();
             }
-            else if (tk.ExpectIdentifier("locked"))
-            { }
-            else if (tk.ExpectIdentifier("hidden"))
-            { }
-            else if (tk.ExpectIdentifier("bone"))
-                tk.ExpectQuotedString();
-            else if (tk.ExpectIdentifier("opacity"))
-                tk.ExpectFloat(1.0f);
+            else if (tk.ExpectIdentifier("style"))
+                StyleName = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("image"))
+            {
+                var base64 = tk.ExpectQuotedString();
+                if (!string.IsNullOrEmpty(base64))
+                    Generation.ImageData = Convert.FromBase64String(base64);
+            }
             else
                 break;
         }
@@ -522,6 +459,26 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             if (shape.PathCount > 0)
                 SaveFrame(shape, writer);
         }
+
+        // Generation config (editor-only)
+        if (HasGeneration)
+        {
+            writer.WriteLine("generate");
+            if (!string.IsNullOrEmpty(Prompt))
+                writer.WriteLine($"prompt \"{Prompt.Replace("\"", "\\\"")}\"");
+            if (!string.IsNullOrEmpty(NegativePrompt))
+                writer.WriteLine($"prompt_neg \"{NegativePrompt.Replace("\"", "\\\"")}\"");
+            if (!string.IsNullOrEmpty(Seed))
+                writer.WriteLine($"seed \"{Seed}\"");
+            if (!string.IsNullOrEmpty(StyleName))
+                writer.WriteLine($"style \"{StyleName}\"");
+
+            if (Generation.HasImageData)
+            {
+                writer.WriteLine();
+                writer.WriteLine($"image \"{Convert.ToBase64String(Generation.ImageData!)}\"");
+            }
+        }
     }
 
     private static void SaveFrame(Shape shape, StreamWriter writer)
@@ -563,6 +520,52 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
     public override void Draw()
     {
         DrawOrigin();
+
+        if (HasGeneration)
+        {
+            var texture = Generation.Texture;
+            if (texture != null)
+            {
+                var ppu = EditorApplication.Config.PixelsPerUnitInv;
+                var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+                var rect = new Rect(
+                    cs.X * ppu * -0.5f,
+                    cs.Y * ppu * -0.5f,
+                    cs.X * ppu,
+                    cs.Y * ppu);
+
+                using (Graphics.PushState())
+                {
+                    Graphics.SetTransform(Transform);
+                    Graphics.SetTexture(texture);
+                    Graphics.SetShader(EditorAssets.Shaders.Texture);
+                    Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
+                    Graphics.Draw(rect);
+                }
+            }
+            else
+            {
+                DrawBounds();
+            }
+
+            if (Generation.IsGenerating)
+            {
+                var angle = Time.TotalTime * 4f;
+                var rotation = Matrix3x2.CreateRotation(angle);
+                var scale = Matrix3x2.CreateScale(0.5f);
+
+                using (Graphics.PushState())
+                {
+                    Graphics.SetTransform(scale * rotation * Transform);
+                    Graphics.SetSortGroup(7);
+                    Graphics.SetLayer(EditorLayer.DocumentEditor);
+                    Graphics.SetColor(Color.White);
+                    Graphics.Draw(EditorAssets.Sprites.IconAi);
+                }
+            }
+
+            return;
+        }
 
         var size = Bounds.Size;
         if (size.X <= 0 || size.Y <= 0 || Atlas == null)
@@ -677,6 +680,16 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             Frames[fi].Shape.CopyFrom(src.Frames[fi].Shape);
             Frames[fi].Hold = src.Frames[fi].Hold;
         }
+
+        // Generation
+        Prompt = src.Prompt;
+        NegativePrompt = src.NegativePrompt;
+        Seed = src.Seed;
+        ConstrainedSize = src.ConstrainedSize;
+        StyleName = src.StyleName;
+        Style = src.Style;
+        if (src.Generation.HasImageData)
+            Generation.ImageData = (byte[])src.Generation.ImageData!.Clone();
     }
 
     public override void LoadMetadata(PropertySet meta)
@@ -685,6 +698,14 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         ShowTiling = meta.GetBool("sprite", "show_tiling", false);
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
+
+        // Backward compat: migrate style from metadata to file content
+        if (string.IsNullOrEmpty(StyleName))
+        {
+            var style = meta.GetString("sprite", "style", "");
+            if (!string.IsNullOrEmpty(style))
+                StyleName = style;
+        }
     }
 
     private static Vector2Int? ParseConstrainedSize(string value)
@@ -711,11 +732,21 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             meta.SetString("sprite", "constrained_size", $"{ConstrainedSize.Value.X}x{ConstrainedSize.Value.Y}");
         else
             meta.RemoveKey("sprite", "constrained_size");
+
+        // Clean up legacy style from metadata (now stored in file)
+        meta.RemoveKey("sprite", "style");
     }
 
     public override void PostLoad()
     {
         Binding.Resolve();
+
+        if (HasGeneration)
+        {
+            LoadGeneratedTexture();
+            if (!string.IsNullOrEmpty(StyleName))
+                Style = DocumentManager.Find(GenStyleDocument.AssetTypeGenStyle, StyleName) as GenStyleDocument;
+        }
     }
 
 
@@ -1025,8 +1056,439 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         return new(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2);
     }
 
+    #region Generation
+
+    private static long HashSeed(string seed)
+    {
+        if (string.IsNullOrEmpty(seed))
+            return 0;
+
+        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed));
+        var hash = BitConverter.ToInt64(bytes, 0);
+        return (hash & 0x3FFFFFFFFFFFF) | 1; // 50-bit max for JS safety, positive and non-zero
+    }
+
+    internal void LoadGeneratedTexture()
+    {
+        Generation.Dispose();
+
+        if (!Generation.HasImageData) return;
+
+        try
+        {
+            using var ms = new MemoryStream(Generation.ImageData!);
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+
+            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+            if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
+                srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
+
+            var w = srcImage.Width;
+            var h = srcImage.Height;
+            var pixels = new byte[w * h * 4];
+            srcImage.CopyPixelDataTo(pixels);
+            Generation.Texture = Texture.Create(w, h, pixels, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to create generated texture for '{Name}': {ex.Message}");
+        }
+    }
+
+    private const int RasterizeSize = 1024;
+
+    private byte[] RasterizeMaskToPng()
+    {
+        UpdateBounds();
+        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+        if (cs.X <= 0 || cs.Y <= 0)
+            return [];
+
+        var shape = Frames[0].Shape;
+        var w = RasterizeSize;
+        var h = RasterizeSize;
+        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
+
+        using var pixels = new PixelData<Color32>(w, h);
+        pixels.Clear(new Color32(0, 0, 0, 255));
+        var targetRect = new RectInt(0, 0, w, h);
+        var sourceOffset = new Vector2Int(w / 2, h / 2);
+        var white = new Color32(255, 255, 255, 255);
+
+        var positivePaths = new Clipper2Lib.PathsD();
+        var negativePaths = new Clipper2Lib.PathsD();
+
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        {
+            ref readonly var path = ref shape.GetPath(pi);
+            if (path.AnchorCount < 3) continue;
+
+            var pathShape = new Msdf.Shape();
+            Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
+            pathShape = Msdf.ShapeClipper.Union(pathShape);
+            var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
+            if (contours.Count == 0) continue;
+
+            if (path.IsSubtract)
+                negativePaths.AddRange(contours);
+            else
+                positivePaths.AddRange(contours);
+        }
+
+        if (positivePaths.Count == 0)
+            return [];
+
+        Clipper2Lib.PathsD maskPaths;
+        if (negativePaths.Count > 0)
+        {
+            maskPaths = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                positivePaths, negativePaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+        }
+        else
+        {
+            maskPaths = positivePaths;
+        }
+
+        if (maskPaths.Count > 0)
+            Rasterizer.Fill(maskPaths, pixels, targetRect, sourceOffset, dpi, white);
+
+        using var img = new Image<Rgba32>(w, h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var c = pixels[x, y];
+                img[x, y] = new Rgba32(c.R, c.G, c.B, 255);
+            }
+        }
+
+        using var ms = new MemoryStream();
+        img.SaveAsPng(ms);
+        var pngBytes = ms.ToArray();
+
+        try
+        {
+            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+            Directory.CreateDirectory(tmpDir);
+            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_mask.png"), pngBytes);
+        }
+        catch { }
+
+        return pngBytes;
+    }
+
+    private byte[] RasterizeColorToPng()
+    {
+        UpdateBounds();
+        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+        if (cs.X <= 0 || cs.Y <= 0)
+            return [];
+
+        var shape = Frames[0].Shape;
+        var w = RasterizeSize;
+        var h = RasterizeSize;
+        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
+
+        using var pixels = new PixelData<Color32>(w, h);
+        pixels.Clear(new Color32(255, 255, 255, 255));
+        var targetRect = new RectInt(0, 0, w, h);
+        var sourceOffset = new Vector2Int(w / 2, h / 2);
+
+        // Collect subtract paths
+        var negativePaths = new Clipper2Lib.PathsD();
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        {
+            ref readonly var path = ref shape.GetPath(pi);
+            if (!path.IsSubtract || path.AnchorCount < 3) continue;
+
+            var subShape = new Msdf.Shape();
+            Msdf.ShapeClipper.AppendContour(subShape, shape, pi);
+            subShape = Msdf.ShapeClipper.Union(subShape);
+            var contours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
+            if (contours.Count > 0)
+                negativePaths.AddRange(contours);
+        }
+
+        // Render each normal/clip path with its fill and stroke colors
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        {
+            ref readonly var path = ref shape.GetPath(pi);
+            if (path.IsSubtract || path.AnchorCount < 3) continue;
+
+            var pathShape = new Msdf.Shape();
+            Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
+            pathShape = Msdf.ShapeClipper.Union(pathShape);
+            var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
+            if (contours.Count == 0) continue;
+
+            // Apply subtract paths
+            if (negativePaths.Count > 0)
+            {
+                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                    contours, negativePaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                if (contours.Count == 0) continue;
+            }
+
+            var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
+            var fillColor = path.FillColor;
+            var hasFill = fillColor.A > 0;
+
+            if (hasStroke)
+            {
+                var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                Clipper2Lib.PathsD? contractedPaths = null;
+                if (contours.Count > 0)
+                {
+                    contractedPaths = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
+                        Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
+                }
+
+                if (hasFill)
+                {
+                    Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                    if (contractedPaths is { Count: > 0 })
+                        Rasterizer.Fill(contractedPaths, pixels, targetRect, sourceOffset, dpi, fillColor);
+                }
+                else
+                {
+                    if (contractedPaths is { Count: > 0 })
+                    {
+                        var strokeRing = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                            contours, contractedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                        if (strokeRing.Count > 0)
+                            Rasterizer.Fill(strokeRing, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                    }
+                    else
+                    {
+                        Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                    }
+                }
+            }
+            else if (hasFill)
+            {
+                Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, fillColor);
+            }
+        }
+
+        using var img = new Image<Rgba32>(w, h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var c = pixels[x, y];
+                img[x, y] = new Rgba32(c.R, c.G, c.B, 255);
+            }
+        }
+
+        using var ms = new MemoryStream();
+        img.SaveAsPng(ms);
+        var pngBytes = ms.ToArray();
+
+        try
+        {
+            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+            Directory.CreateDirectory(tmpDir);
+            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_color.png"), pngBytes);
+        }
+        catch { }
+
+        return pngBytes;
+    }
+
+    public void GenerateAsync()
+    {
+        if (string.IsNullOrEmpty(Prompt))
+        {
+            Log.Error($"No prompt set for '{Name}'");
+            return;
+        }
+
+        if (Generation.IsGenerating)
+            return;
+
+        var globalPrompt = Style?.Prompt ?? "";
+        var globalNegPrompt = Style?.NegativePrompt ?? "";
+        var steps = Style?.DefaultSteps ?? 30;
+        var strength = Style?.DefaultStrength ?? 0.8f;
+        var styleStrength = Style?.StyleInpaintStrength ?? 0.5f;
+        var guidance = Style?.DefaultGuidanceScale ?? 6.0f;
+
+        var workflow = Style?.Workflow ?? GenerationWorkflow.Sprite;
+
+        // Rasterize image (color or mask depending on workflow)
+        var imageBytes = RasterizeColorToPng();
+        var maskBytes = RasterizeMaskToPng();
+
+        var prompt = string.IsNullOrEmpty(globalPrompt) ? Prompt : $"{Prompt}, {globalPrompt}";
+        var negPrompt = NegativePrompt;
+        if (!string.IsNullOrEmpty(globalNegPrompt))
+            negPrompt = string.IsNullOrEmpty(negPrompt) ? globalNegPrompt : $"{negPrompt}, {globalNegPrompt}";
+
+        var hashedSeed = HashSeed(Seed);
+        var seed = hashedSeed == 0 ? Random.Shared.NextInt64(1, long.MaxValue) : hashedSeed;
+
+        // Build refine prompt
+        var refinePromptParts = new List<string> { Prompt };
+        if (!string.IsNullOrEmpty(Style?.RefinePrompt))
+            refinePromptParts.Add(Style.RefinePrompt);
+        var refinePrompt = string.Join(", ", refinePromptParts.Where(p => !string.IsNullOrEmpty(p)));
+
+        var refineNegParts = new List<string>();
+        if (!string.IsNullOrEmpty(NegativePrompt))
+            refineNegParts.Add(NegativePrompt);
+        if (!string.IsNullOrEmpty(Style?.RefineNegativePrompt))
+            refineNegParts.Add(Style.RefineNegativePrompt);
+        var refineNegPrompt = string.Join(", ", refineNegParts.Where(p => !string.IsNullOrEmpty(p)));
+
+        var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
+
+        // Build style block
+        GenerationStyleBlock? styleBlock = null;
+        if (Style != null)
+        {
+            var refs = GenerationClient.LoadStyleReferences(Style.StyleReferences);
+            if (refs != null)
+            {
+                styleBlock = new GenerationStyleBlock
+                {
+                    Strength = Style.StyleStrength,
+                    InpaintStrength = Style.StyleInpaintStrength,
+                    References = refs,
+                };
+            }
+        }
+
+        // Build lora from style
+        GenerationLora? lora = null;
+        if (!string.IsNullOrEmpty(Style?.LoraName))
+            lora = new GenerationLora { Name = Style.LoraName, Strength = Style.LoraStrength };
+
+        var request = new GenerationRequest
+        {
+            Server = server,
+            Workflow = (Style?.Workflow ?? GenerationWorkflow.Sprite).ToString().ToLowerInvariant(),
+            Image = imageBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(imageBytes)}" : null,
+            Mask = maskBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(maskBytes)}" : null,
+            Prompt = prompt,
+            NegativePrompt = string.IsNullOrEmpty(negPrompt) ? null : negPrompt,
+            Strength = strength,
+            Steps = steps,
+            GuidanceScale = guidance,
+            Seed = seed,
+            StyleStrength = styleStrength,
+            Refine = new GenerationRefine
+            {
+                Prompt = refinePrompt,
+                NegativePrompt = string.IsNullOrEmpty(refineNegPrompt) ? null : refineNegPrompt,
+                Strength = Style?.RefineStrength ?? 0.64f,
+                Steps = Style?.RefineSteps ?? 10,
+                GuidanceScale = Style?.RefineGuidanceScale ?? 6.0f,
+                Seed = seed,
+            },
+            Style = styleBlock,
+            Lora = lora,
+        };
+
+        Log.Info($"Starting generation for '{Name}' on {server}...");
+
+        var genImage = Generation;
+        genImage.IsGenerating = true;
+        genImage.GenerationError = null;
+
+        var cts = new System.Threading.CancellationTokenSource();
+        genImage.CancellationSource = cts;
+
+        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+
+        GenerationClient.Generate(request, status =>
+        {
+            if (genImage.CancellationSource == null)
+                return;
+
+            switch (status.State)
+            {
+                case GenerationState.Queued:
+                    genImage.GenerationState = GenerationState.Queued;
+                    genImage.QueuePosition = status.QueuePosition;
+                    genImage.GenerationProgress = 0f;
+                    Log.Info($"Generation queued for '{Name}' (position {status.QueuePosition})");
+                    break;
+
+                case GenerationState.Running:
+                    genImage.GenerationState = GenerationState.Running;
+                    genImage.GenerationProgress = status.Progress;
+                    break;
+
+                case GenerationState.Completed:
+                    genImage.IsGenerating = false;
+                    genImage.CancellationSource = null;
+                    genImage.GenerationState = GenerationState.Completed;
+                    genImage.GenerationProgress = 1f;
+
+                    if (status.Result == null)
+                    {
+                        Log.Error($"Generation completed but no result for '{Name}'");
+                        return;
+                    }
+
+                    try
+                    {
+                        var imageResultBytes = Convert.FromBase64String(status.Result.Image);
+
+                        using var ms = new MemoryStream(imageResultBytes);
+                        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+
+                        if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
+                            srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
+
+                        using var outMs = new MemoryStream();
+                        srcImage.SaveAsPng(outMs);
+                        genImage.ImageData = outMs.ToArray();
+
+                        genImage.Dispose();
+                        var rw = srcImage.Width;
+                        var rh = srcImage.Height;
+                        var px = new byte[rw * rh * 4];
+                        srcImage.CopyPixelDataTo(px);
+                        genImage.Texture = Texture.Create(rw, rh, px, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
+
+                        try
+                        {
+                            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+                            Directory.CreateDirectory(tmpDir);
+                            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), genImage.ImageData);
+                        }
+                        catch { }
+
+                        // Update seed from server response
+                        if (status.Result.Seed != 0 && string.IsNullOrEmpty(Seed))
+                            Seed = status.Result.Seed.ToString();
+
+                        Log.Info($"Generation complete for '{Name}' ({status.Result.Width}x{status.Result.Height}, seed={status.Result.Seed})");
+                        IncrementVersion();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Failed to process generated image for '{Name}': {ex.Message}");
+                    }
+                    break;
+
+                case GenerationState.Failed:
+                    genImage.IsGenerating = false;
+                    genImage.CancellationSource = null;
+                    genImage.GenerationState = GenerationState.Failed;
+                    genImage.GenerationError = status.Error;
+                    Log.Error($"Generation failed for '{Name}': {status.Error}");
+                    break;
+            }
+        }, cts.Token);
+    }
+
+    #endregion
+
     public override void Dispose()
     {
+        Generation.Dispose();
         for (var fi = 0; fi < FrameCount; fi++)
             Frames[fi].Dispose();
         base.Dispose();

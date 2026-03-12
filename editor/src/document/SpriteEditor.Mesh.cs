@@ -227,4 +227,51 @@ public partial class SpriteEditor
         }
     }
 
+    private void DrawColoredMesh(int sortGroup)
+    {
+        if (_meshSlots.Count == 0) return;
+
+        using (Graphics.PushState())
+        {
+            Graphics.SetSortGroup(sortGroup);
+            Graphics.SetLayer(EditorLayer.DocumentEditor);
+            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTexture(Graphics.WhiteTexture);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+
+            foreach (var slot in _meshSlots)
+            {
+                Graphics.SetColor(slot.FillColor);
+                Graphics.Draw(
+                    _meshVertices.AsSpan(slot.VertexOffset, slot.VertexCount),
+                    _meshIndices.AsSpan(slot.IndexOffset, slot.IndexCount));
+            }
+        }
+    }
+
+    private void DrawGeneratedImage(int sortGroup, float alpha)
+    {
+        var texture = Document.Generation.Texture;
+        if (texture == null) return;
+
+        var cs = Document.ConstrainedSize ?? new Vector2Int(256, 256);
+        var ppu = EditorApplication.Config.PixelsPerUnitInv;
+
+        var rect = new Rect(
+            cs.X * ppu * -0.5f,
+            cs.Y * ppu * -0.5f,
+            cs.X * ppu,
+            cs.Y * ppu);
+
+        using (Graphics.PushState())
+        {
+            Graphics.SetSortGroup(sortGroup);
+            Graphics.SetLayer(EditorLayer.DocumentEditor);
+            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTexture(texture);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetColor(Color.White.WithAlpha(alpha));
+            Graphics.Draw(rect);
+        }
+    }
 }

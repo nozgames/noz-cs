@@ -140,7 +140,7 @@ public static unsafe partial class ElementTree
         return Vector2.Zero;
     }
 
-    private static UnsafeRef<WidgetState> BeginWidgetInternal(WidgetId id, int stateSize)
+    private static UnsafeRef<WidgetState> BeginWidgetInternal(WidgetId id, int stateSize, bool interactive = true)
     {
         Debug.Assert(id >= 0);
 
@@ -156,6 +156,7 @@ public static unsafe partial class ElementTree
         e.Data = default;
         e.Data.Widget.Id = id;
         e.Data.Widget.LastFrame = _frame;
+        e.Data.Widget.IsInteractive = interactive;
 
         state.Ptr->Index = e.Index;
 
@@ -164,13 +165,13 @@ public static unsafe partial class ElementTree
         return state;
     }
 
-    public static ref T BeginWidget<T>(WidgetId id) where T : unmanaged =>
-        ref *((T*)(BeginWidgetInternal(id, sizeof(T)).Ptr + 1));
+    public static ref T BeginWidget<T>(WidgetId id, bool interactive = true) where T : unmanaged =>
+        ref *((T*)(BeginWidgetInternal(id, sizeof(T), interactive).Ptr + 1));
 
-    public static void BeginWidget(WidgetId id)
+    public static void BeginWidget(WidgetId id, bool interactive = true)
     {
         Debug.Assert(id >= 0);
-        BeginWidgetInternal(id, 0);
+        BeginWidgetInternal(id, 0, interactive);
     }
 
     public static void EndWidget()

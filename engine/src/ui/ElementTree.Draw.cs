@@ -403,8 +403,6 @@ public static partial class ElementTree
     }
 
 
-    internal static bool MouseOverScene;
-
     private static readonly Dictionary<WidgetId, SceneRenderInfo> _sceneRenderInfos = new();
 
     internal static bool TryGetSceneRenderInfo(WidgetId id, out SceneRenderInfo info) =>

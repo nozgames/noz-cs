@@ -76,6 +76,7 @@ internal struct WidgetElement
     public WidgetId Id;
     public UnsafeSpan<byte> State;
     public ushort LastFrame;
+    public bool IsInteractive;
 }
 
 internal struct FillElement

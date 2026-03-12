@@ -8,14 +8,14 @@ namespace NoZ.Editor;
 
 public class EyeDropperTool : Tool
 {
-    private readonly GenSpriteEditor _editor;
+    private readonly SpriteEditor _editor;
     private Task<byte[]>? _readbackTask;
     private int _pixelX;
     private int _pixelY;
     private int _rtWidth;
     private bool _shift;
 
-    public EyeDropperTool(GenSpriteEditor editor)
+    public EyeDropperTool(SpriteEditor editor)
     {
         _editor = editor;
     }

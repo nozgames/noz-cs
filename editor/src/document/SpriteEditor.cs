@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using CrypticWizard.RandomWordGenerator;
 
 namespace NoZ.Editor;
 
@@ -28,7 +29,18 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId PathSubtract { get; }
         public static partial WidgetId PathClip { get; }
         public static partial WidgetId FillColor { get; }
+        public static partial WidgetId GenerateButton { get; }
+        public static partial WidgetId CancelButton { get; }
+        public static partial WidgetId StyleDropDown { get; }
+        public static partial WidgetId LayerPrompt { get; }
+        public static partial WidgetId LayerNegativePrompt { get; }
+        public static partial WidgetId LayerSeed { get; }
+        public static partial WidgetId LayerSeedDice { get; }
+        public static partial WidgetId AddGenerationButton { get; }
+        public static partial WidgetId RemoveGenerationButton { get; }
     }
+
+    private static readonly WordGenerator _wordGenerator = new();
 
     private readonly ShapeEditor _shapeEditor;
     private int _currentTimeSlot;
@@ -69,6 +81,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
             new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
             new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
+            new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
+            new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
         ];
     }
 
@@ -101,17 +115,29 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         UpdateAnimation();
         _shapeEditor.HandleDeleteKey();
 
+        var hasGen = Document.HasGeneration && Document.Generation.Texture != null;
+
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
-            Graphics.SetSortGroup(5);
+            Graphics.SetSortGroup(hasGen ? 6 : 5);
             Document.DrawOrigin();
-            Graphics.SetSortGroup(4);
+            Graphics.SetSortGroup(hasGen ? 5 : 4);
             DrawWireframe();
         }
 
         UpdateMesh();
-        DrawMesh();
+
+        if (hasGen)
+        {
+            DrawGeneratedImage(sortGroup: 1, alpha: 1f);
+            DrawColoredMesh(sortGroup: 2);
+            DrawGeneratedImage(sortGroup: 3, alpha: 0.3f);
+        }
+        else
+        {
+            DrawMesh();
+        }
 
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
@@ -353,7 +379,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         if (newFrame >= 0)
         {
             _currentTimeSlot = TimeSlotForFrame(newFrame);
-            Document.IncrementVersion();
             AtlasManager.UpdateSource(Document);
         }
     }
@@ -366,7 +391,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         if (newFrame >= 0)
         {
             _currentTimeSlot = TimeSlotForFrame(newFrame);
-            Document.IncrementVersion();
             AtlasManager.UpdateSource(Document);
         }
     }
@@ -377,7 +401,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         Undo.Record(Document);
         var fi = Document.DeleteFrame(CurrentFrameIndex);
         _currentTimeSlot = TimeSlotForFrame(fi);
-        Document.IncrementVersion();
         AtlasManager.UpdateSource(Document);
     }
 
@@ -385,7 +408,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     {
         Undo.Record(Document);
         Document.Frames[CurrentFrameIndex].Hold++;
-        Document.IncrementVersion();
     }
 
     private void RemoveHoldFrame()
@@ -396,7 +418,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
         Undo.Record(Document);
         frame.Hold = Math.Max(0, frame.Hold - 1);
-        Document.IncrementVersion();
     }
 
     private void SetFillColor(Color32 color)
@@ -440,8 +461,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             if (!path.IsSelected) continue;
             shape.SetPathStroke(p, path.StrokeColor, width);
         }
-
-        Document.IncrementVersion();
     }
 
     private void CyclePathOperation()
@@ -549,7 +568,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         shape.UpdateSamples();
         shape.UpdateBounds();
         Document.UpdateBounds();
-        Document.IncrementVersion();
     }
 
     private void FlipVertical()
@@ -564,7 +582,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         shape.UpdateSamples();
         shape.UpdateBounds();
         Document.UpdateBounds();
-        Document.IncrementVersion();
     }
 
     private void MovePathUp()
@@ -576,8 +593,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         Undo.Record(Document);
         if (!shape.MoveSelectedPathUp())
             return;
-
-        Document.IncrementVersion();
     }
 
     private void MovePathDown()
@@ -589,8 +604,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         Undo.Record(Document);
         if (!shape.MoveSelectedPathDown())
             return;
-
-        Document.IncrementVersion();
     }
 
     private void UpdateAnimation()
@@ -958,7 +971,218 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     {
         SpriteInspectorUI();
         PathInspectorUI();
+        GenerationInspectorUI();
     }
+
+    #region Generation
+
+    private void GenerationInspectorUI()
+    {
+        if (!Document.HasGeneration)
+        {
+            using (UI.BeginContainer(new ContainerStyle { Padding = EdgeInsets.Symmetric(12, 16) }))
+            {
+                if (UI.Button(WidgetIds.AddGenerationButton, "+ Generation", EditorAssets.Sprites.IconAi, EditorStyle.Button.Secondary with { Width = Size.Percent(1), MinWidth = 0 }))
+                {
+                    Undo.Record(Document);
+                    Document.Prompt = " ";
+                    Document.ConstrainedSize ??= new Vector2Int(256, 256);
+                    Document.UpdateBounds();
+                }
+            }
+            return;
+        }
+
+        static void GenerationSectionContent()
+        {
+            if (UI.Button(WidgetIds.RemoveGenerationButton, EditorAssets.Sprites.IconDelete, EditorStyle.Button.Secondary))
+                ((SpriteEditor)Workspace.ActiveEditor!).RemoveGeneration();
+        }
+
+        using (Inspector.BeginSection("GENERATION", content: GenerationSectionContent))
+        {
+            if (Inspector.IsSectionCollapsed) return;
+
+            using (Inspector.BeginRow())
+            using (UI.BeginFlex())
+                GenerationConstraintUI();
+
+            using (Inspector.BeginRow())
+            using (UI.BeginFlex())
+                GenerationStyleUI();
+
+            using (Inspector.BeginRow())
+            using (UI.BeginFlex())
+                Document.Prompt = UI.TextInput(WidgetIds.LayerPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
+
+            using (Inspector.BeginRow())
+            using (UI.BeginFlex())
+                Document.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
+
+            using (Inspector.BeginRow())
+            {
+                using (UI.BeginFlex())
+                    Document.Seed = UI.TextInput(WidgetIds.LayerSeed, Document.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
+                if (UI.Button(WidgetIds.LayerSeedDice, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))
+                {
+                    Undo.Record(Document);
+                    Document.Seed = GenerateRandomSeed();
+                }
+            }
+        }
+
+        UI.Flex();
+
+        var genImage = Document.Generation;
+        if (genImage.IsGenerating)
+            GenerationProgressUI(genImage);
+        else
+            GenerateButtonUI(genImage);
+    }
+
+    private void GenerationConstraintUI()
+    {
+        var sizes = EditorApplication.Config.SpriteSizes;
+        var constraintLabel = "256x256";
+        if (Document.ConstrainedSize.HasValue)
+            for (int i = 0; i < sizes.Length; i++)
+                if (Document.ConstrainedSize.Value == sizes[i].Size)
+                {
+                    constraintLabel = sizes[i].Label;
+                    break;
+                }
+
+        UI.DropDown(WidgetIds.ConstraintDropDown, () => sizes.Select(s =>
+            PopupMenuItem.Item(s.Label, () => SetConstraint(s.Size))).ToArray(), constraintLabel, EditorAssets.Sprites.IconConstraint);
+    }
+
+    private void GenerationStyleUI()
+    {
+        UI.DropDown(WidgetIds.StyleDropDown, () =>
+        {
+            var items = new List<PopupMenuItem>
+            {
+                PopupMenuItem.Item("None", () => SetStyle(null))
+            };
+            foreach (var doc in DocumentManager.Documents)
+            {
+                if (doc is GenStyleDocument styleDoc)
+                    items.Add(PopupMenuItem.Item(styleDoc.Name, () => SetStyle(styleDoc)));
+            }
+            return [.. items];
+        }, Document.StyleName ?? "None",
+        icon: EditorAssets.Sprites.AssetIconGenstyle);
+    }
+
+    private void SetStyle(GenStyleDocument? style)
+    {
+        Undo.Record(Document);
+        Document.StyleName = style?.Name;
+        Document.Style = style;
+    }
+
+    private void GenerationProgressUI(GenerationImage genImage)
+    {
+        using (UI.BeginColumn(new ContainerStyle
+        {
+            Padding = EdgeInsets.Symmetric(12, 16),
+            Spacing = 10,
+        }))
+        {
+            var progressText = genImage.GenerationState switch
+            {
+                GenerationState.Queued when genImage.QueuePosition > 0 =>
+                    $"Queued (position {genImage.QueuePosition})",
+                GenerationState.Queued => "Queued...",
+                GenerationState.Running => $"Generating {(int)(genImage.GenerationProgress * 100)}%",
+                _ => "Starting..."
+            };
+
+            using (UI.BeginRow(new ContainerStyle { Spacing = 8 }))
+            {
+                UI.Text(progressText, EditorStyle.Text.Primary with { FontSize = EditorStyle.Control.TextSize });
+                UI.Flex();
+                if (UI.Button(WidgetIds.CancelButton, EditorAssets.Sprites.IconClose, EditorStyle.Button.SmallIconOnly))
+                    genImage.CancelGeneration();
+            }
+
+            using (UI.BeginContainer(new ContainerStyle
+            {
+                Width = Size.Percent(1),
+                Height = 4f,
+                Color = EditorStyle.Palette.Active,
+                BorderRadius = 2f
+            }))
+            {
+                UI.Container(new ContainerStyle
+                {
+                    Width = Size.Percent(genImage.GenerationProgress),
+                    Height = 4f,
+                    Color = EditorStyle.Palette.Primary,
+                    BorderRadius = 2f
+                });
+            }
+        }
+    }
+
+    private void GenerateButtonUI(GenerationImage genImage)
+    {
+        if (genImage.GenerationError != null)
+            UI.Text(genImage.GenerationError, EditorStyle.Text.Secondary with { Color = EditorStyle.ErrorColor });
+
+        using (UI.BeginContainer(new ContainerStyle
+        {
+            Padding = EdgeInsets.Symmetric(12, 16),
+        }))
+        {
+            if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1), MinWidth = 0, Height = 36 }))
+                Document.GenerateAsync();
+        }
+    }
+
+    private void RemoveGeneration()
+    {
+        Undo.Record(Document);
+        Document.Prompt = "";
+        Document.NegativePrompt = "";
+        Document.Seed = "";
+        Document.Generation.Dispose();
+        Document.Generation.ImageData = null;
+        Document.StyleName = null;
+        Document.Style = null;
+    }
+
+    private static string GenerateRandomSeed()
+    {
+        var adj = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.adj);
+        var noun = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.noun);
+        return $"{adj}-{noun}";
+    }
+
+    private void BeginEyeDropper()
+    {
+        if (Document.Generation.Texture == null)
+            return;
+        Workspace.BeginTool(new EyeDropperTool(this));
+    }
+
+    internal void ApplyEyeDropperColor(Color32 color, bool shift)
+    {
+        if (shift)
+        {
+            SetStrokeColor(color);
+            if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
+                ColorPicker.Open(WidgetIds.StrokeColor, color);
+        }
+        else
+        {
+            SetFillColor(color);
+            if (ColorPicker.IsOpen(WidgetIds.FillColor))
+                ColorPicker.Open(WidgetIds.FillColor, color);
+        }
+    }
+
+    #endregion
 
     #region Skeleton Binding
 
