@@ -281,7 +281,7 @@ public static unsafe partial class ElementTree
                 else if (d.Size[axis].IsPercent)
                     size = available;
                 else
-                    size = Math.Max((axis == 0 ? d.Width : d.Height) * d.Scale, available);
+                    size = available > 0 ? available : (axis == 0 ? d.Width : d.Height) * d.Scale;
                 break;
             }
 
@@ -481,10 +481,18 @@ public static unsafe partial class ElementTree
     {
         if (e.ChildCount == 0) return;
         var align = e.Data.Align;
-        var childFit = FitAxis(e.FirstChild, axis, -1);
         var alignFactor = (axis == 0 ? align.X : align.Y).ToFactor();
-        var childPos = e.Rect[axis] + (e.Rect.GetSize(axis) - childFit) * alignFactor;
-        LayoutAxis(e.FirstChild, childPos, childFit, axis, -1);
+        var parentSize = e.Rect.GetSize(axis);
+        var childOffset = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childOffset);
+            var childFit = FitAxis(childOffset, axis, -1);
+            var childAvail = childFit > 0 ? childFit : parentSize;
+            var childPos = e.Rect[axis] + (parentSize - childAvail) * alignFactor;
+            LayoutAxis(childOffset, childPos, childAvail, axis, -1);
+            childOffset = child.NextSibling;
+        }
     }
 
     private static void LayoutCrossAxis(ref Element e, int axis)

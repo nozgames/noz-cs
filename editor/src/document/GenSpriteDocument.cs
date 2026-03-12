@@ -590,11 +590,7 @@ public partial class GenSpriteDocument : Document, IShapeDocument
         var workflow = Style?.Workflow ?? GenerationWorkflow.Sprite;
 
         // Rasterize image (color or mask depending on workflow)
-        var imageBytes = workflow == GenerationWorkflow.SpriteV2
-            ? RasterizeColorToPng()
-            : RasterizeMaskToPng();
-
-        // Rasterize mask (white on black)
+        var imageBytes = RasterizeColorToPng();
         var maskBytes = RasterizeMaskToPng();
 
         var prompt = string.IsNullOrEmpty(globalPrompt) ? Prompt : $"{Prompt}, {globalPrompt}";

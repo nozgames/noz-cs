@@ -81,8 +81,7 @@ public class GenerationResponse
 
 public enum GenerationWorkflow
 {
-    Sprite,
-    SpriteV2,
+    Sprite
 }
 
 public enum GenerationState

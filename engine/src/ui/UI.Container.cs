@@ -114,6 +114,9 @@ public static partial class UI
     public static AutoRow BeginRow() =>
         BeginRow(WidgetId.None, ContainerStyle.Default);
 
+    public static AutoRow BeginRow(float spacing) =>
+        BeginRow(WidgetId.None, ContainerStyle.Default with { Spacing = spacing });
+
     public static void EndRow() => EndContainerImpl();
 
     #endregion

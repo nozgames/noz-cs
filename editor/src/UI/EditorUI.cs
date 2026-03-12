@@ -3,6 +3,7 @@
 //
 // TODO: Migrate popup system to UI.PopupMenu and delete this file
 
+using System.Net;
 using System.Numerics;
 
 namespace NoZ.Editor;
@@ -212,12 +213,27 @@ internal static partial class EditorUI
 
         if (color.A == 0)
         {
-            ElementTree.BeginPadding(2);
+            ElementTree.BeginPadding(4);
             ElementTree.Image(EditorAssets.Sprites.IconNofill);
             ElementTree.EndPadding();
-        }            
+        }
         else
-            ElementTree.Fill(color.ToColor(), EditorStyle.Control.BorderRadius, 2, EditorStyle.Palette.Control);
+        {
+            ElementTree.Fill(color.ToColor().WithAlpha(1.0f), EditorStyle.Control.BorderRadius, 4, EditorStyle.Palette.Control);
+            ElementTree.BeginPadding(3.9f);
+            ElementTree.BeginAlign(Align.Min, Align.Max);
+
+            ElementTree.BeginSize(Size.Default, 4);
+            ElementTree.Fill(Color.Black);
+            ElementTree.EndSize();
+
+            ElementTree.BeginSize(Size.Percent(color.A / 255.0f), 4);
+            ElementTree.Fill(Color.White);
+            ElementTree.EndSize();
+
+            ElementTree.EndAlign();
+            ElementTree.EndPadding();
+        }
 
         ElementTree.EndTree();
 

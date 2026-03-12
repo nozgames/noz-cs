@@ -138,10 +138,10 @@ public static unsafe partial class ElementTree
 
         _hoveredWidget = WidgetId.None;
         FindHoveredWidget(0);
+        HandleSceneInput(0);
         HandlePopupAutoClose();
         HandleInputElement(0);
         HandleScrollableInput();
-        HandleSceneInput(0);
         HandleCursor(0);
     }
 
@@ -369,7 +369,11 @@ public static unsafe partial class ElementTree
         var isCaptured = _captureId != 0 && _captureId == d.Id;
 
         if (isHovered && _inputMousePressed && (_captureId == 0 || _captureId == d.Id))
+        {
             state.Flags |= WidgetFlags.Pressed;
+            if (!MouseOverScene)
+                Input.ConsumeButton(InputCode.MouseLeft);
+        }
 
         if (isCaptured ? _inputMouseDown : (isHovered && _inputMouseDown && _captureId == 0))
             state.Flags |= WidgetFlags.Down;

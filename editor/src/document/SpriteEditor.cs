@@ -280,8 +280,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void StrokeWidthButtonUI()
     {
-        UI.SetChecked(EditorUI.IsPopupOpen(WidgetIds.StrokeWidth));
-        if (UI.Button(WidgetIds.StrokeWidth, icon: EditorAssets.Sprites.IconStrokeSize, EditorStyle.Button.Secondary))
+        if (UI.Button(WidgetIds.StrokeWidth, text: Strings.Number(Document.CurrentStrokeWidth), icon: EditorAssets.Sprites.IconStrokeSize, EditorStyle.Button.Secondary))
             EditorUI.TogglePopup(WidgetIds.StrokeWidth);
 
         StrokeWidthPopupUI();
@@ -836,79 +835,69 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void SpriteInspectorUI()
     {
-        if (_shapeEditor.HasPathSelection)
-            return;
-
         using var _ = Inspector.BeginSection("SPRITE");
         if (Inspector.IsSectionCollapsed) return;
 
-        using (Inspector.BeginRow())
+        using (Inspector.BeginProperty("Size"))
         {
-            // Constraint
-            using (UI.BeginFlex())
-            {
-                var sizes = EditorApplication.Config.SpriteSizes;
-                var constraintLabel = "None";
-                if (Document.ConstrainedSize.HasValue)
-                    for (int i = 0; i < sizes.Length; i++)
-                        if (Document.ConstrainedSize.Value == sizes[i].Size)
-                        {
-                            constraintLabel = sizes[i].Label;
-                            break;
-                        }
+            var sizes = EditorApplication.Config.SpriteSizes;
+            var constraintLabel = "Auto";
+            if (Document.ConstrainedSize.HasValue)
+                for (int i = 0; i < sizes.Length; i++)
+                    if (Document.ConstrainedSize.Value == sizes[i].Size)
+                    {
+                        constraintLabel = sizes[i].Label;
+                        break;
+                    }
 
-                UI.DropDown(WidgetIds.ConstraintDropDown, () => [
-                    ..EditorApplication.Config.SpriteSizes.Select(s =>
-                    new PopupMenuItem { Label = s.Label, Handler = () => SetConstraint(s.Size) }
-                ),
-                new PopupMenuItem { Label = "None", Handler = () => SetConstraint(null)}
-                ], constraintLabel, EditorAssets.Sprites.IconConstraint);
-            }
+            UI.DropDown(WidgetIds.ConstraintDropDown, () => [
+                ..EditorApplication.Config.SpriteSizes.Select(s =>
+                new PopupMenuItem { Label = s.Label, Handler = () => SetConstraint(s.Size) }
+            ),
+            new PopupMenuItem { Label = "Auto", Handler = () => SetConstraint(null)}
+            ], constraintLabel, EditorAssets.Sprites.IconConstraint);
         }
 
         // Skeleton
-        using (Inspector.BeginRow())
+        using (Inspector.BeginProperty("Skeleton"))
         {
-            using (UI.BeginFlex())
+            var skeletonLabel = Document.Binding.IsBound
+                ? StringId.Get(Document.Binding.Skeleton!.Name).ToString()
+                : "None";
+
+            UI.DropDown(WidgetIds.SkeletonDropDown, () =>
             {
-                var skeletonLabel = Document.Binding.IsBound
-                    ? StringId.Get(Document.Binding.Skeleton!.Name).ToString()
-                    : "None";
+                var skeletonItems = new List<PopupMenuItem>();
 
-                UI.DropDown(WidgetIds.SkeletonDropDown, () =>
+                foreach (var doc in DocumentManager.Documents)
                 {
-                    var skeletonItems = new List<PopupMenuItem>();
+                    if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
+                        continue;
 
-                    foreach (var doc in DocumentManager.Documents)
-                    {
-                        if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
-                            continue;
+                    var name = StringId.Get(skeleton.Name).ToString();
+                    skeletonItems.Add(new PopupMenuItem { Label = name, Handler = () => CommitSkeletonBinding(skeleton) });
+                }
 
-                        var name = StringId.Get(skeleton.Name).ToString();
-                        skeletonItems.Add(new PopupMenuItem { Label = name, Handler = () => CommitSkeletonBinding(skeleton) });
-                    }
+                skeletonItems.Add(new PopupMenuItem { Label = "None", Handler = ClearSkeletonBinding });
+                return skeletonItems.ToArray();
+            }, skeletonLabel, EditorAssets.Sprites.IconBone);
+        }
 
-                    skeletonItems.Add(new PopupMenuItem { Label = "None", Handler = ClearSkeletonBinding });
-                    return skeletonItems.ToArray();
-                }, skeletonLabel, EditorAssets.Sprites.IconBone);
+        if (Document.Binding.IsBound)
+        {
+            UI.SetChecked(Document.ShowInSkeleton);
+            if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
+            {
+                Undo.Record(Document);
+                Document.ShowInSkeleton = !Document.ShowInSkeleton;
+                Document.Binding.Skeleton?.UpdateSprites();
             }
 
-            if (Document.Binding.IsBound)
+            UI.SetChecked(Document.ShowSkeletonOverlay);
+            if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon))
             {
-                UI.SetChecked(Document.ShowInSkeleton);
-                if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
-                {
-                    Undo.Record(Document);
-                    Document.ShowInSkeleton = !Document.ShowInSkeleton;
-                    Document.Binding.Skeleton?.UpdateSprites();
-                }
-
-                UI.SetChecked(Document.ShowSkeletonOverlay);
-                if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon))
-                {
-                    Undo.Record(Document);
-                    Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
-                }
+                Undo.Record(Document);
+                Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
             }
         }
     }
@@ -920,60 +909,47 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
         using (Inspector.BeginSection("PATH"))
         {
-            if (!Inspector.IsSectionCollapsed)
+            if (Inspector.IsSectionCollapsed)
+                return;
+
+            using (Inspector.BeginProperty("Operation"))
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
-                using (Inspector.BeginRow())
+                UI.SetChecked(Document.CurrentOperation == PathOperation.Normal);
+                if (UI.Button(WidgetIds.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
+                    SetPathOperation(PathOperation.Normal);
+
+                UI.SetChecked(Document.CurrentOperation == PathOperation.Subtract);
+                if (UI.Button(WidgetIds.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon))
+                    SetPathOperation(PathOperation.Subtract);
+
+                UI.SetChecked(Document.CurrentOperation == PathOperation.Clip);
+                if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon))
+                    SetPathOperation(PathOperation.Clip);
+            }
+
+            using (Inspector.BeginProperty("Fill"))
+            {
+                var fillColor = Document.CurrentFillColor;
+                if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor))
                 {
-                    UI.SetChecked(Document.CurrentOperation == PathOperation.Normal);
-                    if (UI.Button(WidgetIds.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
-                        SetPathOperation(PathOperation.Normal);
-
-                    UI.SetChecked(Document.CurrentOperation == PathOperation.Subtract);
-                    if (UI.Button(WidgetIds.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon))
-                        SetPathOperation(PathOperation.Subtract);
-
-                    UI.SetChecked(Document.CurrentOperation == PathOperation.Clip);
-                    if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon))
-                        SetPathOperation(PathOperation.Clip);
+                    UI.HandleChange(Document);
+                    SetFillColor(fillColor);
                 }
             }
-        }
 
-        using (Inspector.BeginSection("FILL"))
-        {
-            if (!Inspector.IsSectionCollapsed)
+            using (Inspector.BeginProperty("Stroke"))
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
-                using (Inspector.BeginRow())
+                var strokeColor = Document.CurrentStrokeColor;
+                if (EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor))
                 {
-                    using var __ = UI.BeginFlex();
-                    var fillColor = Document.CurrentFillColor;
-                    if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor))
-                    {
-                        UI.HandleChange(Document);
-                        SetFillColor(fillColor);
-                    }
+                    UI.HandleChange(Document);
+                    SetStrokeColor(strokeColor);
                 }
-            }
-        }
 
-        using (Inspector.BeginSection("STROKE"))
-        {
-            if (!Inspector.IsSectionCollapsed)
-            {
-                using (Inspector.BeginRow())
-                {
-                    using (UI.BeginFlex())
-                    {
-                        var strokeColor = Document.CurrentStrokeColor;
-                        if (EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor))
-                        {
-                            UI.HandleChange(Document);
-                            SetStrokeColor(strokeColor);
-                        }
-
-                    }
+                if (strokeColor.A > 0)
                     StrokeWidthButtonUI();
-                }
             }
         }
     }

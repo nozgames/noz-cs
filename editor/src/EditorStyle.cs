@@ -23,7 +23,7 @@ public static class EditorStyle
 
         // Text & Icon
         public static readonly Color Content = Color.FromRgb(0xE8E8E8);
-        public static readonly Color HeaderText = Color.FromRgb(0xAAAAAA);
+        public static readonly Color HeaderText = Color.FromRgb(0xDDDDDD);
         public static readonly Color SecondaryText = Color.FromRgb(0x999999);
         public static readonly Color Label = Color.FromRgb(0x999999);
         public static readonly Color Disabled = Color.FromRgb(0x666666);
@@ -37,7 +37,7 @@ public static class EditorStyle
         public static readonly Color FocusRing = Primary;
 
         // Separators / Grid
-        public static readonly Color PanelSeparator = Color.FromRgb(0x232323);
+        public static readonly Color PanelSeparator = Color.FromRgb(0x2D2D2D);
         public static readonly Color MajorGrid = Color.FromRgb(0x2A2A2A);
     }
 
@@ -80,9 +80,11 @@ public static class EditorStyle
     // :text
     public static class Text
     {
+        public const float Size = 20.0f;
+
         public readonly static LabelStyle Primary = new()
         {
-            FontSize = 16.0f,
+            FontSize = Size,
             Color = Palette.Content,
             AlignX = Align.Min,
             AlignY = Align.Center
@@ -120,7 +122,7 @@ public static class EditorStyle
     // :control — Global control dimensions (toolbar, popups, etc.)
     public static class Control
     {
-        public const float TextSize = 20.0f;
+        public const float TextSize = EditorStyle.Text.Size;
         public const float IconSize = EditorStyle.Icon.Size;
         public const float Height = 40.0f;
         public const float BorderRadius = 4.0f;

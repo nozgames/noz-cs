@@ -6,10 +6,8 @@ namespace NoZ.Editor;
 
 internal static partial class Inspector
 {
-    public struct AutoSection : IDisposable
-    {
-        readonly void IDisposable.Dispose() => EndSection();
-    }
+    public struct AutoSection : IDisposable { readonly void IDisposable.Dispose() => EndSection(); }
+    public struct AutoProperty : IDisposable { readonly void IDisposable.Dispose() => EndProperty(); }
 
     private struct SectionState
     {
@@ -53,6 +51,7 @@ internal static partial class Inspector
 
         // Outer section wrapper
         ElementTree.BeginColumn();
+
         var borderColor = isActive ? EditorStyle.Palette.Primary : Color.Transparent;
         ElementTree.BeginFill(Color.Transparent, default, 1.25f, borderColor);
         ElementTree.BeginPadding(EdgeInsets.All(1 + 1.25f));
@@ -85,7 +84,7 @@ internal static partial class Inspector
         if (icon != null)
             ElementTree.Image(icon, EditorStyle.Control.IconSize, ImageStretch.Uniform, iconColor, 1.0f, new Align2(Align.Center, Align.Center));
 
-        ElementTree.Text(name, UI.DefaultFont, EditorStyle.Control.TextSize, iconColor, new Align2(Align.Min, Align.Center));
+        ElementTree.Text(name, UI.DefaultFont, EditorStyle.Control.TextSize, EditorStyle.Palette.HeaderText, new Align2(Align.Min, Align.Center));
 
         ElementTree.Flex();
 
@@ -110,7 +109,7 @@ internal static partial class Inspector
     {
         return UI.BeginRow(EditorStyle.Inspector.Row);
     }
-
+   
     public static void EndSection()
     {
         if (!_sectionCollapsed)
@@ -126,7 +125,27 @@ internal static partial class Inspector
         ElementTree.EndPadding();
         ElementTree.EndFill();
 
+        ElementTree.BeginSize(Size.Default, 2);
+        ElementTree.Fill(EditorStyle.Palette.PanelSeparator);
+        ElementTree.EndSize();
+
         ElementTree.EndColumn();
         _sectionActive = false;
+    }
+
+    public static AutoProperty BeginProperty(string name)
+    {
+        ElementTree.BeginRow();
+        ElementTree.BeginFlex(0.4f);
+        UI.Text(name, style: EditorStyle.Text.Secondary);
+        ElementTree.EndFlex();
+        ElementTree.BeginFlex(0.6f);
+        return new AutoProperty();
+    }
+
+    public static void EndProperty()
+    {
+        ElementTree.EndFlex();
+        ElementTree.EndRow();
     }
 }
