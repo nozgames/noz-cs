@@ -20,7 +20,8 @@ public enum ShaderBindingType : byte
     Texture2D = 1,
     Texture2DArray = 2,
     Sampler = 3,
-    Texture2DUnfilterable = 4  // For RGBA32F textures that use textureLoad
+    Texture2DUnfilterable = 4,  // For RGBA32F textures that use textureLoad
+    DepthTexture2D = 5          // For depth textures (texture_depth_2d) that use textureLoad
 }
 
 public struct ShaderBinding
@@ -73,6 +74,7 @@ public class Shader : Asset
         };
 
         shader.Handle = Graphics.Driver.CreateShader(name, source, source, bindings);
+        Graphics.Driver.SetShaderFlags(shader.Handle, shader.Flags);
         return shader;
     }
 
@@ -85,6 +87,20 @@ public class Shader : Asset
         }
 
         base.Dispose();
+    }
+
+    internal static Shader CreateRaw(string name, nuint handle, ShaderFlags flags,
+        List<ShaderBinding> bindings, uint vertexFormatHash)
+    {
+        var shader = new Shader(name)
+        {
+            Flags = flags,
+            Bindings = bindings,
+            VertexFormatHash = vertexFormatHash,
+        };
+        shader.Handle = handle;
+        Graphics.Driver.SetShaderFlags(handle, flags);
+        return shader;
     }
 
     internal static void RegisterDef()

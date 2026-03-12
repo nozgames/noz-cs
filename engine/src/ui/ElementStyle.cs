@@ -17,6 +17,8 @@ public struct ContainerStyle()
     public EdgeInsets Margin = EdgeInsets.Zero;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public Color Color = NoZ.Color.Transparent;
+    public Color Color2 = NoZ.Color.Transparent;
+    public float GradientAngle = 0f;
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public float BorderWidth;
     public Color BorderColor = NoZ.Color.Transparent;

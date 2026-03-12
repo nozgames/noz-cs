@@ -849,6 +849,91 @@ public unsafe partial class WebGPUGraphicsDriver
         _commandEncoder = _wgpu.DeviceCreateCommandEncoder(_device, ref encoderDesc);
     }
 
+    public nuint CreateDepthTexture(int width, int height, string? name = null)
+    {
+        var handle = (nuint)_nextDepthTextureId++;
+
+        fixed (byte* label = name != null
+            ? System.Text.Encoding.ASCII.GetBytes(name + "\0")
+            : "DepthTexture\0"u8)
+        {
+            var desc = new TextureDescriptor
+            {
+                Label = label,
+                Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
+                MipLevelCount = 1,
+                SampleCount = 1,
+                Dimension = TextureDimension.Dimension2D,
+                Format = DepthFormat,
+                Usage = TextureUsage.RenderAttachment | TextureUsage.TextureBinding,
+            };
+            var texture = _wgpu.DeviceCreateTexture(_device, &desc);
+
+            // Render view — for depth attachment
+            var renderViewDesc = new TextureViewDescriptor
+            {
+                Format = DepthFormat,
+                Dimension = TextureViewDimension.Dimension2D,
+                BaseMipLevel = 0,
+                MipLevelCount = 1,
+                BaseArrayLayer = 0,
+                ArrayLayerCount = 1,
+                Aspect = TextureAspect.DepthOnly,
+            };
+            var renderView = _wgpu.TextureCreateView(texture, &renderViewDesc);
+
+            // Sample view — for shader sampling
+            var sampleView = _wgpu.TextureCreateView(texture, &renderViewDesc);
+
+            // Comparison sampler for PCF shadow mapping
+            var samplerDesc = new SamplerDescriptor
+            {
+                AddressModeU = AddressMode.ClampToEdge,
+                AddressModeV = AddressMode.ClampToEdge,
+                AddressModeW = AddressMode.ClampToEdge,
+                MagFilter = FilterMode.Linear,
+                MinFilter = FilterMode.Linear,
+                MipmapFilter = MipmapFilterMode.Nearest,
+                Compare = CompareFunction.Less,
+            };
+            var comparisonSampler = _wgpu.DeviceCreateSampler(_device, &samplerDesc);
+
+            _depthTextures[(int)handle] = new DepthTextureInfo
+            {
+                Texture = texture,
+                RenderView = renderView,
+                SampleView = sampleView,
+                ComparisonSampler = comparisonSampler,
+                Width = width,
+                Height = height,
+            };
+        }
+
+        return handle;
+    }
+
+    public void DestroyDepthTexture(nuint handle)
+    {
+        ref var dt = ref _depthTextures[(int)handle];
+        if (dt.ComparisonSampler != null) { _wgpu.SamplerRelease(dt.ComparisonSampler); dt.ComparisonSampler = null; }
+        if (dt.SampleView != null) { _wgpu.TextureViewRelease(dt.SampleView); dt.SampleView = null; }
+        if (dt.RenderView != null) { _wgpu.TextureViewRelease(dt.RenderView); dt.RenderView = null; }
+        if (dt.Texture != null) { _wgpu.TextureRelease(dt.Texture); dt.Texture = null; }
+        dt = default;
+    }
+
+    public void BindDepthTextureForSampling(nuint depthTexture, int slot)
+    {
+        switch (slot)
+        {
+            case 0: _state.BoundDepthTexture0 = depthTexture; break;
+            case 1: _state.BoundDepthTexture1 = depthTexture; break;
+            case 2: _state.BoundDepthTexture2 = depthTexture; break;
+            case 3: _state.BoundDepthTexture3 = depthTexture; break;
+        }
+        _state.BindGroupDirty = true;
+    }
+
     public Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture)
     {
         var rtSlot = _rtHandleToSlot[(int)renderTexture];
