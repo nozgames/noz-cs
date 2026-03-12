@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "projectType": "game-engine",
+  "defaultRole": "general",
+
+  "analysis": {
+    "callGraphDepth": 10,
+    "similarityThreshold": 0.3,
+    "maxAnalogs": 10
+  },
+
+  "pathRules": [
+    { "pattern": "engine/src/**", "role": "runtime" },
+    { "pattern": "editor/**", "role": "editor" },
+    { "pattern": "platform/**", "role": "platform" },
+    { "pattern": "generators/**", "role": "general" },
+    { "pattern": "**", "role": "general" }
+  ],
+
+  "roles": {
+    "runtime": {
+      "name": "runtime",
+      "entryPoints": ["Update", "LateUpdate", "FixedUpdate", "Draw", "Render", "Tick", "OnFrame", "EndFrame", "BeginFrame", "PreFrame", "Main"],
+      "constraints": ["zero-alloc", "unmanaged-structs"],
+      "antiPatterns": ["managed-collections-in-hot-path", "linq-in-hot-path"],
+      "detectPatterns": ["fixed-capacity-pool", "sidecar-buffer-offset-count", "bit-packed-sort-key", "unsafe-memory", "native-memory-allocation", "fixed-buffer-in-struct"],
+      "trustRules": [
+        { "condition": "isHotPath", "level": "L3", "label": "hot path, zero allocations required" },
+        { "condition": "hasPattern:unsafe-memory", "level": "L2", "label": "unsafe memory, unmanaged structs required" },
+        { "condition": "default", "level": "L1", "label": "standard" }
+      ]
+    },
+    "editor": {
+      "name": "editor",
+      "entryPoints": [],
+      "constraints": [],
+      "antiPatterns": [],
+      "detectPatterns": [],
+      "trustRules": [
+        { "condition": "default", "level": "L1", "label": "editor tooling, standard constraints" }
+      ]
+    },
+    "platform": {
+      "name": "platform",
+      "entryPoints": [],
+      "constraints": ["thread-safe"],
+      "antiPatterns": [],
+      "detectPatterns": [],
+      "trustRules": [
+        { "condition": "default", "level": "L1", "label": "platform driver, thread safety required" }
+      ]
+    },
+    "general": {
+      "name": "general",
+      "entryPoints": [],
+      "constraints": [],
+      "antiPatterns": [],
+      "detectPatterns": [],
+      "trustRules": [
+        { "condition": "default", "level": "L1", "label": "standard" }
+      ]
+    }
+  },
+
+  "constraintDefs": {
+    "zero-alloc": {
+      "rule": "Zero allocations in hot paths",
+      "reason": "Any heap allocation (new, LINQ, boxing) risks GC stalls in per-frame code.",
+      "scope": "per-frame-reachable",
+      "when": "isHotPath || hasPattern:fixed-capacity-pool || hasPattern:native-memory-allocation"
+    },
+    "unmanaged-structs": {
+      "rule": "Unmanaged structs only in unsafe contexts",
+      "reason": "This file uses unmanaged memory (pointers, NativeMemory). Types must satisfy the unmanaged constraint.",
+      "scope": "file",
+      "when": "hasPattern:unsafe-memory || hasPattern:native-memory-allocation"
+    },
+    "thread-safe": {
+      "rule": "Thread safety required",
+      "reason": "Platform/driver layer may be called from multiple threads. Shared state must be synchronized.",
+      "scope": "file"
+    }
+  },
+
+  "antiPatternDefs": {
+    "managed-collections-in-hot-path": {
+      "bad": "Dictionary<K,V>, List<T>, or any managed collection",
+      "good": "Flat array with const capacity + index-based access, or pre-allocated pools",
+      "why": "Managed collections allocate on the heap and trigger GC in per-frame code paths.",
+      "when": "isHotPath"
+    },
+    "linq-in-hot-path": {
+      "bad": "LINQ queries (.Select, .Where, .ToArray, etc.)",
+      "good": "Manual loops with pre-allocated arrays",
+      "why": "Every LINQ call allocates an iterator and closure on the heap.",
+      "when": "isHotPath"
+    }
+  },
+
+  "patternDefs": {
+    "fixed-capacity-pool": {
+      "name": "Fixed-capacity pool",
+      "description": "Pre-allocated flat array with const Max capacity. Silent overflow (drop, don't throw) when full."
+    },
+    "sidecar-buffer-offset-count": {
+      "name": "Sidecar buffer (offset+count)",
+      "description": "Related data stored in parallel flat arrays, referenced by offset and count fields in the parent struct."
+    },
+    "bit-packed-sort-key": {
+      "name": "Bit-packed sort key",
+      "description": "Multiple sort dimensions packed into a single integer using bit shifts for zero-allocation sorting."
+    },
+    "unsafe-memory": {
+      "name": "Unsafe memory",
+      "description": "Direct pointer manipulation for performance-critical code paths."
+    },
+    "native-memory-allocation": {
+      "name": "Native memory allocation",
+      "description": "NativeMemory.Alloc/Free for unmanaged heap allocations outside GC control."
+    },
+    "fixed-buffer-in-struct": {
+      "name": "Fixed buffer in struct",
+      "description": "Fixed-size buffer embedded in struct for inline storage without heap allocation."
+    }
+  }
+}
