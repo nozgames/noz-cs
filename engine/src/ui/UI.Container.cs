@@ -27,8 +27,13 @@ public static partial class UI
 
         ElementTree.BeginSize(style.Size);
 
-        if (!resolved.Color.IsTransparent || resolved.BorderWidth > 0)
-            ElementTree.BeginFill(resolved.Color, style.BorderRadius, resolved.BorderWidth, resolved.BorderColor);
+        if (!resolved.Color.IsTransparent || !resolved.Color2.IsTransparent || resolved.BorderWidth > 0)
+        {
+            if (resolved.Color2.IsTransparent)
+                ElementTree.BeginFill(resolved.Color, style.BorderRadius, resolved.BorderWidth, resolved.BorderColor);
+            else
+                ElementTree.BeginFill(resolved.Color, resolved.Color2, resolved.GradientAngle, style.BorderRadius, resolved.BorderWidth, resolved.BorderColor);
+        }
 
         if (style.Clip)
             ElementTree.BeginClip(style.BorderRadius);
