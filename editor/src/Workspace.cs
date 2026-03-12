@@ -61,6 +61,7 @@ public static partial class Workspace
     private static PopupMenuItem[] _workspacePopupItems = null!;
 
     public static Camera Camera => _camera;
+    public static WidgetId SceneWidgetId => ElementId.Scene;
     public static bool XrayMode { get; set; }
     public static float XrayAlpha => XrayMode ? EditorStyle.Workspace.XrayAlpha : 1f;
     public static float Zoom => _zoom;

@@ -106,6 +106,7 @@ public static unsafe partial class ElementTree
         _currentWidget = WidgetId.None;
         _popupCount = 0;
         _activePopupCount = 0;
+        _sceneRenderInfos.Clear();
 
         ref var e = ref _elements.Add();
         e = default;

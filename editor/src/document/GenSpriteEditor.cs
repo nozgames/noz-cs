@@ -20,7 +20,6 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId LayerNegativePrompt { get; }
         public static partial WidgetId LayerSeed { get; }
         public static partial WidgetId LayerSeedDice { get; }
-        public static partial WidgetId LayerCombineMasks { get; }
         public static partial WidgetId LayerDeleteButton { get; }
         public static partial WidgetId LayerMoveUp { get; }
         public static partial WidgetId LayerMoveDown { get; }
@@ -53,6 +52,7 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
             .._shapeEditor.GetCommands(),
             new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
             new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
+            new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
         ];
     }
 
@@ -148,7 +148,8 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
                     items.Add(PopupMenuItem.Item(styleDoc.Name, () => SetStyle(styleDoc)));
             }
             return [.. items];
-        }, Document.StyleName ?? "None");
+        }, Document.StyleName ?? "None",
+        icon: EditorAssets.Sprites.AssetIconGenstyle);
     }
 
     private void GenSpriteInspectorUI()
@@ -353,15 +354,7 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
                         }
                     }
 
-                    using (Inspector.BeginRow())
-                    {
-                        if (UI.Toggle(WidgetIds.LayerCombineMasks + i, "Combine Masks", layer.CombineMasks, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
-                        {
-                            Undo.Record(Document);
-                            layer.CombineMasks = !layer.CombineMasks;
-                            Document.IncrementVersion();
-                        }
-                    }
+
                 }
             }
         }
@@ -479,6 +472,24 @@ public partial class GenSpriteEditor : DocumentEditor, IShapeEditorHost
             if (!path.IsSelected) continue;
             shape.SetPathStroke(p, color, path.StrokeWidth);
             _meshVersion = -1;
+        }
+    }
+
+    private void BeginEyeDropper() => Workspace.BeginTool(new EyeDropperTool(this));
+
+    internal void ApplyEyeDropperColor(Color32 color, bool shift)
+    {
+        if (shift)
+        {
+            SetStrokeColor(color);
+            if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
+                ColorPicker.Open(WidgetIds.StrokeColor, color);
+        }
+        else
+        {
+            SetFillColor(color);
+            if (ColorPicker.IsOpen(WidgetIds.FillColor))
+                ColorPicker.Open(WidgetIds.FillColor, color);
         }
     }
 

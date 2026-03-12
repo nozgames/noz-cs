@@ -135,6 +135,9 @@ public static partial class UI
         return ElementTree.GetWidgetWorldRect(id);
     }
 
+    public static bool TryGetSceneRenderInfo(WidgetId id, out SceneRenderInfo info) =>
+        ElementTree.TryGetSceneRenderInfo(id, out info);
+
     public static bool IsHovered(WidgetId id) => ElementTree.IsHovered(id);
     public static bool IsHovered() => ElementTree.IsHovered();
     public static bool HoverEnter() => ElementTree.HoverEnter();

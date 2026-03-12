@@ -367,6 +367,23 @@ public static partial class ElementTree
 
         var rt = RenderTexturePool.Acquire(rtW, rtH, d.SampleCount);
 
+        // Store RT info keyed by the parent widget ID (if any)
+        if (e.Parent != 0)
+        {
+            ref var parent = ref GetElement(e.Parent);
+            if (parent.Type == ElementType.Widget)
+            {
+                _sceneRenderInfos[parent.Data.Widget.Id] = new SceneRenderInfo
+                {
+                    Handle = rt.Handle,
+                    Width = rt.Width,
+                    Height = rt.Height,
+                    ScreenRect = new Rect(screenTopLeft.X, screenTopLeft.Y,
+                        screenBottomRight.X - screenTopLeft.X, screenBottomRight.Y - screenTopLeft.Y),
+                };
+            }
+        }
+
         Graphics.BeginPass(rt, d.ClearColor);
         Graphics.SetCamera(camera);
         Graphics.SetTransform(Matrix3x2.Identity);
@@ -387,6 +404,11 @@ public static partial class ElementTree
 
 
     internal static bool MouseOverScene;
+
+    private static readonly Dictionary<WidgetId, SceneRenderInfo> _sceneRenderInfos = new();
+
+    internal static bool TryGetSceneRenderInfo(WidgetId id, out SceneRenderInfo info) =>
+        _sceneRenderInfos.TryGetValue(id, out info);
 
     internal static Vector2 ScreenSize;
     internal static Vector2 MouseWorldPosition;

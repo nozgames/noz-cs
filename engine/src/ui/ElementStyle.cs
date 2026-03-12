@@ -171,6 +171,14 @@ public struct SceneStyle()
     public int SampleCount = 1;
 }
 
+public struct SceneRenderInfo
+{
+    public nuint Handle;
+    public int Width;
+    public int Height;
+    public Rect ScreenRect;
+}
+
 public static class ElementStyle
 {
     public static ContainerStyle WithColor(this ContainerStyle style, Color color)
