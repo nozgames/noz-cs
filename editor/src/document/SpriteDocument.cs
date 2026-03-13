@@ -1345,6 +1345,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         if (Generation.IsGenerating)
             return;
 
+        var globalPromptPrefix = Style?.PromptPrefix ?? "";
         var globalPrompt = Style?.Prompt ?? "";
         var globalNegPrompt = Style?.NegativePrompt ?? "";
         var steps = Style?.DefaultSteps ?? 30;
@@ -1357,7 +1358,11 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         var imageBytes = RasterizeColorToPng();
         var maskBytes = RasterizeMaskToPng();
 
-        var prompt = string.IsNullOrEmpty(globalPrompt) ? Prompt : $"{Prompt}, {globalPrompt}";
+        var prompt = Prompt;
+        if (!string.IsNullOrEmpty(globalPromptPrefix))
+            prompt = $"{globalPromptPrefix} {prompt}";
+        if (!string.IsNullOrEmpty(globalPrompt))
+            prompt = $"{prompt}, {globalPrompt}";
         var negPrompt = NegativePrompt;
         if (!string.IsNullOrEmpty(globalNegPrompt))
             negPrompt = string.IsNullOrEmpty(negPrompt) ? globalNegPrompt : $"{negPrompt}, {globalNegPrompt}";

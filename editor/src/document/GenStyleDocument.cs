@@ -45,6 +45,7 @@ public class GenStyleDocument : Document
     public override bool CanSave => true;
 
     // Layer defaults
+    public string PromptPrefix = "";
     public string Prompt = "";
     public string NegativePrompt = "";
     public int DefaultSteps = 30;
@@ -101,6 +102,8 @@ public class GenStyleDocument : Document
             }
             else if (tk.ExpectIdentifier("model"))
                 ModelName = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("prompt_prefix"))
+                PromptPrefix = tk.ExpectQuotedString() ?? "";
             else if (tk.ExpectIdentifier("prompt"))
                 Prompt = tk.ExpectQuotedString() ?? "";
             else if (tk.ExpectIdentifier("prompt_neg"))
@@ -125,6 +128,8 @@ public class GenStyleDocument : Document
         writer.WriteLine($"workflow \"{Workflow.ToString().ToLowerInvariant()}\"");
         writer.WriteLine();
 
+        if (!string.IsNullOrEmpty(PromptPrefix))
+            writer.WriteLine($"prompt_prefix \"{PromptPrefix.Replace("\"", "\\\"")}\"");
         if (!string.IsNullOrEmpty(Prompt))
             writer.WriteLine($"prompt \"{Prompt.Replace("\"", "\\\"")}\"");
         if (!string.IsNullOrEmpty(NegativePrompt))

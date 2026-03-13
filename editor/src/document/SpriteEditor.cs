@@ -970,6 +970,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                 {
                     Undo.Record(Document);
                     Document.Prompt = " ";
+                    Document.Seed = Random.Shared.NextInt64(1, long.MaxValue).ToString();
                     Document.ConstrainedSize ??= new Vector2Int(256, 256);
                     Document.UpdateBounds();
                 }

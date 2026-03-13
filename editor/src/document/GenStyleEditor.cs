@@ -8,6 +8,7 @@ public partial class GenStyleEditor : DocumentEditor
 {
     private static partial class WidgetIds
     {
+        public static partial WidgetId LayerPromptPrefix { get; }
         public static partial WidgetId LayerPrompt { get; }
         public static partial WidgetId LayerNegativePrompt { get; }
         public static partial WidgetId LayerStrength { get; }
@@ -79,6 +80,10 @@ public partial class GenStyleEditor : DocumentEditor
                 }
             }
         }
+
+        using (Inspector.BeginRow())
+        using (UI.BeginFlex())
+            Document.PromptPrefix = UI.TextInput(WidgetIds.LayerPromptPrefix, Document.PromptPrefix, EditorStyle.TextArea, "Prompt Prefix", Document, multiLine: true);
 
         using (Inspector.BeginRow())
         using (UI.BeginFlex())
