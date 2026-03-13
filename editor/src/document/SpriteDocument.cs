@@ -1349,7 +1349,6 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         var globalNegPrompt = Style?.NegativePrompt ?? "";
         var steps = Style?.DefaultSteps ?? 30;
         var strength = Style?.DefaultStrength ?? 0.8f;
-        var styleStrength = Style?.StyleInpaintStrength ?? 0.5f;
         var guidance = Style?.DefaultGuidanceScale ?? 6.0f;
 
         var workflow = Style?.Workflow ?? GenerationWorkflow.Sprite;
@@ -1366,46 +1365,13 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         var hashedSeed = HashSeed(Seed);
         var seed = hashedSeed == 0 ? Random.Shared.NextInt64(1, long.MaxValue) : hashedSeed;
 
-        // Build refine prompt
-        var refinePromptParts = new List<string> { Prompt };
-        if (!string.IsNullOrEmpty(Style?.RefinePrompt))
-            refinePromptParts.Add(Style.RefinePrompt);
-        var refinePrompt = string.Join(", ", refinePromptParts.Where(p => !string.IsNullOrEmpty(p)));
-
-        var refineNegParts = new List<string>();
-        if (!string.IsNullOrEmpty(NegativePrompt))
-            refineNegParts.Add(NegativePrompt);
-        if (!string.IsNullOrEmpty(Style?.RefineNegativePrompt))
-            refineNegParts.Add(Style.RefineNegativePrompt);
-        var refineNegPrompt = string.Join(", ", refineNegParts.Where(p => !string.IsNullOrEmpty(p)));
-
         var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
-
-        // Build style block
-        GenerationStyleBlock? styleBlock = null;
-        if (Style != null)
-        {
-            var refs = GenerationClient.LoadStyleReferences(Style.StyleReferences);
-            if (refs != null)
-            {
-                styleBlock = new GenerationStyleBlock
-                {
-                    Strength = Style.StyleStrength,
-                    InpaintStrength = 0.5f,
-                    References = refs,
-                };
-            }
-        }
-
-        // Build lora from style
-        GenerationLora? lora = null;
-        if (!string.IsNullOrEmpty(Style?.LoraName))
-            lora = new GenerationLora { Name = Style.LoraName, Strength = Style.LoraStrength };
 
         var request = new GenerationRequest
         {
             Server = server,
             Workflow = (Style?.Workflow ?? GenerationWorkflow.Sprite).ToString().ToLowerInvariant(),
+            Model = Style?.ModelName,
             Image = imageBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(imageBytes)}" : null,
             Mask = maskBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(maskBytes)}" : null,
             Prompt = prompt,
@@ -1414,18 +1380,6 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             Steps = steps,
             GuidanceScale = guidance,
             Seed = seed,
-            StyleStrength = styleStrength,
-            Refine = new GenerationRefine
-            {
-                Prompt = refinePrompt,
-                NegativePrompt = string.IsNullOrEmpty(refineNegPrompt) ? null : refineNegPrompt,
-                Strength = Style?.RefineStrength ?? 0.64f,
-                Steps = Style?.RefineSteps ?? 10,
-                GuidanceScale = Style?.RefineGuidanceScale ?? 6.0f,
-                Seed = seed,
-            },
-            Style = styleBlock,
-            Lora = lora,
         };
 
         Log.Info($"Starting generation for '{Name}' on {server}...");

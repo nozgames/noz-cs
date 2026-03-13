@@ -989,10 +989,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
             using (Inspector.BeginRow())
             using (UI.BeginFlex())
-                GenerationConstraintUI();
-
-            using (Inspector.BeginRow())
-            using (UI.BeginFlex())
                 GenerationStyleUI();
 
             using (Inspector.BeginRow())
@@ -1022,22 +1018,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             GenerationProgressUI(genImage);
         else
             GenerateButtonUI(genImage);
-    }
-
-    private void GenerationConstraintUI()
-    {
-        var sizes = EditorApplication.Config.SpriteSizes;
-        var constraintLabel = "256x256";
-        if (Document.ConstrainedSize.HasValue)
-            for (int i = 0; i < sizes.Length; i++)
-                if (Document.ConstrainedSize.Value == sizes[i].Size)
-                {
-                    constraintLabel = sizes[i].Label;
-                    break;
-                }
-
-        UI.DropDown(WidgetIds.ConstraintDropDown, () => sizes.Select(s =>
-            PopupMenuItem.Item(s.Label, () => SetConstraint(s.Size))).ToArray(), constraintLabel, EditorAssets.Sprites.IconConstraint);
     }
 
     private void GenerationStyleUI()

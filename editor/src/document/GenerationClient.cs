@@ -18,57 +18,16 @@ public class GenerationRequest
     public string? Mask { get; set; }
     public string Prompt { get; set; } = "";
     public string? NegativePrompt { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.85f;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public int Steps { get; set; } = 20;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float GuidanceScale { get; set; } = 6.0f;
+    public float? Strength { get; set; }
+    public int? Steps { get; set; }
+    public float? GuidanceScale { get; set; }
     public long? Seed { get; set; }
-    public float StyleStrength { get; set; }
-    public GenerationRefine? Refine { get; set; }
-    public GenerationStyleBlock? Style { get; set; }
-    public GenerationLora? Lora { get; set; }
+    public string? Model { get; set; }
 }
 
-public class GenerationStyleBlock
-{
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.5f;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float InpaintStrength { get; set; } = 0.2f;
-    public List<GenerationStyleReference>? References { get; set; }
-}
-
-public class GenerationStyleReference
-{
-    public string Image { get; set; } = "";
-}
-
-public class GenerationLora
+public class ModelInfo
 {
     public string Name { get; set; } = "";
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.8f;
-}
-
-public class LoraInfo
-{
-    public string Name { get; set; } = "";
-    public float DefaultStrength { get; set; } = 0.8f;
-}
-
-public class GenerationRefine
-{
-    public string Prompt { get; set; } = "";
-    public string? NegativePrompt { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float Strength { get; set; } = 0.64f;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public int Steps { get; set; } = 10;
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public float GuidanceScale { get; set; } = 6.0f;
-    public long? Seed { get; set; }
 }
 
 public class GenerationResponse
@@ -259,86 +218,57 @@ public static class GenerationClient
         }, cancellationToken);
     }
 
-    public static List<GenerationStyleReference>? LoadStyleReferences(List<string>? styles)
+    private static List<ModelInfo>? _cachedModels;
+    private static string? _cachedModelsServer;
+    private static bool _fetchingModels;
+    private static double _modelRetryTime;
+
+    public static List<ModelInfo>? CachedModels => _cachedModels;
+
+    public static void FetchModels(string server)
     {
-        if (styles == null || styles.Count == 0)
-            return null;
-
-        var refs = new List<GenerationStyleReference>();
-        foreach (var name in styles)
-        {
-            var doc = DocumentManager.Find(AssetType.Texture, name);
-            if (doc == null)
-            {
-                Log.Warning($"Style reference texture '{name}' not found");
-                continue;
-            }
-
-            if (!File.Exists(doc.Path))
-            {
-                Log.Warning($"Style reference file not found: {doc.Path}");
-                continue;
-            }
-
-            var bytes = File.ReadAllBytes(doc.Path);
-            var base64 = Convert.ToBase64String(bytes);
-            refs.Add(new GenerationStyleReference { Image = base64 });
-        }
-
-        return refs.Count > 0 ? refs : null;
-    }
-
-    private static List<LoraInfo>? _cachedLoras;
-    private static string? _cachedLorasServer;
-    private static bool _fetchingLoras;
-    private static double _loraRetryTime;
-
-    public static List<LoraInfo>? CachedLoras => _cachedLoras;
-
-    public static void FetchLoras(string server)
-    {
-        if (_cachedLorasServer == server && _cachedLoras != null)
+        if (_cachedModelsServer == server && _cachedModels != null)
             return;
 
-        if (_fetchingLoras)
+        if (_fetchingModels)
             return;
 
-        if (_cachedLorasServer == server && Time.TotalTime < _loraRetryTime)
+        if (_cachedModelsServer == server && Time.TotalTime < _modelRetryTime)
             return;
 
-        _cachedLorasServer = server;
-        _fetchingLoras = true;
+        _cachedModelsServer = server;
+        _fetchingModels = true;
         Task.Run(async () =>
         {
             try
             {
-                var response = await _http.GetAsync($"{server}/loras");
+                var response = await _http.GetAsync($"{server}/models");
                 if (!response.IsSuccessStatusCode)
                 {
-                    Log.Warning($"Failed to fetch LoRAs: {response.StatusCode}");
+                    Log.Warning($"Failed to fetch models: {response.StatusCode}");
                     EditorApplication.RunOnMainThread(() =>
                     {
-                        _fetchingLoras = false;
-                        _loraRetryTime = Time.TotalTime + 5.0;
+                        _fetchingModels = false;
+                        _modelRetryTime = Time.TotalTime + 5.0;
                     });
                     return;
                 }
 
                 var json = await response.Content.ReadAsStringAsync();
-                var loras = JsonSerializer.Deserialize<List<LoraInfo>>(json, _jsonOptions);
+                var models = JsonSerializer.Deserialize<List<ModelInfo>>(json, _jsonOptions);
                 EditorApplication.RunOnMainThread(() =>
                 {
-                    _cachedLoras = loras ?? [];
-                    _fetchingLoras = false;
+                    _cachedModels = models ?? [];
+                    _fetchingModels = false;
                 });
             }
             catch (Exception ex)
             {
-                Log.Warning($"Failed to fetch LoRAs: {ex.Message}");
+                Log.Warning($"Failed to fetch models: {ex.Message}");
                 EditorApplication.RunOnMainThread(() =>
                 {
-                    _fetchingLoras = false;
-                    _loraRetryTime = Time.TotalTime + 5.0;
+                    _fetchingModels = false;
+                    _modelRetryTime = Time.TotalTime + 5.0;
                 });
             }
         });
