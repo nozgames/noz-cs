@@ -553,29 +553,22 @@ public class ShapeEditor
 
     #region Drawing
 
-    public static void DrawSegments(Shape shape, bool dimmed)
+    public static void DrawSegments(Shape shape)
     {
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
-            var lineColor = dimmed
-                ? EditorStyle.Workspace.LineColor.WithAlpha(0.3f)
-                : EditorStyle.Workspace.LineColor;
-
-            Gizmos.SetColor(lineColor);
+            Gizmos.SetColor(EditorStyle.Palette.PathSegment);
             for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
             {
                 if (!shape.IsSegmentSelected(anchorIndex))
                     DrawSegment(shape, anchorIndex, EditorStyle.Shape.SegmentLineWidth, 1);
             }
 
-            if (!dimmed)
+            Gizmos.SetColor(EditorStyle.Palette.Selection);
+            for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
             {
-                Gizmos.SetColor(EditorStyle.Workspace.SelectionColor);
-                for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
-                {
-                    if (shape.IsSegmentSelected(anchorIndex))
-                        DrawSegment(shape, anchorIndex, EditorStyle.Shape.SegmentLineWidth, 2);
-                }
+                if (shape.IsSegmentSelected(anchorIndex))
+                    DrawSegment(shape, anchorIndex, EditorStyle.Shape.SegmentLineWidth, 2);
             }
         }
     }
@@ -606,7 +599,7 @@ public class ShapeEditor
             {
                 ref readonly var anchor = ref shape.GetAnchor(i);
                 if (anchor.IsSelected) continue;
-                Gizmos.SetColor(EditorStyle.Workspace.LineColor);
+                Gizmos.SetColor(EditorStyle.Palette.PathAnchor);
                 Gizmos.DrawRect(anchor.Position, EditorStyle.Shape.AnchorSize, order: 4);
             }
         }
@@ -615,7 +608,7 @@ public class ShapeEditor
         {
             ref readonly var anchor = ref shape.GetAnchor(i);
             if (!anchor.IsSelected) continue;
-            Gizmos.SetColor(EditorStyle.Workspace.SelectionColor);
+            Gizmos.SetColor(EditorStyle.Palette.Selection);
             Gizmos.DrawRect(anchor.Position, EditorStyle.Shape.AnchorSize, order: 5);
         }
     }

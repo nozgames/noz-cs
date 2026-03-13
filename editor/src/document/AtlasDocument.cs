@@ -244,6 +244,7 @@ internal class AtlasDocument : Document
 
     public override void Dispose()
     {
+        Clear();
         _texture?.Dispose();
         _image?.Dispose();
         _texture = null!;

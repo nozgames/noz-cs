@@ -20,6 +20,10 @@ public static class EditorStyle
         public static readonly Color Panel = Color.FromRgb(0x252526);
         public static readonly Color Primary = Color.FromRgb(0xE83A3A);
         public static readonly Color PrimaryHover = Color.FromRgb(0xF04848);
+        public static readonly Color Selection = Color.FromRgb(0xE83A3A);
+
+        public static readonly Color PathSegment = Color.FromRgb(0x000000);
+        public static readonly Color PathAnchor = Color.FromRgb(0x000000);
 
         // Text & Icon
         public static readonly Color Content = Color.FromRgb(0xE8E8E8);
@@ -104,7 +108,6 @@ public static class EditorStyle
         public static readonly Color GridColor = Palette.Grid;
         public static readonly Color BoundsColor = Color.FromRgb(0x212121);
         public static readonly Color OriginColor = Color.FromRgb(0xff9f2c);
-        public static readonly Color LineColor = Color.FromRgb(0x000000);
         public const float XrayAlpha = 0.5f;
         public const float OriginSize = 0.1f;
         public const float DocumentBoundsLineWidth = 0.015f;

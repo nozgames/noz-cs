@@ -149,8 +149,11 @@ public static class DocumentManager
             doc.IncrementVersion();
         }
 
-        doc.PostLoad();
-        doc.PostLoaded = true;
+        if (_initialized)
+        {
+            doc.PostLoad();
+            doc.PostLoaded = true;
+        }
 
         DocumentAdded?.Invoke(doc);
 

@@ -752,7 +752,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void DrawWireframe()
     {
         var shape = CurrentShape;
-        ShapeEditor.DrawSegments(shape, dimmed: false);
+        ShapeEditor.DrawSegments(shape);
         ShapeEditor.DrawAnchors(shape);
     }
 

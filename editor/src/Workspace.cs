@@ -122,6 +122,29 @@ public static partial class Workspace
     {
     }
 
+    private static void GenerateSelected()
+    {
+        if (SelectedCount == 0)
+            return;
+
+        var count = 0;
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected)
+                continue;
+            if (doc is SpriteDocument sprite && sprite.HasGeneration)
+            {
+                sprite.GenerateAsync();
+                count++;
+            }
+        }
+
+        if (count > 0)
+            Notifications.Add($"Generating {count} sprite(s)");
+        else
+            Notifications.AddError("No selected sprites have generation config");
+    }
+
     private static void GenerateManifest()
     {
         AssetManifest.Generate(force: true);
@@ -189,6 +212,7 @@ public static partial class Workspace
             unhideAllCommand,
             new() { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new() { Name = "Frame", Handler = FrameSelected, Key = InputCode.KeyF },
+            new() { Name = "Generate Selected", Handler = GenerateSelected, Key = InputCode.KeyG, Ctrl = true },
             new() { Name = "Reimport All", Handler = ReimportAll },
             new() { Name = "Generate Manifest", Handler = GenerateManifest },
             new() { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
