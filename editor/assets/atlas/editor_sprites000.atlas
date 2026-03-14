@@ -55,10 +55,11 @@ r "icon_search" 860 137 68 68 0
 r "icon_seed" 928 137 68 68 0
 r "icon_sort" 205 383 68 68 0
 r "icon_stroke" 137 406 68 68 0
-r "icon_submenu" 69 440 68 68 0
-r "icon_subtract" 1 443 68 68 0
-r "icon_tiling" 273 383 68 68 0
+r "icon_stroke_size" 69 440 68 68 0
+r "icon_submenu" 1 443 68 68 0
+r "icon_subtract" 273 383 68 68 0
+r "icon_tiling" 792 205 68 68 0
 r "icon_unlock" 615 259 36 36 0
-r "icon_xray" 792 205 68 68 0
-r "" 656 123 4 4 0
-r "new_sprite" 651 263 68 68 0
+r "icon_xray" 651 263 68 68 0
+r "" 615 295 36 36 0
+r "icon_generating" 719 263 68 68 0

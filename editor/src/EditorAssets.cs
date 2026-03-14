@@ -44,6 +44,7 @@ public static class EditorAssets
         public const string IconFill = "icon_fill";
         public const string IconFoldoutClosed = "icon_foldout_closed";
         public const string IconFoldoutOpen = "icon_foldout_open";
+        public const string IconGenerating = "icon_generating";
         public const string IconHidden = "icon_hidden";
         public const string IconKeyframe = "icon_keyframe";
         public const string IconLayer = "icon_layer";
@@ -168,6 +169,7 @@ public static class EditorAssets
         public static Sprite IconFill { get; private set; } = null!;
         public static Sprite IconFoldoutClosed { get; private set; } = null!;
         public static Sprite IconFoldoutOpen { get; private set; } = null!;
+        public static Sprite IconGenerating { get; private set; } = null!;
         public static Sprite IconHidden { get; private set; } = null!;
         public static Sprite IconKeyframe { get; private set; } = null!;
         public static Sprite IconLayer { get; private set; } = null!;
@@ -229,6 +231,7 @@ public static class EditorAssets
             IconFill = (Sprite)Asset.Load(AssetType.Sprite, Names.IconFill)!;
             IconFoldoutClosed = (Sprite)Asset.Load(AssetType.Sprite, Names.IconFoldoutClosed)!;
             IconFoldoutOpen = (Sprite)Asset.Load(AssetType.Sprite, Names.IconFoldoutOpen)!;
+            IconGenerating = (Sprite)Asset.Load(AssetType.Sprite, Names.IconGenerating)!;
             IconHidden = (Sprite)Asset.Load(AssetType.Sprite, Names.IconHidden)!;
             IconKeyframe = (Sprite)Asset.Load(AssetType.Sprite, Names.IconKeyframe)!;
             IconLayer = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLayer)!;
@@ -291,6 +294,7 @@ public static class EditorAssets
             IconFill?.Dispose();
             IconFoldoutClosed?.Dispose();
             IconFoldoutOpen?.Dispose();
+            IconGenerating?.Dispose();
             IconHidden?.Dispose();
             IconKeyframe?.Dispose();
             IconLayer?.Dispose();

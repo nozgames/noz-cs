@@ -87,6 +87,20 @@ public static partial class UI
             false,
             s.Scope);
 
+        if (handler != null)
+        {
+            if (state.JustFocused != 0)
+                handler.BeginChange();
+
+            if (state.FocusExited != 0)
+            {
+                if (state.WasCancelled == 0 && state.TextHash != state.PrevTextHash)
+                    handler.NotifyChange();
+                else
+                    handler.CancelChange();
+            }
+        }
+
         if (floatingLabel)
             ElementTree.EndColumn();
 

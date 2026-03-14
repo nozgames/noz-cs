@@ -539,7 +539,8 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
                     Graphics.SetTransform(Transform);
                     Graphics.SetTexture(texture);
                     Graphics.SetShader(EditorAssets.Shaders.Texture);
-                    Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
+                    var alpha = Generation.IsGenerating ? 0.3f : Workspace.XrayAlpha;
+                    Graphics.SetColor(Color.White.WithAlpha(alpha));
                     Graphics.Draw(rect);
                 }
             }
@@ -550,9 +551,10 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
 
             if (Generation.IsGenerating)
             {
-                var angle = Time.TotalTime * 4f;
+                var angle = Time.TotalTime * 3f;
                 var rotation = Matrix3x2.CreateRotation(angle);
-                var scale = Matrix3x2.CreateScale(0.5f);
+                var pulse = 0.7f + 0.3f * (0.5f + 0.5f * MathF.Sin(Time.TotalTime * 3f));
+                var scale = Matrix3x2.CreateScale(pulse);
 
                 using (Graphics.PushState())
                 {
@@ -560,7 +562,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
                     Graphics.SetSortGroup(7);
                     Graphics.SetLayer(EditorLayer.DocumentEditor);
                     Graphics.SetColor(Color.White);
-                    Graphics.Draw(EditorAssets.Sprites.IconAi);
+                    Graphics.Draw(EditorAssets.Sprites.IconGenerating);
                 }
             }
 

@@ -1,5 +1,4 @@
 
-layer "Layer 1"
 path
 fill #FFFFFF
 anchor -0.23765188 0.009038965 -0.04961202
@@ -38,4 +37,3 @@ anchor -0.095692486 0.20940197
 anchor 0.06614338 -0.19714391
 
 
-layer "Layer 2"
