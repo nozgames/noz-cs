@@ -14,6 +14,19 @@ public static unsafe partial class ElementTree
     private static float EdgeInset(in EdgeInsets ei, int axis) => axis == 0 ? ei.Horizontal : ei.Vertical;
     private static float EdgeMin(in EdgeInsets ei, int axis) => axis == 0 ? ei.L : ei.T;
 
+    private static float FitMaxChildren(ref Element e, int axis, int layoutAxis)
+    {
+        var max = 0f;
+        var childOffset = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            max = Math.Max(max, FitAxis(childOffset, axis, layoutAxis));
+            ref var child = ref GetElement(childOffset);
+            childOffset = child.NextSibling;
+        }
+        return max;
+    }
+
     private static float FitAxis(int offset, int axis, int layoutAxis)
     {
         ref var e = ref GetElement(offset);
@@ -35,13 +48,13 @@ public static unsafe partial class ElementTree
 
             case ElementType.Padding:
             {
-                var child = e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
+                var child = e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
                 return child + EdgeInset(e.Data.Padding, axis);
             }
 
             case ElementType.Margin:
             {
-                var child = e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
+                var child = e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
                 return child + EdgeInset(e.Data.Margin, axis);
             }
 
@@ -54,7 +67,7 @@ public static unsafe partial class ElementTree
             case ElementType.Widget:
             case ElementType.Track:
             case ElementType.Align:
-                return e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
+                return e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
 
             case ElementType.Row:
                 return FitRowColumn(ref e, axis, 0, e.Data.Spacing);
@@ -208,7 +221,7 @@ public static unsafe partial class ElementTree
                 var inset = EdgeInset(e.Data.Padding, axis);
                 size = layoutAxis != axis
                     ? available
-                    : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0) + inset;
+                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0) + inset;
                 break;
             }
 
@@ -217,7 +230,7 @@ public static unsafe partial class ElementTree
                 var inset = EdgeInset(e.Data.Margin, axis);
                 size = layoutAxis != axis
                     ? available
-                    : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0) + inset;
+                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0) + inset;
                 break;
             }
 
@@ -231,13 +244,13 @@ public static unsafe partial class ElementTree
             case ElementType.Track:
                 size = layoutAxis != axis
                     ? available
-                    : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0);
+                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0);
                 break;
 
             case ElementType.Align:
                 size = layoutAxis != axis
                     ? available
-                    : (e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0);
+                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0);
                 break;
 
             case ElementType.Row:
