@@ -12,10 +12,12 @@ internal partial class SkeletonEditor : DocumentEditor
     private const int SortGroupBones = 1;
     private const int SortGroupSelectedBones = 2;
 
-    [ElementId("Root")]
-    [ElementId("PreviewButton")]
-    [ElementId("ConnectedButton")]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId PreviewButton { get; }
+        public static partial WidgetId ConnectedButton { get; }
+    }
 
     private struct SavedBone
     {
@@ -29,6 +31,7 @@ internal partial class SkeletonEditor : DocumentEditor
     private readonly SavedBone[] _savedBones = new SavedBone[Skeleton.MaxBones];
     private Vector2 _selectionCenter;
     private Vector2 _selectionCenterWorld;
+    private PopupMenuItem[] _contextMenuItems = null!;
     private bool _clearSelectionOnUp;
     private bool _ignoreUp;
     private bool _showPreview = true;
@@ -57,20 +60,15 @@ internal partial class SkeletonEditor : DocumentEditor
 
         bool HasSelection() => Document.SelectedBoneCount > 0;
 
-        ContextMenu = new PopupMenuDef
-        {
-            Title = "Skeleton",
-            Items =
-            [
-                PopupMenuItem.FromCommand(renameCommand, enabled: () => Document.SelectedBoneCount == 1),
-                PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
-                PopupMenuItem.Separator(),
-                PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
-                PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
-                PopupMenuItem.Separator(),
-                PopupMenuItem.FromCommand(exitEditCommand),
-            ]
-        };
+        //_contextMenuItems = [
+        //    PopupMenuItem.FromCommand(renameCommand, enabled: () => Document.SelectedBoneCount == 1),
+        //    PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
+        //    PopupMenuItem.Separator(),
+        //    PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
+        //    PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
+        //    PopupMenuItem.Separator(),
+        //    PopupMenuItem.FromCommand(exitEditCommand),
+        //];
 
         Commands = _commands;
         ClearSelection();
@@ -109,20 +107,15 @@ internal partial class SkeletonEditor : DocumentEditor
 
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
         {
-            var hasSelectableHead = HasSelectedHeadWithParent();
-            if (EditorUI.Button(
-                ElementId.ConnectedButton,
-                EditorAssets.Sprites.IconConnected,
-                selected: Document.CurrentConnected,
-                disabled: !hasSelectableHead,
-                toolbar: true))
+            UI.SetChecked(Document.CurrentConnected);
+            if (UI.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon))
             {
                 ToggleConnected();
             }
 
-            EditorUI.ToolbarSpacer();
+            UI.Spacer(EditorStyle.Control.Spacing);
 
-            if (EditorUI.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview, toolbar: true))
+            if (UI.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.IconOnly))
                 _showPreview = !_showPreview;
         }
 
@@ -151,7 +144,7 @@ internal partial class SkeletonEditor : DocumentEditor
             }
         }
 
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     public override void UpdateUI()
@@ -413,7 +406,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
         Workspace.BeginTool(new MoveTool(
             update: UpdateMoveTool,
-            commit: _ => { Document.MarkModified(); Document.NotifyTransformsChanged(); },
+            commit: _ => { Document.IncrementVersion(); Document.NotifyTransformsChanged(); },
             cancel: Undo.Cancel
         ));
     }
@@ -515,7 +508,7 @@ internal partial class SkeletonEditor : DocumentEditor
             _selectionCenterWorld,
             worldOrigin,
             update: UpdateScaleTool,
-            commit: _ => { Document.MarkModified(); Document.NotifyTransformsChanged(); },
+            commit: _ => { Document.IncrementVersion(); Document.NotifyTransformsChanged(); },
             cancel: Undo.Cancel
         ));
     }
@@ -631,7 +624,7 @@ internal partial class SkeletonEditor : DocumentEditor
         Undo.EndGroup();
 
         ClearSelection();
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     #endregion
@@ -658,7 +651,7 @@ internal partial class SkeletonEditor : DocumentEditor
                 Undo.Record(Document);
                 bone.Name = newName;
                 Document.NotifyBoneRenamed(boneIndex, oldName, newName);
-                Document.MarkModified();
+                Document.IncrementVersion();
                 Notifications.Add($"renamed bone to '{newName}'");
             }
         ));

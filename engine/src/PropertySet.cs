@@ -31,6 +31,11 @@ public class PropertySet
         SetString(group, key, value.ToString());
     }
 
+    public void SetLong(string group, string key, long value)
+    {
+        SetString(group, key, value.ToString());
+    }
+
     public void SetFloat(string group, string key, float value)
     {
         SetString(group, key, value.ToString("F6"));
@@ -89,6 +94,15 @@ public class PropertySet
             return defaultValue;
 
         return result;
+    }
+
+    public long GetLong(string group, string key, long defaultValue)
+    {
+        var str = GetString(group, key, "");
+        if (string.IsNullOrEmpty(str))
+            return defaultValue;
+
+        return long.TryParse(str, out var result) ? result : defaultValue;
     }
 
     public float GetFloat(string group, string key, float defaultValue)

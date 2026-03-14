@@ -8,12 +8,15 @@ namespace NoZ.Editor;
 
 internal partial class TextureEditor : DocumentEditor
 {
-    [ElementId("InspectorRoot")]
-    [ElementId("Field", 16)]
-    private static partial class ElementId { }
+    private static partial class WidgetIds 
+    {
+        public static partial WidgetId InspectorRoot { get; }
+        public static partial WidgetId Field { get; }
+    }
 
-    private int _nextFieldId;
+    private WidgetId _nextFieldId;
     private float _savedScale;
+    private PopupMenuItem[] _contextMenuItems;
     public new TextureDocument Document => (TextureDocument)base.Document;
 
     public TextureEditor(TextureDocument doc) : base(doc)
@@ -27,17 +30,12 @@ internal partial class TextureEditor : DocumentEditor
             exitEditCommand
         ];
 
-        ContextMenu = new PopupMenuDef
-        {
-            Title = "Texture",
-            Items =
-            [
-                PopupMenuItem.FromCommand(scaleCommand),
-
-                PopupMenuItem.Separator(),
-                PopupMenuItem.FromCommand(exitEditCommand),
-            ]
-        };
+        //_contextMenuItems =
+        //[
+        //    PopupMenuItem.FromCommand(scaleCommand),
+        //    PopupMenuItem.Separator(),
+        //    PopupMenuItem.FromCommand(exitEditCommand),
+        //];
     }
 
     public override void Update()
@@ -49,17 +47,19 @@ internal partial class TextureEditor : DocumentEditor
 
     public override void UpdateUI()
     {
-        _nextFieldId = ElementId.Field;
+        _nextFieldId = WidgetIds.Field;
 
-        using (UI.BeginColumn(ElementId.InspectorRoot, EditorStyle.Inspector.Root))
+        using (UI.BeginColumn(WidgetIds.InspectorRoot, EditorStyle.Inspector.Root))
         {
             using (UI.BeginColumn(EditorStyle.Inspector.Content))
             {
                 var isSprite = Document.IsSprite;
-                if (EditorUI.ToggleField(NextFieldId(), "Sprite", ref isSprite))
+                UI.SetChecked(isSprite);
+                if (UI.Toggle(NextFieldId(), "Sprite", isSprite, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
                 {
+                    isSprite = !isSprite;
+                    Undo.Record(Document);
                     Document.IsSprite = isSprite;
-                    Document.MarkMetaModified();
                     AssetManifest.IsModified = true;
 
                     if (isSprite)
@@ -69,17 +69,19 @@ internal partial class TextureEditor : DocumentEditor
                 }
 
                 var isReference = Document.IsEditorOnly;
-                if (EditorUI.ToggleField(NextFieldId(), "Reference", ref isReference))
+                UI.SetChecked(isReference);
+                if (UI.Toggle(NextFieldId(), "Reference", isReference, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
                 {
+                    isReference = !isReference;
+                    Undo.Record(Document);
                     Document.IsEditorOnly = isReference;
-                    Document.MarkMetaModified();
                     AssetManifest.IsModified = true;
                 }
             }
         }
     }
 
-    private int NextFieldId(int count = 1)
+    private WidgetId NextFieldId(int count = 1)
     {
         var id = _nextFieldId;
         _nextFieldId += count;
@@ -100,8 +102,7 @@ internal partial class TextureEditor : DocumentEditor
                 Document.UpdateBounds();
             },
             commit: _ =>
-            {
-                Document.MarkMetaModified();
+            {                
             },
             cancel: Undo.Cancel
         ));

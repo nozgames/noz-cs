@@ -122,6 +122,7 @@ public static class Importer
 
             Log.Info($"Imported {(Asset.GetDef(doc.Def.Type)?.Name ?? doc.Def.Type.ToString()).ToLowerInvariant()}/{doc.Name}");
             OnImported?.Invoke(doc);
+            doc.SilentImport = false;
             AssetManifest.IsModified = true;
         }
         catch (Exception ex)

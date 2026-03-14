@@ -7,13 +7,13 @@ using System.Runtime.InteropServices;
 namespace NoZ;
 
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Color32(byte r, byte g, byte b, byte a=255)
+public struct Color32(byte r, byte g, byte b, byte a=255)
     : IEquatable<Color32>
 {
-    public readonly byte R = r;
-    public readonly byte G = g;
-    public readonly byte B = b;
-    public readonly byte A = a;
+    public byte R = r;
+    public byte G = g;
+    public byte B = b;
+    public byte A = a;
 
     public bool IsTransparent => A == 0;
     public bool IsOpaque => A == 255;

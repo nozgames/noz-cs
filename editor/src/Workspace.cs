@@ -14,11 +14,14 @@ public enum WorkspaceState
 
 public static partial class Workspace
 {
-    [ElementId("Toolbar")]
-    [ElementId("XrayButton")]
-    [ElementId("CollectionButton")]
-    [ElementId("Scene")]
-    private static partial class ElementId { }
+    private static partial class ElementId
+    {
+        public static partial WidgetId Toolbar { get; }
+        public static partial WidgetId XrayButton { get; }
+        public static partial WidgetId CollectionButton { get; }
+        public static partial WidgetId ContextMenu { get; }
+        public static partial WidgetId Scene { get; }
+    }
 
     private const float ZoomMin = 0.2f;
     private const float ZoomMax = 200f;
@@ -55,9 +58,10 @@ public static partial class Workspace
 
     private static Document? _activeDocument;
     private static DocumentEditor? _activeEditor;
-    private static PopupMenuDef _workspaceContextMenu;
+    private static PopupMenuItem[] _workspacePopupItems = null!;
 
     public static Camera Camera => _camera;
+    public static WidgetId SceneWidgetId => ElementId.Scene;
     public static bool XrayMode { get; set; }
     public static float XrayAlpha => XrayMode ? EditorStyle.Workspace.XrayAlpha : 1f;
     public static float Zoom => _zoom;
@@ -118,6 +122,29 @@ public static partial class Workspace
     {
     }
 
+    private static void GenerateSelected()
+    {
+        if (SelectedCount == 0)
+            return;
+
+        var count = 0;
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected)
+                continue;
+            if (doc is SpriteDocument sprite && sprite.HasGeneration)
+            {
+                sprite.GenerateAsync();
+                count++;
+            }
+        }
+
+        if (count > 0)
+            Notifications.Add($"Generating {count} sprite(s)");
+        else
+            Notifications.AddError("No selected sprites have generation config");
+    }
+
     private static void GenerateManifest()
     {
         AssetManifest.Generate(force: true);
@@ -139,7 +166,7 @@ public static partial class Workspace
         if (doc != null)
         {
             doc.CollectionId = CollectionManager.GetVisibleId();
-            doc.MarkMetaModified();
+            doc.IncrementVersion();
             ClearSelection();
             SetSelected(doc, true);
             Notifications.Add($"created {(Asset.GetDef(assetType)?.Name ?? assetType.ToString()).ToLowerInvariant()} '{doc.Name}'");
@@ -185,6 +212,7 @@ public static partial class Workspace
             unhideAllCommand,
             new() { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new() { Name = "Frame", Handler = FrameSelected, Key = InputCode.KeyF },
+            new() { Name = "Generate Selected", Handler = GenerateSelected, Key = InputCode.KeyG, Ctrl = true },
             new() { Name = "Reimport All", Handler = ReimportAll },
             new() { Name = "Generate Manifest", Handler = GenerateManifest },
             new() { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
@@ -231,12 +259,12 @@ public static partial class Workspace
             items.Add(PopupMenuItem.Separator());
         }
 
-        items.Add(PopupMenuItem.FromCommand(editCommand, enabled: () => SelectedCount == 1));
-        items.Add(PopupMenuItem.FromCommand(duplicateCommand));
-        items.Add(PopupMenuItem.FromCommand(renameCommand));
-        items.Add(PopupMenuItem.FromCommand(deleteCommand));
-        items.Add(PopupMenuItem.FromCommand(moveCommand));
-        _workspaceContextMenu = new PopupMenuDef([.. items], "Asset");
+        items.Add(editCommand.ToPopupMenuItem(enabled: () => SelectedCount == 1));
+        items.Add(duplicateCommand.ToPopupMenuItem());
+        items.Add(renameCommand.ToPopupMenuItem());
+        items.Add(deleteCommand.ToPopupMenuItem());
+        items.Add(moveCommand.ToPopupMenuItem());
+        _workspacePopupItems = [.. items];
     }
 
     public static void LoadUserSettings(PropertySet props)
@@ -278,7 +306,8 @@ public static partial class Workspace
 
         if (!CommandPalette.IsOpen && !PopupMenu.IsVisible && !ConfirmDialog.IsVisible)
         {
-            CommandManager.ProcessShortcuts();
+            if (!UI.HasHot())
+                CommandManager.ProcessShortcuts();
 
             UpdateMouse();
             UpdatePan();
@@ -350,7 +379,7 @@ public static partial class Workspace
         using var _ = UI.BeginContainer(new ContainerStyle
         {
             Height = Size.Fit,
-            Color = EditorStyle.Panel.Root.Color
+            Color = EditorStyle.PanelOld.Root.Color
         });
         using var __ = UI.BeginRow(new ContainerStyle { 
             Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
@@ -360,7 +389,8 @@ public static partial class Workspace
         CollectionUI();
 
         UI.Flex();
-        if (EditorUI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, toolbar: true, selected: XrayMode))
+        UI.SetChecked(XrayMode);
+        if (UI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
         {
             XrayMode = !XrayMode;
             XrayModeChanged?.Invoke(XrayMode);
@@ -394,45 +424,53 @@ public static partial class Workspace
                 MinWidth = buttonRect.Width,
             };
 
-            PopupMenu.Open([.. items], null, popupStyle, showChecked: true, showIcons: false);
+            PopupMenu.Open(ElementId.CollectionButton, [.. items], popupStyle);
         }
 
-        static void Content()
+        UI.SetChecked(EditorUI.IsPopupOpen(ElementId.CollectionButton)); // TODO: migrate to UI.PopupMenu
+        if (UI.Button(ElementId.CollectionButton, () =>
         {
             using var _ = UI.BeginRow(new ContainerStyle{
                 Spacing = EditorStyle.Control.Spacing,
                 Padding = EdgeInsets.Right(EditorStyle.Control.Spacing),
                 MinWidth = 150
             });
-            EditorUI.ControlIcon(EditorAssets.Sprites.IconCollection);
-            EditorUI.ControlText(CollectionManager.VisibleCollection?.Name ?? "None");
+            UI.Image(EditorAssets.Sprites.IconCollection, EditorStyle.Icon.Primary);
+            UI.Text(CollectionManager.VisibleCollection?.Name ?? "None", EditorStyle.Control.Text);
             UI.Spacer(EditorStyle.Control.Spacing);
-        }
-
-        if (EditorUI.Control(
-            ElementId.CollectionButton,
-            selected: EditorUI.IsPopupOpen(ElementId.CollectionButton),
-            toolbar: false,
-            content: Content))
+        }, EditorStyle.Button.Secondary))
             OpenPopup();
     }
 
     public static void UpdateUI()
-    {
-        using (UI.BeginColumn(ElementId.Toolbar))
+    {        
+        using (UI.BeginContainer())
+            UI.Scene(ElementId.Scene, Camera, DrawScene, new SceneStyle
+            {
+                Color = EditorStyle.Palette.Canvas,
+                SampleCount = 4
+            });
+
+
+        using (UI.BeginColumn())
         {
             ToolbarUI();
-            UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.Panel.Root.BorderColor });
+            UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.PanelOld.Root.BorderColor });
 
             using (UI.BeginFlex())
-                UI.Scene(ElementId.Scene, Camera, DrawScene, new SceneStyle 
-                { 
-                    Color = EditorStyle.Workspace.FillColor,
-                    SampleCount = 4 
-                });
+            {
+                using (UI.BeginRow())
+                {
+                    using (UI.BeginFlex())
+                    {
+                        ActiveEditor?.UpdateUI();
+                    }
+
+                    Inspector.UpdateUI();
+                }
+            }
         }
 
-        ActiveEditor?.UpdateUI();
         ActiveTool?.UpdateUI();
     }
 
@@ -517,7 +555,9 @@ public static partial class Workspace
             var textX = bounds.Center.X - textSize.X * 0.5f;
             var textY = bounds.Bottom + padding - textSize.Y * 0.5f;
             Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY));
-            Graphics.SetColor(doc.IsSelected ? EditorStyle.Workspace.SelectionColor : EditorStyle.Workspace.NameColor);
+            Graphics.SetColor(doc.IsSelected
+                ? EditorStyle.Workspace.SelectedNameColor
+                : EditorStyle.Workspace.NameColor);
             TextRender.Draw(doc.Name, font, fontSize, order: doc.IsSelected ? 1 : 0);
         }
 
@@ -555,13 +595,6 @@ public static partial class Workspace
             },
             commit: _ =>
             {
-                foreach (var doc in DocumentManager.Documents)
-                {
-                    if (!doc.IsSelected)
-                        continue;
-                    if (doc.Position != doc.SavedPosition)
-                        doc.MarkMetaModified();
-                }
             },
             cancel: () =>
             {
@@ -987,8 +1020,8 @@ public static partial class Workspace
         {
             if (!doc.IsSelected || doc.CollectionId == collection.Id)
                 continue;
+            Undo.Record(doc);
             doc.CollectionId = collection.Id;
-            doc.MarkMetaModified();
             count++;
         }
 
@@ -1118,16 +1151,10 @@ public static partial class Workspace
 
     private static void OpenPopupMenu()
     {
-        var menu = GetPopupMenu();
-        if (menu != null && menu.Value.Items.Length > 0)
-            PopupMenu.Open(menu.Value);
-    }
-
-    public static PopupMenuDef? GetPopupMenu()
-    {
         if (_activeEditor != null)
-            return _activeEditor.ContextMenu;
-        return _workspaceContextMenu;
+            _activeEditor.OpenContextMenu(ElementId.ContextMenu);
+        else
+            PopupMenu.Open(ElementId.ContextMenu, _workspacePopupItems, title: "Asset");
     }
 
     private static void HandleHide()

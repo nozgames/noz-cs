@@ -18,9 +18,11 @@ public unsafe struct UnsafeSpan<T> where T : unmanaged
 
     public ref T this[int index] => ref *(_ptr + index);
 
-    public T* GetUnsafePtr() => _ptr;
+    public T* Ptr => _ptr;
 
     public ReadOnlySpan<T> AsReadOnlySpan() => new(_ptr, Length);
+
+    public Span<T> AsSpan() => new(_ptr, Length);
     public Span<T> AsSpan(int start, int length) => new(_ptr + start, length);
 
     public UnsafeSpan(in UnsafeSpan<T> span, int start, int length)

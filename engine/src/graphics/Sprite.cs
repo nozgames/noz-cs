@@ -102,18 +102,12 @@ public class Sprite : Asset
         var meshCount = reader.ReadUInt16();
         var frameRate = reader.ReadSingle();
 
-        // 9-slice data (version 10+)
-        var edges = EdgeInsets.Zero;
-        ushort sliceMask = 0;
-        if (version >= 10)
-        {
-            var et = reader.ReadInt16();
-            var el = reader.ReadInt16();
-            var eb = reader.ReadInt16();
-            var er = reader.ReadInt16();
-            edges = new EdgeInsets(et, el, eb, er);
-            sliceMask = reader.ReadUInt16();
-        }
+        var et = reader.ReadInt16();
+        var el = reader.ReadInt16();
+        var eb = reader.ReadInt16();
+        var er = reader.ReadInt16();
+        var edges = new EdgeInsets(et, el, eb, er);
+        var sliceMask = reader.ReadUInt16();
 
         var meshes = new SpriteMesh[meshCount];
         for (int i = 0; i < meshCount; i++)

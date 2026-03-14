@@ -3,74 +3,76 @@
 //
 
 using System.Numerics;
-using System.Runtime.InteropServices;
+using CrypticWizard.RandomWordGenerator;
 
 namespace NoZ.Editor;
 
-public partial class SpriteEditor : DocumentEditor
+public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 {
-    [ElementId("Root")]
-    [ElementId("TileButton")]
-    [ElementId("BoneBindButton")]
-    [ElementId("BoneUnbindButton")]
-    [ElementId("SubtractButton")]
-    [ElementId("FirstOpacity")]
-    [ElementId("PreviewButton")]
-    [ElementId("SkeletonOverlayButton")]
-    [ElementId("DopeSheet")]
-    [ElementId("ConstraintsButton")]
-    [ElementId("FillColorButton")]
-    [ElementId("StrokeColorButton")]
-    [ElementId("LayerButton")]
-    [ElementId("BonePathButton")]
-    [ElementId("StrokeWidth")]
-    [ElementId("AddFrameButton")]
-    [ElementId("PlayButton")]
-    private static partial class ElementId { }
+    private static partial class WidgetIds
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId TileButton { get; }
+        public static partial WidgetId SubtractButton { get; }
+        public static partial WidgetId FirstOpacity { get; }
+        public static partial WidgetId DopeSheet { get; }
+        public static partial WidgetId FillColorButton { get; }
+        public static partial WidgetId StrokeColor { get; }
+        public static partial WidgetId StrokeWidth { get; }
+        public static partial WidgetId AddFrameButton { get; }
+        public static partial WidgetId PlayButton { get; }
+        public static partial WidgetId ConstraintDropDown { get; }
+        public static partial WidgetId SkeletonDropDown { get; }
+        public static partial WidgetId ShowInSkeleton { get; }
+        public static partial WidgetId ShowSkeletonOverlay { get; }
+        public static partial WidgetId PathNormal { get; }
+        public static partial WidgetId PathSubtract { get; }
+        public static partial WidgetId PathClip { get; }
+        public static partial WidgetId FillColor { get; }
+        public static partial WidgetId GenerateButton { get; }
+        public static partial WidgetId CancelButton { get; }
+        public static partial WidgetId StyleDropDown { get; }
+        public static partial WidgetId LayerPrompt { get; }
+        public static partial WidgetId LayerNegativePrompt { get; }
+        public static partial WidgetId LayerSeed { get; }
+        public static partial WidgetId LayerSeedDice { get; }
+        public static partial WidgetId AddGenerationButton { get; }
+        public static partial WidgetId RemoveGenerationButton { get; }
+    }
+
+    private static readonly WordGenerator _wordGenerator = new();
+
+    private readonly ShapeEditor _shapeEditor;
+    private int _currentTimeSlot;
+    private bool _isPlaying;
+    private float _playTimer;
+    private PopupMenuItem[] _contextMenuItems;
+    private readonly int _versionOnOpen;
 
     public new SpriteDocument Document => (SpriteDocument)base.Document;
 
-    private ushort _currentFrame;
-    private bool _isPlaying;
-    private float _playTimer;
-    private bool _rasterDirty = true;
-    private readonly Vector2[] _savedPositions = new Vector2[Shape.MaxAnchors];
-    private readonly float[] _savedCurves = new float[Shape.MaxAnchors];
-    private Action<Color32>? _previewFillColor;
-    private Action<Color32>? _previewStrokeColor;
+    public override bool ShowInspector => true;
 
+    private int CurrentFrameIndex =>
+        Document.GetFrameAtTimeSlot(_currentTimeSlot);
+
+    private Shape CurrentShape =>
+        Document.Frames[CurrentFrameIndex].Shape;
 
     public SpriteEditor(SpriteDocument doc) : base(doc)
     {
-        Workspace.XrayModeChanged += OnXrayModeChanged;
-
-        var deleteCommand = new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete };
-        var exitEditCommand = new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab };
-        var moveCommand = new Command { Name = "Move", Handler = BeginMoveTool, Key = InputCode.KeyG, Icon = EditorAssets.Sprites.IconMove };
-        var originToCenterCommand = new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true };
-        var rotateCommand = new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR };
-        var scaleCommand = new Command { Name = "Scale", Handler = OnScale, Key = InputCode.KeyS };
-        var flipHorizontalCommand = new Command { Name = "Flip Horizontal", Handler = FlipHorizontal };
-        var flipVerticalCommand = new Command { Name = "Flip Vertical", Handler = FlipVertical };
-        var copyCommand = new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true };
-        var pasteCommand = new Command { Name = "Paste", Handler = PasteSelected, Key = InputCode.KeyV, Ctrl = true };
-        var bringForwardCommand = new Command { Name = "Bring Forward", Handler = MovePathUp, Key = InputCode.KeyLeftBracket };
-        var sendBackwardCommand = new Command { Name = "Send Backwar", Handler = MovePathDown, Key = InputCode.KeyRightBracket };
+        _versionOnOpen = doc.Version;
+        _shapeEditor = new ShapeEditor(this);
 
         Commands =
         [
-            deleteCommand,
-            exitEditCommand,
-            moveCommand,
-            originToCenterCommand,
-            rotateCommand,
-            scaleCommand,
-            flipHorizontalCommand,
-            flipVerticalCommand,
-            copyCommand,
-            pasteCommand,
-            bringForwardCommand,
-            sendBackwardCommand,
+            .._shapeEditor.GetCommands(),
+            new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
+            new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true },
+            new Command { Name = "Flip Horizontal", Handler = FlipHorizontal },
+            new Command { Name = "Flip Vertical", Handler = FlipVertical },
+            new Command { Name = "Bring Forward", Handler = MovePathUp, Key = InputCode.KeyLeftBracket },
+            new Command { Name = "Send Backward", Handler = MovePathDown, Key = InputCode.KeyRightBracket },
             new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
             new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
             new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
@@ -79,95 +81,62 @@ public partial class SpriteEditor : DocumentEditor
             new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
             new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
             new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
-            new Command { Name = "Curve", Handler = BeginCurveTool, Key = InputCode.KeyC },
-            new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
-            new Command { Name = "Insert Anchor", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
-            new Command { Name = "Pen Tool", Handler = BeginPenTool, Key = InputCode.KeyP },
-            new Command { Name = "Knife Tool", Handler = BeginKnifeTool, Key = InputCode.KeyK },
-            new Command { Name = "Rectangle Tool", Handler = BeginRectangleTool, Key = InputCode.KeyR, Ctrl = true },
-            new Command { Name = "Circle Tool", Handler = BeginCircleTool, Key = InputCode.KeyO, Ctrl = true },
-            new Command { Name = "Duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
-            new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true },
-            new Command { Name = "Paste", Handler = PasteSelected, Key = InputCode.KeyV, Ctrl = true },
+            new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
+            new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
         ];
-
-        bool HasSelection() => Document.GetFrame(_currentFrame).Shape.HasSelection();
-        bool HasSelectedPaths() => Document.GetFrame(_currentFrame).Shape.HasSelectedPaths();
-
-        ContextMenu = new PopupMenuDef
-        {
-            Title = "Sprite",
-            Items =
-            [
-                PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
-                PopupMenuItem.FromCommand(pasteCommand, enabled: () => Clipboard.Is<PathClipboardData>()),
-                PopupMenuItem.Separator(),
-
-                PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
-                PopupMenuItem.FromCommand(rotateCommand, enabled: HasSelection),
-                PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
-                PopupMenuItem.FromCommand(flipHorizontalCommand, enabled: HasSelectedPaths),
-                PopupMenuItem.FromCommand(flipVerticalCommand, enabled: HasSelectedPaths),
-                PopupMenuItem.Separator(),
-
-                PopupMenuItem.Submenu("Arrange"),
-                PopupMenuItem.FromCommand(bringForwardCommand, enabled: HasSelectedPaths, level: 1),
-                PopupMenuItem.FromCommand(sendBackwardCommand, enabled: HasSelectedPaths, level: 1),
-
-                PopupMenuItem.Submenu("Set Origin"),
-                PopupMenuItem.FromCommand(originToCenterCommand, level: 1),
-                PopupMenuItem.Separator(),
-                PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
-                PopupMenuItem.Separator(),
-                PopupMenuItem.FromCommand(exitEditCommand),
-            ]
-        };  
     }
 
-    public ushort CurrentFrame => _currentFrame;
+    public int CurrentTimeSlot => _currentTimeSlot;
     public bool IsPlaying => _isPlaying;
 
     public override void Dispose()
     {
-        ClearSelection();
+        _shapeEditor.ClearSelection();
         EditorUI.ClosePopup();
 
-        Workspace.XrayModeChanged -= OnXrayModeChanged;
-
-        if (Document.IsModified)
+        if (Document.Version != _versionOnOpen)
             AtlasManager.UpdateSource(Document);
 
         base.Dispose();
     }
 
+    public override void OpenContextMenu(WidgetId id)
+    {
+        PopupMenu.Open(id, _contextMenuItems, "Sprite");
+    }
+
     public override void OnUndoRedo()
     {
         Document.UpdateBounds();
-        MarkRasterDirty();
     }
-
-    private void OnXrayModeChanged(bool _) => MarkRasterDirty();
 
     public override void Update()
     {
         UpdateAnimation();
-        UpdateInput();
+        _shapeEditor.HandleDeleteKey();
 
-        if (_rasterDirty)
-            UpdateRaster();
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
-
-        DrawRaster();
+        var hasGen = Document.HasGeneration && Document.Generation.Texture != null;
 
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
-            Graphics.SetSortGroup(5);
+            Graphics.SetSortGroup(hasGen ? 6 : 5);
             Document.DrawOrigin();
-            Graphics.SetSortGroup(4);
-            DrawSegments(shape);
-            DrawAnchors(shape);
+            Graphics.SetSortGroup(hasGen ? 5 : 4);
+            DrawWireframe();
+        }
+
+        UpdateMesh();
+
+        if (hasGen)
+        {
+            DrawGeneratedImage(sortGroup: 1, alpha: 1f);
+            DrawColoredMesh(sortGroup: 2);
+            DrawGeneratedImage(sortGroup: 3, alpha: 0.3f);
+        }
+        else
+        {
+            DrawMesh();
         }
 
         if (Document.ShowSkeletonOverlay)
@@ -180,185 +149,140 @@ public partial class SpriteEditor : DocumentEditor
     public override void LateUpdate()
     {
         if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
-            HandleDragStart();
+            _shapeEditor.HandleDragStart();
         else if (Input.WasButtonReleased(InputCode.MouseLeft))
             HandleLeftClick();
     }
 
     private void ToolbarUI()
     {
-        using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
-
-        // Fill color picker
-        var fillColor = Document.CurrentFillColor;
-        if (EditorUI.ColorPickerButton(
-            ElementId.FillColorButton,
-            ref fillColor,
-            onPreview: _previewFillColor ??= PreviewFillColor,
-            icon: EditorAssets.Sprites.IconFill))
-        {
-            SetFill(fillColor);
-        }
-
-        // Stroke color picker
-        var strokeColor = Document.CurrentStrokeColor;
-        if (EditorUI.ColorPickerButton(
-            ElementId.StrokeColorButton,
-            ref strokeColor,
-            onPreview: _previewStrokeColor ??= PreviewStrokeColor,
-            icon: EditorAssets.Sprites.IconStroke))
-        {
-            SetStroke(strokeColor);
-        }
-
-        StrokeWidthButtonUI();
-
-        {
-            var opIcon = Document.CurrentOperation == PathOperation.Clip
-                ? EditorAssets.Sprites.IconClip
-                : EditorAssets.Sprites.IconSubtract;
-            var opSelected = Document.CurrentOperation != PathOperation.Normal;
-            if (EditorUI.Button(ElementId.SubtractButton, opIcon, selected: opSelected, toolbar: true))
-                CyclePathOperation();
-        }
-
-        EditorUI.ToolbarSpacer();
-
-        LayerButtonUI();
-
-        BoneBindingUI();
-
-        if (EditorUI.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe, toolbar: true))
-            InsertFrameAfter();
-
-        if (EditorUI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, selected: _isPlaying, toolbar: true))
-            TogglePlayback();
-
-        UI.Flex();
-
-        if (EditorUI.Button(ElementId.TileButton, EditorAssets.Sprites.IconTiling, Document.ShowTiling, toolbar: true))
-        {
-            Document.ShowTiling = !Document.ShowTiling;
-            Document.MarkMetaModified();
-        }
-
-        EditorUI.ToolbarSpacer();
-
-        SkeletonBindingUI();
-        ConstraintsButtonUI();
+        using var _ = UI.BeginRow(EditorStyle.SpriteEditor.Toolbar);
+        UI.Separator(EditorStyle.Palette.PanelSeparator);
     }
 
     public override void UpdateUI()
     {
-        using (UI.BeginColumn(ElementId.Root, EditorStyle.DocumentEditor.Root))
+        using (UI.BeginColumn())
         {
-            ToolbarUI();
+            UI.Flex();
 
-            using (UI.BeginContainer(new ContainerStyle { Padding = EdgeInsets.LeftRight(2) }))
+            using (UI.BeginColumn(WidgetIds.Root, EditorStyle.DocumentEditor.Root))
             {
-                Span<EditorUI.DopeSheetFrame> frames = stackalloc EditorUI.DopeSheetFrame[Document.FrameCount];
-                for (ushort i = 0; i < Document.FrameCount; i++)
-                    frames[i] = new EditorUI.DopeSheetFrame { Hold = Document.Frames[i].Hold, };
-                var currentFrame = (int)_currentFrame;
-                if (EditorUI.DopeSheet(ElementId.DopeSheet, frames, ref currentFrame, Sprite.MaxFrames, _isPlaying))
-                    SetCurrentFrame((ushort)currentFrame);
-            }
-
-            UI.Spacer(EditorStyle.Control.Spacing);
-        }
-    }
-
-
-    private void SkeletonBindingUI()
-    {
-        var binding = Document.Binding;
-
-        void SkeletonBindingContent()
-        {
-            EditorUI.ControlIcon(EditorAssets.Sprites.IconBone);
-
-            if (!binding.IsBound)
-            {
-                EditorUI.ControlPlaceholderText("Select Skeleton...");
+                ToolbarUI();
+                UI.Separator(EditorStyle.Palette.PanelSeparator);
+                DopeSheetUI();
                 UI.Spacer(EditorStyle.Control.Spacing);
-                return;
             }
-
-            EditorUI.ControlText(binding.SkeletonName.ToString());
-
-            using (UI.BeginContainer(ElementId.BoneUnbindButton, EditorStyle.Button.IconContent with { Padding = EdgeInsets.All(4) }))
-            {
-                UI.Image(
-                    EditorAssets.Sprites.IconDelete,
-                    UI.IsHovered()
-                        ? EditorStyle.Control.SelectedIcon
-                        : EditorStyle.Control.Icon);
-
-                if (UI.WasPressed())
-                    ClearSkeletonBinding();
-            }
-
-            UI.Spacer(EditorStyle.Control.Spacing);
-        }
-
-        if (EditorUI.Control(ElementId.BoneBindButton, SkeletonBindingContent, selected: EditorUI.IsPopupOpen(ElementId.BoneBindButton)))
-            EditorUI.TogglePopup(ElementId.BoneBindButton);
-
-        SkeletonBindingPopupUI();
-
-        if (EditorUI.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview, selected: Document.ShowInSkeleton, disabled: !Document.Binding.IsBound, toolbar: true))
-        {
-            Undo.Record(Document);
-            Document.ShowInSkeleton = !Document.ShowInSkeleton;
-            Document.Binding.Skeleton?.UpdateSprites();
-            Document.MarkMetaModified();
-        }
-
-        if (EditorUI.Button(ElementId.SkeletonOverlayButton, EditorAssets.Sprites.IconBone, selected: Document.ShowSkeletonOverlay, disabled: !Document.Binding.IsBound, toolbar: true))
-        {
-            Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
-            Document.MarkMetaModified();
         }
     }
 
-    private void SkeletonBindingPopupUI()
+    private void DopeSheetUI()
     {
-        void Content()
-        {
-            foreach (var doc in DocumentManager.Documents)
-            {
-                if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
-                    continue;
+        var maxSlots = Sprite.MaxFrames;
 
-                var isSelected = Document.Binding.Skeleton == skeleton;
-                if (EditorUI.PopupItem(skeleton.Name, selected: isSelected))
+        using (UI.BeginColumn(new ContainerStyle { Padding = EdgeInsets.LeftRight(EditorStyle.Control.Spacing) }))
+        {
+            using (UI.BeginRow(EditorStyle.Dopesheet.HeaderContainer))
+            {
+                using (UI.BeginRow(EditorStyle.SpriteEditor.LayerNameContainer))
                 {
-                    CommitSkeletonBinding(skeleton);
-                    EditorUI.ClosePopup();
+                    UI.Flex();
+                }
+
+                UI.Separator(EditorStyle.Palette.PanelSeparator);
+
+                var blockCount = maxSlots / 4;
+                for (var blockIndex = 0; blockIndex < blockCount; blockIndex++)
+                {
+                    using (UI.BeginContainer(EditorStyle.Dopesheet.TimeBlock))
+                    {
+                        if (blockIndex > 0)
+                            UI.Text(AnimationEditor.FrameTimeStrings[blockIndex], EditorStyle.Dopesheet.TimeText);
+                    }
+
+                    UI.Container(EditorStyle.Dopesheet.FrameSeparator);
                 }
             }
-        }
 
-        EditorUI.Popup(ElementId.BoneBindButton, Content);
+            UI.Separator(EditorStyle.Palette.PanelSeparator);
+
+            // Single row of frame cells
+            using (UI.BeginRow(EditorStyle.SpriteEditor.LayerRow))
+            {
+                using (UI.BeginRow(EditorStyle.SpriteEditor.LayerNameContainer))
+                {
+                    UI.Text("Frames", EditorStyle.Text.Primary);
+                    UI.Flex();
+                }
+
+                UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+
+                var slotIndex = 0;
+                for (ushort fi = 0; fi < Document.FrameCount && slotIndex < maxSlots; fi++)
+                {
+                    var isCurrentSlot = IsTimeSlotInRange(fi, _currentTimeSlot);
+
+                    using (UI.BeginRow(WidgetIds.DopeSheet + fi))
+                    {
+                        if (UI.WasPressed())
+                            _currentTimeSlot = TimeSlotForFrame(fi);
+
+                        using (UI.BeginContainer(isCurrentSlot
+                            ? EditorStyle.Dopesheet.SelectedFrame
+                            : EditorStyle.Dopesheet.Frame))
+                        {
+                            UI.Container(isCurrentSlot
+                                ? EditorStyle.Dopesheet.SelectedFrameDot
+                                : EditorStyle.Dopesheet.FrameDot);
+                        }
+
+                        slotIndex++;
+
+                        // Hold cells
+                        var hold = Document.Frames[fi].Hold;
+                        for (int h = 0; h < hold && slotIndex < maxSlots; h++, slotIndex++)
+                        {
+                            using (UI.BeginContainer(isCurrentSlot
+                                ? EditorStyle.Dopesheet.SelectedFrame
+                                : EditorStyle.Dopesheet.Frame))
+                            {
+                            }
+
+                            if (h < hold - 1)
+                                UI.Container(isCurrentSlot
+                                    ? EditorStyle.Dopesheet.SelectedHoldSeparator
+                                    : EditorStyle.Dopesheet.HoldSeparator);
+                        }
+
+                        UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+                    }
+                }
+
+                // Empty cells after frames
+                for (; slotIndex < maxSlots; slotIndex++)
+                {
+                    UI.Container(slotIndex % 4 == 0
+                        ? EditorStyle.Dopesheet.FourthEmptyFrame
+                        : EditorStyle.Dopesheet.EmptyFrame);
+                    UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+                }
+            }
+
+            UI.Container(EditorStyle.Dopesheet.LayerSeparator);
+        }
     }
 
-    private void UpdateSelection()
+    private bool IsTimeSlotInRange(int frameIndex, int timeSlot)
     {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-
-        for (ushort p = (ushort)(shape.PathCount - 1); p < shape.PathCount; p--)
+        var accumulated = 0;
+        for (var f = 0; f < Document.FrameCount; f++)
         {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-
-            Document.CurrentFillColor = path.FillColor;
-            Document.CurrentStrokeColor = path.StrokeColor;
-            Document.CurrentLayer = path.Layer;
-            Document.CurrentBone = path.Bone;
-            Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
-            Document.CurrentOperation = path.Operation;
-            return;
+            var slots = 1 + Document.Frames[f].Hold;
+            if (f == frameIndex)
+                return timeSlot >= accumulated && timeSlot < accumulated + slots;
+            accumulated += slots;
         }
+        return false;
     }
 
     private static bool PathHasSelectedAnchor(Shape shape, Shape.Path path)
@@ -372,243 +296,29 @@ public partial class SpriteEditor : DocumentEditor
         return false;
     }
 
-
-    private void ConstraintsButtonUI()
+    private void SetConstraint(Vector2Int? size)
     {
-        using (UI.BeginContainer(ContainerStyle.Fit))
-        {
-            var sizes = EditorApplication.Config.SpriteSizes;
-            var constraint = Document.ConstrainedSize;
-
-            void ConstraintsButtonContent()
-            {
-                EditorUI.ControlIcon(EditorAssets.Sprites.IconConstraint);
-                if (constraint.HasValue)
-                    EditorUI.ControlText($"{constraint.Value.X}x{constraint.Value.Y}");
-                else
-                    EditorUI.ControlPlaceholderText("None");
-                UI.Spacer(EditorStyle.Control.Spacing);
-            }
-
-            if (EditorUI.Control(
-                ElementId.ConstraintsButton,
-                ConstraintsButtonContent,
-                selected: EditorUI.IsPopupOpen(ElementId.ConstraintsButton),
-                disabled: sizes.Length == 0))
-                EditorUI.TogglePopup(ElementId.ConstraintsButton);
-
-            ConstraintsPopupUI();            
-        }
-    }
-
-    private void ConstraintsPopupUI()
-    {
-        void Content()
-        {
-            var sizes = EditorApplication.Config.SpriteSizes;
-
-            for (int i = 0; i < sizes.Length; i++)
-            {
-                var size = sizes[i];
-                var selected = Document.ConstrainedSize.HasValue &&
-                                Document.ConstrainedSize.Value == size;
-                if (EditorUI.PopupItem($"{size.X}x{size.Y}", selected: selected))
-                {
-                    Undo.Record(Document);
-                    Document.ConstrainedSize = size;
-                    Document.UpdateBounds();
-                    Document.MarkModified();
-                    Document.MarkMetaModified();
-                    MarkRasterDirty();
-                    EditorUI.ClosePopup();
-                }
-            }
-
-            if (EditorUI.PopupItem("None", selected: !Document.ConstrainedSize.HasValue))
-            {
-                Undo.Record(Document);
-                Document.ConstrainedSize = null;
-                Document.UpdateBounds();
-                Document.MarkModified();
-                Document.MarkMetaModified();
-                MarkRasterDirty();
-                EditorUI.ClosePopup();
-            }
-        }
-
-        EditorUI.Popup(ElementId.ConstraintsButton, Content);
-    }
-
-    private void LayerButtonUI()
-    {
-        var spriteLayers = EditorApplication.Config.SpriteLayers;
-        using (UI.BeginContainer(ContainerStyle.Fit))
-        {
-            void ButtonContent()
-            {
-                EditorUI.ControlIcon(EditorAssets.Sprites.IconLayer);
-                if (EditorApplication.Config.TryGetSpriteLayer(Document.CurrentLayer, out var spriteLayer))
-                {
-                    EditorUI.ControlText(spriteLayer.Label);
-                    EditorUI.ControlPlaceholderText(spriteLayer.LayerLabel);
-                }
-                else
-                    EditorUI.ControlPlaceholderText("None");
-               UI.Spacer(EditorStyle.Control.Spacing);
-            }
-
-            if (EditorUI.Control(
-                ElementId.LayerButton,
-                ButtonContent,
-                selected: EditorUI.IsPopupOpen(ElementId.LayerButton)))
-                EditorUI.TogglePopup(ElementId.LayerButton);
-
-            LayerPopupUI();
-        }
-    }
-
-    private void LayerPopupUI()
-    {
-        void Content()
-        {
-            var layers = EditorApplication.Config.SpriteLayers;
-            for (int i = 0; i < layers.Length; i++)
-            {
-                ref readonly var layerDef = ref layers[i];
-                var selected = Document.CurrentLayer == layerDef.Layer;
-                var label = layerDef.Label;
-                var layerLabel = layerDef.LayerLabel;
-
-                void ItemContent()
-                {
-                    EditorUI.ControlText($"{label}");
-                    EditorUI.ControlPlaceholderText($"{layerLabel}");
-                }
-
-                if (EditorUI.PopupItem(ItemContent, selected: selected))
-                {
-                    SetPathLayer(layerDef.Layer);
-                    EditorUI.ClosePopup();
-                }
-            }
-
-            if (EditorUI.PopupItem("None", selected: Document.CurrentLayer == 0))
-            {
-                SetPathLayer(0);
-                EditorUI.ClosePopup();
-            }
-        }
-
-        EditorUI.Popup(ElementId.LayerButton, Content);
-    }
-
-    private void BoneBindingUI()
-    {
-        if (!Document.Binding.IsBound) return;
-
-        using var _ = UI.BeginContainer(ContainerStyle.Fit);
-
-        void ButtonContent()
-        {
-            EditorUI.ControlIcon(EditorAssets.Sprites.IconBone);
-            if (!Document.CurrentBone.IsNone)
-                EditorUI.ControlText(Document.CurrentBone.ToString());
-            else
-                EditorUI.ControlPlaceholderText("Root");
-            UI.Spacer(EditorStyle.Control.Spacing);
-        }
-
-        if (EditorUI.Control(
-            ElementId.BonePathButton,
-            ButtonContent,
-            selected: EditorUI.IsPopupOpen(ElementId.BonePathButton)))
-            EditorUI.TogglePopup(ElementId.BonePathButton);
-
-        BoneBindingPopupUI();
-    }
-
-    private void BoneBindingPopupUI()
-    {
-        void Content()
-        {
-            var skeleton = Document.Binding.Skeleton;
-            if (skeleton == null)
-                return;
-
-            // Root option (None = root bone)
-            if (EditorUI.PopupItem("Root", selected: Document.CurrentBone.IsNone))
-            {
-                SetPathBone(StringId.None);
-                EditorUI.ClosePopup();
-            }
-
-            // List all bones from the skeleton
-            for (int i = 0; i < skeleton.BoneCount; i++)
-            {
-                var boneName = skeleton.Bones[i].Name;
-                var boneNameValue = StringId.Get(boneName);
-                if (EditorUI.PopupItem(boneName, selected: Document.CurrentBone == boneNameValue))
-                {
-                    SetPathBone(boneNameValue);
-                    EditorUI.ClosePopup();
-                }
-            }
-        }
-
-        EditorUI.Popup(ElementId.BonePathButton, Content);
-    }
-
-    public void SetPathBone(StringId bone)
-    {
-        Document.CurrentBone = bone;
-
         Undo.Record(Document);
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathBone(p, bone);
-        }
-
+        Document.ConstrainedSize = size;
         Document.UpdateBounds();
-        Document.MarkModified();
-        MarkRasterDirty();
+        EditorUI.ClosePopup();
     }
 
-    private void UpdateRaster()
+    private void StrokeWidthButtonUI()
     {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        shape.UpdateSamples();
-        shape.UpdateBounds();
-
-        Document.UpdateBounds();
-        var bounds = Document.RasterBounds;
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-        {
-            _meshSlots.Clear();
-            _rasterDirty = false;
-            return;
-        }
-
-        UpdateMeshSDF(shape);
-        _rasterDirty = false;
+        UI.DropDown(WidgetIds.StrokeWidth, () => [
+            ..Enumerable.Range(1, 8).Select(i =>
+                new PopupMenuItem { Label = Strings.Number(i), Handler = () => SetStrokeWidth((byte)i) }
+            )
+        ], Strings.Number(Document.CurrentStrokeWidth), EditorAssets.Sprites.IconStrokeSize);
     }
 
-    public void MarkRasterDirty()
+    public void SetCurrentTimeSlot(int timeSlot)
     {
-        _rasterDirty = true;
-    }
-
-    public void SetCurrentFrame(ushort frame)
-    {
-        var newFrame = (ushort)Math.Min(frame, Document.FrameCount - 1);
-        if (newFrame != _currentFrame)
-        {
-            _currentFrame = newFrame;
-            MarkRasterDirty();
-        }
+        var maxSlots = Document.TotalTimeSlots;
+        var newSlot = Math.Clamp(timeSlot, 0, maxSlots - 1);
+        if (newSlot != _currentTimeSlot)
+            _currentTimeSlot = newSlot;
     }
 
     private void TogglePlayback()
@@ -619,31 +329,40 @@ public partial class SpriteEditor : DocumentEditor
 
     private void NextFrame()
     {
-        if (Document.FrameCount == 0)
+        if (Document.FrameCount <= 1)
             return;
 
-        _currentFrame = (ushort)((_currentFrame + 1) % Document.FrameCount);
-        MarkRasterDirty();
+        var fi = CurrentFrameIndex;
+        fi = (fi + 1) % Document.FrameCount;
+        _currentTimeSlot = TimeSlotForFrame(fi);
     }
 
     private void PreviousFrame()
     {
-        if (Document.FrameCount == 0)
+        if (Document.FrameCount <= 1)
             return;
 
-        _currentFrame = _currentFrame == 0 ? (ushort)(Document.FrameCount - 1) : (ushort)(_currentFrame - 1);
-        MarkRasterDirty();
+        var fi = CurrentFrameIndex;
+        fi = fi == 0 ? Document.FrameCount - 1 : fi - 1;
+        _currentTimeSlot = TimeSlotForFrame(fi);
+    }
+
+    private int TimeSlotForFrame(int frameIndex)
+    {
+        var slot = 0;
+        for (var f = 0; f < frameIndex && f < Document.FrameCount; f++)
+            slot += 1 + Document.Frames[f].Hold;
+        return slot;
     }
 
     private void InsertFrameBefore()
     {
         Undo.Record(Document);
-        var newFrame = Document.InsertFrame(_currentFrame);
+        var fi = CurrentFrameIndex;
+        var newFrame = Document.InsertFrame(fi);
         if (newFrame >= 0)
         {
-            _currentFrame = (ushort)newFrame;
-            MarkRasterDirty();
-            Document.MarkModified();
+            _currentTimeSlot = TimeSlotForFrame(newFrame);
             AtlasManager.UpdateSource(Document);
         }
     }
@@ -651,12 +370,11 @@ public partial class SpriteEditor : DocumentEditor
     private void InsertFrameAfter()
     {
         Undo.Record(Document);
-        var newFrame = Document.InsertFrame(_currentFrame + 1);
+        var fi = CurrentFrameIndex;
+        var newFrame = Document.InsertFrame(fi + 1);
         if (newFrame >= 0)
         {
-            _currentFrame = (ushort)newFrame;
-            MarkRasterDirty();
-            Document.MarkModified();
+            _currentTimeSlot = TimeSlotForFrame(newFrame);
             AtlasManager.UpdateSource(Document);
         }
     }
@@ -665,87 +383,53 @@ public partial class SpriteEditor : DocumentEditor
     {
         if (Document.FrameCount <= 1) return;
         Undo.Record(Document);
-        _currentFrame = (ushort)Document.DeleteFrame(_currentFrame);
-        MarkRasterDirty();
-        Document.MarkModified();
+        var fi = Document.DeleteFrame(CurrentFrameIndex);
+        _currentTimeSlot = TimeSlotForFrame(fi);
         AtlasManager.UpdateSource(Document);
     }
 
     private void AddHoldFrame()
     {
         Undo.Record(Document);
-        Document.Frames[_currentFrame].Hold++;
-        Document.MarkModified();
+        Document.Frames[CurrentFrameIndex].Hold++;
     }
 
     private void RemoveHoldFrame()
     {
-        if (Document.Frames[_currentFrame].Hold <= 0)
+        var frame = Document.Frames[CurrentFrameIndex];
+        if (frame.Hold <= 0)
             return;
 
         Undo.Record(Document);
-        Document.Frames[_currentFrame].Hold = Math.Max(0, Document.Frames[_currentFrame].Hold - 1);
-        Document.MarkModified();
+        frame.Hold = Math.Max(0, frame.Hold - 1);
     }
 
-    private void PreviewFillColor(Color32 color)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathFillColor(p, color);
-        }
-        MarkRasterDirty();
-    }
-
-    private void PreviewStrokeColor(Color32 color)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathStroke(p, color, Document.CurrentStrokeWidth);
-        }
-        MarkRasterDirty();
-    }
-
-    public void SetFill(Color32 color)
+    private void SetFillColor(Color32 color)
     {
         Document.CurrentFillColor = color;
 
-        Undo.Record(Document);
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         for (ushort p = 0; p < shape.PathCount; p++)
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
             shape.SetPathFillColor(p, color);
+            _meshVersion = -1;
         }
-
-        Document.MarkModified();
-        MarkRasterDirty();
     }
 
-    public void SetStroke(Color32 color)
+    private void SetStrokeColor(Color32 color)
     {
         Document.CurrentStrokeColor = color;
 
-        Undo.Record(Document);
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         for (ushort p = 0; p < shape.PathCount; p++)
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
             shape.SetPathStroke(p, color, Document.CurrentStrokeWidth);
+            _meshVersion = -1;
         }
-
-        Document.MarkModified();
-        MarkRasterDirty();
     }
 
     private void SetStrokeWidth(byte width)
@@ -754,21 +438,17 @@ public partial class SpriteEditor : DocumentEditor
 
         Undo.Record(Document);
 
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         for (ushort p = 0; p < shape.PathCount; p++)
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
             shape.SetPathStroke(p, path.StrokeColor, width);
         }
-
-        Document.MarkModified();
-        MarkRasterDirty();
     }
 
     private void CyclePathOperation()
     {
-        // Cycle: Normal → Subtract → Clip → Normal
         Document.CurrentOperation = Document.CurrentOperation switch
         {
             PathOperation.Normal => PathOperation.Subtract,
@@ -776,7 +456,7 @@ public partial class SpriteEditor : DocumentEditor
             _ => PathOperation.Normal,
         };
 
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         var anySelected = false;
         for (ushort p = 0; p < shape.PathCount; p++)
         {
@@ -792,177 +472,77 @@ public partial class SpriteEditor : DocumentEditor
 
         if (anySelected)
         {
-            Document.MarkModified();
-            MarkRasterDirty();
+            Document.IncrementVersion();
         }
     }
 
-    private void StrokeWidthButtonUI()
+    private void SetPathOperation(PathOperation operation)
     {
-        void ButtonContent()
-        {
-            EditorUI.ControlText($"{Document.CurrentStrokeWidth}px");
-        }
-
-        if (EditorUI.Control(
-            ElementId.StrokeWidth,
-            ButtonContent,
-            selected: EditorUI.IsPopupOpen(ElementId.StrokeWidth)))
-            EditorUI.TogglePopup(ElementId.StrokeWidth);
-
-        StrokeWidthPopupUI();
-    }
-
-    private void StrokeWidthPopupUI()
-    {
-        void Content()
-        {
-            for (var i = 1; i <= 8; i++)
-            {
-                if (EditorUI.PopupItem($"{i}px", selected: Document.CurrentStrokeWidth == i))
-                {
-                    SetStrokeWidth((byte)i);
-                    EditorUI.ClosePopup();
-                }
-            }
-        }
-
-        EditorUI.Popup(ElementId.StrokeWidth, Content);
-    }
-
-    public void SetPathLayer(byte layer)
-    {
-        Document.CurrentLayer = layer;
-
         Undo.Record(Document);
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        Document.CurrentOperation = operation;
+        var shape = CurrentShape;
         for (ushort p = 0; p < shape.PathCount; p++)
         {
             ref readonly var path = ref shape.GetPath(p);
             if (!path.IsSelected) continue;
-            shape.SetPathLayer(p, layer);
+            shape.SetPathOperation(p, operation);
         }
-
-        Document.UpdateBounds();
-        Document.MarkModified();
-        MarkRasterDirty();
-    }
-
-    public void DeleteSelected()
-    {
-        Undo.Record(Document);
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        shape.DeleteAnchors();
-        Document.MarkModified();
-        Document.UpdateBounds();
-        MarkRasterDirty();
-    }
-
-    private void DuplicateSelected()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        if (!shape.HasSelection())
-            return;
-
-        Undo.Record(Document);
-
-        Span<ushort> pathsToDuplicate = stackalloc ushort[Shape.MaxPaths];
-        var pathCount = 0;
-
-        for (ushort p = 0; p < shape.PathCount; p++)
-            if (PathHasSelectedAnchor(shape, shape.GetPath(p)))
-                pathsToDuplicate[pathCount++] = p;
-
-        if (pathCount == 0)
-            return;
-
-        shape.ClearAnchorSelection();
-
-        var firstNewAnchor = shape.AnchorCount;
-
-        for (var i = 0; i < pathCount; i++)
-        {
-            var srcPath = shape.GetPath(pathsToDuplicate[i]);
-            var newPathIndex = shape.AddPath(
-                fillColor: srcPath.FillColor,
-                strokeColor: srcPath.StrokeColor,
-                strokeWidth: srcPath.StrokeWidth,
-                layer: srcPath.Layer,
-                operation: srcPath.Operation);
-            if (newPathIndex == ushort.MaxValue)
-                break;
-
-            for (ushort a = 0; a < srcPath.AnchorCount; a++)
-            {
-                var srcAnchor = shape.GetAnchor((ushort)(srcPath.AnchorStart + a));
-                shape.AddAnchor(newPathIndex, srcAnchor.Position, srcAnchor.Curve);
-            }
-        }
-
-        for (var i = firstNewAnchor; i < shape.AnchorCount; i++)
-            shape.SetAnchorSelected((ushort)i, true);
-
-        shape.UpdateSamples();
-        shape.UpdateBounds();
-        Document.MarkModified();
-        Document.UpdateBounds();
-        MarkRasterDirty();
-
-        BeginMoveTool();
-    }
-
-    private void CopySelected()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        if (!shape.HasSelection())
-            return;
-
-        var data = new PathClipboardData(shape);
-        if (data.Paths.Length == 0)
-            return;
-
-        Clipboard.Copy(data);
-    }
-
-    private void PasteSelected()
-    {
-        var clipboardData = Clipboard.Get<PathClipboardData>();
-        if (clipboardData == null)
-            return;
-
-        Undo.Record(Document);
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        shape.ClearSelection();
-
-        clipboardData.PasteInto(shape);
-
-        Document.MarkModified();
-        Document.UpdateBounds();
-        MarkRasterDirty();
-        UpdateSelection();
     }
 
     private void CenterShape()
     {
-        if (Document.FrameCount == 0)
-            return;
-
         Undo.Record(Document);
 
+        var min = new Vector2(float.MaxValue, float.MaxValue);
+        var max = new Vector2(float.MinValue, float.MinValue);
+        var hasAnchors = false;
+
         for (ushort fi = 0; fi < Document.FrameCount; fi++)
-            Document.Frames[fi].Shape.CenterOnOrigin();
+        {
+            var shape = Document.Frames[fi].Shape;
+            if (shape.AnchorCount == 0) continue;
+            hasAnchors = true;
+            shape.UpdateSamples();
+
+            for (ushort a = 0; a < shape.AnchorCount; a++)
+            {
+                ref readonly var anchor = ref shape.GetAnchor(a);
+                min = Vector2.Min(min, anchor.Position);
+                max = Vector2.Max(max, anchor.Position);
+
+                if (MathF.Abs(anchor.Curve) > 0.0001f)
+                {
+                    var samples = shape.GetSegmentSamples(a);
+                    for (var s = 0; s < Shape.MaxSegmentSamples; s++)
+                    {
+                        min = Vector2.Min(min, samples[s]);
+                        max = Vector2.Max(max, samples[s]);
+                    }
+                }
+            }
+        }
+
+        if (hasAnchors)
+        {
+            var dpi = EditorApplication.Config.PixelsPerUnit;
+            var invDpi = 1f / dpi;
+            var centerWorld = (min + max) * 0.5f;
+            var center = new Vector2(
+                MathF.Round(centerWorld.X * dpi) * invDpi,
+                MathF.Round(centerWorld.Y * dpi) * invDpi);
+
+            for (ushort fi = 0; fi < Document.FrameCount; fi++)
+                Document.Frames[fi].Shape.SetOrigin(center);
+        }
 
         Document.UpdateBounds();
-        Document.MarkModified();
-        MarkRasterDirty();
+        Document.IncrementVersion();
         Notifications.Add("origin → center");
     }
 
     private void FlipHorizontal()
     {
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         var pivot = shape.GetSelectedPathsCenter();
         if (!pivot.HasValue)
             return;
@@ -972,13 +552,11 @@ public partial class SpriteEditor : DocumentEditor
         shape.UpdateSamples();
         shape.UpdateBounds();
         Document.UpdateBounds();
-        Document.MarkModified();
-        MarkRasterDirty();
     }
 
     private void FlipVertical()
     {
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         var pivot = shape.GetSelectedPathsCenter();
         if (!pivot.HasValue)
             return;
@@ -988,85 +566,61 @@ public partial class SpriteEditor : DocumentEditor
         shape.UpdateSamples();
         shape.UpdateBounds();
         Document.UpdateBounds();
-        Document.MarkModified();
-        MarkRasterDirty();
     }
 
     private void MovePathUp()
     {
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         if (!shape.HasSelectedPaths())
             return;
 
         Undo.Record(Document);
         if (!shape.MoveSelectedPathUp())
             return;
-
-        Document.MarkModified();
-        MarkRasterDirty();
     }
 
     private void MovePathDown()
     {
-        var shape = Document.GetFrame(_currentFrame).Shape;
+        var shape = CurrentShape;
         if (!shape.HasSelectedPaths())
             return;
 
         Undo.Record(Document);
         if (!shape.MoveSelectedPathDown())
             return;
-
-        Document.MarkModified();
-        MarkRasterDirty();
-    }
-
-    private void SelectAll()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-            shape.SetAnchorSelected(i, true);
-        UpdateSelection();
     }
 
     private void UpdateAnimation()
     {
-        if (!_isPlaying || Document.FrameCount <= 1)
+        if (!_isPlaying || Document.TotalTimeSlots <= 1)
             return;
 
         _playTimer += Time.DeltaTime;
-        var frame = Document.GetFrame(_currentFrame);
-        var holdTime = Math.Max(1, frame.Hold) / 12f;
+        var slotDuration = 1f / 12f;
 
-        if (_playTimer >= holdTime)
+        if (_playTimer >= slotDuration)
         {
             _playTimer = 0;
-            NextFrame();
+            _currentTimeSlot = (_currentTimeSlot + 1) % Document.TotalTimeSlots;
         }
-    }
-
-    private void UpdateInput()
-    {
-        if (Input.WasButtonPressed(InputCode.KeyDelete))
-            DeleteSelected();
     }
 
     private void HandleLeftClick()
     {
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
-        var shape = Document.GetFrame(_currentFrame).Shape;
         var shift = Input.IsShiftDown(InputScope.All);
 
+        var shape = CurrentShape;
+
+        // Check for anchor/segment hits
         Span<Shape.HitResult> hits = stackalloc Shape.HitResult[Shape.MaxAnchors];
         var hitCount = shape.HitTestAll(localMousePos, hits);
 
-        // Separate hits by type and sort by path index descending (back to front, higher = on top)
         Span<ushort> anchorHits = stackalloc ushort[hitCount];
         Span<ushort> segmentHits = stackalloc ushort[hitCount];
-        Span<ushort> pathHits = stackalloc ushort[Shape.MaxPaths];
         var anchorCount = 0;
         var segmentCount = 0;
-        var pathCount = shape.GetPathsContainingPoint(localMousePos, pathHits);
 
         for (var i = 0; i < hitCount; i++)
         {
@@ -1076,50 +630,62 @@ public partial class SpriteEditor : DocumentEditor
                 segmentHits[segmentCount++] = hits[i].SegmentIndex;
         }
 
-        // Sort by path index descending (higher path index = drawn on top)
-        SortByPathIndexDescending(shape, anchorHits[..anchorCount]);
-        SortByPathIndexDescending(shape, segmentHits[..segmentCount]);
-        pathHits[..pathCount].Reverse();
+        if (anchorCount > 0 || segmentCount > 0)
+        {
+            SortByPathIndexDescending(shape, anchorHits[..anchorCount]);
+            SortByPathIndexDescending(shape, segmentHits[..segmentCount]);
 
-        // Priority: anchors > segments > paths
-        if (anchorCount > 0)
-        {
-            if (shift)
-                ShiftSelectNext(anchorHits[..anchorCount], shape.IsAnchorSelected, shape.SetAnchorSelected);
+            if (anchorCount > 0)
+            {
+                if (shift)
+                    ShiftSelectNext(anchorHits[..anchorCount], shape.IsAnchorSelected, shape.SetAnchorSelected);
+                else
+                {
+                    var nextIdx = FindNextInCycle(anchorHits[..anchorCount], shape.IsAnchorSelected);
+                    _shapeEditor.SelectAnchor(shape, anchorHits[nextIdx], toggle: false);
+                }
+            }
             else
             {
-                var nextIdx = FindNextInCycle(anchorHits[..anchorCount], shape.IsAnchorSelected);
-                SelectAnchor(anchorHits[nextIdx], toggle: false);
+                if (shift)
+                    ShiftSelectNextSegment(shape, segmentHits[..segmentCount]);
+                else
+                {
+                    var nextIdx = FindNextInCycle(segmentHits[..segmentCount], shape.IsSegmentSelected);
+                    _shapeEditor.SelectSegment(shape, segmentHits[nextIdx], toggle: false);
+                }
             }
+
+            _shapeEditor.UpdateSelection();
+            return;
         }
-        else if (segmentCount > 0)
+
+        // Check for path containment
+        Span<ushort> pathHits = stackalloc ushort[Shape.MaxPaths];
+        var pathCount = shape.GetPathsContainingPoint(localMousePos, pathHits);
+
+        if (pathCount > 0)
         {
-            if (shift)
-                ShiftSelectNextSegment(shape, segmentHits[..segmentCount]);
-            else
-            {
-                var nextIdx = FindNextInCycle(segmentHits[..segmentCount], shape.IsSegmentSelected);
-                SelectSegment(segmentHits[nextIdx], toggle: false);
-            }
-        }
-        else if (pathCount > 0)
-        {
+            pathHits[..pathCount].Reverse();
+
             if (shift)
                 ShiftSelectNext(pathHits[..pathCount], shape.IsPathSelected, i => shape.SetPathSelected(i, true), i => shape.SetPathSelected(i, false));
             else
             {
                 var nextIdx = FindNextInCycle(pathHits[..pathCount], shape.IsPathSelected);
-                SelectPath(pathHits[nextIdx], toggle: false);
+                _shapeEditor.SelectPath(shape, pathHits[nextIdx], toggle: false);
             }
-        }
-        else
-        {
-            if (!shift)
-                shape.ClearAnchorSelection();
+
+            _shapeEditor.UpdateSelection();
             return;
         }
 
-        UpdateSelection();
+        // Nothing hit — clear selection
+        if (!shift)
+        {
+            _shapeEditor.ClearSelection();
+            _shapeEditor.UpdateSelection();
+        }
     }
 
     private static int FindNextInCycle(Span<ushort> items, Func<ushort, bool> isSelected)
@@ -1134,7 +700,6 @@ public partial class SpriteEditor : DocumentEditor
 
     private static void ShiftSelectNext(Span<ushort> items, Func<ushort, bool> isSelected, Action<ushort, bool> setSelected)
     {
-        // Find first unselected and select it, or deselect all if all selected
         for (var i = 0; i < items.Length; i++)
         {
             if (!isSelected(items[i]))
@@ -1184,455 +749,11 @@ public partial class SpriteEditor : DocumentEditor
         indices.Sort((a, b) => shape.GetAnchor(b).Path.CompareTo(shape.GetAnchor(a).Path));
     }
 
-    private void BeginMoveTool()
+    private void DrawWireframe()
     {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        if (!shape.HasSelection())
-            return;
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-            _savedPositions[i] = shape.GetAnchor(i).Position;
-
-        Undo.Record(Document);
-
-        Workspace.BeginTool(new MoveTool(
-            update: delta =>
-            {
-                shape.TranslateAnchors(delta, _savedPositions, Input.IsCtrlDown(InputScope.All));
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                MarkRasterDirty();
-            },
-            commit: _ =>
-            {
-                Document.MarkModified();
-                Document.UpdateBounds();
-                MarkRasterDirty();
-            },
-            cancel: () =>
-            {
-                shape.RestoreAnchorPositions(_savedPositions);
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                Undo.Cancel();
-            }
-        ));
-    }
-
-    private void BeginRotateTool()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        var localPivot = GetLocalTransformPivot(shape);
-        if (!localPivot.HasValue)
-            return;
-
-        var worldPivot = Vector2.Transform(localPivot.Value, Document.Transform);
-        var worldOrigin = Vector2.Transform(Vector2.Zero, Document.Transform);
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-
-        Undo.Record(Document);
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-            _savedPositions[i] = shape.GetAnchor(i).Position;
-
-        Workspace.BeginTool(new RotateTool(
-            worldPivot,
-            localPivot.Value,
-            worldOrigin,
-            Vector2.Zero,
-            invTransform,
-            update: angle =>
-            {
-                var pivot = Input.IsShiftDown() ? Vector2.Zero : localPivot.Value;
-                shape.RotateAnchors(pivot, angle, _savedPositions);
-                if (Input.IsCtrlDown(InputScope.All))
-                    shape.SnapSelectedAnchorsToPixelGrid();
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                MarkRasterDirty();
-            },
-            commit: _ =>
-            {
-                if (Input.IsCtrlDown(InputScope.All))
-                    shape.SnapSelectedAnchorsToPixelGrid();
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                Document.MarkModified();
-                Document.UpdateBounds();
-                MarkRasterDirty();
-            },
-            cancel: () =>
-            {
-                shape.RestoreAnchorPositions(_savedPositions);
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                Undo.Cancel();
-            }
-        ));
-    }
-
-    private void OnScale()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        var localPivot = GetLocalTransformPivot(shape);
-        if (!localPivot.HasValue)
-            return;
-
-        var worldPivot = Vector2.Transform(localPivot.Value, Document.Transform);
-        var worldOrigin = Vector2.Transform(Vector2.Zero, Document.Transform);
-
-        Undo.Record(Document);
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-        {
-            _savedPositions[i] = shape.GetAnchor(i).Position;
-            _savedCurves[i] = shape.GetAnchor(i).Curve;
-        }
-
-        Workspace.BeginTool(new ScaleTool(
-            worldPivot,
-            worldOrigin,
-            update: scale =>
-            {
-                var pivot = Input.IsShiftDown(InputScope.All) ? Vector2.Zero : localPivot.Value;
-                shape.ScaleAnchors(pivot, scale, _savedPositions, _savedCurves);
-                if (Input.IsCtrlDown(InputScope.All))
-                    shape.SnapSelectedAnchorsToPixelGrid();
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                MarkRasterDirty();
-            },
-            commit: _ =>
-            {
-                if (Input.IsCtrlDown(InputScope.All))
-                    shape.SnapSelectedAnchorsToPixelGrid();
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                Document.MarkModified();
-                Document.UpdateBounds();
-                MarkRasterDirty();
-            },
-            cancel: () =>
-            {
-                shape.RestoreAnchorPositions(_savedPositions);
-                shape.RestoreAnchorCurves(_savedCurves);
-                shape.UpdateSamples();
-                shape.UpdateBounds();
-                Undo.Cancel();
-            }
-        ));
-    }
-
-    private Vector2? GetLocalTransformPivot(Shape shape)
-    {
-        return shape.GetSelectedAnchorsCentroid();
-    }
-
-    private void HandleDragStart()
-    {
-        Workspace.BeginTool(new BoxSelectTool(CommitBoxSelectAnchors));
-    }
-
-    private void BeginCurveTool()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-
-        var hasSelectedSegment = false;
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-        {
-            if (shape.IsSegmentSelected(i))
-            {
-                hasSelectedSegment = true;
-                break;
-            }
-        }
-
-        if (!hasSelectedSegment)
-            return;
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-            _savedCurves[i] = shape.GetAnchor(i).Curve;
-
-        Undo.Record(Document);
-
-        Workspace.BeginTool(new CurveTool(
-            shape,
-            Document.Transform,
-            _savedCurves,
-            update: () => MarkRasterDirty(),
-            commit: () =>
-            {
-                Document.MarkModified();
-                Document.UpdateBounds();
-                MarkRasterDirty();
-            },
-            cancel: () =>
-            {
-                Undo.Cancel();
-                MarkRasterDirty();
-            }
-        ));
-    }
-
-    private void CommitBoxSelectAnchors(Rect bounds)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        var shift = Input.IsShiftDown(InputScope.All);
-
-        if (!shift)
-            shape.ClearAnchorSelection();
-
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var minLocal = Vector2.Transform(bounds.Min, invTransform);
-        var maxLocal = Vector2.Transform(bounds.Max, invTransform);
-        var localRect = Rect.FromMinMax(minLocal, maxLocal);
-        shape.SelectAnchors(localRect);
-
-        UpdateSelection();
-    }
-
-    private void SelectAnchor(ushort anchorIndex, bool toggle)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-
-        if (toggle)
-        {
-            var anchor = shape.GetAnchor(anchorIndex);
-            var isSelected = (anchor.Flags & Shape.AnchorFlags.Selected) != 0;
-            shape.SetAnchorSelected(anchorIndex, !isSelected);
-        }
-        else
-        {
-            shape.ClearSelection();
-            shape.SetAnchorSelected(anchorIndex, true);
-        }
-
-        UpdateSelection();
-    }
-
-    private void SelectSegment(ushort anchorIndex, bool toggle)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        var pathIdx = FindPathForAnchor(shape, anchorIndex);
-        if (pathIdx == ushort.MaxValue)
-            return;
-
-        var path = shape.GetPath(pathIdx);
-        var nextAnchor = (ushort)(path.AnchorStart + ((anchorIndex - path.AnchorStart + 1) % path.AnchorCount));
-
-        if (toggle)
-        {
-            var anchor1 = shape.GetAnchor(anchorIndex);
-            var anchor2 = shape.GetAnchor(nextAnchor);
-            var bothSelected = (anchor1.Flags & Shape.AnchorFlags.Selected) != 0 &&
-                               (anchor2.Flags & Shape.AnchorFlags.Selected) != 0;
-            shape.SetAnchorSelected(anchorIndex, !bothSelected);
-            shape.SetAnchorSelected(nextAnchor, !bothSelected);
-        }
-        else
-        {
-            shape.ClearSelection();
-            shape.SetAnchorSelected(anchorIndex, true);
-            shape.SetAnchorSelected(nextAnchor, true);
-        }
-
-        UpdateSelection();
-    }
-
-    private void SelectPath(ushort pathIndex, bool toggle)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        var path = shape.GetPath(pathIndex);
-
-        if (toggle)
-        {
-            var allSelected = true;
-            for (ushort a = 0; a < path.AnchorCount; a++)
-            {
-                var anchor = shape.GetAnchor((ushort)(path.AnchorStart + a));
-                if ((anchor.Flags & Shape.AnchorFlags.Selected) == 0)
-                {
-                    allSelected = false;
-                    break;
-                }
-            }
-            for (ushort a = 0; a < path.AnchorCount; a++)
-                shape.SetAnchorSelected((ushort)(path.AnchorStart + a), !allSelected);
-        }
-        else
-        {
-            shape.ClearSelection();
-            for (ushort a = 0; a < path.AnchorCount; a++)
-                shape.SetAnchorSelected((ushort)(path.AnchorStart + a), true);
-        }
-
-        UpdateSelection();
-    }
-
-    private void SplitSegment(ushort anchorIndex)
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        shape.ClearSelection();
-        shape.SplitSegment(anchorIndex);
-
-        var newAnchorIdx = (ushort)(anchorIndex + 1);
-        if (newAnchorIdx < shape.AnchorCount)
-            shape.SetAnchorSelected(newAnchorIdx, true);
-
-        Document.MarkModified();
-        Document.UpdateBounds();
-        MarkRasterDirty();
-    }
-
-    private void BeginPenTool()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new PenTool(this, shape, Document.CurrentFillColor, Document.CurrentOperation));
-    }
-
-    private void BeginKnifeTool()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new KnifeTool(this, shape, commit: () =>
-        {
-            shape.UpdateSamples();
-            shape.UpdateBounds();
-            MarkRasterDirty();
-        }));
-    }
-
-    private void BeginRectangleTool()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentOperation));
-    }
-
-    private void BeginCircleTool()
-    {
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        Workspace.BeginTool(new ShapeTool(this, shape, Document.CurrentFillColor, ShapeType.Circle, Document.CurrentOperation));
-    }
-
-    private void InsertAnchorAtHover()
-    {
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var hit = Document.GetFrame(_currentFrame).Shape.HitTest(
-            Vector2.Transform(Workspace.MouseWorldPosition, invTransform));
-
-        if (hit.SegmentIndex == ushort.MaxValue)
-            return;
-
-        Undo.Record(Document);
-
-        var shape = Document.GetFrame(_currentFrame).Shape;
-        shape.ClearSelection();
-        shape.SplitSegmentAtPoint(hit.SegmentIndex, hit.SegmentPosition);
-
-        var newAnchorIdx = (ushort)(hit.SegmentIndex + 1);
-        if (newAnchorIdx < shape.AnchorCount)
-            shape.SetAnchorSelected(newAnchorIdx, true);
-
-        Document.UpdateBounds();
-        MarkRasterDirty();
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-            _savedPositions[i] = shape.GetAnchor(i).Position;
-
-        BeginMoveTool();
-    }
-
-    private static ushort FindPathForAnchor(Shape shape, ushort anchorIndex)
-    {
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            var path = shape.GetPath(p);
-            if (anchorIndex >= path.AnchorStart && anchorIndex < path.AnchorStart + path.AnchorCount)
-                return p;
-        }
-        return ushort.MaxValue;
-    }
-
-    private void DrawRaster()
-    {
-        var rb = Document.RasterBounds;
-        if (rb.Width <= 0 || rb.Height <= 0)
-            return;
-
-        DrawMeshSDF();
-    }
-
-    private static void DrawSegment(Shape shape, ushort pathIndex, ushort segmentIndex, float width, ushort order = 0)
-    {
-        var samples = shape.GetSegmentSamples(segmentIndex);
-        ref readonly var anchor = ref shape.GetAnchor(segmentIndex);
-
-        var prev = anchor.Position;
-        foreach (var sample in samples)
-        {
-            Gizmos.DrawLine(prev, sample, width, order: order);
-            prev = sample;
-        }
-
-        ref readonly var nextAnchor = ref shape.GetNextAnchor(segmentIndex);
-        Gizmos.DrawLine(prev, nextAnchor.Position, width, order: order);
-    }
-
-    private static void DrawSegments(Shape shape)
-    {
-        using (Gizmos.PushState(EditorLayer.DocumentEditor))
-        {
-            Gizmos.SetColor(EditorStyle.Workspace.LineColor);
-            for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
-            {
-                if (!shape.IsSegmentSelected(anchorIndex))
-                {
-                    var pathIndex = FindPathForAnchor(shape, anchorIndex);
-                    if (pathIndex != ushort.MaxValue)
-                        DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentLineWidth, 1);
-                }
-            }
-
-            Gizmos.SetColor(EditorStyle.Workspace.SelectionColor);
-            for (ushort anchorIndex = 0; anchorIndex < shape.AnchorCount; anchorIndex++)
-            {
-                if (shape.IsSegmentSelected(anchorIndex))
-                {
-                    var pathIndex = FindPathForAnchor(shape, anchorIndex);
-                    if (pathIndex != ushort.MaxValue)
-                        DrawSegment(shape, pathIndex, anchorIndex, EditorStyle.Shape.SegmentLineWidth, 2);
-                }
-            }
-        }
-    }
-
-    private static void DrawAnchor(Vector2 worldPosition)
-    {
-        Gizmos.SetColor(EditorStyle.Workspace.LineColor);
-        Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize, order: 4);
-    }
-
-    private static void DrawSelectedAnchor(Vector2 worldPosition)
-    {
-        Gizmos.SetColor(EditorStyle.Workspace.SelectionColor);
-        Gizmos.DrawRect(worldPosition, EditorStyle.Shape.AnchorSize, order: 5);
-    }
-
-    private static void DrawAnchors(Shape shape)
-    {
-        using var _ = Gizmos.PushState(EditorLayer.DocumentEditor);
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-        {
-            ref readonly var anchor = ref shape.GetAnchor(i);
-            if (anchor.IsSelected) continue;
-            DrawAnchor(anchor.Position);
-        }
-
-        for (ushort i = 0; i < shape.AnchorCount; i++)
-        {
-            ref readonly var anchor = ref shape.GetAnchor(i);
-            if (!anchor.IsSelected) continue;
-            DrawSelectedAnchor(anchor.Position);
-        }
+        var shape = CurrentShape;
+        ShapeEditor.DrawSegments(shape);
+        ShapeEditor.DrawAnchors(shape);
     }
 
     private void DrawEdges()
@@ -1654,28 +775,24 @@ public partial class SpriteEditor : DocumentEditor
 
             var lineWidth = EditorStyle.Workspace.DocumentBoundsLineWidth;
 
-            // Top edge
             if (edgeT > 0)
             {
                 var y = bounds.Top + edgeT;
                 Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
             }
 
-            // Bottom edge
             if (edgeB > 0)
             {
                 var y = bounds.Bottom - edgeB;
                 Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
             }
 
-            // Left edge
             if (edgeL > 0)
             {
                 var x = bounds.Left + edgeL;
                 Gizmos.DrawLine(new Vector2(x, bounds.Top), new Vector2(x, bounds.Bottom), lineWidth);
             }
 
-            // Right edge
             if (edgeR > 0)
             {
                 var x = bounds.Right - edgeR;
@@ -1690,7 +807,6 @@ public partial class SpriteEditor : DocumentEditor
         if (skeleton == null)
             return;
 
-        // Skinned sprites work in skeleton space - draw other sprites at their positions
         using (Graphics.PushState())
         {
             Graphics.SetSortGroup(0);
@@ -1710,19 +826,335 @@ public partial class SpriteEditor : DocumentEditor
             Graphics.SetTransform(Document.Transform);
 
             for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
+                Gizmos.DrawBoneAndJoints(skeleton, boneIndex, selected: false);
+        }
+    }
+
+    private void SpriteInspectorUI()
+    {
+        using var _ = Inspector.BeginSection("SPRITE");
+        if (Inspector.IsSectionCollapsed) return;
+
+        using (Inspector.BeginProperty("Size"))
+        {
+            var sizes = EditorApplication.Config.SpriteSizes;
+            var constraintLabel = "Auto";
+            if (Document.ConstrainedSize.HasValue)
+                for (int i = 0; i < sizes.Length; i++)
+                    if (Document.ConstrainedSize.Value == sizes[i].Size)
+                    {
+                        constraintLabel = sizes[i].Label;
+                        break;
+                    }
+
+            UI.DropDown(WidgetIds.ConstraintDropDown, () => [
+                ..EditorApplication.Config.SpriteSizes.Select(s =>
+                new PopupMenuItem { Label = s.Label, Handler = () => SetConstraint(s.Size) }
+            ),
+            new PopupMenuItem { Label = "Auto", Handler = () => SetConstraint(null)}
+            ], constraintLabel, EditorAssets.Sprites.IconConstraint);
+        }
+
+        // Skeleton
+        using (Inspector.BeginProperty("Skeleton"))
+        {
+            var skeletonLabel = Document.Binding.IsBound
+                ? StringId.Get(Document.Binding.Skeleton!.Name).ToString()
+                : "None";
+
+            UI.DropDown(WidgetIds.SkeletonDropDown, () =>
             {
-                var boneName = StringId.Get(skeleton.Bones[boneIndex].Name);
-                Gizmos.DrawBoneAndJoints(skeleton, boneIndex, selected: boneName == Document.CurrentBone);
+                var skeletonItems = new List<PopupMenuItem>();
+
+                foreach (var doc in DocumentManager.Documents)
+                {
+                    if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
+                        continue;
+
+                    var name = StringId.Get(skeleton.Name).ToString();
+                    skeletonItems.Add(new PopupMenuItem { Label = name, Handler = () => CommitSkeletonBinding(skeleton) });
+                }
+
+                skeletonItems.Add(new PopupMenuItem { Label = "None", Handler = ClearSkeletonBinding });
+                return skeletonItems.ToArray();
+            }, skeletonLabel, EditorAssets.Sprites.IconBone);
+        }
+
+        if (Document.Binding.IsBound)
+        {
+            UI.SetChecked(Document.ShowInSkeleton);
+            if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
+            {
+                Undo.Record(Document);
+                Document.ShowInSkeleton = !Document.ShowInSkeleton;
+                Document.Binding.Skeleton?.UpdateSprites();
+            }
+
+            UI.SetChecked(Document.ShowSkeletonOverlay);
+            if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon))
+            {
+                Undo.Record(Document);
+                Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
             }
         }
     }
+
+    private void PathInspectorUI()
+    {
+        if (!_shapeEditor.HasPathSelection)
+            return;
+
+        using (Inspector.BeginSection("PATH"))
+        {
+            if (Inspector.IsSectionCollapsed)
+                return;
+
+            using (Inspector.BeginProperty("Operation"))
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
+            {
+                UI.SetChecked(Document.CurrentOperation == PathOperation.Normal);
+                if (UI.Button(WidgetIds.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
+                    SetPathOperation(PathOperation.Normal);
+
+                UI.SetChecked(Document.CurrentOperation == PathOperation.Subtract);
+                if (UI.Button(WidgetIds.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon))
+                    SetPathOperation(PathOperation.Subtract);
+
+                UI.SetChecked(Document.CurrentOperation == PathOperation.Clip);
+                if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon))
+                    SetPathOperation(PathOperation.Clip);
+            }
+
+            using (Inspector.BeginProperty("Fill"))
+            {
+                var fillColor = Document.CurrentFillColor;
+                if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor))
+                {
+                    UI.HandleChange(Document);
+                    SetFillColor(fillColor);
+                }
+            }
+
+            using (Inspector.BeginProperty("Stroke"))
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
+            {
+                var strokeColor = Document.CurrentStrokeColor;
+                if (EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor))
+                {
+                    UI.HandleChange(Document);
+                    SetStrokeColor(strokeColor);
+                }
+
+                if (strokeColor.A > 0)
+                    StrokeWidthButtonUI();
+            }
+        }
+    }
+
+    public override void InspectorUI()
+    {
+        SpriteInspectorUI();
+        PathInspectorUI();
+        GenerationInspectorUI();
+    }
+
+    #region Generation
+
+    private void GenerationInspectorUI()
+    {
+        if (!Document.HasGeneration)
+        {
+            using (UI.BeginContainer(new ContainerStyle { Padding = EdgeInsets.Symmetric(12, 16) }))
+            {
+                if (UI.Button(WidgetIds.AddGenerationButton, "+ Generation", EditorAssets.Sprites.IconAi, EditorStyle.Button.Secondary with { Width = Size.Percent(1), MinWidth = 0 }))
+                {
+                    Undo.Record(Document);
+                    Document.Prompt = " ";
+                    Document.Seed = Random.Shared.NextInt64(1, long.MaxValue).ToString();
+                    Document.ConstrainedSize ??= new Vector2Int(256, 256);
+                    Document.UpdateBounds();
+                }
+            }
+            return;
+        }
+
+        static void GenerationSectionContent()
+        {
+            if (UI.Button(WidgetIds.RemoveGenerationButton, EditorAssets.Sprites.IconDelete, EditorStyle.Button.Secondary))
+                ((SpriteEditor)Workspace.ActiveEditor!).RemoveGeneration();
+        }
+
+        using (Inspector.BeginSection("GENERATION", content: GenerationSectionContent))
+        {
+            if (Inspector.IsSectionCollapsed) return;
+
+            using (Inspector.BeginRow())
+            using (UI.BeginFlex())
+                GenerationStyleUI();
+
+            using (Inspector.BeginRow())
+            using (UI.BeginFlex())
+                Document.Prompt = UI.TextInput(WidgetIds.LayerPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
+
+            using (Inspector.BeginRow())
+            using (UI.BeginFlex())
+                Document.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
+
+            using (Inspector.BeginRow())
+            {
+                using (UI.BeginFlex())
+                    Document.Seed = UI.TextInput(WidgetIds.LayerSeed, Document.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
+                if (UI.Button(WidgetIds.LayerSeedDice, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))
+                {
+                    Undo.Record(Document);
+                    Document.Seed = GenerateRandomSeed();
+                }
+            }
+        }
+
+        UI.Flex();
+
+        var genImage = Document.Generation;
+        if (genImage.IsGenerating)
+            GenerationProgressUI(genImage);
+        else
+            GenerateButtonUI(genImage);
+    }
+
+    private void GenerationStyleUI()
+    {
+        UI.DropDown(WidgetIds.StyleDropDown, () =>
+        {
+            var items = new List<PopupMenuItem>
+            {
+                PopupMenuItem.Item("None", () => SetStyle(null))
+            };
+            foreach (var doc in DocumentManager.Documents)
+            {
+                if (doc is GenStyleDocument styleDoc)
+                    items.Add(PopupMenuItem.Item(styleDoc.Name, () => SetStyle(styleDoc)));
+            }
+            return [.. items];
+        }, Document.StyleName ?? "None",
+        icon: EditorAssets.Sprites.AssetIconGenstyle);
+    }
+
+    private void SetStyle(GenStyleDocument? style)
+    {
+        Undo.Record(Document);
+        Document.StyleName = style?.Name;
+        Document.Style = style;
+    }
+
+    private void GenerationProgressUI(GenerationImage genImage)
+    {
+        using (UI.BeginColumn(new ContainerStyle
+        {
+            Padding = EdgeInsets.Symmetric(12, 16),
+            Spacing = 10,
+        }))
+        {
+            var progressText = genImage.GenerationState switch
+            {
+                GenerationState.Queued when genImage.QueuePosition > 0 =>
+                    $"Queued (position {genImage.QueuePosition})",
+                GenerationState.Queued => "Queued...",
+                GenerationState.Running => $"Generating {(int)(genImage.GenerationProgress * 100)}%",
+                _ => "Starting..."
+            };
+
+            using (UI.BeginRow(new ContainerStyle { Spacing = 8 }))
+            {
+                UI.Text(progressText, EditorStyle.Text.Primary with { FontSize = EditorStyle.Control.TextSize });
+                UI.Flex();
+                if (UI.Button(WidgetIds.CancelButton, EditorAssets.Sprites.IconClose, EditorStyle.Button.SmallIconOnly))
+                    genImage.CancelGeneration();
+            }
+
+            using (UI.BeginContainer(new ContainerStyle
+            {
+                Width = Size.Percent(1),
+                Height = 4f,
+                Color = EditorStyle.Palette.Active,
+                BorderRadius = 2f
+            }))
+            {
+                UI.Container(new ContainerStyle
+                {
+                    Width = Size.Percent(genImage.GenerationProgress),
+                    Height = 4f,
+                    Color = EditorStyle.Palette.Primary,
+                    BorderRadius = 2f
+                });
+            }
+        }
+    }
+
+    private void GenerateButtonUI(GenerationImage genImage)
+    {
+        if (genImage.GenerationError != null)
+            UI.Text(genImage.GenerationError, EditorStyle.Text.Secondary with { Color = EditorStyle.ErrorColor });
+
+        using (UI.BeginContainer(new ContainerStyle
+        {
+            Padding = EdgeInsets.Symmetric(12, 16),
+        }))
+        {
+            if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1), MinWidth = 0, Height = 36 }))
+                Document.GenerateAsync();
+        }
+    }
+
+    private void RemoveGeneration()
+    {
+        Undo.Record(Document);
+        Document.Prompt = "";
+        Document.NegativePrompt = "";
+        Document.Seed = "";
+        Document.Generation.Dispose();
+        Document.Generation.ImageData = null;
+        Document.StyleName = null;
+        Document.Style = null;
+    }
+
+    private static string GenerateRandomSeed()
+    {
+        var adj = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.adj);
+        var noun = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.noun);
+        return $"{adj}-{noun}";
+    }
+
+    private void BeginEyeDropper()
+    {
+        if (Document.Generation.Texture == null)
+            return;
+        Workspace.BeginTool(new EyeDropperTool(this));
+    }
+
+    internal void ApplyEyeDropperColor(Color32 color, bool shift)
+    {
+        if (shift)
+        {
+            SetStrokeColor(color);
+            if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
+                ColorPicker.Open(WidgetIds.StrokeColor, color);
+        }
+        else
+        {
+            SetFillColor(color);
+            if (ColorPicker.IsOpen(WidgetIds.FillColor))
+                ColorPicker.Open(WidgetIds.FillColor, color);
+        }
+    }
+
+    #endregion
 
     #region Skeleton Binding
 
     private void CommitSkeletonBinding(SkeletonDocument skeleton)
     {
         Undo.Record(Document);
-        Document.SetSkeletonBinding(skeleton);
+        Document.Binding.Set(skeleton);
         skeleton.UpdateSprites();
         Notifications.Add($"bound to skeleton '{skeleton.Name}'");
     }
@@ -1735,15 +1167,56 @@ public partial class SpriteEditor : DocumentEditor
             return;
         }
 
+        var skeleton = Document.Binding.Skeleton;
         Undo.Record(Document);
-        Document.ClearSkeletonBinding();
+        Document.Binding.Clear();
+        skeleton?.UpdateSprites();
         Notifications.Add("skeleton binding cleared");
     }
 
-    private void ClearSelection()
+    #endregion
+
+    #region IShapeEditorHost
+
+    Document IShapeEditorHost.Document => base.Document;
+    Shape IShapeEditorHost.CurrentShape => CurrentShape;
+    Color32 IShapeEditorHost.NewPathFillColor => Document.CurrentFillColor;
+    PathOperation IShapeEditorHost.NewPathOperation => Document.CurrentOperation;
+    bool IShapeEditorHost.SnapToPixelGrid => Input.IsCtrlDown(InputScope.All);
+
+    void IShapeEditorHost.OnSelectionChanged(bool hasSelection)
     {
-        for (int i=0; i<Document.FrameCount; i++)
-            Document.GetFrame((ushort)i).Shape.ClearSelection();
+        var shape = CurrentShape;
+        for (ushort p = (ushort)(shape.PathCount - 1); p < shape.PathCount; p--)
+        {
+            ref readonly var path = ref shape.GetPath(p);
+            if (!path.IsSelected) continue;
+
+            Document.CurrentFillColor = path.FillColor;
+            Document.CurrentStrokeColor = path.StrokeColor;
+            Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
+            Document.CurrentOperation = path.Operation;
+        }
+    }
+
+    void IShapeEditorHost.ClearAllSelections()
+    {
+        for (ushort fi = 0; fi < Document.FrameCount; fi++)
+            Document.Frames[fi].Shape.ClearSelection();
+    }
+
+    void IShapeEditorHost.InvalidateMesh() => _meshVersion = -1;
+
+    Shape? IShapeEditorHost.GetShapeWithSelection()
+    {
+        var shape = CurrentShape;
+        if (shape.HasSelection()) return shape;
+        return null;
+    }
+
+    void IShapeEditorHost.ForEachEditableShape(Action<Shape> action)
+    {
+        action(CurrentShape);
     }
 
     #endregion

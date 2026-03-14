@@ -4,22 +4,14 @@
 
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace NoZ.Editor;
 
-public class SpriteFrame : IDisposable
-{
-    public readonly Shape Shape = new();
-    public int Hold;
-
-    public void Dispose()
-    {
-        Shape.Dispose();
-    }
-}
-
-public class SpriteDocument : Document, ISpriteSource
+public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
 {
     public override bool CanSave => true;
 
@@ -61,19 +53,11 @@ public class SpriteDocument : Document, ISpriteSource
         }
     }
 
-    public sealed class MeshSlot(byte layer, StringId bone)
-    {
-        public readonly byte Layer = layer;
-        public readonly StringId Bone = bone;
-        public readonly List<ushort> PathIndices = new();
-    }
+    public readonly SpriteFrame[] Frames = new SpriteFrame[Sprite.MaxFrames];
+    public ushort FrameCount = 1;
 
-    private BitMask256 _layers = new();
     private readonly List<Rect> _atlasUV = new();
     private Sprite? _sprite;
-
-    public readonly SpriteFrame[] Frames = new SpriteFrame[Sprite.MaxFrames];
-    public ushort FrameCount;
     public float Depth;
     public RectInt RasterBounds { get; private set; }
     public EdgeInsets Edges { get; set; } = EdgeInsets.Zero;
@@ -81,27 +65,29 @@ public class SpriteDocument : Document, ISpriteSource
     public Color32 CurrentFillColor = Color32.White;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
-    public byte CurrentLayer = 0;
-    public StringId CurrentBone;
     public PathOperation CurrentOperation;
 
-    public ref readonly BitMask256 Layers => ref _layers;
+    // Generation (optional — editor-only, stripped on Import)
+    public string Prompt = "";
+    public string NegativePrompt = "";
+    public string Seed = "";
+    public GenerationImage Generation { get; } = new();
+    public string? StyleName;
+    public GenStyleDocument? Style;
 
-    public int MeshSlotCount
-    {
-        get
-        {
-            var slots = GetMeshSlots();
-            return Math.Max(1, slots.Count);
-        }
-    }
-    
+    public bool HasGeneration => !string.IsNullOrEmpty(Prompt);
+    public bool IsGenerating => Generation.IsGenerating;
+
+    public bool IsActiveLayerLocked => false;
+
+    public Shape GetFrameShape(int frameIndex) => Frames[frameIndex].Shape;
+
     public bool ShowInSkeleton { get; set; }
     public bool ShowTiling { get; set; }
     public bool ShowSkeletonOverlay { get; set; }
     public Vector2Int? ConstrainedSize { get; set; }
 
-    ushort ISpriteSource.FrameCount => FrameCount;
+    ushort ISpriteSource.FrameCount => (ushort)TotalTimeSlots;
     AtlasDocument? ISpriteSource.Atlas { get => Atlas; set => Atlas = value; }
     internal AtlasDocument? Atlas { get; set; }
 
@@ -126,8 +112,6 @@ public class SpriteDocument : Document, ISpriteSource
 
     static SpriteDocument()
     {
-        SkeletonDocument.BoneRenamed += OnSkeletonBoneRenamed;
-        SkeletonDocument.BoneRemoved += OnSkeletonBoneRemoved;
     }
 
     public static void RegisterDef()
@@ -142,107 +126,6 @@ public class SpriteDocument : Document, ISpriteSource
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
-    }
-
-    private static void OnSkeletonBoneRenamed(SkeletonDocument skeleton, int boneIndex, string oldName, string newName)
-    {
-        var oldBoneName = StringId.Get(oldName);
-        var newBoneName = StringId.Get(newName);
-
-        foreach (var doc in DocumentManager.Documents.OfType<SpriteDocument>())
-        {
-            if (doc.Binding.Skeleton != skeleton)
-                continue;
-
-            var modified = false;
-            for (ushort fi = 0; fi < doc.FrameCount; fi++)
-            {
-                var shape = doc.Frames[fi].Shape;
-                for (ushort p = 0; p < shape.PathCount; p++)
-                {
-                    if (shape.GetPath(p).Bone == oldBoneName)
-                    {
-                        shape.SetPathBone(p, newBoneName);
-                        modified = true;
-                    }
-                }
-            }
-
-            if (modified)
-                doc.MarkModified();
-        }
-    }
-
-    private static void OnSkeletonBoneRemoved(SkeletonDocument skeleton, int removedIndex, string removedName)
-    {
-        var removedBoneName = StringId.Get(removedName);
-
-        foreach (var doc in DocumentManager.Documents.OfType<SpriteDocument>())
-        {
-            if (doc.Binding.Skeleton != skeleton)
-                continue;
-
-            var modified = false;
-            for (ushort fi = 0; fi < doc.FrameCount; fi++)
-            {
-                var shape = doc.Frames[fi].Shape;
-                for (ushort p = 0; p < shape.PathCount; p++)
-                {
-                    if (shape.GetPath(p).Bone == removedBoneName)
-                    {
-                        // Reset to root bone (None)
-                        shape.SetPathBone(p, StringId.None);
-                        modified = true;
-                    }
-                }
-            }
-
-            if (modified)
-            {
-                doc.MarkModified();
-                Notifications.Add($"Sprite '{doc.Name}' bone bindings updated (bone '{removedName}' deleted)");
-            }
-        }
-    }
-
-    public SpriteFrame GetFrame(ushort frameIndex) => Frames[frameIndex];
-
-    public int InsertFrame(int insertAt)
-    {
-        if (FrameCount >= Sprite.MaxFrames)
-            return -1;
-
-        FrameCount++;
-        var copyFrame = Math.Max(0, insertAt - 1);
-
-        for (var i = FrameCount - 1; i > insertAt; i--)
-        {
-            Frames[i].Shape.CopyFrom(Frames[i - 1].Shape);
-            Frames[i].Hold = Frames[i - 1].Hold;
-        }
-
-        if (copyFrame >= 0 && copyFrame < FrameCount)
-            Frames[insertAt].Shape.CopyFrom(Frames[copyFrame].Shape);
-
-        Frames[insertAt].Hold = 0;
-        return insertAt;
-    }
-
-    public int DeleteFrame(int frameIndex)
-    {
-        if (FrameCount <= 1)
-            return frameIndex;
-
-        for (var i = frameIndex; i < FrameCount - 1; i++)
-        {
-            Frames[i].Shape.CopyFrom(Frames[i + 1].Shape);
-            Frames[i].Hold = Frames[i + 1].Hold;
-        }
-
-        Frames[FrameCount - 1].Shape.Clear();
-        Frames[FrameCount - 1].Hold = 0;
-        FrameCount--;
-        return Math.Min(frameIndex, FrameCount - 1);
     }
 
     private static void NewFile(StreamWriter writer)
@@ -260,47 +143,59 @@ public class SpriteDocument : Document, ISpriteSource
 
     public override void Reload()
     {
-        // Clear existing frame data
-        for (var i = 0; i < FrameCount; i++)
-            Frames[i].Shape.Clear();
-
-        FrameCount = 0;
         Edges = EdgeInsets.Zero;
         Binding.Clear();
+        Prompt = "";
+        NegativePrompt = "";
+        Seed = "";
 
-        // Re-read and re-parse the .sprite file
+        for (var fi = 0; fi < FrameCount; fi++)
+            Frames[fi].Shape.Clear();
+        FrameCount = 1;
+
         var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
 
-        // Resolve skeleton binding
         Binding.Resolve();
-
-        // Update bounds and mark sprite dirty
+        if (HasGeneration)
+            LoadGeneratedTexture();
         UpdateBounds();
     }
 
     private void Load(ref Tokenizer tk)
     {
-        SpriteFrame? f = null;
+        FrameCount = 0;
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("path"))
+            if (tk.ExpectIdentifier("frame"))
             {
-                f ??= Frames[FrameCount++];
-                ParsePath(f, ref tk);
-            }
-            else if (tk.ExpectIdentifier("palette"))
-            {
-                // Legacy: palette keyword is ignored, colors are stored directly
-                tk.ExpectQuotedString();
-            }
-            else if (tk.ExpectIdentifier("frame"))
-            {
-                f = Frames[FrameCount++];
+                var fi = FrameCount;
+                if (fi >= Sprite.MaxFrames)
+                    break;
+
+                if (fi > 0 || Frames[0].Shape.PathCount > 0)
+                    FrameCount = (ushort)(fi + 1);
+                else
+                    FrameCount = 1;
+
+                var f = Frames[FrameCount - 1];
+
                 if (tk.ExpectIdentifier("hold"))
                     f.Hold = tk.ExpectInt();
+
+                while (!tk.IsEOF && tk.ExpectIdentifier("path"))
+                    ParsePath(f, ref tk);
+
+                if (FrameCount == 0)
+                    FrameCount = 1;
+            }
+            else if (tk.ExpectIdentifier("path"))
+            {
+                if (FrameCount == 0)
+                    FrameCount = 1;
+                ParsePath(Frames[0], ref tk);
             }
             else if (tk.ExpectIdentifier("edges"))
             {
@@ -310,6 +205,10 @@ public class SpriteDocument : Document, ISpriteSource
             else if (tk.ExpectIdentifier("skeleton"))
             {
                 Binding.SkeletonName = StringId.Get(tk.ExpectQuotedString());
+            }
+            else if (tk.ExpectIdentifier("generate"))
+            {
+                ParseGeneration(ref tk);
             }
             else
             {
@@ -323,6 +222,34 @@ public class SpriteDocument : Document, ISpriteSource
             FrameCount = 1;
     }
 
+    private void ParseGeneration(ref Tokenizer tk)
+    {
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectIdentifier("prompt"))
+                Prompt = tk.ExpectQuotedString() ?? "";
+            else if (tk.ExpectIdentifier("prompt_neg"))
+                NegativePrompt = tk.ExpectQuotedString() ?? "";
+            else if (tk.ExpectIdentifier("seed"))
+            {
+                if (tk.ExpectQuotedString(out var seedStr))
+                    Seed = seedStr;
+                else
+                    Seed = tk.ExpectInt().ToString();
+            }
+            else if (tk.ExpectIdentifier("style"))
+                StyleName = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("image"))
+            {
+                var base64 = tk.ExpectQuotedString();
+                if (!string.IsNullOrEmpty(base64))
+                    Generation.ImageData = Convert.FromBase64String(base64);
+            }
+            else
+                break;
+        }
+    }
+
     private void ParsePath(SpriteFrame f, ref Tokenizer tk)
     {
         var pathIndex = f.Shape.AddPath(Color32.White);
@@ -330,22 +257,16 @@ public class SpriteDocument : Document, ISpriteSource
         var strokeColor = new Color32(0, 0, 0, 0);
         var strokeWidth = 1;
         var operation = PathOperation.Normal;
-        byte layer = 0;
-        var bone = StringId.None;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectIdentifier("fill"))
             {
-                // Support: rgba(r,g,b,a), #RRGGBB, #RRGGBBAA, or legacy int palette index
                 if (tk.ExpectColor(out var color))
-                {
                     fillColor = color.ToColor32();
-                }
                 else
                 {
                     fillColor = PaletteManager.GetColor(0, tk.ExpectInt()).ToColor32();
-                    // Legacy format had separate opacity float after the index
                     var legacyOpacity = tk.ExpectFloat(1.0f);
                     fillColor = fillColor.WithAlpha(legacyOpacity);
                 }
@@ -353,9 +274,7 @@ public class SpriteDocument : Document, ISpriteSource
             else if (tk.ExpectIdentifier("stroke"))
             {
                 if (tk.ExpectColor(out var color))
-                {
                     strokeColor = color.ToColor32();
-                }
                 else
                 {
                     strokeColor = PaletteManager.GetColor(0, tk.ExpectInt()).ToColor32();
@@ -375,14 +294,14 @@ public class SpriteDocument : Document, ISpriteSource
                     operation = PathOperation.Clip;
             }
             else if (tk.ExpectIdentifier("layer"))
-                layer = EditorApplication.Config.TryGetSpriteLayer(tk.ExpectQuotedString(), out var sg)
-                    ? sg.Layer
-                    : (byte)0;
+            {
+                // Legacy per-path layer — skip
+                tk.ExpectQuotedString();
+            }
             else if (tk.ExpectIdentifier("bone"))
             {
-                var boneName = tk.ExpectQuotedString();
-                if (!string.IsNullOrEmpty(boneName))
-                    bone = StringId.Get(boneName);
+                // Legacy per-path bone — skip
+                tk.ExpectQuotedString();
             }
             else if (tk.ExpectIdentifier("anchor"))
                 ParseAnchor(f.Shape, pathIndex, ref tk);
@@ -394,8 +313,6 @@ public class SpriteDocument : Document, ISpriteSource
         f.Shape.SetPathStroke(pathIndex, strokeColor, (byte)strokeWidth);
         if (operation != PathOperation.Normal)
             f.Shape.SetPathOperation(pathIndex, operation);
-        f.Shape.SetPathLayer(pathIndex, layer);
-        f.Shape.SetPathBone(pathIndex, bone);
     }
 
     private static void ParseAnchor(Shape shape, ushort pathIndex, ref Tokenizer tk)
@@ -408,8 +325,6 @@ public class SpriteDocument : Document, ISpriteSource
 
     public void UpdateBounds()
     {
-        UpdateLayers();
-
         if (ConstrainedSize.HasValue)
         {
             var cs = ConstrainedSize.Value;
@@ -428,37 +343,55 @@ public class SpriteDocument : Document, ISpriteSource
             return;
         }
 
-        if (FrameCount <= 0)
+        if (FrameCount == 0)
         {
             Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
             return;
         }
 
-        var bounds = Frames[0].Shape.Bounds;
-        for (ushort fi = 1; fi < FrameCount; fi++)
+        var first = true;
+        var bounds = Rect.Zero;
+        RasterBounds = RectInt.Zero;
+
+        for (ushort fi = 0; fi < FrameCount; fi++)
         {
-            var fb = Frames[fi].Shape.Bounds;
-            var minX = MathF.Min(bounds.X, fb.X);
-            var minY = MathF.Min(bounds.Y, fb.Y);
-            var maxX = MathF.Max(bounds.Right, fb.Right);
-            var maxY = MathF.Max(bounds.Bottom, fb.Bottom);
-            bounds = Rect.FromMinMax(new Vector2(minX, minY), new Vector2(maxX, maxY));
+            var shape = Frames[fi].Shape;
+            shape.UpdateSamples();
+            shape.UpdateBounds();
+
+            if (shape.AnchorCount == 0)
+                continue;
+
+            if (first)
+            {
+                bounds = shape.Bounds;
+                RasterBounds = shape.RasterBounds;
+                first = false;
+            }
+            else
+            {
+                var fb = shape.Bounds;
+                var minX = MathF.Min(bounds.X, fb.X);
+                var minY = MathF.Min(bounds.Y, fb.Y);
+                var maxX = MathF.Max(bounds.Right, fb.Right);
+                var maxY = MathF.Max(bounds.Bottom, fb.Bottom);
+                bounds = Rect.FromMinMax(new Vector2(minX, minY), new Vector2(maxX, maxY));
+                RasterBounds = RasterBounds.Union(shape.RasterBounds);
+            }
         }
+
+        if (first)
+        {
+            Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
+            return;
+        }
+
         Bounds = bounds;
 
         if (Bounds.Width <= 0 || Bounds.Height <= 0)
         {
             Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
             return;
-        }
-
-        RasterBounds = Frames[0].Shape.RasterBounds;
-
-        for (ushort fi = 0; fi < FrameCount; fi++)
-        {
-            Frames[fi].Shape.UpdateSamples();
-            Frames[fi].Shape.UpdateBounds();
-            RasterBounds = RasterBounds.Union(Frames[fi].Shape.RasterBounds);
         }
 
         if (ConstrainedSize.HasValue)
@@ -499,14 +432,6 @@ public class SpriteDocument : Document, ISpriteSource
             clampedHeight);
     }
 
-    private void UpdateLayers()
-    {
-        _layers.Clear();
-        for (ushort fi = 0; fi < FrameCount; fi++)
-            _layers |= Frames[fi].Shape.Layers;
-    }
-
-    // :save
     public override void Save(StreamWriter writer)
     {
         if (!Edges.IsZero)
@@ -515,33 +440,53 @@ public class SpriteDocument : Document, ISpriteSource
         if (Binding.IsBound)
             writer.WriteLine($"skeleton \"{Binding.SkeletonName}\"");
 
-        writer.WriteLine();
+        if (FrameCount > 0)
+            writer.WriteLine();
 
         for (ushort frameIndex = 0; frameIndex < FrameCount; frameIndex++)
         {
-            var f = GetFrame(frameIndex);
+            var f = Frames[frameIndex];
+            var shape = f.Shape;
 
             if (FrameCount > 1 || f.Hold > 0)
             {
-                writer.WriteLine("frame");
+                writer.Write("frame");
                 if (f.Hold > 0)
-                    writer.WriteLine($"hold {f.Hold}");
+                    writer.Write($" hold {f.Hold}");
+                writer.WriteLine();
             }
 
-            SaveFrame(f, writer);
+            if (shape.PathCount > 0)
+                SaveFrame(shape, writer);
+        }
 
-            if (frameIndex < FrameCount - 1)
+        // Generation config (editor-only)
+        if (HasGeneration)
+        {
+            writer.WriteLine("generate");
+            if (!string.IsNullOrEmpty(Prompt))
+                writer.WriteLine($"prompt \"{Prompt.Replace("\"", "\\\"")}\"");
+            if (!string.IsNullOrEmpty(NegativePrompt))
+                writer.WriteLine($"prompt_neg \"{NegativePrompt.Replace("\"", "\\\"")}\"");
+            if (!string.IsNullOrEmpty(Seed))
+                writer.WriteLine($"seed \"{Seed}\"");
+            if (!string.IsNullOrEmpty(StyleName))
+                writer.WriteLine($"style \"{StyleName}\"");
+
+            if (Generation.HasImageData)
+            {
                 writer.WriteLine();
+                writer.WriteLine($"image \"{Convert.ToBase64String(Generation.ImageData!)}\"");
+            }
         }
     }
 
-    private void SaveFrame(SpriteFrame f, StreamWriter writer)
+    private static void SaveFrame(Shape shape, StreamWriter writer)
     {
-        var shape = f.Shape;
-
         for (ushort pIdx = 0; pIdx < shape.PathCount; pIdx++)
         {
             ref readonly var path = ref shape.GetPath(pIdx);
+
             writer.WriteLine("path");
             if (path.IsSubtract)
                 writer.WriteLine("subtract true");
@@ -551,12 +496,6 @@ public class SpriteDocument : Document, ISpriteSource
 
             if (path.StrokeColor.A > 0)
                 writer.WriteLine($"stroke {FormatColor(path.StrokeColor)} {path.StrokeWidth}");
-
-            if (EditorApplication.Config.TryGetSpriteLayer(path.Layer, out var layerDef))
-                writer.WriteLine($"layer \"{layerDef.Id}\"");
-
-            if (Binding.IsBound)
-                writer.WriteLine($"bone \"{path.Bone}\"");
 
             for (ushort aIdx = 0; aIdx < path.AnchorCount; aIdx++)
             {
@@ -582,12 +521,58 @@ public class SpriteDocument : Document, ISpriteSource
     {
         DrawOrigin();
 
+        if (HasGeneration)
+        {
+            var texture = Generation.Texture;
+            if (texture != null)
+            {
+                var ppu = EditorApplication.Config.PixelsPerUnitInv;
+                var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+                var rect = new Rect(
+                    cs.X * ppu * -0.5f,
+                    cs.Y * ppu * -0.5f,
+                    cs.X * ppu,
+                    cs.Y * ppu);
+
+                using (Graphics.PushState())
+                {
+                    Graphics.SetTransform(Transform);
+                    Graphics.SetTexture(texture);
+                    Graphics.SetShader(EditorAssets.Shaders.Texture);
+                    Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
+                    Graphics.Draw(rect);
+                }
+            }
+            else
+            {
+                DrawBounds();
+            }
+
+            if (Generation.IsGenerating)
+            {
+                var angle = Time.TotalTime * 4f;
+                var rotation = Matrix3x2.CreateRotation(angle);
+                var scale = Matrix3x2.CreateScale(0.5f);
+
+                using (Graphics.PushState())
+                {
+                    Graphics.SetTransform(scale * rotation * Transform);
+                    Graphics.SetSortGroup(7);
+                    Graphics.SetLayer(EditorLayer.DocumentEditor);
+                    Graphics.SetColor(Color.White);
+                    Graphics.Draw(EditorAssets.Sprites.IconAi);
+                }
+            }
+
+            return;
+        }
+
         var size = Bounds.Size;
         if (size.X <= 0 || size.Y <= 0 || Atlas == null)
             return;
 
-        ref var frame0 = ref Frames[0];
-        if (frame0.Shape.PathCount == 0)
+        var hasContent = Frames[0].Shape.PathCount > 0;
+        if (!hasContent)
         {
             DrawBounds();
             return;
@@ -615,7 +600,6 @@ public class SpriteDocument : Document, ISpriteSource
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
                 if (mesh.Size.X > 0 && mesh.Size.Y > 0)
                 {
@@ -654,7 +638,6 @@ public class SpriteDocument : Document, ISpriteSource
             {
                 ref readonly var mesh = ref sprite.Meshes[i];
 
-                // Use per-mesh bounds if available, otherwise fall back to sprite bounds
                 Rect bounds;
                 if (mesh.Size.X > 0 && mesh.Size.Y > 0)
                 {
@@ -682,26 +665,31 @@ public class SpriteDocument : Document, ISpriteSource
     public override void Clone(Document source)
     {
         var src = (SpriteDocument)source;
-        FrameCount = src.FrameCount;
         Depth = src.Depth;
         Bounds = src.Bounds;
         CurrentFillColor = src.CurrentFillColor;
         CurrentStrokeColor = src.CurrentStrokeColor;
         CurrentStrokeWidth = src.CurrentStrokeWidth;
-        CurrentLayer = src.CurrentLayer;
-        CurrentBone = src.CurrentBone;
 
         Edges = src.Edges;
         Binding.CopyFrom(src.Binding);
 
-        for (var i = 0; i < src.FrameCount; i++)
+        FrameCount = src.FrameCount;
+        for (var fi = 0; fi < FrameCount; fi++)
         {
-            Frames[i].Shape.CopyFrom(src.Frames[i].Shape);
-            Frames[i].Hold = src.Frames[i].Hold;
+            Frames[fi].Shape.CopyFrom(src.Frames[fi].Shape);
+            Frames[fi].Hold = src.Frames[fi].Hold;
         }
 
-        for (var i = src.FrameCount; i < Sprite.MaxFrames; i++)
-            Frames[i].Shape.Clear();
+        // Generation
+        Prompt = src.Prompt;
+        NegativePrompt = src.NegativePrompt;
+        Seed = src.Seed;
+        ConstrainedSize = src.ConstrainedSize;
+        StyleName = src.StyleName;
+        Style = src.Style;
+        if (src.Generation.HasImageData)
+            Generation.ImageData = (byte[])src.Generation.ImageData!.Clone();
     }
 
     public override void LoadMetadata(PropertySet meta)
@@ -710,6 +698,14 @@ public class SpriteDocument : Document, ISpriteSource
         ShowTiling = meta.GetBool("sprite", "show_tiling", false);
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
+
+        // Backward compat: migrate style from metadata to file content
+        if (string.IsNullOrEmpty(StyleName))
+        {
+            var style = meta.GetString("sprite", "style", "");
+            if (!string.IsNullOrEmpty(style))
+                StyleName = style;
+        }
     }
 
     private static Vector2Int? ParseConstrainedSize(string value)
@@ -731,34 +727,28 @@ public class SpriteDocument : Document, ISpriteSource
         meta.SetBool("sprite", "show_in_skeleton", ShowInSkeleton);
         meta.SetBool("sprite", "show_tiling", ShowTiling);
         meta.SetBool("sprite", "show_skeleton_overlay", ShowSkeletonOverlay);
+
         if (ConstrainedSize.HasValue)
             meta.SetString("sprite", "constrained_size", $"{ConstrainedSize.Value.X}x{ConstrainedSize.Value.Y}");
         else
             meta.RemoveKey("sprite", "constrained_size");
-        meta.ClearGroup("skeleton");  // Legacy cleanup - skeleton now in .sprite file
-        meta.ClearGroup("bone");  // Legacy cleanup
+
+        // Clean up legacy style from metadata (now stored in file)
+        meta.RemoveKey("sprite", "style");
     }
 
     public override void PostLoad()
     {
         Binding.Resolve();
+
+        if (HasGeneration)
+        {
+            LoadGeneratedTexture();
+            if (!string.IsNullOrEmpty(StyleName))
+                Style = DocumentManager.Find(GenStyleDocument.AssetTypeGenStyle, StyleName) as GenStyleDocument;
+        }
     }
 
-    public void SetSkeletonBinding(SkeletonDocument? skeleton)
-    {
-        Binding.Set(skeleton);
-        MarkSpriteDirty();
-        MarkMetaModified();
-    }
-
-    public void ClearSkeletonBinding()
-    {
-        var skeleton = Binding.Skeleton;
-        Binding.Clear();
-        MarkSpriteDirty();
-        skeleton?.UpdateSprites();
-        MarkMetaModified();
-    }
 
     void ISpriteSource.ClearAtlasUVs() => ClearAtlasUVs();
 
@@ -772,52 +762,31 @@ public class SpriteDocument : Document, ISpriteSource
     {
         var frameIndex = rect.FrameIndex;
         var dpi = EditorApplication.Config.PixelsPerUnit;
-
-        var frame = GetFrame(frameIndex);
-        var slots = GetMeshSlots(frameIndex);
-        var slotBounds = GetMeshSlotBounds(frameIndex);
         var padding2 = padding * 2;
-        var xOffset = 0;
 
-        for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
-        {
-            var slot = slots[slotIndex];
-            var slotRasterBounds = slotBounds[slotIndex];
-            if (slotRasterBounds.Width <= 0 || slotRasterBounds.Height <= 0)
-                slotRasterBounds = RasterBounds;
+        var fi = GetFrameAtTimeSlot(frameIndex);
+        var shape = Frames[fi].Shape;
 
-            var slotWidth = slotRasterBounds.Size.X + padding2;
+        var targetRect = new RectInt(
+            rect.Rect.Position,
+            new Vector2Int(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2));
+        var sourceOffset = -RasterBounds.Position + new Vector2Int(padding, padding);
 
-            AtlasManager.LogAtlas($"Rasterize: Name={rect.Name} Frame={frameIndex} Layer={slot.Layer} Bone={slot.Bone} Rect={rect.Rect} SlotBounds={slotRasterBounds}");
+        RasterizeShape(shape, image, targetRect, sourceOffset, dpi);
 
-            var targetRect = new RectInt(
-                rect.Rect.Position + new Vector2Int(xOffset, 0),
-                new Vector2Int(slotWidth, slotRasterBounds.Size.Y + padding2));
-            var sourceOffset = -slotRasterBounds.Position + new Vector2Int(padding, padding);
-
-            if (slot.PathIndices.Count > 0)
-                RasterizeSlot(frame.Shape, slot, image, targetRect, sourceOffset, dpi);
-
-            // Bleed RGB into transparent pixels to prevent fringing with linear filtering.
-            // Use the full targetRect (including padding) so bleed extends into the
-            // padding region — linear filtering can sample there.
-            image.BleedColors(targetRect);
-
-            xOffset += slotWidth;
-        }
+        image.BleedColors(targetRect);
     }
 
-    private static void RasterizeSlot(
+    private static void RasterizeShape(
         Shape shape,
-        MeshSlot slot,
         PixelData<Color32> image,
         RectInt targetRect,
         Vector2Int sourceOffset,
         int dpi)
     {
-        // Collect subtract paths with their indices — each only affects paths below it
+        // Collect subtract paths
         List<(ushort PathIndex, Clipper2Lib.PathsD Contours)>? subtractEntries = null;
-        foreach (var pi in slot.PathIndices)
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
         {
             ref readonly var path = ref shape.GetPath(pi);
             if (!path.IsSubtract || path.AnchorCount < 3) continue;
@@ -832,16 +801,13 @@ public class SpriteDocument : Document, ISpriteSource
             }
         }
 
-        // Rasterize each non-subtract path: stroke first, then fill on top
-        // Track accumulated geometry for clip operations
         Clipper2Lib.PathsD? accumulatedPaths = null;
 
-        foreach (var pi in slot.PathIndices)
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
         {
             ref readonly var path = ref shape.GetPath(pi);
             if (path.IsSubtract || path.AnchorCount < 3) continue;
 
-            // Build contours for this path
             var pathShape = new Msdf.Shape();
             Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
             pathShape = Msdf.ShapeClipper.Union(pathShape);
@@ -850,7 +816,6 @@ public class SpriteDocument : Document, ISpriteSource
 
             if (path.IsClip)
             {
-                // Clip: intersect with accumulated geometry below
                 if (accumulatedPaths is not { Count: > 0 }) continue;
                 contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Intersection,
                     contours, accumulatedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
@@ -858,8 +823,6 @@ public class SpriteDocument : Document, ISpriteSource
             }
             else
             {
-                // Normal path: add fill area to accumulated geometry for future clips
-                // Use contracted contours (excluding stroke) so clip paths don't cover strokes
                 var accContours = contours;
                 if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
                 {
@@ -877,13 +840,13 @@ public class SpriteDocument : Document, ISpriteSource
                         accumulatedPaths, accContours, Clipper2Lib.FillRule.NonZero, precision: 6);
             }
 
-            // Apply subtract paths that are above this path (higher index = on top)
+            // Apply subtract paths (higher path index subtracts from lower)
             if (subtractEntries != null)
             {
                 Clipper2Lib.PathsD? subtractPaths = null;
-                foreach (var (subIdx, subContours) in subtractEntries)
+                foreach (var (subPi, subContours) in subtractEntries)
                 {
-                    if (subIdx <= pi) continue;
+                    if (subPi <= pi) continue;
                     subtractPaths ??= new Clipper2Lib.PathsD();
                     subtractPaths.AddRange(subContours);
                 }
@@ -899,7 +862,6 @@ public class SpriteDocument : Document, ISpriteSource
             var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
             var hasFill = path.FillColor.A > 0;
 
-            // Stroke: rasterize the ring (full shape minus contracted interior)
             if (hasStroke)
             {
                 var halfStroke = path.StrokeWidth * Shape.StrokeScale;
@@ -908,15 +870,12 @@ public class SpriteDocument : Document, ISpriteSource
 
                 if (hasFill)
                 {
-                    // Stroke behind fill: rasterize full shape with stroke color
                     Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, path.StrokeColor);
-                    // Then fill with contracted shape on top
                     if (contracted.Count > 0)
                         Rasterizer.Fill(contracted, image, targetRect, sourceOffset, dpi, path.FillColor);
                 }
                 else
                 {
-                    // Stroke only: rasterize just the ring
                     var ring = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
                         contours, contracted, Clipper2Lib.FillRule.NonZero, precision: 6);
                     if (ring.Count > 0)
@@ -937,7 +896,8 @@ public class SpriteDocument : Document, ISpriteSource
         int uvIndex = 0;
         var ts = (float)EditorApplication.Config.AtlasSize;
 
-        for (ushort frameIndex = 0; frameIndex < FrameCount; frameIndex++)
+        var totalSlots = (ushort)TotalTimeSlots;
+        for (ushort frameIndex = 0; frameIndex < totalSlots; frameIndex++)
         {
             int rectIndex = -1;
             for (int i = 0; i < allRects.Length; i++)
@@ -951,25 +911,12 @@ public class SpriteDocument : Document, ISpriteSource
             if (rectIndex == -1) return;
 
             ref readonly var rect = ref allRects[rectIndex];
-            var slots = GetMeshSlots(frameIndex);
-            var slotBounds = GetMeshSlotBounds(frameIndex);
-            var xOffset = 0;
 
-            for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
-            {
-                var bounds = slotBounds[slotIndex];
-                var slotSize = (bounds.Width > 0 && bounds.Height > 0)
-                    ? bounds.Size
-                    : RasterBounds.Size;
-                var slotWidth = slotSize.X + padding2;
-
-                var u = (rect.Rect.Left + padding + xOffset) / ts;
-                var v = (rect.Rect.Top + padding) / ts;
-                var s = u + slotSize.X / ts;
-                var t = v + slotSize.Y / ts;
-                SetAtlasUV(uvIndex++, Rect.FromMinMax(u, v, s, t));
-                xOffset += slotWidth;
-            }
+            var u = (rect.Rect.Left + padding) / ts;
+            var v = (rect.Rect.Top + padding) / ts;
+            var s = u + RasterBounds.Size.X / ts;
+            var t = v + RasterBounds.Size.Y / ts;
+            SetAtlasUV(uvIndex++, Rect.FromMinMax(u, v, s, t));
         }
     }
 
@@ -986,49 +933,34 @@ public class SpriteDocument : Document, ISpriteSource
 
     private void UpdateSprite()
     {
-        if (Atlas == null || GetMeshSlots().Count == 0)
+        if (Atlas == null || FrameCount == 0)
         {
             _sprite = null;
             return;
         }
 
+        var totalSlots = TotalTimeSlots;
+        var frameTable = new SpriteFrameInfo[totalSlots];
         var allMeshes = new List<SpriteMesh>();
-        var frameTable = new SpriteFrameInfo[FrameCount];
-        int uvIndex = 0;
 
-        for (int frameIndex = 0; frameIndex < FrameCount; frameIndex++)
+        for (int frameIndex = 0; frameIndex < totalSlots; frameIndex++)
         {
-            var frameSlots = GetMeshSlots((ushort)frameIndex);
-            var frameSlotBounds = GetMeshSlotBounds((ushort)frameIndex);
-            var meshStart = (ushort)allMeshes.Count;
-
-            for (int slotIndex = 0; slotIndex < frameSlots.Count; slotIndex++)
+            var uv = GetAtlasUV(frameIndex);
+            if (uv == Rect.Zero)
             {
-                var slot = frameSlots[slotIndex];
-                var uv = GetAtlasUV(uvIndex++);
-                if (uv == Rect.Zero)
-                {
-                    _sprite = null;
-                    return;
-                }
-
-                var bounds = frameSlotBounds[slotIndex];
-                if (bounds.Width <= 0 || bounds.Height <= 0)
-                    bounds = RasterBounds;
-
-                var boneIndex = (short)-1;
-                if (Binding.IsBound && Binding.Skeleton != null)
-                    boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
-
-                allMeshes.Add(new SpriteMesh(
-                    uv,
-                    (short)slot.Layer,
-                    boneIndex,
-                    bounds.Position,
-                    bounds.Size));
+                _sprite = null;
+                return;
             }
 
-            frameTable[frameIndex] = new SpriteFrameInfo(meshStart, (ushort)(allMeshes.Count - meshStart));
+            var meshStart = (ushort)allMeshes.Count;
+            allMeshes.Add(new SpriteMesh(
+                uv,
+                order: 0,
+                boneIndex: -1,
+                RasterBounds.Position,
+                RasterBounds.Size));
+
+            frameTable[frameIndex] = new SpriteFrameInfo(meshStart, 1);
         }
 
         _sprite = Sprite.Create(
@@ -1055,14 +987,11 @@ public class SpriteDocument : Document, ISpriteSource
         Binding.Resolve();
         UpdateBounds();
 
-        // One mesh per (layer, bone) slot — colors are baked into the bitmap
-        ushort totalMeshes = 0;
-        for (ushort fi = 0; fi < FrameCount; fi++)
-            totalMeshes += (ushort)GetMeshSlots(fi).Count;
+        var totalSlots = (ushort)TotalTimeSlots;
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
-        writer.Write(FrameCount);
+        writer.Write(totalSlots);
         writer.Write((ushort)(Atlas?.Index ?? 0));
         writer.Write((short)RasterBounds.Left);
         writer.Write((short)RasterBounds.Top);
@@ -1071,10 +1000,10 @@ public class SpriteDocument : Document, ISpriteSource
         writer.Write((float)EditorApplication.Config.PixelsPerUnit);
         writer.Write((byte)TextureFilter.Linear);
         writer.Write((short)-1);  // Legacy bone index field
-        writer.Write(totalMeshes);
+        writer.Write(totalSlots); // totalMeshes = 1 per frame = totalSlots
         writer.Write(12.0f);  // Frame rate
 
-        // 9-slice edges (version 10) — only active with a constrained size
+        // 9-slice edges
         var activeEdges = ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero;
         writer.Write((short)activeEdges.T);
         writer.Write((short)activeEdges.L);
@@ -1082,42 +1011,18 @@ public class SpriteDocument : Document, ISpriteSource
         writer.Write((short)activeEdges.R);
         writer.Write(Sprite.CalculateSliceMask(RasterBounds, activeEdges));
 
-        int uvIndex = 0;
-        var meshStarts = new ushort[FrameCount];
-        var meshCounts = new ushort[FrameCount];
-        ushort meshOffset = 0;
-
-        for (ushort frameIndex = 0; frameIndex < FrameCount; frameIndex++)
+        // Write one mesh per frame
+        for (ushort frameIndex = 0; frameIndex < totalSlots; frameIndex++)
         {
-            var frameSlots = GetMeshSlots(frameIndex);
-            var frameSlotBounds = GetMeshSlotBounds(frameIndex);
-            meshStarts[frameIndex] = meshOffset;
-            ushort frameMeshCount = 0;
-
-            for (int slotIndex = 0; slotIndex < frameSlots.Count; slotIndex++)
-            {
-                var slot = frameSlots[slotIndex];
-                var uv = GetAtlasUV(uvIndex++);
-                var bounds = frameSlotBounds[slotIndex];
-                if (bounds.Width <= 0 || bounds.Height <= 0)
-                    bounds = RasterBounds;
-
-                var boneIndex = (short)-1;
-                if (Binding.IsBound && Binding.Skeleton != null)
-                    boneIndex = slot.Bone.IsNone ? (short)0 : (short)Binding.Skeleton.FindBoneIndex(slot.Bone.ToString());
-
-                WriteMesh(writer, uv, (short)slot.Layer, boneIndex, bounds);
-                frameMeshCount += 1;
-            }
-
-            meshCounts[frameIndex] = frameMeshCount;
-            meshOffset += frameMeshCount;
+            var uv = GetAtlasUV(frameIndex);
+            WriteMesh(writer, uv, sortOrder: 0, boneIndex: -1, RasterBounds);
         }
 
-        for (int frameIndex = 0; frameIndex < FrameCount; frameIndex++)
+        // Frame table
+        for (ushort frameIndex = 0; frameIndex < totalSlots; frameIndex++)
         {
-            writer.Write(meshStarts[frameIndex]);
-            writer.Write(meshCounts[frameIndex]);
+            writer.Write(frameIndex);   // meshStart
+            writer.Write((ushort)1);    // meshCount
         }
     }
 
@@ -1145,105 +1050,445 @@ public class SpriteDocument : Document, ISpriteSource
         base.OnUndoRedo();
     }
 
-    public List<RectInt> GetMeshSlotBounds()
-    {
-        var slots = GetMeshSlots();
-        var result = new List<RectInt>(slots.Count);
-
-        foreach (var slot in slots)
-        {
-            var bounds = RectInt.Zero;
-            for (ushort fi = 0; fi < FrameCount; fi++)
-            {
-                var shape = Frames[fi].Shape;
-                var slotBounds = shape.GetRasterBoundsFor(slot.Layer, slot.Bone);
-                if (slotBounds.Width <= 0 || slotBounds.Height <= 0)
-                    continue;
-                bounds = bounds.Width <= 0 ? slotBounds : RectInt.Union(bounds, slotBounds);
-            }
-            result.Add(bounds);
-        }
-        return result;
-    }
-
-    public List<RectInt> GetMeshSlotBounds(ushort frameIndex)
-    {
-        var slots = GetMeshSlots(frameIndex);
-        var result = new List<RectInt>(slots.Count);
-        var shape = Frames[frameIndex].Shape;
-        foreach (var slot in slots)
-            result.Add(shape.GetRasterBoundsFor(slot.Layer, slot.Bone));
-        return result;
-    }
-
-    public Vector2Int GetFrameAtlasSize(ushort frameIndex)
+    public Vector2Int GetFrameAtlasSize(ushort timeSlot)
     {
         var padding2 = EditorApplication.Config.AtlasPadding * 2;
-        var slotBounds = GetMeshSlotBounds(frameIndex);
-
-        if (slotBounds.Count == 0)
-            return new(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2);
-
-        var totalWidth = 0;
-        var maxHeight = 0;
-        for (int i = 0; i < slotBounds.Count; i++)
-        {
-            var bounds = slotBounds[i];
-            var slotWidth = (bounds.Width > 0 ? bounds.Size.X : RasterBounds.Size.X) + padding2;
-            var slotHeight = (bounds.Height > 0 ? bounds.Size.Y : RasterBounds.Size.Y) + padding2;
-            totalWidth += slotWidth;
-            maxHeight = Math.Max(maxHeight, slotHeight);
-        }
-        return new(totalWidth, maxHeight);
+        return new(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2);
     }
 
-    public List<MeshSlot> GetMeshSlots() => GetMeshSlots(0);
+    #region Generation
 
-    public List<MeshSlot> GetMeshSlots(ushort frameIndex)
+    private static long HashSeed(string seed)
     {
-        var slots = new List<MeshSlot>();
-        var shape = Frames[frameIndex].Shape;
-        if (shape.PathCount == 0) return slots;
+        if (string.IsNullOrEmpty(seed))
+            return 0;
 
-        // Get paths sorted by layer, then by index
-        Span<ushort> sortedPaths = stackalloc ushort[shape.PathCount];
-        for (ushort i = 0; i < shape.PathCount; i++)
-            sortedPaths[i] = i;
+        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed));
+        var hash = BitConverter.ToInt64(bytes, 0);
+        return (hash & 0x3FFFFFFFFFFFF) | 1; // 50-bit max for JS safety, positive and non-zero
+    }
 
-        sortedPaths.Sort((a, b) =>
+    internal void LoadGeneratedTexture()
+    {
+        Generation.Dispose();
+
+        if (!Generation.HasImageData) return;
+
+        try
         {
-            var layerA = shape.GetPath(a).Layer;
-            var layerB = shape.GetPath(b).Layer;
-            if (layerA != layerB) return layerA.CompareTo(layerB);
-            return a.CompareTo(b);
-        });
+            using var ms = new MemoryStream(Generation.ImageData!);
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
 
-        // Build runs — new slot whenever layer or bone changes.
-        // Colors are composited into a single bitmap per slot, so fillColor
-        // no longer triggers a new slot.
-        // Subtract paths are appended to all existing slots.
-        MeshSlot? currentSlot = null;
+            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+            if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
+                srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
 
-        foreach (var pathIndex in sortedPaths)
+            var w = srcImage.Width;
+            var h = srcImage.Height;
+            var pixels = new byte[w * h * 4];
+            srcImage.CopyPixelDataTo(pixels);
+            Generation.Texture = Texture.Create(w, h, pixels, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
+        }
+        catch (Exception ex)
         {
-            ref readonly var path = ref shape.GetPath(pathIndex);
+            Log.Error($"Failed to create generated texture for '{Name}': {ex.Message}");
+        }
+    }
 
-            if (path.IsSubtract)
-            {
-                foreach (var slot in slots)
-                    slot.PathIndices.Add(pathIndex);
-                continue;
-            }
+    private const int RasterizeSize = 1024;
 
-            if (currentSlot == null || path.Layer != currentSlot.Layer || path.Bone != currentSlot.Bone)
-            {
-                currentSlot = new MeshSlot(path.Layer, path.Bone);
-                slots.Add(currentSlot);
-            }
+    private byte[] RasterizeMaskToPng()
+    {
+        UpdateBounds();
+        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+        if (cs.X <= 0 || cs.Y <= 0)
+            return [];
 
-            currentSlot.PathIndices.Add(pathIndex);
+        var shape = Frames[0].Shape;
+        var w = RasterizeSize;
+        var h = RasterizeSize;
+        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
+
+        using var pixels = new PixelData<Color32>(w, h);
+        pixels.Clear(new Color32(0, 0, 0, 255));
+        var targetRect = new RectInt(0, 0, w, h);
+        var sourceOffset = new Vector2Int(w / 2, h / 2);
+        var white = new Color32(255, 255, 255, 255);
+
+        // Collect subtract paths
+        var negativePaths = new Clipper2Lib.PathsD();
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        {
+            ref readonly var path = ref shape.GetPath(pi);
+            if (!path.IsSubtract || path.AnchorCount < 3) continue;
+
+            var subShape = new Msdf.Shape();
+            Msdf.ShapeClipper.AppendContour(subShape, shape, pi);
+            subShape = Msdf.ShapeClipper.Union(subShape);
+            var contours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
+            if (contours.Count > 0)
+                negativePaths.AddRange(contours);
         }
 
-        return slots;
+        // Collect normal paths (clip paths are always within normal bounds, skip for mask)
+        var positivePaths = new Clipper2Lib.PathsD();
+
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        {
+            ref readonly var path = ref shape.GetPath(pi);
+            if (path.IsSubtract || path.IsClip || path.AnchorCount < 3) continue;
+
+            var pathShape = new Msdf.Shape();
+            Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
+            pathShape = Msdf.ShapeClipper.Union(pathShape);
+            var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
+            if (contours.Count > 0)
+                positivePaths.AddRange(contours);
+        }
+
+        if (positivePaths.Count == 0)
+            return [];
+
+        Clipper2Lib.PathsD maskPaths;
+        if (negativePaths.Count > 0)
+        {
+            maskPaths = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                positivePaths, negativePaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+        }
+        else
+        {
+            maskPaths = positivePaths;
+        }
+
+        if (maskPaths.Count > 0)
+            Rasterizer.Fill(maskPaths, pixels, targetRect, sourceOffset, dpi, white);
+
+        using var img = new Image<Rgba32>(w, h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var c = pixels[x, y];
+                img[x, y] = new Rgba32(c.R, c.G, c.B, 255);
+            }
+        }
+
+        using var ms = new MemoryStream();
+        img.SaveAsPng(ms);
+        var pngBytes = ms.ToArray();
+
+        try
+        {
+            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+            Directory.CreateDirectory(tmpDir);
+            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_mask.png"), pngBytes);
+        }
+        catch { }
+
+        return pngBytes;
+    }
+
+    private byte[] RasterizeColorToPng()
+    {
+        UpdateBounds();
+        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+        if (cs.X <= 0 || cs.Y <= 0)
+            return [];
+
+        var shape = Frames[0].Shape;
+        var w = RasterizeSize;
+        var h = RasterizeSize;
+        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
+
+        using var pixels = new PixelData<Color32>(w, h);
+        pixels.Clear(new Color32(255, 255, 255, 255));
+        var targetRect = new RectInt(0, 0, w, h);
+        var sourceOffset = new Vector2Int(w / 2, h / 2);
+
+        // Collect subtract paths
+        var negativePaths = new Clipper2Lib.PathsD();
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        {
+            ref readonly var path = ref shape.GetPath(pi);
+            if (!path.IsSubtract || path.AnchorCount < 3) continue;
+
+            var subShape = new Msdf.Shape();
+            Msdf.ShapeClipper.AppendContour(subShape, shape, pi);
+            subShape = Msdf.ShapeClipper.Union(subShape);
+            var contours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
+            if (contours.Count > 0)
+                negativePaths.AddRange(contours);
+        }
+
+        // Render each normal/clip path with its fill and stroke colors
+        Clipper2Lib.PathsD? accumulatedPaths = null;
+
+        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        {
+            ref readonly var path = ref shape.GetPath(pi);
+            if (path.IsSubtract || path.AnchorCount < 3) continue;
+
+            var pathShape = new Msdf.Shape();
+            Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
+            pathShape = Msdf.ShapeClipper.Union(pathShape);
+            var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
+            if (contours.Count == 0) continue;
+
+            if (path.IsClip)
+            {
+                if (accumulatedPaths is not { Count: > 0 }) continue;
+                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Intersection,
+                    contours, accumulatedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                if (contours.Count == 0) continue;
+            }
+            else
+            {
+                var accContours = contours;
+                if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
+                {
+                    var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                    var contracted = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
+                        Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
+                    if (contracted.Count > 0)
+                        accContours = contracted;
+                }
+
+                if (accumulatedPaths == null)
+                    accumulatedPaths = new Clipper2Lib.PathsD(accContours);
+                else
+                    accumulatedPaths = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Union,
+                        accumulatedPaths, accContours, Clipper2Lib.FillRule.NonZero, precision: 6);
+            }
+
+            // Apply subtract paths
+            if (negativePaths.Count > 0)
+            {
+                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                    contours, negativePaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                if (contours.Count == 0) continue;
+            }
+
+            var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
+            var fillColor = path.FillColor;
+            var hasFill = fillColor.A > 0;
+
+            if (hasStroke)
+            {
+                var halfStroke = path.StrokeWidth * Shape.StrokeScale;
+                Clipper2Lib.PathsD? contractedPaths = null;
+                if (contours.Count > 0)
+                {
+                    contractedPaths = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
+                        Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
+                }
+
+                if (hasFill)
+                {
+                    Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                    if (contractedPaths is { Count: > 0 })
+                        Rasterizer.Fill(contractedPaths, pixels, targetRect, sourceOffset, dpi, fillColor);
+                }
+                else
+                {
+                    if (contractedPaths is { Count: > 0 })
+                    {
+                        var strokeRing = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
+                            contours, contractedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
+                        if (strokeRing.Count > 0)
+                            Rasterizer.Fill(strokeRing, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                    }
+                    else
+                    {
+                        Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
+                    }
+                }
+            }
+            else if (hasFill)
+            {
+                Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, fillColor);
+            }
+        }
+
+        using var img = new Image<Rgba32>(w, h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var c = pixels[x, y];
+                img[x, y] = new Rgba32(c.R, c.G, c.B, 255);
+            }
+        }
+
+        using var ms = new MemoryStream();
+        img.SaveAsPng(ms);
+        var pngBytes = ms.ToArray();
+
+        try
+        {
+            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+            Directory.CreateDirectory(tmpDir);
+            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_color.png"), pngBytes);
+        }
+        catch { }
+
+        return pngBytes;
+    }
+
+    public void GenerateAsync()
+    {
+        if (string.IsNullOrEmpty(Prompt))
+        {
+            Log.Error($"No prompt set for '{Name}'");
+            return;
+        }
+
+        if (Generation.IsGenerating)
+            return;
+
+        var globalPromptPrefix = Style?.PromptPrefix ?? "";
+        var globalPrompt = Style?.Prompt ?? "";
+        var globalNegPrompt = Style?.NegativePrompt ?? "";
+        var steps = Style?.DefaultSteps ?? 30;
+        var strength = Style?.DefaultStrength ?? 0.8f;
+        var guidance = Style?.DefaultGuidanceScale ?? 6.0f;
+
+        var workflow = Style?.Workflow ?? GenerationWorkflow.Sprite;
+
+        // Rasterize image (color or mask depending on workflow)
+        var imageBytes = RasterizeColorToPng();
+        var maskBytes = RasterizeMaskToPng();
+
+        var prompt = Prompt;
+        if (!string.IsNullOrEmpty(globalPromptPrefix))
+            prompt = $"{globalPromptPrefix} {prompt}";
+        if (!string.IsNullOrEmpty(globalPrompt))
+            prompt = $"{prompt}, {globalPrompt}";
+        var negPrompt = NegativePrompt;
+        if (!string.IsNullOrEmpty(globalNegPrompt))
+            negPrompt = string.IsNullOrEmpty(negPrompt) ? globalNegPrompt : $"{negPrompt}, {globalNegPrompt}";
+
+        var hashedSeed = HashSeed(Seed);
+        var seed = hashedSeed == 0 ? Random.Shared.NextInt64(1, long.MaxValue) : hashedSeed;
+
+        var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
+
+        var request = new GenerationRequest
+        {
+            Server = server,
+            Workflow = (Style?.Workflow ?? GenerationWorkflow.Sprite).ToString().ToLowerInvariant(),
+            Model = Style?.ModelName,
+            Image = imageBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(imageBytes)}" : "",
+            Mask = maskBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(maskBytes)}" : "",
+            Prompt = prompt,
+            NegativePrompt = string.IsNullOrEmpty(negPrompt) ? null : negPrompt,
+            Strength = strength,
+            Steps = steps,
+            GuidanceScale = guidance,
+            Seed = seed,
+        };
+
+        Log.Info($"Starting generation for '{Name}' on {server}...");
+
+        var genImage = Generation;
+        genImage.IsGenerating = true;
+        genImage.GenerationError = null;
+
+        var cts = new System.Threading.CancellationTokenSource();
+        genImage.CancellationSource = cts;
+
+        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+
+        GenerationClient.Generate(request, status =>
+        {
+            if (genImage.CancellationSource == null)
+                return;
+
+            switch (status.State)
+            {
+                case GenerationState.Queued:
+                    genImage.GenerationState = GenerationState.Queued;
+                    genImage.QueuePosition = status.QueuePosition;
+                    genImage.GenerationProgress = 0f;
+                    Log.Info($"Generation queued for '{Name}' (position {status.QueuePosition})");
+                    break;
+
+                case GenerationState.Running:
+                    genImage.GenerationState = GenerationState.Running;
+                    genImage.GenerationProgress = status.Progress;
+                    break;
+
+                case GenerationState.Completed:
+                    genImage.IsGenerating = false;
+                    genImage.CancellationSource = null;
+                    genImage.GenerationState = GenerationState.Completed;
+                    genImage.GenerationProgress = 1f;
+
+                    if (status.Result == null)
+                    {
+                        Log.Error($"Generation completed but no result for '{Name}'");
+                        return;
+                    }
+
+                    try
+                    {
+                        var imageResultBytes = Convert.FromBase64String(status.Result.Image);
+
+                        using var ms = new MemoryStream(imageResultBytes);
+                        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+
+                        if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
+                            srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
+
+                        using var outMs = new MemoryStream();
+                        srcImage.SaveAsPng(outMs);
+                        genImage.ImageData = outMs.ToArray();
+
+                        genImage.Dispose();
+                        var rw = srcImage.Width;
+                        var rh = srcImage.Height;
+                        var px = new byte[rw * rh * 4];
+                        srcImage.CopyPixelDataTo(px);
+                        genImage.Texture = Texture.Create(rw, rh, px, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
+
+                        try
+                        {
+                            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+                            Directory.CreateDirectory(tmpDir);
+                            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), genImage.ImageData);
+                        }
+                        catch { }
+
+                        // Update seed from server response
+                        if (status.Result.Seed != 0 && string.IsNullOrEmpty(Seed))
+                            Seed = status.Result.Seed.ToString();
+
+                        Log.Info($"Generation complete for '{Name}' ({status.Result.Width}x{status.Result.Height}, seed={status.Result.Seed})");
+                        IncrementVersion();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Failed to process generated image for '{Name}': {ex.Message}");
+                    }
+                    break;
+
+                case GenerationState.Failed:
+                    genImage.IsGenerating = false;
+                    genImage.CancellationSource = null;
+                    genImage.GenerationState = GenerationState.Failed;
+                    genImage.GenerationError = status.Error;
+                    Log.Error($"Generation failed for '{Name}': {status.Error}");
+                    break;
+            }
+        }, cts.Token);
+    }
+
+    #endregion
+
+    public override void Dispose()
+    {
+        Generation.Dispose();
+        for (var fi = 0; fi < FrameCount; fi++)
+            Frames[fi].Dispose();
+        base.Dispose();
     }
 }

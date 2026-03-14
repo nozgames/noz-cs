@@ -6,15 +6,6 @@ using System.Numerics;
 
 namespace NoZ;
 
-public struct BorderStyle
-{
-    public BorderRadius Radius;
-    public float Width;
-    public Color Color;
-
-    public static readonly BorderStyle None = new() { Radius = BorderRadius.Zero, Width = 0, Color = Color.Transparent };
-}
-
 public struct ContainerStyle()
 {
     public Size2 Size = new(NoZ.Size.Default, NoZ.Size.Default);
@@ -25,43 +16,19 @@ public struct ContainerStyle()
     public Align2 Align = NoZ.Align.Min;
     public EdgeInsets Margin = EdgeInsets.Zero;
     public EdgeInsets Padding = EdgeInsets.Zero;
-    public Color Color = Color.Transparent;
+    public Color Color = NoZ.Color.Transparent;
     public BorderRadius BorderRadius = BorderRadius.Zero;
-    public float BorderWidth = 0;
-    public Color BorderColor = Color.Transparent;
+    public float BorderWidth;
+    public Color BorderColor = NoZ.Color.Transparent;
     public float Spacing = 0;
     public bool Clip = false;
     public ushort Order = 0;
-
-    public BorderStyle Border
-    {
-        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
-        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
-    }
+    public Func<ContainerStyle, WidgetFlags, ContainerStyle>? Resolve;
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
     public Align AlignX { readonly get => Align.X; set => Align.X = value; }
     public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
-
-    internal ContainerData ToData() => new()
-    {
-        Size = Size,
-        MinWidth = MinWidth,
-        MinHeight = MinHeight,
-        MaxWidth = MaxWidth,
-        MaxHeight = MaxHeight,
-        Align = Align,
-        Margin = Margin,
-        Padding = Padding,
-        Color = Color,
-        BorderRadius = BorderRadius,
-        BorderWidth = BorderWidth,
-        BorderColor = BorderColor,
-        Spacing = Spacing,
-        Clip = Clip,
-        Order = Order
-    };
 
     public static readonly ContainerStyle Default = new();
     public static readonly ContainerStyle Fit = new() { Size = Size2.Fit };
@@ -79,11 +46,12 @@ public enum TextOverflow : byte
 public struct LabelStyle()
 {
     public float FontSize = 16;
-    public Color Color = Color.White;
+    public Color Color = NoZ.Color.White;
     public Align2 Align = new(NoZ.Align.Min, NoZ.Align.Center);
     public Font? Font = null;
     public ushort Order = 2;
     public TextOverflow Overflow = TextOverflow.Overflow;
+    public Func<LabelStyle, WidgetFlags, LabelStyle>? Resolve;
 
     public Align AlignX { readonly get => Align.X; set => Align.X = value; }
     public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
@@ -98,9 +66,10 @@ public struct ImageStyle()
     public ImageStretch Stretch = ImageStretch.Uniform;
     public Align2 Align = NoZ.Align.Min;
     public float Scale = 1.0f;
-    public Color Color = Color.White;
+    public Color Color = NoZ.Color.White;
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public ushort Order = 1;
+    public Func<ImageStyle, WidgetFlags, ImageStyle>? Resolve;
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }
     public Size Height { readonly get => Size.Height; set => Size.Height = value; }
@@ -109,6 +78,7 @@ public struct ImageStyle()
 
     public static readonly ImageStyle Default = new();
     public static readonly ImageStyle Center = new() { Align = NoZ.Align.Center };
+    public static readonly ImageStyle Fill = new() { Stretch = ImageStretch.Fill };
 }
 
 public struct RectangleStyle()
@@ -148,6 +118,8 @@ public struct PopupStyle()
     public float MinWidth = 0;
     public bool AutoClose = true;
     public bool Interactive = true;
+    public bool ShowChecked = false;
+    public bool ShowIcons = false;   
 
     public Align AnchorX { readonly get => Anchor.X; set => Anchor.X = value; }
     public Align AnchorY { readonly get => Anchor.Y; set => Anchor.Y = value; }
@@ -155,8 +127,15 @@ public struct PopupStyle()
     public Align PopupAlignY { readonly get => PopupAlign.Y; set => PopupAlign.Y = value; }
 }
 
-public struct TextBoxStyle()
+public enum PlaceholderMode
 {
+    Inline,
+    FloatingLabel,
+}
+
+public struct TextInputStyle()
+{
+    public Size Width = Size.Percent(1);
     public Size Height = Size.Default;
     public float FontSize = 16;
     public Font? Font = null;
@@ -167,112 +146,22 @@ public struct TextBoxStyle()
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public float BorderWidth = 0;
     public Color BorderColor = Color.Transparent;
-    public BorderRadius FocusBorderRadius = BorderRadius.Zero;
-    public float FocusBorderWidth = 0;
-    public Color FocusBorderColor = Color.Transparent;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public bool IsPassword = false;
     public InputScope Scope = InputScope.All;
+    public PlaceholderMode PlaceholderMode = PlaceholderMode.Inline;
+    public float LabelFontSize = 9;
+    public Color LabelColor = new(0.47f, 0.47f, 0.47f, 1f);
+    public float IconSize = 14;
+    public float IconSpacing = 4;
+    public Color IconColor = new(0.6f, 0.6f, 0.6f, 1f);
 
-    public BorderStyle Border
-    {
-        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
-        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
-    }
-
-    public BorderStyle FocusBorder
-    {
-        readonly get => new() { Radius = FocusBorderRadius, Width = FocusBorderWidth, Color = FocusBorderColor };
-        set { FocusBorderRadius = value.Radius; FocusBorderWidth = value.Width; FocusBorderColor = value.Color; }
-    }
-
-    internal TextBoxData ToData() => new()
-    {
-        Height = Height,
-        FontSize = FontSize,
-        BackgroundColor = BackgroundColor,
-        TextColor = TextColor,
-        PlaceholderColor = PlaceholderColor,
-        SelectionColor = SelectionColor,
-        BorderRadius = BorderRadius,
-        BorderWidth = BorderWidth,
-        BorderColor = BorderColor,
-        FocusBorderRadius = FocusBorderRadius,
-        FocusBorderWidth = FocusBorderWidth,
-        FocusBorderColor = FocusBorderColor,
-        Padding = Padding,
-        Password = IsPassword,
-        Scope = Scope
-    };
-}
-
-public struct TextAreaStyle()
-{
-    public Size Height = Size.Default;
-    public float FontSize = 16;
-    public Font? Font = null;
-    public Color BackgroundColor = Color.Transparent;
-    public Color TextColor = Color.White;
-    public Color PlaceholderColor = new(0.4f, 0.4f, 0.4f, 1f);
-    public Color SelectionColor = new(0.2f, 0.4f, 0.8f, 0.5f);
-    public BorderRadius BorderRadius = BorderRadius.Zero;
-    public float BorderWidth = 0;
-    public Color BorderColor = Color.Transparent;
-    public BorderRadius FocusBorderRadius = BorderRadius.Zero;
-    public float FocusBorderWidth = 0;
-    public Color FocusBorderColor = Color.Transparent;
-    public EdgeInsets Padding = EdgeInsets.Zero;
-    public InputScope Scope = InputScope.All;
-
-    public BorderStyle Border
-    {
-        readonly get => new() { Radius = BorderRadius, Width = BorderWidth, Color = BorderColor };
-        set { BorderRadius = value.Radius; BorderWidth = value.Width; BorderColor = value.Color; }
-    }
-
-    public BorderStyle FocusBorder
-    {
-        readonly get => new() { Radius = FocusBorderRadius, Width = FocusBorderWidth, Color = FocusBorderColor };
-        set { FocusBorderRadius = value.Radius; FocusBorderWidth = value.Width; FocusBorderColor = value.Color; }
-    }
-
-    internal TextAreaData ToData() => new()
-    {
-        Height = Height,
-        FontSize = FontSize,
-        BackgroundColor = BackgroundColor,
-        TextColor = TextColor,
-        PlaceholderColor = PlaceholderColor,
-        SelectionColor = SelectionColor,
-        BorderRadius = BorderRadius,
-        BorderWidth = BorderWidth,
-        BorderColor = BorderColor,
-        FocusBorderRadius = FocusBorderRadius,
-        FocusBorderWidth = FocusBorderWidth,
-        FocusBorderColor = FocusBorderColor,
-        Padding = Padding,
-        Scope = Scope
-    };
-}
-
-public enum ScrollbarVisibility : byte
-{
-    Auto,    // Show when content exceeds viewport
-    Always,  // Always show scrollbar
-    Never    // Never show scrollbar (scroll via drag/wheel only)
+    public Func<TextInputStyle, WidgetFlags, TextInputStyle>? Resolve;
 }
 
 public struct ScrollableStyle()
 {
     public float ScrollSpeed = 30f;
-    public ScrollbarVisibility Scrollbar = ScrollbarVisibility.Auto;
-    public float ScrollbarWidth = 8f;
-    public float ScrollbarMinThumbHeight = 20f;
-    public Color ScrollbarTrackColor = new(0.15f, 0.15f, 0.15f, 0.5f);
-    public Color ScrollbarThumbColor = new(0.5f, 0.5f, 0.5f, 0.8f);
-    public Color ScrollbarThumbHoverColor = new(0.6f, 0.6f, 0.6f, 1f);
-    public float ScrollbarPadding = 2f;
-    public float ScrollbarBorderRadius = 4f;
 }
 
 public struct SceneStyle()
@@ -280,6 +169,14 @@ public struct SceneStyle()
     public Size2 Size = Size2.Default;
     public Color Color = Color.Transparent;
     public int SampleCount = 1;
+}
+
+public struct SceneRenderInfo
+{
+    public nuint Handle;
+    public int Width;
+    public int Height;
+    public Rect ScreenRect;
 }
 
 public static class ElementStyle

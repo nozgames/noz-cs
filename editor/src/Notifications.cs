@@ -45,6 +45,9 @@ public static class Notifications
 
     private static void OnImported(Document doc)
     {
+        if (doc.SilentImport)
+            return;
+
         AddDeferred(NotificationType.Info, $"imported '{doc.Name}'");
     }
 
@@ -100,17 +103,18 @@ public static class Notifications
         if (_count <= 0)
             return;
 
+        using (UI.BeginContainer(EditorStyle.Notifications.Wrapper))
         using (UI.BeginColumn(EditorStyle.Notifications.Root))
         {
             for (var i = 0; i < _count; i++)
             {
                 var index = (_head + i) % MaxNotifications;
-                ref var n = ref _notifications[index];                
+                ref var n = ref _notifications[index];
                 using (UI.BeginContainer(EditorStyle.Notifications.Notification))
                 {
                     if (n.Icon != null)
                         UI.Image(n.Icon, EditorStyle.Notifications.NotificationIcon);
-                    UI.Label(
+                    UI.Text(
                         n.Text,
                         n.Type == NotificationType.Error
                             ? EditorStyle.Notifications.NotificationErrorText

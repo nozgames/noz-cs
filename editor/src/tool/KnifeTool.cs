@@ -31,7 +31,7 @@ public class KnifeTool : Tool
     }
 
     private NativeArray<KnifePoint> _points = new(MaxPoints);
-    private readonly SpriteEditor _editor;
+    private readonly IShapeDocument _document;
     private readonly Shape _shape;
     private Vector2 _hoverPosition;
     private bool _hoverPositionValid;
@@ -43,9 +43,9 @@ public class KnifeTool : Tool
     private Action? _commit;
     private Action? _cancel;
 
-    public KnifeTool(SpriteEditor editor, Shape shape, Action? commit = null, Action? cancel = null)
+    public KnifeTool(IShapeDocument document, Shape shape, Action? commit = null, Action? cancel = null)
     {
-        _editor = editor;
+        _document = document;
         _shape = shape;
         _commit = commit;
         _cancel = cancel;
@@ -210,7 +210,7 @@ public class KnifeTool : Tool
         for (var i = 0; i < _points.Length; i++)
             LogKnife($"  Point[{i}]: pos={_points[i].Position}, intersection={_points[i].Intersection}, isFree={_points[i].IsFree}");
 
-        Undo.Record(_editor.Document);
+        Undo.Record((Document)_document);
 
         Span<Shape.HitResult> headHits = stackalloc Shape.HitResult[Shape.MaxAnchors];
         Span<Shape.HitResult> tailHits = stackalloc Shape.HitResult[Shape.MaxAnchors];
@@ -498,7 +498,7 @@ public class KnifeTool : Tool
     
     private void UpdateHover()
     {
-        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
+        Matrix3x2.Invert(_document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
         if (_hoverPosition != mouseLocal)
         {
@@ -537,7 +537,7 @@ public class KnifeTool : Tool
     {
         using (Gizmos.PushState(EditorLayer.Tool))
         {
-            Graphics.SetTransform(_editor.Document.Transform);
+            Graphics.SetTransform(_document.Transform);
 
             Gizmos.SetColor(EditorStyle.Tool.LineColor);
             for (var i = 0; i < _points.Length - 1; i++)

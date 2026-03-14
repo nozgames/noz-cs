@@ -14,23 +14,127 @@ internal enum AnimationEditorState
 
 internal partial class AnimationEditor : DocumentEditor
 {
-    private static readonly string[] FrameTimeStrings = ["0", "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60"];
+    internal static readonly string[] FrameTimeStrings = ["0", "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60"];
 
-    [ElementId("Root")]
-    [ElementId("OnionSkinButton")]
-    [ElementId("PlayButton")]
-    [ElementId("LoopButton")]
-    [ElementId("AddFrameButton")]
-    [ElementId("SkeletonButton")]
-    [ElementId("ShowSkeletonButton")]
-    [ElementId("MirrorButton")]
-    [ElementId("FirstFrame")]
-    private static partial class ElementId { }
+    internal struct DopeSheetFrame
+    {
+        public int Hold;
+    }
+
+    internal static bool DopeSheet(WidgetId baseId, ReadOnlySpan<DopeSheetFrame> frames, ref int currentFrame, int maxFrames, bool isPlaying)
+    {
+        int oldCurrentFrame = currentFrame;
+
+        using var _ = UI.BeginColumn();
+
+        UI.Container(EditorStyle.Dopesheet.LayerSeparator);
+
+        using (UI.BeginRow(EditorStyle.Dopesheet.HeaderContainer))
+        {
+            UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+            var blockCount = maxFrames / 4;
+            for (var blockIndex = 0; blockIndex < blockCount; blockIndex++)
+            {
+                using (UI.BeginContainer(EditorStyle.Dopesheet.TimeBlock))
+                    UI.Text(FrameTimeStrings[blockIndex], EditorStyle.Dopesheet.TimeText);
+
+                UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+            }
+        }
+
+        UI.Container(EditorStyle.Dopesheet.LayerSeparator);
+
+        using (UI.BeginRow(EditorStyle.Dopesheet.FrameContainer))
+        {
+            UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+
+            var slotIndex = 0;
+            var frameIndex = 0;
+            for (; frameIndex < frames.Length; frameIndex++)
+            {
+                var selected = oldCurrentFrame == frameIndex;
+                using (UI.BeginRow(baseId + frameIndex))
+                {
+                    if (UI.WasPressed())
+                        currentFrame = frameIndex;
+
+                    using (UI.BeginContainer(selected
+                        ? EditorStyle.Dopesheet.SelectedFrame
+                        : EditorStyle.Dopesheet.Frame))
+                    {
+                        UI.Container(selected
+                            ? EditorStyle.Dopesheet.SelectedFrameDot
+                            : EditorStyle.Dopesheet.FrameDot);
+
+                    }
+
+                    slotIndex++;
+
+                    int hold = frames[frameIndex].Hold;
+                    if (hold <= 0)
+                    {
+                        UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+                        continue;
+                    }
+
+                    for (int holdIndex = 0; holdIndex < hold && slotIndex < maxFrames; holdIndex++, slotIndex++)
+                    {
+                        using (UI.BeginContainer(selected
+                            ? EditorStyle.Dopesheet.SelectedFrame
+                            : EditorStyle.Dopesheet.Frame))
+                        {
+                            //UI.Container(selected
+                            //    ? EditorStyle.Dopesheet.SelectedFrameDot
+                            //    : EditorStyle.Dopesheet.FrameDot);
+                            //if (UI.WasPressed())
+                            //    currentFrame = slotIndex;
+                        }
+
+                        if (holdIndex < hold - 1)
+                        {
+                            UI.Container(selected
+                                ? EditorStyle.Dopesheet.SelectedHoldSeparator
+                                : EditorStyle.Dopesheet.HoldSeparator);
+                        }
+                    }
+
+                    UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+                }
+            }
+
+            for (; slotIndex < maxFrames; slotIndex++)
+            {
+                UI.Container(slotIndex % 4 == 0
+                    ? EditorStyle.Dopesheet.FourthEmptyFrame
+                    : EditorStyle.Dopesheet.EmptyFrame);
+
+                UI.Container(EditorStyle.Dopesheet.FrameSeparator);
+            }
+        }
+
+        UI.Container(EditorStyle.Dopesheet.LayerSeparator);
+
+        return oldCurrentFrame != currentFrame;
+    }
+
+    private static partial class ElementId
+    {
+        public static partial WidgetId Root { get; }
+        public static partial WidgetId OnionSkinButton { get; }
+        public static partial WidgetId PlayButton { get; }
+        public static partial WidgetId LoopButton { get; }
+        public static partial WidgetId AddFrameButton { get; }
+        public static partial WidgetId SkeletonButton { get; }
+        public static partial WidgetId ShowSkeletonButton { get; }
+        public static partial WidgetId MirrorButton { get; }
+        public static partial WidgetId FirstFrame { get; }        
+    }
 
     private AnimationEditorState _state = AnimationEditorState.Default;
     private bool _showSkeleton = true;
     private bool _clearSelectionOnUp;
     private bool _ignoreUp;
+    private PopupMenuItem[] _contextMenuItems;
     private Vector2 _selectionCenter;
     private Vector2 _selectionCenterWorld;
     private bool _onionSkin;
@@ -74,17 +178,12 @@ internal partial class AnimationEditor : DocumentEditor
 
         bool HasSelection() => Document.SelectedBoneCount > 0;
 
-        ContextMenu = new PopupMenuDef
-        {
-            Title = "Animation",
-            Items =
-            [
-                PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
-                PopupMenuItem.FromCommand(pasteCommand, enabled: Clipboard.Is<AnimationFrameData>),
-                PopupMenuItem.Separator(),
-                PopupMenuItem.FromCommand(exitEditCommand),
-            ]
-        };
+        _contextMenuItems = [
+            //PopupMenuItem.FromCommand(copyCommand, enabled: HasSelection),
+            //PopupMenuItem.FromCommand(pasteCommand, enabled: Clipboard.Is<AnimationFrameData>),
+            //PopupMenuItem.Separator(),
+            //PopupMenuItem.FromCommand(exitEditCommand),
+        ];
 
         ClearSelection();
         Document.UpdateTransforms();
@@ -111,31 +210,34 @@ internal partial class AnimationEditor : DocumentEditor
                 var doc = DocumentManager.Get(i);
                 if (doc.Def.Type != AssetType.Skeleton) continue;
 
+                // TODO: migrate to UI.PopupMenu
                 if (EditorUI.PopupItem(doc.Name, selected: doc as SkeletonDocument == Document.Skeleton))
                 {
+                    // TODO: migrate to UI.PopupMenu
                     EditorUI.ClosePopup();
                     Undo.Record(Document);
-                    Document.MarkModified();
+                    Document.IncrementVersion();
                     Document.SetSkeleton(doc as SkeletonDocument);
                 }
             }
         }
 
+        // TODO: migrate to UI.PopupMenu
         EditorUI.Popup(ElementId.SkeletonButton, Content);
     }
 
     private void SkeletonButtonUI()
     {
-        void ButtonContent()
+        UI.SetChecked(EditorUI.IsPopupOpen(ElementId.SkeletonButton));
+        if (UI.Button(ElementId.SkeletonButton, () =>
         {
-            EditorUI.ControlIcon(EditorAssets.Sprites.IconBone);
+            UI.Image(EditorAssets.Sprites.IconBone, EditorStyle.Icon.Primary);
             if (Document.Skeleton == null)
-                EditorUI.ControlPlaceholderText("Select Skeleton...");
+                UI.Text("Select Skeleton...", EditorStyle.Control.Text);
             else
-                EditorUI.ControlPlaceholderText(Document.Skeleton.Name);
-        }
-
-        if (EditorUI.Control(ElementId.SkeletonButton, ButtonContent, false, false, false))
+                UI.Text(Document.Skeleton.Name, EditorStyle.Control.Text);
+        }, EditorStyle.Button.Secondary))
+            // TODO: migrate to UI.PopupMenu
             EditorUI.TogglePopup(ElementId.SkeletonButton);
 
         SkeletonPopupUI();
@@ -148,11 +250,11 @@ internal partial class AnimationEditor : DocumentEditor
         var isPlaying = _state == AnimationEditorState.Play;
         var currentFrame = Document.CurrentFrame;
 
-        Span<EditorUI.DopeSheetFrame> frames = stackalloc EditorUI.DopeSheetFrame[Document.FrameCount];
+        Span<DopeSheetFrame> frames = stackalloc DopeSheetFrame[Document.FrameCount];
         for (var i = 0; i < Document.FrameCount; i++)
-            frames[i] = new EditorUI.DopeSheetFrame { Hold = Document.Frames[i].Hold };
+            frames[i] = new DopeSheetFrame { Hold = Document.Frames[i].Hold };
         
-        if (EditorUI.DopeSheet(ElementId.FirstFrame, frames, ref currentFrame, AnimationDocument.MaxFrames, isPlaying))
+        if (DopeSheet(ElementId.FirstFrame, frames, ref currentFrame, AnimationDocument.MaxFrames, isPlaying))
         {
             Document.CurrentFrame = currentFrame;
             Document.UpdateTransforms();
@@ -167,13 +269,14 @@ internal partial class AnimationEditor : DocumentEditor
         using (UI.BeginFlex())
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
         {
-            if (EditorUI.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe, toolbar: true))
+            if (UI.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe, EditorStyle.Button.IconOnly))
                 InsertFrameAfter();
-            if (EditorUI.Button(ElementId.MirrorButton, EditorAssets.Sprites.IconMirror, toolbar: true))
+            if (UI.Button(ElementId.MirrorButton, EditorAssets.Sprites.IconMirror, EditorStyle.Button.IconOnly))
                 MirrorPose();
         }
 
-        if (EditorUI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, selected: Document.IsPlaying, toolbar: true))
+        UI.SetChecked(Document.IsPlaying);
+        if (UI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, EditorStyle.Button.ToggleIcon))
             TogglePlayback();
 
         using (UI.BeginFlex())
@@ -181,22 +284,24 @@ internal partial class AnimationEditor : DocumentEditor
         {
             UI.Flex();
 
-            if (EditorUI.Button(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview, selected: _showSkeleton, toolbar: true))
+            UI.SetChecked(_showSkeleton);
+            if (UI.Button(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
                 _showSkeleton = !_showSkeleton;
 
-            if (EditorUI.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, selected: Document.IsLooping, toolbar: true))
+            UI.SetChecked(Document.IsLooping);
+            if (UI.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, EditorStyle.Button.ToggleIcon))
             {
                 Undo.Record(Document);
-                Document.MarkMetaModified();
                 Document.IsLooping = !Document.IsLooping;
             }
 
-            if (EditorUI.Button(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion, selected: _onionSkin, toolbar: true))
+            UI.SetChecked(_onionSkin);
+            if (UI.Button(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion, EditorStyle.Button.ToggleIcon))
                 _onionSkin = !_onionSkin;
         }
 
-        EditorUI.ToolbarSpacer();
-        SkeletonButtonUI(); 
+        UI.Spacer(EditorStyle.Control.Spacing);
+        SkeletonButtonUI();
     }
 
     public override void UpdateUI()
@@ -407,7 +512,7 @@ internal partial class AnimationEditor : DocumentEditor
             commit: _ =>
             {
                 Document.UpdateTransforms();
-                Document.MarkModified();
+                Document.IncrementVersion();
             },
             cancel: () =>
             {
@@ -479,7 +584,7 @@ internal partial class AnimationEditor : DocumentEditor
             commit: _ =>
             {
                 Document.UpdateTransforms();
-                Document.MarkModified();
+                Document.IncrementVersion();
             },
             cancel: () =>
             {
@@ -528,7 +633,7 @@ internal partial class AnimationEditor : DocumentEditor
             Document.GetFrameTransform(boneIndex, Document.CurrentFrame).Rotation = 0;
         }
 
-        Document.MarkModified();
+        Document.IncrementVersion();
         Document.UpdateTransforms();
     }
 
@@ -551,7 +656,7 @@ internal partial class AnimationEditor : DocumentEditor
         }
 
         Document.UpdateTransforms();
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void SelectAll()
@@ -601,7 +706,7 @@ internal partial class AnimationEditor : DocumentEditor
         Undo.Record(Document);
         Document.CurrentFrame = Document.InsertFrame(Document.CurrentFrame);
         Document.UpdateTransforms();
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void InsertFrameAfter()
@@ -609,7 +714,7 @@ internal partial class AnimationEditor : DocumentEditor
         Undo.Record(Document);
         Document.CurrentFrame = Document.InsertFrame(Document.CurrentFrame + 1);
         Document.UpdateTransforms();
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void InsertFrameAfterLerp()
@@ -636,7 +741,7 @@ internal partial class AnimationEditor : DocumentEditor
 
         Document.CurrentFrame = newFrame;
         Document.UpdateTransforms();
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void DeleteFrame()
@@ -644,14 +749,14 @@ internal partial class AnimationEditor : DocumentEditor
         Undo.Record(Document);
         Document.CurrentFrame = Document.DeleteFrame(Document.CurrentFrame);
         Document.UpdateTransforms();
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void AddHoldFrame()
     {
         Undo.Record(Document);
         Document.Frames[Document.CurrentFrame].Hold++;
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void RemoveHoldFrame()
@@ -661,7 +766,7 @@ internal partial class AnimationEditor : DocumentEditor
 
         Undo.Record(Document);
         Document.Frames[Document.CurrentFrame].Hold = Math.Max(0, Document.Frames[Document.CurrentFrame].Hold - 1);
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void CopyKeys()
@@ -687,7 +792,7 @@ internal partial class AnimationEditor : DocumentEditor
             Document.Frames[Document.CurrentFrame].Transforms[boneIndex] = frameData.Transforms[boneIndex];
         }
 
-        Document.MarkModified();
+        Document.IncrementVersion();
         Document.UpdateTransforms();
     }
 
@@ -700,7 +805,7 @@ internal partial class AnimationEditor : DocumentEditor
     {
         Undo.Record(Document);
         Document.SetLooping(!Document.IsLooping);
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private void IncreasePlaySpeed()
@@ -756,7 +861,7 @@ internal partial class AnimationEditor : DocumentEditor
             Document.UpdateTransforms();
         }
 
-        Document.MarkModified();
+        Document.IncrementVersion();
     }
 
     private static float GetRotation(Matrix3x2 transform)

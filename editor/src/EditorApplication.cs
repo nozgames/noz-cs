@@ -251,6 +251,7 @@ public static partial class EditorApplication
         ShaderDocument.RegisterDef();
         SoundDocument.RegisterDef();
         SpriteDocument.RegisterDef();
+        GenStyleDocument.RegisterDef();
         FontDocument.RegisterDef();
         SkeletonDocument.RegisterDef();
         AnimationDocument.RegisterDef();

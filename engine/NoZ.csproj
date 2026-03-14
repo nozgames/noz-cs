@@ -13,4 +13,8 @@
     <Content Include="assets\**\*.wgsl" Exclude="assets\**\*.wgsl.meta" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\generators\NoZ.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

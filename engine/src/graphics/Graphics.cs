@@ -568,6 +568,7 @@ public static unsafe partial class Graphics
 
         TextRender.Flush();
         UI.Flush();
+        ElementTree.Flush();
 
         _commands.AsSpan().Sort();
 

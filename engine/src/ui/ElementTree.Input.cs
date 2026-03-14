@@ -1,0 +1,388 @@
+//
+//  NoZ - Copyright(c) 2026 NoZ Games, LLC
+//
+
+using System.Numerics;
+
+namespace NoZ;
+
+public static unsafe partial class ElementTree
+{
+    private static bool _inputMousePressed;
+    private static bool _inputMouseDown;
+    private static WidgetId _hoveredWidget;
+
+    private static void HandlePopupAutoClose()
+    {
+        ClosePopups = false;
+        if (_popupCount == 0) return;
+
+        var anyAutoClose = false;
+        for (var i = 0; i < _popupCount; i++)
+        {
+            ref var pe = ref GetElement(_popups[i]);
+            ref var pd = ref pe.Data.Popup;
+            if (pd.AutoClose) { anyAutoClose = true; break; }
+        }
+        if (!anyAutoClose) return;
+
+        if (Input.WasButtonPressedRaw(InputCode.KeyEscape))
+        {
+            ClosePopups = true;
+            Input.ConsumeButton(InputCode.KeyEscape);
+        }
+
+        if (_inputMousePressed)
+        {
+            var clickInsideAutoClosePopup = false;
+
+            // Check if hovered widget is inside any auto-close popup
+            if (_hoveredWidget != WidgetId.None && _widgets.ContainsKey(_hoveredWidget))
+            {
+                var widgetIdx = _widgets[_hoveredWidget].Ptr->Index;
+                for (var i = 0; i < _popupCount; i++)
+                {
+                    ref var pe = ref GetElement(_popups[i]);
+                    ref var pd = ref pe.Data.Popup;
+                    if (!pd.AutoClose) continue;
+                    if (IsDescendantOf(widgetIdx, _popups[i]))
+                    {
+                        clickInsideAutoClosePopup = true;
+                        break;
+                    }
+                }
+            }
+
+            // Fallback: check popup rect directly
+            if (!clickInsideAutoClosePopup)
+            {
+                for (var i = 0; i < _popupCount; i++)
+                {
+                    ref var pe = ref GetElement(_popups[i]);
+                    ref var pd = ref pe.Data.Popup;
+                    if (!pd.AutoClose) continue;
+
+                    Matrix3x2.Invert(pe.Transform, out var popupInv);
+                    var localMouse = Vector2.Transform(MouseWorldPosition, popupInv);
+                    if (pe.Rect.Contains(localMouse))
+                    {
+                        clickInsideAutoClosePopup = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!clickInsideAutoClosePopup)
+            {
+                ClosePopups = true;
+                _inputMousePressed = false;
+                Input.ConsumeButton(InputCode.MouseLeft);
+            }
+        }
+    }
+
+    private static bool IsInsidePopup(int index)
+    {
+        for (var i = 0; i < _popupCount; i++)
+        {
+            ref var pe = ref GetElement(_popups[i]);
+            ref var pd = ref pe.Data.Popup;
+            if (!pd.Interactive) continue;
+            if (IsDescendantOf(index, _popups[i]))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsInsideNonInteractivePopup(int offset)
+    {
+        for (var i = 0; i < _popupCount; i++)
+        {
+            ref var pe = ref GetElement(_popups[i]);
+            ref var pd = ref pe.Data.Popup;
+            if (!pd.Interactive && IsDescendantOf(offset, _popups[i]))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsDescendantOf(int offset, int ancestorOffset)
+    {
+        var current = offset;
+        while (current != 0)
+        {
+            if (current == ancestorOffset)
+                return true;
+            ref var e = ref GetElement(current);
+            current = e.Parent;
+        }
+        return false;
+    }
+
+    // Cursor state
+    private static bool _cursorActive;
+    private static Sprite? _savedCursorSprite;
+    private static SystemCursor _savedSystemCursor;
+
+    internal static void HandleInput()
+    {
+        if (_elements.Length < 2) return;
+
+        _inputMousePressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
+        _inputMouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
+
+        if (_captureId != 0 && !_inputMouseDown)
+        {
+            _captureId = WidgetId.None;
+            Input.ReleaseMouseCapture();
+        }
+
+        _hoveredWidget = WidgetId.None;
+        FindHoveredWidget(0);
+        HandlePopupAutoClose();
+        HandleInputElement(0);
+        HandleScrollableInput();
+        HandleCursor(0);
+    }
+
+    private static void HandleCursor(int offset)
+    {
+        int cursorOffset = -1;
+        FindCursorUnderMouse(0, ref cursorOffset);
+
+        if (cursorOffset >= 0)
+        {
+            if (!_cursorActive)
+            {
+                _savedCursorSprite = Cursor.ActiveSprite;
+                _savedSystemCursor = Cursor.ActiveSystemCursor;
+                _cursorActive = true;
+            }
+
+            ref var ce = ref GetElement(cursorOffset);
+            ref var cd = ref ce.Data.Cursor;
+            if (cd.IsSprite)
+                Cursor.Set((Sprite)_assets[cd.AssetIndex]!);
+            else
+                Cursor.Set(cd.SystemCursor);
+        }
+        else if (_cursorActive)
+        {
+            _cursorActive = false;
+            if (_savedCursorSprite != null)
+                Cursor.Set(_savedCursorSprite);
+            else
+                Cursor.Set(_savedSystemCursor);
+        }
+    }
+
+    private static void FindCursorUnderMouse(int offset, ref int foundOffset)
+    {
+        ref var e = ref GetElement(offset);
+
+        if (e.Type == ElementType.Cursor)
+        {
+            Matrix3x2.Invert(e.Transform, out var cursorInv);
+            var localMouse = Vector2.Transform(MouseWorldPosition, cursorInv);
+            if (e.Rect.Contains(localMouse))
+                foundOffset = offset;
+        }
+
+        var childOffset = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childOffset);
+            FindCursorUnderMouse(childOffset, ref foundOffset);
+            childOffset = child.NextSibling;
+        }
+    }
+
+    private static void HandleScrollableInput()
+    {
+        HandleScrollableMouseWheel();
+    }
+
+    private static void HandleScrollableMouseWheel()
+    {
+        var scrollDelta = Input.GetAxisValue(InputCode.MouseScrollY);
+        if (scrollDelta == 0) return;
+        FindScrollableForWheel(0, scrollDelta);
+    }
+
+    private static bool FindScrollableForWheel(int offset, float scrollDelta)
+    {
+        ref var e = ref GetElement(offset);
+
+        // Children first (deeper scrollables take priority)
+        var childOffset = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childOffset);
+            if (FindScrollableForWheel(childOffset, scrollDelta)) return true;
+            childOffset = child.NextSibling;
+        }
+
+        if (e.Type == ElementType.Scroll)
+        {
+            ref var d = ref e.Data.Scroll;
+            if (d.State != null)
+            {
+                Matrix3x2.Invert(e.Transform, out var scrollInv);
+                var localMouse = Vector2.Transform(MouseWorldPosition, scrollInv);
+                if (e.Rect.Contains(localMouse))
+                {
+                    ref var state = ref *d.State;
+                    var maxScroll = Math.Max(0, state.ContentHeight - e.Rect.Height);
+                    state.Offset = Math.Clamp(state.Offset - scrollDelta * d.ScrollSpeed, 0, maxScroll);
+                    Input.ConsumeScroll();
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    internal static float GetScrollOffset(WidgetId id)
+    {
+        if (id == 0 || !_widgets.ContainsKey(id)) return 0;
+        ref var state = ref GetWidgetState<ScrollState>(id);
+        return state.Offset;
+    }
+
+    internal static void SetScrollOffset(WidgetId id, float offset)
+    {
+        if (id == 0 || !_widgets.ContainsKey(id)) return;
+        ref var state = ref GetWidgetState<ScrollState>(id);
+        state.Offset = offset;
+    }
+
+    private static void HandleTrackInput(ref Element e)
+    {
+        ref var d = ref e.Data.Track;
+        var widgetId = d.Id;
+
+        if (IsDown(widgetId) && !HasCaptureById(widgetId))
+            SetCaptureById(widgetId);
+
+        if (!HasCaptureById(widgetId))
+            return;
+
+        var worldRect = GetWidgetWorldRect(widgetId);
+        ref var state = ref *d.State;
+
+        if (d.ThumbSizeX > 0)
+        {
+            var trackSize = worldRect.Width;
+            if (trackSize > 0)
+            {
+                var usable = trackSize - d.ThumbSizeX;
+                if (usable > 0)
+                    state.X = MathEx.Clamp01((MouseWorldPosition.X - worldRect.X - d.ThumbSizeX / 2) / usable);
+            }
+        }
+
+        if (d.ThumbSizeY > 0)
+        {
+            var trackSize = worldRect.Height;
+            if (trackSize > 0)
+            {
+                var usable = trackSize - d.ThumbSizeY;
+                if (usable > 0)
+                    state.Y = MathEx.Clamp01((MouseWorldPosition.Y - worldRect.Y - d.ThumbSizeY / 2) / usable);
+            }
+        }
+    }
+
+    private static void FindHoveredWidget(int index)
+    {
+        ref var e = ref GetElement(index);
+
+        if (e.Type == ElementType.Widget)
+        {
+            var skipHover = false;
+
+            if (_activePopupCount > 0 && !IsInsidePopup(e.Index))
+                skipHover = true;
+            else if (IsInsideNonInteractivePopup(e.Index))
+                skipHover = true;
+
+            if (!skipHover)
+            {
+                Matrix3x2.Invert(e.Transform, out var inv);
+                var localMouse = Vector2.Transform(MouseWorldPosition, inv);
+                if (e.Rect.Contains(localMouse))
+                {
+                    _hoveredWidget = e.Data.Widget.Id;
+                }
+            }
+        }
+
+        var childIndex = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childIndex);
+            FindHoveredWidget(childIndex);
+            childIndex = child.NextSibling;
+        }
+    }
+
+    private static void HandleWidgetInput(ref Element e)
+    {
+        ref var d = ref e.Data.Widget;
+        ref var state = ref GetWidgetState(d.Id);
+        var prevFlags = state.Flags;
+        state.Flags = WidgetFlags.None;
+
+        if (_activePopupCount > 0 && !IsInsidePopup(e.Index))
+            return;
+
+        if (IsInsideNonInteractivePopup(e.Index))
+            return;
+
+        var isHovered = _hoveredWidget == d.Id;
+
+        if (isHovered)
+            state.Flags |= WidgetFlags.Hovered;
+
+        var isCaptured = _captureId != 0 && _captureId == d.Id;
+
+        if (isHovered && _inputMousePressed && (_captureId == 0 || _captureId == d.Id))
+        {
+            state.Flags |= WidgetFlags.Pressed;
+            if (d.IsInteractive)
+                Input.ConsumeButton(InputCode.MouseLeft);
+        }
+
+        if (isCaptured ? _inputMouseDown : (isHovered && _inputMouseDown && _captureId == 0))
+            state.Flags |= WidgetFlags.Down;
+
+        if (_hotId == d.Id)
+            state.Flags |= WidgetFlags.Hot;
+
+        if ((state.Flags & WidgetFlags.Hovered) != (prevFlags & WidgetFlags.Hovered))
+            state.Flags |= WidgetFlags.HoverChanged;
+    }
+
+    private static void HandleInputElement(int index)
+    {
+        ref var e = ref GetElement(index);
+
+        if (e.Type == ElementType.Widget)
+            HandleWidgetInput(ref e);
+
+        if (e.Type == ElementType.Track)
+            HandleTrackInput(ref e);
+
+        if (e.Type == ElementType.EditableText)
+            HandleEditableTextInput(ref e);
+
+        var childIndex = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childIndex);
+            HandleInputElement(childIndex);
+            childIndex = child.NextSibling;
+        }
+    }
+}

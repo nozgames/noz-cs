@@ -13,4 +13,17 @@ public class Command
     public bool Alt { get; init; }
     public bool Shift { get; init; }
     public Sprite? Icon { get; init;  }
+
+    public PopupMenuItem ToPopupMenuItem(Func<bool>? enabled = null) =>
+        new()
+        {
+            Label = Name,
+            Icon = Icon,
+            Handler = Handler,
+            Key = Key,
+            Ctrl = Ctrl,
+            Shift = Shift,
+            Alt = Alt,
+            GetEnabled = enabled
+        };
 }
