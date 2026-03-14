@@ -141,6 +141,20 @@ public static partial class ElementTree
         Color borderColor = default,
         ushort order = 0)
     {
+        DrawTexturedRect(rect, transform, texture, color, new Rect(0, 0, 1, 1), borderRadius, borderWidth, borderColor, order);
+    }
+
+    private static void DrawTexturedRect(
+        in Rect rect,
+        in Matrix3x2 transform,
+        Texture? texture,
+        Color color,
+        in Rect uvRect,
+        BorderRadius borderRadius = default,
+        float borderWidth = 0,
+        Color borderColor = default,
+        ushort order = 0)
+    {
         var vertexOffset = _vertices.Length;
         var indexOffset = _indices.Length;
 
@@ -156,31 +170,36 @@ public static partial class ElementTree
             MathF.Min(borderRadius.TopRight, maxR),
             MathF.Min(borderRadius.BottomLeft, maxR),
             MathF.Min(borderRadius.BottomRight, maxR));
-        var rectSize = new Vector2(w, h);
+        var rectSize = new Vector2(w / uvRect.Width, h / uvRect.Height);
 
         var p0 = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
         var p1 = Vector2.Transform(new Vector2(rect.X + w, rect.Y), transform);
         var p2 = Vector2.Transform(new Vector2(rect.X + w, rect.Y + h), transform);
         var p3 = Vector2.Transform(new Vector2(rect.X, rect.Y + h), transform);
 
+        var uv0 = new Vector2(uvRect.X, uvRect.Y);
+        var uv1 = new Vector2(uvRect.X + uvRect.Width, uvRect.Y);
+        var uv2 = new Vector2(uvRect.X + uvRect.Width, uvRect.Y + uvRect.Height);
+        var uv3 = new Vector2(uvRect.X, uvRect.Y + uvRect.Height);
+
         _vertices.Add(new UIVertex
         {
-            Position = p0, UV = new Vector2(0, 0), Normal = rectSize,
+            Position = p0, UV = uv0, Normal = rectSize,
             Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
         });
         _vertices.Add(new UIVertex
         {
-            Position = p1, UV = new Vector2(1, 0), Normal = rectSize,
+            Position = p1, UV = uv1, Normal = rectSize,
             Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
         });
         _vertices.Add(new UIVertex
         {
-            Position = p2, UV = new Vector2(1, 1), Normal = rectSize,
+            Position = p2, UV = uv2, Normal = rectSize,
             Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
         });
         _vertices.Add(new UIVertex
         {
-            Position = p3, UV = new Vector2(0, 1), Normal = rectSize,
+            Position = p3, UV = uv3, Normal = rectSize,
             Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
         });
 
@@ -290,7 +309,55 @@ public static partial class ElementTree
         var asset = _assets[d.ImageAsset];
         if (asset == null) return;
 
-        if (asset is Sprite sprite)
+        if (d.ImageStretch == ImageStretch.UniformToFill)
+        {
+            var srcSize = asset is Sprite s
+                ? new Vector2(s.Bounds.Width, s.Bounds.Height)
+                : new Vector2(((Texture)asset).Width, ((Texture)asset).Height);
+            var dstSize = e.Rect.Size;
+            var scale = GetImageScale(ImageStretch.UniformToFill, srcSize, dstSize);
+            var scaledSize = scale * srcSize;
+            var uvSize = dstSize / scaledSize;
+            var uvOffset = (Vector2.One - uvSize) * 0.5f;
+            var uvRect = new Rect(uvOffset.X, uvOffset.Y, uvSize.X, uvSize.Y);
+
+            if (asset is Sprite sprite)
+            {
+                using var _ = Graphics.PushState();
+                Graphics.SetColor(ApplyOpacity(d.ImageColor));
+                Graphics.SetTextureFilter(sprite.TextureFilter);
+
+                var clipTopLeft = Vector2.Transform(e.Rect.Position, t);
+                var clipBottomRight = Vector2.Transform(e.Rect.Position + dstSize, t);
+                var screenTL = UI.Camera!.WorldToScreen(clipTopLeft);
+                var screenBR = UI.Camera!.WorldToScreen(clipBottomRight);
+                Graphics.SetScissor(
+                    (int)screenTL.X, (int)screenTL.Y,
+                    (int)MathF.Ceiling(screenBR.X - screenTL.X),
+                    (int)MathF.Ceiling(screenBR.Y - screenTL.Y));
+
+                var offset = e.Rect.Position + (dstSize - scaledSize) * 0.5f;
+                if (sprite.IsSliced)
+                {
+                    Graphics.SetTransform(t);
+                    Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y), order: d.Order);
+                }
+                else
+                {
+                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                    Graphics.SetTransform(transform);
+                    Graphics.DrawFlat(sprite, order: d.Order, bone: -1);
+                }
+
+                Graphics.ClearScissor();
+            }
+            else if (asset is Texture texture)
+            {
+                DrawTexturedRect(e.Rect, t, texture, ApplyOpacity(d.ImageColor), uvRect, order: d.Order);
+            }
+        }
+        else if (asset is Sprite sprite)
         {
             using var _ = Graphics.PushState();
             Graphics.SetColor(ApplyOpacity(d.ImageColor));
@@ -425,6 +492,7 @@ public static partial class ElementTree
         {
             ImageStretch.None => Vector2.One,
             ImageStretch.Uniform => new Vector2(MathF.Min(scale.X, scale.Y)),
+            ImageStretch.UniformToFill => new Vector2(MathF.Max(scale.X, scale.Y)),
             _ => scale
         };
     }
@@ -442,34 +510,86 @@ public static partial class ElementTree
             d.Size.Height.IsPercent ? e.Rect.Height * d.Size.Height.Value : e.Rect.Height);
         var scale = GetImageScale(d.Stretch, srcSize, dstSize);
         var scaledSize = scale * srcSize;
-        var offset = e.Rect.Position + (e.Rect.Size - scaledSize) * new Vector2(d.Align.X.ToFactor(), d.Align.Y.ToFactor());
+        var alignFactor = new Vector2(d.Align.X.ToFactor(), d.Align.Y.ToFactor());
+        var offset = e.Rect.Position + (e.Rect.Size - scaledSize) * alignFactor;
 
-        if (asset is Sprite sprite)
+        if (d.Stretch == ImageStretch.UniformToFill)
         {
-            using var _ = Graphics.PushState();
-            Graphics.SetColor(ApplyOpacity(d.Color));
-            Graphics.SetTextureFilter(sprite.TextureFilter);
+            // Compute UV sub-rect to crop the overflow instead of clipping
+            var uvSize = dstSize / scaledSize;
+            var uvOffset = (Vector2.One - uvSize) * alignFactor;
+            var uvRect = new Rect(uvOffset.X, uvOffset.Y, uvSize.X, uvSize.Y);
 
-            if (sprite.IsSliced)
+            if (asset is Sprite sprite)
             {
-                Graphics.SetTransform(t);
-                Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y));
+                using var _ = Graphics.PushState();
+                Graphics.SetColor(ApplyOpacity(d.Color));
+                Graphics.SetTextureFilter(sprite.TextureFilter);
+
+                // For sprites, use scissor clipping since sprite meshes have baked UVs
+                var clipTopLeft = Vector2.Transform(e.Rect.Position, t);
+                var clipBottomRight = Vector2.Transform(e.Rect.Position + dstSize, t);
+                var screenTL = UI.Camera!.WorldToScreen(clipTopLeft);
+                var screenBR = UI.Camera!.WorldToScreen(clipBottomRight);
+                Graphics.SetScissor(
+                    (int)screenTL.X, (int)screenTL.Y,
+                    (int)MathF.Ceiling(screenBR.X - screenTL.X),
+                    (int)MathF.Ceiling(screenBR.Y - screenTL.Y));
+
+                if (sprite.IsSliced)
+                {
+                    Graphics.SetTransform(t);
+                    Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y));
+                }
+                else
+                {
+                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                    Graphics.SetTransform(transform);
+                    Graphics.DrawFlat(sprite, bone: -1);
+                }
+
+                Graphics.ClearScissor();
             }
-            else
+            else if (asset is Texture texture)
             {
-                offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-                var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
-                Graphics.SetTransform(transform);
-                Graphics.DrawFlat(sprite, bone: -1);
+                DrawTexturedRect(
+                    new Rect(e.Rect.X, e.Rect.Y, dstSize.X, dstSize.Y),
+                    t,
+                    texture,
+                    ApplyOpacity(d.Color),
+                    uvRect);
             }
         }
-        else if (asset is Texture texture)
+        else
         {
-            DrawTexturedRect(
-                new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y),
-                t,
-                texture,
-                ApplyOpacity(d.Color));
+            if (asset is Sprite sprite)
+            {
+                using var _ = Graphics.PushState();
+                Graphics.SetColor(ApplyOpacity(d.Color));
+                Graphics.SetTextureFilter(sprite.TextureFilter);
+
+                if (sprite.IsSliced)
+                {
+                    Graphics.SetTransform(t);
+                    Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y));
+                }
+                else
+                {
+                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                    Graphics.SetTransform(transform);
+                    Graphics.DrawFlat(sprite, bone: -1);
+                }
+            }
+            else if (asset is Texture texture)
+            {
+                DrawTexturedRect(
+                    new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y),
+                    t,
+                    texture,
+                    ApplyOpacity(d.Color));
+            }
         }
     }
 

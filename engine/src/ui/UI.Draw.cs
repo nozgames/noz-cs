@@ -32,6 +32,20 @@ public static partial class UI
         Color borderColor = default,
         ushort order = 0)
     {
+        DrawTexturedRect(rect, transform, texture, color, new Rect(0, 0, 1, 1), borderRadius, borderWidth, borderColor, order);
+    }
+
+    internal static void DrawTexturedRect(
+        in Rect rect,
+        in Matrix3x2 transform,
+        Texture? texture,
+        Color color,
+        in Rect uvRect,
+        BorderRadius borderRadius = default,
+        float borderWidth = 0,
+        Color borderColor = default,
+        ushort order = 0)
+    {
         var vertexOffset = _vertices.Length;
         var indexOffset = _indices.Length;
 
@@ -48,18 +62,26 @@ public static partial class UI
             MathF.Min(borderRadius.TopRight, maxR),
             MathF.Min(borderRadius.BottomLeft, maxR),
             MathF.Min(borderRadius.BottomRight, maxR));
-        var rectSize = new Vector2(w, h);
+
+        // Use the full image size for SDF computation so the visible sub-rect
+        // is always interior to the SDF rect (distance < 0 everywhere on quad).
+        var rectSize = new Vector2(w / uvRect.Width, h / uvRect.Height);
 
         var p0 = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
         var p1 = Vector2.Transform(new Vector2(rect.X + w, rect.Y), transform);
         var p2 = Vector2.Transform(new Vector2(rect.X + w, rect.Y + h), transform);
         var p3 = Vector2.Transform(new Vector2(rect.X, rect.Y + h), transform);
 
+        var uv0 = new Vector2(uvRect.X, uvRect.Y);
+        var uv1 = new Vector2(uvRect.X + uvRect.Width, uvRect.Y);
+        var uv2 = new Vector2(uvRect.X + uvRect.Width, uvRect.Y + uvRect.Height);
+        var uv3 = new Vector2(uvRect.X, uvRect.Y + uvRect.Height);
+
         // Simple 4-vertex quad - shader handles everything
         _vertices.Add(new UIVertex
         {
             Position = p0,
-            UV = new Vector2(0, 0),
+            UV = uv0,
             Normal = rectSize,
             Color = color,
             BorderRatio = borderWidth,
@@ -69,7 +91,7 @@ public static partial class UI
         _vertices.Add(new UIVertex
         {
             Position = p1,
-            UV = new Vector2(1, 0),
+            UV = uv1,
             Normal = rectSize,
             Color = color,
             BorderRatio = borderWidth,
@@ -79,7 +101,7 @@ public static partial class UI
         _vertices.Add(new UIVertex
         {
             Position = p2,
-            UV = new Vector2(1, 1),
+            UV = uv2,
             Normal = rectSize,
             Color = color,
             BorderRatio = borderWidth,
@@ -89,7 +111,7 @@ public static partial class UI
         _vertices.Add(new UIVertex
         {
             Position = p3,
-            UV = new Vector2(0, 1),
+            UV = uv3,
             Normal = rectSize,
             Color = color,
             BorderRatio = borderWidth,

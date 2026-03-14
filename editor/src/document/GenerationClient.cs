@@ -22,10 +22,9 @@ public class GenerationRequest
 
     public string Workflow { get; set; } = "sprite";
     public string? Image { get; set; }
-    public MaskConfig? Mask { get; set; }
     public string Prompt { get; set; } = "";
     public string? NegativePrompt { get; set; }
-    public long? Seed { get; set; }
+    public string? Seed { get; set; }
     public string? Model { get; set; }
 }
 
@@ -41,7 +40,7 @@ public class ModelInfo
 public class GenerationResponse
 {
     public string Image { get; set; } = "";
-    public long Seed { get; set; }
+    public string Seed { get; set; } = "";
     public int Width { get; set; }
     public int Height { get; set; }
 }

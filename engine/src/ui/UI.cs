@@ -12,7 +12,8 @@ public enum ImageStretch : byte
 {
     None,
     Fill,
-    Uniform
+    Uniform,
+    UniformToFill
 }
 
 public static partial class UI

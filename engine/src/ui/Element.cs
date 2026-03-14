@@ -91,6 +91,7 @@ internal struct FillElement
     public ushort ImageAsset;
     public bool HasGradient;
     public bool HasImage;
+    public ImageStretch ImageStretch;
     public ushort Order;
 }
 

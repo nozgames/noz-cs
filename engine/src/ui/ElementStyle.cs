@@ -13,6 +13,7 @@ public struct BackgroundStyle()
     public float GradientAngle = 0;
     public IImage? Image = null;
     public Color ImageColor = Color.White;
+    public ImageStretch ImageStretch = ImageStretch.Fill;
 
     public readonly bool HasGradient => !GradientColor.IsTransparent;
     public readonly bool HasImage => Image != null;
@@ -96,6 +97,7 @@ public struct ImageStyle()
     public static readonly ImageStyle Default = new();
     public static readonly ImageStyle Center = new() { Align = NoZ.Align.Center };
     public static readonly ImageStyle Fill = new() { Stretch = ImageStretch.Fill };
+    public static readonly ImageStyle UniformToFill = new() { Stretch = ImageStretch.UniformToFill };
 }
 
 public struct RectangleStyle()

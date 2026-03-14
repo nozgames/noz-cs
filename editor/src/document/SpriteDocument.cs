@@ -1113,16 +1113,6 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         return Convert.ToHexString(bytes, 0, 8).ToLowerInvariant();
     }
 
-    private static long HashSeed(string seed)
-    {
-        if (string.IsNullOrEmpty(seed))
-            return 0;
-
-        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed));
-        var hash = BitConverter.ToInt64(bytes, 0);
-        return (hash & 0x3FFFFFFFFFFFF) | 1; // 50-bit max for JS safety, positive and non-zero
-    }
-
     internal void LoadGeneratedTexture()
     {
         Generation.Dispose();
@@ -1407,9 +1397,6 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         if (!string.IsNullOrEmpty(globalNegPrompt))
             negPrompt = string.IsNullOrEmpty(negPrompt) ? globalNegPrompt : $"{negPrompt}, {globalNegPrompt}";
 
-        var hashedSeed = HashSeed(Seed);
-        var seed = hashedSeed == 0 ? Random.Shared.NextInt64(1, long.MaxValue) : hashedSeed;
-
         var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
 
         return new GenerationRequest
@@ -1418,10 +1405,9 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             Workflow = "generate",
             Model = Style?.ModelName,
             Image = imageBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(imageBytes)}" : "",
-            Mask = maskBytes.Length > 0 ? new MaskConfig { Image = $"data:image/png;base64,{Convert.ToBase64String(maskBytes)}" } : null,
             Prompt = prompt,
             NegativePrompt = string.IsNullOrEmpty(negPrompt) ? null : negPrompt,
-            Seed = seed,
+            Seed = string.IsNullOrEmpty(Seed) ? null : Seed,
         };
     }
 
@@ -1467,8 +1453,8 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
             }
             catch { }
 
-            if (status.Result.Seed != 0 && string.IsNullOrEmpty(Seed))
-                Seed = status.Result.Seed.ToString();
+            if (!string.IsNullOrEmpty(status.Result.Seed) && string.IsNullOrEmpty(Seed))
+                Seed = status.Result.Seed;
 
             PromptHash = ComputePromptHash();
 

@@ -50,6 +50,7 @@ public static unsafe partial class ElementTree
         e.Data.Fill.HasGradient = background.HasGradient;
         e.Data.Fill.HasImage = background.HasImage;
         e.Data.Fill.ImageColor = background.ImageColor;
+        e.Data.Fill.ImageStretch = background.ImageStretch;
         e.Data.Fill.ImageAsset = background.HasImage ? AddObject(background.Image!) : (ushort)0;
         e.Data.Fill.Radius = radius;
         e.Data.Fill.BorderWidth = borderWidth;
