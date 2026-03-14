@@ -46,11 +46,6 @@ public class GenerationResponse
     public int Height { get; set; }
 }
 
-public enum GenerationWorkflow
-{
-    Sprite
-}
-
 public enum GenerationState
 {
     Queued,

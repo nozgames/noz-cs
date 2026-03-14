@@ -47,8 +47,6 @@ public class GenStyleDocument : Document
     public string PromptPrefix = "";
     public string Prompt = "";
     public string NegativePrompt = "";
-    // Workflow
-    public GenerationWorkflow Workflow = GenerationWorkflow.Sprite;
 
     // Model
     public string? ModelName;
@@ -89,13 +87,7 @@ public class GenStyleDocument : Document
     {
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("workflow"))
-            {
-                var wf = tk.ExpectQuotedString() ?? "sprite";
-                Workflow = Enum.TryParse<GenerationWorkflow>(wf, ignoreCase: true, out var parsed)
-                    ? parsed : GenerationWorkflow.Sprite;
-            }
-            else if (tk.ExpectIdentifier("model"))
+            if (tk.ExpectIdentifier("model"))
                 ModelName = tk.ExpectQuotedString();
             else if (tk.ExpectIdentifier("prompt_prefix"))
                 PromptPrefix = tk.ExpectQuotedString() ?? "";
@@ -114,9 +106,6 @@ public class GenStyleDocument : Document
 
     public override void Save(StreamWriter writer)
     {
-        writer.WriteLine($"workflow \"{Workflow.ToString().ToLowerInvariant()}\"");
-        writer.WriteLine();
-
         if (!string.IsNullOrEmpty(PromptPrefix))
             writer.WriteLine($"prompt_prefix \"{PromptPrefix.Replace("\"", "\\\"")}\"");
         if (!string.IsNullOrEmpty(Prompt))

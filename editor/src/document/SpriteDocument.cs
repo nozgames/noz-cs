@@ -1388,7 +1388,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         return new GenerationRequest
         {
             Server = server,
-            Workflow = (Style?.Workflow ?? GenerationWorkflow.Sprite).ToString().ToLowerInvariant(),
+            Workflow = "generate",
             Model = Style?.ModelName,
             Image = imageBytes.Length > 0 ? $"data:image/png;base64,{Convert.ToBase64String(imageBytes)}" : "",
             Mask = maskBytes.Length > 0 ? new MaskConfig { Image = $"data:image/png;base64,{Convert.ToBase64String(maskBytes)}" } : null,

@@ -30,13 +30,13 @@ internal static partial class Inspector
 
     public static void UpdateUI()
     {
-        if (!(Workspace.ActiveEditor?.ShowInspector ?? false))
-            return;
-
         _nextSectionId = ElementId.Section;
 
         using (UI.BeginColumn(ElementId.Root, EditorStyle.Inspector.Root))
-            Workspace.ActiveEditor.InspectorUI();
+        {
+            if (Workspace.ActiveEditor?.ShowInspector ?? false)
+                Workspace.ActiveEditor.InspectorUI();
+        }
     }
 
     public static AutoSection BeginSection(

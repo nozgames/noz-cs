@@ -373,30 +373,6 @@ public static partial class Workspace
         }
     }
 
-    // :toolbar
-    private static void ToolbarUI()
-    {
-        using var _ = UI.BeginContainer(new ContainerStyle
-        {
-            Height = Size.Fit,
-            Color = EditorStyle.PanelOld.Root.Color
-        });
-        using var __ = UI.BeginRow(new ContainerStyle { 
-            Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
-            Spacing = EditorStyle.Control.Spacing
-        });
-
-        CollectionUI();
-
-        UI.Flex();
-        UI.SetChecked(XrayMode);
-        if (UI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
-        {
-            XrayMode = !XrayMode;
-            XrayModeChanged?.Invoke(XrayMode);
-        }
-    }
-
     private static void CollectionUI()
     {
         static void OpenPopup()
@@ -443,7 +419,7 @@ public static partial class Workspace
     }
 
     public static void UpdateUI()
-    {        
+    {
         using (UI.BeginContainer())
             UI.Scene(ElementId.Scene, Camera, DrawScene, new SceneStyle
             {
@@ -451,22 +427,58 @@ public static partial class Workspace
                 SampleCount = 4
             });
 
-
         using (UI.BeginColumn())
         {
-            ToolbarUI();
+            // Toolbar row
+            using (UI.BeginRow(new ContainerStyle
+            {
+                Height = Size.Fit,
+                Color = EditorStyle.PanelOld.Root.Color,
+            }))
+            {
+                // Left toolbar
+                using (UI.BeginRow(new ContainerStyle
+                {
+                    Height = Size.Fit,
+                    Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
+                    Spacing = EditorStyle.Control.Spacing,
+                }))
+                {
+                    UI.Flex();
+                    UI.SetChecked(XrayMode);
+                    if (UI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
+                    {
+                        XrayMode = !XrayMode;
+                        XrayModeChanged?.Invoke(XrayMode);
+                    }
+                }
+
+                // Right side: collection dropdown
+                using (UI.BeginContainer(new ContainerStyle
+                {
+                    Width = EditorStyle.Inspector.Root.Width,
+                    Height = Size.Fit,
+                    Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
+                }))
+                    CollectionUI();
+            }
+
             UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.PanelOld.Root.BorderColor });
 
+            // Content row
             using (UI.BeginFlex())
             {
                 using (UI.BeginRow())
                 {
                     using (UI.BeginFlex())
-                    {
                         ActiveEditor?.UpdateUI();
-                    }
 
-                    Inspector.UpdateUI();
+                    using (UI.BeginColumn(new ContainerStyle
+                    {
+                        Width = EditorStyle.Inspector.Root.Width,
+                        Color = EditorStyle.Palette.Panel,
+                    }))
+                        Inspector.UpdateUI();
                 }
             }
         }

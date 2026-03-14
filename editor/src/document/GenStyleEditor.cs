@@ -71,24 +71,6 @@ public partial class GenStyleEditor : DocumentEditor
         using var _ = Inspector.BeginSection("STYLE");
         if (Inspector.IsSectionCollapsed) return;
 
-        // Workflow
-        using (Inspector.BeginProperty("Workflow"))
-        {
-            var workflows = Enum.GetValues<GenerationWorkflow>();
-            UI.DropDown(WidgetIds.WorkflowDropDown, () =>
-            {
-                var items = new List<PopupMenuItem>();
-                foreach (var wf in workflows)
-                    items.Add(PopupMenuItem.Item(wf.ToString(), () =>
-                    {
-                        Undo.Record(Document);
-                        Document.Workflow = wf;
-                        Document.IncrementVersion();
-                    }));
-                return items.ToArray();
-            }, Document.Workflow.ToString(), icon: EditorAssets.Sprites.IconAi);
-        }
-
         // Model
         var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
         GenerationClient.FetchModels(server);
