@@ -52,7 +52,7 @@ public static class CommandLineApplication
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error: {ex.Message}");
+                Console.Error.WriteLine($"Error: {ex}");
                 return 1;
             }
         }
