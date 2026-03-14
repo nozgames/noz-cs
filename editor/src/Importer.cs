@@ -3,6 +3,7 @@
 //
 
 using System.Collections.Concurrent;
+using System.Net.Http;
 
 namespace NoZ.Editor;
 
@@ -155,6 +156,83 @@ public static class Importer
 
     private static void HandleFileChange(string path) =>
         _watcherQueue.Enqueue(Path.GetExtension(path) == ".meta" ? path[..^5] : path);
+
+    public static async Task GenerateSpritesAsync(CancellationToken ct = default)
+    {
+        var sprites = DocumentManager.Documents
+            .OfType<SpriteDocument>()
+            .Where(s => s.NeedsGeneration)
+            .ToList();
+
+        if (sprites.Count == 0)
+            return;
+
+        Log.Info($"Generating images for {sprites.Count} sprite(s)...");
+
+        foreach (var sprite in sprites)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            Log.Info($"Generating '{sprite.Name}'...");
+
+            try
+            {
+                var request = sprite.BuildGenerationRequest();
+                var status = await GenerationClient.GenerateAsync(request, cancellationToken: ct);
+
+                if (status.State == GenerationState.Completed)
+                {
+                    sprite.ApplyGenerationResult(status, createTexture: false);
+                    sprite.Save();
+                    Queue(sprite, force: true);
+                }
+                else
+                {
+                    Log.Error($"Generation failed for '{sprite.Name}': {status.Error}");
+
+                    if (status.Error != null && (status.Error.Contains("HttpRequestException") ||
+                        status.Error.Contains("Connection refused") ||
+                        status.Error.Contains("No connection") ||
+                        status.Error.Contains("actively refused")))
+                    {
+                        var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
+                        Log.Error($"Generation server not available at {server}. Skipping remaining sprite generations.");
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Generation error for '{sprite.Name}': {ex.Message}");
+
+                if (ex is HttpRequestException)
+                {
+                    var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
+                    Log.Error($"Generation server not available at {server}. Skipping remaining sprite generations.");
+                    break;
+                }
+            }
+        }
+
+        Update();
+    }
+
+    public static void QueueGenerations()
+    {
+        var sprites = DocumentManager.Documents
+            .OfType<SpriteDocument>()
+            .Where(s => s.NeedsGeneration)
+            .ToList();
+
+        if (sprites.Count == 0)
+            return;
+
+        Notifications.Add($"Generating images for {sprites.Count} sprite(s)...");
+
+        foreach (var sprite in sprites)
+            sprite.GenerateAsync();
+    }
 
     public static void Update()
     {

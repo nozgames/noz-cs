@@ -226,6 +226,92 @@ public static class GenerationClient
         }, cancellationToken);
     }
 
+    public static async Task<GenerationStatus> GenerateAsync(GenerationRequest request,
+        Action<GenerationStatus>? onProgress = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(request, _jsonOptions);
+
+            try
+            {
+                var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+                Directory.CreateDirectory(tmpDir);
+                File.WriteAllText(System.IO.Path.Combine(tmpDir, "generation_request.json"), json);
+            }
+            catch { }
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync($"{request.Server}/generate", content, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                Log.Error($"Generation submit failed {response.StatusCode}: {errorBody}");
+                return new GenerationStatus { State = GenerationState.Failed, Error = $"Submit failed: {response.StatusCode}" };
+            }
+
+            var submitJson = await response.Content.ReadAsStringAsync();
+            var submitResult = JsonSerializer.Deserialize<GenerationSubmitResponse>(submitJson, _jsonOptions);
+            if (submitResult == null || string.IsNullOrEmpty(submitResult.JobId))
+            {
+                Log.Error("Generation submit returned no job_id");
+                return new GenerationStatus { State = GenerationState.Failed, Error = "No job_id returned" };
+            }
+
+            var jobId = submitResult.JobId;
+            Log.Info($"Generation job submitted: {jobId}");
+
+            onProgress?.Invoke(new GenerationStatus
+            {
+                State = GenerationState.Queued,
+                JobId = jobId,
+                QueuePosition = submitResult.Position
+            });
+
+            var pollUrl = $"{request.Server}/jobs/{jobId}";
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(500, cancellationToken);
+
+                var pollResponse = await _http.GetAsync(pollUrl, cancellationToken);
+                if (!pollResponse.IsSuccessStatusCode)
+                {
+                    var errorBody = await pollResponse.Content.ReadAsStringAsync();
+                    Log.Error($"Poll failed {pollResponse.StatusCode}: {errorBody}");
+                    return new GenerationStatus { State = GenerationState.Failed, JobId = jobId, Error = $"Poll failed: {pollResponse.StatusCode}" };
+                }
+
+                var pollJson = await pollResponse.Content.ReadAsStringAsync();
+                var job = JsonSerializer.Deserialize<GenerationJobResponse>(pollJson, _jsonOptions);
+                if (job == null)
+                {
+                    Log.Error("Poll returned invalid response");
+                    return new GenerationStatus { State = GenerationState.Failed, JobId = jobId, Error = "Invalid poll response" };
+                }
+
+                var status = MapJobToStatus(job);
+                onProgress?.Invoke(status);
+
+                if (status.IsTerminal)
+                    return status;
+            }
+
+            return new GenerationStatus { State = GenerationState.Failed, Error = "Cancelled" };
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Info("Generation cancelled");
+            return new GenerationStatus { State = GenerationState.Failed, Error = "Cancelled" };
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Generation failed: {ex.Message}");
+            return new GenerationStatus { State = GenerationState.Failed, Error = ex.Message };
+        }
+    }
+
     private static List<ModelInfo>? _cachedModels;
     private static string? _cachedModelsServer;
     private static bool _fetchingModels;

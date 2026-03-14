@@ -970,7 +970,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                 {
                     Undo.Record(Document);
                     Document.Prompt = " ";
-                    Document.Seed = Random.Shared.NextInt64(1, long.MaxValue).ToString();
+                    Document.Seed = GenerateRandomSeed();
                     Document.ConstrainedSize ??= new Vector2Int(256, 256);
                     Document.UpdateBounds();
                 }
@@ -1104,6 +1104,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             Padding = EdgeInsets.Symmetric(12, 16),
         }))
         {
+            UI.SetDisabled(string.IsNullOrWhiteSpace(Document.Prompt) || Document.Style == null);
             if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1), MinWidth = 0, Height = 36 }))
                 Document.GenerateAsync();
         }

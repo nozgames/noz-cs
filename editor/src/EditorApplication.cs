@@ -197,6 +197,8 @@ public static partial class EditorApplication
         // Import-only mode: import assets and exit without launching GUI
         if (importOnly)
         {
+            Importer.GenerateSpritesAsync().GetAwaiter().GetResult();
+
             Log.Info("Import complete.");
             Importer.Shutdown();
             return;
@@ -291,6 +293,7 @@ public static partial class EditorApplication
         UserSettings.Load();
 
         DocumentManager.SaveAll();
+        Importer.QueueGenerations();
     }
 
     private static void Shutdown()
