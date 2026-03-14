@@ -29,19 +29,43 @@ public static unsafe partial class ElementTree
 
     public static void EndPadding() => EndElement(ElementType.Padding);
 
-    public static void Fill(Color color, BorderRadius radius = default, float borderWidth = 0, Color borderColor = default)
+    public static void Fill(in BackgroundStyle background, BorderRadius radius = default, float borderWidth = 0, Color borderColor = default, ushort order = 0)
     {
-        BeginFill(color, radius, borderWidth, borderColor);
+        BeginFill(background, radius, borderWidth, borderColor, order);
         EndFill();
     }
 
-    public static int BeginFill(Color color, BorderRadius radius = default, float borderWidth = 0, Color borderColor = default)
+    public static void Fill(Color color, BorderRadius radius = default, float borderWidth = 0, Color borderColor = default, ushort order = 0)
+    {
+        BeginFill(color, radius, borderWidth, borderColor, order);
+        EndFill();
+    }
+
+    public static int BeginFill(in BackgroundStyle background, BorderRadius radius = default, float borderWidth = 0, Color borderColor = default, ushort order = 0)
+    {
+        ref var e = ref BeginElement(ElementType.Fill);
+        e.Data.Fill.Color = background.Color;
+        e.Data.Fill.GradientColor = background.GradientColor;
+        e.Data.Fill.GradientAngle = background.GradientAngle;
+        e.Data.Fill.HasGradient = background.HasGradient;
+        e.Data.Fill.HasSprite = background.HasImage;
+        e.Data.Fill.SpriteColor = background.ImageColor;
+        e.Data.Fill.SpriteAsset = background.HasImage ? AddObject(background.Image!) : (ushort)0;
+        e.Data.Fill.Radius = radius;
+        e.Data.Fill.BorderWidth = borderWidth;
+        e.Data.Fill.BorderColor = borderColor;
+        e.Data.Fill.Order = order;
+        return e.Index;
+    }
+
+    public static int BeginFill(Color color, BorderRadius radius = default, float borderWidth = 0, Color borderColor = default, ushort order = 0)
     {
         ref var e = ref BeginElement(ElementType.Fill);
         e.Data.Fill.Color = color;
         e.Data.Fill.Radius = radius;
         e.Data.Fill.BorderWidth = borderWidth;
         e.Data.Fill.BorderColor = borderColor;
+        e.Data.Fill.Order = order;
         return e.Index;
     }
 

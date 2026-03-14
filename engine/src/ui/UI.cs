@@ -346,9 +346,9 @@ public static partial class UI
     public static void Separator(Color color, float thickness = 1)
     {
         if (ElementTree.IsParentRow())
-            Container(new ContainerStyle { Width = thickness, Height = Size.Percent(1), Color = color });
+            Container(new ContainerStyle { Width = thickness, Height = Size.Percent(1), Background = color });
         else
-            Container(new ContainerStyle { Width = Size.Percent(1), Height = thickness, Color = color });
+            Container(new ContainerStyle { Width = Size.Percent(1), Height = thickness, Background = color });
     }
 
     public static AutoTransformed BeginTransformed(TransformStyle style)

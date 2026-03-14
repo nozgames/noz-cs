@@ -6,6 +6,21 @@ using System.Numerics;
 
 namespace NoZ;
 
+public struct BackgroundStyle()
+{
+    public Color Color = Color.Transparent;
+    public Color GradientColor = Color.Transparent;
+    public float GradientAngle = 0;
+    public Sprite? Image = null;
+    public Color ImageColor = Color.White;
+
+    public readonly bool HasGradient => !GradientColor.IsTransparent;
+    public readonly bool HasImage => Image != null;
+    public readonly bool IsTransparent => Color.IsTransparent && !HasGradient && !HasImage;
+
+    public static implicit operator BackgroundStyle(Color color) => new() { Color = color };
+}
+
 public struct ContainerStyle()
 {
     public Size2 Size = new(NoZ.Size.Default, NoZ.Size.Default);
@@ -16,10 +31,10 @@ public struct ContainerStyle()
     public Align2 Align = NoZ.Align.Min;
     public EdgeInsets Margin = EdgeInsets.Zero;
     public EdgeInsets Padding = EdgeInsets.Zero;
-    public Color Color = NoZ.Color.Transparent;
+    public BackgroundStyle Background = Color.Transparent;
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public float BorderWidth;
-    public Color BorderColor = NoZ.Color.Transparent;
+    public Color BorderColor = Color.Transparent;
     public float Spacing = 0;
     public bool Clip = false;
     public ushort Order = 0;
@@ -181,9 +196,15 @@ public struct SceneRenderInfo
 
 public static class ElementStyle
 {
+    public static ContainerStyle WithBackground(this ContainerStyle style, BackgroundStyle background)
+    {
+        style.Background = background;
+        return style;
+    }
+
     public static ContainerStyle WithColor(this ContainerStyle style, Color color)
     {
-        style.Color = color;
+        style.Background = color;
         return style;
     }
 

@@ -75,7 +75,7 @@ public static partial class AssetBrowser
         using (UI.BeginContainer(id, new ContainerStyle
         {
             Height = s.Height,
-            Color = s.Color,
+            Background = s.Color,
             BorderRadius = s.BorderRadius,
             Padding = EdgeInsets.LeftRight(10),
             AlignY = Align.Center,
@@ -201,7 +201,7 @@ public static partial class AssetBrowser
                 using (UI.BeginRow(itemId, EditorStyle.Popup.Item with
                 {
                     Spacing = 8,
-                    Color = hovered ? EditorStyle.Palette.Active : Color.Transparent,
+                    Background = hovered ? EditorStyle.Palette.Active : Color.Transparent,
                     BorderRadius = hovered ? 2 : 0,
                 }))
                 {

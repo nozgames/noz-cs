@@ -76,7 +76,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
     public GenStyleDocument? Style;
     public string PromptHash = "";
 
-    public bool HasGeneration => !string.IsNullOrEmpty(Prompt);
+    public bool HasGeneration { get; set; }
     public bool NeedsGeneration => HasGeneration && (!Generation.HasImageData || PromptHash != ComputePromptHash());
     public bool IsGenerating => Generation.IsGenerating;
 
@@ -227,6 +227,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
 
     private void ParseGeneration(ref Tokenizer tk)
     {
+        HasGeneration = true;
         while (!tk.IsEOF)
         {
             if (tk.ExpectIdentifier("prompt"))
@@ -770,6 +771,32 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
 
     void ISpriteSource.Rasterize(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
+        // Generated sprites: blit texture pixels instead of rasterizing paths
+        if (HasGeneration && Generation.HasImageData)
+        {
+            var w = RasterBounds.Size.X;
+            var h = RasterBounds.Size.Y;
+
+            using var ms = new MemoryStream(Generation.ImageData!);
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+            if (srcImage.Width != w || srcImage.Height != h)
+                srcImage.Mutate(x => x.Resize(w, h));
+
+            var rasterRect = new RectInt(
+                rect.Rect.Position + new Vector2Int(padding, padding),
+                new Vector2Int(w, h));
+
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    var pixel = srcImage[x, y];
+                    image[rasterRect.X + x, rasterRect.Y + y] = new Color32(pixel.R, pixel.G, pixel.B, pixel.A);
+                }
+
+            image.BleedColors(rasterRect);
+            return;
+        }
+
         var frameIndex = rect.FrameIndex;
         var dpi = EditorApplication.Config.PixelsPerUnit;
         var padding2 = padding * 2;

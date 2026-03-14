@@ -463,7 +463,7 @@ internal partial class VfxEditor : DocumentEditor
                 using (UI.BeginContainer(new ContainerStyle
                 {
                     Width = 16, Height = 16,
-                    Color = color,
+                    Background = color,
                     BorderRadius = 3, BorderWidth = 1, BorderColor = Color.FromRgb(0x555555),
                     AlignY = Align.Center
                 })) { }

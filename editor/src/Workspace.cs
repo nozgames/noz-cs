@@ -373,6 +373,30 @@ public static partial class Workspace
         }
     }
 
+    // :toolbar
+    private static void ToolbarUI()
+    {
+        using var _ = UI.BeginContainer(new ContainerStyle
+        {
+            Height = Size.Fit,
+            Background = EditorStyle.PanelOld.Root.Background
+        });
+        using var __ = UI.BeginRow(new ContainerStyle { 
+            Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
+            Spacing = EditorStyle.Control.Spacing
+        });
+
+        CollectionUI();
+
+        UI.Flex();
+        UI.SetChecked(XrayMode);
+        if (UI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
+        {
+            XrayMode = !XrayMode;
+            XrayModeChanged?.Invoke(XrayMode);
+        }
+    }
+
     private static void CollectionUI()
     {
         static void OpenPopup()
@@ -433,7 +457,7 @@ public static partial class Workspace
             using (UI.BeginRow(new ContainerStyle
             {
                 Height = Size.Fit,
-                Color = EditorStyle.PanelOld.Root.Color,
+                Background = EditorStyle.PanelOld.Root.Background,
             }))
             {
                 // Left toolbar
@@ -463,7 +487,7 @@ public static partial class Workspace
                     CollectionUI();
             }
 
-            UI.Container(new ContainerStyle { Height = 1, Color = EditorStyle.PanelOld.Root.BorderColor });
+            UI.Container(new ContainerStyle { Height = 1, Background = EditorStyle.PanelOld.Root.BorderColor });
 
             // Content row
             using (UI.BeginFlex())
@@ -476,7 +500,7 @@ public static partial class Workspace
                     using (UI.BeginColumn(new ContainerStyle
                     {
                         Width = EditorStyle.Inspector.Root.Width,
-                        Color = EditorStyle.Palette.Panel,
+                        Background = EditorStyle.Palette.Panel,
                     }))
                         Inspector.UpdateUI();
                 }

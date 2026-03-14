@@ -335,7 +335,7 @@ public static partial class UI
             var menuContainer = new ContainerStyle()
             {
                 Size = Size2.Fit,
-                Color = _menuStyle.BackgroundColor,
+                Background = _menuStyle.BackgroundColor,
                 BorderRadius = _menuStyle.BorderRadius,
                 BorderWidth = _menuStyle.BorderWidth,
                 BorderColor = _menuStyle.BorderColor,

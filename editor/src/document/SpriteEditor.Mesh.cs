@@ -43,8 +43,8 @@ public partial class SpriteEditor
         var vertexOffset = 0;
         var indexOffset = 0;
 
-        // Collect subtract paths
-        var negativePaths = new PathsD();
+        // Collect subtract paths with their indices
+        List<(ushort Index, PathsD Contours)>? subtractEntries = null;
         for (ushort pi = 0; pi < shape.PathCount; pi++)
         {
             ref readonly var path = ref shape.GetPath(pi);
@@ -55,7 +55,10 @@ public partial class SpriteEditor
             subShape = ShapeClipper.Union(subShape);
             var contours = ShapeClipper.ShapeToPaths(subShape, 8);
             if (contours.Count > 0)
-                negativePaths.AddRange(contours);
+            {
+                subtractEntries ??= new();
+                subtractEntries.Add((pi, contours));
+            }
         }
 
         // Tessellate each normal/clip path
@@ -98,12 +101,23 @@ public partial class SpriteEditor
                         accumulatedPaths, accContours, FillRule.NonZero, precision: 6);
             }
 
-            // Apply subtract paths
-            if (negativePaths.Count > 0)
+            // Apply subtract paths (higher path index subtracts from lower)
+            if (subtractEntries != null)
             {
-                contours = Clipper.BooleanOp(ClipType.Difference,
-                    contours, negativePaths, FillRule.NonZero, precision: 6);
-                if (contours.Count == 0) continue;
+                PathsD? negativePaths = null;
+                foreach (var (subPi, subContours) in subtractEntries)
+                {
+                    if (subPi <= pi) continue;
+                    negativePaths ??= new PathsD();
+                    negativePaths.AddRange(subContours);
+                }
+
+                if (negativePaths is { Count: > 0 })
+                {
+                    contours = Clipper.BooleanOp(ClipType.Difference,
+                        contours, negativePaths, FillRule.NonZero, precision: 6);
+                    if (contours.Count == 0) continue;
+                }
             }
 
             var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;

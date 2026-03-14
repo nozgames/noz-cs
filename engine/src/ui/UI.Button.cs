@@ -9,7 +9,7 @@ public struct ButtonStyle()
     public Size Width = Size.Fit;
     public Size Height = Style.Widget.Height;
     public float MinWidth = 0;
-    public Color Color = Style.Palette.Background;
+    public BackgroundStyle Background = Style.Palette.Background;
     public Color ContentColor = Style.Palette.Content;
     public float FontSize = Style.Widget.FontSize;
     public float IconSize = Style.Widget.IconSize;
@@ -42,7 +42,7 @@ public static partial class UI
 
         ElementTree.BeginSize(new Size2(s.Width, s.Height));
 
-        ElementTree.BeginFill(s.Color, s.BorderRadius, s.BorderWidth, s.BorderColor);
+        ElementTree.BeginFill(s.Background, s.BorderRadius, s.BorderWidth, s.BorderColor);
 
         var hasPadding = !s.Padding.IsZero;
         if (hasPadding)
@@ -91,7 +91,7 @@ public static partial class UI
 
         ElementTree.BeginSize(new Size2(s.Width, s.Height));
 
-        ElementTree.BeginFill(s.Color, s.BorderRadius, s.BorderWidth, s.BorderColor);
+        ElementTree.BeginFill(s.Background, s.BorderRadius, s.BorderWidth, s.BorderColor);
 
         var hasPadding = !s.Padding.IsZero;
         if (hasPadding)

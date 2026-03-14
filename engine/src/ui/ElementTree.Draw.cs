@@ -58,8 +58,20 @@ public static partial class ElementTree
             case ElementType.Fill:
             {
                 ref var d = ref e.Data.Fill;
-                if (!d.Color.IsTransparent || d.BorderWidth > 0)
-                    DrawTexturedRect(e.Rect, t, null, ApplyOpacity(d.Color), d.Radius, d.BorderWidth, ApplyOpacity(d.BorderColor));
+                if (d.HasGradient)
+                {
+                    ComputeGradientColors(d.Color, d.GradientColor, d.GradientAngle, out var c0, out var c1, out var c2, out var c3);
+                    DrawGradientRect(e.Rect, t, ApplyOpacity(c0), ApplyOpacity(c1), ApplyOpacity(c2), ApplyOpacity(c3),
+                        d.Radius, d.BorderWidth, ApplyOpacity(d.BorderColor), order: d.Order);
+                }
+                else if (!d.Color.IsTransparent || d.BorderWidth > 0)
+                {
+                    DrawTexturedRect(e.Rect, t, null, ApplyOpacity(d.Color), d.Radius, d.BorderWidth, ApplyOpacity(d.BorderColor), order: d.Order);
+                }
+
+                if (d.HasSprite)
+                    DrawFillSprite(ref e);
+
                 break;
             }
 
@@ -183,6 +195,118 @@ public static partial class ElementTree
         Graphics.SetTexture(texture ?? Graphics.WhiteTexture, filter: texture?.Filter ?? TextureFilter.Point);
         Graphics.SetMesh(_mesh);
         Graphics.DrawElements(6, indexOffset, order: order);
+    }
+
+    private static void ComputeGradientColors(Color start, Color end, float angleDeg,
+        out Color c0, out Color c1, out Color c2, out Color c3)
+    {
+        var rad = angleDeg * MathF.PI / 180f;
+        var dx = MathF.Cos(rad);
+        var dy = MathF.Sin(rad);
+
+        // Project each corner UV onto the gradient direction, normalized to 0-1
+        // Corners: TL(0,0) TR(1,0) BR(1,1) BL(0,1)
+        static float Project(float uvX, float uvY, float dx, float dy)
+        {
+            var t = (uvX - 0.5f) * dx + (uvY - 0.5f) * dy + 0.5f;
+            return Math.Clamp(t, 0f, 1f);
+        }
+
+        c0 = Color.Mix(start, end, Project(0, 0, dx, dy)); // TL
+        c1 = Color.Mix(start, end, Project(1, 0, dx, dy)); // TR
+        c2 = Color.Mix(start, end, Project(1, 1, dx, dy)); // BR
+        c3 = Color.Mix(start, end, Project(0, 1, dx, dy)); // BL
+    }
+
+    private static void DrawGradientRect(
+        in Rect rect,
+        in Matrix3x2 transform,
+        Color c0, Color c1, Color c2, Color c3,
+        BorderRadius borderRadius = default,
+        float borderWidth = 0,
+        Color borderColor = default,
+        ushort order = 0)
+    {
+        var vertexOffset = _vertices.Length;
+        var indexOffset = _indices.Length;
+
+        if (!_vertices.CheckCapacity(4) || !_indices.CheckCapacity(6))
+            return;
+
+        var w = rect.Width;
+        var h = rect.Height;
+
+        var maxR = MathF.Min(w, h) / 2;
+        var radii = new Vector4(
+            MathF.Min(borderRadius.TopLeft, maxR),
+            MathF.Min(borderRadius.TopRight, maxR),
+            MathF.Min(borderRadius.BottomLeft, maxR),
+            MathF.Min(borderRadius.BottomRight, maxR));
+        var rectSize = new Vector2(w, h);
+
+        var p0 = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
+        var p1 = Vector2.Transform(new Vector2(rect.X + w, rect.Y), transform);
+        var p2 = Vector2.Transform(new Vector2(rect.X + w, rect.Y + h), transform);
+        var p3 = Vector2.Transform(new Vector2(rect.X, rect.Y + h), transform);
+
+        _vertices.Add(new UIVertex
+        {
+            Position = p0, UV = new Vector2(0, 0), Normal = rectSize,
+            Color = c0, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+        });
+        _vertices.Add(new UIVertex
+        {
+            Position = p1, UV = new Vector2(1, 0), Normal = rectSize,
+            Color = c1, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+        });
+        _vertices.Add(new UIVertex
+        {
+            Position = p2, UV = new Vector2(1, 1), Normal = rectSize,
+            Color = c2, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+        });
+        _vertices.Add(new UIVertex
+        {
+            Position = p3, UV = new Vector2(0, 1), Normal = rectSize,
+            Color = c3, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+        });
+
+        _indices.Add((ushort)vertexOffset);
+        _indices.Add((ushort)(vertexOffset + 1));
+        _indices.Add((ushort)(vertexOffset + 2));
+        _indices.Add((ushort)(vertexOffset + 2));
+        _indices.Add((ushort)(vertexOffset + 3));
+        _indices.Add((ushort)vertexOffset);
+
+        using var _ = Graphics.PushState();
+        Graphics.SetTexture(Graphics.WhiteTexture, filter: TextureFilter.Point);
+        Graphics.SetMesh(_mesh);
+        Graphics.DrawElements(6, indexOffset, order: order);
+    }
+
+    private static void DrawFillSprite(ref Element e)
+    {
+        ref var d = ref e.Data.Fill;
+        ref var t = ref e.Transform;
+        var sprite = (Sprite?)_assets[d.SpriteAsset];
+        if (sprite == null) return;
+
+        using var _ = Graphics.PushState();
+        Graphics.SetColor(ApplyOpacity(d.SpriteColor));
+        Graphics.SetTextureFilter(sprite.TextureFilter);
+
+        if (sprite.IsSliced)
+        {
+            Graphics.SetTransform(t);
+            Graphics.DrawSliced(sprite, e.Rect, order: d.Order);
+        }
+        else
+        {
+            var scale = new Vector2(e.Rect.Width / sprite.Bounds.Width, e.Rect.Height / sprite.Bounds.Height);
+            var offset = e.Rect.Position - new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+            var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+            Graphics.SetTransform(transform);
+            Graphics.DrawFlat(sprite, order: d.Order, bone: -1);
+        }
     }
 
     internal static void Flush()

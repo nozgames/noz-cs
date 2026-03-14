@@ -969,6 +969,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                 if (UI.Button(WidgetIds.AddGenerationButton, "+ Generation", EditorAssets.Sprites.IconAi, EditorStyle.Button.Secondary with { Width = Size.Percent(1), MinWidth = 0 }))
                 {
                     Undo.Record(Document);
+                    Document.HasGeneration = true;
                     Document.Prompt = " ";
                     Document.Seed = GenerateRandomSeed();
                     Document.ConstrainedSize ??= new Vector2Int(256, 256);
@@ -1079,7 +1080,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             {
                 Width = Size.Percent(1),
                 Height = 4f,
-                Color = EditorStyle.Palette.Active,
+                Background = EditorStyle.Palette.Active,
                 BorderRadius = 2f
             }))
             {
@@ -1087,7 +1088,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                 {
                     Width = Size.Percent(genImage.GenerationProgress),
                     Height = 4f,
-                    Color = EditorStyle.Palette.Primary,
+                    Background = EditorStyle.Palette.Primary,
                     BorderRadius = 2f
                 });
             }
@@ -1113,6 +1114,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void RemoveGeneration()
     {
         Undo.Record(Document);
+        Document.HasGeneration = false;
         Document.Prompt = "";
         Document.NegativePrompt = "";
         Document.Seed = "";

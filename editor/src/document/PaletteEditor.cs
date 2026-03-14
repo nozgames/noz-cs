@@ -66,7 +66,7 @@ internal partial class PaletteEditor : DocumentEditor
                         {
                             UI.Container(new ContainerStyle
                             {
-                                Color = color,
+                                Background = color,
                                 BorderRadius = EditorStyle.Control.BorderRadius - 2
                             });
 

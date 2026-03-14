@@ -284,7 +284,7 @@ internal static partial class ColorPicker
         UI.Container(new ContainerStyle
         {
             Size = ThumbSize,
-            Color = color,
+            Background = color,
             BorderRadius = ThumbRadius,
             BorderColor = borderColor,
             BorderWidth = 1.5f,
@@ -297,7 +297,7 @@ internal static partial class ColorPicker
         var container = UI.BeginContainer(id, new ContainerStyle
         {
             Padding = EdgeInsets.All(3),
-            Color = selected ? EditorStyle.Palette.Primary : Color.Transparent,
+            Background = selected ? EditorStyle.Palette.Primary : Color.Transparent,
             BorderRadius = EditorStyle.Control.BorderRadius
         });
 
@@ -338,7 +338,7 @@ internal static partial class ColorPicker
                 {
                     UI.Container(new ContainerStyle
                     {
-                        Color = swatchColor,
+                        Background = swatchColor,
                         BorderRadius = EditorStyle.Control.BorderRadius - 2
                     });
 
@@ -369,7 +369,7 @@ internal static partial class ColorPicker
             BorderWidth = 1.5f,
             BorderColor = Color.White,
             BorderRadius = size,
-            Color = Color.Transparent,
+            Background = Color.Transparent,
             Margin = new EdgeInsets(y - size, x - size, 0, 0)
         });
     }
