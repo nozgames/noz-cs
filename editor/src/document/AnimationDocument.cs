@@ -911,7 +911,7 @@ internal class AnimationDocument : Document
             frame1 = Math.Min(frame1, FrameCount - 1);
     }
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {           
         using var writer = new BinaryWriter(File.Create(outputPath));
 

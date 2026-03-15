@@ -119,8 +119,8 @@ public static class AtlasManager
         if (source.Atlas.TryUpdate(source))
         {
             source.Atlas.Update(source, pixels);
-            source.Reimport();
-            source.Atlas.Reimport();
+            source.Reexport();
+            source.Atlas.Reexport();
             return;
         }
 
@@ -131,11 +131,11 @@ public static class AtlasManager
 
         // Update both the old atlas (to clear the old rect) and the new one
         oldAtlas.Update();
-        oldAtlas.Reimport();
+        oldAtlas.Reexport();
         if (source.Atlas != oldAtlas)
         {
             source.Atlas!.Update(source, pixels);
-            source.Atlas.Reimport();
+            source.Atlas.Reexport();
         }
     }
 
@@ -157,13 +157,13 @@ public static class AtlasManager
         {
             source.Atlas.Remove(source);
             source.Atlas.Update();
-            source.Atlas.Reimport();
+            source.Atlas.Reexport();
             source.Atlas = null;
             source.ClearAtlasUVs();
         }
 
         _sources.Remove(source);
-        source.Reimport();
+        source.Reexport();
     }
 
     private static void Add(ISpriteSource source)

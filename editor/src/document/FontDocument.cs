@@ -58,7 +58,7 @@ public class FontDocument : Document
 
     private bool ImportAll => Characters == "*";
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
 

@@ -1019,7 +1019,7 @@ public partial class SpriteDocument : Document, ISpriteSource, IShapeDocument
         _sprite = null;
     }
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {
         Binding.Resolve();
         UpdateBounds();

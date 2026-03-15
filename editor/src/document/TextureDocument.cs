@@ -213,7 +213,7 @@ public class TextureDocument : Document, ISpriteSource
         }
     }
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {
         if (IsSprite)
         {

@@ -2,6 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Collections.Concurrent;
+using System.Net.Http;
+
 namespace NoZ.Editor;
 
 public static class DocumentManager
@@ -10,6 +13,12 @@ public static class DocumentManager
     private static readonly List<string> _sourcePaths = [];
     private static string _outputPath = "";
     private static bool _initialized;
+
+    private static readonly Queue<Document> _exportQueue = [];
+    private static readonly Queue<Document> _exportDeferred = [];
+    private static readonly List<FileSystemWatcher> _watchers = [];
+    private static readonly ConcurrentQueue<string> _watcherQueue = [];
+    private static bool _watching;
 
     public static IReadOnlyList<Document> Documents => _documents;
     public static IReadOnlyList<string> SourcePaths => _sourcePaths;
@@ -21,6 +30,7 @@ public static class DocumentManager
     public delegate void DocumentAddedDelegate(Document doc);
 
     public static event DocumentAddedDelegate? DocumentAdded;
+    public static event Action<Document>? OnExported;
 
     public static void NotifyDocumentAdded(Document doc) => DocumentAdded?.Invoke(doc);
 
@@ -42,13 +52,31 @@ public static class DocumentManager
         Directory.CreateDirectory(outputPath);
 
         InitDocuments();
+    }
 
-        Importer.OnImported += OnImported;
+    public static void InitExports(bool clean = false)
+    {
+        if (clean)
+            Log.Info("Clean build requested, exporting all assets...");
+
+        foreach (var doc in _documents)
+            QueueExport(doc, clean);
+
+        UpdateExports();
+
+        foreach (var sourcePath in _sourcePaths)
+            if (Directory.Exists(sourcePath))
+                StartWatching(sourcePath);
+
+        _watching = true;
     }
 
     public static void Shutdown()
     {
-        Importer.OnImported -= OnImported;
+        foreach (var watcher in _watchers)
+            watcher.Dispose();
+        _watchers.Clear();
+
         _initialized = false;
         _documents.Clear();
         _sourcePaths.Clear();
@@ -79,7 +107,7 @@ public static class DocumentManager
             if (def.NewFile != null)
                 yield return def;
     }
-    
+
     public static Document? Create(string path)
     {
         string ext = Path.GetExtension(path);
@@ -202,7 +230,7 @@ public static class DocumentManager
         _initialized = true;
     }
 
-    private static void OnImported(Document doc)
+    private static void OnDocumentExported(Document doc)
     {
         if (!_initialized)
             return;
@@ -233,7 +261,7 @@ public static class DocumentManager
             if (doc.IsVisible)
                 count++;
 
-            doc.SilentImport = true;
+            doc.SilentExport = true;
             doc.Save();
             doc.SaveMetadata();
         }
@@ -390,14 +418,14 @@ public static class DocumentManager
         if (File.Exists(metaPath))
             File.Copy(metaPath, newPath + ".meta");
 
-        Importer.Queue(newPath);
-        Importer.Update();
+        QueueExport(newPath);
+        UpdateExports();
 
         var doc = Find(source.Def.Type, newName);
         if (doc == null) return null;
 
-        // The importer already loads, post-loads, and fires DocumentAdded via OnImported.
-        // Only do it manually if the importer didn't get to it (e.g. skipped by timestamp).
+        // The export already loads, post-loads, and fires DocumentAdded via OnExported.
+        // Only do it manually if the export didn't get to it (e.g. skipped by timestamp).
         if (!doc.PostLoaded)
         {
             doc.LoadMetadata();
@@ -410,5 +438,218 @@ public static class DocumentManager
         doc.Position = source.Position;
 
         return doc;
+    }
+
+    // --- Export pipeline (moved from Importer.cs) ---
+
+    public static void QueueExport(Document? doc, bool force = false)
+    {
+        if (doc == null) return;
+        if (doc.IsQueuedForExport) return;
+        if (!File.Exists(doc.Path)) return;
+
+        var targetPath = GetTargetPath(doc);
+        var metaPath = doc.Path + ".meta";
+
+        if (!force)
+        {
+            bool targetExists = File.Exists(targetPath);
+            if (targetExists)
+            {
+                // Force export if the binary's version doesn't match the engine's expected version
+                var assetDef = Asset.GetDef(doc.Def.Type);
+                if (assetDef is { Version: > 0 } && Asset.ReadAssetVersion(targetPath) != assetDef.Version)
+                    force = true;
+
+                if (!force)
+                {
+                    var targetTime = File.GetLastWriteTimeUtc(targetPath);
+                    var sourceTime = File.GetLastWriteTimeUtc(doc.Path);
+                    var metaTime = File.Exists(metaPath) ? File.GetLastWriteTimeUtc(metaPath) : DateTime.MinValue;
+
+                    if (sourceTime <= targetTime && metaTime <= targetTime)
+                        return;
+                }
+            }
+        }
+
+        doc.IsQueuedForExport = true;
+        _exportQueue.Enqueue(doc);
+    }
+
+    public static void QueueExport(string path)
+    {
+        var ext = Path.GetExtension(path);
+        var def = GetDef(ext);
+        if (def == null)
+            return;
+
+        var name = MakeCanonicalName(path);
+        QueueExport(Find(def.Type, name) ?? Create(path));
+    }
+
+    private static bool IsFileReady(string path)
+    {
+        try
+        {
+            using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None);
+            return stream.Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void Export(Document doc)
+    {
+        try
+        {
+            if (!File.Exists(doc.Path))
+                return;
+
+            if (_watching && !IsFileReady(doc.Path))
+            {
+                _exportDeferred.Enqueue(doc);
+                return;
+            }
+
+            var metaPath = doc.Path + ".meta";
+            var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
+            var targetDir = GetTargetPath(doc);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(targetDir) ?? "");
+
+            doc.Export(targetDir, meta);
+
+            Log.Info($"Exported {(Asset.GetDef(doc.Def.Type)?.Name ?? doc.Def.Type.ToString()).ToLowerInvariant()}/{doc.Name}");
+            OnExported?.Invoke(doc);
+            OnDocumentExported(doc);
+            doc.SilentExport = false;
+            AssetManifest.IsModified = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to export '{doc.Name}': {ex.Message}");
+        }
+    }
+
+    private static void StartWatching(string path)
+    {
+        var watcher = new FileSystemWatcher(path)
+        {
+            IncludeSubdirectories = true,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime
+        };
+
+        watcher.Changed += OnFileChanged;
+        watcher.Created += OnFileChanged;
+        watcher.Renamed += OnFileRenamed;
+
+        watcher.EnableRaisingEvents = true;
+        _watchers.Add(watcher);
+    }
+
+    private static void OnFileChanged(object sender, FileSystemEventArgs e) =>
+        HandleFileChange(e.FullPath);
+
+    private static void OnFileRenamed(object sender, RenamedEventArgs e) =>
+        HandleFileChange(e.FullPath);
+
+    private static void HandleFileChange(string path) =>
+        _watcherQueue.Enqueue(Path.GetExtension(path) == ".meta" ? path[..^5] : path);
+
+    public static async Task GenerateSpritesAsync(CancellationToken ct = default)
+    {
+        var sprites = _documents
+            .OfType<SpriteDocument>()
+            .Where(s => s.NeedsGeneration)
+            .ToList();
+
+        if (sprites.Count == 0)
+            return;
+
+        Log.Info($"Generating images for {sprites.Count} sprite(s)...");
+
+        foreach (var sprite in sprites)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            Log.Info($"Generating '{sprite.Name}'...");
+
+            try
+            {
+                var request = sprite.BuildGenerationRequest();
+                var status = await GenerationClient.GenerateAsync(request, cancellationToken: ct);
+
+                if (status.State == GenerationState.Completed)
+                {
+                    sprite.ApplyGenerationResult(status, createTexture: false);
+                    sprite.Save();
+                    QueueExport(sprite, force: true);
+                }
+                else
+                {
+                    Log.Error($"Generation failed for '{sprite.Name}': {status.Error}");
+
+                    if (status.Error != null && (status.Error.Contains("HttpRequestException") ||
+                        status.Error.Contains("Connection refused") ||
+                        status.Error.Contains("No connection") ||
+                        status.Error.Contains("actively refused")))
+                    {
+                        var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
+                        Log.Error($"Generation server not available at {server}. Skipping remaining sprite generations.");
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Generation error for '{sprite.Name}': {ex.Message}");
+
+                if (ex is HttpRequestException)
+                {
+                    var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
+                    Log.Error($"Generation server not available at {server}. Skipping remaining sprite generations.");
+                    break;
+                }
+            }
+        }
+
+        UpdateExports();
+    }
+
+    public static void QueueGenerations()
+    {
+        var sprites = _documents
+            .OfType<SpriteDocument>()
+            .Where(s => s.NeedsGeneration)
+            .ToList();
+
+        if (sprites.Count == 0)
+            return;
+
+        Notifications.Add($"Generating images for {sprites.Count} sprite(s)...");
+
+        foreach (var sprite in sprites)
+            sprite.GenerateAsync();
+    }
+
+    public static void UpdateExports()
+    {
+        while (_watcherQueue.TryDequeue(out var path))
+            QueueExport(path);
+
+        while (_exportDeferred.Count > 0)
+            _exportQueue.Enqueue(_exportDeferred.Dequeue());
+
+        while (_exportQueue.Count > 0)
+        {
+            var doc = _exportQueue.Dequeue();
+            doc.IsQueuedForExport = false;
+            if (doc.IsDisposed) continue;
+            Export(doc);
+        }
     }
 }

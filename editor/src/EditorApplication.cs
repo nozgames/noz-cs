@@ -30,7 +30,7 @@ internal class EditorApplicationInstance : IApplication
 
     public void LoadAssets()
     {
-        Importer.Update();
+        DocumentManager.UpdateExports();
         EditorAssets.LoadAssets();
         EditorApplication.PostLoad();
     }
@@ -54,7 +54,7 @@ public static partial class EditorApplication
     {
         AppConfig = config;
         var initProject = false;
-        var importOnly = false;
+        var exportOnly = false;
         string? initProjectName = null;
         var clean = false;
         string? projectArg = null;
@@ -68,8 +68,8 @@ public static partial class EditorApplication
                 if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                     initProjectName = args[++i];
             }
-            else if (args[i] == "--import")
-                importOnly = true;
+            else if (args[i] == "--export" || args[i] == "--import")
+                exportOnly = true;
             else if (args[i] == "--project" && i + 1 < args.Length)
                 projectArg = args[++i];
             else if (args[i] == "--editor-path" && i + 1 < args.Length)
@@ -80,7 +80,7 @@ public static partial class EditorApplication
 
         // For CLI modes on Windows, attach to parent console so Console.WriteLine output is visible
         // (WinExe has no console by default; Linux/Mac don't need this)
-        if ((importOnly || initProject) && OperatingSystem.IsWindows())
+        if ((exportOnly || initProject) && OperatingSystem.IsWindows())
             AttachConsole(-1);
 
         // Resolve editor path: use --editor-path if provided, otherwise walk up from app base directory
@@ -145,7 +145,7 @@ public static partial class EditorApplication
                 ProjectInitializer.Initialize(projectPath, projectName, editorPath);
 
                 Log.Info("");
-                Log.Info("Importing assets...");
+                Log.Info("Exporting assets...");
                 Init(editorPath, projectPath, false, config);
 
                 Log.Info($"Project '{projectName}' initialized successfully at {projectPath}");
@@ -194,13 +194,13 @@ public static partial class EditorApplication
 
         Init(editorPath, projectPath, clean, config);
 
-        // Import-only mode: import assets and exit without launching GUI
-        if (importOnly)
+        // Export-only mode: export assets and exit without launching GUI
+        if (exportOnly)
         {
-            Importer.GenerateSpritesAsync().GetAwaiter().GetResult();
+            DocumentManager.GenerateSpritesAsync().GetAwaiter().GetResult();
 
-            Log.Info("Import complete.");
-            Importer.Shutdown();
+            Log.Info("Export complete.");
+            DocumentManager.Shutdown();
             return;
         }
 
@@ -274,7 +274,7 @@ public static partial class EditorApplication
         DocumentManager.LoadAll();
         PaletteManager.DiscoverPalettes();
         AtlasManager.Init();
-        Importer.Init(clean);
+        DocumentManager.InitExports(clean);
         AssetManifest.Generate();
     }
 
@@ -293,7 +293,7 @@ public static partial class EditorApplication
         UserSettings.Load();
 
         DocumentManager.SaveAll();
-        Importer.QueueGenerations();
+        DocumentManager.QueueGenerations();
     }
 
     private static void Shutdown()
@@ -308,7 +308,6 @@ public static partial class EditorApplication
         EditorStyle.Shutdown();
         CollectionManager.Shutdown();
         PaletteManager.Shutdown();
-        Importer.Shutdown();
         DocumentManager.Shutdown();
         Config = null!;
     }
@@ -325,7 +324,7 @@ public static partial class EditorApplication
             while (_mainThreadQueue.Count > 0)
                 _mainThreadQueue.Dequeue().Invoke();
 
-        Importer.Update();
+        DocumentManager.UpdateExports();
         ConfirmDialog.Update();
         CommandPalette.Update();
         PopupMenu.Update();

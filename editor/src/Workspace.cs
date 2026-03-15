@@ -151,10 +151,10 @@ public static partial class Workspace
         Notifications.Add("Asset manifest generated");
     }   
 
-    private static void ReimportAll()
+    private static void ExportAll()
     {
         foreach (var doc in DocumentManager.Documents)
-            Importer.Queue(doc, true);
+            DocumentManager.QueueExport(doc, true);
 
         AssetManifest.Generate(force: true);
     }
@@ -213,7 +213,7 @@ public static partial class Workspace
             new() { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new() { Name = "Frame", Handler = FrameSelected, Key = InputCode.KeyF },
             new() { Name = "Generate Selected", Handler = GenerateSelected, Key = InputCode.KeyG, Ctrl = true },
-            new() { Name = "Reimport All", Handler = ReimportAll },
+            new() { Name = "Export All", Handler = ExportAll },
             new() { Name = "Generate Manifest", Handler = GenerateManifest },
             new() { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
             new() { Name = "Show/Hide Hidden Assets", Handler = ToggleShowHidden },

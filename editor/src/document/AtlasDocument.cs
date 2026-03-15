@@ -346,7 +346,7 @@ internal class AtlasDocument : Document
 
         source.Atlas = this;
         source.UpdateAtlasUVs(this, Rects, Padding);
-        source.Reimport();
+        source.Reexport();
         return true;
     }
 
@@ -500,7 +500,7 @@ internal class AtlasDocument : Document
         }
     }
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Atlas, Atlas.Version, 0);

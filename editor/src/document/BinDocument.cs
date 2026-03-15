@@ -18,7 +18,7 @@ public class BinDocument : Document
         });
     }
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {
         var data = File.ReadAllBytes(Path);
         using var writer = new BinaryWriter(File.Create(outputPath));

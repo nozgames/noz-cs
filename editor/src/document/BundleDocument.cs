@@ -97,7 +97,7 @@ public class BundleDocument : Document
         }
     }
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Bundle, AssetBundle.Version);
@@ -119,7 +119,7 @@ public class BundleDocument : Document
             var tempPath = System.IO.Path.GetTempFileName();
             try
             {
-                doc.Import(tempPath, new PropertySet());
+                doc.Export(tempPath, new PropertySet());
                 var data = File.ReadAllBytes(tempPath);
                 writer.Write(data.Length);
                 writer.Write(data);

@@ -20,5 +20,5 @@ internal interface ISpriteSource
 
     void ClearAtlasUVs();
 
-    void Reimport();
+    void Reexport();
 }

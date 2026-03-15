@@ -35,20 +35,20 @@ public static class Notifications
         _head = 0;
         _count = 0;
 
-        Importer.OnImported += OnImported;
+        DocumentManager.OnExported += OnExported;
     }
 
     public static void Shutdown()
     {
-        Importer.OnImported -= OnImported;
+        DocumentManager.OnExported -= OnExported;
     }
 
-    private static void OnImported(Document doc)
+    private static void OnExported(Document doc)
     {
-        if (doc.SilentImport)
+        if (doc.SilentExport)
             return;
 
-        AddDeferred(NotificationType.Info, $"imported '{doc.Name}'");
+        AddDeferred(NotificationType.Info, $"exported '{doc.Name}'");
     }
 
     public static void Add(NotificationType type, string text, Sprite? icon = null)

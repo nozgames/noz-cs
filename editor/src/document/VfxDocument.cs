@@ -126,7 +126,7 @@ public class VfxDocument : Document
         BuildVfx();
     }
 
-    public override void Import(string outputPath, PropertySet meta)
+    public override void Export(string outputPath, PropertySet meta)
     {
         // Re-parse the text file (hot-reload entry point)
         ParseVfxFile();

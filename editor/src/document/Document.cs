@@ -26,7 +26,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public Matrix3x2 Transform => Matrix3x2.CreateTranslation(Position);
     
     public bool IsHiddenInWorkspace { get; set; }
-    public bool IsQueuedForImport { get; internal set; }
+    public bool IsQueuedForExport { get; internal set; }
     public bool IsDisposed { get; private set; }
     public bool IsVisible { get; set; } = true;
     public bool IsSelected { get; set; }
@@ -36,7 +36,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public bool Loaded { get; set; }
     public bool PostLoaded { get; set; }
     public bool IsEditorOnly { get; set; }
-    public bool SilentImport { get; set; }
+    public bool SilentExport { get; set; }
 
     public virtual void Load() { }
     public virtual void Save(StreamWriter sw) { }
@@ -44,7 +44,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public virtual void PostLoad() { }
     public virtual void LoadMetadata(PropertySet meta) { }
     public virtual void SaveMetadata(PropertySet meta) { }
-    public virtual void Import(string outputPath, PropertySet meta) { }
+    public virtual void Export(string outputPath, PropertySet meta) { }
     public virtual void GetDependencies(List<(AssetType Type, string Name)> dependencies) { }
     public virtual void Draw() { }
     public virtual void Clone(Document source) { }
@@ -131,7 +131,7 @@ public abstract class Document : IDisposable, IChangeHandler
                 order: 1);
     }
 
-    public void Reimport()
+    public void Reexport()
     {
         if (File.Exists(Path))
             File.SetLastWriteTimeUtc(Path, DateTime.UtcNow);
