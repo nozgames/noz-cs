@@ -249,7 +249,6 @@ public static partial class EditorApplication
         config.RegisterAssetTypes?.Invoke();
 
         AtlasDocument.RegisterDef();
-        TextureDocument.RegisterDef();
         ShaderDocument.RegisterDef();
         SoundDocument.RegisterDef();
         SpriteDocument.RegisterDef();

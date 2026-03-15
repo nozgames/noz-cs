@@ -85,7 +85,8 @@ public static class DocumentManager
     public static void RegisterDef(DocumentDef def)
     {
         _defsByType[def.Type] = def;
-        _defsByExtension[def.Extension] = def;
+        foreach (var ext in def.Extensions)
+            _defsByExtension[ext] = def;
     }
 
     public static DocumentDef? GetDef(AssetType type)
@@ -152,7 +153,7 @@ public static class DocumentManager
         var canonicalName = MakeCanonicalName(name);
         if (Find(assetType, canonicalName) != null)
             return null;
-        var path = Path.Combine(_sourcePaths[0], typeName, canonicalName + def.Extension);
+        var path = Path.Combine(_sourcePaths[0], typeName, canonicalName + def.Extensions[0]);
         if (File.Exists(path))
             return null;
 
@@ -276,6 +277,18 @@ public static class DocumentManager
             AssetManifest.Generate();
     }
 
+    private static IEnumerable<string> GetCompanionFiles(Document doc)
+    {
+        var directory = Path.GetDirectoryName(doc.Path) ?? "";
+        var stem = Path.GetFileNameWithoutExtension(doc.Path);
+        foreach (var ext in doc.Def.Extensions)
+        {
+            var path = Path.Combine(directory, stem + ext);
+            if (File.Exists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
+                yield return path;
+        }
+    }
+
     public static bool Rename(Document doc, string name)
     {
         var canonicalName = MakeCanonicalName(name);
@@ -286,9 +299,17 @@ public static class DocumentManager
         if (directory == null)
             return false;
 
-        var newPath = Path.Combine(directory, canonicalName + doc.Def.Extension);
+        var newPath = Path.Combine(directory, canonicalName + doc.Def.Extensions[0]);
         if (File.Exists(newPath))
             return false;
+
+        // Rename companion files (e.g., .png alongside .sprite)
+        foreach (var companionPath in GetCompanionFiles(doc).ToList())
+        {
+            var companionExt = Path.GetExtension(companionPath);
+            var newCompanionPath = Path.Combine(directory, canonicalName + companionExt);
+            File.Move(companionPath, newCompanionPath);
+        }
 
         var oldMetaPath = doc.Path + ".meta";
         var newMetaPath = newPath + ".meta";
@@ -310,6 +331,10 @@ public static class DocumentManager
     public static void Delete(Document doc)
     {
         Undo.RemoveDocument(doc);
+
+        // Delete companion files
+        foreach (var companionPath in GetCompanionFiles(doc).ToList())
+            File.Delete(companionPath);
 
         if (File.Exists(doc.Path))
             File.Delete(doc.Path);
@@ -414,6 +439,15 @@ public static class DocumentManager
 
         File.Copy(source.Path, newPath);
 
+        // Copy companion files
+        var newStem = Path.GetFileNameWithoutExtension(newPath);
+        var newDir = Path.GetDirectoryName(newPath) ?? "";
+        foreach (var companionPath in GetCompanionFiles(source))
+        {
+            var companionExt = Path.GetExtension(companionPath);
+            File.Copy(companionPath, Path.Combine(newDir, newStem + companionExt));
+        }
+
         var metaPath = source.Path + ".meta";
         if (File.Exists(metaPath))
             File.Copy(metaPath, newPath + ".meta");
@@ -445,6 +479,7 @@ public static class DocumentManager
     public static void QueueExport(Document? doc, bool force = false)
     {
         if (doc == null) return;
+        if (!doc.ShouldExport) return;
         if (doc.IsQueuedForExport) return;
         if (!File.Exists(doc.Path)) return;
 

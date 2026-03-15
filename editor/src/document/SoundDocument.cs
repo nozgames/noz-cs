@@ -17,7 +17,7 @@ public class SoundDocument : Document
         {
             Type = AssetType.Sound,
             Name = "Sound",
-            Extension = ".wav",
+            Extensions = [".wav"],
             Factory = () => new SoundDocument()
         });
     }

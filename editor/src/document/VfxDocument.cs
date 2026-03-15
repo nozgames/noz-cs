@@ -91,7 +91,7 @@ public class VfxDocument : Document
         {
             Type = AssetType.Vfx,
             Name = "Vfx",
-            Extension = ".vfx",
+            Extensions = [".vfx"],
             Factory = () => new VfxDocument(),
             EditorFactory = doc => new VfxEditor((VfxDocument)doc),
             NewFile = writer =>

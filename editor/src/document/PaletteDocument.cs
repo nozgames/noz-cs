@@ -21,7 +21,7 @@ public class PaletteDocument : Document
         {
             Type = PaletteAssetType,
             Name = "Palette",
-            Extension = ".pal",
+            Extensions = [".pal"],
             Factory = () => new PaletteDocument(),
             EditorFactory = doc => new PaletteEditor((PaletteDocument)doc),
             NewFile = NewFile,
@@ -39,7 +39,7 @@ public class PaletteDocument : Document
 
     public override void Load()
     {
-        IsEditorOnly = true;
+        ShouldExport = false;
         ParsePalFile();
     }
 

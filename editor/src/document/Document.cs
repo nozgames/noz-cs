@@ -35,7 +35,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public bool IsClipped { get; set; }
     public bool Loaded { get; set; }
     public bool PostLoaded { get; set; }
-    public bool IsEditorOnly { get; set; }
+    public bool ShouldExport { get; set; } = true;
     public bool SilentExport { get; set; }
 
     public virtual void Load() { }
@@ -70,6 +70,8 @@ public abstract class Document : IDisposable, IChangeHandler
         props.SetVec2("editor", "position", Position);
         if (!string.IsNullOrEmpty(CollectionId))
             props.SetString("editor", "collection", CollectionId);
+        if (!ShouldExport)
+            props.SetBool("editor", "export", false);
         SaveMetadata(props);
         props.Save(metaPath);
     }
@@ -81,6 +83,7 @@ public abstract class Document : IDisposable, IChangeHandler
         Position = props.GetVector2("editor", "position", default);
         var collectionId = props.GetString("editor", "collection", "");
         CollectionId = CollectionManager.GetIdOrDefault(collectionId);
+        ShouldExport = props.GetBool("editor", "export", true);
         LoadMetadata(props);        
     }
 

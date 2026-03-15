@@ -38,6 +38,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId LayerSeedDice { get; }
         public static partial WidgetId AddGenerationButton { get; }
         public static partial WidgetId RemoveGenerationButton { get; }
+        public static partial WidgetId ExportToggle { get; }
     }
 
     private static readonly WordGenerator _wordGenerator = new();
@@ -64,26 +65,36 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         _versionOnOpen = doc.Version;
         _shapeEditor = new ShapeEditor(this);
 
-        Commands =
-        [
-            .._shapeEditor.GetCommands(),
-            new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
-            new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true },
-            new Command { Name = "Flip Horizontal", Handler = FlipHorizontal },
-            new Command { Name = "Flip Vertical", Handler = FlipVertical },
-            new Command { Name = "Bring Forward", Handler = MovePathUp, Key = InputCode.KeyLeftBracket },
-            new Command { Name = "Send Backward", Handler = MovePathDown, Key = InputCode.KeyRightBracket },
-            new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
-            new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
-            new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
-            new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI },
-            new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO },
-            new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
-            new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
-            new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
-            new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
-            new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
-        ];
+        if (doc.IsMutable)
+        {
+            Commands =
+            [
+                .._shapeEditor.GetCommands(),
+                new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
+                new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true },
+                new Command { Name = "Flip Horizontal", Handler = FlipHorizontal },
+                new Command { Name = "Flip Vertical", Handler = FlipVertical },
+                new Command { Name = "Bring Forward", Handler = MovePathUp, Key = InputCode.KeyLeftBracket },
+                new Command { Name = "Send Backward", Handler = MovePathDown, Key = InputCode.KeyRightBracket },
+                new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
+                new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
+                new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
+                new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI },
+                new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO },
+                new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
+                new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
+                new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
+                new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
+                new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
+            ];
+        }
+        else
+        {
+            Commands =
+            [
+                new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
+            ];
+        }
     }
 
     public int CurrentTimeSlot => _currentTimeSlot;
@@ -94,7 +105,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         _shapeEditor.ClearSelection();
         EditorUI.ClosePopup();
 
-        if (Document.Version != _versionOnOpen)
+        if (Document.Version != _versionOnOpen && Document.Atlas != null)
             AtlasManager.UpdateSource(Document);
 
         base.Dispose();
@@ -112,6 +123,14 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     public override void Update()
     {
+        if (!Document.IsMutable)
+        {
+            // Immutable sprites just draw the image preview
+            Document.DrawBounds(true);
+            Document.Draw();
+            return;
+        }
+
         UpdateAnimation();
         _shapeEditor.HandleDeleteKey();
 
@@ -148,6 +167,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     public override void LateUpdate()
     {
+        if (!Document.IsMutable) return;
+
         if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
             _shapeEditor.HandleDragStart();
         else if (Input.WasButtonReleased(InputCode.MouseLeft))
@@ -162,6 +183,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     public override void UpdateUI()
     {
+        if (!Document.IsMutable) return;
+
         using (UI.BeginColumn())
         {
             UI.Flex();
@@ -835,6 +858,22 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         using var _ = Inspector.BeginSection("SPRITE");
         if (Inspector.IsSectionCollapsed) return;
 
+        if (!Document.IsReference)
+        {
+            using (Inspector.BeginProperty("Export"))
+            {
+                var shouldExport = Document.ShouldExport;
+                UI.SetChecked(shouldExport);
+                if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+                {
+                    shouldExport = !shouldExport;
+                    Undo.Record(Document);
+                    Document.ShouldExport = shouldExport;
+                    AssetManifest.IsModified = true;
+                }
+            }
+        }
+
         using (Inspector.BeginProperty("Size"))
         {
             var sizes = EditorApplication.Config.SpriteSizes;
@@ -954,8 +993,12 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     public override void InspectorUI()
     {
         SpriteInspectorUI();
-        PathInspectorUI();
-        GenerationInspectorUI();
+
+        if (Document.IsMutable)
+        {
+            PathInspectorUI();
+            GenerationInspectorUI();
+        }
     }
 
     #region Generation
@@ -1224,7 +1267,4 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     void IShapeEditorHost.ForEachEditableShape(Action<Shape> action)
     {
         action(CurrentShape);
-    }
-
-    #endregion
-}
+  

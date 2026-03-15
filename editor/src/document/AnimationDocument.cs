@@ -115,7 +115,7 @@ internal class AnimationDocument : Document
         {
             Type = AssetType.Animation,
             Name = "Animation",
-            Extension = ".anim",
+            Extensions = [".anim"],
             Factory = () => new AnimationDocument(),
             EditorFactory = doc => new AnimationEditor((AnimationDocument)doc),
             NewFile = NewFile,

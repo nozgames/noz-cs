@@ -91,14 +91,14 @@ public static class AssetManifest
         var spriteNames = new HashSet<string>();
         foreach (var doc in DocumentManager.Documents)
         {
-            if (doc.IsEditorOnly) continue;
+            if (!doc.ShouldExport) continue;
             if (doc.Def.Type == AssetType.Sprite)
                 spriteNames.Add(doc.Name);
         }
 
         foreach (var doc in DocumentManager.Documents)
         {
-            if (doc.IsEditorOnly) continue;
+            if (!doc.ShouldExport) continue;
 
             // Skip assets owned by a bundle
             if (bundleOwned.Contains((doc.Def.Type, doc.Name)))
@@ -108,17 +108,7 @@ public static class AssetManifest
             if (doc is BundleDocument { IsRemote: true })
                 continue;
 
-            // Texture documents marked as sprites get remapped
-            if (doc is TextureDocument { IsSprite: true } texDoc)
-            {
-                if (spriteNames.Contains(texDoc.Name))
-                {
-                    Log.Warning($"Texture sprite '{texDoc.Name}' conflicts with sprite '{texDoc.Name}', skipping from manifest");
-                    continue;
-                }
-                entries.Add((AssetType.Sprite, doc));
-                continue;
-            }
+
 
             entries.Add((doc.Def.Type, doc));
         }

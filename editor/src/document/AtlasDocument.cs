@@ -12,7 +12,7 @@ namespace NoZ.Editor;
 internal struct AtlasSpriteRect
 {
     public string Name;
-    public ISpriteSource? Source;
+    public SpriteDocument? Source;
     public RectInt Rect;
     public ushort FrameIndex;
     public bool Dirty;
@@ -44,7 +44,7 @@ internal class AtlasDocument : Document
         {
             Type = AssetType.Atlas,
             Name = "Atlas",
-            Extension = ".atlas",
+            Extensions = [".atlas"],
             Factory = () => new AtlasDocument(),
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconAtlas
@@ -123,7 +123,7 @@ internal class AtlasDocument : Document
             -size.X * 0.5f,
             -size.Y * 0.5f,
             size.X,
-            size.Y).Scale(TextureDocument.PixelsPerUnitInv);
+            size.Y).Scale(EditorApplication.Config.PixelsPerUnitInv);
         Loaded = true;
     }
 
@@ -166,7 +166,7 @@ internal class AtlasDocument : Document
 
     internal void Clear()
     {
-        var cleared = new HashSet<ISpriteSource>();
+        var cleared = new HashSet<SpriteDocument>();
         var span = CollectionsMarshal.AsSpan(_rects);
         for (int i = 0; i < span.Length; i++)
         {
@@ -186,7 +186,7 @@ internal class AtlasDocument : Document
 
     internal void ResolveSprites()
     {
-        var resolved = new HashSet<ISpriteSource>();
+        var resolved = new HashSet<SpriteDocument>();
         var span = CollectionsMarshal.AsSpan(_rects);
         for (int i = 0; i < span.Length; i++)
         {
@@ -197,22 +197,13 @@ internal class AtlasDocument : Document
             if (string.IsNullOrEmpty(rect.Name))
                 continue;
 
-            // Try resolving as a sprite document first
-            ISpriteSource? source = DocumentManager.Find(AssetType.Sprite, rect.Name) as SpriteDocument;
-
-            // Try resolving as a texture-sprite
-            if (source == null)
-            {
-                var texDoc = DocumentManager.Find(AssetType.Texture, rect.Name) as TextureDocument;
-                if (texDoc is { IsSprite: true })
-                    source = texDoc;
-            }
+            var source = DocumentManager.Find(AssetType.Sprite, rect.Name) as SpriteDocument;
 
             if (source == null)
                 continue;
 
             // Check that this frame's rect is large enough
-            if (rect.FrameIndex < source.FrameCount)
+            if (rect.FrameIndex < source.AtlasFrameCount)
             {
                 var frameSize = source.GetFrameAtlasSize(rect.FrameIndex);
                 if (frameSize.X > rect.Rect.Size.X || frameSize.Y > rect.Rect.Size.Y)
@@ -231,7 +222,7 @@ internal class AtlasDocument : Document
         // Verify each source has all frame rects; if not, clear it for rebuild
         foreach (var source in resolved)
         {
-            if (GetRectCount(source) != source.FrameCount)
+            if (GetRectCount(source) != source.AtlasFrameCount)
             {
                 Remove(source);
                 source.Atlas = null;
@@ -266,7 +257,7 @@ internal class AtlasDocument : Document
         return -1;
     }
 
-    private int GetRectIndex(ISpriteSource source, ushort frameIndex)
+    private int GetRectIndex(SpriteDocument source, ushort frameIndex)
     {
         var rects = CollectionsMarshal.AsSpan(_rects);
         for (int i = 0; i < _rects.Count; i++)
@@ -278,7 +269,7 @@ internal class AtlasDocument : Document
         return -1;
     }
 
-    private int GetRectCount(ISpriteSource source)
+    private int GetRectCount(SpriteDocument source)
     {
         int count = 0;
         var rects = CollectionsMarshal.AsSpan(_rects);
@@ -290,7 +281,7 @@ internal class AtlasDocument : Document
         return count;
     }
 
-    internal void Remove(ISpriteSource source)
+    internal void Remove(SpriteDocument source)
     {
         var rects = CollectionsMarshal.AsSpan(_rects);
         for (int i = 0; i < _rects.Count; i++)
@@ -305,9 +296,9 @@ internal class AtlasDocument : Document
         }
     }
 
-    internal bool TryAdd(ISpriteSource source)
+    internal bool TryAdd(SpriteDocument source)
     {
-        for (ushort frameIndex = 0; frameIndex < source.FrameCount; frameIndex++)
+        for (ushort frameIndex = 0; frameIndex < source.AtlasFrameCount; frameIndex++)
         {
             var size = source.GetFrameAtlasSize(frameIndex);
             if (size == Vector2Int.Zero) return false;
@@ -350,18 +341,18 @@ internal class AtlasDocument : Document
         return true;
     }
 
-    internal bool TryUpdate(ISpriteSource source)
+    internal bool TryUpdate(SpriteDocument source)
     {
         // If frame count changed, remove all and re-add
         var currentRectCount = GetRectCount(source);
-        if (currentRectCount != source.FrameCount)
+        if (currentRectCount != source.AtlasFrameCount)
         {
             Remove(source);
             return TryAdd(source);
         }
 
         // Check each frame fits in its rect
-        for (ushort fi = 0; fi < source.FrameCount; fi++)
+        for (ushort fi = 0; fi < source.AtlasFrameCount; fi++)
         {
             var rectIndex = GetRectIndex(source, fi);
             if (rectIndex == -1)
@@ -386,11 +377,11 @@ internal class AtlasDocument : Document
         return true;
     }
 
-    private void UpdateInternal(bool rebuild, ISpriteSource? pixelSource = null, PixelData<Color32>?[]? pixels = null)
+    private void UpdateInternal(bool rebuild, SpriteDocument? pixelSource = null, PixelData<Color32>?[]? pixels = null)
     {
         var rects = CollectionsMarshal.AsSpan(_rects);
         RectInt? updateRect = null;
-        var dirtySources = new HashSet<ISpriteSource>();
+        var dirtySources = new HashSet<SpriteDocument>();
 
         for (int i = 0; i < _rects.Count; ++i)
         {
@@ -444,7 +435,7 @@ internal class AtlasDocument : Document
 
     public void Update() => UpdateInternal(false);
 
-    internal void Update(ISpriteSource source, PixelData<Color32>?[]? pixels)
+    internal void Update(SpriteDocument source, PixelData<Color32>?[]? pixels)
     {
         if (pixels == null)
             UpdateInternal(false);
@@ -455,7 +446,7 @@ internal class AtlasDocument : Document
     public void Rebuild()
     {
         // Gather unique sources from existing rects
-        var sources = new HashSet<ISpriteSource>();
+        var sources = new HashSet<SpriteDocument>();
         foreach (var rect in _rects)
         {
             if (rect.Source != null)

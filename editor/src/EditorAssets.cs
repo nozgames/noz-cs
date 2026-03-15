@@ -22,7 +22,6 @@ public static class EditorAssets
         public const string AssetIconSprite = "asset_icon_sprite";
         public const string AssetIconVfx = "asset_icon_vfx";
         public const string Composite = "composite";
-        public const string EditorPalette = "editor_palette";
         public const string EditorSprites000 = "editor_sprites000";
         public const string IconAi = "icon_ai";
         public const string IconAi2 = "icon_ai_2";
@@ -325,21 +324,6 @@ public static class EditorAssets
         }
     }
 
-    public static class Textures
-    {
-        public static Texture EditorPalette { get; private set; } = null!;
-
-        public static void Load()
-        {
-            EditorPalette = (Texture)Asset.Load(AssetType.Texture, Names.EditorPalette)!;
-        }
-
-        public static void Unload()
-        {
-            EditorPalette?.Dispose();
-        }
-    }
-
     public static Texture? AtlasArray { get; private set; }
 
     public static void LoadAssets()
@@ -348,7 +332,6 @@ public static class EditorAssets
         Fonts.Load();
         Shaders.Load();
         Sprites.Load();
-        Textures.Load();
 
         // Create texture array from all atlases
         AtlasArray = Texture.CreateArray("SpriteAtlas",Atlases.EditorSprites000);
@@ -369,6 +352,5 @@ public static class EditorAssets
         Fonts.Unload();
         Shaders.Unload();
         Sprites.Unload();
-        Textures.Unload();
     }
 }

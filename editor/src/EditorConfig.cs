@@ -30,6 +30,7 @@ public class EditorConfig
     public int AtlasPadding { get; }
     public string AtlasPrefix { get; }
     public int AtlasMaxSpriteSize { get; }
+    public int MaxSpriteSize { get; }
     public int PixelsPerUnit { get; }
     public float PixelsPerUnitInv { get; }
     public int FrameRate { get; }
@@ -56,6 +57,7 @@ public class EditorConfig
         AtlasPrefix = props.GetString("atlas", "prefix", "sprites");
         AtlasMaxSpriteSize = props.GetInt("atlas", "max_sprite_size", 256);
         AtlasMaxSpriteSize = Math.Min(AtlasSize / 4 * 3, AtlasMaxSpriteSize);
+        MaxSpriteSize = props.GetInt("sprite", "max_size", 2048);
         PixelsPerUnit = props.GetInt("editor", "pixels_per_unit", 64);
         PixelsPerUnitInv = 1.0f / PixelsPerUnit;
         FrameRate = props.GetInt("animation", "frame_rate", 12);

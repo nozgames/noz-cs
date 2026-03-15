@@ -53,7 +53,7 @@ public class GenStyleDocument : Document
 
     public GenStyleDocument()
     {
-        IsEditorOnly = true;
+        ShouldExport = false;
     }
 
     public static void RegisterDef()
@@ -62,7 +62,7 @@ public class GenStyleDocument : Document
         {
             Type = AssetTypeGenStyle,
             Name = "GenStyle",
-            Extension = ".genstyle",
+            Extensions = [".genstyle"],
             Factory = () => new GenStyleDocument(),
             EditorFactory = doc => new GenStyleEditor((GenStyleDocument)doc),
             NewFile = NewFile,

@@ -6,24 +6,11 @@ using System.Numerics;
 
 namespace NoZ;
 
-public readonly struct SpriteMesh(
-    Rect uv,
-    short order,
-    short boneIndex = -1,
-    Vector2Int offset = default,
-    Vector2Int size = default)
+public readonly struct SpriteFrame(Rect uv, Vector2Int offset = default, Vector2Int size = default)
 {
     public readonly Rect UV = uv;
-    public readonly short SortOrder = order;
-    public readonly short BoneIndex = boneIndex;
     public readonly Vector2Int Offset = offset;
     public readonly Vector2Int Size = size;
-}
-
-public readonly struct SpriteFrameInfo(ushort meshStart, ushort meshCount)
-{
-    public readonly ushort MeshStart = meshStart;
-    public readonly ushort MeshCount = meshCount;
 }
 
 public class Sprite : Asset, IImage
@@ -31,7 +18,7 @@ public class Sprite : Asset, IImage
     float IImage.ImageWidth => Bounds.Width;
     float IImage.ImageHeight => Bounds.Height;
 
-    public const ushort Version = 10;
+    public const ushort Version = 11;
     public const int MaxFrames = 64;
 
     public RectInt Bounds { get; private set; }
@@ -43,13 +30,13 @@ public class Sprite : Asset, IImage
     public float PixelsPerUnitInv { get; private set; }
     public float FrameRate { get; private set; } = 12.0f;
     public TextureFilter TextureFilter { get; set; } = TextureFilter.Point;
-    public SpriteMesh[] Meshes { get; private set; } = [];
-    public SpriteFrameInfo[] FrameTable { get; private set; } = [];
+    public SpriteFrame[] Frames { get; private set; } = [];
     public EdgeInsets Edges { get; private set; } = EdgeInsets.Zero;
     public ushort SliceMask { get; private set; }
     public bool IsSliced => SliceMask != 0;
-    public Rect UV => Meshes.Length > 0 ? Meshes[0].UV : Rect.Zero;
-    public ushort Order => Meshes.Length > 0 ? (ushort)Meshes[0].SortOrder : (ushort)0;
+    public Rect UV => Frames.Length > 0 ? Frames[0].UV : Rect.Zero;
+    public Texture? Texture { get; private set; }
+    public bool HasTexture => Texture != null;
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
 
@@ -59,8 +46,7 @@ public class Sprite : Asset, IImage
         float pixelsPerUnit,
         TextureFilter filter,
         int boneIndex,
-        SpriteMesh[] meshes,
-        SpriteFrameInfo[] frameTable,
+        SpriteFrame[] frames,
         float frameRate = 12.0f,
         EdgeInsets edges = default,
         ushort sliceMask = 0)
@@ -68,15 +54,14 @@ public class Sprite : Asset, IImage
         return new Sprite(name)
         {
             Bounds = bounds,
-            FrameCount = frameTable.Length,
+            FrameCount = frames.Length,
             AtlasIndex = 0,
             PixelsPerUnit = pixelsPerUnit,
             PixelsPerUnitInv = 1.0f / pixelsPerUnit,
             FrameRate = frameRate,
             TextureFilter = filter,
             BoneIndex = boneIndex,
-            Meshes = meshes,
-            FrameTable = frameTable,
+            Frames = frames,
             Edges = edges,
             SliceMask = sliceMask,
         };
@@ -112,34 +97,32 @@ public class Sprite : Asset, IImage
         var edges = new EdgeInsets(et, el, eb, er);
         var sliceMask = reader.ReadUInt16();
 
-        var meshes = new SpriteMesh[meshCount];
+        // Read mesh data (1 mesh per frame, meshCount == frameCount)
+        var frames = new SpriteFrame[meshCount];
         for (int i = 0; i < meshCount; i++)
         {
             var ul = reader.ReadSingle();
             var ut = reader.ReadSingle();
             var ur = reader.ReadSingle();
             var ub = reader.ReadSingle();
-            var sortOrder = reader.ReadInt16();
-            var meshBoneIndex = reader.ReadInt16();
+            reader.ReadInt16(); // sortOrder (legacy, ignored)
+            reader.ReadInt16(); // meshBoneIndex (legacy, ignored)
             var offsetX = reader.ReadInt16();
             var offsetY = reader.ReadInt16();
             var sizeX = reader.ReadInt16();
             var sizeY = reader.ReadInt16();
 
-            meshes[i] = new SpriteMesh(
+            frames[i] = new SpriteFrame(
                 Rect.FromMinMax(ul, ut, ur, ub),
-                sortOrder,
-                meshBoneIndex,
                 new Vector2Int(offsetX, offsetY),
                 new Vector2Int(sizeX, sizeY));
         }
 
-        var frameTable = new SpriteFrameInfo[frameCount];
+        // Skip legacy frame table (meshStart + meshCount per frame)
         for (int i = 0; i < frameCount; i++)
         {
-            var meshStart = reader.ReadUInt16();
-            var count = reader.ReadUInt16();
-            frameTable[i] = new SpriteFrameInfo(meshStart, count);
+            reader.ReadUInt16(); // meshStart
+            reader.ReadUInt16(); // meshCount
         }
 
         sprite.Bounds = RectInt.FromMinMax(l, t, r, b);
@@ -150,10 +133,29 @@ public class Sprite : Asset, IImage
         sprite.PixelsPerUnitInv = 1.0f / ppu;
         sprite.FrameRate = frameRate;
         sprite.TextureFilter = filter;
-        sprite.Meshes = meshes;
-        sprite.FrameTable = frameTable;
+        sprite.Frames = frames;
         sprite.Edges = edges;
         sprite.SliceMask = sliceMask;
+
+        // Embedded texture for sprites that don't fit in an atlas
+        if (atlasIndex == 0xFFFF && stream.Position < stream.Length)
+        {
+            var texFormat = (TextureFormat)reader.ReadByte();
+            var texFilter = (TextureFilter)reader.ReadByte();
+            reader.ReadByte(); // clamp (unused, always Clamp)
+            var texWidth = (int)reader.ReadUInt32();
+            var texHeight = (int)reader.ReadUInt32();
+            var bpp = texFormat switch
+            {
+                TextureFormat.RGBA8 => 4,
+                TextureFormat.RGB8 => 3,
+                TextureFormat.RG8 => 2,
+                TextureFormat.R8 => 1,
+                _ => 4
+            };
+            var texData = reader.ReadBytes(texWidth * texHeight * bpp);
+            sprite.Texture = Texture.Create(texWidth, texHeight, texData, texFormat, texFilter, name + "_tex");
+        }
 
         return sprite;
     }

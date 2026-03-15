@@ -12,7 +12,7 @@ namespace NoZ.Editor;
 public static class AtlasManager
 {
     private readonly static List<AtlasDocument> _atlases = new(32);
-    private readonly static List<ISpriteSource> _sources = new(64);
+    private readonly static List<SpriteDocument> _sources = new(64);
 
     public static void Init()
     {
@@ -30,10 +30,8 @@ public static class AtlasManager
 
     private static void HandleDocumentAdded(Document doc)
     {
-        if (doc is SpriteDocument sprite)
+        if (doc is SpriteDocument { ShouldAtlas: true } sprite)
             AddSource(sprite);
-        else if (doc is TextureDocument { IsSprite: true } texture)
-            AddSource(texture);
     }
 
     private static string GetAtlasName(int index) => $"{EditorApplication.Config.AtlasPrefix}{index:000}.atlas";
@@ -70,10 +68,8 @@ public static class AtlasManager
                 atlas.IsVisible = false;
                 _atlases.Add(atlas);
             }
-            else if (doc is SpriteDocument sprite)
+            else if (doc is SpriteDocument { ShouldAtlas: true } sprite)
                 _sources.Add(sprite);
-            else if (doc is TextureDocument { IsSprite: true } texture)
-                _sources.Add(texture);
         }
 
         if (!rebuild)
@@ -109,9 +105,9 @@ public static class AtlasManager
             _atlases[atlasIndex].Update();
     }
 
-    internal static void UpdateSource(ISpriteSource source) => UpdateSource(source, null);
+    internal static void UpdateSource(SpriteDocument source) => UpdateSource(source, null);
 
-    internal static void UpdateSource(ISpriteSource source, PixelData<Color32>?[]? pixels)
+    internal static void UpdateSource(SpriteDocument source, PixelData<Color32>?[]? pixels)
     {
         Debug.Assert(source.Atlas != null);
 
@@ -139,7 +135,7 @@ public static class AtlasManager
         }
     }
 
-    internal static void AddSource(ISpriteSource source)
+    internal static void AddSource(SpriteDocument source)
     {
         if (!_sources.Contains(source))
             _sources.Add(source);
@@ -151,7 +147,7 @@ public static class AtlasManager
         Update();
     }
 
-    internal static void RemoveSource(ISpriteSource source)
+    internal static void RemoveSource(SpriteDocument source)
     {
         if (source.Atlas != null)
         {
@@ -166,7 +162,7 @@ public static class AtlasManager
         source.Reexport();
     }
 
-    private static void Add(ISpriteSource source)
+    private static void Add(SpriteDocument source)
     {
         Debug.Assert(source.Atlas == null);
 
