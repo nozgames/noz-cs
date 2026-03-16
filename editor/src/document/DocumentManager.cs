@@ -168,9 +168,9 @@ public static class DocumentManager
 
         if (doc == null) return null;
 
-        doc.LoadMetadata();
         doc.Loaded = true;
         doc.Load();
+        doc.LoadMetadata();
 
         if (position.HasValue)
         {
@@ -215,6 +215,11 @@ public static class DocumentManager
             if (elapsed > 500)
                 Log.Info($"Loaded {doc.Name} in {elapsed} ms");
         }
+
+        // Load metadata after Load() so DiscoverFiles() has resolved the correct Path
+        // (e.g. cheese.png -> cheese.sprite) before we read the .meta file.
+        foreach (var doc in _documents)
+            doc.LoadMetadata();
     }
 
     internal static void PostLoad()
@@ -238,9 +243,9 @@ public static class DocumentManager
 
         if (!doc.Loaded)
         {
-            doc.LoadMetadata();
             doc.Loaded = true;
             doc.Load();
+            doc.LoadMetadata();
             doc.PostLoad();
             doc.PostLoaded = true;
             NotifyDocumentAdded(doc);
@@ -369,9 +374,6 @@ public static class DocumentManager
 
                 Create(filePath);
             }
-
-            for (int i=0; i< _documents.Count; i++)
-                _documents[i]?.LoadMetadata();
         }
     }
 
@@ -462,8 +464,8 @@ public static class DocumentManager
         // Only do it manually if the export didn't get to it (e.g. skipped by timestamp).
         if (!doc.PostLoaded)
         {
-            doc.LoadMetadata();
             doc.Load();
+            doc.LoadMetadata();
             doc.PostLoad();
             doc.PostLoaded = true;
             DocumentAdded?.Invoke(doc);
@@ -598,7 +600,7 @@ public static class DocumentManager
     {
         var sprites = _documents
             .OfType<SpriteDocument>()
-            .Where(s => s.NeedsGeneration)
+            .Where(s => s.HasGeneration && !s.Generation.HasImageData)
             .ToList();
 
         if (sprites.Count == 0)
@@ -659,7 +661,7 @@ public static class DocumentManager
     {
         var sprites = _documents
             .OfType<SpriteDocument>()
-            .Where(s => s.NeedsGeneration)
+            .Where(s => s.HasGeneration && !s.Generation.HasImageData)
             .ToList();
 
         if (sprites.Count == 0)

@@ -74,7 +74,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let edge = fwidth(dist);
 
     // Alpha: fade out at boundary (branchless)
-    let alpha = 1.0 - smoothstep(-edge, edge, dist);
+    let alpha = 1.0 - smoothstep(-0.5 * edge, 0.5 * edge, dist);
 
     // Border blend - antialiased inner border edge (half-pixel transition)
     let border_blend = smoothstep(-0.5 * edge, 0.5 * edge, dist + input.border_width);

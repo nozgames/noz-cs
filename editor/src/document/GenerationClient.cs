@@ -313,6 +313,12 @@ public static class GenerationClient
 
     public static List<ModelInfo>? CachedModels => _cachedModels;
 
+    public static void InvalidateModels()
+    {
+        _cachedModels = null;
+        _modelRetryTime = 0;
+    }
+
     public static ModelInfo? GetModel(string? name)
     {
         if (name == null || _cachedModels == null) return null;

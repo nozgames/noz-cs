@@ -335,7 +335,6 @@ public static partial class EditorApplication
     internal static void UpdateUI()
     {
         Workspace.UpdateUI();
-        Notifications.UpdateUI();
         PopupMenu.UpdateUI();
         CommandPalette.UpdateUI();
         ConfirmDialog.UpdateUI();

@@ -15,6 +15,7 @@ public partial class GenStyleEditor : DocumentEditor
         public static partial WidgetId LayerGuidance { get; }
         public static partial WidgetId LayerSteps { get; }
         public static partial WidgetId ModelDropDown { get; }
+        public static partial WidgetId RefreshModels { get; }
         public static partial WidgetId Detail { get; }
         public static partial WidgetId WorkflowDropDown { get; }
     }
@@ -77,29 +78,36 @@ public partial class GenStyleEditor : DocumentEditor
         var models = GenerationClient.CachedModels;
         using (Inspector.BeginProperty("Model"))
         {
-            UI.DropDown(WidgetIds.ModelDropDown, () =>
+            using (UI.BeginRow())
             {
-                var items = new List<PopupMenuItem>
-                {
-                    PopupMenuItem.Item("None", () =>
+                using (UI.BeginFlex())
+                    UI.DropDown(WidgetIds.ModelDropDown, () =>
                     {
-                        Undo.Record(Document);
-                        Document.ModelName = null;
-                        Document.IncrementVersion();
-                    })
-                };
-                if (models != null)
-                {
-                    foreach (var model in models)
-                        items.Add(PopupMenuItem.Item(model.Name, () =>
+                        var items = new List<PopupMenuItem>
                         {
-                            Undo.Record(Document);
-                            Document.ModelName = model.Name;
-                            Document.IncrementVersion();
-                        }));
-                }
-                return items.ToArray();
-            }, Document.ModelName ?? "None", icon: EditorAssets.Sprites.IconPalette);
+                            PopupMenuItem.Item("None", () =>
+                            {
+                                Undo.Record(Document);
+                                Document.ModelName = null;
+                                Document.IncrementVersion();
+                            })
+                        };
+                        if (models != null)
+                        {
+                            foreach (var model in models)
+                                items.Add(PopupMenuItem.Item(model.Name, () =>
+                                {
+                                    Undo.Record(Document);
+                                    Document.ModelName = model.Name;
+                                    Document.IncrementVersion();
+                                }));
+                        }
+                        return items.ToArray();
+                    }, Document.ModelName ?? "None", icon: EditorAssets.Sprites.IconPalette);
+
+                if (UI.Button(WidgetIds.RefreshModels, EditorAssets.Sprites.IconLoop, EditorStyle.Button.IconOnly))
+                    GenerationClient.InvalidateModels();
+            }
         }
 
     }

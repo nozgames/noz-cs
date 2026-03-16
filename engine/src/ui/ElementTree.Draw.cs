@@ -306,6 +306,7 @@ public static partial class ElementTree
     {
         ref var d = ref e.Data.Fill;
         ref var t = ref e.Transform;
+        if (d.ImageAsset >= _assetCount) return;
         var asset = _assets[d.ImageAsset];
         if (asset == null) return;
 

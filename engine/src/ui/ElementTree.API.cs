@@ -63,6 +63,8 @@ public static unsafe partial class ElementTree
     {
         ref var e = ref BeginElement(ElementType.Fill);
         e.Data.Fill.Color = color;
+        e.Data.Fill.HasImage = false;
+        e.Data.Fill.HasGradient = false;
         e.Data.Fill.Radius = radius;
         e.Data.Fill.BorderWidth = borderWidth;
         e.Data.Fill.BorderColor = borderColor;

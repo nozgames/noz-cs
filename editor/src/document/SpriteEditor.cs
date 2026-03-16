@@ -106,7 +106,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         EditorUI.ClosePopup();
 
         if (Document.Version != _versionOnOpen && Document.Atlas != null)
-            if (Document.Atlas != null) AtlasManager.UpdateSource(Document);
+            AtlasManager.UpdateSource(Document);
 
         base.Dispose();
     }

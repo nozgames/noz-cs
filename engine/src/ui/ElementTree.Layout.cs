@@ -367,7 +367,10 @@ public static unsafe partial class ElementTree
                 if (anchorFactor != popupAlignFactor)
                     e.Rect[axis] += pd.Spacing * (1f - 2f * popupAlignFactor);
                 if (pd.ClampToScreen)
-                    e.Rect[axis] = Math.Clamp(e.Rect[axis], 0, ScreenSize[axis] - size);
+                {
+                    var maxPos = ScreenSize[axis] - size;
+                    e.Rect[axis] = maxPos >= 0 ? Math.Clamp(e.Rect[axis], 0, maxPos) : 0;
+                }
             }
         }
 

@@ -4,7 +4,6 @@
 
 using System.Globalization;
 using System.Numerics;
-using System.Security.Cryptography;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -98,10 +97,7 @@ public partial class SpriteDocument : Document, IShapeDocument
     public GenerationImage Generation { get; } = new();
     public string? StyleName;
     public GenStyleDocument? Style;
-    public string PromptHash = "";
-
     public bool HasGeneration { get; set; }
-    public bool NeedsGeneration => HasGeneration && (!Generation.HasImageData || PromptHash != ComputePromptHash());
     public bool IsGenerating => Generation.IsGenerating;
 
     public bool IsActiveLayerLocked => false;
@@ -252,8 +248,6 @@ public partial class SpriteDocument : Document, IShapeDocument
         Prompt = "";
         NegativePrompt = "";
         Seed = "";
-        PromptHash = "";
-
         for (var fi = 0; fi < FrameCount; fi++)
             Frames[fi].Shape.Clear();
         FrameCount = 1;
@@ -346,7 +340,7 @@ public partial class SpriteDocument : Document, IShapeDocument
             else if (tk.ExpectIdentifier("style"))
                 StyleName = tk.ExpectQuotedString();
             else if (tk.ExpectIdentifier("prompt_hash"))
-                PromptHash = tk.ExpectQuotedString() ?? ""; // Legacy: now in .meta
+                tk.ExpectQuotedString(); // Legacy: skip
             else if (tk.ExpectIdentifier("image"))
             {
                 // Legacy migration: extract embedded base64 to companion file
@@ -451,30 +445,20 @@ public partial class SpriteDocument : Document, IShapeDocument
 
     public void UpdateBounds()
     {
-        if (ConstrainedSize.HasValue)
-        {
-            var cs = ConstrainedSize.Value;
-            var ppu = EditorApplication.Config.PixelsPerUnitInv;
-            Bounds = new Rect(
-                cs.X * ppu * -0.5f,
-                cs.Y * ppu * -0.5f,
-                cs.X * ppu,
-                cs.Y * ppu);
-            RasterBounds = new RectInt(
-                -cs.X / 2,
-                -cs.Y / 2,
-                cs.X,
-                cs.Y);
-
-            return;
-        }
-
         if (!IsMutable)
         {
-            // Restore RasterBounds from original image size (constraint may have overwritten it)
-            var w = _sourceImageSize.X;
-            var h = _sourceImageSize.Y;
-            RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
+            // Immutable sprites: use source image size or constrained size
+            if (ConstrainedSize.HasValue)
+            {
+                var cs = ConstrainedSize.Value;
+                RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
+            }
+            else
+            {
+                var w = _sourceImageSize.X;
+                var h = _sourceImageSize.Y;
+                RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
+            }
 
             var ppu = EditorApplication.Config.PixelsPerUnitInv;
             Bounds = new Rect(
@@ -482,6 +466,7 @@ public partial class SpriteDocument : Document, IShapeDocument
                 RasterBounds.Y * ppu,
                 RasterBounds.Width * ppu,
                 RasterBounds.Height * ppu);
+            MarkSpriteDirty();
             return;
         }
 
@@ -539,11 +524,9 @@ public partial class SpriteDocument : Document, IShapeDocument
         if (ConstrainedSize.HasValue)
         {
             var cs = ConstrainedSize.Value;
-            var centerX = RasterBounds.X + RasterBounds.Width / 2;
-            var centerY = RasterBounds.Y + RasterBounds.Height / 2;
             RasterBounds = new RectInt(
-                centerX - cs.X / 2,
-                centerY - cs.Y / 2,
+                -cs.X / 2,
+                -cs.Y / 2,
                 cs.X,
                 cs.Y);
         }
@@ -709,16 +692,27 @@ public partial class SpriteDocument : Document, IShapeDocument
 
         if (_texture == null) return false;
 
-        // Compute UVs to clip the source image to the constrained bounds
         var uv = new Rect(0, 0, 1, 1);
+        var drawBounds = Bounds;
+
         if (ConstrainedSize.HasValue && _textureSize.X > 0 && _textureSize.Y > 0)
         {
             var cs = ConstrainedSize.Value;
-            var uW = Math.Min(1f, (float)cs.X / _textureSize.X);
-            var uH = Math.Min(1f, (float)cs.Y / _textureSize.Y);
-            var uX = (1f - uW) * 0.5f;
-            var uY = (1f - uH) * 0.5f;
-            uv = new Rect(uX, uY, uW, uH);
+            if (cs.X < _textureSize.X || cs.Y < _textureSize.Y)
+            {
+                // Constraint is smaller — crop UVs to center of source image
+                var uW = Math.Min(1f, (float)cs.X / _textureSize.X);
+                var uH = Math.Min(1f, (float)cs.Y / _textureSize.Y);
+                uv = new Rect((1f - uW) * 0.5f, (1f - uH) * 0.5f, uW, uH);
+            }
+            else if (cs.X > _textureSize.X || cs.Y > _textureSize.Y)
+            {
+                // Constraint is larger — draw image at original size centered in bounds
+                var ppu = EditorApplication.Config.PixelsPerUnitInv;
+                var imgW = _textureSize.X * ppu;
+                var imgH = _textureSize.Y * ppu;
+                drawBounds = new Rect(-imgW * 0.5f, -imgH * 0.5f, imgW, imgH);
+            }
         }
 
         using (Graphics.PushState())
@@ -727,7 +721,7 @@ public partial class SpriteDocument : Document, IShapeDocument
             Graphics.SetTexture(_texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
-            Graphics.Draw(Bounds, uv);
+            Graphics.Draw(drawBounds, uv);
         }
         return true;
     }
@@ -882,7 +876,6 @@ public partial class SpriteDocument : Document, IShapeDocument
         Prompt = src.Prompt;
         NegativePrompt = src.NegativePrompt;
         Seed = src.Seed;
-        PromptHash = src.PromptHash;
         ConstrainedSize = src.ConstrainedSize;
         StyleName = src.StyleName;
         Style = src.Style;
@@ -896,8 +889,6 @@ public partial class SpriteDocument : Document, IShapeDocument
         ShowTiling = meta.GetBool("sprite", "show_tiling", false);
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
-
-        PromptHash = meta.GetString("sprite", "prompt_hash", PromptHash);
 
         // Backward compat: migrate style from metadata to file content
         if (string.IsNullOrEmpty(StyleName))
@@ -933,8 +924,7 @@ public partial class SpriteDocument : Document, IShapeDocument
         else
             meta.RemoveKey("sprite", "constrained_size");
 
-        if (!string.IsNullOrEmpty(PromptHash))
-            meta.SetString("sprite", "prompt_hash", PromptHash);
+        meta.RemoveKey("sprite", "prompt_hash");
 
         // Clean up legacy style from metadata (now stored in file)
         meta.RemoveKey("sprite", "style");
@@ -949,6 +939,7 @@ public partial class SpriteDocument : Document, IShapeDocument
             LoadGeneratedTexture();
             if (!string.IsNullOrEmpty(StyleName))
                 Style = DocumentManager.Find(GenStyleDocument.AssetTypeGenStyle, StyleName) as GenStyleDocument;
+            Log.Info($"[Gen] '{Name}' PostLoad: style={Style?.Name ?? "null"} hasImage={Generation.HasImageData}");
         }
     }
 
@@ -1016,22 +1007,34 @@ public partial class SpriteDocument : Document, IShapeDocument
         if (ImageFilePath == null) return;
 
         using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ImageFilePath);
-        var w = srcImage.Width;
-        var h = srcImage.Height;
+        var srcW = srcImage.Width;
+        var srcH = srcImage.Height;
+        var dstW = RasterBounds.Width;
+        var dstH = RasterBounds.Height;
         var padding2 = padding * 2;
+
+        // Compute source region (center crop if constraint is smaller)
+        var srcX = Math.Max(0, (srcW - dstW) / 2);
+        var srcY = Math.Max(0, (srcH - dstH) / 2);
+        var copyW = Math.Min(srcW, dstW);
+        var copyH = Math.Min(srcH, dstH);
+
+        // Compute destination offset (center pad if constraint is larger)
+        var dstOffX = Math.Max(0, (dstW - srcW) / 2);
+        var dstOffY = Math.Max(0, (dstH - srcH) / 2);
 
         var rasterRect = new RectInt(
             rect.Rect.Position + new Vector2Int(padding, padding),
-            new Vector2Int(w, h));
+            new Vector2Int(dstW, dstH));
 
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
+        for (int y = 0; y < copyH; y++)
+            for (int x = 0; x < copyW; x++)
             {
-                var pixel = srcImage[x, y];
-                image[rasterRect.X + x, rasterRect.Y + y] = new Color32(pixel.R, pixel.G, pixel.B, pixel.A);
+                var pixel = srcImage[srcX + x, srcY + y];
+                image[rasterRect.X + dstOffX + x, rasterRect.Y + dstOffY + y] = new Color32(pixel.R, pixel.G, pixel.B, pixel.A);
             }
 
-        var outerRect = new RectInt(rect.Rect.Position, new Vector2Int(w + padding2, h + padding2));
+        var outerRect = new RectInt(rect.Rect.Position, new Vector2Int(dstW + padding2, dstH + padding2));
         image.BleedColors(rasterRect);
         for (int p = padding - 1; p >= 0; p--)
         {
@@ -1346,24 +1349,6 @@ public partial class SpriteDocument : Document, IShapeDocument
     }
 
     #region Generation
-
-    public string ComputePromptHash()
-    {
-        var sb = new System.Text.StringBuilder();
-        sb.Append(Prompt);
-        sb.Append('|');
-        sb.Append(NegativePrompt);
-        sb.Append('|');
-        sb.Append(Style?.PromptPrefix ?? "");
-        sb.Append('|');
-        sb.Append(Style?.Prompt ?? "");
-        sb.Append('|');
-        sb.Append(Style?.NegativePrompt ?? "");
-        sb.Append('|');
-        sb.Append(Style?.ModelName ?? "");
-        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sb.ToString()));
-        return Convert.ToHexString(bytes, 0, 8).ToLowerInvariant();
-    }
 
     internal void LoadGeneratedTexture()
     {
@@ -1708,8 +1693,15 @@ public partial class SpriteDocument : Document, IShapeDocument
             if (!string.IsNullOrEmpty(status.Result.Seed) && string.IsNullOrEmpty(Seed))
                 Seed = status.Result.Seed;
 
-            PromptHash = ComputePromptHash();
+            // Ensure companion image path exists so Save() can write the .png
+            if (ImageFilePath == null)
+            {
+                var dir = System.IO.Path.GetDirectoryName(Path) ?? "";
+                var stem = System.IO.Path.GetFileNameWithoutExtension(Path);
+                ImageFilePath = System.IO.Path.Combine(dir, stem + ".png");
+            }
 
+            Log.Info($"[Gen] '{Name}' ApplyResult: imagePath='{ImageFilePath}' hasImage={Generation.HasImageData}");
             Log.Info($"Generation complete for '{Name}' ({status.Result.Width}x{status.Result.Height}, seed={status.Result.Seed})");
             IncrementVersion();
         }
@@ -1724,6 +1716,12 @@ public partial class SpriteDocument : Document, IShapeDocument
         if (string.IsNullOrEmpty(Prompt))
         {
             Log.Error($"No prompt set for '{Name}'");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Style?.ModelName))
+        {
+            Log.Error($"Invalid style for '{Name}': no model specified");
             return;
         }
 
@@ -1749,10 +1747,11 @@ public partial class SpriteDocument : Document, IShapeDocument
             switch (status.State)
             {
                 case GenerationState.Queued:
+                    if (genImage.GenerationState != GenerationState.Queued || genImage.QueuePosition != status.QueuePosition)
+                        Log.Info($"Generation queued for '{Name}' (position {status.QueuePosition})");
                     genImage.GenerationState = GenerationState.Queued;
                     genImage.QueuePosition = status.QueuePosition;
                     genImage.GenerationProgress = 0f;
-                    Log.Info($"Generation queued for '{Name}' (position {status.QueuePosition})");
                     break;
 
                 case GenerationState.Running:
@@ -1766,6 +1765,11 @@ public partial class SpriteDocument : Document, IShapeDocument
                     genImage.GenerationState = GenerationState.Completed;
                     genImage.GenerationProgress = 1f;
                     ApplyGenerationResult(status);
+                    Log.Info($"[Gen] '{Name}' saving after generation...");
+                    Save();
+                    SaveMetadata();
+                    DocumentManager.QueueExport(this, force: true);
+                    Log.Info($"[Gen] '{Name}' saved and queued for export");
                     break;
 
                 case GenerationState.Failed:

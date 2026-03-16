@@ -495,7 +495,10 @@ public static partial class Workspace
                 using (UI.BeginRow())
                 {
                     using (UI.BeginFlex())
+                    {
                         ActiveEditor?.UpdateUI();
+                        Notifications.UpdateUI();
+                    }
 
                     using (UI.BeginColumn(new ContainerStyle
                     {
