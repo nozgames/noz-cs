@@ -61,7 +61,7 @@ public enum TextOverflow : byte
     Wrap,
 }
 
-public struct LabelStyle()
+public struct TextStyle()
 {
     public float FontSize = 16;
     public Color Color = NoZ.Color.White;
@@ -69,13 +69,13 @@ public struct LabelStyle()
     public Font? Font = null;
     public ushort Order = 2;
     public TextOverflow Overflow = TextOverflow.Overflow;
-    public Func<LabelStyle, WidgetFlags, LabelStyle>? Resolve;
+    public Func<TextStyle, WidgetFlags, TextStyle>? Resolve;
 
     public Align AlignX { readonly get => Align.X; set => Align.X = value; }
     public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
 
-    public static readonly LabelStyle Default = new();
-    public static readonly LabelStyle Centered = new() { Align = NoZ.Align.Center };
+    public static readonly TextStyle Default = new();
+    public static readonly TextStyle Centered = new() { Align = NoZ.Align.Center };
 }
 
 public struct ImageStyle()
@@ -255,7 +255,7 @@ public static class ElementStyle
         return style;
     }
 
-    public static LabelStyle WithColor(this LabelStyle style, Color color)
+    public static TextStyle WithColor(this TextStyle style, Color color)
     {
         style.Color = color;
         return style;

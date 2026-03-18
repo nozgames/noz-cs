@@ -162,7 +162,7 @@ public static partial class UI
     public static bool HasCapture() => ElementTree.HasCapture();
     public static void ReleaseCapture() => ElementTree.ReleaseCapture();
 
-    public static ReadOnlySpan<char> GetElementText(WidgetId id)
+    public static ReadOnlySpan<char> GetWidgetText(WidgetId id)
     {
         //if (_lastChangedTextId == id)
         //    return _lastChangedText.AsSpan();
@@ -174,7 +174,7 @@ public static partial class UI
         return default;
     }
 
-    public static void SetElementText(WidgetId id, ReadOnlySpan<char> value, bool selectAll = false)
+    public static void SetWidgetText(WidgetId id, ReadOnlySpan<char> value, bool selectAll = false)
     {
         if (!ElementTree.IsWidgetValid(id))
             return;
@@ -464,13 +464,13 @@ public static partial class UI
     #region Text
 
     public static void Text(ReadOnlySpan<char> text) =>
-        Text(text, new LabelStyle());
+        Text(text, new TextStyle());
 
-    public static void Text(string text) => Text(text.AsSpan(), new LabelStyle());
+    public static void Text(string text) => Text(text.AsSpan(), new TextStyle());
 
-    public static void Text(string text, LabelStyle style) => Text(text.AsSpan(), style);
+    public static void Text(string text, TextStyle style) => Text(text.AsSpan(), style);
 
-    public static void Text(ReadOnlySpan<char> text, LabelStyle style)
+    public static void Text(ReadOnlySpan<char> text, TextStyle style)
     {
         var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags()) : style;
         var font = resolved.Font ?? _defaultFont!;

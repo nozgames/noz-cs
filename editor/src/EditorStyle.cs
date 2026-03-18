@@ -73,7 +73,7 @@ public static class EditorStyle
     {
         public const float Size = 11.0f;
 
-        public readonly static LabelStyle Primary = new()
+        public readonly static TextStyle Primary = new()
         {
             FontSize = Size,
             Color = Palette.Content,
@@ -81,8 +81,9 @@ public static class EditorStyle
             AlignY = Align.Center
         };
 
-        public readonly static LabelStyle Secondary = Primary with { Color = Palette.SecondaryText };
-        public readonly static LabelStyle Disabled = Primary with { Color = Palette.Disabled };
+        public readonly static TextStyle Secondary = Primary with { Color = Palette.SecondaryText };
+        public readonly static TextStyle Disabled = Primary with { Color = Palette.Disabled };
+        public readonly static TextStyle SecondarySmall = Secondary with { FontSize = 9.0f };
     }
 
     // :workspace
@@ -155,7 +156,7 @@ public static class EditorStyle
         public static readonly ContainerStyle HoverFill = Fill with { Background = Palette.Active, Resolve = null };
         public static readonly ContainerStyle SelectedFill = Fill with { Background = Palette.Active, Resolve = null };
 
-        public readonly static LabelStyle Text = new()
+        public readonly static TextStyle Text = new()
         {
             FontSize = TextSize,
             Color = Palette.Content,
@@ -167,12 +168,12 @@ public static class EditorStyle
                 return s;
             },
         };
-        // Legacy — used by popup system (EditorUI.cs)
-        public readonly static LabelStyle DisabledText = Text with { Color = Palette.Disabled, Resolve = null };
-        public readonly static LabelStyle HoveredText = Text with { Color = Palette.Content, Resolve = null };
-        public readonly static LabelStyle SelectedText = Text with { Color = Palette.Content, Resolve = null };
 
-        public readonly static LabelStyle PlaceholderText = new()
+        public readonly static TextStyle DisabledText = Text with { Color = Palette.Disabled, Resolve = null };
+        public readonly static TextStyle HoveredText = Text with { Color = Palette.Content, Resolve = null };
+        public readonly static TextStyle SelectedText = Text with { Color = Palette.Content, Resolve = null };
+
+        public readonly static TextStyle PlaceholderText = new()
         {
             FontSize = TextSize,
             Color = Palette.Disabled,
@@ -239,7 +240,7 @@ public static class EditorStyle
             Margin = EdgeInsets.Symmetric(2, 4),
             Background = Palette.Separator
         };
-        public readonly static LabelStyle Title = new()
+        public readonly static TextStyle Title = new()
         {
             FontSize = Control.TextSize,
             AlignX = Align.Min,
@@ -564,7 +565,7 @@ public static class EditorStyle
             BorderRadius = Control.BorderRadius
         };
 
-        public static readonly LabelStyle Text = Control.Text with { Color = Palette.SecondaryText };
+        public static readonly TextStyle Text = Control.Text with { Color = Palette.SecondaryText };
     }
 
     // :contextmenu
@@ -665,7 +666,7 @@ public static class EditorStyle
         public readonly static ImageStyle WarningIcon = InfoIcon with { Color = WarningColor };
         public readonly static ImageStyle SuccessIcon = InfoIcon with { Color = SuccessColor };
 
-        public readonly static LabelStyle NotificationText = new()
+        public readonly static TextStyle NotificationText = new()
         {
             FontSize = Control.TextSize,
             Color = Palette.SecondaryText,
@@ -693,7 +694,7 @@ public static class EditorStyle
             Padding = EdgeInsets.Symmetric(14, 16)
         };
 
-        public static readonly LabelStyle MessageLabel = Control.Text;
+        public static readonly TextStyle MessageLabel = Control.Text;
 
         public static readonly ContainerStyle ButtonContainer = new()
         {
@@ -782,7 +783,7 @@ public static class EditorStyle
             Height = Control.Height,
         };
 
-        public static readonly LabelStyle PropertyName = new()
+        public static readonly TextStyle PropertyName = new()
         {
             FontSize = LabelFontSize,
             Color = Palette.SecondaryText,
@@ -848,7 +849,7 @@ public static class EditorStyle
             AlignY = Align.Center
         };
 
-        public static readonly LabelStyle Label = new()
+        public static readonly TextStyle Label = new()
         {
             FontSize = LabelFontSize,
             Color = Palette.SecondaryText,
@@ -886,7 +887,7 @@ public static class EditorStyle
             Background = Palette.Separator
         };
 
-        public static readonly LabelStyle EmitterTabText = new()
+        public static readonly TextStyle EmitterTabText = new()
         {
             FontSize = FontSize,
             Color = Palette.Content,
@@ -1083,7 +1084,7 @@ public static class EditorStyle
             Padding = EdgeInsets.BottomLeft(0, 2)
         };
 
-        public static readonly LabelStyle TimeText = Text.Secondary with
+        public static readonly TextStyle TimeText = Text.Secondary with
         {
             FontSize = 9.0f,
             AlignY = Align.Max

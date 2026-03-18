@@ -52,11 +52,15 @@ public class WidgetIdGenerator : IIncrementalGenerator
             return null;
 
         // Build containing type chain (for nested classes)
-        var containingTypes = new List<string>();
+        var containingTypes = new List<ContainingTypeInfo>();
         var current = propSymbol.ContainingType?.ContainingType;
         while (current != null)
         {
-            containingTypes.Insert(0, current.Name);
+            containingTypes.Insert(0, new ContainingTypeInfo
+            {
+                Name = current.Name,
+                IsStatic = current.IsStatic
+            });
             current = current.ContainingType;
         }
 
@@ -64,15 +68,17 @@ public class WidgetIdGenerator : IIncrementalGenerator
         var ns = containingType?.ContainingNamespace?.ToDisplayString() ?? "";
 
         // Fully qualified name for hashing: "Namespace.ContainingTypes.ClassName.PropertyName"
+        var containingTypeNames = containingTypes.Select(ct => ct.Name);
+
         var fullyQualifiedName = string.Join(".",
             new[] { ns }
-                .Concat(containingTypes)
+                .Concat(containingTypeNames)
                 .Concat(new[] { containingType?.Name ?? "", propSymbol.Name })
                 .Where(s => !string.IsNullOrEmpty(s) && s != "<global namespace>"));
 
         var classKey = string.Join(".",
             new[] { ns }
-                .Concat(containingTypes)
+                .Concat(containingTypeNames)
                 .Append(containingType?.Name ?? "")
                 .Where(s => !string.IsNullOrEmpty(s) && s != "<global namespace>"));
 
@@ -96,7 +102,7 @@ public class WidgetIdGenerator : IIncrementalGenerator
             var source = GenerateClass(classInfo);
 
             var fileName = classInfo.ContainingTypes.Count > 0
-                ? $"{string.Join(".", classInfo.ContainingTypes)}.{classInfo.ClassName}.g.cs"
+                ? $"{string.Join(".", classInfo.ContainingTypes.Select(ct => ct.Name))}.{classInfo.ClassName}.g.cs"
                 : $"{classInfo.ClassName}.g.cs";
 
             context.AddSource(fileName, source);
@@ -119,7 +125,8 @@ public class WidgetIdGenerator : IIncrementalGenerator
         var indent = "";
         foreach (var containingType in info.ContainingTypes)
         {
-            sb.AppendLine($"{indent}partial class {containingType}");
+            var staticMod = containingType.IsStatic ? "static " : "";
+            sb.AppendLine($"{indent}{staticMod}partial class {containingType.Name}");
             sb.AppendLine($"{indent}{{");
             indent += "    ";
         }
@@ -173,6 +180,12 @@ public class WidgetIdGenerator : IIncrementalGenerator
         return hash;
     }
 
+    private class ContainingTypeInfo
+    {
+        public string Name { get; set; } = "";
+        public bool IsStatic { get; set; }
+    }
+
     private class PropertyInfo
     {
         public string Name { get; set; } = "";
@@ -180,7 +193,7 @@ public class WidgetIdGenerator : IIncrementalGenerator
         public string ClassName { get; set; } = "";
         public string ClassKey { get; set; } = "";
         public string FullyQualifiedName { get; set; } = "";
-        public List<string> ContainingTypes { get; set; } = new();
+        public List<ContainingTypeInfo> ContainingTypes { get; set; } = new();
     }
 
     private class ClassInfo
@@ -188,6 +201,6 @@ public class WidgetIdGenerator : IIncrementalGenerator
         public string Namespace { get; set; } = "";
         public string ClassName { get; set; } = "";
         public List<PropertyInfo> Properties { get; set; } = new();
-        public List<string> ContainingTypes { get; set; } = new();
+        public List<ContainingTypeInfo> ContainingTypes { get; set; } = new();
     }
 }

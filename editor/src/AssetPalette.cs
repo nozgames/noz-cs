@@ -309,7 +309,7 @@ public static partial class AssetPalette
                                     }
                                 }
 
-                                UI.Text(doc.Name, new LabelStyle
+                                UI.Text(doc.Name, new TextStyle
                                 {
                                     FontSize = 7,
                                     Color = EditorStyle.Palette.SecondaryText,

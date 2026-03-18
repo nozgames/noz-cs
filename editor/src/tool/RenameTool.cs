@@ -69,7 +69,7 @@ public partial class RenameTool(
             _currentText = UI.TextInput(ElementId.TextBox, _currentText, textStyle);
 
             if (UI.HotEnter())
-                UI.SetElementText(ElementId.TextBox, _originalName, selectAll: true);
+                UI.SetWidgetText(ElementId.TextBox, _originalName, selectAll: true);
 
             if (UI.HotExit())
             {

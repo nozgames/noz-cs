@@ -82,7 +82,7 @@ public static partial class AssetBrowser
             Spacing = s.Spacing,
         }))
         {
-            UI.Text(label, new LabelStyle
+            UI.Text(label, new TextStyle
             {
                 FontSize = s.FontSize,
                 Color = s.ContentColor,
@@ -182,7 +182,7 @@ public static partial class AssetBrowser
                     AlignY = Align.Center,
                 }))
                 {
-                    UI.Text("No matches", new LabelStyle
+                    UI.Text("No matches", new TextStyle
                     {
                         FontSize = EditorStyle.Control.TextSize,
                         Color = EditorStyle.Palette.SecondaryText,
@@ -213,7 +213,7 @@ public static partial class AssetBrowser
                             Align = Align.Center,
                         });
 
-                    UI.Text(name, new LabelStyle
+                    UI.Text(name, new TextStyle
                     {
                         FontSize = EditorStyle.Control.TextSize,
                         Color = EditorStyle.Palette.Content,
