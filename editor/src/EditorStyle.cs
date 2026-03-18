@@ -397,6 +397,8 @@ public static class EditorStyle
 
     public static readonly TextInputStyle TextArea = TextInput with
     {
+        Height = Size.Fit,
+        MinHeight = Control.Height,
         BorderRadius = Control.BorderRadius,
         Resolve = TextInputResolve,
     };
@@ -453,7 +455,8 @@ public static class EditorStyle
 
         public static readonly ContainerStyle SelectedItem = Item with
         {
-            Background = Palette.Active
+            Background = Palette.Active,
+            BorderRadius = Control.BorderRadius
         };
 
         public static readonly ScrollBarStyle ScrollBar = new()
@@ -693,6 +696,21 @@ public static class EditorStyle
             Spacing = HeaderGap,
         };
 
+        public static readonly ButtonStyle SectionButton = new()
+        {
+            Width = Control.Height - Control.Spacing,
+            Height = Control.Height - Control.Spacing,
+            Background = Color.Transparent,
+            ContentColor = Palette.Content,
+            IconSize = Control.IconSize,
+            BorderRadius = Control.BorderRadius,
+            Resolve = (s, f) =>
+            {
+                if ((f & WidgetFlags.Hovered) != 0) s.Background = Palette.Active;
+                return s;
+            },
+        };
+
         public static readonly ImageStyle ChevronIcon = new()
         {
             Color = Palette.SecondaryText,
@@ -750,10 +768,10 @@ public static class EditorStyle
             Spacing = 6,
             FontSize = Control.TextSize,
             BorderRadius = Control.BorderRadius,
-            BorderWidth = 1,
+            BorderWidth = 0,
             Color = Palette.Control,
             CheckedColor = Palette.Control,
-            BorderColor = Palette.Separator,
+            BorderColor = Color.Transparent,
             ContentColor = Palette.Content,
             CheckColor = Palette.Content,
             Resolve = (s, f) =>

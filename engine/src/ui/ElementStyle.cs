@@ -168,6 +168,11 @@ public struct TextInputStyle()
     public float IconSpacing = 4;
     public Color IconColor = new(0.6f, 0.6f, 0.6f, 1f);
 
+    public float MinWidth = 0;
+    public float MaxWidth = float.MaxValue;
+    public float MinHeight = 0;
+    public float MaxHeight = float.MaxValue;
+
     public Func<TextInputStyle, WidgetFlags, TextInputStyle>? Resolve;
 }
 

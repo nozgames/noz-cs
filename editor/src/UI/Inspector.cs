@@ -96,9 +96,9 @@ internal static partial class Inspector
         {
             ElementTree.BeginPadding(new EdgeInsets(
                 EditorStyle.Control.Spacing,
-                EditorStyle.Inspector.BodyPaddingH,
+                EditorStyle.Control.Spacing,
                 0,
-                EditorStyle.Inspector.BodyPaddingH));
+                EditorStyle.Control.Spacing));
             ElementTree.BeginColumn(EditorStyle.Inspector.BodyGap);
         }
 

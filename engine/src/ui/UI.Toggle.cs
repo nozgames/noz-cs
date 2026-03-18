@@ -34,21 +34,23 @@ public static partial class UI
             ? style.Resolve(style, flags)
             : style;
 
+        ElementTree.BeginSize(new Size2(Size.Fit, Size.Default));
         ElementTree.BeginRow(s.Spacing);
+        ElementTree.BeginAlign(new Align2(Align.Min, Align.Center));
         ElementTree.BeginSize(s.Size);
         ElementTree.BeginFill(isChecked ? s.CheckedColor : s.Color, s.BorderRadius, s.BorderWidth, s.BorderColor);
 
         if (isChecked && checkIcon != null)
-            ElementTree.Image(
-                checkIcon,
-                s.IconSize,
-                ImageStretch.Uniform,
-                s.CheckColor,
-                1.0f,
-                Align.Center);
+        {
+            var inset = (s.Size - s.IconSize) / 2;
+            ElementTree.BeginPadding(EdgeInsets.All(inset));
+            ElementTree.Image(checkIcon, color: s.CheckColor, align: Align.Center);
+            ElementTree.EndPadding();
+        }
 
         ElementTree.EndFill();
         ElementTree.EndSize();
+        ElementTree.EndAlign();
 
         // Label
         var font = s.Font ?? _defaultFont!;

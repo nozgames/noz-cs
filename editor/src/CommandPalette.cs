@@ -83,6 +83,30 @@ public static partial class CommandPalette
             ScrollToSelection();
         }
 
+        if (Input.WasButtonPressed(InputCode.KeyPageUp, allowRepeat: true))
+        {
+            _selectedIndex = Math.Max(0, _selectedIndex - 10);
+            ScrollToSelection();
+        }
+
+        if (Input.WasButtonPressed(InputCode.KeyPageDown, allowRepeat: true))
+        {
+            _selectedIndex = Math.Min(_filteredCount - 1, _selectedIndex + 10);
+            ScrollToSelection();
+        }
+
+        if (Input.WasButtonPressed(InputCode.KeyHome))
+        {
+            _selectedIndex = 0;
+            ScrollToSelection();
+        }
+
+        if (Input.WasButtonPressed(InputCode.KeyEnd))
+        {
+            _selectedIndex = Math.Max(0, _filteredCount - 1);
+            ScrollToSelection();
+        }
+
         if (_text != _lastFilterText)
         {
             UpdateFilteredCommands();

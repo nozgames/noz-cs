@@ -489,7 +489,7 @@ public partial class SpriteDocument : Document, IShapeDocument
 
         if (FrameCount == 0)
         {
-            Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
+            SetDefaultBounds();
             return;
         }
 
@@ -526,7 +526,7 @@ public partial class SpriteDocument : Document, IShapeDocument
 
         if (first)
         {
-            Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
+            SetDefaultBounds();
             return;
         }
 
@@ -534,7 +534,7 @@ public partial class SpriteDocument : Document, IShapeDocument
 
         if (Bounds.Width <= 0 || Bounds.Height <= 0)
         {
-            Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
+            SetDefaultBounds();
             return;
         }
 
@@ -551,6 +551,25 @@ public partial class SpriteDocument : Document, IShapeDocument
         ClampToMaxSpriteSize();
         Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
         MarkSpriteDirty();
+    }
+
+    private void SetDefaultBounds()
+    {
+        if (ConstrainedSize.HasValue)
+        {
+            var cs = ConstrainedSize.Value;
+            RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
+            var ppu = EditorApplication.Config.PixelsPerUnitInv;
+            Bounds = new Rect(
+                RasterBounds.X * ppu,
+                RasterBounds.Y * ppu,
+                RasterBounds.Width * ppu,
+                RasterBounds.Height * ppu);
+        }
+        else
+        {
+            Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
+        }
     }
 
     private void ClampToMaxSpriteSize()

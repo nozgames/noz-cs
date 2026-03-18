@@ -38,9 +38,10 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId LayerSeedDice { get; }
         public static partial WidgetId AddGenerationButton { get; }
         public static partial WidgetId RemoveGenerationButton { get; }
-        public static partial WidgetId AddReferenceButton { get; }
-        public static partial WidgetId RemoveReferenceBase { get; }
+        public static partial WidgetId AddReference { get; }
+        public static partial WidgetId RemoveReference { get; }
         public static partial WidgetId ExportToggle { get; }
+
     }
 
     private static readonly WordGenerator _wordGenerator = new();
@@ -1026,8 +1027,10 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
         static void GenerationSectionContent()
         {
-            if (UI.Button(WidgetIds.RemoveGenerationButton, EditorAssets.Sprites.IconDelete, EditorStyle.Button.Secondary))
+            ElementTree.BeginAlign(Align.Min, Align.Center);
+            if (UI.Button(WidgetIds.RemoveGenerationButton, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
                 ((SpriteEditor)Workspace.ActiveEditor!).RemoveGeneration();
+            ElementTree.EndAlign(); 
         }
 
         using (Inspector.BeginSection("GENERATION", content: GenerationSectionContent))
@@ -1055,12 +1058,12 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                     });
 
             using (Inspector.BeginProperty("Prompt"))
-                Document.Prompt = UI.TextInput(WidgetIds.LayerPrompt, Document.Prompt, EditorStyle.TextArea with { Height = Size.Fit }, "Prompt", Document, multiLine: true);
+                Document.Prompt = UI.TextInput(WidgetIds.LayerPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
 
-            using (Inspector.BeginRow())
-            using (UI.BeginFlex())
+            using (Inspector.BeginProperty("Negative Prompt"))
                 Document.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
 
+            using (Inspector.BeginProperty("Seed"))
             using (Inspector.BeginRow())
             {
                 using (UI.BeginFlex())
@@ -1071,23 +1074,36 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                     Document.Seed = GenerateRandomSeed();
                 }
             }
+            var genImage = Document.Generation;
+            if (genImage.IsGenerating)
+                GenerationProgressUI(genImage);
+            else
+                GenerateButtonUI(genImage);
 
-            GenerationReferencesUI();
         }
 
-        UI.Flex();
-
-        var genImage = Document.Generation;
-        if (genImage.IsGenerating)
-            GenerationProgressUI(genImage);
-        else
-            GenerateButtonUI(genImage);
+        GenerationReferencesUI();
     }
 
     private void GenerationReferencesUI()
     {
-        using (Inspector.BeginRow())
-            UI.Text("References", EditorStyle.Inspector.PropertyName);
+        static void SectionContent()
+        {
+            ElementTree.BeginAlign(Align.Min, Align.Center);
+            UI.Button(WidgetIds.AddReference, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton);
+            ElementTree.EndAlign();
+
+            ElementTree.BeginAlign(Align.Min, Align.Center);
+            UI.Button(WidgetIds.RemoveReference, EditorAssets.Sprites.IconRemove, EditorStyle.Inspector.SectionButton);
+            ElementTree.EndAlign();
+        }
+
+        using var _ = Inspector.BeginSection("REFERENCES", content: SectionContent);
+
+        if (Inspector.IsSectionCollapsed) return;
+
+        //using (Inspector.BeginRow())
+        //    UI.Text("References", EditorStyle.Inspector.PropertyName);
 
         for (var i = 0; i < Document.References.Count; i++)
         {
@@ -1096,24 +1112,22 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             {
                 using (UI.BeginFlex())
                     UI.Text(refDoc.Name, EditorStyle.Text.Primary);
-                if (UI.Button(WidgetIds.RemoveReferenceBase + i, EditorAssets.Sprites.IconDelete, EditorStyle.Button.IconOnly))
-                    RemoveReference(i);
             }
         }
 
-        using (Inspector.BeginRow())
-        {
-            UI.DropDown(WidgetIds.AddReferenceButton, () =>
-            {
-                var items = new List<PopupMenuItem>();
-                foreach (var doc in DocumentManager.Documents)
-                {
-                    if (doc is SpriteDocument sprite && sprite != Document && !Document.References.Contains(sprite))
-                        items.Add(PopupMenuItem.Item(sprite.Name, () => AddReference(sprite)));
-                }
-                return [.. items];
-            }, "+ Reference", icon: EditorAssets.Sprites.AssetIconSprite);
-        }
+        //using (Inspector.BeginRow())
+        //{
+        //    UI.DropDown(WidgetIds.AddReferenceButton, () =>
+        //    {
+        //        var items = new List<PopupMenuItem>();
+        //        foreach (var doc in DocumentManager.Documents)
+        //        {
+        //            if (doc is SpriteDocument sprite && sprite != Document && !Document.References.Contains(sprite))
+        //                items.Add(PopupMenuItem.Item(sprite.Name, () => AddReference(sprite)));
+        //        }
+        //        return [.. items];
+        //    }, "+ Reference", icon: EditorAssets.Sprites.AssetIconSprite);
+        //}
     }
 
     private void AddReference(SpriteDocument refDoc)
@@ -1197,7 +1211,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         }))
         {
             UI.SetDisabled(string.IsNullOrWhiteSpace(Document.Prompt) || Document.Style == null);
-            if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1), MinWidth = 0, Height = 36 }))
+            if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1) }))
                 Document.GenerateAsync();
         }
     }

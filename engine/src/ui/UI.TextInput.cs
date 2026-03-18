@@ -42,7 +42,7 @@ public static partial class UI
         const float DefaultHeightScale = 1.8f;
         var height = s.Height.IsFixed ? s.Height : multiLine ? Size.Fit : new Size(s.FontSize * DefaultHeightScale);
 
-        ElementTree.BeginSize(s.Width, height);
+        ElementTree.BeginSize(s.Width, height, s.MinWidth, s.MaxWidth, s.MinHeight, s.MaxHeight);
 
         if (s.BackgroundColor.A > 0 || s.BorderWidth > 0)
             ElementTree.BeginFill(s.BackgroundColor, s.BorderRadius, s.BorderWidth, s.BorderColor);
