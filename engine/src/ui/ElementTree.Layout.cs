@@ -432,33 +432,31 @@ public static unsafe partial class ElementTree
             case ElementType.Grid:
                 LayoutGridAxis(ref e, axis);
                 break;
+            case ElementType.Scroll:
+                LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, axis == 1 ? 1 : layoutAxis);
+                break;
             default:
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, layoutAxis);
                 break;
         }
 
-        // Scrollable: calculate content height and clamp offset after Y layout
+        // Scrollable: calculate content height, clamp offset, and shift descendants
         if (e.Type == ElementType.Scroll && axis == 1)
         {
             ref var sd = ref e.Data.Scroll;
             if (sd.State != null)
             {
-                var contentHeight = 0f;
-                var childOffset = (int)e.FirstChild;
-                for (int i = 0; i < e.ChildCount; i++)
-                {
-                    ref var child = ref GetElement(childOffset);
-                    var childBottom = child.Rect[axis] + child.Rect[axis + 2] - e.Rect[axis];
-                    contentHeight = Math.Max(contentHeight, childBottom);
-                    childOffset = child.NextSibling;
-                }
-
                 ref var state = ref *sd.State;
-                state.ContentHeight = contentHeight;
+                state.ContentHeight = ScrollContentBottom(ref e, e.Rect[axis]);
 
-                var maxScroll = Math.Max(0, contentHeight - size);
+                var maxScroll = Math.Max(0, state.ContentHeight - size);
                 if (state.Offset > maxScroll)
                     state.Offset = maxScroll;
+
+                // Apply scroll offset to all descendant absolute Y positions
+                // so UpdateTransforms inherits the shift at every nesting level
+                if (state.Offset != 0)
+                    ApplyScrollOffset(ref e, state.Offset);
             }
         }
     }
@@ -643,18 +641,6 @@ public static unsafe partial class ElementTree
             state.Rect = e.Rect;
         }
 
-        // Apply scroll offset for Scrollable elements
-        float scrollOffset = 0;
-        if (e.Type == ElementType.Scroll)
-        {
-            ref var sd = ref e.Data.Scroll;
-            if (sd.State != null)
-            {
-                ref var state = ref *sd.State;
-                scrollOffset = state.Offset;
-            }
-        }
-
         var rectSize = e.Rect.Size;
         var childOffset = (int)e.FirstChild;
         for (int i = 0; i < e.ChildCount; i++)
@@ -662,9 +648,36 @@ public static unsafe partial class ElementTree
             ref var child = ref GetElement(childOffset);
             var absPos = child.Rect.Position;
             child.Rect.X = absPos.X - worldTransform.M31;
-            child.Rect.Y = absPos.Y - worldTransform.M32 - scrollOffset;
+            child.Rect.Y = absPos.Y - worldTransform.M32;
             UpdateTransforms(childOffset, worldTransform, rectSize);
             childOffset = child.NextSibling;
         }
+    }
+
+    private static void ApplyScrollOffset(ref Element parent, float offset)
+    {
+        var childOffset = (int)parent.FirstChild;
+        for (int i = 0; i < parent.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childOffset);
+            child.Rect.Y -= offset;
+            ApplyScrollOffset(ref child, offset);
+            childOffset = child.NextSibling;
+        }
+    }
+
+    private static float ScrollContentBottom(ref Element parent, float scrollY)
+    {
+        float max = 0;
+        var childOffset = (int)parent.FirstChild;
+        for (int i = 0; i < parent.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childOffset);
+            var bottom = child.Rect.Y + child.Rect.Height - scrollY;
+            max = Math.Max(max, bottom);
+            max = Math.Max(max, ScrollContentBottom(ref child, scrollY));
+            childOffset = child.NextSibling;
+        }
+        return max;
     }
 }

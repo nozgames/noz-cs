@@ -424,39 +424,48 @@ public static class EditorStyle
         {
             Width = 340.0f,
             Height = Size.Fit,
-            MinHeight = 100.0f
+            MinHeight = 100.0f,
+            Spacing = 2.0f
         };
-
-        public static readonly ContainerStyle SearchContainer = Popup.Item;
 
         public static readonly TextInputStyle SearchTextBox = new()
         {
             FontSize = Control.TextSize,
-            TextColor = Control.Text.Color,
+            TextColor = Palette.Content,
             SelectionColor = Palette.TextSelection,
-            PlaceholderColor = Control.PlaceholderText.Color
+            PlaceholderColor = Palette.Disabled,
+            IconSize = Control.IconSize,
+            IconColor = Palette.SecondaryText
         };
 
         public static readonly ContainerStyle CommandList = new()
         {
-            Height = Popup.Item.Height.Value * 10,
+            Height = List.ItemHeight * 10,
+            Padding = EdgeInsets.Symmetric(3, 0)
         };
 
-        public static readonly ContainerStyle Command = new()
+        public static readonly ContainerStyle Item = new()
         {
-            Height = Popup.Item.Height,
-            Padding = EdgeInsets.Right(8),
+            Height = List.ItemHeight,
+            Padding = EdgeInsets.LeftRight(8),
+            Spacing = 6.0f
         };
 
-        public static readonly ContainerStyle Icon = new()
+        public static readonly ContainerStyle SelectedItem = Item with
         {
-            Width = Popup.Item.Height,
-            Height = Popup.Item.Height,
-            Padding = EdgeInsets.All(4f),
+            Background = Palette.Active
         };
 
-        public static readonly ContainerStyle SelectedCommand =
-            Command with { Background = Control.SelectedFill.Background };
+        public static readonly ScrollBarStyle ScrollBar = new()
+        {
+            Width = 6f,
+            MinThumbHeight = 20f,
+            TrackColor = Color.Transparent,
+            ThumbColor = Palette.Active,
+            BorderRadius = 3f,
+            Padding = 2f,
+            Visibility = ScrollBarVisibility.Auto
+        };
     }
 
     // :shape

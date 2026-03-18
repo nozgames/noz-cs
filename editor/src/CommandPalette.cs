@@ -14,6 +14,7 @@ public static partial class CommandPalette
         public static partial WidgetId Search { get; }
         public static partial WidgetId CommandList { get; }
         public static partial WidgetId Command { get; }
+        public static partial WidgetId ScrollBar { get; }
     }
 
     private static string _text = string.Empty;
@@ -99,14 +100,8 @@ public static partial class CommandPalette
 
         using (UI.BeginColumn(EditorStyle.CommandPalette.Root))
         {
-            using (UI.BeginRow(EditorStyle.Popup.Item with { Spacing = 4.0f }))
-            {
-                using (UI.BeginContainer(new ContainerStyle { Width = EditorStyle.Control.Height, Height = EditorStyle.Control.Height }))
-                    UI.Image(EditorAssets.Sprites.IconSearch, EditorStyle.Control.Icon);
-                   
-                using (UI.BeginFlex())
-                    _text = UI.TextInput(WidgetIds.Search, _text, EditorStyle.CommandPalette.SearchTextBox, "Search...");
-            }
+            _text = UI.TextInput(WidgetIds.Search, _text, EditorStyle.CommandPalette.SearchTextBox, "Search...",
+                icon: EditorAssets.Sprites.IconSearch);
 
             UI.Container(EditorStyle.Popup.Separator);
 
@@ -118,58 +113,60 @@ public static partial class CommandPalette
     {
         var execute = false;
 
-        using (UI.BeginContainer(EditorStyle.CommandPalette.CommandList))
-        using (UI.BeginScrollable(WidgetIds.CommandList))
-        using (UI.BeginColumn())
+        using (UI.BeginRow(EditorStyle.CommandPalette.CommandList))
         {
-            var selectedIndex = _selectedIndex;
-            for (var i = 0; i < _filteredCount; i++)
+            using (UI.BeginFlex())
+            using (UI.BeginScrollable(WidgetIds.CommandList))
+            using (UI.BeginColumn())
             {
-                var cmd = _filteredCommands[i];
-                if (cmd == null) continue;
-
-                var isSelected = i == selectedIndex;
-
-                using (UI.BeginContainer(
-                    id: WidgetIds.Command + i,
-                    style: isSelected
-                        ? EditorStyle.CommandPalette.SelectedCommand
-                        : EditorStyle.CommandPalette.Command))
+                var selectedIndex = _selectedIndex;
+                for (var i = 0; i < _filteredCount; i++)
                 {
-                    using (UI.BeginRow())
+                    var cmd = _filteredCommands[i];
+                    if (cmd == null) continue;
+
+                    var isSelected = i == selectedIndex;
+
+                    using (UI.BeginRow(
+                        id: WidgetIds.Command + i,
+                        style: isSelected
+                            ? EditorStyle.CommandPalette.SelectedItem
+                            : EditorStyle.CommandPalette.Item))
                     {
-                        using (UI.BeginContainer(EditorStyle.CommandPalette.Icon))
-                            if (cmd.Icon != null)
-                                UI.Image(cmd.Icon);
+                        if (cmd.Icon != null)
+                            UI.Image(cmd.Icon, EditorStyle.Control.IconSecondary);
+                        else
+                            UI.Spacer(EditorStyle.Control.IconSize);
 
                         UI.Text(cmd.Name, style: EditorStyle.Control.Text);
                         UI.Flex();
 
                         if (cmd.Key != InputCode.None)
                         {
-                            var shortcutStyle = isSelected ? EditorStyle.Control.Text : EditorStyle.Shortcut.Text;
                             using (UI.BeginRow(EditorStyle.Shortcut.ListContainer))
                             {
-                                if (cmd.Ctrl) UI.Text(InputCode.KeyLeftCtrl.ToDisplayString(), shortcutStyle);
-                                if (cmd.Alt) UI.Text(InputCode.KeyLeftAlt.ToDisplayString(), shortcutStyle);
-                                if (cmd.Shift) UI.Text(InputCode.KeyLeftShift.ToDisplayString(), shortcutStyle);
-                                UI.Text(cmd.Key.ToDisplayString(), shortcutStyle);
+                                if (cmd.Ctrl) UI.Text(InputCode.KeyLeftCtrl.ToDisplayString(), EditorStyle.Text.Disabled);
+                                if (cmd.Alt) UI.Text(InputCode.KeyLeftAlt.ToDisplayString(), EditorStyle.Text.Disabled);
+                                if (cmd.Shift) UI.Text(InputCode.KeyLeftShift.ToDisplayString(), EditorStyle.Text.Disabled);
+                                UI.Text(cmd.Key.ToDisplayString(), EditorStyle.Text.Disabled);
                             }
                         }
-                    }
 
-                    if (UI.WasPressed())
-                    {
-                        selectedIndex = i;
-                        execute = true;
+                        if (UI.WasPressed())
+                        {
+                            selectedIndex = i;
+                            execute = true;
+                        }
                     }
                 }
+
+                _selectedIndex = selectedIndex;
+
+                if (execute)
+                    ExecuteSelectedCommand();
             }
 
-            _selectedIndex = selectedIndex;
-
-            if (execute)
-                ExecuteSelectedCommand();
+            UI.ScrollBar(WidgetIds.ScrollBar, WidgetIds.CommandList, EditorStyle.CommandPalette.ScrollBar);
         }
     }
 
