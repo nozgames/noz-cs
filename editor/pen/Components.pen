@@ -5109,6 +5109,7 @@
                 7
               ],
               "y": 3,
+              "x": 3,
               "descendants": {
                 "GZqkw": {
                   "x": 7,
@@ -5116,7 +5117,8 @@
                 },
                 "Nmxrt": {
                   "x": 20,
-                  "content": "Search assets..."
+                  "content": "Search assets...",
+                  "y": 7
                 }
               }
             },
@@ -5143,7 +5145,8 @@
                       "iconFontName": "image"
                     },
                     "4862N": {
-                      "content": "bg_forest"
+                      "content": "bg_forest",
+                      "y": 7
                     }
                   }
                 },
@@ -5159,7 +5162,8 @@
                       "iconFontName": "image"
                     },
                     "vROPk": {
-                      "content": "bg_mountains"
+                      "content": "bg_mountains",
+                      "y": 7
                     }
                   }
                 },
@@ -5175,7 +5179,8 @@
                       "iconFontName": "image"
                     },
                     "4862N": {
-                      "content": "bg_ocean_sunset"
+                      "content": "bg_ocean_sunset",
+                      "y": 7
                     }
                   }
                 },
@@ -5191,7 +5196,8 @@
                       "iconFontName": "image"
                     },
                     "4862N": {
-                      "content": "bg_sunset_city"
+                      "content": "bg_sunset_city",
+                      "y": 7
                     }
                   }
                 },
@@ -5207,7 +5213,8 @@
                       "iconFontName": "image"
                     },
                     "4862N": {
-                      "content": "tile_grass"
+                      "content": "tile_grass",
+                      "y": 7
                     }
                   }
                 }
@@ -5251,7 +5258,8 @@
                 },
                 "Nmxrt": {
                   "x": 20,
-                  "content": "Search sprites..."
+                  "content": "Search sprites...",
+                  "y": 7
                 }
               }
             },
@@ -5734,7 +5742,8 @@
                 },
                 "Nmxrt": {
                   "x": 20,
-                  "content": "Search..."
+                  "content": "Search...",
+                  "y": 7
                 }
               }
             },
@@ -5769,7 +5778,8 @@
                       "iconFontName": "file-plus"
                     },
                     "vROPk": {
-                      "content": "New Project"
+                      "content": "New Project",
+                      "y": 7
                     }
                   }
                 },
@@ -5785,7 +5795,8 @@
                       "iconFontName": "folder-open"
                     },
                     "4862N": {
-                      "content": "Open Project"
+                      "content": "Open Project",
+                      "y": 7
                     }
                   }
                 },
@@ -6046,7 +6057,8 @@
                       "iconFontName": "play"
                     },
                     "4862N": {
-                      "content": "Run Project"
+                      "content": "Run Project",
+                      "y": 7
                     }
                   }
                 },
@@ -6062,7 +6074,8 @@
                       "iconFontName": "package"
                     },
                     "4862N": {
-                      "content": "Import Assets"
+                      "content": "Import Assets",
+                      "y": 7
                     }
                   }
                 }
@@ -6627,7 +6640,8 @@
                   "type": "ref",
                   "ref": "noSnA",
                   "name": "Label",
-                  "content": "Grayscale"
+                  "content": "Grayscale",
+                  "y": 44
                 },
                 {
                   "type": "frame",
@@ -6750,6 +6764,651 @@
                     "thickness": 1.5,
                     "fill": "#000000"
                   }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "zAKem",
+      "x": 2202,
+      "y": -12,
+      "name": "Floating Toolbar",
+      "fill": "$panel",
+      "cornerRadius": "$corner-radius",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "$separator"
+      },
+      "gap": 2,
+      "padding": 2,
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "EKUOG",
+          "name": "Tool Group",
+          "gap": 2,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "9gtsY",
+              "name": "Pen Button",
+              "width": 27,
+              "height": 27,
+              "fill": "$active",
+              "cornerRadius": "$corner-radius",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "DAlp8",
+                  "type": "ref",
+                  "ref": "fHxvo",
+                  "iconFontName": "pen-tool",
+                  "name": "penIcon"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "qTh9m",
+              "name": "Knife Button",
+              "width": 27,
+              "height": 27,
+              "cornerRadius": "$corner-radius",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "3l2vy",
+                  "type": "ref",
+                  "ref": "49yTu",
+                  "iconFontName": "scissors",
+                  "name": "knifeIcon"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "pvLqM",
+              "name": "Rect Button",
+              "width": 27,
+              "height": 27,
+              "cornerRadius": "$corner-radius",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "esBRZ",
+                  "type": "ref",
+                  "ref": "49yTu",
+                  "iconFontName": "square",
+                  "name": "rectIcon"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AmNAW",
+              "name": "Circle Button",
+              "width": 27,
+              "height": 27,
+              "cornerRadius": "$corner-radius",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "jtmwE",
+                  "type": "ref",
+                  "ref": "49yTu",
+                  "iconFontName": "circle",
+                  "name": "circleIcon"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "Derg4",
+          "name": "Divider 1",
+          "fill": "$separator",
+          "width": 1,
+          "height": 16
+        },
+        {
+          "type": "frame",
+          "id": "GTuSJ",
+          "name": "Toggle Group",
+          "gap": 2,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "zzn4r",
+              "name": "Tile Button",
+              "width": 27,
+              "height": 27,
+              "cornerRadius": "$corner-radius",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "d53rh",
+                  "type": "ref",
+                  "ref": "49yTu",
+                  "iconFontName": "grid-3x3",
+                  "name": "tileIcon"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "iRzY3",
+              "name": "GenImage Button",
+              "width": 27,
+              "height": 27,
+              "cornerRadius": "$corner-radius",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "UkwMk",
+                  "type": "ref",
+                  "ref": "49yTu",
+                  "iconFontName": "image",
+                  "name": "genIcon"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "obkMx",
+          "name": "Divider 2",
+          "fill": "$separator",
+          "width": 1,
+          "height": 16
+        },
+        {
+          "type": "frame",
+          "id": "7yEUS",
+          "name": "Anim Group",
+          "fill": "#00000000",
+          "gap": 2,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ikWcP",
+              "name": "DopeSheet Button",
+              "width": 27,
+              "height": 27,
+              "cornerRadius": "$corner-radius",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "4THyk",
+                  "type": "ref",
+                  "ref": "49yTu",
+                  "iconFontName": "rows-3",
+                  "name": "dopeIcon"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "xezGR",
+      "x": 2202,
+      "y": 80,
+      "name": "Floating Toolbar + Dopesheet",
+      "clip": true,
+      "fill": "$panel",
+      "cornerRadius": "$corner-radius",
+      "stroke": {
+        "align": "inside",
+        "thickness": 0,
+        "fill": "#00000000"
+      },
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "O15yc",
+          "name": "Toolbar Row",
+          "fill": "$panel",
+          "stroke": {
+            "align": "inside",
+            "thickness": 0,
+            "fill": "#00000000"
+          },
+          "gap": 2,
+          "padding": 2,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "mDJ1s",
+              "name": "Tool Group",
+              "gap": 2,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "2nsEh",
+                  "name": "Pen Button",
+                  "width": 27,
+                  "height": 27,
+                  "fill": "$active",
+                  "cornerRadius": "$corner-radius",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "RaUqV",
+                      "type": "ref",
+                      "ref": "fHxvo",
+                      "iconFontName": "pen-tool",
+                      "name": "penIcon2"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kiK02",
+                  "name": "Knife Button",
+                  "width": 27,
+                  "height": 27,
+                  "cornerRadius": "$corner-radius",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "j01Ad",
+                      "type": "ref",
+                      "ref": "49yTu",
+                      "iconFontName": "scissors",
+                      "name": "knifeIcon2"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Hxlhw",
+                  "name": "Rect Button",
+                  "width": 27,
+                  "height": 27,
+                  "cornerRadius": "$corner-radius",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "Qgh2R",
+                      "type": "ref",
+                      "ref": "49yTu",
+                      "iconFontName": "square",
+                      "name": "rectIcon2"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Kk3My",
+                  "name": "Circle Button",
+                  "width": 27,
+                  "height": 27,
+                  "cornerRadius": "$corner-radius",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "DC4zP",
+                      "type": "ref",
+                      "ref": "49yTu",
+                      "iconFontName": "circle",
+                      "name": "circleIcon2"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "KNEPE",
+              "name": "Divider 1",
+              "fill": "$separator",
+              "width": 1,
+              "height": 16
+            },
+            {
+              "type": "frame",
+              "id": "sHSll",
+              "name": "Toggle Group",
+              "gap": 2,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "0RgTV",
+                  "name": "Tile Button",
+                  "width": 27,
+                  "height": 27,
+                  "cornerRadius": "$corner-radius",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "C7cMt",
+                      "type": "ref",
+                      "ref": "49yTu",
+                      "iconFontName": "grid-3x3",
+                      "name": "tileIcon2"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "gyidk",
+                  "name": "GenImage Button",
+                  "width": 27,
+                  "height": 27,
+                  "cornerRadius": "$corner-radius",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "OBbxI",
+                      "type": "ref",
+                      "ref": "49yTu",
+                      "iconFontName": "image",
+                      "name": "genIcon2"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "ciuK3",
+              "name": "Divider 2",
+              "fill": "$separator",
+              "width": 1,
+              "height": 16
+            },
+            {
+              "type": "frame",
+              "id": "nPbeu",
+              "name": "Anim Group",
+              "fill": "#00000000",
+              "gap": 2,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "YClSf",
+                  "name": "DopeSheet Button",
+                  "width": 27,
+                  "height": 27,
+                  "fill": "$active",
+                  "cornerRadius": "$corner-radius",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "M04d9",
+                      "type": "ref",
+                      "ref": "fHxvo",
+                      "iconFontName": "rows-3",
+                      "name": "dopeIcon2"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ywkpX",
+          "name": "Dopesheet Content",
+          "width": "fill_container",
+          "fill": "$panel",
+          "layout": "vertical",
+          "gap": 1,
+          "padding": 1,
+          "children": [
+            {
+              "type": "frame",
+              "id": "sFXXN",
+              "name": "Header Row",
+              "width": "fill_container",
+              "height": 20,
+              "fill": "$control",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "TtL6W",
+                  "name": "Time 0:00",
+                  "width": 59,
+                  "height": "fill_container",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    3
+                  ],
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "id": "NtxNd",
+                      "type": "ref",
+                      "ref": "kBvww",
+                      "content": "0",
+                      "fontSize": 8,
+                      "name": "tl1"
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "76sgx",
+                  "name": "tick",
+                  "fill": "$panel",
+                  "width": 1,
+                  "height": "fill_container"
+                },
+                {
+                  "type": "frame",
+                  "id": "b4lKp",
+                  "name": "Time 0:04",
+                  "width": 59,
+                  "height": "fill_container",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    3
+                  ],
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "id": "7ufxw",
+                      "type": "ref",
+                      "ref": "kBvww",
+                      "content": "4",
+                      "fontSize": 8,
+                      "name": "tl2"
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "MdD7m",
+                  "name": "tick",
+                  "fill": "$panel",
+                  "width": 1,
+                  "height": "fill_container"
+                },
+                {
+                  "type": "frame",
+                  "id": "iilaj",
+                  "name": "Time 0:08",
+                  "width": 59,
+                  "height": "fill_container",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    3
+                  ],
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "id": "kdWcc",
+                      "type": "ref",
+                      "ref": "kBvww",
+                      "content": "8",
+                      "fontSize": 8,
+                      "name": "tl3"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "LgbrB",
+              "name": "Layer Row",
+              "width": "fill_container",
+              "height": 20,
+              "fill": "$panel",
+              "gap": 1,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "6EYgU",
+                  "name": "Frame 0 Selected",
+                  "width": 14,
+                  "height": "fill_container",
+                  "fill": "$primary",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "vIG1t",
+                      "name": "f0dot",
+                      "fill": "$content-primary",
+                      "width": 4,
+                      "height": 4
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "arLC0",
+                  "name": "Frame 1",
+                  "width": 14,
+                  "height": "fill_container",
+                  "fill": "$canvas",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "bPU93",
+                      "name": "f1dot",
+                      "fill": "$content-disabled",
+                      "width": 4,
+                      "height": 4
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "U977H",
+                  "name": "Frame 2-3 (Held)",
+                  "width": 29,
+                  "height": "fill_container",
+                  "fill": "$canvas",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    5
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "sRYkg",
+                      "name": "dot",
+                      "fill": "$content-disabled",
+                      "width": 4,
+                      "height": 4
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IFFto",
+                  "name": "Frame 4",
+                  "width": 14,
+                  "height": "fill_container",
+                  "fill": "$canvas",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "REkbW",
+                      "name": "dot",
+                      "fill": "$content-disabled",
+                      "width": 4,
+                      "height": 4
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "hhDYx",
+                  "name": "Frame 5",
+                  "width": 14,
+                  "height": "fill_container",
+                  "fill": "$canvas",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "jfplW",
+                      "name": "dot",
+                      "fill": "$content-disabled",
+                      "width": 4,
+                      "height": 4
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "ZM8mb",
+                  "name": "Frame 7",
+                  "fill": "$panel",
+                  "width": "fill_container",
+                  "height": "fill_container"
                 }
               ]
             }
