@@ -326,6 +326,7 @@ public static partial class EditorApplication
         DocumentManager.UpdateExports();
         ConfirmDialog.Update();
         CommandPalette.Update();
+        AssetPalette.Update();
         PopupMenu.Update();
         Notifications.Update();
         Workspace.Update();
@@ -337,6 +338,7 @@ public static partial class EditorApplication
         Workspace.UpdateUI();
         PopupMenu.UpdateUI();
         CommandPalette.UpdateUI();
+        AssetPalette.UpdateUI();
         ConfirmDialog.UpdateUI();
         AppConfig.UpdateUI?.Invoke();
     }

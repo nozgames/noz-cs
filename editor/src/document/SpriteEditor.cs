@@ -34,12 +34,13 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId StyleDropDown { get; }
         public static partial WidgetId LayerPrompt { get; }
         public static partial WidgetId LayerNegativePrompt { get; }
-        public static partial WidgetId LayerSeed { get; }
-        public static partial WidgetId LayerSeedDice { get; }
+        public static partial WidgetId Seed { get; }
+        public static partial WidgetId RandomizeSeed { get; }
         public static partial WidgetId AddGenerationButton { get; }
         public static partial WidgetId RemoveGenerationButton { get; }
         public static partial WidgetId AddReference { get; }
-        public static partial WidgetId RemoveReference { get; }
+        public static partial WidgetId ReferenceItem { get; }
+        public static partial WidgetId DeleteReference { get; }
         public static partial WidgetId ExportToggle { get; }
 
     }
@@ -1064,11 +1065,14 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                 Document.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
 
             using (Inspector.BeginProperty("Seed"))
-            using (Inspector.BeginRow())
+            using (UI.BeginRow())
             {
                 using (UI.BeginFlex())
-                    Document.Seed = UI.TextInput(WidgetIds.LayerSeed, Document.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
-                if (UI.Button(WidgetIds.LayerSeedDice, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))
+                {
+                    Document.Seed = UI.TextInput(WidgetIds.Seed, Document.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
+                }
+
+                if (UI.Button(WidgetIds.RandomizeSeed, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))
                 {
                     Undo.Record(Document);
                     Document.Seed = GenerateRandomSeed();
@@ -1087,14 +1091,22 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void GenerationReferencesUI()
     {
-        static void SectionContent()
+        void SectionContent()
         {
             ElementTree.BeginAlign(Align.Min, Align.Center);
-            UI.Button(WidgetIds.AddReference, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton);
-            ElementTree.EndAlign();
-
-            ElementTree.BeginAlign(Align.Min, Align.Center);
-            UI.Button(WidgetIds.RemoveReference, EditorAssets.Sprites.IconRemove, EditorStyle.Inspector.SectionButton);
+            if (UI.Button(WidgetIds.AddReference, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+            {
+                var currentDoc = Document;
+                AssetPalette.OpenSprites(
+                    onPicked: doc =>
+                    {
+                        if (doc is SpriteDocument sprite)
+                            AddReference(sprite);
+                    },
+                    filter: doc => doc is SpriteDocument sprite
+                                   && sprite != currentDoc
+                                   && !currentDoc.References.Contains(sprite));
+            }
             ElementTree.EndAlign();
         }
 
@@ -1102,32 +1114,34 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
         if (Inspector.IsSectionCollapsed) return;
 
-        //using (Inspector.BeginRow())
-        //    UI.Text("References", EditorStyle.Inspector.PropertyName);
-
         for (var i = 0; i < Document.References.Count; i++)
         {
             var refDoc = Document.References[i];
+            var itemId = WidgetIds.ReferenceItem + i;
+
             using (Inspector.BeginRow())
+            using (UI.BeginFlex())
             {
-                using (UI.BeginFlex())
-                    UI.Text(refDoc.Name, EditorStyle.Text.Primary);
+                using (UI.BeginRow(itemId, new ContainerStyle
+                {
+                    Height = EditorStyle.Control.Height,
+                    Padding = EdgeInsets.LeftRight(3),
+                    Spacing = 6,
+                }))
+                {
+                    UI.Image(EditorAssets.Sprites.AssetIconSprite, EditorStyle.Control.IconSecondary);
+                    using (UI.BeginFlex())
+                        UI.Text(refDoc.Name, EditorStyle.Text.Primary);
+
+                    var hovered = UI.IsHovered(itemId) || UI.IsHovered(WidgetIds.DeleteReference + i);
+                    using (UI.BeginOpacity(hovered ? 1.0f : 0.0f))
+                    {
+                        if (UI.Button(WidgetIds.DeleteReference + i, EditorAssets.Sprites.IconDelete, EditorStyle.Button.IconOnly))
+                            RemoveReference(i);
+                    }
+                }
             }
         }
-
-        //using (Inspector.BeginRow())
-        //{
-        //    UI.DropDown(WidgetIds.AddReferenceButton, () =>
-        //    {
-        //        var items = new List<PopupMenuItem>();
-        //        foreach (var doc in DocumentManager.Documents)
-        //        {
-        //            if (doc is SpriteDocument sprite && sprite != Document && !Document.References.Contains(sprite))
-        //                items.Add(PopupMenuItem.Item(sprite.Name, () => AddReference(sprite)));
-        //        }
-        //        return [.. items];
-        //    }, "+ Reference", icon: EditorAssets.Sprites.AssetIconSprite);
-        //}
     }
 
     private void AddReference(SpriteDocument refDoc)

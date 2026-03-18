@@ -199,6 +199,8 @@ public static partial class Workspace
             new Command { Name = "Decrease UI Scale", Handler = DecreaseUIScale, Key = InputCode.KeyMinus, Ctrl = true },
             new Command { Name = "Reset UI Scale", Handler = ResetUIScale, Key = InputCode.Key0, Ctrl = true },
             new Command { Name = "Command Palette", Handler = CommandPalette.Open, Key = InputCode.KeyP, Ctrl = true, Shift = true },
+            new Command { Name = "Asset Browser", Handler = () => AssetPalette.Open(), Key = InputCode.KeyP, Ctrl = true, Icon = EditorAssets.Sprites.IconSearch },
+            new Command { Name = "Browse Sprites", Handler = () => AssetPalette.OpenSprites() },
             new Command { Name = "Toggle Grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Ctrl = true },
             new Command { Name = "Toggle Names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
         ]);
@@ -308,7 +310,7 @@ public static partial class Workspace
         UpdateState();
         UpdateCamera();
 
-        if (!CommandPalette.IsOpen && !PopupMenu.IsVisible && !ConfirmDialog.IsVisible)
+        if (!CommandPalette.IsOpen && !AssetPalette.IsOpen && !PopupMenu.IsVisible && !ConfirmDialog.IsVisible)
         {
             if (!UI.HasHot())
                 CommandManager.ProcessShortcuts();

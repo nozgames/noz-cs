@@ -49,7 +49,8 @@ public class Sprite : Asset, IImage
         SpriteFrame[] frames,
         float frameRate = 12.0f,
         EdgeInsets edges = default,
-        ushort sliceMask = 0)
+        ushort sliceMask = 0,
+        Texture? texture = null)
     {
         return new Sprite(name)
         {
@@ -64,6 +65,7 @@ public class Sprite : Asset, IImage
             Frames = frames,
             Edges = edges,
             SliceMask = sliceMask,
+            Texture = texture,
         };
     }
 

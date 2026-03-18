@@ -471,6 +471,30 @@ public static class EditorStyle
         };
     }
 
+    // :assetpalette
+    public static class AssetPalette
+    {
+        public static readonly ContainerStyle Root = Popup.Root with
+        {
+            Width = 340.0f,
+            Height = Size.Fit,
+            MinHeight = 100.0f,
+            Spacing = 2.0f
+        };
+
+        public static readonly ContainerStyle ListContainer = new()
+        {
+            Height = List.ItemHeight * 10,
+            Padding = EdgeInsets.Symmetric(3, 0)
+        };
+
+        public static readonly ContainerStyle GridContainer = new()
+        {
+            Height = 280.0f,
+            Padding = EdgeInsets.Symmetric(3, 0)
+        };
+    }
+
     // :shape
     public static class Shape
     {
@@ -619,13 +643,35 @@ public static class EditorStyle
         {
             Height = Control.Height,
             Padding = EdgeInsets.Symmetric(0, 10),
+            Spacing = 6.0f,
             Background = Palette.Popup,
             BorderRadius = Control.BorderRadius
         };
 
-        public readonly static ImageStyle NotificationIcon = Control.Icon;
-        public readonly static LabelStyle NotificationText = Control.Text;
-        public readonly static LabelStyle NotificationErrorText = Control.Text with { Color = ErrorColor };
+        public const float IconSize = 12.0f;
+
+        public readonly static ImageStyle InfoIcon = new()
+        {
+            Color = Palette.SecondaryText,
+            Size = IconSize,
+            Align = Align.Center
+        };
+
+        public readonly static ImageStyle ErrorIcon = InfoIcon with { Color = Palette.Primary };
+
+        public static readonly Color WarningColor = Color.FromRgb(0xD49300);
+        public static readonly Color SuccessColor = Color.FromRgb(0x2ECC71);
+
+        public readonly static ImageStyle WarningIcon = InfoIcon with { Color = WarningColor };
+        public readonly static ImageStyle SuccessIcon = InfoIcon with { Color = SuccessColor };
+
+        public readonly static LabelStyle NotificationText = new()
+        {
+            FontSize = Control.TextSize,
+            Color = Palette.SecondaryText,
+            AlignX = Align.Min,
+            AlignY = Align.Center
+        };
     }
 
     // :confirm

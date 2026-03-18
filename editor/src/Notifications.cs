@@ -9,7 +9,9 @@ namespace NoZ.Editor;
 public enum NotificationType
 {
     Info,
-    Error
+    Error,
+    Warning,
+    Success
 }
 
 public static class Notifications
@@ -69,6 +71,8 @@ public static class Notifications
 
     public static void Add(string text, Sprite? icon = null) => Add(NotificationType.Info, text, icon);
     public static void AddError(string text, Sprite? icon = null) => Add(NotificationType.Error, text, icon);
+    public static void AddWarning(string text, Sprite? icon = null) => Add(NotificationType.Warning, text, icon);
+    public static void AddSuccess(string text, Sprite? icon = null) => Add(NotificationType.Success, text, icon);
 
     public static void AddDeferred(NotificationType type, string text, Sprite? icon = null)
     {
@@ -98,6 +102,14 @@ public static class Notifications
             PopFront();
     }
 
+    private static ImageStyle GetIconStyle(NotificationType type) => type switch
+    {
+        NotificationType.Error => EditorStyle.Notifications.ErrorIcon,
+        NotificationType.Warning => EditorStyle.Notifications.WarningIcon,
+        NotificationType.Success => EditorStyle.Notifications.SuccessIcon,
+        _ => EditorStyle.Notifications.InfoIcon
+    };
+
     public static void UpdateUI()
     {
         if (_count <= 0)
@@ -113,12 +125,8 @@ public static class Notifications
                 using (UI.BeginContainer(EditorStyle.Notifications.Notification))
                 {
                     if (n.Icon != null)
-                        UI.Image(n.Icon, EditorStyle.Notifications.NotificationIcon);
-                    UI.Text(
-                        n.Text,
-                        n.Type == NotificationType.Error
-                            ? EditorStyle.Notifications.NotificationErrorText
-                            : EditorStyle.Notifications.NotificationText);
+                        UI.Image(n.Icon, GetIconStyle(n.Type));
+                    UI.Text(n.Text, EditorStyle.Notifications.NotificationText);
                 }
             }
         }

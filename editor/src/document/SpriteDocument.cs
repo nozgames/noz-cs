@@ -692,6 +692,43 @@ public partial class SpriteDocument : Document, IShapeDocument
             DrawVector();
     }
 
+    public override bool DrawThumbnail()
+    {
+        if (Sprite != null)
+        {
+            UI.Image(Sprite, ImageStyle.Center);
+            return true;
+        }
+
+        EnsurePreviewTexture();
+        if (_texture != null)
+        {
+            UI.Image(_texture, ImageStyle.Center);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void EnsurePreviewTexture()
+    {
+        if (_texture != null || ImageFilePath == null || !File.Exists(ImageFilePath))
+            return;
+
+        try
+        {
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ImageFilePath);
+            _textureSize = new Vector2Int(srcImage.Width, srcImage.Height);
+            var data = new byte[srcImage.Width * srcImage.Height * 4];
+            srcImage.CopyPixelDataTo(data);
+            _texture = Texture.Create(srcImage.Width, srcImage.Height, data, TextureFormat.RGBA8, TextureFilter.Linear, Name + "_preview");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to load preview texture '{ImageFilePath}': {ex.Message}");
+        }
+    }
+
     private bool DrawFromAtlas(float alpha = -1f)
     {
         if (Atlas?.Texture == null) return false;
@@ -712,21 +749,7 @@ public partial class SpriteDocument : Document, IShapeDocument
 
     private bool DrawFromPreviewTexture()
     {
-        if (_texture == null && ImageFilePath != null && File.Exists(ImageFilePath))
-        {
-            try
-            {
-                using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ImageFilePath);
-                _textureSize = new Vector2Int(srcImage.Width, srcImage.Height);
-                var data = new byte[srcImage.Width * srcImage.Height * 4];
-                srcImage.CopyPixelDataTo(data);
-                _texture = Texture.Create(srcImage.Width, srcImage.Height, data, TextureFormat.RGBA8, TextureFilter.Linear, Name + "_preview");
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Failed to load preview texture '{ImageFilePath}': {ex.Message}");
-            }
-        }
+        EnsurePreviewTexture();
 
         if (_texture == null) return false;
 
@@ -1285,7 +1308,8 @@ public partial class SpriteDocument : Document, IShapeDocument
             frames: frames,
             frameRate: 12.0f,
             edges: ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero,
-            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero));
+            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero),
+            texture: Atlas?.Texture);
     }
 
     internal void MarkSpriteDirty()

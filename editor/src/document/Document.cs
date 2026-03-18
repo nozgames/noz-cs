@@ -48,6 +48,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public virtual void GetDependencies(List<(AssetType Type, string Name)> dependencies) { }
     public virtual void GetReferences(List<Document> references) { }
     public virtual void Draw() { }
+    public virtual bool DrawThumbnail() => false;
     public virtual void Clone(Document source) { }
     public virtual void OnUndoRedo() { }
 
