@@ -31,11 +31,15 @@ public partial class SpriteEditor
 
     private readonly List<MeshSlotData> _meshSlots = new();
 
+    private int _meshFrame = -1;
+
     private void UpdateMesh()
     {
-        if (_meshVersion == Document.Version) return;
+        var frameIndex = CurrentFrameIndex;
+        if (_meshVersion == Document.Version && _meshFrame == frameIndex) return;
 
         _meshVersion = Document.Version;
+        _meshFrame = frameIndex;
         _meshSlots.Clear();
 
         var shape = Document.Frames[CurrentFrameIndex].Shape;

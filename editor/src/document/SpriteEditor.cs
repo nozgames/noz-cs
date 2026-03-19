@@ -422,10 +422,9 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         var fi = CurrentFrameIndex;
         var newFrame = Document.InsertFrame(fi);
         if (newFrame >= 0)
-        {
             _currentTimeSlot = TimeSlotForFrame(newFrame);
-            if (Document.Atlas != null) AtlasManager.UpdateSource(Document);
-        }
+        Document.UpdateBounds();
+        Document.IncrementVersion();
     }
 
     private void InsertFrameAfter()
@@ -435,6 +434,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         var newFrame = Document.InsertFrame(fi + 1);
         if (newFrame >= 0)
             _currentTimeSlot = TimeSlotForFrame(newFrame);
+        Document.UpdateBounds();
+        Document.IncrementVersion();
     }
 
     private void DeleteCurrentFrame()
@@ -443,7 +444,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         Undo.Record(Document);
         var fi = Document.DeleteFrame(CurrentFrameIndex);
         _currentTimeSlot = TimeSlotForFrame(fi);
-        if (Document.Atlas != null) AtlasManager.UpdateSource(Document);
+        Document.UpdateBounds();
+        Document.IncrementVersion();
     }
 
     private void AddHoldFrame()
