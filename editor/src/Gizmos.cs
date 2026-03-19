@@ -13,7 +13,7 @@ public static class Gizmos
     private const float DashedLineSegmentLength = 0.1f;
     private const int MinCircleSegments = 8;
     private const int MaxCircleSegments = 64;
-    private const float MaxZoomRefScale = 0.15f;
+    private const float MaxZoomRefScale = 0.8f;
 
     public static float ZoomRefScale => MathF.Min(1f / Workspace.Zoom, MaxZoomRefScale);
 

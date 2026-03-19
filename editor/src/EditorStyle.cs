@@ -90,11 +90,11 @@ public static class EditorStyle
     // :workspace
     public static class Workspace
     {
-        public static readonly Color SelectionColor = Palette.SelectionOutline;
+        public static readonly Color SelectionColor = Palette.Primary;
         public static readonly Color FillColor = Palette.Canvas;
         public static readonly Color GridColor = Palette.Active;
         public static readonly Color BoundsColor = Color.FromRgb(0x212121);
-        public static readonly Color OriginColor = Color.FromRgb(0xff9f2c);
+        public static readonly Color OriginColor = Palette.Primary.MultiplyValue(0.75f);
         public const float XrayAlpha = 0.5f;
         public const float OriginSize = 0.1f;
         public const float DocumentBoundsLineWidth = 0.015f;
