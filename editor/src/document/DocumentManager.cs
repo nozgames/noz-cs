@@ -35,7 +35,7 @@ public static class DocumentManager
     public static void NotifyDocumentAdded(Document doc) => DocumentAdded?.Invoke(doc);
 
     private static readonly Dictionary<AssetType, DocumentDef> _defsByType = new();
-    private static readonly Dictionary<string, DocumentDef> _defsByExtension = new();
+    private static readonly Dictionary<string, List<DocumentDef>> _defsByExtension = new();
 
     public static int Count => _documents.Count;
 
@@ -86,7 +86,11 @@ public static class DocumentManager
     {
         _defsByType[def.Type] = def;
         foreach (var ext in def.Extensions)
-            _defsByExtension[ext] = def;
+        {
+            if (!_defsByExtension.TryGetValue(ext, out var list))
+                _defsByExtension[ext] = list = [];
+            list.Add(def);
+        }
     }
 
     public static DocumentDef? GetDef(AssetType type)
@@ -99,7 +103,79 @@ public static class DocumentManager
         ext = ext.ToLowerInvariant();
         if (!ext.StartsWith('.'))
             ext = "." + ext;
-        return _defsByExtension.TryGetValue(ext, out var def) ? def : null;
+        return _defsByExtension.TryGetValue(ext, out var list) && list.Count > 0 ? list[0] : null;
+    }
+
+    public static IReadOnlyList<DocumentDef>? GetDefs(string ext)
+    {
+        ext = ext.ToLowerInvariant();
+        if (!ext.StartsWith('.'))
+            ext = "." + ext;
+        return _defsByExtension.TryGetValue(ext, out var list) ? list : null;
+    }
+
+    private static bool IsAuxiliaryFile(string path)
+    {
+        var filename = Path.GetFileName(path);
+        foreach (var def in _defsByType.Values)
+        {
+            if (def.AuxiliaryExtensions == null) continue;
+            foreach (var auxExt in def.AuxiliaryExtensions)
+            {
+                if (filename.EndsWith(auxExt, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static string? GetAuxiliaryParentPath(string path)
+    {
+        var dir = Path.GetDirectoryName(path) ?? "";
+        var filename = Path.GetFileName(path);
+        foreach (var def in _defsByType.Values)
+        {
+            if (def.AuxiliaryExtensions == null) continue;
+            foreach (var auxExt in def.AuxiliaryExtensions)
+            {
+                if (!filename.EndsWith(auxExt, StringComparison.OrdinalIgnoreCase)) continue;
+                var stem = filename[..^auxExt.Length];
+                foreach (var primaryExt in def.Extensions)
+                {
+                    var candidate = Path.Combine(dir, stem + primaryExt);
+                    if (File.Exists(candidate))
+                        return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    public static DocumentDef? ResolveDef(string path)
+    {
+        var ext = Path.GetExtension(path);
+        var defs = GetDefs(ext);
+        if (defs == null || defs.Count == 0)
+            return null;
+        if (defs.Count == 1)
+            return defs[0];
+
+        var metaPath = path + ".meta";
+        if (File.Exists(metaPath))
+        {
+            var meta = PropertySet.LoadFile(metaPath);
+            var docType = meta?.GetString("editor", "document_type", "");
+            if (!string.IsNullOrEmpty(docType))
+            {
+                foreach (var def in defs)
+                {
+                    if (string.Equals(def.Name, docType, StringComparison.OrdinalIgnoreCase))
+                        return def;
+                }
+            }
+        }
+
+        return defs[0];
     }
 
     public static IEnumerable<DocumentDef> GetCreatableDefs()
@@ -111,8 +187,7 @@ public static class DocumentManager
 
     public static Document? Create(string path)
     {
-        string ext = Path.GetExtension(path);
-        var def = GetDef(ext);
+        var def = ResolveDef(path);
         if (def == null)
             return null;
 
@@ -289,6 +364,16 @@ public static class DocumentManager
             if (File.Exists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
                 yield return path;
         }
+
+        if (doc.Def.AuxiliaryExtensions != null)
+        {
+            foreach (var auxExt in doc.Def.AuxiliaryExtensions)
+            {
+                var path = Path.Combine(directory, stem + auxExt);
+                if (File.Exists(path))
+                    yield return path;
+            }
+        }
     }
 
     public static bool Rename(Document doc, string name)
@@ -330,6 +415,12 @@ public static class DocumentManager
         return true;
     }
 
+    public static void Remove(Document doc)
+    {
+        _documents.Remove(doc);
+        doc.Dispose();
+    }
+
     public static void Delete(Document doc)
     {
         Undo.RemoveDocument(doc);
@@ -362,8 +453,9 @@ public static class DocumentManager
             {
                 var ext = Path.GetExtension(filePath);
                 if (ext == ".meta") continue;
+                if (IsAuxiliaryFile(filePath)) continue;
 
-                var def = GetDef(ext);
+                var def = ResolveDef(filePath);
                 if (def == null) continue;
 
                 var name = MakeCanonicalName(filePath);
@@ -513,8 +605,7 @@ public static class DocumentManager
 
     public static void QueueExport(string path)
     {
-        var ext = Path.GetExtension(path);
-        var def = GetDef(ext);
+        var def = ResolveDef(path);
         if (def == null)
             return;
 
@@ -590,8 +681,24 @@ public static class DocumentManager
     private static void OnFileRenamed(object sender, RenamedEventArgs e) =>
         HandleFileChange(e.FullPath);
 
-    private static void HandleFileChange(string path) =>
-        _watcherQueue.Enqueue(Path.GetExtension(path) == ".meta" ? path[..^5] : path);
+    private static void HandleFileChange(string path)
+    {
+        if (Path.GetExtension(path) == ".meta")
+        {
+            _watcherQueue.Enqueue(path[..^5]);
+            return;
+        }
+
+        if (IsAuxiliaryFile(path))
+        {
+            var parentPath = GetAuxiliaryParentPath(path);
+            if (parentPath != null)
+                _watcherQueue.Enqueue(parentPath);
+            return;
+        }
+
+        _watcherQueue.Enqueue(path);
+    }
 
     public static async Task GenerateSpritesAsync(CancellationToken ct = default)
     {

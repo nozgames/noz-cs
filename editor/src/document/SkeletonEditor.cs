@@ -24,6 +24,7 @@ internal partial class SkeletonEditor : DocumentEditor
         public Vector2 HeadWorld;
         public Vector2 TailWorld;
         public float Length;
+        public float Radius;
     }
 
     public new SkeletonDocument Document => (SkeletonDocument)base.Document;
@@ -56,6 +57,7 @@ internal partial class SkeletonEditor : DocumentEditor
             renameCommand,
             selectAllCommand,
             new Command { Name = "Create Bone", Handler = BeginCreateBone, Key = InputCode.KeyV },
+            new Command { Name = "Envelope", Handler = HandleEnvelope, Key = InputCode.KeyE },
         ];
 
         //bool HasSelection() => Document.SelectedBoneCount > 0;
@@ -85,7 +87,6 @@ internal partial class SkeletonEditor : DocumentEditor
 
     public override void Update()
     {
-        UpdateDefaultState();
         DrawSkeleton();
 
         if (_showPreview)
@@ -93,9 +94,14 @@ internal partial class SkeletonEditor : DocumentEditor
             {
                 Graphics.SetSortGroup(SortGroupSkin);
                 Document.DrawSprites();
-            }            
+            }
 
         DrawBoneNames();
+    }
+
+    public override void LateUpdate()
+    {
+        UpdateDefaultState();
     }
 
     private void ToolbarUI()
@@ -261,6 +267,7 @@ internal partial class SkeletonEditor : DocumentEditor
             saved.HeadWorld = src.HeadWorld;
             saved.TailWorld = src.TailWorld;
             saved.Length = (src.TailWorld - src.HeadWorld).Length();
+            saved.Radius = src.Radius;
         }
     }
 
@@ -542,6 +549,45 @@ internal partial class SkeletonEditor : DocumentEditor
 
     #endregion
 
+    #region Envelope Tool
+
+    private void HandleEnvelope()
+    {
+        if (Document.SelectedBoneCount <= 0)
+            return;
+
+        SaveState();
+        Undo.Record(Document);
+
+        // Use the first selected bone's axis for distance reference
+        var boneIndex = GetFirstSelectedBoneIndex();
+        var bone = Document.Bones[boneIndex];
+        var boneHead = bone.HeadWorld + Document.Position;
+        var boneTail = bone.TailWorld + Document.Position;
+
+        Workspace.BeginTool(new EnvelopeTool(
+            boneHead,
+            boneTail,
+            update: UpdateEnvelopeTool,
+            commit: () => { Document.IncrementVersion(); },
+            cancel: Undo.Cancel
+        ));
+    }
+
+    private void UpdateEnvelopeTool(float radius)
+    {
+        for (var i = 0; i < Document.BoneCount; i++)
+        {
+            var bone = Document.Bones[i];
+            if (!bone.IsFullySelected)
+                continue;
+
+            bone.Radius = radius;
+        }
+    }
+
+    #endregion
+
     #region Extrude Tool
 
     private void BeginCreateBone()
@@ -684,6 +730,14 @@ internal partial class SkeletonEditor : DocumentEditor
                 Gizmos.DrawJoint(headPos, b.IsHeadSelected);
                 Graphics.SetSortGroup(b.IsTailSelected ? SortGroupSelectedBones : SortGroupBones);
                 Gizmos.DrawJoint(tailPos, b.IsTailSelected);
+
+                var parentRadius = b.ParentIndex >= 0 ? Document.Bones[b.ParentIndex].Radius : 0f;
+                if (b.Radius > 0 || parentRadius > 0)
+                {
+                    Graphics.SetSortGroup(SortGroupBones);
+                    Gizmos.SetColor(EditorStyle.Skeleton.EnvelopeColor);
+                    Gizmos.DrawEnvelope(headPos, tailPos, parentRadius, b.Radius);
+                }
             }
         }
     }

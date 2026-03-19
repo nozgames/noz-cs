@@ -309,6 +309,19 @@ public static class MathEx
         return Vector2.Distance(point, projection);
     }
 
+    public static float DistanceToCapsule(Vector2 lineStart, Vector2 lineEnd, float radiusStart, float radiusEnd, Vector2 point)
+    {
+        var line = lineEnd - lineStart;
+        var lengthSqr = line.LengthSquared();
+        if (lengthSqr < 0.0001f)
+            return Vector2.Distance(point, lineStart) - radiusStart;
+
+        var t = MathF.Max(0, MathF.Min(1, Vector2.Dot(point - lineStart, line) / lengthSqr));
+        var projection = lineStart + t * line;
+        var radius = float.Lerp(radiusStart, radiusEnd, t);
+        return Vector2.Distance(point, projection) - radius;
+    }
+
     public static float RandomRange(float min, float max) =>
         ((float)Random.Shared.NextDouble()) * (max - min) + min;
 }

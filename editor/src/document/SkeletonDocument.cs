@@ -21,6 +21,8 @@ public class BoneData
     public bool IsTailSelected;
     public bool IsConnected;
 
+    public float Radius;
+
     public Vector2 HeadWorld;
     public Vector2 TailWorld;
 
@@ -55,6 +57,8 @@ public class SkeletonDocument : Document
     private const float BoundsPadding = 0.1f;
 
     public List<SpriteDocument> Sprites = [];
+    public readonly List<Document> BoundDocuments = [];
+    public static Action<SkeletonDocument>? OnUpdateBindings;
 
     public readonly BoneData[] Bones = new BoneData[Skeleton.MaxBones];
     public NativeArray<Matrix3x2> LocalToWorld = new(Skeleton.MaxBones);
@@ -135,25 +139,17 @@ public class SkeletonDocument : Document
         while (!tk.IsEOF)
         {
             if (tk.ExpectIdentifier("p"))
-            {
                 ParseBonePosition(bone, ref tk);
-            }
             else if (tk.ExpectIdentifier("r"))
-            {
                 ParseBoneRotation(bone, ref tk);
-            }
             else if (tk.ExpectIdentifier("l"))
-            {
                 ParseBoneLength(bone, ref tk);
-            }
             else if (tk.ExpectIdentifier("c"))
-            {
                 bone.IsConnected = true;
-            }
+            else if (tk.ExpectIdentifier("e"))
+                ParseBoneEnvelope(bone, ref tk);
             else
-            {
                 break;
-            }
         }
     }
 
@@ -180,6 +176,11 @@ public class SkeletonDocument : Document
         bone.Length = float.Max(0.05f, tk.ExpectFloat());
     }
 
+    private static void ParseBoneEnvelope(BoneData bone, ref Tokenizer tk)
+    {
+        bone.Radius = float.Max(0, tk.ExpectFloat());
+    }
+
     public override void Save(StreamWriter writer)
     {
         BuildTransformsFromWorldPoints();
@@ -188,15 +189,19 @@ public class SkeletonDocument : Document
         {
             var bone = Bones[i];
             var connected = bone.IsConnected ? " c" : "";
+            var envelope = bone.Radius > 0
+                ? string.Format(CultureInfo.InvariantCulture, " e {0}", bone.Radius)
+                : "";
             writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "b \"{0}\" {1} p {2} {3} r {4} l {5}{6}",
+                "b \"{0}\" {1} p {2} {3} r {4} l {5}{6}{7}",
                 bone.Name,
                 bone.ParentIndex,
                 bone.Transform.Position.X,
                 bone.Transform.Position.Y,
                 bone.Transform.Rotation,
                 bone.Length,
-                connected));
+                connected,
+                envelope));
         }
     }
 
@@ -237,11 +242,14 @@ public class SkeletonDocument : Document
             Bones[i].IsHeadSelected = src.Bones[i].IsHeadSelected;
             Bones[i].IsTailSelected = src.Bones[i].IsTailSelected;
             Bones[i].IsConnected = src.Bones[i].IsConnected;
+            Bones[i].Radius = src.Bones[i].Radius;
             Bones[i].HeadWorld = src.Bones[i].HeadWorld;
             Bones[i].TailWorld = src.Bones[i].TailWorld;
         }
 
         Sprites = [.. src.Sprites];
+        BoundDocuments.Clear();
+        BoundDocuments.AddRange(src.BoundDocuments);
     }
 
     public void UpdateTransforms()
@@ -282,6 +290,18 @@ public class SkeletonDocument : Document
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(b.Length, 0), boneTransform));
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(boneWidth, boneWidth), boneTransform));
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(boneWidth, -boneWidth), boneTransform));
+
+            var parentRadius = b.ParentIndex >= 0 ? Bones[b.ParentIndex].Radius : 0f;
+            var maxRadius = MathF.Max(b.Radius, parentRadius);
+            if (maxRadius > 0)
+            {
+                var headWorld = Vector2.Transform(Vector2.Zero, boneTransform);
+                var tailWorld = Vector2.Transform(new Vector2(b.Length, 0), boneTransform);
+                bounds = ExpandBounds(bounds, headWorld + new Vector2(parentRadius, parentRadius));
+                bounds = ExpandBounds(bounds, headWorld - new Vector2(parentRadius, parentRadius));
+                bounds = ExpandBounds(bounds, tailWorld + new Vector2(b.Radius, b.Radius));
+                bounds = ExpandBounds(bounds, tailWorld - new Vector2(b.Radius, b.Radius));
+            }
         }
 
         //for (var i = 0; i < Sprites.Count; i++)
@@ -459,6 +479,18 @@ public class SkeletonDocument : Document
         return hits[0];
     }
 
+    public float DistanceToEnvelope(int boneIndex, Vector2 worldPoint)
+    {
+        var bone = Bones[boneIndex];
+        var parentRadius = bone.ParentIndex >= 0 ? Bones[bone.ParentIndex].Radius : 0f;
+        return MathEx.DistanceToCapsule(
+            bone.HeadWorld + Position,
+            bone.TailWorld + Position,
+            parentRadius,
+            bone.Radius,
+            worldPoint);
+    }
+
     private void ReparentBoneTransform(int boneIndex, int parentIndex)
     {
         var newLocal = LocalToWorld[boneIndex] * WorldToLocal[parentIndex];
@@ -526,6 +558,7 @@ public class SkeletonDocument : Document
             Bones[i].IsHeadSelected = nextBone.IsHeadSelected;
             Bones[i].IsTailSelected = nextBone.IsTailSelected;
             Bones[i].IsConnected = nextBone.IsConnected;
+            Bones[i].Radius = nextBone.Radius;
             Bones[i].HeadWorld = nextBone.HeadWorld;
             Bones[i].TailWorld = nextBone.TailWorld;
 
@@ -654,6 +687,13 @@ public class SkeletonDocument : Document
                 }
 
                 Gizmos.DrawBoneAndJoints(this, boneIndex);
+
+                var parentRadius = b.ParentIndex >= 0 ? Bones[b.ParentIndex].Radius : 0f;
+                if (b.Radius > 0 || parentRadius > 0)
+                {
+                    Gizmos.SetColor(EditorStyle.Skeleton.EnvelopeColor);
+                    Gizmos.DrawEnvelope(b.HeadWorld, b.TailWorld, parentRadius, b.Radius);
+                }
             }
         }
 
@@ -674,6 +714,9 @@ public class SkeletonDocument : Document
                 Debug.Assert(Sprites[i].Binding.IsBoundTo(this));
                 Sprites[i].DrawSprite();
             }
+
+            for (var i = 0; i < BoundDocuments.Count; i++)
+                BoundDocuments[i].Draw();
         }
     }
 
@@ -681,7 +724,7 @@ public class SkeletonDocument : Document
     {
         using var writer = new BinaryWriter(File.Create(outputPath));
 
-        writer.WriteAssetHeader(AssetType.Skeleton, 1, 0);
+        writer.WriteAssetHeader(AssetType.Skeleton, 2, 0);
         writer.Write((byte)BoneCount);
 
         for (var i = 0; i < BoneCount; i++)
@@ -702,6 +745,8 @@ public class SkeletonDocument : Document
             writer.Write(w.M22);
             writer.Write(w.M31);
             writer.Write(w.M32);
+
+            writer.Write(bone.Radius);
         }
     }
 
@@ -728,6 +773,9 @@ public class SkeletonDocument : Document
         Sprites = [.. DocumentManager.Documents
             .OfType<SpriteDocument>()
             .Where(d => d.Binding.IsBoundTo(this) && d.ShowInSkeleton)];
+
+        BoundDocuments.Clear();
+        OnUpdateBindings?.Invoke(this);
     }
 
     public void NotifyBoneRenamed(int boneIndex, string oldName, string newName)

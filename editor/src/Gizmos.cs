@@ -245,6 +245,73 @@ public static class Gizmos
         DrawRect(Vector2.Zero, EditorStyle.Workspace.OriginSize, order);
     }
 
+    public static void DrawArc(Vector2 center, float radius, float startAngle, float endAngle, float lineWidth, ushort order = 0)
+    {
+        var screenRadius = Graphics.Camera?.WorldToScreen(radius) ?? 0.0f;
+        var segmentRatio = MathEx.Clamp01(screenRadius / 96.0f);
+        var totalSegments = (int)float.Lerp(MinCircleSegments, MaxCircleSegments, segmentRatio);
+        var angleSpan = endAngle - startAngle;
+        var segments = int.Max(4, (int)(totalSegments * MathF.Abs(angleSpan) / (MathF.PI * 2f)));
+
+        var prev = center + new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * radius;
+        for (var i = 1; i <= segments; i++)
+        {
+            var angle = startAngle + angleSpan * i / segments;
+            var curr = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            DrawLine(prev, curr, lineWidth, order: order);
+            prev = curr;
+        }
+    }
+
+    public static void DrawEnvelope(Vector2 head, Vector2 tail, float headRadius, float tailRadius, ushort order = 0)
+    {
+        var delta = tail - head;
+        var length = delta.Length();
+        if (length < 0.0001f)
+            return;
+
+        var dir = delta / length;
+        var normal = new Vector2(-dir.Y, dir.X);
+        var lineWidth = EditorStyle.Skeleton.EnvelopeLineWidth;
+        var boneAngle = MathF.Atan2(dir.Y, dir.X);
+
+        // Tangent angle offset for tapered capsule
+        var rDiff = headRadius - tailRadius;
+        var tangentAngle = MathF.Abs(rDiff) < length ? MathF.Asin(rDiff / length) : 0f;
+
+        // Tangent contact angles
+        var angleTop = boneAngle + MathF.PI / 2f + tangentAngle;
+        var angleBot = boneAngle - MathF.PI / 2f + tangentAngle;
+
+        // Tangent line endpoints
+        var headTop = head + new Vector2(MathF.Cos(angleTop), MathF.Sin(angleTop)) * headRadius;
+        var headBot = head + new Vector2(MathF.Cos(angleBot), MathF.Sin(angleBot)) * headRadius;
+        var tailTop = tail + new Vector2(MathF.Cos(angleTop), MathF.Sin(angleTop)) * tailRadius;
+        var tailBot = tail + new Vector2(MathF.Cos(angleBot), MathF.Sin(angleBot)) * tailRadius;
+
+        // Draw tangent lines
+        if (headRadius > 0 || tailRadius > 0)
+        {
+            DrawLine(headTop, tailTop, lineWidth, order: order);
+            DrawLine(headBot, tailBot, lineWidth, order: order);
+        }
+
+        // Draw arcs (semicircles facing outward)
+        if (headRadius > 0)
+        {
+            var headArcStart = angleBot;
+            var headArcEnd = angleTop - MathF.PI * 2f;
+            DrawArc(head, headRadius, headArcEnd, headArcStart, lineWidth, order);
+        }
+
+        if (tailRadius > 0)
+        {
+            var tailArcStart = angleTop;
+            var tailArcEnd = angleBot + MathF.PI * 2f;
+            DrawArc(tail, tailRadius, tailArcStart, tailArcEnd, lineWidth, order);
+        }
+    }
+
     #region Hit Testing
 
     public static bool HitTestBone(Vector2 head, Vector2 tail, Vector2 point)

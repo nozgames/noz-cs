@@ -527,6 +527,9 @@ public static class EditorStyle
         public const float JointHitSize = JointSize * 2.0f;
 
         public static readonly Color ParentLineColor = Color.FromRgb(0x212121);
+
+        public static readonly Color EnvelopeColor = Color.FromRgba(0x4488FF80);
+        public const float EnvelopeLineWidth = 0.01f;
     }
 
     // :toolbar
