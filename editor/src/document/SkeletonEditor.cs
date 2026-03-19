@@ -154,7 +154,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
     public override void UpdateUI()
     {
-        using (UI.BeginColumn(ElementId.Root, EditorStyle.DocumentEditor.Root))
+        using (UI.BeginColumn(EditorStyle.DocumentEditor.Root))
         {
             ToolbarUI();
             UI.Spacer(EditorStyle.Control.Spacing);

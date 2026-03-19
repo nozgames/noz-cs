@@ -415,6 +415,50 @@ public static class DocumentManager
         return true;
     }
 
+    public static Document? ChangeType(Document doc, DocumentDef newDef)
+    {
+        if (doc.Def == newDef)
+            return doc;
+
+        var path = doc.Path;
+        var position = doc.Position;
+        var collectionId = doc.CollectionId;
+        var shouldExport = doc.ShouldExport;
+        var wasSelected = doc.IsSelected;
+
+        // Update the meta file with the new document type
+        var metaPath = path + ".meta";
+        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
+        meta.SetString("editor", "document_type", newDef.Name);
+        meta.Save(metaPath);
+
+        // Remove old document
+        Workspace.ClearSelection();
+        _documents.Remove(doc);
+        doc.Dispose();
+
+        // Create new document from same path (ResolveDef will read the updated meta)
+        var newDoc = Create(path);
+        if (newDoc == null)
+            return null;
+
+        newDoc.Loaded = true;
+        newDoc.Load();
+        newDoc.LoadMetadata();
+        newDoc.Position = position;
+        newDoc.CollectionId = collectionId;
+        newDoc.ShouldExport = shouldExport;
+        newDoc.PostLoad();
+        newDoc.PostLoaded = true;
+
+        if (wasSelected)
+            Workspace.SetSelected(newDoc, true);
+
+        AssetManifest.IsModified = true;
+
+        return newDoc;
+    }
+
     public static void Remove(Document doc)
     {
         _documents.Remove(doc);

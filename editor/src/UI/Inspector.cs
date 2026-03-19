@@ -20,6 +20,7 @@ internal static partial class Inspector
         public static partial WidgetId Section { get; }
         public static partial WidgetId DocumentName { get; }
         public static partial WidgetId DocumentExport { get; }
+        public static partial WidgetId DocumentType { get; }
     }
 
     private static WidgetId _nextSectionId;
@@ -191,6 +192,22 @@ internal static partial class Inspector
         Section(doc.Def.Name.ToUpperInvariant(), doc.Def.Icon?.Invoke());
         if (!IsSectionCollapsed)
         {
+            var ext = Path.GetExtension(doc.Path);
+            var defs = DocumentManager.GetDefs(ext);
+            if (defs != null && defs.Count > 1)
+            {
+                using (BeginProperty("Type"))
+                {
+                    UI.DropDown(ElementId.DocumentType, () =>
+                        defs.Select(d => new PopupMenuItem
+                        {
+                            Label = d.Name,
+                            Handler = () => DocumentManager.ChangeType(doc, d)
+                        }).ToArray(),
+                        doc.Def.Name, doc.Def.Icon?.Invoke());
+                }
+            }
+
             using (BeginProperty("Name"))
             {
                 var newName = UI.TextInput(ElementId.DocumentName, doc.Name, EditorStyle.TextInput);
