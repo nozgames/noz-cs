@@ -117,7 +117,7 @@ public static class Gizmos
         Span<MeshVertex> verts = stackalloc MeshVertex[segments + 1];
         Span<ushort> indices = stackalloc ushort[segments * 3];
 
-        verts[0] = new MeshVertex { Position = center };
+        verts[0] = new MeshVertex { Position = center, Color = Color.White };
 
         var angleStep = MathF.PI * 2f / segments;
         for (var i = 0; i < segments; i++)
@@ -125,7 +125,8 @@ public static class Gizmos
             var angle = i * angleStep;
             verts[i + 1] = new MeshVertex
             {
-                Position = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius
+                Position = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius,
+                Color = Color.White
             };
         }
 

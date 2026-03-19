@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-internal static partial class FloatingToolbar
+public static partial class FloatingToolbar
 {
     private static partial class ElementId
     {
