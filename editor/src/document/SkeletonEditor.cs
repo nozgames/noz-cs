@@ -104,28 +104,6 @@ internal partial class SkeletonEditor : DocumentEditor
         UpdateDefaultState();
     }
 
-    private void ToolbarUI()
-    {
-        using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
-
-        UI.Flex();
-
-        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
-        {
-            UI.SetChecked(Document.CurrentConnected);
-            if (UI.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon))
-            {
-                ToggleConnected();
-            }
-
-            UI.Spacer(EditorStyle.Control.Spacing);
-
-            if (UI.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.IconOnly))
-                _showPreview = !_showPreview;
-        }
-
-        UI.Flex();
-    }
 
     private void ToggleConnected()
     {
@@ -154,10 +132,21 @@ internal partial class SkeletonEditor : DocumentEditor
 
     public override void UpdateUI()
     {
-        using (UI.BeginColumn(EditorStyle.DocumentEditor.Root))
+    }
+
+    public override void UpdateOverlayUI()
+    {
+        using (FloatingToolbar.Begin())
         {
-            ToolbarUI();
-            UI.Spacer(EditorStyle.Control.Spacing);
+            UI.SetChecked(Document.CurrentConnected);
+            if (FloatingToolbar.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected))
+                ToggleConnected();
+
+            FloatingToolbar.Divider();
+
+            UI.SetChecked(_showPreview);
+            if (FloatingToolbar.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview))
+                _showPreview = !_showPreview;
         }
     }
 
@@ -731,12 +720,11 @@ internal partial class SkeletonEditor : DocumentEditor
                 Graphics.SetSortGroup(b.IsTailSelected ? SortGroupSelectedBones : SortGroupBones);
                 Gizmos.DrawJoint(tailPos, b.IsTailSelected);
 
-                var parentRadius = b.ParentIndex >= 0 ? Document.Bones[b.ParentIndex].Radius : 0f;
-                if (b.Radius > 0 || parentRadius > 0)
+                if (b.Radius > 0)
                 {
                     Graphics.SetSortGroup(SortGroupBones);
                     Gizmos.SetColor(EditorStyle.Skeleton.EnvelopeColor);
-                    Gizmos.DrawEnvelope(headPos, tailPos, parentRadius, b.Radius);
+                    Gizmos.DrawEnvelope(headPos, tailPos, b.Radius, b.Radius);
                 }
             }
         }

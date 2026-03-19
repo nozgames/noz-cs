@@ -306,9 +306,7 @@ public static class Gizmos
 
         if (tailRadius > 0)
         {
-            var tailArcStart = angleTop;
-            var tailArcEnd = angleBot + MathF.PI * 2f;
-            DrawArc(tail, tailRadius, tailArcStart, tailArcEnd, lineWidth, order);
+            DrawArc(tail, tailRadius, angleTop, angleBot, lineWidth, order);
         }
     }
 

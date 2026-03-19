@@ -192,58 +192,51 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     {
         if (!Document.IsMutable) return;
 
-        using (UI.BeginColumn())
+        using (FloatingToolbar.Begin())
         {
-            UI.Flex();
+            FloatingToolbarUI();
 
-            using (UI.BeginColumn(WidgetIds.Root, EditorStyle.SpriteEditor.FloatingToolbar))
+            if (Document.FrameCount > 1)
             {
-                FloatingToolbarUI();
-
-                if (Document.FrameCount > 1)
-                    FloatingDopeSheetUI();
+                FloatingToolbar.Row();
+                FloatingDopeSheetUI();
             }
         }
     }
 
     private void FloatingToolbarUI()
     {
-        using var _ = UI.BeginRow(EditorStyle.SpriteEditor.FloatingToolbarRow);
-
         // Tool group: Pen, Knife, Rect, Circle
         var activeTool = Workspace.ActiveTool;
 
         UI.SetChecked(activeTool is PenTool);
-        if (UI.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit))
             _shapeEditor.BeginPenTool();
 
         UI.SetChecked(activeTool is KnifeTool);
-        if (UI.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose))
             _shapeEditor.BeginKnifeTool();
 
         UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Rectangle });
-        if (UI.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer))
             _shapeEditor.BeginRectangleTool();
 
         UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Circle });
-        if (UI.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle))
             _shapeEditor.BeginCircleTool();
 
-        // Divider
-        UI.Container(EditorStyle.SpriteEditor.FloatingDivider);
+        FloatingToolbar.Divider();
 
         // Add frame
-        if (UI.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
             InsertFrameAfter();
 
-        // Divider
-        UI.Container(EditorStyle.SpriteEditor.FloatingDivider);
+        FloatingToolbar.Divider();
 
         // Toggle group: Tile
         UI.SetChecked(Document.ShowTiling);
-        if (UI.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling))
             Document.ShowTiling = !Document.ShowTiling;
-
     }
 
     private int TotalTimeSlots()

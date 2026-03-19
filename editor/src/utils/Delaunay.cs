@@ -50,9 +50,9 @@ public static class Delaunay
         var n = points.Length;
         var allPoints = new Vector2[n + 3];
         points.CopyTo(allPoints);
-        allPoints[n] = new Vector2(midX - 20f * dmax, midY + dmax);
-        allPoints[n + 1] = new Vector2(midX, midY - 20f * dmax);
-        allPoints[n + 2] = new Vector2(midX + 20f * dmax, midY + dmax);
+        allPoints[n] = new Vector2(midX - 20f * dmax, midY - dmax);
+        allPoints[n + 1] = new Vector2(midX, midY + 20f * dmax);
+        allPoints[n + 2] = new Vector2(midX + 20f * dmax, midY - dmax);
 
         var triangles = new List<Triangle> { new(n, n + 1, n + 2) };
         var badTriangles = new List<int>();
@@ -152,6 +152,9 @@ public static class Delaunay
                 - bx * (ay * (cx * cx + cy * cy) - cy * (ax * ax + ay * ay))
                 + cx * (ay * (bx * bx + by * by) - by * (ax * ax + ay * ay));
 
-        return det > 0;
+        // Sign of the cross product tells us the winding order of the triangle.
+        // If CW (negative cross), the determinant sign is flipped.
+        var cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+        return cross > 0 ? det > 0 : det < 0;
     }
 }

@@ -687,13 +687,6 @@ public class SkeletonDocument : Document
                 }
 
                 Gizmos.DrawBoneAndJoints(this, boneIndex);
-
-                var parentRadius = b.ParentIndex >= 0 ? Bones[b.ParentIndex].Radius : 0f;
-                if (b.Radius > 0 || parentRadius > 0)
-                {
-                    Gizmos.SetColor(EditorStyle.Skeleton.EnvelopeColor);
-                    Gizmos.DrawEnvelope(b.HeadWorld, b.TailWorld, parentRadius, b.Radius);
-                }
             }
         }
 
