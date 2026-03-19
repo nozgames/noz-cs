@@ -18,12 +18,15 @@ internal static partial class Inspector
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId Section { get; }
+        public static partial WidgetId DocumentName { get; }
+        public static partial WidgetId DocumentExport { get; }
     }
 
     private static WidgetId _nextSectionId;
     private static bool _sectionCollapsed;
     private static bool _sectionActive;
     private static bool _wasHeaderPressed;
+    private static bool _sectionOpen;
 
     public static bool IsSectionCollapsed => _sectionCollapsed;
     public static bool WasHeaderPressed => _wasHeaderPressed;
@@ -31,12 +34,31 @@ internal static partial class Inspector
     public static void UpdateUI()
     {
         _nextSectionId = ElementId.Section;
+        _sectionOpen = false;
 
         using (UI.BeginColumn(ElementId.Root, EditorStyle.Inspector.Root))
         {
             if (Workspace.ActiveEditor?.ShowInspector ?? false)
                 Workspace.ActiveEditor.InspectorUI();
+            else if (Workspace.State == WorkspaceState.Default && Workspace.SelectedCount == 1)
+                DocumentInspectorUI(Workspace.GetFirstSelected()!);
+
+            Finish();
         }
+    }
+
+    public static void Section(
+        string name,
+        Sprite? icon = null,
+        Action? content = null,
+        bool isActive = false,
+        bool collapsed = false)
+    {
+        if (_sectionOpen)
+            EndSection();
+
+        BeginSectionCore(name, icon, content, isActive, collapsed);
+        _sectionOpen = true;
     }
 
     public static AutoSection BeginSection(
@@ -45,6 +67,17 @@ internal static partial class Inspector
         Action? content = null,
         bool isActive = false,
         bool collapsed = false)
+    {
+        BeginSectionCore(name, icon, content, isActive, collapsed);
+        return new AutoSection();
+    }
+
+    private static void BeginSectionCore(
+        string name,
+        Sprite? icon,
+        Action? content,
+        bool isActive,
+        bool collapsed)
     {
         var sectionId = _nextSectionId++;
         _sectionActive = isActive;
@@ -90,7 +123,7 @@ internal static partial class Inspector
 
         ElementTree.EndTree();
 
-        // content        
+        // content
 
         if (!_sectionCollapsed)
         {
@@ -101,15 +134,22 @@ internal static partial class Inspector
                 EditorStyle.Control.Spacing));
             ElementTree.BeginColumn(EditorStyle.Inspector.BodyGap);
         }
-
-        return new AutoSection();
     }
 
     public static UI.AutoRow BeginRow()
     {
         return UI.BeginRow(EditorStyle.Inspector.Row);
     }
-   
+
+    public static void Finish()
+    {
+        if (_sectionOpen)
+        {
+            EndSection();
+            _sectionOpen = false;
+        }
+    }
+
     public static void EndSection()
     {
         if (!_sectionCollapsed)
@@ -123,6 +163,7 @@ internal static partial class Inspector
         ElementTree.EndColumn();
 
         _sectionActive = false;
+        _sectionOpen = false;
     }
 
     public static AutoProperty BeginProperty(string name)
@@ -143,5 +184,33 @@ internal static partial class Inspector
         ElementTree.EndFlex();
         ElementTree.EndRow();
         ElementTree.EndSize();
+    }
+
+    private static void DocumentInspectorUI(Document doc)
+    {
+        Section(doc.Def.Name.ToUpperInvariant(), doc.Def.Icon?.Invoke());
+        if (!IsSectionCollapsed)
+        {
+            using (BeginProperty("Name"))
+            {
+                var newName = UI.TextInput(ElementId.DocumentName, doc.Name, EditorStyle.TextInput);
+                if (newName != doc.Name)
+                    DocumentManager.Rename(doc, newName);
+            }
+
+            using (BeginProperty("Export"))
+            {
+                var shouldExport = doc.ShouldExport;
+                UI.SetChecked(shouldExport);
+                if (UI.Toggle(ElementId.DocumentExport, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+                {
+                    Undo.Record(doc);
+                    doc.ShouldExport = !shouldExport;
+                    AssetManifest.IsModified = true;
+                }
+            }
+        }
+
+        doc.InspectorUI();
     }
 }
