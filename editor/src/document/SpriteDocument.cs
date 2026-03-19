@@ -1694,40 +1694,71 @@ public partial class SpriteDocument : Document, IShapeDocument
         return pngBytes;
     }
 
-    public GenerationRequest BuildGenerationRequest()
+    public PipelineRequest BuildGenerationRequest()
     {
         var prompt = GenStyleDocument.FormatPrompt(Style?.Prompt ?? "", Prompt);
         var negPrompt = GenStyleDocument.FormatPrompt(Style?.NegativePrompt ?? "", NegativePrompt);
-
-        var imageBytes = RasterizeColorToPng();
-
         var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
 
-        var images = new List<ImageRef>();
+        // Build named inputs
+        var inputs = new Dictionary<string, string>();
+        var references = new List<Dictionary<string, object>>();
+
+        var imageBytes = RasterizeColorToPng();
         if (imageBytes.Length > 0)
-            images.Add(new ImageRef { Data = Convert.ToBase64String(imageBytes) });
-
-        foreach (var refDoc in References)
         {
-            byte[] refBytes;
-            if (refDoc.Generation.HasImageData)
-                refBytes = refDoc.Generation.ImageData!;
-            else
-                refBytes = refDoc.RasterizeColorToPng();
-
-            if (refBytes.Length > 0)
-                images.Add(new ImageRef { Data = Convert.ToBase64String(refBytes) });
+            inputs["composition"] = Convert.ToBase64String(imageBytes);
+            references.Add(new Dictionary<string, object>
+            {
+                ["image"] = "composition",
+                ["type"] = "composition"
+            });
         }
 
-        return new GenerationRequest
+        for (int i = 0; i < References.Count; i++)
+        {
+            var refDoc = References[i];
+            byte[] refBytes = refDoc.Generation.HasImageData
+                ? refDoc.Generation.ImageData!
+                : refDoc.RasterizeColorToPng();
+
+            if (refBytes.Length > 0)
+            {
+                var name = $"ref_{i}";
+                inputs[name] = Convert.ToBase64String(refBytes);
+                references.Add(new Dictionary<string, object>
+                {
+                    ["image"] = name,
+                    ["type"] = "composition"
+                });
+            }
+        }
+
+        // Build generate step args
+        var genArgs = new Dictionary<string, object> { ["prompt"] = prompt, ["workflow"] = "sprite" };
+        if (!string.IsNullOrEmpty(negPrompt))
+            genArgs["negative"] = negPrompt;
+        if (!string.IsNullOrEmpty(Style?.ModelName))
+            genArgs["model"] = Style!.ModelName;
+        if (!string.IsNullOrEmpty(Style?.LoraName))
+            genArgs["lora"] = Style!.LoraName;
+        if (!string.IsNullOrEmpty(Seed))
+            genArgs["seed"] = Seed;
+        if (references.Count > 0)
+            genArgs["references"] = references;
+
+        // Build pipeline: generate → remove_background
+        var steps = new List<PipelineStep>
+        {
+            new() { Type = "generate", Output = "sprite", Args = genArgs },
+            new() { Type = "remove_background", Output = "clean", Args = new Dictionary<string, object> { ["image"] = "sprite" } }
+        };
+
+        return new PipelineRequest
         {
             Server = server,
-            Model = Style?.ModelName,
-            Lora = Style?.LoraName,
-            Images = images.Count > 0 ? images : null,
-            Prompt = prompt,
-            NegativePrompt = string.IsNullOrEmpty(negPrompt) ? null : negPrompt,
-            Seed = string.IsNullOrEmpty(Seed) ? null : Seed,
+            Inputs = inputs.Count > 0 ? inputs : null,
+            Steps = steps,
         };
     }
 
