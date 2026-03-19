@@ -434,10 +434,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         var fi = CurrentFrameIndex;
         var newFrame = Document.InsertFrame(fi + 1);
         if (newFrame >= 0)
-        {
             _currentTimeSlot = TimeSlotForFrame(newFrame);
-            if (Document.Atlas != null) AtlasManager.UpdateSource(Document);
-        }
     }
 
     private void DeleteCurrentFrame()

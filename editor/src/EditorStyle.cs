@@ -10,12 +10,12 @@ public static class EditorStyle
     public static class Palette
     {
         // Surface Backgrounds (darkest → lightest)
-        public static readonly Color Popup = Color.FromRgb(0x161619);
-        public static readonly Color Control = Color.FromRgb(0x191A1D);
-        public static readonly Color Panel = Color.FromRgb(0x232428);
-        public static readonly Color Separator = Color.FromRgb(0x2A2B30);
-        public static readonly Color Canvas = Color.FromRgb(0x2F3036);
-        public static readonly Color Active = Color.FromRgb(0x393A41);
+        public static readonly Color Popup = Color.FromRgb(0x161618);
+        public static readonly Color Control = Color.FromRgb(0x1A1A1C);
+        public static readonly Color Panel = Color.FromRgb(0x242426);
+        public static readonly Color Separator = Color.FromRgb(0x2B2C2E);
+        public static readonly Color Canvas = Color.FromRgb(0x303134);
+        public static readonly Color Active = Color.FromRgb(0x3A3B3E);
 
         // Primary
         public static readonly Color Primary = Color.FromRgb(0xE83A3A);
@@ -929,7 +929,7 @@ public static class EditorStyle
 
         public static readonly ContainerStyle FloatingToolbar = new()
         {
-            Background = Palette.Panel,
+            Background = Palette.Popup,
             AlignX = Align.Center,
             AlignY = Align.Max,
             Width = Size.Fit,
@@ -1189,7 +1189,7 @@ public static class EditorStyle
         // Floating dopesheet styles
         public static readonly ContainerStyle FloatingDopesheet = new()
         {
-            Background = Palette.Panel,
+            Background = Palette.Popup,
             Padding = 1,
         };
 
@@ -1202,7 +1202,7 @@ public static class EditorStyle
         public static readonly ContainerStyle FloatingLayerRow = new()
         {
             Height = 20,
-            Background = Palette.Panel,
+            Background = Palette.Popup,
             Spacing = 1,
         };
 
@@ -1235,7 +1235,7 @@ public static class EditorStyle
         public static readonly ContainerStyle FloatingTimeTick = new()
         {
             Width = 1,
-            Background = Palette.Panel,
+            Background = Palette.Popup,
         };
 
         public static readonly ContainerStyle FloatingHoldSeparator = new()
