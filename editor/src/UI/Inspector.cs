@@ -44,7 +44,8 @@ internal static partial class Inspector
         Sprite? icon = null,
         Action? content = null,
         bool isActive = false,
-        bool collapsed = false)
+        bool collapsed = false,
+        bool empty = false)
     {
         var sectionId = _nextSectionId++;
         _sectionActive = isActive;
@@ -58,16 +59,16 @@ internal static partial class Inspector
         var hovered = flags.HasFlag(WidgetFlags.Hovered);
 
         _wasHeaderPressed = flags.HasFlag(WidgetFlags.Pressed);
-        _sectionCollapsed = state.Collapsed != 0 || collapsed;
+        _sectionCollapsed = empty || state.Collapsed != 0 || collapsed;
 
         if (_wasHeaderPressed)
             state.Collapsed = (byte)(state.Collapsed != 0 ? 0 : 1);
 
         var iconColor = isActive ? EditorStyle.Palette.Content : EditorStyle.Palette.SecondaryText;
         var headerBg = hovered ? EditorStyle.Palette.Active : EditorStyle.Palette.Separator;
-        var chevron = (state.Collapsed != 0 || collapsed)
-            ? EditorAssets.Sprites.IconFoldoutClosed
-            : EditorAssets.Sprites.IconFoldoutOpen;
+        var chevron = _sectionCollapsed
+            ? EditorAssets.Sprites.IconFoldoutOpen
+            : EditorAssets.Sprites.IconFoldoutClosed;
 
         ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
         ElementTree.BeginFill(headerBg, radius: BorderRadius.Only(
@@ -78,7 +79,10 @@ internal static partial class Inspector
         ElementTree.BeginPadding(EdgeInsets.LeftRight(8));
 
         ElementTree.BeginRow(EditorStyle.Control.Spacing);
-        ElementTree.Image(chevron, EditorStyle.Icon.Size, ImageStretch.Uniform, iconColor, 1.0f, Align.Center);
+        if (empty)
+            ElementTree.Spacer(EditorStyle.Icon.Size);
+        else
+            ElementTree.Image(chevron, EditorStyle.Icon.Size, ImageStretch.Uniform, iconColor, 1.0f, Align.Center);
 
         if (icon != null)
             ElementTree.Image(icon, EditorStyle.Control.IconSize, ImageStretch.Uniform, iconColor, 1.0f, new Align2(Align.Center, Align.Center));

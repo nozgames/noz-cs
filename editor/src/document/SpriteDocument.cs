@@ -1740,19 +1740,21 @@ public partial class SpriteDocument : Document, IShapeDocument
             genArgs["negative"] = negPrompt;
         if (!string.IsNullOrEmpty(Style?.ModelName))
             genArgs["model"] = Style!.ModelName;
-        if (!string.IsNullOrEmpty(Style?.LoraName))
-            genArgs["lora"] = Style!.LoraName;
+        if (!string.IsNullOrEmpty(Style?.StyleKey))
+            genArgs["style"] = Style!.StyleKey;
         if (!string.IsNullOrEmpty(Seed))
             genArgs["seed"] = Seed;
         if (references.Count > 0)
             genArgs["references"] = references;
 
-        // Build pipeline: generate → remove_background
+        // Build pipeline
         var steps = new List<PipelineStep>
         {
             new() { Type = "generate", Output = "sprite", Args = genArgs },
-            new() { Type = "remove_background", Output = "clean", Args = new Dictionary<string, object> { ["image"] = "sprite" } }
         };
+
+        if (Style?.RemoveBackground == true)
+            steps.Add(new() { Type = "remove_background", Output = "clean", Args = new Dictionary<string, object> { ["image"] = "sprite" } });
 
         return new PipelineRequest
         {

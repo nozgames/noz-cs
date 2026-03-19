@@ -1043,18 +1043,23 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     {
         if (!Document.HasGeneration)
         {
-            using (UI.BeginContainer(new ContainerStyle { Padding = EdgeInsets.Symmetric(12, 16) }))
+            static void EmptySectionContent()
             {
-                if (UI.Button(WidgetIds.AddGenerationButton, "+ Generation", EditorAssets.Sprites.IconAi, EditorStyle.Button.Secondary with { Width = Size.Percent(1), MinWidth = 0 }))
+                ElementTree.BeginAlign(Align.Min, Align.Center);
+                if (UI.Button(WidgetIds.AddGenerationButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
                 {
-                    Undo.Record(Document);
-                    Document.HasGeneration = true;
-                    Document.Prompt = " ";
-                    Document.Seed = GenerateRandomSeed();
-                    Document.ConstrainedSize ??= new Vector2Int(256, 256);
-                    Document.UpdateBounds();
+                    var doc = (Workspace.ActiveDocument as SpriteDocument)!;
+                    Undo.Record(doc);
+                    doc.HasGeneration = true;
+                    doc.Prompt = " ";
+                    doc.Seed = GenerateRandomSeed();
+                    doc.ConstrainedSize ??= new Vector2Int(256, 256);
+                    doc.UpdateBounds();
                 }
+                ElementTree.EndAlign();
             }
+
+            using (Inspector.BeginSection("GENERATION", content: EmptySectionContent, empty: true))
             return;
         }
 
@@ -1142,7 +1147,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             ElementTree.EndAlign();
         }
 
-        using var _ = Inspector.BeginSection("REFERENCES", content: SectionContent);
+        using var _ = Inspector.BeginSection("REFERENCES", content: SectionContent, empty: Document.References.Count == 0);
 
         if (Inspector.IsSectionCollapsed) return;
 

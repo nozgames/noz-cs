@@ -24,10 +24,11 @@ public class PipelineRequest
     public List<PipelineStep> Steps { get; set; } = [];
 }
 
-public class LoraInfo
+public class StyleInfo
 {
     public string Key { get; set; } = "";
     public string Name { get; set; } = "";
+    public string Type { get; set; } = "";
     public string Description { get; set; } = "";
 }
 
@@ -37,7 +38,7 @@ public class ModelInfo
     public string Backend { get; set; } = "";
     public bool Valid { get; set; }
     public List<string> Errors { get; set; } = [];
-    public List<LoraInfo> Loras { get; set; } = [];
+    public List<StyleInfo> Styles { get; set; } = [];
 }
 
 public class GenerationResponse

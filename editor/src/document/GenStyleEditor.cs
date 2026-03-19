@@ -11,8 +11,9 @@ public partial class GenStyleEditor : DocumentEditor
         public static partial WidgetId LayerPrompt { get; }
         public static partial WidgetId LayerNegativePrompt { get; }
         public static partial WidgetId ModelDropDown { get; }
-        public static partial WidgetId LoraDropDown { get; }
+        public static partial WidgetId StyleDropDown { get; }
         public static partial WidgetId RefreshModels { get; }
+        public static partial WidgetId RemoveBackground { get; }
     }
 
     public new GenStyleDocument Document => (GenStyleDocument)base.Document;
@@ -91,38 +92,47 @@ public partial class GenStyleEditor : DocumentEditor
                         return items.ToArray();
                     }, Document.ModelName ?? "None", icon: EditorAssets.Sprites.IconPalette);
 
-                if (UI.Button(WidgetIds.RefreshModels, EditorAssets.Sprites.IconLoop, EditorStyle.Button.IconOnly))
+                if (UI.Button(WidgetIds.RefreshModels, EditorAssets.Sprites.IconRefresh, EditorStyle.Button.IconOnly))
                     GenerationClient.InvalidateModels();
             }
         }
 
-        // LoRA style dropdown (only when a model is selected and has loras)
         var selectedModel = GenerationClient.GetModel(Document.ModelName);
-        if (selectedModel != null && selectedModel.Loras.Count > 0)
+        if (selectedModel != null && selectedModel.Styles.Count > 0)
         {
             using (Inspector.BeginProperty("Style"))
             {
                 using (UI.BeginFlex())
-                    UI.DropDown(WidgetIds.LoraDropDown, () =>
+                    UI.DropDown(WidgetIds.StyleDropDown, () =>
                     {
                         var items = new List<PopupMenuItem>
                         {
                             PopupMenuItem.Item("None", () =>
                             {
                                 Undo.Record(Document);
-                                Document.LoraName = null;
+                                Document.StyleKey = null;
                                 Document.IncrementVersion();
                             })
                         };
-                        foreach (var lora in selectedModel.Loras)
-                            items.Add(PopupMenuItem.Item(lora.Name, () =>
+                        foreach (var style in selectedModel.Styles)
+                            items.Add(PopupMenuItem.Item(style.Name, () =>
                             {
                                 Undo.Record(Document);
-                                Document.LoraName = lora.Key;
+                                Document.StyleKey = style.Key;
                                 Document.IncrementVersion();
                             }));
                         return items.ToArray();
-                    }, selectedModel.Loras.Find(l => l.Key == Document.LoraName)?.Name ?? "None");
+                    }, selectedModel.Styles.Find(s => s.Key == Document.StyleKey)?.Name ?? "None");
+            }
+        }
+
+        using (Inspector.BeginProperty("Remove Background"))
+        {
+            if (UI.Toggle(WidgetIds.RemoveBackground, "", Document.RemoveBackground, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+            {
+                Undo.Record(Document);
+                Document.RemoveBackground = !Document.RemoveBackground;
+                Document.IncrementVersion();
             }
         }
     }

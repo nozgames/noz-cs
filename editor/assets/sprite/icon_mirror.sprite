@@ -1,19 +1,19 @@
 
 path
-fill 10 1
+fill #FFFFFF
 anchor -0.0234375 0.1640625
 anchor -0.0234375 -0.1640625
 anchor 0.0234375 -0.1640625
 anchor 0.0234375 0.1640625
 
 path
-fill 0 1
+fill #FFFFFF
 anchor -0.1875 0.109375
 anchor -0.1875 -0.109375
 anchor -0.0859375 0
 
 path
-fill 0 1
+fill #FFFFFF
 anchor 0.1875 -0.109375
 anchor 0.1875 0.109375
 anchor 0.0859375 0

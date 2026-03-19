@@ -43,13 +43,11 @@ public class GenStyleDocument : Document
 
     public override bool CanSave => true;
 
-    // Prompts (format strings — use {0} for sprite prompt, or appends if no {0})
     public string Prompt = "";
     public string NegativePrompt = "";
-
-    // Model + LoRA
     public string? ModelName;
-    public string? LoraName;
+    public string? StyleKey;
+    public bool RemoveBackground = true;
 
     /// <summary>
     /// Merges a format-string template with a per-sprite input.
@@ -104,12 +102,14 @@ public class GenStyleDocument : Document
         {
             if (tk.ExpectIdentifier("model"))
                 ModelName = tk.ExpectQuotedString();
-            else if (tk.ExpectIdentifier("lora"))
-                LoraName = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("style") || tk.ExpectIdentifier("lora"))
+                StyleKey = tk.ExpectQuotedString();
             else if (tk.ExpectIdentifier("prompt"))
                 Prompt = tk.ExpectQuotedString() ?? "";
             else if (tk.ExpectIdentifier("prompt_neg"))
                 NegativePrompt = tk.ExpectQuotedString() ?? "";
+            else if (tk.ExpectIdentifier("remove_bg"))
+                tk.ExpectBool(out RemoveBackground);
             else if (tk.ExpectIdentifier("prompt_prefix"))
             {
                 // Legacy support: convert prompt_prefix to format string
@@ -137,8 +137,10 @@ public class GenStyleDocument : Document
             writer.WriteLine();
             writer.WriteLine($"model \"{ModelName}\"");
         }
-        if (!string.IsNullOrEmpty(LoraName))
-            writer.WriteLine($"lora \"{LoraName}\"");
+        if (!string.IsNullOrEmpty(StyleKey))
+            writer.WriteLine($"style \"{StyleKey}\"");
+        writer.WriteLine();
+        writer.WriteLine($"remove_bg {(RemoveBackground ? "true" : "false")}");
     }
 
     public override void Draw()
