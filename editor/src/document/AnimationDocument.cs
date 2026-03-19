@@ -176,7 +176,6 @@ internal class AnimationDocument : Document
                 }
                 doc.BoneCount--;
                 doc.IncrementVersion();
-                Notifications.Add($"Animation '{doc.Name}' updated (bone '{removedName}' removed)");
             }
 
             doc.BoneCount = skeleton.BoneCount;

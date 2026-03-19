@@ -626,58 +626,6 @@ public static class EditorStyle
         };
     }
 
-    // :notification
-    public static class Notifications
-    {
-        public readonly static ContainerStyle Wrapper = new()
-        {
-            AlignX = Align.Max,
-            AlignY = Align.Max,
-            Padding = EdgeInsets.BottomRight(Workspace.Padding),
-        };
-
-        public readonly static ContainerStyle Root = new()
-        {
-            Width = 260.0f,
-            Height = Size.Fit,
-            Spacing = Control.Spacing,
-        };
-
-        public readonly static ContainerStyle Notification = new()
-        {
-            Height = Control.Height,
-            Padding = EdgeInsets.Symmetric(0, 10),
-            Spacing = 6.0f,
-            Background = Palette.Popup,
-            BorderRadius = Control.BorderRadius
-        };
-
-        public const float IconSize = 12.0f;
-
-        public readonly static ImageStyle InfoIcon = new()
-        {
-            Color = Palette.SecondaryText,
-            Size = IconSize,
-            Align = Align.Center
-        };
-
-        public readonly static ImageStyle ErrorIcon = InfoIcon with { Color = Palette.Primary };
-
-        public static readonly Color WarningColor = Color.FromRgb(0xD49300);
-        public static readonly Color SuccessColor = Color.FromRgb(0x2ECC71);
-
-        public readonly static ImageStyle WarningIcon = InfoIcon with { Color = WarningColor };
-        public readonly static ImageStyle SuccessIcon = InfoIcon with { Color = SuccessColor };
-
-        public readonly static TextStyle NotificationText = new()
-        {
-            FontSize = Control.TextSize,
-            Color = Palette.SecondaryText,
-            AlignX = Align.Min,
-            AlignY = Align.Center
-        };
-    }
-
     // :confirm
     public static class Confirm
     {

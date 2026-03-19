@@ -651,7 +651,6 @@ internal partial class SkeletonEditor : DocumentEditor
                 bone.Name = newName;
                 Document.NotifyBoneRenamed(boneIndex, oldName, newName);
                 Document.IncrementVersion();
-                Notifications.Add($"renamed bone to '{newName}'");
             }
         ));
     }

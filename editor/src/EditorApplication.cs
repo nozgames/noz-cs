@@ -286,7 +286,6 @@ public static partial class EditorApplication
         EditorStyle.Init();
         PopupMenu.Init();
         ConfirmDialog.Init();
-        Notifications.Init();
         VfxSystem.Shader = EditorAssets.Shaders.Texture;
         Workspace.Init();
         UserSettings.Load();
@@ -301,7 +300,6 @@ public static partial class EditorApplication
         DocumentManager.SaveAll();
 
         Workspace.Shutdown();
-        Notifications.Shutdown();
         ConfirmDialog.Shutdown();
         PopupMenu.Shutdown();
         EditorStyle.Shutdown();
@@ -328,7 +326,6 @@ public static partial class EditorApplication
         CommandPalette.Update();
         AssetPalette.Update();
         PopupMenu.Update();
-        Notifications.Update();
         Workspace.Update();
         AppConfig.Update?.Invoke();
     }

@@ -597,7 +597,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
         Document.UpdateBounds();
         Document.IncrementVersion();
-        Notifications.Add("origin → center");
     }
 
     private void FlipHorizontal()
@@ -1309,22 +1308,17 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         Undo.Record(Document);
         Document.Binding.Set(skeleton);
         skeleton.UpdateSprites();
-        Notifications.Add($"bound to skeleton '{skeleton.Name}'");
     }
 
     private void ClearSkeletonBinding()
     {
         if (!Document.Binding.IsBound)
-        {
-            Notifications.Add("sprite has no skeleton binding");
             return;
-        }
 
         var skeleton = Document.Binding.Skeleton;
         Undo.Record(Document);
         Document.Binding.Clear();
         skeleton?.UpdateSprites();
-        Notifications.Add("skeleton binding cleared");
     }
 
     #endregion

@@ -273,10 +273,7 @@ public static class DocumentManager
         }
 
         if (count > 0)
-        {
             Log.Info($"Saved {count} asset(s)");
-            Notifications.Add($"saved {count} asset(s)");
-        }
 
         if (AssetManifest.IsModified)
             AssetManifest.Generate();
@@ -666,8 +663,6 @@ public static class DocumentManager
 
         if (sprites.Count == 0)
             return;
-
-        Notifications.Add($"Generating images for {sprites.Count} sprite(s)...");
 
         foreach (var sprite in sprites)
             sprite.GenerateAsync();

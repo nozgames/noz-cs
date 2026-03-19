@@ -141,16 +141,13 @@ public static partial class Workspace
             }
         }
 
-        if (count > 0)
-            Notifications.Add($"Generating {count} sprite(s)");
-        else
-            Notifications.AddError("No selected sprites have generation config");
+        if (count == 0)
+            Log.Warning("No selected sprites have generation config");
     }
 
     private static void GenerateManifest()
     {
         AssetManifest.Generate(force: true);
-        Notifications.Add("Asset manifest generated");
     }   
 
     private static void ExportAll()
@@ -171,7 +168,7 @@ public static partial class Workspace
             doc.IncrementVersion();
             ClearSelection();
             SetSelected(doc, true);
-            Notifications.Add($"created {(Asset.GetDef(assetType)?.Name ?? assetType.ToString()).ToLowerInvariant()} '{doc.Name}'");
+
         }
     }
 
@@ -509,7 +506,6 @@ public static partial class Workspace
                     using (UI.BeginFlex())
                     {
                         ActiveEditor?.UpdateUI();
-                        Notifications.UpdateUI();
                     }
 
                     using (UI.BeginColumn(new ContainerStyle
@@ -787,10 +783,8 @@ public static partial class Workspace
             },
             newName =>
             {
-                if (DocumentManager.Rename(doc, newName))
-                    Notifications.Add($"renamed to '{newName}'");
-                else
-                    Notifications.AddError("rename failed");
+                if (!DocumentManager.Rename(doc, newName))
+                    Log.Warning("rename failed");
             }
         ) { Target = doc };
     }
@@ -962,10 +956,7 @@ public static partial class Workspace
     private static void DuplicateSelected()
     {
         if (SelectedCount == 0)
-        {
-            Notifications.AddError("no asset selected");
             return;
-        }
 
         var selected = DocumentManager.Documents.Where(d => d.IsSelected).ToArray();
 
@@ -975,10 +966,7 @@ public static partial class Workspace
         {
             var dup = DocumentManager.Duplicate(source);
             if (dup == null)
-            {
-                Notifications.AddError("duplicate failed");
                 continue;
-            }
             SetSelected(dup, true);
         }
 
@@ -1006,7 +994,6 @@ public static partial class Workspace
 
             foreach (var doc in toDelete)
                 DocumentManager.Delete(doc);
-            Notifications.Add($"deleted {toDelete.Count} asset(s)");
         },
         yes: "Delete",
         no: "Cancel");
@@ -1125,13 +1112,7 @@ public static partial class Workspace
     private static void SetCollection(int index)
     {
         var collection = CollectionManager.GetByIndex(index);
-        if (collection == null)
-        {
-            Notifications.AddError($"Collection {index} not defined");
-            return;
-        }
-
-        if (CollectionManager.VisibleIndex == index)
+        if (collection == null || CollectionManager.VisibleIndex == index)
             return;
 
         // Save current camera position and zoom to current collection
@@ -1148,18 +1129,13 @@ public static partial class Workspace
         _camera.Position = collection.CameraPosition;
         _zoom = collection.CameraZoom;
         UpdateCamera();
-
-        Notifications.Add($"Collection: {collection.Name}");
     }
 
     private static void MoveSelectedToCollection(int index)
     {
         var collection = CollectionManager.GetByIndex(index);
         if (collection == null)
-        {
-            Notifications.AddError($"Collection {index} not defined");
             return;
-        }
 
         var count = 0;
         foreach (var doc in DocumentManager.Documents)
@@ -1173,7 +1149,6 @@ public static partial class Workspace
 
         if (count > 0)
         {
-            Notifications.Add($"Moved {count} asset(s) to '{collection.Name}'");
             if (!CollectionManager.IsVisible(index))
                 ClearSelection();
         }
