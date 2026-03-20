@@ -788,8 +788,8 @@ public class SkeletonDocument : Document
         Attachments.Clear();
         foreach (var doc in DocumentManager.Documents)
         {
-            if (doc is ISkeletonAttachment bound && bound.Binding.IsBoundTo(this) && bound.ShowInSkeleton)
-                Attachments.Add(bound);
+            if (doc is ISkeletonAttachment attachment && attachment.ShouldShowInSkeleton(this))
+                Attachments.Add(attachment);
         }
     }
 

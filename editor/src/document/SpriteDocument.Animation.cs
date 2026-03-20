@@ -28,6 +28,8 @@ public partial class SpriteDocument
         }
     }
 
+    public bool ShouldShowInSkeleton(SkeletonDocument skeleton) => ShowInSkeleton && Skeleton == skeleton;
+
     public static int GetFrameAtTimeSlot(SpriteFrame[] frames, ushort frameCount, int globalTimeSlot)
     {
         var accumulated = 0;

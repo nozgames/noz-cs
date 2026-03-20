@@ -53,12 +53,13 @@ internal static partial class Inspector
         Sprite? icon = null,
         Action? content = null,
         bool isActive = false,
-        bool collapsed = false)
+        bool collapsed = false,
+        bool empty = false)
     {
         if (_sectionOpen)
             EndSection();
 
-        BeginSectionCore(name, icon, content, isActive, collapsed);
+        BeginSectionCore(name, icon, content, isActive, collapsed, empty);
         _sectionOpen = true;
     }
 
@@ -70,7 +71,7 @@ internal static partial class Inspector
         bool collapsed = false,
         bool empty = false)
     {
-        BeginSectionCore(name, icon, content, isActive, collapsed);
+        BeginSectionCore(name, icon, content, isActive, collapsed, empty);
         return new AutoSection();
     }
 
@@ -79,7 +80,8 @@ internal static partial class Inspector
         Sprite? icon,
         Action? content,
         bool isActive,
-        bool collapsed)
+        bool collapsed,
+        bool empty)
     {
         var sectionId = _nextSectionId++;
         _sectionActive = isActive;

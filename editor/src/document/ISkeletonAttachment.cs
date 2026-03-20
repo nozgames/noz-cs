@@ -8,7 +8,6 @@ namespace NoZ.Editor;
 
 public interface ISkeletonAttachment
 {
-    public DocumentRef<SkeletonDocument> Skeleton { get; }
-    bool ShowInSkeleton { get; }
+    bool ShouldShowInSkeleton(SkeletonDocument skeleton);
     void DrawSkinned(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform);
 }

@@ -7,25 +7,41 @@ namespace NoZ.Editor;
 public struct DocumentRef<T> where T : Document
 {
     public string? Name;
-    public T? Document;
+    public T? Value;
 
-    public bool IsSet => !string.IsNullOrEmpty(Name);
-    public bool IsResolved => Document != null;
+    public bool HasValue => !string.IsNullOrEmpty(Name);
+    public bool IsResolved => Value != null;
+
+    public static implicit operator T? (DocumentRef<T> docRef) => docRef.Value;
+    public static explicit operator T? (DocumentRef<T>? doc) => doc as T;
+
+    public static bool operator== (DocumentRef<T> a, T? value) => a.Value == value;
+    public static bool operator!=(DocumentRef<T> a, T? value) => a.Value != value;
+
+    public static implicit operator DocumentRef<T>(T? doc) => new() { Value = doc, Name = doc?.Name };
 
     public void Resolve()
     {
-        Document = string.IsNullOrEmpty(Name) ? null : DocumentManager.Find<T>(Name);
-    }
-
-    public void Set(T? doc)
-    {
-        Document = doc;
-        Name = doc?.Name;
+        Value = string.IsNullOrEmpty(Name) ? null : DocumentManager.Find<T>(Name);
     }
 
     public void Clear()
     {
-        Document = null;
+        Value = null;
         Name = null;
+    }
+
+    public override readonly bool Equals(object? obj)
+    {
+        if (obj is DocumentRef<T> docRef)
+            return this == docRef;
+        if (obj is T doc)
+            return this == doc;
+        return false;
+    }
+
+    public override readonly int GetHashCode()
+    {
+        return Value?.GetHashCode() ?? 0;
     }
 }

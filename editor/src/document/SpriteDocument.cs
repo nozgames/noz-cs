@@ -67,8 +67,6 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
 
     public DocumentRef<SkeletonDocument> Skeleton;
 
-    DocumentRef<SkeletonDocument> ISkeletonAttachment.Skeleton => Skeleton;
-
     public void DrawSkinned(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform)
     {
         DrawSprite(bindPose, animatedPose, baseTransform);
@@ -489,7 +487,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         if (!Edges.IsZero)
             writer.WriteLine($"edges ({Edges.T},{Edges.L},{Edges.B},{Edges.R})");
 
-        if (Skeleton.IsSet)
+        if (Skeleton.HasValue)
             writer.WriteLine($"skeleton \"{Skeleton.Name}\"");
 
         if (FrameCount > 0)
@@ -823,8 +821,8 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
     {
         if (Generation != null)
             foreach (var r in Generation.References)
-                if (r.Document != null)
-                    references.Add(r.Document);
+                if (r.Value != null)
+                    references.Add(r.Value);
     }
 
     internal void ClearAtlasUVs()
