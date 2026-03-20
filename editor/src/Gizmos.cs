@@ -139,7 +139,82 @@ public static class Gizmos
 
         Graphics.Draw(verts, indices, order);
     }
-    
+
+    public static void DrawPieChart(Vector2 center, float size, ReadOnlySpan<float> weights, ReadOnlySpan<Color> colors, ushort order = 0)
+    {
+        var radius = size * 0.5f * ZoomRefScale;
+        var segmentRatio = MathEx.Clamp01((Graphics.Camera?.WorldToScreen(radius) ?? 0.0f) / 96.0f);
+        var totalSegments = (int)float.Lerp(MinCircleSegments, MaxCircleSegments, segmentRatio);
+
+        // Count active weights
+        var activeCount = 0;
+        var totalWeight = 0f;
+        for (var i = 0; i < weights.Length; i++)
+        {
+            if (weights[i] > 0.001f)
+            {
+                activeCount++;
+                totalWeight += weights[i];
+            }
+        }
+
+        if (activeCount == 0 || totalWeight < 0.001f)
+            return;
+
+        // Single weight: draw solid circle
+        if (activeCount == 1)
+        {
+            for (var i = 0; i < weights.Length; i++)
+            {
+                if (weights[i] > 0.001f)
+                {
+                    Graphics.SetColor(colors[i]);
+                    DrawCircle(center, size, order);
+                    return;
+                }
+            }
+        }
+
+        // Multiple weights: draw pie wedges
+        Graphics.SetColor(Color.White);
+        var angleOffset = -MathF.PI * 0.5f; // start at top
+
+        for (var wi = 0; wi < weights.Length; wi++)
+        {
+            if (weights[wi] <= 0.001f)
+                continue;
+
+            var wedgeAngle = weights[wi] / totalWeight * MathF.PI * 2f;
+            var wedgeSegments = int.Max(2, (int)(totalSegments * weights[wi] / totalWeight));
+
+            Span<MeshVertex> verts = stackalloc MeshVertex[wedgeSegments + 2];
+            Span<ushort> indices = stackalloc ushort[wedgeSegments * 3];
+
+            verts[0] = new MeshVertex { Position = center, Color = colors[wi] };
+
+            var angleStep = wedgeAngle / wedgeSegments;
+            for (var i = 0; i <= wedgeSegments; i++)
+            {
+                var angle = angleOffset + i * angleStep;
+                verts[i + 1] = new MeshVertex
+                {
+                    Position = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius,
+                    Color = colors[wi]
+                };
+            }
+
+            for (var i = 0; i < wedgeSegments; i++)
+            {
+                indices[i * 3 + 0] = 0;
+                indices[i * 3 + 1] = (ushort)(i + 1);
+                indices[i * 3 + 2] = (ushort)(i + 2);
+            }
+
+            Graphics.Draw(verts, indices, order);
+            angleOffset += wedgeAngle;
+        }
+    }
+
     public static float GetVertexSize(float size=1.0f)
     {
         return DefaultVertexSize * size;

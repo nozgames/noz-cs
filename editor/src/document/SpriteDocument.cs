@@ -10,7 +10,7 @@ using SixLabors.ImageSharp.Processing;
 
 namespace NoZ.Editor;
 
-public partial class SpriteDocument : Document, IShapeDocument
+public partial class SpriteDocument : Document, IShapeDocument, ISkeletonBound
 {
     public override bool CanSave => IsMutable;
 
@@ -115,6 +115,12 @@ public partial class SpriteDocument : Document, IShapeDocument
     internal AtlasDocument? Atlas { get; set; }
 
     public readonly SkeletonBinding Binding = new();
+    SkeletonBinding ISkeletonBound.Binding => Binding;
+
+    public void DrawSkinned(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform)
+    {
+        DrawSprite(bindPose, animatedPose, baseTransform);
+    }
 
     public Rect AtlasUV => GetAtlasUV(0);
 

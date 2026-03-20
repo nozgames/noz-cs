@@ -17,6 +17,7 @@ internal partial class SkeletonEditor : DocumentEditor
         public static partial WidgetId Root { get; }
         public static partial WidgetId PreviewButton { get; }
         public static partial WidgetId ConnectedButton { get; }
+        public static partial WidgetId BoneColor { get; }
     }
 
     private struct SavedBone
@@ -128,6 +129,38 @@ internal partial class SkeletonEditor : DocumentEditor
         }
 
         Document.IncrementVersion();
+    }
+
+    public override bool ShowInspector => Document.SelectedBoneCount == 1;
+
+    public override void InspectorUI()
+    {
+        var selectedBone = -1;
+        for (var i = 0; i < Document.BoneCount; i++)
+        {
+            if (Document.Bones[i].IsSelected)
+            {
+                selectedBone = i;
+                break;
+            }
+        }
+
+        if (selectedBone < 0) return;
+
+        var bone = Document.Bones[selectedBone];
+
+        using (Inspector.BeginProperty("Bone"))
+            UI.Text(bone.Name);
+
+        using (Inspector.BeginProperty("Color"))
+        {
+            var color32 = bone.Color.ToColor32();
+            if (EditorUI.ColorButton(ElementId.BoneColor, ref color32))
+            {
+                UI.HandleChange(Document);
+                bone.Color = color32.ToColor();
+            }
+        }
     }
 
     public override void UpdateUI()

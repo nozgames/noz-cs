@@ -322,10 +322,9 @@ internal class AnimationDocument : Document
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(boneWidth, -boneWidth), boneTransform));
         }
 
-        var sprites = Skeleton.Sprites;
-        for (var i = 0; i < sprites.Count; i++)
+        for (var i = 0; i < Skeleton.BoundAttachments.Count; i++)
         {
-            var sprite = sprites[i];
+            if (Skeleton.BoundAttachments[i] is not SpriteDocument sprite) continue;
             var spriteBounds = sprite.Bounds;
             var boneTransform = Skeleton.WorldToLocal[0] * LocalToWorld[0];
             bounds = ExpandBounds(bounds, Vector2.Transform(spriteBounds.TopLeft, boneTransform));
@@ -824,14 +823,11 @@ internal class AnimationDocument : Document
         {
             Graphics.SetLayer(EditorLayer.Document);
 
-            for (var i = 0; i < Skeleton.Sprites.Count; i++)
-            {
-                var sprite = Skeleton.Sprites[i];
-                Debug.Assert(sprite != null);
-                Debug.Assert(sprite.Binding.IsBoundTo(Skeleton));
-
-                sprite.DrawSprite(Skeleton.WorldToLocal, LocalToWorld, Transform);
-            }
+            for (var i = 0; i < Skeleton.BoundAttachments.Count; i++)
+                Skeleton.BoundAttachments[i].DrawSkinned(
+                    Skeleton.WorldToLocal.AsReadonlySpan().Slice(0, Skeleton.BoneCount),
+                    LocalToWorld.AsReadonlySpan().Slice(0, BoneCount),
+                    Transform);
         }
     }
 
