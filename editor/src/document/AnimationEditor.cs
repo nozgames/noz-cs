@@ -141,6 +141,7 @@ internal partial class AnimationEditor : DocumentEditor
     private float _playSpeed = 1f;
 
     public new AnimationDocument Document => (AnimationDocument)base.Document;
+    public override bool ShowInspector => true;
 
     public AnimationEditor(AnimationDocument document) : base(document)
     {
@@ -243,73 +244,133 @@ internal partial class AnimationEditor : DocumentEditor
         SkeletonPopupUI();
     }
 
-    private void TimelineUI()
-    {
-        using var _ = UI.BeginContainer(new ContainerStyle { Padding = EdgeInsets.LeftRight(2) });
-
-        var isPlaying = _state == AnimationEditorState.Play;
-        var currentFrame = Document.CurrentFrame;
-
-        Span<DopeSheetFrame> frames = stackalloc DopeSheetFrame[Document.FrameCount];
-        for (var i = 0; i < Document.FrameCount; i++)
-            frames[i] = new DopeSheetFrame { Hold = Document.Frames[i].Hold };
-        
-        if (DopeSheet(ElementId.FirstFrame, frames, ref currentFrame, AnimationDocument.MaxFrames, isPlaying))
-        {
-            Document.CurrentFrame = currentFrame;
-            Document.UpdateTransforms();
-            SetDefaultState();
-        }
-    }
-
-    private void ToolbarUI()
-    {
-        using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
-
-        using (UI.BeginFlex())
-        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
-        {
-            if (UI.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe, EditorStyle.Button.IconOnly))
-                InsertFrameAfter();
-            if (UI.Button(ElementId.MirrorButton, EditorAssets.Sprites.IconMirror, EditorStyle.Button.IconOnly))
-                MirrorPose();
-        }
-
-        UI.SetChecked(Document.IsPlaying);
-        if (UI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, EditorStyle.Button.ToggleIcon))
-            TogglePlayback();
-
-        using (UI.BeginFlex())
-        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
-        {
-            UI.Flex();
-
-            UI.SetChecked(_showSkeleton);
-            if (UI.Button(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
-                _showSkeleton = !_showSkeleton;
-
-            UI.SetChecked(Document.IsLooping);
-            if (UI.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, EditorStyle.Button.ToggleIcon))
-            {
-                Undo.Record(Document);
-                Document.IsLooping = !Document.IsLooping;
-            }
-
-            UI.SetChecked(_onionSkin);
-            if (UI.Button(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion, EditorStyle.Button.ToggleIcon))
-                _onionSkin = !_onionSkin;
-        }
-
-        UI.Spacer(EditorStyle.Control.Spacing);
-        SkeletonButtonUI();
-    }
-
     public override void UpdateUI()
     {
-        using (UI.BeginColumn(ElementId.Root, EditorStyle.DocumentEditor.Root))
+    }
+
+    public override void UpdateOverlayUI()
+    {
+        using (FloatingToolbar.Begin())
         {
-            ToolbarUI();
-            TimelineUI();
+            FloatingToolbarUI();
+            FloatingToolbar.Row();
+            FloatingDopeSheetUI();
+        }
+    }
+
+    public override void InspectorUI()
+    {
+        using (Inspector.BeginSection("Animation"))
+        {
+            using (Inspector.BeginProperty("Skeleton"))
+                SkeletonButtonUI();
+        }
+    }
+
+    private void FloatingToolbarUI()
+    {
+        if (FloatingToolbar.Button(ElementId.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
+            InsertFrameAfter();
+        if (FloatingToolbar.Button(ElementId.MirrorButton, EditorAssets.Sprites.IconMirror))
+            MirrorPose();
+
+        FloatingToolbar.Divider();
+
+        UI.SetChecked(Document.IsPlaying);
+        if (FloatingToolbar.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay))
+            TogglePlayback();
+
+        FloatingToolbar.Divider();
+
+        UI.SetChecked(_showSkeleton);
+        if (FloatingToolbar.Button(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview))
+            _showSkeleton = !_showSkeleton;
+
+        UI.SetChecked(Document.IsLooping);
+        if (FloatingToolbar.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop))
+        {
+            Undo.Record(Document);
+            Document.IsLooping = !Document.IsLooping;
+        }
+
+        UI.SetChecked(_onionSkin);
+        if (FloatingToolbar.Button(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion))
+            _onionSkin = !_onionSkin;
+    }
+
+    private void FloatingDopeSheetUI()
+    {
+        var maxSlots = AnimationDocument.MaxFrames;
+        var usedSlots = 0;
+        for (var i = 0; i < Document.FrameCount; i++)
+            usedSlots += 1 + Document.Frames[i].Hold;
+
+        var blockCount = Math.Max((usedSlots + 3) / 4, 5);
+
+        using (UI.BeginColumn(EditorStyle.Dopesheet.FloatingDopesheet))
+        {
+            using (UI.BeginRow(EditorStyle.Dopesheet.FloatingHeaderContainer))
+            {
+                for (var blockIndex = 0; blockIndex < blockCount; blockIndex++)
+                {
+                    if (blockIndex > 0)
+                        UI.Container(EditorStyle.Dopesheet.FloatingTimeTick);
+
+                    using (UI.BeginContainer(EditorStyle.Dopesheet.TimeBlock))
+                        UI.Text(FrameTimeStrings[blockIndex], EditorStyle.Dopesheet.TimeText);
+                }
+
+                UI.Flex();
+            }
+
+            UI.Spacer(1);
+
+            using (UI.BeginRow(EditorStyle.Dopesheet.FloatingLayerRow))
+            {
+                var slotIndex = 0;
+                for (var frameIndex = 0; frameIndex < Document.FrameCount && slotIndex < maxSlots; frameIndex++)
+                {
+                    var selected = Document.CurrentFrame == frameIndex;
+
+                    using (UI.BeginRow(ElementId.FirstFrame + frameIndex))
+                    {
+                        if (UI.WasPressed())
+                        {
+                            Document.CurrentFrame = frameIndex;
+                            Document.UpdateTransforms();
+                            SetDefaultState();
+                        }
+
+                        using (UI.BeginContainer(selected
+                            ? EditorStyle.Dopesheet.FloatingSelectedFrame
+                            : EditorStyle.Dopesheet.FloatingFrame))
+                        {
+                            UI.Container(selected
+                                ? EditorStyle.Dopesheet.FloatingSelectedFrameDot
+                                : EditorStyle.Dopesheet.FloatingFrameDot);
+                        }
+
+                        slotIndex++;
+
+                        var hold = Document.Frames[frameIndex].Hold;
+                        for (int h = 0; h < hold && slotIndex < maxSlots; h++, slotIndex++)
+                        {
+                            if (h < hold - 1)
+                                UI.Container(selected
+                                    ? EditorStyle.Dopesheet.FloatingSelectedHoldSeparator
+                                    : EditorStyle.Dopesheet.FloatingHoldSeparator);
+
+                            using (UI.BeginContainer(selected
+                                ? EditorStyle.Dopesheet.FloatingSelectedFrame
+                                : EditorStyle.Dopesheet.FloatingFrame))
+                            {
+                            }
+                        }
+                    }
+                }
+
+                UI.Flex();
+            }
         }
     }
 
@@ -938,9 +999,9 @@ internal partial class AnimationEditor : DocumentEditor
         {
             Graphics.SetLayer(EditorLayer.Grid);
 
-            for (var i = 0; i < skeleton.Sprites.Count; i++)
+            for (var i = 0; i < skeleton.Attachments.Count; i++)
             {
-                var sprite = skeleton.Sprites[i];
+                if (skeleton.Attachments[i] is not SpriteDocument sprite) continue;
                 sprite.DrawSprite(skeleton.WorldToLocal, Document.LocalToWorld, Document.Transform, tint: tint);
             }
         }

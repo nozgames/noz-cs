@@ -1273,9 +1273,92 @@ public static partial class Workspace
     private static void OpenPopupMenu()
     {
         if (_activeEditor != null)
+        {
             _activeEditor.OpenContextMenu(ElementId.ContextMenu);
-        else
-            PopupMenu.Open(ElementId.ContextMenu, _workspacePopupItems, title: "Asset");
+            return;
+        }
+
+        // Build dynamic popup with type conversion options if applicable
+        var items = new List<PopupMenuItem>(_workspacePopupItems);
+
+        if (SelectedCount == 1)
+        {
+            var selectedDoc = DocumentManager.SelectedDocuments.FirstOrDefault();
+            if (selectedDoc != null)
+            {
+                var ext = System.IO.Path.GetExtension(selectedDoc.Path);
+                var defs = DocumentManager.GetDefs(ext);
+                if (defs != null && defs.Count > 1)
+                {
+                    items.Add(PopupMenuItem.Separator());
+                    items.Add(PopupMenuItem.Submenu("Convert to", showChecked: true, showIcons: false));
+                    foreach (var def in defs)
+                    {
+                        var targetDef = def;
+                        items.Add(PopupMenuItem.Item(
+                            def.Name,
+                            () => ConvertDocumentType(selectedDoc, targetDef),
+                            level: 1,
+                            isChecked: () => selectedDoc.Def == targetDef));
+                    }
+                }
+            }
+        }
+
+        PopupMenu.Open(ElementId.ContextMenu, items.ToArray(), title: "Asset");
+    }
+
+    private static void ConvertDocumentType(Document doc, DocumentDef newDef)
+    {
+        if (doc.Def == newDef) return;
+
+        var dir = System.IO.Path.GetDirectoryName(doc.Path) ?? "";
+        var stem = System.IO.Path.GetFileNameWithoutExtension(doc.Path);
+
+        // Delete old companion file (the type-specific file, not the image)
+        var oldExt = doc.Def.Extensions[0];
+        var oldCompanion = System.IO.Path.Combine(dir, stem + oldExt);
+        if (File.Exists(oldCompanion))
+            File.Delete(oldCompanion);
+
+        // Find the image file
+        string? imagePath = null;
+        string[] imageExts = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
+        foreach (var imgExt in imageExts)
+        {
+            var imgPath = System.IO.Path.Combine(dir, stem + imgExt);
+            if (File.Exists(imgPath))
+            {
+                imagePath = imgPath;
+                break;
+            }
+        }
+        if (imagePath == null) return;
+
+        // Write document_type to meta on the image file
+        var metaPath = imagePath + ".meta";
+        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
+        meta.SetString("editor", "document_type", newDef.Name);
+        meta.Save(metaPath);
+
+        // Remove old document from list (don't delete files)
+        var position = doc.Position;
+        Undo.RemoveDocument(doc);
+        DocumentManager.Remove(doc);
+
+        // Create new document from the image file
+        var newDoc = DocumentManager.Create(imagePath);
+        if (newDoc != null)
+        {
+            newDoc.LoadMetadata();
+            newDoc.Loaded = true;
+            newDoc.Load();
+            newDoc.PostLoad();
+            newDoc.PostLoaded = true;
+            newDoc.Position = position;
+            DocumentManager.NotifyDocumentAdded(newDoc);
+            AssetManifest.IsModified = true;
+        }
     }
 
     private static void HandleHide()

@@ -232,6 +232,8 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
+    public static int CurrentBoneIndex => CurrentState.BoneIndex;
+
     public static void SetBones(Animator animator) =>
         SetBones(animator.Skeleton, animator.BoneTransforms);
 

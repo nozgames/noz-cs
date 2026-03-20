@@ -10,7 +10,7 @@ using SixLabors.ImageSharp.Processing;
 
 namespace NoZ.Editor;
 
-public partial class SpriteDocument : Document, IShapeDocument
+public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachment
 {
     public override bool CanSave => IsMutable;
 
@@ -66,6 +66,11 @@ public partial class SpriteDocument : Document, IShapeDocument
     internal AtlasDocument? Atlas { get; set; }
 
     public DocumentRef<SkeletonDocument> Skeleton;
+
+    public void DrawSkinned(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform)
+    {
+        DrawSprite(bindPose, animatedPose, baseTransform);
+    }
 
     public Rect AtlasUV => GetAtlasUV(0);
 
@@ -482,7 +487,7 @@ public partial class SpriteDocument : Document, IShapeDocument
         if (!Edges.IsZero)
             writer.WriteLine($"edges ({Edges.T},{Edges.L},{Edges.B},{Edges.R})");
 
-        if (Skeleton.IsSet)
+        if (Skeleton.HasValue)
             writer.WriteLine($"skeleton \"{Skeleton.Name}\"");
 
         if (FrameCount > 0)
@@ -816,8 +821,8 @@ public partial class SpriteDocument : Document, IShapeDocument
     {
         if (Generation != null)
             foreach (var r in Generation.References)
-                if (r.Document != null)
-                    references.Add(r.Document);
+                if (r.Value != null)
+                    references.Add(r.Value);
     }
 
     internal void ClearAtlasUVs()

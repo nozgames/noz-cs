@@ -584,6 +584,19 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _wgpu.CommandEncoderRelease(_commandEncoder);
         _commandEncoder = null;
 
+        if (_bindGroupsToRelease.Count > 0)
+        {
+            foreach (var bindGroup in _bindGroupsToRelease)
+                _wgpu.BindGroupRelease((BindGroup*)bindGroup);
+            _bindGroupsToRelease.Clear();
+        }
+
+        if (_currentBindGroup != null)
+        {
+            _wgpu.BindGroupRelease(_currentBindGroup);
+            _currentBindGroup = null;
+        }
+
         if (_currentSurfaceTextureView != null)
         {
             _wgpu.TextureViewRelease(_currentSurfaceTextureView);

@@ -117,7 +117,7 @@ public static class Gizmos
         Span<MeshVertex> verts = stackalloc MeshVertex[segments + 1];
         Span<ushort> indices = stackalloc ushort[segments * 3];
 
-        verts[0] = new MeshVertex { Position = center };
+        verts[0] = new MeshVertex { Position = center, Color = Color.White };
 
         var angleStep = MathF.PI * 2f / segments;
         for (var i = 0; i < segments; i++)
@@ -125,7 +125,8 @@ public static class Gizmos
             var angle = i * angleStep;
             verts[i + 1] = new MeshVertex
             {
-                Position = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius
+                Position = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius,
+                Color = Color.White
             };
         }
 
@@ -138,7 +139,82 @@ public static class Gizmos
 
         Graphics.Draw(verts, indices, order);
     }
-    
+
+    public static void DrawPieChart(Vector2 center, float size, ReadOnlySpan<float> weights, ReadOnlySpan<Color> colors, ushort order = 0)
+    {
+        var radius = size * 0.5f * ZoomRefScale;
+        var segmentRatio = MathEx.Clamp01((Graphics.Camera?.WorldToScreen(radius) ?? 0.0f) / 96.0f);
+        var totalSegments = (int)float.Lerp(MinCircleSegments, MaxCircleSegments, segmentRatio);
+
+        // Count active weights
+        var activeCount = 0;
+        var totalWeight = 0f;
+        for (var i = 0; i < weights.Length; i++)
+        {
+            if (weights[i] > 0.001f)
+            {
+                activeCount++;
+                totalWeight += weights[i];
+            }
+        }
+
+        if (activeCount == 0 || totalWeight < 0.001f)
+            return;
+
+        // Single weight: draw solid circle
+        if (activeCount == 1)
+        {
+            for (var i = 0; i < weights.Length; i++)
+            {
+                if (weights[i] > 0.001f)
+                {
+                    Graphics.SetColor(colors[i]);
+                    DrawCircle(center, size, order);
+                    return;
+                }
+            }
+        }
+
+        // Multiple weights: draw pie wedges
+        Graphics.SetColor(Color.White);
+        var angleOffset = -MathF.PI * 0.5f; // start at top
+
+        for (var wi = 0; wi < weights.Length; wi++)
+        {
+            if (weights[wi] <= 0.001f)
+                continue;
+
+            var wedgeAngle = weights[wi] / totalWeight * MathF.PI * 2f;
+            var wedgeSegments = int.Max(2, (int)(totalSegments * weights[wi] / totalWeight));
+
+            Span<MeshVertex> verts = stackalloc MeshVertex[wedgeSegments + 2];
+            Span<ushort> indices = stackalloc ushort[wedgeSegments * 3];
+
+            verts[0] = new MeshVertex { Position = center, Color = colors[wi] };
+
+            var angleStep = wedgeAngle / wedgeSegments;
+            for (var i = 0; i <= wedgeSegments; i++)
+            {
+                var angle = angleOffset + i * angleStep;
+                verts[i + 1] = new MeshVertex
+                {
+                    Position = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius,
+                    Color = colors[wi]
+                };
+            }
+
+            for (var i = 0; i < wedgeSegments; i++)
+            {
+                indices[i * 3 + 0] = 0;
+                indices[i * 3 + 1] = (ushort)(i + 1);
+                indices[i * 3 + 2] = (ushort)(i + 2);
+            }
+
+            Graphics.Draw(verts, indices, order);
+            angleOffset += wedgeAngle;
+        }
+    }
+
     public static float GetVertexSize(float size=1.0f)
     {
         return DefaultVertexSize * size;
@@ -243,6 +319,71 @@ public static class Gizmos
     {
         SetColor(color);
         DrawRect(Vector2.Zero, EditorStyle.Workspace.OriginSize, order);
+    }
+
+    public static void DrawArc(Vector2 center, float radius, float startAngle, float endAngle, float lineWidth, ushort order = 0)
+    {
+        var screenRadius = Graphics.Camera?.WorldToScreen(radius) ?? 0.0f;
+        var segmentRatio = MathEx.Clamp01(screenRadius / 96.0f);
+        var totalSegments = (int)float.Lerp(MinCircleSegments, MaxCircleSegments, segmentRatio);
+        var angleSpan = endAngle - startAngle;
+        var segments = int.Max(4, (int)(totalSegments * MathF.Abs(angleSpan) / (MathF.PI * 2f)));
+
+        var prev = center + new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * radius;
+        for (var i = 1; i <= segments; i++)
+        {
+            var angle = startAngle + angleSpan * i / segments;
+            var curr = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            DrawLine(prev, curr, lineWidth, order: order);
+            prev = curr;
+        }
+    }
+
+    public static void DrawEnvelope(Vector2 head, Vector2 tail, float headRadius, float tailRadius, ushort order = 0)
+    {
+        var delta = tail - head;
+        var length = delta.Length();
+        if (length < 0.0001f)
+            return;
+
+        var dir = delta / length;
+        var normal = new Vector2(-dir.Y, dir.X);
+        var lineWidth = EditorStyle.Skeleton.EnvelopeLineWidth;
+        var boneAngle = MathF.Atan2(dir.Y, dir.X);
+
+        // Tangent angle offset for tapered capsule
+        var rDiff = headRadius - tailRadius;
+        var tangentAngle = MathF.Abs(rDiff) < length ? MathF.Asin(rDiff / length) : 0f;
+
+        // Tangent contact angles
+        var angleTop = boneAngle + MathF.PI / 2f + tangentAngle;
+        var angleBot = boneAngle - MathF.PI / 2f + tangentAngle;
+
+        // Tangent line endpoints
+        var headTop = head + new Vector2(MathF.Cos(angleTop), MathF.Sin(angleTop)) * headRadius;
+        var headBot = head + new Vector2(MathF.Cos(angleBot), MathF.Sin(angleBot)) * headRadius;
+        var tailTop = tail + new Vector2(MathF.Cos(angleTop), MathF.Sin(angleTop)) * tailRadius;
+        var tailBot = tail + new Vector2(MathF.Cos(angleBot), MathF.Sin(angleBot)) * tailRadius;
+
+        // Draw tangent lines
+        if (headRadius > 0 || tailRadius > 0)
+        {
+            DrawLine(headTop, tailTop, lineWidth, order: order);
+            DrawLine(headBot, tailBot, lineWidth, order: order);
+        }
+
+        // Draw arcs (semicircles facing outward)
+        if (headRadius > 0)
+        {
+            var headArcStart = angleBot;
+            var headArcEnd = angleTop - MathF.PI * 2f;
+            DrawArc(head, headRadius, headArcEnd, headArcStart, lineWidth, order);
+        }
+
+        if (tailRadius > 0)
+        {
+            DrawArc(tail, tailRadius, angleTop, angleBot, lineWidth, order);
+        }
     }
 
     #region Hit Testing

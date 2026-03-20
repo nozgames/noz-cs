@@ -527,6 +527,9 @@ public static class EditorStyle
         public const float JointHitSize = JointSize * 2.0f;
 
         public static readonly Color ParentLineColor = Color.FromRgb(0x212121);
+
+        public static readonly Color EnvelopeColor = Color.FromRgba(0x4488FF80);
+        public const float EnvelopeLineWidth = 0.01f;
     }
 
     // :toolbar
@@ -865,17 +868,10 @@ public static class EditorStyle
         };
     }
 
-    // :spriteeditor
-    public static class SpriteEditor
+    // :floatingtoolbar
+    public static class FloatingToolbar
     {
-        public const float LayerColumnWidth = 140f;
-
-        public static readonly ContainerStyle Toolbar = new()
-        {
-            Height = Control.Height,
-        };
-
-        public static readonly ContainerStyle FloatingToolbar = new()
+        public static readonly ContainerStyle Root = new()
         {
             Background = Palette.Popup,
             AlignX = Align.Center,
@@ -887,7 +883,7 @@ public static class EditorStyle
             Margin = EdgeInsets.Bottom(8),
         };
 
-        public static readonly ContainerStyle FloatingToolbarRow = new()
+        public static readonly ContainerStyle Row = new()
         {
             Height = Size.Fit,
             Spacing = 2,
@@ -909,13 +905,24 @@ public static class EditorStyle
             },
         };
 
-        public static readonly ContainerStyle FloatingDivider = new()
+        public static readonly ContainerStyle Divider = new()
         {
             Width = 1,
             Height = 16,
             Background = Palette.Separator,
             AlignY = Align.Center,
             Margin = EdgeInsets.LeftRight(2),
+        };
+    }
+
+    // :spriteeditor
+    public static class SpriteEditor
+    {
+        public const float LayerColumnWidth = 140f;
+
+        public static readonly ContainerStyle Toolbar = new()
+        {
+            Height = Control.Height,
         };
 
         public static readonly ContainerStyle LayerToolbar = new()

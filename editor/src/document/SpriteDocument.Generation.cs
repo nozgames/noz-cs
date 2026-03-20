@@ -44,7 +44,6 @@ public partial class SpriteDocument
 
         LoadGeneratedTexture();
         Generation.Config.Resolve();
-        Log.Info($"[Gen] '{Name}' PostLoad: style={Generation.Config.Document?.Name ?? "null"} hasImage={Generation.HasImageData}");
 
         foreach (ref var r in System.Runtime.InteropServices.CollectionsMarshal.AsSpan(Generation.References))
             r.Resolve();
@@ -78,7 +77,7 @@ public partial class SpriteDocument
         if (!string.IsNullOrEmpty(gen.Config.Name))
             writer.WriteLine($"style \"{gen.Config.Name}\"");
         foreach (var r in gen.References)
-            if (r.IsSet) writer.WriteLine($"reference \"{r.Name}\"");
+            if (r.HasValue) writer.WriteLine($"reference \"{r.Name}\"");
         if (gen.Job.HasImageData && ImageFilePath != null)
             File.WriteAllBytes(ImageFilePath, gen.Job.ImageData!);
     }
@@ -466,7 +465,7 @@ public partial class SpriteDocument
     public PipelineRequest BuildGenerationRequest()
     {
         var gen = Generation!;
-        var config = gen.Config.Document;
+        var config = gen.Config.Value;
         var prompt = GenerationConfig.FormatPrompt(config?.Prompt ?? "", gen.Prompt);
         var negPrompt = GenerationConfig.FormatPrompt(config?.NegativePrompt ?? "", gen.NegativePrompt);
         var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
@@ -487,7 +486,7 @@ public partial class SpriteDocument
 
         for (int i = 0; i < gen.References.Count; i++)
         {
-            var refDoc = gen.References[i].Document;
+            var refDoc = gen.References[i].Value;
             if (refDoc == null) continue;
             byte[] refBytes = refDoc.Generation is { HasImageData: true }
                 ? refDoc.Generation.Job.ImageData!
@@ -606,7 +605,7 @@ public partial class SpriteDocument
             return;
         }
 
-        if (string.IsNullOrEmpty(gen.Config.Document?.ModelName))
+        if (string.IsNullOrEmpty(gen.Config.Value?.ModelName))
         {
             Log.Error($"Invalid style for '{Name}': no model specified");
             return;

@@ -192,58 +192,51 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     {
         if (!Document.IsMutable) return;
 
-        using (UI.BeginColumn())
+        using (FloatingToolbar.Begin())
         {
-            UI.Flex();
+            FloatingToolbarUI();
 
-            using (UI.BeginColumn(WidgetIds.Root, EditorStyle.SpriteEditor.FloatingToolbar))
+            if (Document.FrameCount > 1)
             {
-                FloatingToolbarUI();
-
-                if (Document.FrameCount > 1)
-                    FloatingDopeSheetUI();
+                FloatingToolbar.Row();
+                FloatingDopeSheetUI();
             }
         }
     }
 
     private void FloatingToolbarUI()
     {
-        using var _ = UI.BeginRow(EditorStyle.SpriteEditor.FloatingToolbarRow);
-
         // Tool group: Pen, Knife, Rect, Circle
         var activeTool = Workspace.ActiveTool;
 
         UI.SetChecked(activeTool is PenTool);
-        if (UI.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit))
             _shapeEditor.BeginPenTool();
 
         UI.SetChecked(activeTool is KnifeTool);
-        if (UI.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose))
             _shapeEditor.BeginKnifeTool();
 
         UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Rectangle });
-        if (UI.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer))
             _shapeEditor.BeginRectangleTool();
 
         UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Circle });
-        if (UI.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle))
             _shapeEditor.BeginCircleTool();
 
-        // Divider
-        UI.Container(EditorStyle.SpriteEditor.FloatingDivider);
+        FloatingToolbar.Divider();
 
         // Add frame
-        if (UI.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
             InsertFrameAfter();
 
-        // Divider
-        UI.Container(EditorStyle.SpriteEditor.FloatingDivider);
+        FloatingToolbar.Divider();
 
         // Toggle group: Tile
         UI.SetChecked(Document.ShowTiling);
-        if (UI.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, EditorStyle.SpriteEditor.ToolButton))
+        if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling))
             Document.ShowTiling = !Document.ShowTiling;
-
     }
 
     private int TotalTimeSlots()
@@ -862,7 +855,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void DrawSkeletonOverlay()
     {
-        var skeleton = Document.Skeleton.Document;
+        var skeleton = Document.Skeleton.Value;
         if (skeleton == null)
             return;
 
@@ -870,9 +863,9 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         {
             Graphics.SetSortGroup(0);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
-            foreach (var sprite in skeleton.Sprites)
+            foreach (var bound in skeleton.Attachments)
             {
-                if (sprite == Document) continue;
+                if (bound is not SpriteDocument sprite || sprite == Document) continue;
                 Graphics.SetBlendMode(BlendMode.Alpha);
                 Graphics.SetTransform(Document.Transform);
                 sprite.DrawSprite(alpha: 0.3f);
@@ -934,7 +927,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         using (Inspector.BeginProperty("Skeleton"))
         {
             var skeletonLabel = Document.Skeleton.IsResolved
-                ? StringId.Get(Document.Skeleton.Document!.Name).ToString()
+                ? StringId.Get(Document.Skeleton.Value!.Name).ToString()
                 : "None";
 
             UI.DropDown(WidgetIds.SkeletonDropDown, () =>
@@ -962,7 +955,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             {
                 Undo.Record(Document);
                 Document.ShowInSkeleton = !Document.ShowInSkeleton;
-                Document.Skeleton.Document?.UpdateSprites();
+                Document.Skeleton.Value?.UpdateSprites();
             }
 
             UI.SetChecked(Document.ShowSkeletonOverlay);
@@ -1142,7 +1135,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                     },
                     filter: doc => doc is SpriteDocument sprite
                                    && sprite != currentDoc
-                                   && !currentDoc.Generation!.References.Any(r => r.Document == sprite));
+                                   && !currentDoc.Generation!.References.Any(r => r.Value == sprite));
             }
             ElementTree.EndAlign();
         }
@@ -1153,7 +1146,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
         for (var i = 0; i < Document.Generation!.References.Count; i++)
         {
-            var refDoc = Document.Generation.References[i].Document;
+            var refDoc = Document.Generation.References[i].Value;
             if (refDoc == null) continue;
             var itemId = WidgetIds.ReferenceItem + i;
 
@@ -1176,12 +1169,10 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         }
     }
 
-    private void AddReference(SpriteDocument refDoc)
+    private void AddReference(SpriteDocument doc)
     {
         Undo.Record(Document);
-        var r = new DocumentRef<SpriteDocument>();
-        r.Set(refDoc);
-        Document.Generation!.References.Add(r);
+        Document.Generation!.References.Add(doc);
     }
 
     private void RemoveReference(int index)
@@ -1198,7 +1189,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void SetStyle(GenerationConfig? style)
     {
         Undo.Record(Document);
-        Document.Generation!.Config.Set(style);
+        Document.Generation!.Config = style;
     }
 
     private void GenerationProgressUI(GenerationJob genImage)
@@ -1255,7 +1246,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             Padding = EdgeInsets.Symmetric(12, 16),
         }))
         {
-            UI.SetDisabled(string.IsNullOrWhiteSpace(Document.Generation!.Prompt) || Document.Generation.Config.Document == null);
+            UI.SetDisabled(string.IsNullOrWhiteSpace(Document.Generation!.Prompt) || Document.Generation.Config.Value == null);
             if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1) }))
                 Document.GenerateAsync();
         }
@@ -1305,7 +1296,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void CommitSkeletonBinding(SkeletonDocument skeleton)
     {
         Undo.Record(Document);
-        Document.Skeleton.Set(skeleton);
+        Document.Skeleton = skeleton;
         skeleton.UpdateSprites();
     }
 
@@ -1314,7 +1305,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         if (!Document.Skeleton.IsResolved)
             return;
 
-        var skeleton = Document.Skeleton.Document;
+        var skeleton = Document.Skeleton.Value;
         Undo.Record(Document);
         Document.Skeleton.Clear();
         skeleton?.UpdateSprites();

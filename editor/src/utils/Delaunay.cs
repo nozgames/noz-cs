@@ -58,6 +58,8 @@ public static class Delaunay
         var badTriangles = new List<int>();
         var polygon = new List<Edge>();
 
+        Log.Info($"[Delaunay] n={n} dmax={dmax} mid=({midX},{midY}) super=({allPoints[n]}, {allPoints[n+1]}, {allPoints[n+2]})");
+
         // Insert each point
         for (var i = 0; i < n; i++)
         {
@@ -70,6 +72,9 @@ public static class Delaunay
                 if (InCircumcircle(allPoints, triangles[j], p))
                     badTriangles.Add(j);
             }
+
+            if (i < 5 || (i == n - 1))
+                Log.Info($"[Delaunay] point[{i}]=({p.X},{p.Y}) bad={badTriangles.Count} triangles={triangles.Count}");
 
             // Find the boundary polygon of the bad triangles
             polygon.Clear();
@@ -113,15 +118,21 @@ public static class Delaunay
         }
 
         // Output triangles that don't reference super-triangle vertices
+        var totalTriangles = triangles.Count;
+        var superRefCount = 0;
         foreach (var t in triangles)
         {
             if (t.A >= n || t.B >= n || t.C >= n)
+            {
+                superRefCount++;
                 continue;
+            }
 
             indices.Add((ushort)t.A);
             indices.Add((ushort)t.B);
             indices.Add((ushort)t.C);
         }
+        Log.Info($"[Delaunay] points={n} totalTriangles={totalTriangles} superRef={superRefCount} output={indices.Count / 3}");
     }
 
     private static bool InCircumcircle(Vector2[] points, Triangle t, Vector2 p)
@@ -130,17 +141,20 @@ public static class Delaunay
         var b = points[t.B];
         var c = points[t.C];
 
-        var ax = a.X - p.X;
-        var ay = a.Y - p.Y;
-        var bx = b.X - p.X;
-        var by = b.Y - p.Y;
-        var cx = c.X - p.X;
-        var cy = c.Y - p.Y;
+        double ax = a.X - p.X;
+        double ay = a.Y - p.Y;
+        double bx = b.X - p.X;
+        double by = b.Y - p.Y;
+        double cx = c.X - p.X;
+        double cy = c.Y - p.Y;
 
         var det = ax * (by * (cx * cx + cy * cy) - cy * (bx * bx + by * by))
                 - bx * (ay * (cx * cx + cy * cy) - cy * (ax * ax + ay * ay))
                 + cx * (ay * (bx * bx + by * by) - by * (ax * ax + ay * ay));
 
-        return det > 0;
+        // Sign of the cross product tells us the winding order of the triangle.
+        // If CW (negative cross), the determinant sign is flipped.
+        var cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+        return cross > 0 ? det > 0 : det < 0;
     }
 }

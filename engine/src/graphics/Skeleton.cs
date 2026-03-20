@@ -28,6 +28,7 @@ public struct Bone
     public int Index;
     public int ParentIndex;
     public BoneTransform Transform;
+    public float Radius;
 }
 
 public class Skeleton : Asset
@@ -73,6 +74,12 @@ public class Skeleton : Asset
                 reader.ReadSingle(), reader.ReadSingle(),
                 reader.ReadSingle(), reader.ReadSingle()
             );
+
+            // v2: envelope radius
+            if (stream.Position + 4 <= stream.Length)
+            {
+                bone.Radius = reader.ReadSingle();
+            }
         }
 
         return skeleton;

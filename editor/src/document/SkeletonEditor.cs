@@ -17,6 +17,7 @@ internal partial class SkeletonEditor : DocumentEditor
         public static partial WidgetId Root { get; }
         public static partial WidgetId PreviewButton { get; }
         public static partial WidgetId ConnectedButton { get; }
+        public static partial WidgetId BoneColor { get; }
     }
 
     private struct SavedBone
@@ -24,6 +25,7 @@ internal partial class SkeletonEditor : DocumentEditor
         public Vector2 HeadWorld;
         public Vector2 TailWorld;
         public float Length;
+        public float Radius;
     }
 
     public new SkeletonDocument Document => (SkeletonDocument)base.Document;
@@ -56,6 +58,7 @@ internal partial class SkeletonEditor : DocumentEditor
             renameCommand,
             selectAllCommand,
             new Command { Name = "Create Bone", Handler = BeginCreateBone, Key = InputCode.KeyV },
+            new Command { Name = "Envelope", Handler = HandleEnvelope, Key = InputCode.KeyE },
         ];
 
         //bool HasSelection() => Document.SelectedBoneCount > 0;
@@ -85,7 +88,6 @@ internal partial class SkeletonEditor : DocumentEditor
 
     public override void Update()
     {
-        UpdateDefaultState();
         DrawSkeleton();
 
         if (_showPreview)
@@ -93,33 +95,16 @@ internal partial class SkeletonEditor : DocumentEditor
             {
                 Graphics.SetSortGroup(SortGroupSkin);
                 Document.DrawSprites();
-            }            
+            }
 
         DrawBoneNames();
     }
 
-    private void ToolbarUI()
+    public override void LateUpdate()
     {
-        using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
-
-        UI.Flex();
-
-        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
-        {
-            UI.SetChecked(Document.CurrentConnected);
-            if (UI.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon))
-            {
-                ToggleConnected();
-            }
-
-            UI.Spacer(EditorStyle.Control.Spacing);
-
-            if (UI.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.IconOnly))
-                _showPreview = !_showPreview;
-        }
-
-        UI.Flex();
+        UpdateDefaultState();
     }
+
 
     private void ToggleConnected()
     {
@@ -146,12 +131,55 @@ internal partial class SkeletonEditor : DocumentEditor
         Document.IncrementVersion();
     }
 
+    public override bool ShowInspector => Document.SelectedBoneCount == 1;
+
+    public override void InspectorUI()
+    {
+        var selectedBone = -1;
+        for (var i = 0; i < Document.BoneCount; i++)
+        {
+            if (Document.Bones[i].IsSelected)
+            {
+                selectedBone = i;
+                break;
+            }
+        }
+
+        if (selectedBone < 0) return;
+
+        var bone = Document.Bones[selectedBone];
+
+        using (Inspector.BeginProperty("Bone"))
+            UI.Text(bone.Name);
+
+        using (Inspector.BeginProperty("Color"))
+        {
+            var color32 = bone.Color.ToColor32();
+            if (EditorUI.ColorButton(ElementId.BoneColor, ref color32))
+            {
+                UI.HandleChange(Document);
+                bone.Color = color32.ToColor();
+            }
+        }
+    }
+
     public override void UpdateUI()
     {
-        using (UI.BeginColumn(ElementId.Root, EditorStyle.DocumentEditor.Root))
+    }
+
+    public override void UpdateOverlayUI()
+    {
+        using (FloatingToolbar.Begin())
         {
-            ToolbarUI();
-            UI.Spacer(EditorStyle.Control.Spacing);
+            UI.SetChecked(Document.CurrentConnected);
+            if (FloatingToolbar.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected))
+                ToggleConnected();
+
+            FloatingToolbar.Divider();
+
+            UI.SetChecked(_showPreview);
+            if (FloatingToolbar.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview))
+                _showPreview = !_showPreview;
         }
     }
 
@@ -261,6 +289,7 @@ internal partial class SkeletonEditor : DocumentEditor
             saved.HeadWorld = src.HeadWorld;
             saved.TailWorld = src.TailWorld;
             saved.Length = (src.TailWorld - src.HeadWorld).Length();
+            saved.Radius = src.Radius;
         }
     }
 
@@ -542,6 +571,45 @@ internal partial class SkeletonEditor : DocumentEditor
 
     #endregion
 
+    #region Envelope Tool
+
+    private void HandleEnvelope()
+    {
+        if (Document.SelectedBoneCount <= 0)
+            return;
+
+        SaveState();
+        Undo.Record(Document);
+
+        // Use the first selected bone's axis for distance reference
+        var boneIndex = GetFirstSelectedBoneIndex();
+        var bone = Document.Bones[boneIndex];
+        var boneHead = bone.HeadWorld + Document.Position;
+        var boneTail = bone.TailWorld + Document.Position;
+
+        Workspace.BeginTool(new EnvelopeTool(
+            boneHead,
+            boneTail,
+            update: UpdateEnvelopeTool,
+            commit: () => { Document.IncrementVersion(); },
+            cancel: Undo.Cancel
+        ));
+    }
+
+    private void UpdateEnvelopeTool(float radius)
+    {
+        for (var i = 0; i < Document.BoneCount; i++)
+        {
+            var bone = Document.Bones[i];
+            if (!bone.IsFullySelected)
+                continue;
+
+            bone.Radius = radius;
+        }
+    }
+
+    #endregion
+
     #region Extrude Tool
 
     private void BeginCreateBone()
@@ -604,7 +672,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
         Undo.BeginGroup();
         foreach (var doc in DocumentManager.Documents.OfType<SpriteDocument>())
-            if (doc.Skeleton.Document == Document)
+            if (doc.Skeleton.Value == Document)
                 Undo.Record(doc);
 
         Undo.Record(Document);
@@ -684,6 +752,13 @@ internal partial class SkeletonEditor : DocumentEditor
                 Gizmos.DrawJoint(headPos, b.IsHeadSelected);
                 Graphics.SetSortGroup(b.IsTailSelected ? SortGroupSelectedBones : SortGroupBones);
                 Gizmos.DrawJoint(tailPos, b.IsTailSelected);
+
+                if (b.Radius > 0)
+                {
+                    Graphics.SetSortGroup(SortGroupBones);
+                    Gizmos.SetColor(EditorStyle.Skeleton.EnvelopeColor);
+                    Gizmos.DrawEnvelope(headPos, tailPos, b.Radius, b.Radius);
+                }
             }
         }
     }
