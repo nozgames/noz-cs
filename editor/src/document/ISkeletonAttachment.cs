@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public interface ISkeletonBound
+public interface ISkeletonAttachment
 {
     SpriteDocument.SkeletonBinding Binding { get; }
     bool ShowInSkeleton { get; }

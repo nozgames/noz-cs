@@ -999,9 +999,9 @@ internal partial class AnimationEditor : DocumentEditor
         {
             Graphics.SetLayer(EditorLayer.Grid);
 
-            for (var i = 0; i < skeleton.BoundAttachments.Count; i++)
+            for (var i = 0; i < skeleton.Attachments.Count; i++)
             {
-                if (skeleton.BoundAttachments[i] is not SpriteDocument sprite) continue;
+                if (skeleton.Attachments[i] is not SpriteDocument sprite) continue;
                 sprite.DrawSprite(skeleton.WorldToLocal, Document.LocalToWorld, Document.Transform, tint: tint);
             }
         }

@@ -322,9 +322,9 @@ internal class AnimationDocument : Document
             bounds = ExpandBounds(bounds, Vector2.Transform(new Vector2(boneWidth, -boneWidth), boneTransform));
         }
 
-        for (var i = 0; i < Skeleton.BoundAttachments.Count; i++)
+        for (var i = 0; i < Skeleton.Attachments.Count; i++)
         {
-            if (Skeleton.BoundAttachments[i] is not SpriteDocument sprite) continue;
+            if (Skeleton.Attachments[i] is not SpriteDocument sprite) continue;
             var spriteBounds = sprite.Bounds;
             var boneTransform = Skeleton.WorldToLocal[0] * LocalToWorld[0];
             bounds = ExpandBounds(bounds, Vector2.Transform(spriteBounds.TopLeft, boneTransform));
@@ -482,9 +482,9 @@ internal class AnimationDocument : Document
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("s"))
+            if (tk.ExpectIdentifier("skeleton"))
                 ParseSkeleton(ref tk, boneMap);
-            else if (tk.ExpectIdentifier("f"))
+            else if (tk.ExpectIdentifier("frame"))
                 ParseFrame(ref tk, boneMap);
             else
                 break;
@@ -533,7 +533,7 @@ internal class AnimationDocument : Document
         var boneIndex2 = 0;
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("b"))
+            if (tk.ExpectIdentifier("bone"))
                 ParseSkeletonBone(ref tk, boneIndex2++, boneMap);
             else
                 break;
@@ -559,27 +559,27 @@ internal class AnimationDocument : Document
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("b"))
+            if (tk.ExpectIdentifier("bone"))
             {
                 boneIndex = ParseFrameBone(ref tk, boneMap);
             }
-            else if (tk.ExpectIdentifier("e"))
+            else if (tk.ExpectIdentifier("event"))
             {
                 ParseFrameEvent(ref tk, frameIndex);
             }
-            else if (tk.ExpectIdentifier("r"))
+            else if (tk.ExpectIdentifier("rotation"))
             {
                 ParseFrameRotation(ref tk, boneIndex, frameIndex);
             }
-            else if (tk.ExpectIdentifier("s"))
+            else if (tk.ExpectIdentifier("scale"))
             {
                 ParseFrameScale(ref tk, boneIndex, frameIndex);
             }
-            else if (tk.ExpectIdentifier("p"))
+            else if (tk.ExpectIdentifier("position"))
             {
                 ParseFramePosition(ref tk, boneIndex, frameIndex);
             }
-            else if (tk.ExpectIdentifier("h"))
+            else if (tk.ExpectIdentifier("hold"))
             {
                 ParseFrameHold(ref tk, frameIndex);
             }
@@ -671,23 +671,23 @@ internal class AnimationDocument : Document
         if (Skeleton == null)
             return;
 
-        writer.WriteLine(string.Format(CultureInfo.InvariantCulture, "s \"{0}\"", SkeletonName));
+        writer.WriteLine(string.Format(CultureInfo.InvariantCulture, "skeleton \"{0}\"", SkeletonName));
 
         for (var i = 0; i < Skeleton.BoneCount; i++)
         {
             var bone = Bones[i];
-            writer.WriteLine(string.Format(CultureInfo.InvariantCulture, "b \"{0}\"", bone.Name));
+            writer.WriteLine(string.Format(CultureInfo.InvariantCulture, "bone \"{0}\"", bone.Name));
         }
 
         for (var frameIndex = 0; frameIndex < FrameCount; frameIndex++)
         {
             var f = Frames[frameIndex];
-            var line = "f";
+            var line = "frame";
 
             if (f.Hold > 0)
-                line += string.Format(CultureInfo.InvariantCulture, " h {0}", f.Hold);
+                line += string.Format(CultureInfo.InvariantCulture, " hold {0}", f.Hold);
             if (!string.IsNullOrEmpty(f.EventName))
-                line += string.Format(CultureInfo.InvariantCulture, " e \"{0}\"", f.EventName);
+                line += string.Format(CultureInfo.InvariantCulture, " event \"{0}\"", f.EventName);
 
             writer.WriteLine(line);
 
@@ -701,13 +701,13 @@ internal class AnimationDocument : Document
                 if (!hasPos && !hasRot)
                     continue;
 
-                var boneLine = string.Format(CultureInfo.InvariantCulture, "b {0}", boneIndex);
+                var boneLine = string.Format(CultureInfo.InvariantCulture, "bone {0}", boneIndex);
 
                 if (hasPos)
-                    boneLine += string.Format(CultureInfo.InvariantCulture, " p {0} {1}", bt.Position.X, bt.Position.Y);
+                    boneLine += string.Format(CultureInfo.InvariantCulture, " position {0} {1}", bt.Position.X, bt.Position.Y);
 
                 if (hasRot)
-                    boneLine += string.Format(CultureInfo.InvariantCulture, " r {0}", bt.Rotation);
+                    boneLine += string.Format(CultureInfo.InvariantCulture, " rotation {0}", bt.Rotation);
 
                 writer.WriteLine(boneLine);
             }
@@ -823,8 +823,8 @@ internal class AnimationDocument : Document
         {
             Graphics.SetLayer(EditorLayer.Document);
 
-            for (var i = 0; i < Skeleton.BoundAttachments.Count; i++)
-                Skeleton.BoundAttachments[i].DrawSkinned(
+            for (var i = 0; i < Skeleton.Attachments.Count; i++)
+                Skeleton.Attachments[i].DrawSkinned(
                     Skeleton.WorldToLocal.AsReadonlySpan().Slice(0, Skeleton.BoneCount),
                     LocalToWorld.AsReadonlySpan().Slice(0, BoneCount),
                     Transform);

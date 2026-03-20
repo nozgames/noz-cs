@@ -69,7 +69,7 @@ public class SkeletonDocument : Document
         new(0.6f, 0.3f, 1f, 1f),
     ];
 
-    public readonly List<ISkeletonBound> BoundAttachments = [];
+    public readonly List<ISkeletonAttachment> Attachments = [];
 
     public readonly BoneData[] Bones = new BoneData[Skeleton.MaxBones];
     public NativeArray<Matrix3x2> LocalToWorld = new(Skeleton.MaxBones);
@@ -275,8 +275,8 @@ public class SkeletonDocument : Document
             Bones[i].TailWorld = src.Bones[i].TailWorld;
         }
 
-        BoundAttachments.Clear();
-        BoundAttachments.AddRange(src.BoundAttachments);
+        Attachments.Clear();
+        Attachments.AddRange(src.Attachments);
     }
 
     public void UpdateTransforms()
@@ -727,8 +727,8 @@ public class SkeletonDocument : Document
             Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetSortGroup(0);
 
-            for (var i = 0; i < BoundAttachments.Count; i++)
-                BoundAttachments[i].DrawSkinned(
+            for (var i = 0; i < Attachments.Count; i++)
+                Attachments[i].DrawSkinned(
                     WorldToLocal.AsReadonlySpan().Slice(0, BoneCount),
                     LocalToWorld.AsReadonlySpan().Slice(0, BoneCount),
                     Transform);
@@ -785,11 +785,11 @@ public class SkeletonDocument : Document
         for (int i=0; i<DocumentManager.Documents.Count; i++)
             (DocumentManager.Documents[i] as SpriteDocument)?.PostLoad();
 
-        BoundAttachments.Clear();
+        Attachments.Clear();
         foreach (var doc in DocumentManager.Documents)
         {
-            if (doc is ISkeletonBound bound && bound.Binding.IsBoundTo(this) && bound.ShowInSkeleton)
-                BoundAttachments.Add(bound);
+            if (doc is ISkeletonAttachment bound && bound.Binding.IsBoundTo(this) && bound.ShowInSkeleton)
+                Attachments.Add(bound);
         }
     }
 

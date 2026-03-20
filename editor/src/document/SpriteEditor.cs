@@ -863,9 +863,9 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         {
             Graphics.SetSortGroup(0);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
-            foreach (var sprite in skeleton.Sprites)
+            foreach (var bound in skeleton.Attachments)
             {
-                if (sprite == Document) continue;
+                if (bound is not SpriteDocument sprite || sprite == Document) continue;
                 Graphics.SetBlendMode(BlendMode.Alpha);
                 Graphics.SetTransform(Document.Transform);
                 sprite.DrawSprite(alpha: 0.3f);
