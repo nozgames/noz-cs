@@ -78,6 +78,11 @@ public unsafe partial class SDLPlatform : IPlatform
             windowFlags |= SDL_WindowFlags.SDL_WINDOW_RESIZABLE;
         }
 
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+        {
+            windowFlags |= SDL_WindowFlags.SDL_WINDOW_METAL;
+        }
+
         _window = SDL_CreateWindow(config.Title, config.Width, config.Height, windowFlags);
         if (_window == null)
         {
@@ -532,7 +537,17 @@ public unsafe partial class SDLPlatform : IPlatform
                 return nint.Zero;
 
             var props = SDL_GetWindowProperties(_window);
-            return (nint)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nint.Zero);
+
+            if (OperatingSystem.IsWindows())
+                return (nint)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nint.Zero);
+
+            if (OperatingSystem.IsIOS())
+                return (nint)SDL_GetPointerProperty(props, "SDL.window.uikit.metal_view_layer"u8, nint.Zero);
+
+            if (OperatingSystem.IsMacOS())
+                return (nint)SDL_GetPointerProperty(props, "SDL.window.cocoa.metal_view_layer"u8, nint.Zero);
+
+            return nint.Zero;
         }
     }
 
@@ -578,13 +593,11 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public void Log(string message) => System.Diagnostics.Debug.WriteLine(message);
 
+    public bool IsMobile => OperatingSystem.IsIOS() || OperatingSystem.IsAndroid();
+
     public void OpenURL(string url)
     {
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = url,
-            UseShellExecute = true
-        });
+        SDL_OpenURL(url);
     }
 }
 

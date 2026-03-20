@@ -331,9 +331,9 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         {
             return CreateLinuxSurface();
         }
-        else if (OperatingSystem.IsMacOS())
+        else if (OperatingSystem.IsIOS() || OperatingSystem.IsMacOS())
         {
-            return CreateMacOSSurface();
+            return CreateAppleSurface();
         }
 
         throw new PlatformNotSupportedException($"Platform not supported for WebGPU");
@@ -390,10 +390,27 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         throw new NotImplementedException("Linux surface creation not yet implemented");
     }
 
-    private Surface* CreateMacOSSurface()
+    private Surface* CreateAppleSurface()
     {
-        // TODO: Implement Metal layer surface creation
-        throw new NotImplementedException("macOS surface creation not yet implemented");
+        var metalLayer = (void*)_config.Platform.WindowHandle;
+        if (metalLayer == null)
+            throw new Exception("Failed to get CAMetalLayer from SDL window");
+
+        var metalDesc = new SurfaceDescriptorFromMetalLayer
+        {
+            Chain = new ChainedStruct
+            {
+                SType = SType.SurfaceDescriptorFromMetalLayer,
+            },
+            Layer = metalLayer,
+        };
+
+        var surfaceDesc = new SurfaceDescriptor
+        {
+            NextInChain = (ChainedStruct*)(&metalDesc),
+        };
+
+        return _wgpu.InstanceCreateSurface(_instance, &surfaceDesc);
     }
 
     private void CreateSwapChain()

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>noz</RootNamespace>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\desktop\NoZ.Desktop.csproj" />
+    <ProjectReference Include="..\webgpu\NoZ.WebGPU.csproj" />
+  </ItemGroup>
+
+  <!-- wgpu-native static library for iOS (prebuilt from GitHub releases) -->
+  <ItemGroup>
+    <NativeReference Include="libs\libwgpu_native.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+</Project>
