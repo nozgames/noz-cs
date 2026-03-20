@@ -38,43 +38,6 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         }
     }
 
-    public class SkeletonBinding
-    {
-        public StringId SkeletonName;
-        public SkeletonDocument? Skeleton;
-
-        public bool IsBound => Skeleton != null;
-        public bool IsBoundTo(SkeletonDocument skeleton) => Skeleton == skeleton;
-
-        public void Set(SkeletonDocument? skeleton)
-        {
-            if (skeleton == null)
-            {
-                Clear();
-                return;
-            }
-
-            Skeleton = skeleton;
-            SkeletonName = StringId.Get(skeleton.Name);
-        }
-
-        public void Clear()
-        {
-            Skeleton = null;
-            SkeletonName = StringId.None;
-        }
-
-        public void CopyFrom(SkeletonBinding src)
-        {
-            SkeletonName = src.SkeletonName;
-            Skeleton = src.Skeleton;
-        }
-
-        public void Resolve()
-        {
-            Skeleton = DocumentManager.Find(AssetType.Skeleton, SkeletonName.ToString()) as SkeletonDocument;
-        }
-    }
 
     public readonly SpriteFrame[] Frames = new SpriteFrame[Sprite.MaxFrames];
     public ushort FrameCount = 1;
@@ -90,18 +53,6 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
     public byte CurrentStrokeWidth = 1;
     public PathOperation CurrentOperation;
 
-    // Generation (optional — editor-only, stripped on Import)
-    public string Prompt = "";
-    public string NegativePrompt = "";
-    public string Seed = "";
-    public GenerationImage Generation { get; } = new();
-    public string? StyleName;
-    public GenStyleDocument? Style;
-    public List<string> ReferenceNames { get; } = new();
-    public List<SpriteDocument> References { get; } = new();
-    public bool HasGeneration { get; set; }
-    public bool IsGenerating => Generation.IsGenerating;
-
     public bool IsActiveLayerLocked => false;
 
     public Shape GetFrameShape(int frameIndex) => Frames[frameIndex].Shape;
@@ -114,8 +65,9 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
     public ushort AtlasFrameCount => (ushort)TotalTimeSlots;
     internal AtlasDocument? Atlas { get; set; }
 
-    public readonly SkeletonBinding Binding = new();
-    SkeletonBinding ISkeletonAttachment.Binding => Binding;
+    public DocumentRef<SkeletonDocument> Skeleton;
+
+    DocumentRef<SkeletonDocument> ISkeletonAttachment.Skeleton => Skeleton;
 
     public void DrawSkinned(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform)
     {
@@ -145,7 +97,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<SpriteDocument>.Register(new DocumentDef
         {
             Type = AssetType.Sprite,
             Name = "Sprite",
@@ -252,12 +204,8 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         }
 
         Edges = EdgeInsets.Zero;
-        Binding.Clear();
-        Prompt = "";
-        NegativePrompt = "";
-        Seed = "";
-        ReferenceNames.Clear();
-        References.Clear();
+        Skeleton.Clear();
+        ReloadGeneration();
         for (var fi = 0; fi < FrameCount; fi++)
             Frames[fi].Shape.Clear();
         FrameCount = 1;
@@ -266,20 +214,8 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         var tk = new Tokenizer(contents);
         Load(ref tk);
 
-        Binding.Resolve();
-        if (HasGeneration)
-        {
-            LoadGeneratedTexture();
-            if (!string.IsNullOrEmpty(StyleName))
-                Style = DocumentManager.Find(GenStyleDocument.AssetTypeGenStyle, StyleName) as GenStyleDocument;
-
-            References.Clear();
-            foreach (var refName in ReferenceNames)
-            {
-                if (DocumentManager.Find(AssetType.Sprite, refName) is SpriteDocument refDoc)
-                    References.Add(refDoc);
-            }
-        }
+        Skeleton.Resolve();
+        ResolveGeneration();
         UpdateBounds();
     }
 
@@ -324,7 +260,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
             }
             else if (tk.ExpectIdentifier("skeleton"))
             {
-                Binding.SkeletonName = StringId.Get(tk.ExpectQuotedString());
+                Skeleton.Name = tk.ExpectQuotedString();
             }
             else if (tk.ExpectIdentifier("generate"))
             {
@@ -340,57 +276,6 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
 
         if (FrameCount == 0)
             FrameCount = 1;
-    }
-
-    private void ParseGeneration(ref Tokenizer tk)
-    {
-        HasGeneration = true;
-        while (!tk.IsEOF)
-        {
-            if (tk.ExpectIdentifier("prompt"))
-                Prompt = tk.ExpectQuotedString() ?? "";
-            else if (tk.ExpectIdentifier("prompt_neg"))
-                NegativePrompt = tk.ExpectQuotedString() ?? "";
-            else if (tk.ExpectIdentifier("seed"))
-            {
-                if (tk.ExpectQuotedString(out var seedStr))
-                    Seed = seedStr;
-                else
-                    Seed = tk.ExpectInt().ToString();
-            }
-            else if (tk.ExpectIdentifier("style"))
-                StyleName = tk.ExpectQuotedString();
-            else if (tk.ExpectIdentifier("prompt_hash"))
-                tk.ExpectQuotedString(); // Legacy: skip
-            else if (tk.ExpectIdentifier("reference"))
-                ReferenceNames.Add(tk.ExpectQuotedString() ?? "");
-            else if (tk.ExpectIdentifier("image"))
-            {
-                // Legacy migration: extract embedded base64 to companion file
-                var base64 = tk.ExpectQuotedString();
-                if (!string.IsNullOrEmpty(base64))
-                {
-                    Generation.ImageData = Convert.FromBase64String(base64);
-
-                    // Migrate: write to companion file if not already present
-                    if (ImageFilePath == null)
-                    {
-                        var dir = System.IO.Path.GetDirectoryName(Path) ?? "";
-                        var stem = System.IO.Path.GetFileNameWithoutExtension(Path);
-                        ImageFilePath = System.IO.Path.Combine(dir, stem + ".png");
-                    }
-
-                    if (!File.Exists(ImageFilePath))
-                        File.WriteAllBytes(ImageFilePath, Generation.ImageData);
-                }
-            }
-            else
-                break;
-        }
-
-        // Load image data from companion file if not already loaded
-        if (!Generation.HasImageData && ImageFilePath != null && File.Exists(ImageFilePath))
-            Generation.ImageData = File.ReadAllBytes(ImageFilePath);
     }
 
     private void ParsePath(SpriteFrame f, ref Tokenizer tk)
@@ -604,8 +489,8 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         if (!Edges.IsZero)
             writer.WriteLine($"edges ({Edges.T},{Edges.L},{Edges.B},{Edges.R})");
 
-        if (Binding.IsBound)
-            writer.WriteLine($"skeleton \"{Binding.SkeletonName}\"");
+        if (Skeleton.IsSet)
+            writer.WriteLine($"skeleton \"{Skeleton.Name}\"");
 
         if (FrameCount > 0)
             writer.WriteLine();
@@ -627,27 +512,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
                 SaveFrame(shape, writer);
         }
 
-        // Generation config (editor-only)
-        if (HasGeneration)
-        {
-            writer.WriteLine("generate");
-            if (!string.IsNullOrEmpty(Prompt))
-                writer.WriteLine($"prompt \"{Prompt.Replace("\"", "\\\"")}\"");
-            if (!string.IsNullOrEmpty(NegativePrompt))
-                writer.WriteLine($"prompt_neg \"{NegativePrompt.Replace("\"", "\\\"")}\"");
-            if (!string.IsNullOrEmpty(Seed))
-                writer.WriteLine($"seed \"{Seed}\"");
-            if (!string.IsNullOrEmpty(StyleName))
-                writer.WriteLine($"style \"{StyleName}\"");
-            foreach (var refName in ReferenceNames)
-                writer.WriteLine($"reference \"{refName}\"");
-            // prompt_hash moved to .meta
-            // image data moved to companion file
-            if (Generation.HasImageData && ImageFilePath != null)
-            {
-                File.WriteAllBytes(ImageFilePath, Generation.ImageData!);
-            }
-        }
+        SaveGeneration(writer);
     }
 
     private static void SaveFrame(Shape shape, StreamWriter writer)
@@ -692,7 +557,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
 
         if (!IsMutable)
             DrawStaticImage();
-        else if (HasGeneration)
+        else if (Generation != null)
             DrawGeneration();
         else
             DrawVector();
@@ -799,52 +664,6 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
             DrawBounds();
     }
 
-    private void DrawGeneration()
-    {
-        var texture = Generation.Texture;
-        if (texture != null)
-        {
-            var ppu = EditorApplication.Config.PixelsPerUnitInv;
-            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
-            var rect = new Rect(
-                cs.X * ppu * -0.5f,
-                cs.Y * ppu * -0.5f,
-                cs.X * ppu,
-                cs.Y * ppu);
-
-            using (Graphics.PushState())
-            {
-                Graphics.SetTransform(Transform);
-                Graphics.SetTexture(texture);
-                Graphics.SetShader(EditorAssets.Shaders.Texture);
-                var alpha = Generation.IsGenerating ? 0.3f : Workspace.XrayAlpha;
-                Graphics.SetColor(Color.White.WithAlpha(alpha));
-                Graphics.Draw(rect);
-            }
-        }
-        else if (!DrawFromAtlas() && !DrawFromPreviewTexture())
-        {
-            DrawBounds();
-        }
-
-        if (Generation.IsGenerating)
-        {
-            var angle = Time.TotalTime * 3f;
-            var rotation = Matrix3x2.CreateRotation(angle);
-            var pulse = 0.7f + 0.3f * (0.5f + 0.5f * MathF.Sin(Time.TotalTime * 3f));
-            var scale = Matrix3x2.CreateScale(pulse);
-
-            using (Graphics.PushState())
-            {
-                Graphics.SetTransform(scale * rotation * Transform);
-                Graphics.SetSortGroup(7);
-                Graphics.SetLayer(EditorLayer.DocumentEditor);
-                Graphics.SetColor(Color.White);
-                Graphics.Draw(EditorAssets.Sprites.IconGenerating);
-            }
-        }
-    }
-
     private void DrawVector()
     {
         if (Bounds.Width <= 0 || Bounds.Height <= 0)
@@ -930,7 +749,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         CurrentStrokeWidth = src.CurrentStrokeWidth;
 
         Edges = src.Edges;
-        Binding.CopyFrom(src.Binding);
+        Skeleton = src.Skeleton;
 
         FrameCount = src.FrameCount;
         for (var fi = 0; fi < FrameCount; fi++)
@@ -939,15 +758,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
             Frames[fi].Hold = src.Frames[fi].Hold;
         }
 
-        // Generation
-        Prompt = src.Prompt;
-        NegativePrompt = src.NegativePrompt;
-        Seed = src.Seed;
-        ConstrainedSize = src.ConstrainedSize;
-        StyleName = src.StyleName;
-        Style = src.Style;
-        if (src.Generation.HasImageData)
-            Generation.ImageData = (byte[])src.Generation.ImageData!.Clone();
+        CloneGeneration(src);
     }
 
     public override void LoadMetadata(PropertySet meta)
@@ -958,11 +769,11 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
 
         // Backward compat: migrate style from metadata to file content
-        if (string.IsNullOrEmpty(StyleName))
+        if (Generation != null && string.IsNullOrEmpty(Generation.Config.Name))
         {
             var style = meta.GetString("sprite", "style", "");
             if (!string.IsNullOrEmpty(style))
-                StyleName = style;
+                Generation.Config.Name = style;
         }
 
         // Recompute bounds now that ConstrainedSize is available
@@ -1004,27 +815,16 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
 
     public override void PostLoad()
     {
-        Binding.Resolve();
-
-        if (HasGeneration)
-        {
-            LoadGeneratedTexture();
-            if (!string.IsNullOrEmpty(StyleName))
-                Style = DocumentManager.Find(GenStyleDocument.AssetTypeGenStyle, StyleName) as GenStyleDocument;
-            Log.Info($"[Gen] '{Name}' PostLoad: style={Style?.Name ?? "null"} hasImage={Generation.HasImageData}");
-
-            References.Clear();
-            foreach (var refName in ReferenceNames)
-            {
-                if (DocumentManager.Find(AssetType.Sprite, refName) is SpriteDocument refDoc)
-                    References.Add(refDoc);
-            }
-        }
+        Skeleton.Resolve();
+        PostLoadGeneration();
     }
 
     public override void GetReferences(List<Document> references)
     {
-        references.AddRange(References);
+        if (Generation != null)
+            foreach (var r in Generation.References)
+                if (r.Document != null)
+                    references.Add(r.Document);
     }
 
     internal void ClearAtlasUVs()
@@ -1036,19 +836,19 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
     internal void Rasterize(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
         // Static image or companion image: blit from file
-        if (ImageFilePath != null && File.Exists(ImageFilePath) && (!IsMutable || (HasGeneration && Generation.HasImageData)))
+        if (ImageFilePath != null && File.Exists(ImageFilePath) && (!IsMutable || Generation is { HasImageData: true }))
         {
             RasterizeImageFile(image, rect, padding);
             return;
         }
 
         // Generated sprites: blit texture pixels instead of rasterizing paths
-        if (HasGeneration && Generation.HasImageData)
+        if (Generation is { HasImageData: true })
         {
             var w = RasterBounds.Size.X;
             var h = RasterBounds.Size.Y;
 
-            using var ms = new MemoryStream(Generation.ImageData!);
+            using var ms = new MemoryStream(Generation.Job.ImageData!);
             using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
             if (srcImage.Width != w || srcImage.Height != h)
                 srcImage.Mutate(x => x.Resize(w, h));
@@ -1326,7 +1126,7 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
 
     public override void Export(string outputPath, PropertySet meta)
     {
-        Binding.Resolve();
+        Skeleton.Resolve();
         UpdateBounds();
 
         var totalSlots = (ushort)TotalTimeSlots;
@@ -1432,453 +1232,11 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         return new(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2);
     }
 
-    #region Generation
-
-    internal void LoadGeneratedTexture()
-    {
-        Generation.Dispose();
-
-        if (!Generation.HasImageData) return;
-
-        try
-        {
-            using var ms = new MemoryStream(Generation.ImageData!);
-            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
-
-            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
-            if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
-                srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
-
-            var w = srcImage.Width;
-            var h = srcImage.Height;
-            var pixels = new byte[w * h * 4];
-            srcImage.CopyPixelDataTo(pixels);
-            Generation.Texture = Texture.Create(w, h, pixels, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to create generated texture for '{Name}': {ex.Message}");
-        }
-    }
-
-    private const int RasterizeSize = 1024;
-
-    private byte[] RasterizeMaskToPng()
-    {
-        UpdateBounds();
-        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
-        if (cs.X <= 0 || cs.Y <= 0)
-            return [];
-
-        var shape = Frames[0].Shape;
-        var w = RasterizeSize;
-        var h = RasterizeSize;
-        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
-
-        using var pixels = new PixelData<Color32>(w, h);
-        pixels.Clear(new Color32(0, 0, 0, 255));
-        var targetRect = new RectInt(0, 0, w, h);
-        var sourceOffset = new Vector2Int(w / 2, h / 2);
-        var white = new Color32(255, 255, 255, 255);
-
-        // Collect subtract paths
-        var negativePaths = new Clipper2Lib.PathsD();
-        for (ushort pi = 0; pi < shape.PathCount; pi++)
-        {
-            ref readonly var path = ref shape.GetPath(pi);
-            if (!path.IsSubtract || path.AnchorCount < 3) continue;
-
-            var subShape = new Msdf.Shape();
-            Msdf.ShapeClipper.AppendContour(subShape, shape, pi);
-            subShape = Msdf.ShapeClipper.Union(subShape);
-            var contours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
-            if (contours.Count > 0)
-                negativePaths.AddRange(contours);
-        }
-
-        // Collect normal paths (clip paths are always within normal bounds, skip for mask)
-        var positivePaths = new Clipper2Lib.PathsD();
-
-        for (ushort pi = 0; pi < shape.PathCount; pi++)
-        {
-            ref readonly var path = ref shape.GetPath(pi);
-            if (path.IsSubtract || path.IsClip || path.AnchorCount < 3) continue;
-
-            var pathShape = new Msdf.Shape();
-            Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
-            pathShape = Msdf.ShapeClipper.Union(pathShape);
-            var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
-            if (contours.Count > 0)
-                positivePaths.AddRange(contours);
-        }
-
-        if (positivePaths.Count == 0)
-            return [];
-
-        Clipper2Lib.PathsD maskPaths;
-        if (negativePaths.Count > 0)
-        {
-            maskPaths = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
-                positivePaths, negativePaths, Clipper2Lib.FillRule.NonZero, precision: 6);
-        }
-        else
-        {
-            maskPaths = positivePaths;
-        }
-
-        if (maskPaths.Count > 0)
-            Rasterizer.Fill(maskPaths, pixels, targetRect, sourceOffset, dpi, white);
-
-        using var img = new Image<Rgba32>(w, h);
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                var c = pixels[x, y];
-                img[x, y] = new Rgba32(c.R, c.G, c.B, 255);
-            }
-        }
-
-        using var ms = new MemoryStream();
-        img.SaveAsPng(ms);
-        var pngBytes = ms.ToArray();
-
-        try
-        {
-            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
-            Directory.CreateDirectory(tmpDir);
-            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_mask.png"), pngBytes);
-        }
-        catch { }
-
-        return pngBytes;
-    }
-
-    private byte[] RasterizeColorToPng()
-    {
-        UpdateBounds();
-        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
-        if (cs.X <= 0 || cs.Y <= 0)
-            return [];
-
-        var shape = Frames[0].Shape;
-        var w = RasterizeSize;
-        var h = RasterizeSize;
-        var dpi = (int)(EditorApplication.Config.PixelsPerUnit * ((float)RasterizeSize / cs.X));
-
-        using var pixels = new PixelData<Color32>(w, h);
-        pixels.Clear(new Color32(255, 255, 255, 255));
-        var targetRect = new RectInt(0, 0, w, h);
-        var sourceOffset = new Vector2Int(w / 2, h / 2);
-
-        // Collect subtract paths
-        var negativePaths = new Clipper2Lib.PathsD();
-        for (ushort pi = 0; pi < shape.PathCount; pi++)
-        {
-            ref readonly var path = ref shape.GetPath(pi);
-            if (!path.IsSubtract || path.AnchorCount < 3) continue;
-
-            var subShape = new Msdf.Shape();
-            Msdf.ShapeClipper.AppendContour(subShape, shape, pi);
-            subShape = Msdf.ShapeClipper.Union(subShape);
-            var contours = Msdf.ShapeClipper.ShapeToPaths(subShape, 8);
-            if (contours.Count > 0)
-                negativePaths.AddRange(contours);
-        }
-
-        // Render each normal/clip path with its fill and stroke colors
-        Clipper2Lib.PathsD? accumulatedPaths = null;
-
-        for (ushort pi = 0; pi < shape.PathCount; pi++)
-        {
-            ref readonly var path = ref shape.GetPath(pi);
-            if (path.IsSubtract || path.AnchorCount < 3) continue;
-
-            var pathShape = new Msdf.Shape();
-            Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
-            pathShape = Msdf.ShapeClipper.Union(pathShape);
-            var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
-            if (contours.Count == 0) continue;
-
-            if (path.IsClip)
-            {
-                if (accumulatedPaths is not { Count: > 0 }) continue;
-                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Intersection,
-                    contours, accumulatedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
-                if (contours.Count == 0) continue;
-            }
-            else
-            {
-                var accContours = contours;
-                if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
-                {
-                    var halfStroke = path.StrokeWidth * Shape.StrokeScale;
-                    var contracted = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
-                        Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
-                    if (contracted.Count > 0)
-                        accContours = contracted;
-                }
-
-                if (accumulatedPaths == null)
-                    accumulatedPaths = new Clipper2Lib.PathsD(accContours);
-                else
-                    accumulatedPaths = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Union,
-                        accumulatedPaths, accContours, Clipper2Lib.FillRule.NonZero, precision: 6);
-            }
-
-            // Apply subtract paths
-            if (negativePaths.Count > 0)
-            {
-                contours = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
-                    contours, negativePaths, Clipper2Lib.FillRule.NonZero, precision: 6);
-                if (contours.Count == 0) continue;
-            }
-
-            var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
-            var fillColor = path.FillColor;
-            var hasFill = fillColor.A > 0;
-
-            if (hasStroke)
-            {
-                var halfStroke = path.StrokeWidth * Shape.StrokeScale;
-                Clipper2Lib.PathsD? contractedPaths = null;
-                if (contours.Count > 0)
-                {
-                    contractedPaths = Clipper2Lib.Clipper.InflatePaths(contours, -halfStroke,
-                        Clipper2Lib.JoinType.Round, Clipper2Lib.EndType.Polygon, precision: 6);
-                }
-
-                if (hasFill)
-                {
-                    Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
-                    if (contractedPaths is { Count: > 0 })
-                        Rasterizer.Fill(contractedPaths, pixels, targetRect, sourceOffset, dpi, fillColor);
-                }
-                else
-                {
-                    if (contractedPaths is { Count: > 0 })
-                    {
-                        var strokeRing = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Difference,
-                            contours, contractedPaths, Clipper2Lib.FillRule.NonZero, precision: 6);
-                        if (strokeRing.Count > 0)
-                            Rasterizer.Fill(strokeRing, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
-                    }
-                    else
-                    {
-                        Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, path.StrokeColor);
-                    }
-                }
-            }
-            else if (hasFill)
-            {
-                Rasterizer.Fill(contours, pixels, targetRect, sourceOffset, dpi, fillColor);
-            }
-        }
-
-        using var img = new Image<Rgba32>(w, h);
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                var c = pixels[x, y];
-                img[x, y] = new Rgba32(c.R, c.G, c.B, 255);
-            }
-        }
-
-        using var ms = new MemoryStream();
-        img.SaveAsPng(ms);
-        var pngBytes = ms.ToArray();
-
-        try
-        {
-            var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
-            Directory.CreateDirectory(tmpDir);
-            File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_color.png"), pngBytes);
-        }
-        catch { }
-
-        return pngBytes;
-    }
-
-    public GenerationRequest BuildGenerationRequest()
-    {
-        var prompt = GenStyleDocument.FormatPrompt(Style?.Prompt ?? "", Prompt);
-        var negPrompt = GenStyleDocument.FormatPrompt(Style?.NegativePrompt ?? "", NegativePrompt);
-
-        var imageBytes = RasterizeColorToPng();
-
-        var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
-
-        var images = new List<ImageRef>();
-        if (imageBytes.Length > 0)
-            images.Add(new ImageRef { Data = Convert.ToBase64String(imageBytes) });
-
-        foreach (var refDoc in References)
-        {
-            byte[] refBytes;
-            if (refDoc.Generation.HasImageData)
-                refBytes = refDoc.Generation.ImageData!;
-            else
-                refBytes = refDoc.RasterizeColorToPng();
-
-            if (refBytes.Length > 0)
-                images.Add(new ImageRef { Data = Convert.ToBase64String(refBytes) });
-        }
-
-        return new GenerationRequest
-        {
-            Server = server,
-            Model = Style?.ModelName,
-            Lora = Style?.LoraName,
-            Images = images.Count > 0 ? images : null,
-            Prompt = prompt,
-            NegativePrompt = string.IsNullOrEmpty(negPrompt) ? null : negPrompt,
-            Seed = string.IsNullOrEmpty(Seed) ? null : Seed,
-        };
-    }
-
-    public void ApplyGenerationResult(GenerationStatus status, bool createTexture = true)
-    {
-        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
-
-        if (status.Result == null)
-        {
-            Log.Error($"Generation completed but no result for '{Name}'");
-            return;
-        }
-
-        try
-        {
-            var imageResultBytes = Convert.FromBase64String(status.Result.Image);
-
-            using var ms = new MemoryStream(imageResultBytes);
-            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
-
-            if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
-                srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
-
-            using var outMs = new MemoryStream();
-            srcImage.SaveAsPng(outMs);
-            Generation.ImageData = outMs.ToArray();
-
-            if (createTexture)
-            {
-                Generation.Dispose();
-                var rw = srcImage.Width;
-                var rh = srcImage.Height;
-                var px = new byte[rw * rh * 4];
-                srcImage.CopyPixelDataTo(px);
-                Generation.Texture = Texture.Create(rw, rh, px, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
-            }
-
-            try
-            {
-                var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
-                Directory.CreateDirectory(tmpDir);
-                File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), Generation.ImageData);
-            }
-            catch { }
-
-            if (!string.IsNullOrEmpty(status.Result.Seed) && string.IsNullOrEmpty(Seed))
-                Seed = status.Result.Seed;
-
-            // Ensure companion image path exists so Save() can write the .png
-            if (ImageFilePath == null)
-            {
-                var dir = System.IO.Path.GetDirectoryName(Path) ?? "";
-                var stem = System.IO.Path.GetFileNameWithoutExtension(Path);
-                ImageFilePath = System.IO.Path.Combine(dir, stem + ".png");
-            }
-
-            Log.Info($"[Gen] '{Name}' ApplyResult: imagePath='{ImageFilePath}' hasImage={Generation.HasImageData}");
-            Log.Info($"Generation complete for '{Name}' ({status.Result.Width}x{status.Result.Height}, seed={status.Result.Seed})");
-            IncrementVersion();
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to process generated image for '{Name}': {ex.Message}");
-        }
-    }
-
-    public void GenerateAsync()
-    {
-        if (string.IsNullOrEmpty(Prompt))
-        {
-            Log.Error($"No prompt set for '{Name}'");
-            return;
-        }
-
-        if (string.IsNullOrEmpty(Style?.ModelName))
-        {
-            Log.Error($"Invalid style for '{Name}': no model specified");
-            return;
-        }
-
-        if (Generation.IsGenerating)
-            return;
-
-        var request = BuildGenerationRequest();
-
-        Log.Info($"Starting generation for '{Name}' on {request.Server}...");
-
-        var genImage = Generation;
-        genImage.IsGenerating = true;
-        genImage.GenerationError = null;
-
-        var cts = new System.Threading.CancellationTokenSource();
-        genImage.CancellationSource = cts;
-
-        GenerationClient.Generate(request, status =>
-        {
-            if (genImage.CancellationSource == null)
-                return;
-
-            switch (status.State)
-            {
-                case GenerationState.Queued:
-                    if (genImage.GenerationState != GenerationState.Queued || genImage.QueuePosition != status.QueuePosition)
-                        Log.Info($"Generation queued for '{Name}' (position {status.QueuePosition})");
-                    genImage.GenerationState = GenerationState.Queued;
-                    genImage.QueuePosition = status.QueuePosition;
-                    genImage.GenerationProgress = 0f;
-                    break;
-
-                case GenerationState.Running:
-                    genImage.GenerationState = GenerationState.Running;
-                    genImage.GenerationProgress = status.Progress;
-                    break;
-
-                case GenerationState.Completed:
-                    genImage.IsGenerating = false;
-                    genImage.CancellationSource = null;
-                    genImage.GenerationState = GenerationState.Completed;
-                    genImage.GenerationProgress = 1f;
-                    ApplyGenerationResult(status);
-                    Log.Info($"[Gen] '{Name}' saving after generation...");
-                    Save();
-                    SaveMetadata();
-                    DocumentManager.QueueExport(this, force: true);
-                    Log.Info($"[Gen] '{Name}' saved and queued for export");
-                    break;
-
-                case GenerationState.Failed:
-                    genImage.IsGenerating = false;
-                    genImage.CancellationSource = null;
-                    genImage.GenerationState = GenerationState.Failed;
-                    genImage.GenerationError = status.Error;
-                    Log.Error($"Generation failed for '{Name}': {status.Error}");
-                    break;
-            }
-        }, cts.Token);
-    }
-
-    #endregion
-
     public override void Dispose()
     {
         _texture?.Dispose();
         _texture = null;
-        Generation.Dispose();
+        DisposeGeneration();
         for (var fi = 0; fi < FrameCount; fi++)
             Frames[fi].Dispose();
         base.Dispose();

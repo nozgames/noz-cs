@@ -25,7 +25,6 @@ public static class EditorAssets
         public const string EditorSprites000 = "editor_sprites000";
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
-        public const string IconAi2 = "icon_ai_2";
         public const string IconBone = "icon_bone";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
@@ -61,6 +60,7 @@ public static class EditorAssets
         public const string IconPreview = "icon_preview";
         public const string IconPublish = "icon_publish";
         public const string IconRandom = "icon_random";
+        public const string IconRefresh = "icon_refresh";
         public const string IconRemove = "icon_remove";
         public const string IconRootMotion = "icon_root_motion";
         public const string IconSearch = "icon_search";
@@ -152,7 +152,6 @@ public static class EditorAssets
         public static Sprite AssetIconVfx { get; private set; } = null!;
         public static Sprite IconAdd { get; private set; } = null!;
         public static Sprite IconAi { get; private set; } = null!;
-        public static Sprite IconAi2 { get; private set; } = null!;
         public static Sprite IconBone { get; private set; } = null!;
         public static Sprite IconCheck { get; private set; } = null!;
         public static Sprite IconCircle { get; private set; } = null!;
@@ -188,6 +187,7 @@ public static class EditorAssets
         public static Sprite IconPreview { get; private set; } = null!;
         public static Sprite IconPublish { get; private set; } = null!;
         public static Sprite IconRandom { get; private set; } = null!;
+        public static Sprite IconRefresh { get; private set; } = null!;
         public static Sprite IconRemove { get; private set; } = null!;
         public static Sprite IconRootMotion { get; private set; } = null!;
         public static Sprite IconSearch { get; private set; } = null!;
@@ -216,7 +216,6 @@ public static class EditorAssets
             AssetIconVfx = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconVfx)!;
             IconAdd = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAdd)!;
             IconAi = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAi)!;
-            IconAi2 = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAi2)!;
             IconBone = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone)!;
             IconCheck = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCheck)!;
             IconCircle = (Sprite)Asset.Load(AssetType.Sprite, Names.IconCircle)!;
@@ -252,6 +251,7 @@ public static class EditorAssets
             IconPreview = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPreview)!;
             IconPublish = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPublish)!;
             IconRandom = (Sprite)Asset.Load(AssetType.Sprite, Names.IconRandom)!;
+            IconRefresh = (Sprite)Asset.Load(AssetType.Sprite, Names.IconRefresh)!;
             IconRemove = (Sprite)Asset.Load(AssetType.Sprite, Names.IconRemove)!;
             IconRootMotion = (Sprite)Asset.Load(AssetType.Sprite, Names.IconRootMotion)!;
             IconSearch = (Sprite)Asset.Load(AssetType.Sprite, Names.IconSearch)!;
@@ -281,7 +281,6 @@ public static class EditorAssets
             AssetIconVfx?.Dispose();
             IconAdd?.Dispose();
             IconAi?.Dispose();
-            IconAi2?.Dispose();
             IconBone?.Dispose();
             IconCheck?.Dispose();
             IconCircle?.Dispose();
@@ -317,6 +316,7 @@ public static class EditorAssets
             IconPreview?.Dispose();
             IconPublish?.Dispose();
             IconRandom?.Dispose();
+            IconRefresh?.Dispose();
             IconRemove?.Dispose();
             IconRootMotion?.Dispose();
             IconSearch?.Dispose();

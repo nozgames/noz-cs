@@ -269,7 +269,7 @@ public partial class SpriteEditor
 
     private void DrawGeneratedImage(int sortGroup, float alpha)
     {
-        var texture = Document.Generation.Texture;
+        var texture = Document.Generation?.Job.Texture;
         if (texture == null) return;
 
         var cs = Document.ConstrainedSize ?? new Vector2Int(256, 256);

@@ -18,7 +18,7 @@ public class ShaderDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef 
+        DocumentDef<ShaderDocument>.Register(new DocumentDef
         {
             Type = AssetType.Shader,
             Name = "Shader",

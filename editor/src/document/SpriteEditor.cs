@@ -32,8 +32,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         public static partial WidgetId GenerateButton { get; }
         public static partial WidgetId CancelButton { get; }
         public static partial WidgetId StyleDropDown { get; }
-        public static partial WidgetId LayerPrompt { get; }
-        public static partial WidgetId LayerNegativePrompt { get; }
+        public static partial WidgetId GenerationPrompt { get; }
+        public static partial WidgetId GenerationNegativePrompt { get; }
         public static partial WidgetId Seed { get; }
         public static partial WidgetId RandomizeSeed { get; }
         public static partial WidgetId AddGenerationButton { get; }
@@ -143,7 +143,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         UpdateAnimation();
         _shapeEditor.HandleDeleteKey();
 
-        var hasGen = Document.HasGeneration && Document.Generation.Texture != null;
+        var hasGen = Document.Generation is { } gen && gen.Job.Texture != null;
 
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
@@ -855,7 +855,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void DrawSkeletonOverlay()
     {
-        var skeleton = Document.Binding.Skeleton;
+        var skeleton = Document.Skeleton.Document;
         if (skeleton == null)
             return;
 
@@ -926,8 +926,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         // Skeleton
         using (Inspector.BeginProperty("Skeleton"))
         {
-            var skeletonLabel = Document.Binding.IsBound
-                ? StringId.Get(Document.Binding.Skeleton!.Name).ToString()
+            var skeletonLabel = Document.Skeleton.IsResolved
+                ? StringId.Get(Document.Skeleton.Document!.Name).ToString()
                 : "None";
 
             UI.DropDown(WidgetIds.SkeletonDropDown, () =>
@@ -948,14 +948,14 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             }, skeletonLabel, EditorAssets.Sprites.IconBone);
         }
 
-        if (Document.Binding.IsBound)
+        if (Document.Skeleton.IsResolved)
         {
             UI.SetChecked(Document.ShowInSkeleton);
             if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
             {
                 Undo.Record(Document);
                 Document.ShowInSkeleton = !Document.ShowInSkeleton;
-                Document.Binding.Skeleton?.UpdateSprites();
+                Document.Skeleton.Document?.UpdateSprites();
             }
 
             UI.SetChecked(Document.ShowSkeletonOverlay);
@@ -1034,20 +1034,23 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void GenerationInspectorUI()
     {
-        if (!Document.HasGeneration)
+        if (Document.Generation == null)
         {
-            using (UI.BeginContainer(new ContainerStyle { Padding = EdgeInsets.Symmetric(12, 16) }))
+            static void EmptySectionContent()
             {
-                if (UI.Button(WidgetIds.AddGenerationButton, "+ Generation", EditorAssets.Sprites.IconAi, EditorStyle.Button.Secondary with { Width = Size.Percent(1), MinWidth = 0 }))
+                ElementTree.BeginAlign(Align.Min, Align.Center);
+                if (UI.Button(WidgetIds.AddGenerationButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
                 {
-                    Undo.Record(Document);
-                    Document.HasGeneration = true;
-                    Document.Prompt = " ";
-                    Document.Seed = GenerateRandomSeed();
-                    Document.ConstrainedSize ??= new Vector2Int(256, 256);
-                    Document.UpdateBounds();
+                    var doc = (Workspace.ActiveDocument as SpriteDocument)!;
+                    Undo.Record(doc);
+                    doc.Generation = new SpriteGeneration { Prompt = " ", Seed = GenerateRandomSeed() };
+                    doc.ConstrainedSize ??= new Vector2Int(256, 256);
+                    doc.UpdateBounds();
                 }
+                ElementTree.EndAlign();
             }
+
+            using (Inspector.BeginSection("GENERATION", content: EmptySectionContent, empty: true))
             return;
         }
 
@@ -1067,7 +1070,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             using (Inspector.BeginProperty("Style"))
                 UI.DropDown(
                     WidgetIds.StyleDropDown,
-                    text: Document.StyleName ?? "None",
+                    text: Document.Generation!.Config.Name ?? "None",
                     icon: EditorAssets.Sprites.AssetIconGenstyle,
                     getItems: () =>
                     {
@@ -1077,37 +1080,39 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                         };
                         foreach (var doc in DocumentManager.Documents)
                         {
-                            if (doc is GenStyleDocument styleDoc)
+                            if (doc is GenerationConfig styleDoc)
                                 items.Add(PopupMenuItem.Item(styleDoc.Name, () => SetStyle(styleDoc)));
                         }
                         return [.. items];
                     });
 
+            var g = Document.Generation!;
+
             using (Inspector.BeginProperty("Prompt"))
-                Document.Prompt = UI.TextInput(WidgetIds.LayerPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
+                g.Prompt = UI.TextInput(WidgetIds.GenerationPrompt, g.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
 
             using (Inspector.BeginProperty("Negative Prompt"))
-                Document.NegativePrompt = UI.TextInput(WidgetIds.LayerNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
+                g.NegativePrompt = UI.TextInput(WidgetIds.GenerationNegativePrompt, g.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
 
             using (Inspector.BeginProperty("Seed"))
             using (UI.BeginRow())
             {
                 using (UI.BeginFlex())
                 {
-                    Document.Seed = UI.TextInput(WidgetIds.Seed, Document.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
+                    g.Seed = UI.TextInput(WidgetIds.Seed, g.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
                 }
 
                 if (UI.Button(WidgetIds.RandomizeSeed, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))
                 {
                     Undo.Record(Document);
-                    Document.Seed = GenerateRandomSeed();
+                    g.Seed = GenerateRandomSeed();
                 }
             }
-            var genImage = Document.Generation;
-            if (genImage.IsGenerating)
-                GenerationProgressUI(genImage);
+            var job = g.Job;
+            if (job.IsGenerating)
+                GenerationProgressUI(job);
             else
-                GenerateButtonUI(genImage);
+                GenerateButtonUI(job);
 
         }
 
@@ -1130,18 +1135,19 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                     },
                     filter: doc => doc is SpriteDocument sprite
                                    && sprite != currentDoc
-                                   && !currentDoc.References.Contains(sprite));
+                                   && !currentDoc.Generation!.References.Any(r => r.Document == sprite));
             }
             ElementTree.EndAlign();
         }
 
-        using var _ = Inspector.BeginSection("REFERENCES", content: SectionContent);
+        using var _ = Inspector.BeginSection("REFERENCES", content: SectionContent, empty: Document.Generation!.References.Count == 0);
 
         if (Inspector.IsSectionCollapsed) return;
 
-        for (var i = 0; i < Document.References.Count; i++)
+        for (var i = 0; i < Document.Generation!.References.Count; i++)
         {
-            var refDoc = Document.References[i];
+            var refDoc = Document.Generation.References[i].Document;
+            if (refDoc == null) continue;
             var itemId = WidgetIds.ReferenceItem + i;
 
             using (Inspector.BeginRow())
@@ -1166,15 +1172,15 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void AddReference(SpriteDocument refDoc)
     {
         Undo.Record(Document);
-        Document.ReferenceNames.Add(refDoc.Name);
-        Document.References.Add(refDoc);
+        var r = new DocumentRef<SpriteDocument>();
+        r.Set(refDoc);
+        Document.Generation!.References.Add(r);
     }
 
     private void RemoveReference(int index)
     {
         Undo.Record(Document);
-        Document.ReferenceNames.RemoveAt(index);
-        Document.References.RemoveAt(index);
+        Document.Generation!.References.RemoveAt(index);
     }
 
     private void GenerationStyleUI()
@@ -1182,14 +1188,13 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     }
 
-    private void SetStyle(GenStyleDocument? style)
+    private void SetStyle(GenerationConfig? style)
     {
         Undo.Record(Document);
-        Document.StyleName = style?.Name;
-        Document.Style = style;
+        Document.Generation!.Config.Set(style);
     }
 
-    private void GenerationProgressUI(GenerationImage genImage)
+    private void GenerationProgressUI(GenerationJob genImage)
     {
         using (UI.BeginColumn(new ContainerStyle
         {
@@ -1233,7 +1238,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         }
     }
 
-    private void GenerateButtonUI(GenerationImage genImage)
+    private void GenerateButtonUI(GenerationJob genImage)
     {
         if (genImage.GenerationError != null)
             UI.Text(genImage.GenerationError, EditorStyle.Text.Secondary with { Color = EditorStyle.ErrorColor });
@@ -1243,7 +1248,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             Padding = EdgeInsets.Symmetric(12, 16),
         }))
         {
-            UI.SetDisabled(string.IsNullOrWhiteSpace(Document.Prompt) || Document.Style == null);
+            UI.SetDisabled(string.IsNullOrWhiteSpace(Document.Generation!.Prompt) || Document.Generation.Config.Document == null);
             if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1) }))
                 Document.GenerateAsync();
         }
@@ -1252,14 +1257,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void RemoveGeneration()
     {
         Undo.Record(Document);
-        Document.HasGeneration = false;
-        Document.Prompt = "";
-        Document.NegativePrompt = "";
-        Document.Seed = "";
-        Document.Generation.Dispose();
-        Document.Generation.ImageData = null;
-        Document.StyleName = null;
-        Document.Style = null;
+        Document.Generation?.Dispose();
+        Document.Generation = null;
     }
 
     private static string GenerateRandomSeed()
@@ -1271,7 +1270,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void BeginEyeDropper()
     {
-        if (Document.Generation.Texture == null)
+        if (Document.Generation?.Job.Texture == null)
             return;
         Workspace.BeginTool(new EyeDropperTool(this));
     }
@@ -1299,18 +1298,18 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void CommitSkeletonBinding(SkeletonDocument skeleton)
     {
         Undo.Record(Document);
-        Document.Binding.Set(skeleton);
+        Document.Skeleton.Set(skeleton);
         skeleton.UpdateSprites();
     }
 
     private void ClearSkeletonBinding()
     {
-        if (!Document.Binding.IsBound)
+        if (!Document.Skeleton.IsResolved)
             return;
 
-        var skeleton = Document.Binding.Skeleton;
+        var skeleton = Document.Skeleton.Document;
         Undo.Record(Document);
-        Document.Binding.Clear();
+        Document.Skeleton.Clear();
         skeleton?.UpdateSprites();
     }
 

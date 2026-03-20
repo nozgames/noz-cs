@@ -15,7 +15,7 @@ public class BundleDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<BundleDocument>.Register(new DocumentDef
         {
             Type = AssetType.Bundle,
             Name = "AssetBundle",

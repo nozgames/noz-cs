@@ -87,7 +87,7 @@ public class VfxDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<VfxDocument>.Register(new DocumentDef
         {
             Type = AssetType.Vfx,
             Name = "Vfx",

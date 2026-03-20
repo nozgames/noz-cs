@@ -13,7 +13,7 @@ public class SoundDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef 
+        DocumentDef<SoundDocument>.Register(new DocumentDef
         {
             Type = AssetType.Sound,
             Name = "Sound",

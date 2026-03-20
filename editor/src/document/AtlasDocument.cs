@@ -40,7 +40,7 @@ internal class AtlasDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<AtlasDocument>.Register(new DocumentDef
         {
             Type = AssetType.Atlas,
             Name = "Atlas",
@@ -197,7 +197,7 @@ internal class AtlasDocument : Document
             if (string.IsNullOrEmpty(rect.Name))
                 continue;
 
-            var source = DocumentManager.Find(AssetType.Sprite, rect.Name) as SpriteDocument;
+            var source = DocumentManager.Find<SpriteDocument>(rect.Name);
 
             if (source == null)
                 continue;

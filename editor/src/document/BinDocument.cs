@@ -8,7 +8,7 @@ public class BinDocument : Document
 {
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<BinDocument>.Register(new DocumentDef
         {
             Type = AssetType.Bin,
             Name = "Bin",

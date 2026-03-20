@@ -1,51 +1,51 @@
 
 path
-fill 0 1
+fill #FFFFFF
 anchor -0.0546875 -0.140625
 anchor 0 -0.1953125
 anchor 0.0546875 -0.140625
 
 path
-fill 0 1
+fill #FFFFFF
 anchor 0.0546875 0.140625
 anchor 0 0.1953125
 anchor -0.0546875 0.140625
 
 path
-fill 0 1
+fill #FFFFFF
 anchor 0.140625 -0.0546875
 anchor 0.1953125 0
 anchor 0.140625 0.0546875
 
 path
-fill 0 1
+fill #FFFFFF
 anchor -0.140625 0.0546875
 anchor -0.1953125 0
 anchor -0.140625 -0.0546875
 
 path
-fill 0 1
+fill #FFFFFF
 anchor -0.015625 -0.140625
 anchor -0.015625 -0.0625
 anchor 0.015625 -0.0625
 anchor 0.015625 -0.140625
 
 path
-fill 0 1
+fill #FFFFFF
 anchor 0.140625 -0.015625
 anchor 0.0625 -0.015625
 anchor 0.0625 0.015625
 anchor 0.140625 0.015625
 
 path
-fill 0 1
+fill #FFFFFF
 anchor -0.0625 -0.015625
 anchor -0.140625 -0.015625
 anchor -0.140625 0.015625
 anchor -0.0625 0.015625
 
 path
-fill 0 1
+fill #FFFFFF
 anchor 0.015625 0.140625
 anchor 0.015625 0.0625
 anchor -0.015625 0.0625

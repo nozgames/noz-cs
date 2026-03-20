@@ -56,7 +56,7 @@ public static class EditorStyle
     // :icon
     public static class Icon
     {
-        public const float Size = 9.0f;
+        public const float Size = 11.0f;
         public const float LargeSize = 13.0f;
 
         public static readonly ImageStyle Primary = new()

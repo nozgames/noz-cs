@@ -8,28 +8,27 @@ using System.Text.Json.Serialization;
 
 namespace NoZ.Editor;
 
-public class ImageRef
+public class PipelineStep
 {
-    public string Data { get; set; } = "";
+    public string Type { get; set; } = "";
+    public string? Output { get; set; }
+    public Dictionary<string, object>? Args { get; set; }
 }
 
-public class GenerationRequest
+public class PipelineRequest
 {
     [JsonIgnore]
     public string Server { get; set; } = "";
 
-    public string Prompt { get; set; } = "";
-    public string? NegativePrompt { get; set; }
-    public string? Model { get; set; }
-    public string? Seed { get; set; }
-    public string? Lora { get; set; }
-    public List<ImageRef>? Images { get; set; }
+    public Dictionary<string, string>? Inputs { get; set; }
+    public List<PipelineStep> Steps { get; set; } = [];
 }
 
-public class LoraInfo
+public class StyleInfo
 {
     public string Key { get; set; } = "";
     public string Name { get; set; } = "";
+    public string Type { get; set; } = "";
     public string Description { get; set; } = "";
 }
 
@@ -39,7 +38,7 @@ public class ModelInfo
     public string Backend { get; set; } = "";
     public bool Valid { get; set; }
     public List<string> Errors { get; set; } = [];
-    public List<LoraInfo> Loras { get; set; } = [];
+    public List<StyleInfo> Styles { get; set; } = [];
 }
 
 public class GenerationResponse
@@ -77,14 +76,12 @@ public class GenerationStatus
     public bool IsTerminal => State is GenerationState.Completed or GenerationState.Failed;
 }
 
-// POST /api/image/generate response
+// POST /api/image/pipeline response
 public class GenerationSubmitResponse
 {
     public string JobId { get; set; } = "";
     public string Status { get; set; } = "";
-    public string? Model { get; set; }
-    public string? Seed { get; set; }
-    public string? Lora { get; set; }
+    public int StepCount { get; set; }
 }
 
 // GET /jobs/{job_id} response
@@ -113,7 +110,7 @@ public static class GenerationClient
         WriteIndented = false,
     };
 
-    public static void Generate(GenerationRequest request, Action<GenerationStatus> callback,
+    public static void Generate(PipelineRequest request, Action<GenerationStatus> callback,
         CancellationToken cancellationToken = default)
     {
         Task.Run(async () =>
@@ -133,7 +130,7 @@ public static class GenerationClient
                 catch { }
 
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-                var response = await _http.PostAsync($"{request.Server}/api/image/generate", content, cancellationToken);
+                var response = await _http.PostAsync($"{request.Server}/api/image/pipeline", content, cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -227,7 +224,7 @@ public static class GenerationClient
         }, cancellationToken);
     }
 
-    public static async Task<GenerationStatus> GenerateAsync(GenerationRequest request,
+    public static async Task<GenerationStatus> GenerateAsync(PipelineRequest request,
         Action<GenerationStatus>? onProgress = null,
         CancellationToken cancellationToken = default)
     {
@@ -244,7 +241,7 @@ public static class GenerationClient
             catch { }
 
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await _http.PostAsync($"{request.Server}/api/image/generate", content, cancellationToken);
+            var response = await _http.PostAsync($"{request.Server}/api/image/pipeline", content, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {

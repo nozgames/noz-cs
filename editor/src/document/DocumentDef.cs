@@ -16,3 +16,14 @@ public class DocumentDef
     public Func<Document, bool>? CanEdit { get; init; }
     public Func<Sprite?>? Icon { get; init; }
 }
+
+public static class DocumentDef<T> where T : Document
+{
+    public static DocumentDef Def { get; private set; } = null!;
+
+    public static void Register(DocumentDef def)
+    {
+        Def = def;
+        DocumentManager.RegisterDef(def);
+    }
+}

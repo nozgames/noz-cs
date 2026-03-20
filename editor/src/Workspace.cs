@@ -134,7 +134,7 @@ public static partial class Workspace
         {
             if (!doc.IsSelected)
                 continue;
-            if (doc is SpriteDocument sprite && sprite.HasGeneration)
+            if (doc is SpriteDocument sprite && sprite.Generation != null)
             {
                 sprite.GenerateAsync();
                 count++;

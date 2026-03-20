@@ -17,7 +17,7 @@ public class PaletteDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<PaletteDocument>.Register(new DocumentDef
         {
             Type = PaletteAssetType,
             Name = "Palette",

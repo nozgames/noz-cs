@@ -278,6 +278,9 @@ public static class DocumentManager
         return null;
     }
 
+    public static T? Find<T>(string name) where T : Document
+        => Find(DocumentDef<T>.Def.Type, name) as T;
+
     public static void LoadAll()
     {
         foreach (var doc in _documents)
@@ -748,7 +751,7 @@ public static class DocumentManager
     {
         var sprites = _documents
             .OfType<SpriteDocument>()
-            .Where(s => s.HasGeneration && !s.Generation.HasImageData)
+            .Where(s => s.Generation is { HasImageData: false })
             .ToList();
 
         if (sprites.Count == 0)
@@ -809,7 +812,7 @@ public static class DocumentManager
     {
         var sprites = _documents
             .OfType<SpriteDocument>()
-            .Where(s => s.HasGeneration && !s.Generation.HasImageData)
+            .Where(s => s.Generation is { HasImageData: false })
             .ToList();
 
         if (sprites.Count == 0)

@@ -22,7 +22,7 @@ public class FontDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<FontDocument>.Register(new DocumentDef
         {
             Type = AssetType.Font,
             Name = "Font",

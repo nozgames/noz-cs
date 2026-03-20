@@ -94,7 +94,7 @@ public class SkeletonDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef {
+        DocumentDef<SkeletonDocument>.Register(new DocumentDef {
             Type = AssetType.Skeleton,
             Name = "Skeleton",
             Extensions = [".skel"],

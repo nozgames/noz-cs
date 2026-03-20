@@ -111,7 +111,7 @@ internal class AnimationDocument : Document
 
     public static void RegisterDef()
     {
-        DocumentManager.RegisterDef(new DocumentDef
+        DocumentDef<AnimationDocument>.Register(new DocumentDef
         {
             Type = AssetType.Animation,
             Name = "Animation",
@@ -507,7 +507,7 @@ internal class AnimationDocument : Document
             throw new Exception("Missing quoted skeleton name");
 
         SkeletonName = skeletonName;
-        Skeleton = DocumentManager.Find(AssetType.Skeleton, SkeletonName) as SkeletonDocument;
+        Skeleton = DocumentManager.Find<SkeletonDocument>(SkeletonName);
         if (Skeleton == null)
             return;
 
@@ -651,7 +651,7 @@ internal class AnimationDocument : Document
 
     public override void PostLoad()
     {
-        Skeleton = DocumentManager.Find(AssetType.Skeleton, SkeletonName ?? "") as SkeletonDocument;
+        Skeleton = DocumentManager.Find<SkeletonDocument>(SkeletonName ?? "");
         if (Skeleton == null)
             return;
 
