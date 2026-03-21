@@ -51,8 +51,8 @@ r "icon_play" 756 137 68 68 0
 r "icon_preview" 688 195 68 68 0
 r "icon_publish" 543 259 108 126 0
 r "icon_random" 393 321 68 68 0
-r "" 189 236 26 24 0
-r "icon_remove" 507 289 36 36 0
+r "icon_refresh" 507 289 36 36 0
+r "icon_remove" 651 259 36 36 0
 r "icon_root_motion" 205 383 112 116 0
 r "icon_search" 137 406 68 68 0
 r "icon_seed" 69 440 68 68 0
@@ -62,6 +62,5 @@ r "icon_stroke_size" 69 508 68 68 0
 r "icon_submenu" 1 511 68 68 0
 r "icon_subtract" 317 383 68 68 0
 r "icon_tiling" 461 325 68 68 0
-r "icon_unlock" 651 259 36 36 0
+r "icon_unlock" 205 338 36 36 0
 r "icon_xray" 385 389 68 68 0
-r "icon_refresh" 205 338 36 36 0

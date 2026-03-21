@@ -522,7 +522,7 @@ public partial class SpriteDocument
         };
 
         if (config?.RemoveBackground == true)
-            steps.Add(new() { Type = "remove_background", Output = "clean", Args = new Dictionary<string, object> { ["image"] = "sprite" } });
+            steps.Add(new() { Type = "rmbg", Output = "clean", Args = new Dictionary<string, object> { ["image"] = "sprite" } });
 
         return new PipelineRequest
         {
