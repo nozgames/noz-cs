@@ -139,6 +139,34 @@ public class SpriteLayer
         return false;
     }
 
+    public struct PathHitResult
+    {
+        public SpritePath Path;
+        public SpriteLayer Layer;
+        public SpritePath.HitResult Hit;
+    }
+
+    public int HitTestAll(Vector2 point, List<PathHitResult> results)
+    {
+        if (!Visible) return 0;
+
+        var count = 0;
+        foreach (var path in Paths)
+        {
+            var hit = path.HitTest(point);
+            if (hit.AnchorIndex >= 0 || hit.SegmentIndex >= 0 || hit.InPath)
+            {
+                results.Add(new PathHitResult { Path = path, Layer = this, Hit = hit });
+                count++;
+            }
+        }
+
+        foreach (var child in Children)
+            count += child.HitTestAll(point, results);
+
+        return count;
+    }
+
     public void ClearAllSelections()
     {
         foreach (var path in Paths)

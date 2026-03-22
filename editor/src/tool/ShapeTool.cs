@@ -12,22 +12,27 @@ public enum ShapeType
     Circle
 }
 
-public class ShapeTool(
-    IShapeDocument document,
-    Shape shape,
-    Color32 fillColor,
-    ShapeType shapeType,
-    PathOperation operation = PathOperation.Normal) : Tool
+public class ShapeTool : Tool
 {
-    private readonly IShapeDocument _document = document;
-    private readonly Shape _shape = shape;
-    private readonly Color32 _fillColor = fillColor;
-    public readonly ShapeType ShapeType = shapeType;
-    private readonly PathOperation _operation = operation;
+    private readonly SpriteDocument _document;
+    private readonly SpriteLayer _activeLayer;
+    private readonly Color32 _fillColor;
+    public readonly ShapeType ShapeType;
+    private readonly SpritePathOperation _operation;
 
     private Vector2 _startLocal;
     private Vector2 _currentLocal;
     private bool _isDragging;
+
+    public ShapeTool(SpriteDocument document, SpriteLayer activeLayer,
+        Color32 fillColor, ShapeType shapeType, SpritePathOperation operation = SpritePathOperation.Normal)
+    {
+        _document = document;
+        _activeLayer = activeLayer;
+        _fillColor = fillColor;
+        ShapeType = shapeType;
+        _operation = operation;
+    }
 
     public override void Begin()
     {
@@ -129,15 +134,14 @@ public class ShapeTool(
 
     private static void DrawRectanglePreview(Vector2 min, Vector2 max, float lineWidth)
     {
-        var topLeft = new Vector2(min.X, min.Y);
-        var topRight = new Vector2(max.X, min.Y);
-        var bottomRight = new Vector2(max.X, max.Y);
-        var bottomLeft = new Vector2(min.X, max.Y);
-
-        Gizmos.DrawLine(topLeft, topRight, lineWidth);
-        Gizmos.DrawLine(topRight, bottomRight, lineWidth);
-        Gizmos.DrawLine(bottomRight, bottomLeft, lineWidth);
-        Gizmos.DrawLine(bottomLeft, topLeft, lineWidth);
+        var tl = new Vector2(min.X, min.Y);
+        var tr = new Vector2(max.X, min.Y);
+        var br = new Vector2(max.X, max.Y);
+        var bl = new Vector2(min.X, max.Y);
+        Gizmos.DrawLine(tl, tr, lineWidth);
+        Gizmos.DrawLine(tr, br, lineWidth);
+        Gizmos.DrawLine(br, bl, lineWidth);
+        Gizmos.DrawLine(bl, tl, lineWidth);
     }
 
     private static void DrawCirclePreview(Vector2 min, Vector2 max, float lineWidth)
@@ -163,75 +167,59 @@ public class ShapeTool(
         var min = Vector2.Min(_startLocal, _currentLocal);
         var max = Vector2.Max(_startLocal, _currentLocal);
 
-        if (max.X - min.X < 0.01f || max.Y - min.Y < 0.01f)
+        if (max.X - min.X < 0.01f || max.Y - min.Y < 0.01f || _activeLayer.Locked)
         {
             Finish();
             return;
         }
 
-        // Don't create paths on locked layers
-        if (_document.IsActiveLayerLocked)
-        {
-            Finish();
-            return;
-        }
+        Undo.Record(_document);
 
-        Undo.Record((Document)_document);
+        // Clear selections on all existing paths in the layer
+        _activeLayer.ForEachEditablePath(p => p.ClearSelection());
 
-        _shape.ClearAnchorSelection();
-
-        var firstAnchor = _shape.AnchorCount;
-        var pathIndex = _shape.AddPath(_fillColor, operation: _operation);
-        if (pathIndex == ushort.MaxValue)
-        {
-            Finish();
-            return;
-        }
+        var path = new SpritePath { FillColor = _fillColor, Operation = _operation };
 
         if (ShapeType == ShapeType.Rectangle)
-            AddRectangleAnchors(pathIndex, min, max);
+            AddRectangleAnchors(path, min, max);
         else
-            AddCircleAnchors(pathIndex, min, max);
+            AddCircleAnchors(path, min, max);
 
-        for (var i = firstAnchor; i < _shape.AnchorCount; i++)
-            _shape.SetAnchorSelected((ushort)i, true);
-
-        _shape.UpdateSamples();
-        _shape.UpdateBounds();
+        path.SelectAll();
+        path.UpdateSamples();
+        path.UpdateBounds();
+        _activeLayer.Paths.Add(path);
 
         _document.IncrementVersion();
         _document.UpdateBounds();
-
         Finish();
     }
 
-    private void AddRectangleAnchors(ushort pathIndex, Vector2 min, Vector2 max)
+    private static void AddRectangleAnchors(SpritePath path, Vector2 min, Vector2 max)
     {
-        _shape.AddAnchor(pathIndex, new Vector2(min.X, min.Y));
-        _shape.AddAnchor(pathIndex, new Vector2(min.X, max.Y));
-        _shape.AddAnchor(pathIndex, new Vector2(max.X, max.Y));
-        _shape.AddAnchor(pathIndex, new Vector2(max.X, min.Y));
+        path.AddAnchor(new Vector2(min.X, min.Y));
+        path.AddAnchor(new Vector2(min.X, max.Y));
+        path.AddAnchor(new Vector2(max.X, max.Y));
+        path.AddAnchor(new Vector2(max.X, min.Y));
     }
 
-    private void AddCircleAnchors(ushort pathIndex, Vector2 min, Vector2 max)
+    private static void AddCircleAnchors(SpritePath path, Vector2 min, Vector2 max)
     {
         var center = (min + max) * 0.5f;
         var rx = (max.X - min.X) * 0.5f;
         var ry = (max.Y - min.Y) * 0.5f;
 
-        // 8 anchor points at 45-degree intervals for much better circle approximation.
-        // Quadratic bezier error drops from ~2.7% (90-degree arcs) to ~0.17% (45-degree arcs).
         const float cos45 = 0.7071067812f;
         Span<Vector2> anchors =
         [
-            center + new Vector2(rx, 0),                    // 0°
-            center + new Vector2(rx * cos45, ry * cos45),   // 45°
-            center + new Vector2(0, ry),                    // 90°
-            center + new Vector2(-rx * cos45, ry * cos45),  // 135°
-            center + new Vector2(-rx, 0),                   // 180°
-            center + new Vector2(-rx * cos45, -ry * cos45), // 225°
-            center + new Vector2(0, -ry),                   // 270°
-            center + new Vector2(rx * cos45, -ry * cos45),  // 315°
+            center + new Vector2(rx, 0),
+            center + new Vector2(rx * cos45, ry * cos45),
+            center + new Vector2(0, ry),
+            center + new Vector2(-rx * cos45, ry * cos45),
+            center + new Vector2(-rx, 0),
+            center + new Vector2(-rx * cos45, -ry * cos45),
+            center + new Vector2(0, -ry),
+            center + new Vector2(rx * cos45, -ry * cos45),
         ];
 
         for (var i = 0; i < 8; i++)
@@ -239,21 +227,15 @@ public class ShapeTool(
             var p0 = anchors[i];
             var p1 = anchors[(i + 1) % 8];
 
-            // Arc midpoint on the ellipse at the angle halfway between the two anchors
             var midAngle = (i + 0.5f) * MathF.PI * 2f / 8f;
             var arcMid = center + new Vector2(MathF.Cos(midAngle) * rx, MathF.Sin(midAngle) * ry);
-
             var curve = CalculateSegmentCurve(p0, p1, arcMid);
-            _shape.AddAnchor(pathIndex, p0, curve);
+            path.AddAnchor(p0, curve);
         }
     }
 
     private static float CalculateSegmentCurve(Vector2 p0, Vector2 p1, Vector2 arcMidpoint)
     {
-        // Find the curve value (perpendicular offset) that makes the quadratic bezier
-        // pass through the arc midpoint at t=0.5.
-        // At t=0.5: P(0.5) = chordMid + 0.5 * perp * curve
-        // Solving: curve = 2 * dot(arcMid - chordMid, perp)
         var chordMid = (p0 + p1) * 0.5f;
         var dir = p1 - p0;
         var len = dir.Length();
@@ -269,8 +251,5 @@ public class ShapeTool(
         Input.ConsumeButton(InputCode.MouseLeft);
     }
 
-    public override void Cancel()
-    {
-        Finish();
-    }
+    public override void Cancel() => Finish();
 }

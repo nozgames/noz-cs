@@ -262,6 +262,7 @@ public partial class SpriteDocument
         }
     }
 
+#if false // TODO: Port to layer-based model
     private byte[] RasterizeMaskToPng()
     {
         UpdateBounds();
@@ -493,6 +494,11 @@ public partial class SpriteDocument
 
         return pngBytes;
     }
+
+#endif
+
+    // TODO: Port to layer-based model
+    private byte[] RasterizeColorToPng() => [];
 
     public PipelineRequest BuildGenerationRequest()
     {

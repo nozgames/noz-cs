@@ -1,22 +1,24 @@
+path {
+  fill #FFFFFF
+  anchor -0.1171875 -0.015625
+  anchor -0.1171875 0.015625
+  anchor 0.1171875 0.015625
+  anchor 0.1171875 -0.015625
+}
 
-path
-fill #FFFFFF
-anchor -0.1171875 -0.015625
-anchor -0.1171875 0.015625
-anchor 0.1171875 0.015625
-anchor 0.1171875 -0.015625
+path {
+  fill #FFFFFF
+  anchor -0.1171875 -0.078125
+  anchor -0.1171875 -0.046875
+  anchor 0.1171875 -0.046875
+  anchor 0.1171875 -0.078125
+}
 
-path
-fill #FFFFFF
-anchor -0.1171875 -0.078125
-anchor -0.1171875 -0.046875
-anchor 0.1171875 -0.046875
-anchor 0.1171875 -0.078125
-
-path
-fill #FFFFFF
-anchor -0.1171875 0.046875
-anchor -0.1171875 0.078125
-anchor 0.1171875 0.078125
-anchor 0.1171875 0.046875
+path {
+  fill #FFFFFF
+  anchor -0.1171875 0.046875
+  anchor -0.1171875 0.078125
+  anchor 0.1171875 0.078125
+  anchor 0.1171875 0.046875
+}
 

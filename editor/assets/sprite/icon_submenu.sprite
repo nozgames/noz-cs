@@ -1,16 +1,17 @@
+path {
+  fill #FFFFFF
+  anchor 0.1015625 -0.1015625
+  anchor 0.203125 0
+  anchor 0.1015625 0.1015625
+  anchor 0.0078125 0.0078125
+}
 
-path
-fill #FFFFFF
-anchor 0.1015625 -0.1015625
-anchor 0.203125 0
-anchor 0.1015625 0.1015625
-anchor 0.0078125 0.0078125
-
-path
-subtract true
-fill #FFFFFF
-anchor 0.0625 -0.109375
-anchor 0.171875 0
-anchor 0.0625 0.109375
-anchor -0.0078125 -0.0078125
+path {
+  subtract true
+  fill #FFFFFF
+  anchor 0.0625 -0.109375
+  anchor 0.171875 0
+  anchor 0.0625 0.109375
+  anchor -0.0078125 -0.0078125
+}
 

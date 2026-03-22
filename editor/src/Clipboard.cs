@@ -49,7 +49,7 @@ public sealed class PathClipboardData
         public Color32 FillColor;
         public Color32 StrokeColor;
         public byte StrokeWidth;
-        public PathOperation Operation;
+        public SpritePathOperation Operation;
         public Vector2[] Anchors;
         public float[] Curves;
     }
@@ -57,77 +57,53 @@ public sealed class PathClipboardData
     public PathData[] Paths { get; }
     public Vector2 Center { get; }
 
-    public PathClipboardData(Shape shape)
+    public PathClipboardData(SpritePath path)
     {
-        var pathList = new List<PathData>();
-        var allPositions = new List<Vector2>();
+        var anchors = new Vector2[path.Anchors.Count];
+        var curves = new float[path.Anchors.Count];
+        var sum = Vector2.Zero;
 
-        for (ushort p = 0; p < shape.PathCount; p++)
+        for (var i = 0; i < path.Anchors.Count; i++)
         {
-            ref readonly var srcPath = ref shape.GetPath(p);
+            anchors[i] = path.Anchors[i].Position;
+            curves[i] = path.Anchors[i].Curve;
+            sum += anchors[i];
+        }
 
-            var selectedAnchors = new List<Vector2>();
-            var selectedCurves = new List<float>();
-
-            for (ushort a = 0; a < srcPath.AnchorCount; a++)
+        Paths =
+        [
+            new PathData
             {
-                ref readonly var srcAnchor = ref shape.GetAnchor((ushort)(srcPath.AnchorStart + a));
-                if (!srcAnchor.IsSelected)
-                    continue;
-
-                selectedAnchors.Add(srcAnchor.Position);
-                selectedCurves.Add(srcAnchor.Curve);
+                FillColor = path.FillColor,
+                StrokeColor = path.StrokeColor,
+                StrokeWidth = path.StrokeWidth,
+                Operation = path.Operation,
+                Anchors = anchors,
+                Curves = curves,
             }
+        ];
 
-            if (selectedAnchors.Count < 3)
-                continue;
-
-            pathList.Add(new PathData
-            {
-                FillColor = srcPath.FillColor,
-                StrokeColor = srcPath.StrokeColor,
-                StrokeWidth = srcPath.StrokeWidth,
-                Operation = srcPath.Operation,
-                Anchors = [.. selectedAnchors],
-                Curves = [.. selectedCurves]
-            });
-
-            allPositions.AddRange(selectedAnchors);
-        }
-
-        Paths = [.. pathList];
-
-        if (allPositions.Count > 0)
-        {
-            var sum = Vector2.Zero;
-            foreach (var pos in allPositions)
-                sum += pos;
-            Center = sum / allPositions.Count;
-        }
+        Center = path.Anchors.Count > 0 ? sum / path.Anchors.Count : Vector2.Zero;
     }
 
-    public void PasteInto(Shape shape)
+    public SpritePath PasteAsPath()
     {
-        var firstNewAnchor = shape.AnchorCount;
+        var result = new SpritePath();
 
         foreach (var pathData in Paths)
         {
-            var newPathIndex = shape.AddPath(
-                fillColor: pathData.FillColor,
-                strokeColor: pathData.StrokeColor,
-                strokeWidth: pathData.StrokeWidth,
-                operation: pathData.Operation);
-            if (newPathIndex == ushort.MaxValue)
-                break;
+            result.FillColor = pathData.FillColor;
+            result.StrokeColor = pathData.StrokeColor;
+            result.StrokeWidth = pathData.StrokeWidth;
+            result.Operation = pathData.Operation;
 
             for (var a = 0; a < pathData.Anchors.Length; a++)
-                shape.AddAnchor(newPathIndex, pathData.Anchors[a], pathData.Curves[a]);
+                result.AddAnchor(pathData.Anchors[a], pathData.Curves[a]);
         }
 
-        for (var i = firstNewAnchor; i < shape.AnchorCount; i++)
-            shape.SetAnchorSelected((ushort)i, true);
-
-        shape.UpdateSamples();
-        shape.UpdateBounds();
+        result.SelectAll();
+        result.UpdateSamples();
+        result.UpdateBounds();
+        return result;
     }
 }

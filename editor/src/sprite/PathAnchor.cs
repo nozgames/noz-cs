@@ -7,17 +7,17 @@ using System.Numerics;
 namespace NoZ.Editor;
 
 [Flags]
-public enum AnchorFlags : byte
+public enum SpritePathAnchorFlags : byte
 {
     None = 0,
     Selected = 1 << 0,
 }
 
-public struct PathAnchor
+public struct SpritePathAnchor
 {
     public Vector2 Position;
     public float Curve;
-    public AnchorFlags Flags;
+    public SpritePathAnchorFlags Flags;
 
-    public readonly bool IsSelected => (Flags & AnchorFlags.Selected) != 0;
+    public readonly bool IsSelected => (Flags & SpritePathAnchorFlags.Selected) != 0;
 }

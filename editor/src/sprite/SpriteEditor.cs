@@ -65,9 +65,6 @@ public partial class SpriteEditor : DocumentEditor
     private int CurrentFrameIndex =>
         Document.GetFrameAtTimeSlot(_currentTimeSlot);
 
-    private Shape CurrentShape =>
-        Document.Frames[CurrentFrameIndex].Shape;
-
     public SpriteEditor(SpriteDocument doc) : base(doc)
     {
         _versionOnOpen = doc.Version;
@@ -152,7 +149,7 @@ public partial class SpriteEditor : DocumentEditor
             DrawWireframe();
         }
 
-        UpdateMesh();
+        UpdateMeshFromLayers();
 
         if (hasGen)
         {
@@ -206,7 +203,7 @@ public partial class SpriteEditor : DocumentEditor
         {
             FloatingToolbarUI();
 
-            if (Document.FrameCount > 1)
+            if (Document.AnimFrames.Count > 1)
             {
                 FloatingToolbar.Row();
                 FloatingDopeSheetUI();
@@ -249,13 +246,7 @@ public partial class SpriteEditor : DocumentEditor
             Document.ShowTiling = !Document.ShowTiling;
     }
 
-    private int TotalTimeSlots()
-    {
-        var total = 0;
-        for (var f = 0; f < Document.FrameCount; f++)
-            total += 1 + Document.Frames[f].Hold;
-        return total;
-    }
+    private int TotalTimeSlots() => Document.TotalTimeSlots;
 
     private void FloatingDopeSheetUI()
     {
@@ -291,7 +282,7 @@ public partial class SpriteEditor : DocumentEditor
             using (UI.BeginRow(EditorStyle.Dopesheet.FloatingLayerRow))
             {
                 var slotIndex = 0;
-                for (ushort fi = 0; fi < Document.FrameCount && slotIndex < maxSlots; fi++)
+                for (ushort fi = 0; fi < Document.AnimFrames.Count && slotIndex < maxSlots; fi++)
                 {
                     var isCurrentSlot = IsTimeSlotInRange(fi, _currentTimeSlot);
 
@@ -313,7 +304,7 @@ public partial class SpriteEditor : DocumentEditor
                         slotIndex++;
 
                         // Hold cells (no dot, same color as keyframe)
-                        var hold = Document.Frames[fi].Hold;
+                        var hold = fi < Document.AnimFrames.Count ? Document.AnimFrames[fi].Hold : 0;
                         for (int h = 0; h < hold && slotIndex < maxSlots; h++, slotIndex++)
                         {
                             if (h < hold - 1)
@@ -339,9 +330,9 @@ public partial class SpriteEditor : DocumentEditor
     private bool IsTimeSlotInRange(int frameIndex, int timeSlot)
     {
         var accumulated = 0;
-        for (var f = 0; f < Document.FrameCount; f++)
+        for (var f = 0; f < Document.AnimFrames.Count; f++)
         {
-            var slots = 1 + Document.Frames[f].Hold;
+            var slots = 1 + Document.AnimFrames[f].Hold;
             if (f == frameIndex)
                 return timeSlot >= accumulated && timeSlot < accumulated + slots;
             accumulated += slots;
@@ -349,16 +340,6 @@ public partial class SpriteEditor : DocumentEditor
         return false;
     }
 
-    private static bool PathHasSelectedAnchor(Shape shape, Shape.Path path)
-    {
-        for (ushort a = 0; a < path.AnchorCount; a++)
-        {
-            var anchor = shape.GetAnchor((ushort)(path.AnchorStart + a));
-            if (anchor.IsSelected)
-                return true;
-        }
-        return false;
-    }
 
     private void SetConstraint(Vector2Int? size)
     {
@@ -393,29 +374,29 @@ public partial class SpriteEditor : DocumentEditor
 
     private void NextFrame()
     {
-        if (Document.FrameCount <= 1)
+        if (Document.AnimFrames.Count <= 1)
             return;
 
         var fi = CurrentFrameIndex;
-        fi = (fi + 1) % Document.FrameCount;
+        fi = (fi + 1) % Document.AnimFrames.Count;
         _currentTimeSlot = TimeSlotForFrame(fi);
     }
 
     private void PreviousFrame()
     {
-        if (Document.FrameCount <= 1)
+        if (Document.AnimFrames.Count <= 1)
             return;
 
         var fi = CurrentFrameIndex;
-        fi = fi == 0 ? Document.FrameCount - 1 : fi - 1;
+        fi = fi == 0 ? Document.AnimFrames.Count - 1 : fi - 1;
         _currentTimeSlot = TimeSlotForFrame(fi);
     }
 
     private int TimeSlotForFrame(int frameIndex)
     {
         var slot = 0;
-        for (var f = 0; f < frameIndex && f < Document.FrameCount; f++)
-            slot += 1 + Document.Frames[f].Hold;
+        for (var f = 0; f < frameIndex && f < Document.AnimFrames.Count; f++)
+            slot += 1 + Document.AnimFrames[f].Hold;
         return slot;
     }
 
@@ -443,7 +424,7 @@ public partial class SpriteEditor : DocumentEditor
 
     private void DeleteCurrentFrame()
     {
-        if (Document.FrameCount <= 1) return;
+        if (Document.AnimFrames.Count <= 1) return;
         Undo.Record(Document);
         var fi = Document.DeleteFrame(CurrentFrameIndex);
         _currentTimeSlot = TimeSlotForFrame(fi);
@@ -453,13 +434,17 @@ public partial class SpriteEditor : DocumentEditor
 
     private void AddHoldFrame()
     {
+        var fi = CurrentFrameIndex;
+        if (fi >= Document.AnimFrames.Count) return;
         Undo.Record(Document);
-        Document.Frames[CurrentFrameIndex].Hold++;
+        Document.AnimFrames[fi].Hold++;
     }
 
     private void RemoveHoldFrame()
     {
-        var frame = Document.Frames[CurrentFrameIndex];
+        var fi = CurrentFrameIndex;
+        if (fi >= Document.AnimFrames.Count) return;
+        var frame = Document.AnimFrames[fi];
         if (frame.Hold <= 0)
             return;
 
@@ -471,85 +456,59 @@ public partial class SpriteEditor : DocumentEditor
     {
         Document.CurrentFillColor = color;
 
-        var shape = CurrentShape;
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathFillColor(p, color);
-            _meshVersion = -1;
-        }
+        var path = GetPathWithSelection();
+        if (path == null) return;
+        path.FillColor = color;
+        _meshVersion = -1;
     }
 
     private void SetStrokeColor(Color32 color)
     {
         Document.CurrentStrokeColor = color;
 
-        var shape = CurrentShape;
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathStroke(p, color, Document.CurrentStrokeWidth);
-            _meshVersion = -1;
-        }
+        var path = GetPathWithSelection();
+        if (path == null) return;
+        path.StrokeColor = color;
+        path.StrokeWidth = Document.CurrentStrokeWidth;
+        _meshVersion = -1;
     }
 
     private void SetStrokeWidth(byte width)
     {
         Document.CurrentStrokeWidth = width;
-
         Undo.Record(Document);
 
-        var shape = CurrentShape;
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathStroke(p, path.StrokeColor, width);
-        }
+        var path = GetPathWithSelection();
+        if (path == null) return;
+        path.StrokeWidth = width;
     }
 
-    private void CyclePathOperation()
+    private void CycleSpritePathOperation()
     {
         Document.CurrentOperation = Document.CurrentOperation switch
         {
-            PathOperation.Normal => PathOperation.Subtract,
-            PathOperation.Subtract => PathOperation.Clip,
-            _ => PathOperation.Normal,
+            SpritePathOperation.Normal => SpritePathOperation.Subtract,
+            SpritePathOperation.Subtract => SpritePathOperation.Clip,
+            _ => SpritePathOperation.Normal,
         };
 
-        var shape = CurrentShape;
-        var anySelected = false;
-        for (ushort p = 0; p < shape.PathCount; p++)
+        var path = GetPathWithSelection();
+        if (path != null)
         {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            if (!anySelected)
-            {
-                Undo.Record(Document);
-                anySelected = true;
-            }
-            shape.SetPathOperation(p, Document.CurrentOperation);
-        }
-
-        if (anySelected)
-        {
+            Undo.Record(Document);
+            path.Operation = Document.CurrentOperation;
             Document.IncrementVersion();
         }
     }
 
-    private void SetPathOperation(PathOperation operation)
+    private void SetSpritePathOperation(SpritePathOperation operation)
     {
         Undo.Record(Document);
         Document.CurrentOperation = operation;
-        var shape = CurrentShape;
-        for (ushort p = 0; p < shape.PathCount; p++)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-            shape.SetPathOperation(p, operation);
-        }
+
+        var path = GetPathWithSelection();
+        if (path != null)
+            path.Operation = operation;
     }
 
     private void CenterShape()
@@ -560,30 +519,16 @@ public partial class SpriteEditor : DocumentEditor
         var max = new Vector2(float.MinValue, float.MinValue);
         var hasAnchors = false;
 
-        for (ushort fi = 0; fi < Document.FrameCount; fi++)
+        Document.RootLayer.ForEachEditablePath(p =>
         {
-            var shape = Document.Frames[fi].Shape;
-            if (shape.AnchorCount == 0) continue;
+            if (p.Anchors.Count == 0) return;
             hasAnchors = true;
-            shape.UpdateSamples();
-
-            for (ushort a = 0; a < shape.AnchorCount; a++)
-            {
-                ref readonly var anchor = ref shape.GetAnchor(a);
-                min = Vector2.Min(min, anchor.Position);
-                max = Vector2.Max(max, anchor.Position);
-
-                if (MathF.Abs(anchor.Curve) > 0.0001f)
-                {
-                    var samples = shape.GetSegmentSamples(a);
-                    for (var s = 0; s < Shape.MaxSegmentSamples; s++)
-                    {
-                        min = Vector2.Min(min, samples[s]);
-                        max = Vector2.Max(max, samples[s]);
-                    }
-                }
-            }
-        }
+            p.UpdateSamples();
+            p.UpdateBounds();
+            var b = p.Bounds;
+            min = Vector2.Min(min, new Vector2(b.X, b.Y));
+            max = Vector2.Max(max, new Vector2(b.Right, b.Bottom));
+        });
 
         if (hasAnchors)
         {
@@ -594,8 +539,17 @@ public partial class SpriteEditor : DocumentEditor
                 MathF.Round(centerWorld.X * dpi) * invDpi,
                 MathF.Round(centerWorld.Y * dpi) * invDpi);
 
-            for (ushort fi = 0; fi < Document.FrameCount; fi++)
-                Document.Frames[fi].Shape.SetOrigin(center);
+            // Translate all paths to center origin
+            Document.RootLayer.ForEachEditablePath(p =>
+            {
+                for (var i = 0; i < p.Anchors.Count; i++)
+                {
+                    var a = p.Anchors[i];
+                    a.Position -= center;
+                    p.Anchors[i] = a;
+                }
+                p.MarkDirty();
+            });
         }
 
         Document.UpdateBounds();
@@ -604,52 +558,82 @@ public partial class SpriteEditor : DocumentEditor
 
     private void FlipHorizontal()
     {
-        var shape = CurrentShape;
-        var pivot = shape.GetSelectedPathsCenter();
-        if (!pivot.HasValue)
-            return;
+        var path = GetPathWithSelection();
+        if (path == null) return;
+
+        var centroid = path.GetSelectedCentroid();
+        if (!centroid.HasValue) return;
 
         Undo.Record(Document);
-        shape.FlipSelectedPathsHorizontal(pivot.Value);
-        shape.UpdateSamples();
-        shape.UpdateBounds();
+        for (var i = 0; i < path.Anchors.Count; i++)
+        {
+            if (!path.Anchors[i].IsSelected) continue;
+            var a = path.Anchors[i];
+            a.Position = new Vector2(2 * centroid.Value.X - a.Position.X, a.Position.Y);
+            a.Curve = -a.Curve;
+            path.Anchors[i] = a;
+        }
+        path.MarkDirty();
+        path.UpdateSamples();
+        path.UpdateBounds();
         Document.UpdateBounds();
     }
 
     private void FlipVertical()
     {
-        var shape = CurrentShape;
-        var pivot = shape.GetSelectedPathsCenter();
-        if (!pivot.HasValue)
-            return;
+        var path = GetPathWithSelection();
+        if (path == null) return;
+
+        var centroid = path.GetSelectedCentroid();
+        if (!centroid.HasValue) return;
 
         Undo.Record(Document);
-        shape.FlipSelectedPathsVertical(pivot.Value);
-        shape.UpdateSamples();
-        shape.UpdateBounds();
+        for (var i = 0; i < path.Anchors.Count; i++)
+        {
+            if (!path.Anchors[i].IsSelected) continue;
+            var a = path.Anchors[i];
+            a.Position = new Vector2(a.Position.X, 2 * centroid.Value.Y - a.Position.Y);
+            a.Curve = -a.Curve;
+            path.Anchors[i] = a;
+        }
+        path.MarkDirty();
+        path.UpdateSamples();
+        path.UpdateBounds();
         Document.UpdateBounds();
     }
 
     private void MovePathUp()
     {
-        var shape = CurrentShape;
-        if (!shape.HasSelectedPaths())
-            return;
+        var path = GetPathWithSelection();
+        if (path == null) return;
+
+        var layer = Document.RootLayer.FindLayerForPath(path);
+        if (layer == null) return;
+
+        var idx = layer.Paths.IndexOf(path);
+        if (idx <= 0) return;
 
         Undo.Record(Document);
-        if (!shape.MoveSelectedPathUp())
-            return;
+        layer.Paths.RemoveAt(idx);
+        layer.Paths.Insert(idx - 1, path);
+        Document.IncrementVersion();
     }
 
     private void MovePathDown()
     {
-        var shape = CurrentShape;
-        if (!shape.HasSelectedPaths())
-            return;
+        var path = GetPathWithSelection();
+        if (path == null) return;
+
+        var layer = Document.RootLayer.FindLayerForPath(path);
+        if (layer == null) return;
+
+        var idx = layer.Paths.IndexOf(path);
+        if (idx < 0 || idx >= layer.Paths.Count - 1) return;
 
         Undo.Record(Document);
-        if (!shape.MoveSelectedPathDown())
-            return;
+        layer.Paths.RemoveAt(idx);
+        layer.Paths.Insert(idx + 1, path);
+        Document.IncrementVersion();
     }
 
     private void UpdateAnimation()
@@ -673,73 +657,44 @@ public partial class SpriteEditor : DocumentEditor
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
         var shift = Input.IsShiftDown(InputScope.All);
 
-        var shape = CurrentShape;
+        var hit = Document.RootLayer.HitTest(localMousePos);
 
-        // Check for anchor/segment hits
-        Span<Shape.HitResult> hits = stackalloc Shape.HitResult[Shape.MaxAnchors];
-        var hitCount = shape.HitTestAll(localMousePos, hits);
-
-        Span<ushort> anchorHits = stackalloc ushort[hitCount];
-        Span<ushort> segmentHits = stackalloc ushort[hitCount];
-        var anchorCount = 0;
-        var segmentCount = 0;
-
-        for (var i = 0; i < hitCount; i++)
+        if (hit.HasValue)
         {
-            if (hits[i].AnchorIndex != ushort.MaxValue)
-                anchorHits[anchorCount++] = hits[i].AnchorIndex;
-            else if (hits[i].SegmentIndex != ushort.MaxValue)
-                segmentHits[segmentCount++] = hits[i].SegmentIndex;
-        }
+            var h = hit.Value;
 
-        if (anchorCount > 0 || segmentCount > 0)
-        {
-            SortByPathIndexDescending(shape, anchorHits[..anchorCount]);
-            SortByPathIndexDescending(shape, segmentHits[..segmentCount]);
+            // Switch active layer to the hit layer
+            if (h.Layer != Document.ActiveLayer)
+                Document.ActiveLayer = h.Layer;
 
-            if (anchorCount > 0)
+            if (h.Hit.AnchorIndex >= 0)
             {
-                if (shift)
-                    ShiftSelectNext(anchorHits[..anchorCount], shape.IsAnchorSelected, shape.SetAnchorSelected);
-                else
-                {
-                    var nextIdx = FindNextInCycle(anchorHits[..anchorCount], shape.IsAnchorSelected);
-                    SelectAnchor(shape, anchorHits[nextIdx], toggle: false);
-                }
-            }
-            else
-            {
-                if (shift)
-                    ShiftSelectNextSegment(shape, segmentHits[..segmentCount]);
-                else
-                {
-                    var nextIdx = FindNextInCycle(segmentHits[..segmentCount], shape.IsSegmentSelected);
-                    SelectSegment(shape, segmentHits[nextIdx], toggle: false);
-                }
+                // Anchor hit
+                if (!shift) ClearAllSelections();
+                h.Path.SetAnchorSelected(h.Hit.AnchorIndex, true);
+                UpdateSelection();
+                return;
             }
 
-            UpdateSelection();
-            return;
-        }
-
-        // Check for path containment
-        Span<ushort> pathHits = stackalloc ushort[Shape.MaxPaths];
-        var pathCount = shape.GetPathsContainingPoint(localMousePos, pathHits);
-
-        if (pathCount > 0)
-        {
-            pathHits[..pathCount].Reverse();
-
-            if (shift)
-                ShiftSelectNext(pathHits[..pathCount], shape.IsPathSelected, i => shape.SetPathSelected(i, true), i => shape.SetPathSelected(i, false));
-            else
+            if (h.Hit.SegmentIndex >= 0)
             {
-                var nextIdx = FindNextInCycle(pathHits[..pathCount], shape.IsPathSelected);
-                SelectPath(shape, pathHits[nextIdx], toggle: false);
+                // Segment hit — select both anchors
+                if (!shift) ClearAllSelections();
+                var nextIdx = (h.Hit.SegmentIndex + 1) % h.Path.Anchors.Count;
+                h.Path.SetAnchorSelected(h.Hit.SegmentIndex, true);
+                h.Path.SetAnchorSelected(nextIdx, true);
+                UpdateSelection();
+                return;
             }
 
-            UpdateSelection();
-            return;
+            if (h.Hit.InPath)
+            {
+                // Path containment — select all anchors
+                if (!shift) ClearAllSelections();
+                h.Path.SelectAll();
+                UpdateSelection();
+                return;
+            }
         }
 
         // Nothing hit — clear selection
@@ -750,72 +705,16 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
-    private static int FindNextInCycle(Span<ushort> items, Func<ushort, bool> isSelected)
-    {
-        for (var i = 0; i < items.Length; i++)
-        {
-            if (isSelected(items[i]))
-                return (i + 1) % items.Length;
-        }
-        return 0;
-    }
-
-    private static void ShiftSelectNext(Span<ushort> items, Func<ushort, bool> isSelected, Action<ushort, bool> setSelected)
-    {
-        for (var i = 0; i < items.Length; i++)
-        {
-            if (!isSelected(items[i]))
-            {
-                setSelected(items[i], true);
-                return;
-            }
-        }
-        for (var i = 0; i < items.Length; i++)
-            setSelected(items[i], false);
-    }
-
-    private static void ShiftSelectNext(Span<ushort> items, Func<ushort, bool> isSelected, Action<ushort> select, Action<ushort> deselect)
-    {
-        for (var i = 0; i < items.Length; i++)
-        {
-            if (!isSelected(items[i]))
-            {
-                select(items[i]);
-                return;
-            }
-        }
-        for (var i = 0; i < items.Length; i++)
-            deselect(items[i]);
-    }
-
-    private static void ShiftSelectNextSegment(Shape shape, Span<ushort> items)
-    {
-        for (var i = 0; i < items.Length; i++)
-        {
-            if (!shape.IsSegmentSelected(items[i]))
-            {
-                shape.SetAnchorSelected(items[i], true);
-                shape.SetAnchorSelected(shape.GetNextAnchorIndex(items[i]), true);
-                return;
-            }
-        }
-        for (var i = 0; i < items.Length; i++)
-        {
-            shape.SetAnchorSelected(items[i], false);
-            shape.SetAnchorSelected(shape.GetNextAnchorIndex(items[i]), false);
-        }
-    }
-
-    private static void SortByPathIndexDescending(Shape shape, Span<ushort> indices)
-    {
-        indices.Sort((a, b) => shape.GetAnchor(b).Path.CompareTo(shape.GetAnchor(a).Path));
-    }
-
     private void DrawWireframe()
     {
-        var shape = CurrentShape;
-        DrawShapeSegments(shape);
-        DrawShapeAnchors(shape);
+        var transform = Document.Transform;
+        Document.RootLayer.ForEachEditablePath(path =>
+        {
+            if (path.Anchors.Count < 2) return;
+            path.UpdateSamples();
+            DrawPathSegments(path, transform);
+            DrawPathAnchors(path, transform);
+        });
     }
 
     private void DrawEdges()
@@ -990,17 +889,17 @@ public partial class SpriteEditor : DocumentEditor
             using (Inspector.BeginProperty("Operation"))
             using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
-                UI.SetChecked(Document.CurrentOperation == PathOperation.Normal);
+                UI.SetChecked(Document.CurrentOperation == SpritePathOperation.Normal);
                 if (UI.Button(WidgetIds.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
-                    SetPathOperation(PathOperation.Normal);
+                    SetSpritePathOperation(SpritePathOperation.Normal);
 
-                UI.SetChecked(Document.CurrentOperation == PathOperation.Subtract);
+                UI.SetChecked(Document.CurrentOperation == SpritePathOperation.Subtract);
                 if (UI.Button(WidgetIds.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon))
-                    SetPathOperation(PathOperation.Subtract);
+                    SetSpritePathOperation(SpritePathOperation.Subtract);
 
-                UI.SetChecked(Document.CurrentOperation == PathOperation.Clip);
+                UI.SetChecked(Document.CurrentOperation == SpritePathOperation.Clip);
                 if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon))
-                    SetPathOperation(PathOperation.Clip);
+                    SetSpritePathOperation(SpritePathOperation.Clip);
             }
 
             using (Inspector.BeginProperty("Fill"))

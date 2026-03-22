@@ -1,7 +1,7 @@
-
-path
-fill #FFFFFF
-anchor 0.4765625 -0.1171875
-anchor 0 0.1171875
-anchor -0.4765625 -0.1171875
+path {
+  fill #FFFFFF
+  anchor 0.4765625 -0.1171875
+  anchor 0 0.1171875
+  anchor -0.4765625 -0.1171875
+}
 

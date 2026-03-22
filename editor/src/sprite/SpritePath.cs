@@ -6,6 +6,13 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
+public enum SpritePathOperation : byte
+{
+    Normal,
+    Subtract,
+    Clip
+}
+
 public class SpritePath
 {
     public const int MaxSegmentSamples = 8;
@@ -13,11 +20,11 @@ public class SpritePath
     public const float MinCurve = 0.0001f;
 
     public string? Name { get; set; }
-    public List<PathAnchor> Anchors { get; } = new();
+    public List<SpritePathAnchor> Anchors { get; } = new();
     public Color32 FillColor { get; set; } = Color32.White;
     public Color32 StrokeColor { get; set; } = new(0, 0, 0, 0);
     public byte StrokeWidth { get; set; }
-    public PathOperation Operation { get; set; } = PathOperation.Normal;
+    public SpritePathOperation Operation { get; set; } = SpritePathOperation.Normal;
     public bool Open { get; set; }
     public bool IsSelected { get; set; }
 
@@ -27,8 +34,8 @@ public class SpritePath
     private Vector2[]? _samples;
     private bool _samplesDirty = true;
 
-    public bool IsSubtract => Operation == PathOperation.Subtract;
-    public bool IsClip => Operation == PathOperation.Clip;
+    public bool IsSubtract => Operation == SpritePathOperation.Subtract;
+    public bool IsClip => Operation == SpritePathOperation.Clip;
 
     #region Samples
 
@@ -162,7 +169,7 @@ public class SpritePath
             var a = Anchors[i];
             if (a.IsSelected)
             {
-                a.Flags &= ~AnchorFlags.Selected;
+                a.Flags &= ~SpritePathAnchorFlags.Selected;
                 Anchors[i] = a;
             }
         }
@@ -173,9 +180,9 @@ public class SpritePath
     {
         var a = Anchors[index];
         if (selected)
-            a.Flags |= AnchorFlags.Selected;
+            a.Flags |= SpritePathAnchorFlags.Selected;
         else
-            a.Flags &= ~AnchorFlags.Selected;
+            a.Flags &= ~SpritePathAnchorFlags.Selected;
         Anchors[index] = a;
 
         // Update path-level selection flag
@@ -196,7 +203,7 @@ public class SpritePath
         for (var i = 0; i < Anchors.Count; i++)
         {
             var a = Anchors[i];
-            a.Flags |= AnchorFlags.Selected;
+            a.Flags |= SpritePathAnchorFlags.Selected;
             Anchors[i] = a;
         }
         IsSelected = true;
@@ -496,14 +503,14 @@ public class SpritePath
                 return Anchors.Count - 1;
         }
 
-        Anchors.Add(new PathAnchor { Position = position, Curve = curve });
+        Anchors.Add(new SpritePathAnchor { Position = position, Curve = curve });
         MarkDirty();
         return Anchors.Count - 1;
     }
 
     public void InsertAnchor(int afterIndex, Vector2 position, float curve = 0)
     {
-        Anchors.Insert(afterIndex + 1, new PathAnchor { Position = position, Curve = curve });
+        Anchors.Insert(afterIndex + 1, new SpritePathAnchor { Position = position, Curve = curve });
         MarkDirty();
     }
 
@@ -556,7 +563,7 @@ public class SpritePath
         // Insert the new anchor and zero out curves on split segments
         var insertIdx = anchorIndex + 1;
         if (insertIdx > Anchors.Count) insertIdx = Anchors.Count;
-        Anchors.Insert(insertIdx, new PathAnchor { Position = splitPoint });
+        Anchors.Insert(insertIdx, new SpritePathAnchor { Position = splitPoint });
 
         // Zero out the original segment curve (crude but functional)
         var aa = Anchors[anchorIndex];
@@ -567,6 +574,90 @@ public class SpritePath
     }
 
     #endregion
+
+    // Split this path into two paths at the given anchor indices.
+    // Returns the new second path. This path becomes the first path.
+    // anchor1 must come before anchor2 in the anchor list.
+    public SpritePath? SplitAtAnchors(int anchor1, int anchor2, ReadOnlySpan<Vector2> intermediatePoints, bool reverseIntermediates)
+    {
+        if (anchor1 < 0 || anchor2 < 0 || anchor1 >= Anchors.Count || anchor2 >= Anchors.Count)
+            return null;
+        if (anchor1 == anchor2)
+            return null;
+
+        // Path 1: anchor1 → anchor2, plus reversed intermediates
+        // Path 2: anchor2 → wrap → anchor1, plus intermediates
+        var path1Anchors = new List<SpritePathAnchor>();
+        var path2Anchors = new List<SpritePathAnchor>();
+
+        // Collect path1: anchor1 to anchor2 (forward)
+        for (var i = anchor1; ; i = (i + 1) % Anchors.Count)
+        {
+            var a = Anchors[i];
+            a.Flags = SpritePathAnchorFlags.None;
+            path1Anchors.Add(a);
+            if (i == anchor2) break;
+        }
+
+        // Add reversed intermediates to path1 (knife line, curve=0)
+        if (intermediatePoints.Length > 0)
+        {
+            if (reverseIntermediates)
+            {
+                for (var i = intermediatePoints.Length - 1; i >= 0; i--)
+                    path1Anchors.Add(new SpritePathAnchor { Position = intermediatePoints[i] });
+            }
+            else
+            {
+                for (var i = 0; i < intermediatePoints.Length; i++)
+                    path1Anchors.Add(new SpritePathAnchor { Position = intermediatePoints[i] });
+            }
+        }
+
+        // Collect path2: anchor2 to anchor1 (forward, wrapping)
+        for (var i = anchor2; ; i = (i + 1) % Anchors.Count)
+        {
+            var a = Anchors[i];
+            a.Flags = SpritePathAnchorFlags.None;
+            path2Anchors.Add(a);
+            if (i == anchor1) break;
+        }
+
+        // Add intermediates to path2
+        if (intermediatePoints.Length > 0)
+        {
+            if (reverseIntermediates)
+            {
+                for (var i = 0; i < intermediatePoints.Length; i++)
+                    path2Anchors.Add(new SpritePathAnchor { Position = intermediatePoints[i] });
+            }
+            else
+            {
+                for (var i = intermediatePoints.Length - 1; i >= 0; i--)
+                    path2Anchors.Add(new SpritePathAnchor { Position = intermediatePoints[i] });
+            }
+        }
+
+        // Update this path to be path1
+        Anchors.Clear();
+        Anchors.AddRange(path1Anchors);
+        MarkDirty();
+
+        // Create path2
+        if (path2Anchors.Count < 3)
+            return null;
+
+        var newPath = new SpritePath
+        {
+            FillColor = FillColor,
+            StrokeColor = StrokeColor,
+            StrokeWidth = StrokeWidth,
+            Operation = Operation,
+        };
+        newPath.Anchors.AddRange(path2Anchors);
+        newPath.MarkDirty();
+        return newPath;
+    }
 
     #region Clone
 

@@ -8,26 +8,26 @@ namespace NoZ.Editor;
 
 public class CurveTool : Tool
 {
-    private readonly Shape _shape;
+    private readonly SpritePath _path;
     private readonly Action _update;
     private readonly Action _commit;
     private readonly Action _cancel;
     private readonly float[] _savedCurves;
     private readonly Matrix3x2 _transform;
     private readonly Matrix3x2 _invTransform;
-    private readonly List<ushort> _selectedSegments = [];
+    private readonly List<int> _selectedSegments = [];
 
     private Vector2 _startWorld;
 
     public CurveTool(
-        Shape shape,
+        SpritePath path,
         Matrix3x2 transform,
         float[] savedCurves,
         Action update,
         Action commit,
         Action cancel)
     {
-        _shape = shape;
+        _path = path;
         _transform = transform;
         _savedCurves = savedCurves;
         _update = update;
@@ -36,9 +36,9 @@ public class CurveTool : Tool
 
         Matrix3x2.Invert(transform, out _invTransform);
 
-        for (ushort i = 0; i < shape.AnchorCount; i++)
+        for (var i = 0; i < path.Anchors.Count; i++)
         {
-            if (shape.IsSegmentSelected(i))
+            if (path.IsSegmentSelected(i))
                 _selectedSegments.Add(i);
         }
     }
@@ -70,8 +70,8 @@ public class CurveTool : Tool
 
         foreach (var segIdx in _selectedSegments)
         {
-            var a0 = _shape.GetAnchor(segIdx);
-            var a1 = _shape.GetNextAnchor(segIdx);
+            var a0 = _path.Anchors[segIdx];
+            var a1 = _path.Anchors[(segIdx + 1) % _path.Anchors.Count];
 
             var p0 = a0.Position;
             var p1 = a1.Position;
@@ -89,11 +89,11 @@ public class CurveTool : Tool
             if (Input.IsCtrlDown())
                 newCurve = SnapCurve(newCurve, len);
 
-            _shape.SetAnchorCurve(segIdx, newCurve);
+            _path.SetAnchorCurve(segIdx, newCurve);
         }
 
-        _shape.UpdateSamples();
-        _shape.UpdateBounds();
+        _path.UpdateSamples();
+        _path.UpdateBounds();
         _update();
     }
 
@@ -106,8 +106,8 @@ public class CurveTool : Tool
         Gizmos.SetColor(EditorStyle.Workspace.SelectionColor.WithAlpha(0.5f));
         foreach (var segIdx in _selectedSegments)
         {
-            var a0 = _shape.GetAnchor(segIdx);
-            var a1 = _shape.GetNextAnchor(segIdx);
+            var a0 = _path.Anchors[segIdx];
+            var a1 = _path.Anchors[(segIdx + 1) % _path.Anchors.Count];
             Gizmos.DrawDashedLine(a0.Position, a1.Position);
         }
 
@@ -122,9 +122,9 @@ public class CurveTool : Tool
 
     public override void Cancel()
     {
-        _shape.RestoreAnchorCurves(_savedCurves);
-        _shape.UpdateSamples();
-        _shape.UpdateBounds();
+        _path.RestoreCurves(_savedCurves);
+        _path.UpdateSamples();
+        _path.UpdateBounds();
         _cancel();
     }
 
