@@ -133,8 +133,8 @@ public partial class SpriteEditor
         // Remove path if too few anchors remain
         if (path.Anchors.Count < 3)
         {
-            var layer = Document.RootLayer.FindLayerForPath(path);
-            layer?.Paths.Remove(path);
+            var parent = Document.RootLayer.FindParent(path);
+            parent?.Children.Remove(path);
         }
         else
         {
@@ -152,17 +152,17 @@ public partial class SpriteEditor
         var path = GetPathWithSelection();
         if (path == null) return;
 
-        var layer = Document.RootLayer.FindLayerForPath(path);
-        if (layer == null) return;
+        var parent = Document.RootLayer.FindParent(path);
+        if (parent == null) return;
 
         Undo.Record(Document);
 
-        var clone = path.Clone();
+        var clone = path.ClonePath();
         clone.ClearSelection();
         clone.SelectAll();
         path.ClearSelection();
 
-        layer.Paths.Add(clone);
+        parent.Children.Add(clone);
 
         clone.UpdateSamples();
         clone.UpdateBounds();
@@ -191,7 +191,7 @@ public partial class SpriteEditor
         ClearAllSelections();
 
         var newPath = clipboardData.PasteAsPath();
-        ActiveLayer.Paths.Add(newPath);
+        ActiveLayer.Children.Add(newPath);
 
         Document.IncrementVersion();
         Document.UpdateBounds();

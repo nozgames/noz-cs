@@ -13,20 +13,18 @@ public enum SpritePathOperation : byte
     Clip
 }
 
-public class SpritePath
+public class SpritePath : SpriteNode
 {
     public const int MaxSegmentSamples = 8;
     public const float StrokeScale = 0.005f;
     public const float MinCurve = 0.0001f;
 
-    public string? Name { get; set; }
     public List<SpritePathAnchor> Anchors { get; } = new();
     public Color32 FillColor { get; set; } = Color32.White;
     public Color32 StrokeColor { get; set; } = new(0, 0, 0, 0);
     public byte StrokeWidth { get; set; }
     public SpritePathOperation Operation { get; set; } = SpritePathOperation.Normal;
     public bool Open { get; set; }
-    public bool IsSelected { get; set; }
 
     public Rect Bounds { get; private set; }
 
@@ -661,19 +659,24 @@ public class SpritePath
 
     #region Clone
 
-    public SpritePath Clone()
+    public override SpriteNode Clone()
     {
         var clone = new SpritePath
         {
-            Name = Name,
             FillColor = FillColor,
             StrokeColor = StrokeColor,
             StrokeWidth = StrokeWidth,
             Operation = Operation,
             Open = Open,
         };
+        ClonePropertiesTo(clone);
         clone.Anchors.AddRange(Anchors);
         return clone;
+    }
+
+    public SpritePath ClonePath()
+    {
+        return (SpritePath)Clone();
     }
 
     #endregion

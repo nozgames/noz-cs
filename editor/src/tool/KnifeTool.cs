@@ -172,7 +172,7 @@ public class KnifeTool : Tool
         Span<KnifeSegment> knifeSegments = stackalloc KnifeSegment[MaxPoints / 2];
         var knifeSegmentCount = GetKnifeSegments(knifeSegments);
 
-        var allHits = new List<SpriteLayer.PathHitResult>();
+        var allHits = new List<SpriteNode.NodeHitResult>();
 
         for (var ksi = 0; ksi < knifeSegmentCount; ksi++)
         {
@@ -279,7 +279,7 @@ public class KnifeTool : Tool
             notchPath.AddAnchor(positions[i]);
         notchPath.AddAnchor(tailHit.SegmentPosition);
         if (notchPath.Anchors.Count >= 3)
-            layer.Paths.Add(notchPath);
+            layer.Children.Add(notchPath);
     }
 
     private static void CutPath(SpritePath path, SpriteLayer layer,
@@ -323,7 +323,7 @@ public class KnifeTool : Tool
 
         var newPath = path.SplitAtAnchors(headAnchorIdx, tailAnchorIdx, positions, reverseIntermediates);
         if (newPath != null)
-            layer.Paths.Add(newPath);
+            layer.Children.Add(newPath);
     }
 
     private void UpdateHover()
@@ -449,34 +449,38 @@ public class KnifeTool : Tool
     {
         if (!layer.Visible) return;
 
-        foreach (var path in layer.Paths)
+        foreach (var child in layer.Children)
         {
-            if (path.Anchors.Count < 2) continue;
-            path.UpdateSamples();
-
-            var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
-            for (var a = 0; a < segmentCount; a++)
+            if (child is SpritePath path)
             {
-                var a0 = path.Anchors[a];
-                var a1 = path.Anchors[(a + 1) % path.Anchors.Count];
-                var samples = path.GetSegmentSamples(a);
+                if (path.Anchors.Count < 2) continue;
+                path.UpdateSamples();
 
-                if (Physics.OverlapLine(from, to, a0.Position, samples[0], out var intersection))
-                    _points.Add(new KnifePoint { Position = intersection, Intersection = true });
-
-                for (var s = 0; s < SpritePath.MaxSegmentSamples - 1; s++)
+                var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
+                for (var a = 0; a < segmentCount; a++)
                 {
-                    if (Physics.OverlapLine(from, to, samples[s], samples[s + 1], out intersection))
+                    var a0 = path.Anchors[a];
+                    var a1 = path.Anchors[(a + 1) % path.Anchors.Count];
+                    var samples = path.GetSegmentSamples(a);
+
+                    if (Physics.OverlapLine(from, to, a0.Position, samples[0], out var intersection))
+                        _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+
+                    for (var s = 0; s < SpritePath.MaxSegmentSamples - 1; s++)
+                    {
+                        if (Physics.OverlapLine(from, to, samples[s], samples[s + 1], out intersection))
+                            _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+                    }
+
+                    if (Physics.OverlapLine(from, to, samples[SpritePath.MaxSegmentSamples - 1], a1.Position, out intersection))
                         _points.Add(new KnifePoint { Position = intersection, Intersection = true });
                 }
-
-                if (Physics.OverlapLine(from, to, samples[SpritePath.MaxSegmentSamples - 1], a1.Position, out intersection))
-                    _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+            }
+            else if (child is SpriteLayer childLayer)
+            {
+                CollectIntersections(childLayer, from, to);
             }
         }
-
-        foreach (var child in layer.Children)
-            CollectIntersections(child, from, to);
     }
 
     private void Finish()

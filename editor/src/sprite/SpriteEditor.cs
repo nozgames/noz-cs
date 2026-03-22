@@ -607,15 +607,15 @@ public partial class SpriteEditor : DocumentEditor
         var path = GetPathWithSelection();
         if (path == null) return;
 
-        var layer = Document.RootLayer.FindLayerForPath(path);
-        if (layer == null) return;
+        var parent = Document.RootLayer.FindParent(path);
+        if (parent == null) return;
 
-        var idx = layer.Paths.IndexOf(path);
+        var idx = parent.Children.IndexOf(path);
         if (idx <= 0) return;
 
         Undo.Record(Document);
-        layer.Paths.RemoveAt(idx);
-        layer.Paths.Insert(idx - 1, path);
+        parent.Children.RemoveAt(idx);
+        parent.Children.Insert(idx - 1, path);
         Document.IncrementVersion();
     }
 
@@ -624,15 +624,15 @@ public partial class SpriteEditor : DocumentEditor
         var path = GetPathWithSelection();
         if (path == null) return;
 
-        var layer = Document.RootLayer.FindLayerForPath(path);
-        if (layer == null) return;
+        var parent = Document.RootLayer.FindParent(path);
+        if (parent == null) return;
 
-        var idx = layer.Paths.IndexOf(path);
-        if (idx < 0 || idx >= layer.Paths.Count - 1) return;
+        var idx = parent.Children.IndexOf(path);
+        if (idx < 0 || idx >= parent.Children.Count - 1) return;
 
         Undo.Record(Document);
-        layer.Paths.RemoveAt(idx);
-        layer.Paths.Insert(idx + 1, path);
+        parent.Children.RemoveAt(idx);
+        parent.Children.Insert(idx + 1, path);
         Document.IncrementVersion();
     }
 

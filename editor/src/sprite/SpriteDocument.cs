@@ -250,7 +250,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         Skeleton.Clear();
         ReloadGeneration();
         RootLayer.Children.Clear();
-        RootLayer.Paths.Clear();
         AnimFrames.Clear();
         ActiveLayer = null;
 
@@ -266,7 +265,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     private void Load(ref Tokenizer tk)
     {
         RootLayer.Children.Clear();
-        RootLayer.Paths.Clear();
         AnimFrames.Clear();
 
         while (!tk.IsEOF)
@@ -294,7 +292,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             }
         }
 
-        ActiveLayer = RootLayer.Children.Count > 0 ? RootLayer.Children[0] : RootLayer;
+        ActiveLayer = RootLayer.Children.OfType<SpriteLayer>().FirstOrDefault() ?? RootLayer;
     }
 
     private void ParseLayer(ref Tokenizer tk, SpriteLayer parent)
@@ -391,7 +389,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
                 break;
         }
 
-        layer.Paths.Add(path);
+        layer.Children.Add(path);
     }
 
     private void ParseAnimFrame(ref Tokenizer tk)
@@ -590,11 +588,17 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         writer.WriteLine();
 
         // Paths directly on root layer are written at top level (no wrapping layer)
-        foreach (var path in RootLayer.Paths)
-            SavePathV2(writer, path, 0);
+        foreach (var child in RootLayer.Children)
+        {
+            if (child is SpritePath path)
+                SavePathV2(writer, path, 0);
+        }
 
-        foreach (var layer in RootLayer.Children)
-            SaveLayer(writer, layer, 0);
+        foreach (var child in RootLayer.Children)
+        {
+            if (child is SpriteLayer layer)
+                SaveLayer(writer, layer, 0);
+        }
 
         if (AnimFrames.Count > 0)
         {
@@ -658,11 +662,13 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         var indent = new string(' ', depth * 2);
         writer.WriteLine($"{indent}layer \"{layer.Name}\" {{");
 
-        foreach (var path in layer.Paths)
-            SavePathV2(writer, path, depth + 1);
-
         foreach (var child in layer.Children)
-            SaveLayer(writer, child, depth + 1);
+        {
+            if (child is SpritePath path)
+                SavePathV2(writer, path, depth + 1);
+            else if (child is SpriteLayer childLayer)
+                SaveLayer(writer, childLayer, depth + 1);
+        }
 
         writer.WriteLine($"{indent}}}");
         writer.WriteLine();
@@ -872,11 +878,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         // Clone layer model
         RootLayer.Children.Clear();
-        RootLayer.Paths.Clear();
         foreach (var child in src.RootLayer.Children)
             RootLayer.Children.Add(child.Clone());
-        foreach (var path in src.RootLayer.Paths)
-            RootLayer.Paths.Add(path.Clone());
 
         AnimFrames.Clear();
         foreach (var frame in src.AnimFrames)
@@ -1074,8 +1077,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         // Collect subtract paths within this layer
         List<Clipper2Lib.PathsD>? subtractContours = null;
-        foreach (var path in layer.Paths)
+        foreach (var child in layer.Children)
         {
+            if (child is not SpritePath path) continue;
             if (!path.IsSubtract || path.Anchors.Count < 3) continue;
             var contours = SpritePathClipper.SpritePathToPaths(path);
             if (contours.Count > 0)
@@ -1087,8 +1091,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         Clipper2Lib.PathsD? accumulatedPaths = null;
 
-        foreach (var path in layer.Paths)
+        foreach (var child in layer.Children)
         {
+            if (child is not SpritePath path) continue;
             if (path.IsSubtract || path.Anchors.Count < 3) continue;
 
             var contours = SpritePathClipper.SpritePathToPaths(path);
@@ -1169,7 +1174,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         // Recurse into child layers
         foreach (var child in layer.Children)
-            RasterizeLayer(child, image, targetRect, sourceOffset, dpi);
+        {
+            if (child is SpriteLayer childLayer)
+                RasterizeLayer(childLayer, image, targetRect, sourceOffset, dpi);
+        }
     }
 
     internal void UpdateAtlasUVs(AtlasDocument atlas, ReadOnlySpan<AtlasSpriteRect> allRects, int padding)

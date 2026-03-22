@@ -232,7 +232,7 @@ public class PenTool : Tool
 
         path.UpdateSamples();
         path.UpdateBounds();
-        _activeLayer.Paths.Add(path);
+        _activeLayer.Children.Add(path);
 
         _document.IncrementVersion();
         _document.UpdateBounds();

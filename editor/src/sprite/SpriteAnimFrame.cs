@@ -47,10 +47,13 @@ public class SpriteAnimFrame
         return clone;
     }
 
-    private void MapLayers(SpriteLayer source, SpriteLayer target, SpriteAnimFrame clone)
+    private void MapLayers(SpriteNode source, SpriteNode target, SpriteAnimFrame clone)
     {
-        if (VisibleLayers.Contains(source))
-            clone.VisibleLayers.Add(target);
+        if (source is SpriteLayer sourceLayer && target is SpriteLayer targetLayer)
+        {
+            if (VisibleLayers.Contains(sourceLayer))
+                clone.VisibleLayers.Add(targetLayer);
+        }
 
         for (var i = 0; i < source.Children.Count && i < target.Children.Count; i++)
             MapLayers(source.Children[i], target.Children[i], clone);

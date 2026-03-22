@@ -133,9 +133,9 @@ public partial class SpriteEditor
 
         // Collect subtract paths within this layer
         List<PathsD>? subtractContours = null;
-        for (var pi = 0; pi < layer.Paths.Count; pi++)
+        foreach (var child in layer.Children)
         {
-            var path = layer.Paths[pi];
+            if (child is not SpritePath path) continue;
             if (!path.IsSubtract || path.Anchors.Count < 3) continue;
 
             var contours = SpritePathClipper.SpritePathToPaths(path);
@@ -149,9 +149,9 @@ public partial class SpriteEditor
         // Tessellate normal/clip paths within this layer
         PathsD? accumulatedPaths = null;
 
-        for (var pi = 0; pi < layer.Paths.Count; pi++)
+        foreach (var child in layer.Children)
         {
-            var path = layer.Paths[pi];
+            if (child is not SpritePath path) continue;
             if (path.IsSubtract || path.Anchors.Count < 3) continue;
 
             var contours = SpritePathClipper.SpritePathToPaths(path);
@@ -245,7 +245,10 @@ public partial class SpriteEditor
 
         // Recurse into child layers
         foreach (var child in layer.Children)
-            TessellateLayer(child, ref vertexOffset, ref indexOffset);
+        {
+            if (child is SpriteLayer childLayer)
+                TessellateLayer(childLayer, ref vertexOffset, ref indexOffset);
+        }
     }
 
     private void DrawColoredMesh(int sortGroup)
