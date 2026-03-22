@@ -257,6 +257,46 @@ public static unsafe partial class ElementTree
         state.Offset = offset;
     }
 
+    private static void HandleFlexSplitterInput(ref Element e)
+    {
+        ref var d = ref e.Data.FlexSplitter;
+        if (d.State == null || d.PrevFlex == 0 || d.NextFlex == 0) return;
+
+        if (IsDown(d.Id) && !HasCaptureById(d.Id))
+            SetCaptureById(d.Id);
+
+        ref var state = ref *d.State;
+        var axis = (int)d.Axis;
+        ref var prevFlex = ref GetElement(d.PrevFlex);
+        ref var nextFlex = ref GetElement(d.NextFlex);
+
+        var prevSize = prevFlex.Rect.GetSize(axis);
+        var nextSize = nextFlex.Rect.GetSize(axis);
+        var available = prevSize + nextSize;
+        if (available <= 0) return;
+
+        state.AvailableSpace = available;
+
+        if (state.FixedSize <= 0)
+            state.FixedSize = state.FixedPane == 2 ? nextSize : prevSize;
+
+        if (HasCaptureById(d.Id))
+        {
+            var prevWorldPos = Vector2.Transform(prevFlex.Rect.Position, prevFlex.Transform);
+            var mouseOnAxis = axis == 0 ? MouseWorldPosition.X : MouseWorldPosition.Y;
+            var pane1Size = mouseOnAxis - (axis == 0 ? prevWorldPos.X : prevWorldPos.Y);
+            var fixedSize = state.FixedPane == 2 ? available - pane1Size : pane1Size;
+
+            fixedSize = Math.Clamp(fixedSize, d.MinSize, d.MaxSize);
+            var otherSize = available - fixedSize;
+            if (otherSize < d.MinSize2) fixedSize = available - d.MinSize2;
+            if (d.MaxSize2 < float.MaxValue && otherSize > d.MaxSize2) fixedSize = available - d.MaxSize2;
+            state.FixedSize = Math.Max(fixedSize, 0);
+        }
+
+        state.Ratio = Math.Clamp(state.FixedSize / available, 0.001f, 0.999f);
+    }
+
     private static void HandleTrackInput(ref Element e)
     {
         ref var d = ref e.Data.Track;
@@ -376,6 +416,9 @@ public static unsafe partial class ElementTree
 
         if (e.Type == ElementType.Track)
             HandleTrackInput(ref e);
+
+        if (e.Type == ElementType.FlexSplitter)
+            HandleFlexSplitterInput(ref e);
 
         if (e.Type == ElementType.EditableText)
             HandleEditableTextInput(ref e);

@@ -48,3 +48,12 @@ public struct TrackState
     public float Y;
 }
 
+public struct FlexSplitterState
+{
+    public float Ratio;
+    public float FixedSize;
+    public float AvailableSpace;
+    public int FixedPane;
+    public byte Initialized;
+}
+

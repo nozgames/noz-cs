@@ -521,6 +521,8 @@ public unsafe partial class SDLPlatform : IPlatform
                 SystemCursor.Move => SDL_SystemCursor.SDL_SYSTEM_CURSOR_MOVE,
                 SystemCursor.Crosshair => SDL_SystemCursor.SDL_SYSTEM_CURSOR_CROSSHAIR,
                 SystemCursor.Wait => SDL_SystemCursor.SDL_SYSTEM_CURSOR_WAIT,
+                SystemCursor.ResizeEW => SDL_SystemCursor.SDL_SYSTEM_CURSOR_EW_RESIZE,
+                SystemCursor.ResizeNS => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NS_RESIZE,
                 _ => SDL_SystemCursor.SDL_SYSTEM_CURSOR_DEFAULT
             };
             _cursors[index] = SDL_CreateSystemCursor(sdlCursor);

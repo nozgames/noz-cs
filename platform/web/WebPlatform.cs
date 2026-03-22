@@ -169,6 +169,8 @@ public class WebPlatform : IPlatform
             SystemCursor.Move => "move",
             SystemCursor.Crosshair => "crosshair",
             SystemCursor.Wait => "wait",
+            SystemCursor.ResizeEW => "col-resize",
+            SystemCursor.ResizeNS => "row-resize",
             _ => "default"
         };
         _module?.InvokeVoidAsync("setCursor", cursorStyle);

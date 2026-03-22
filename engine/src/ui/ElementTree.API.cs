@@ -205,6 +205,22 @@ public static unsafe partial class ElementTree
 
     public static void EndTrack() => EndElement(ElementType.Track);
 
+    public static void BeginFlexSplitter(ref FlexSplitterState state, WidgetId id, float barSize,
+        float minSize = 0, float maxSize = float.MaxValue, float minSize2 = 0, float maxSize2 = float.MaxValue)
+    {
+        ref var e = ref BeginElement(ElementType.FlexSplitter);
+        ref var d = ref e.Data.FlexSplitter;
+        d.Id = id;
+        d.BarSize = barSize;
+        d.MinSize = minSize;
+        d.MaxSize = maxSize;
+        d.MinSize2 = minSize2;
+        d.MaxSize2 = maxSize2;
+        d.State = (FlexSplitterState*)Unsafe.AsPointer(ref state);
+    }
+
+    public static void EndFlexSplitter() => EndElement(ElementType.FlexSplitter);
+
     public static int BeginRow(float spacing = 0)
     {
         ref var e = ref BeginElement(ElementType.Row);

@@ -23,6 +23,7 @@ public static partial class Workspace
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId Scene { get; }
         public static partial WidgetId ReferencesButton { get; }
+        public static partial WidgetId InspectorSplitter { get; }
     }
 
     private const float ZoomMin = 0.2f;
@@ -41,6 +42,7 @@ public static partial class Workspace
     private static Camera _camera = null!;
 
     private static float _zoom = ZoomDefault;
+    private static float _inspectorSize = 300f;
     private static float _dpi = DefaultDpi;
     private static float _uiScale = 1f;
     private static float _userUIScale = 1f;
@@ -275,6 +277,7 @@ public static partial class Workspace
         _showNames = props.GetBool("workspace", "show_names", false);
         _showReferences = props.GetBool("workspace", "show_references", false);
         _userUIScale = props.GetFloat("workspace", "ui_scale", 1f);
+        _inspectorSize = props.GetFloat("workspace", "inspector_size", 300f);
         UI.UserScale = _userUIScale;
 
         // Restore camera position and zoom from visible collection
@@ -301,6 +304,14 @@ public static partial class Workspace
         props.SetBool("workspace", "show_names", _showNames);
         props.SetBool("workspace", "show_references", _showReferences);
         props.SetFloat("workspace", "ui_scale", UI.UserScale);
+        props.SetFloat("workspace", "inspector_size", _inspectorSize);
+
+        var winSize = Application.WindowSize;
+        var winPos = Application.WindowPosition;
+        props.SetInt("window", "width", winSize.X);
+        props.SetInt("window", "height", winSize.Y);
+        props.SetInt("window", "x", winPos.X);
+        props.SetInt("window", "y", winPos.Y);
     }
     
     public static void Update()
@@ -455,7 +466,11 @@ public static partial class Workspace
                 using (UI.BeginFlex())
                     ActiveEditor?.UpdateUI();
 
-                Inspector.UpdateUI();
+                UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
+                    EditorStyle.Inspector.Splitter, fixedPane: 2);
+
+                using (UI.BeginFlex())
+                    Inspector.UpdateUI();
             }
         }
 

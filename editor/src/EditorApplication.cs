@@ -28,6 +28,29 @@ internal class EditorApplicationInstance : IApplication
     public void UpdateUI() => EditorApplication.UpdateUI();
     public void LateUpdate() => EditorApplication.LateUpdate();
 
+    public void LoadConfig(ApplicationConfig config)
+    {
+        var path = Path.Combine(EditorApplication.ProjectPath, ".noz", "user.cfg");
+        var props = PropertySet.LoadFile(path);
+        if (props == null) return;
+
+        var w = props.GetInt("window", "width", 0);
+        var h = props.GetInt("window", "height", 0);
+        if (w > 100 && h > 100)
+        {
+            config.Width = w;
+            config.Height = h;
+        }
+
+        var x = props.GetInt("window", "x", int.MinValue);
+        var y = props.GetInt("window", "y", int.MinValue);
+        if (x != int.MinValue && y != int.MinValue)
+        {
+            config.X = x;
+            config.Y = y;
+        }
+    }
+
     public void LoadAssets()
     {
         DocumentManager.UpdateExports();

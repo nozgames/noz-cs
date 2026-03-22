@@ -12,7 +12,9 @@ public enum SystemCursor
     Default,
     Move,
     Crosshair,
-    Wait
+    Wait,
+    ResizeEW,
+    ResizeNS,
 }
 
 public static class Cursor
@@ -20,7 +22,7 @@ public static class Cursor
     private const float Scale = 0.75f;
 
     private static Sprite? _sprite;
-    private static SystemCursor _systemCursor;
+    private static SystemCursor _systemCursor = SystemCursor.Default;
     private static readonly Camera _camera = new() { FlipY = false };
 
     internal static Sprite? ActiveSprite => _sprite;

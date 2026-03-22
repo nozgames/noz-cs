@@ -684,8 +684,17 @@ public static class EditorStyle
 
         public static readonly ContainerStyle Root = Panel with
         {
-            Width = 300.0f,
             Padding = Control.Spacing
+        };
+
+        public static readonly FlexSplitterStyle Splitter = new()
+        {
+            BarSize = 4,
+            MinSize = 150,
+            MinSize2 = 200,
+            BarColor = Palette.Separator,
+            BarHoverColor = Palette.Active,
+            BarDragColor = Palette.Primary,
         };
 
         public static readonly ContainerStyle SectionHeader = new()

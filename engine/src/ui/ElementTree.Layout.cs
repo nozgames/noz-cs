@@ -70,6 +70,7 @@ public static unsafe partial class ElementTree
             case ElementType.Widget:
             case ElementType.Track:
             case ElementType.Align:
+            case ElementType.FlexSplitter:
                 return e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
 
             case ElementType.Row:
@@ -248,6 +249,7 @@ public static unsafe partial class ElementTree
             case ElementType.Scroll:
             case ElementType.Widget:
             case ElementType.Track:
+            case ElementType.FlexSplitter:
                 size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0);
@@ -543,7 +545,13 @@ public static unsafe partial class ElementTree
         var fixedTotal = 0f;
         var flexTotal = 0f;
         var childCount = 0;
+
+        // Pass 1: measure totals + resolve FlexSplitter overrides in-place.
+        // When a FlexSplitter is found, we write resolved weights directly into
+        // the neighboring Flex elements' Data.Flex (safe since the tree is rebuilt each frame).
         var childOffset = (int)e.FirstChild;
+        var prevFlexOffset = -1;
+        var pendingOverride = -1f;
         for (int i = 0; i < e.ChildCount; i++)
         {
             ref var child = ref GetElement(childOffset);
@@ -554,9 +562,20 @@ public static unsafe partial class ElementTree
             }
 
             if (child.Type == ElementType.Flex)
+            {
+                if (pendingOverride >= 0)
+                {
+                    child.Data.Flex = pendingOverride;
+                    pendingOverride = -1f;
+                }
                 flexTotal += child.Data.Flex;
+                prevFlexOffset = childOffset;
+            }
             else
+            {
+                ResolveFlexSplitterOverrides(ref child, prevFlexOffset, containerAxis, ref flexTotal, ref pendingOverride);
                 fixedTotal += FitAxis(childOffset, axis, containerAxis);
+            }
 
             childCount++;
             childOffset = child.NextSibling;
@@ -564,6 +583,7 @@ public static unsafe partial class ElementTree
         if (childCount > 1)
             fixedTotal += (childCount - 1) * spacing;
 
+        // Pass 2: layout children. Data.Flex already has resolved weights.
         var offset = 0f;
         var isFirst = true;
         var remaining = e.Rect.GetSize(axis) - fixedTotal;
@@ -598,6 +618,62 @@ public static unsafe partial class ElementTree
             }
 
             childOffset = child.NextSibling;
+        }
+    }
+
+    private static bool FindFlexSplitterElement(ref Element e, out int splitterOffset)
+    {
+        if (e.Type == ElementType.FlexSplitter)
+        {
+            splitterOffset = e.Index;
+            return true;
+        }
+        if (e.Type == ElementType.Widget && e.ChildCount > 0)
+        {
+            ref var firstChild = ref GetElement(e.FirstChild);
+            if (firstChild.Type == ElementType.FlexSplitter)
+            {
+                splitterOffset = firstChild.Index;
+                return true;
+            }
+        }
+        splitterOffset = 0;
+        return false;
+    }
+
+    private static void ResolveFlexSplitterOverrides(ref Element child, int prevFlexOffset, int containerAxis, ref float flexTotal, ref float pendingOverride)
+    {
+        if (!FindFlexSplitterElement(ref child, out var splitterOffset))
+            return;
+
+        ref var sd = ref GetElement(splitterOffset).Data.FlexSplitter;
+        if (sd.State == null)
+            return;
+
+        ref var state = ref *sd.State;
+        var ratio = Math.Clamp(state.Ratio, 0.001f, 0.999f);
+        var prevWeight = state.FixedPane == 1 ? ratio : 1f - ratio;
+        var nextWeight = state.FixedPane == 1 ? 1f - ratio : ratio;
+
+        sd.Axis = (byte)containerAxis;
+        sd.PrevFlex = (ushort)Math.Max(prevFlexOffset, 0);
+
+        if (prevFlexOffset >= 0)
+        {
+            ref var prev = ref GetElement(prevFlexOffset);
+            flexTotal += prevWeight - prev.Data.Flex;
+            prev.Data.Flex = prevWeight;
+        }
+
+        pendingOverride = nextWeight;
+        sd.NextFlex = 0;
+        var nextOffset = (int)child.NextSibling;
+        while (nextOffset != 0)
+        {
+            ref var next = ref GetElement(nextOffset);
+            if (next.Type == ElementType.Flex) { sd.NextFlex = (ushort)nextOffset; break; }
+            if (next.Type != ElementType.Popup) break;
+            nextOffset = next.NextSibling;
         }
     }
 

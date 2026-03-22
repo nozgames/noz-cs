@@ -31,6 +31,7 @@ internal enum ElementType : byte
     Scene,
     Scroll,
     Track,
+    FlexSplitter,
 }
 
 internal struct Element
@@ -69,6 +70,7 @@ internal struct ElementData
     [FieldOffset(0)] public TextElement Text;
     [FieldOffset(0)] public ImageElement Image;
     [FieldOffset(0)] public SceneElement Scene;
+    [FieldOffset(0)] public FlexSplitterElement FlexSplitter;
 }
 
 internal struct SizeElement
@@ -202,6 +204,20 @@ internal struct PopupElement
     public bool ClampToScreen;
     public bool AutoClose;
     public bool Interactive;
+}
+
+internal unsafe struct FlexSplitterElement
+{
+    public WidgetId Id;
+    public float BarSize;
+    public float MinSize;
+    public float MaxSize;
+    public float MinSize2;
+    public float MaxSize2;
+    public FlexSplitterState* State;
+    public ushort PrevFlex;  // cached by layout: element index of prev flex sibling
+    public ushort NextFlex;  // cached by layout: element index of next flex sibling
+    public byte Axis;        // cached by layout: 0=horizontal, 1=vertical
 }
 
 internal unsafe struct EditableTextElement
