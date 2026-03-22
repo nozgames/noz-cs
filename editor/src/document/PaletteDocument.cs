@@ -43,6 +43,11 @@ public class PaletteDocument : Document
         ParsePalFile();
     }
 
+    public override void LoadMetadata(PropertySet meta)
+    {
+        ShouldExport = false;
+    }
+
     public override void Reload()
     {
         ParsePalFile();

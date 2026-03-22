@@ -7,7 +7,7 @@ using CrypticWizard.RandomWordGenerator;
 
 namespace NoZ.Editor;
 
-public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
+public partial class SpriteEditor : DocumentEditor
 {
     private static partial class WidgetIds
     {
@@ -52,7 +52,6 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private static readonly WordGenerator _wordGenerator = new();
 
-    private readonly ShapeEditor _shapeEditor;
     private int _currentTimeSlot;
     private bool _isPlaying;
     private float _playTimer;
@@ -72,13 +71,12 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     public SpriteEditor(SpriteDocument doc) : base(doc)
     {
         _versionOnOpen = doc.Version;
-        _shapeEditor = new ShapeEditor(this);
 
         if (doc.IsMutable)
         {
             Commands =
             [
-                .._shapeEditor.GetCommands(),
+                ..GetShapeCommands(),
                 new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
                 new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true },
                 new Command { Name = "Flip Horizontal", Handler = FlipHorizontal },
@@ -111,7 +109,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     public override void Dispose()
     {
-        _shapeEditor.ClearSelection();
+        ClearSelection();
         EditorUI.ClosePopup();
 
         if (Document.Version != _versionOnOpen && Document.Atlas != null)
@@ -141,7 +139,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         }
 
         UpdateAnimation();
-        _shapeEditor.HandleDeleteKey();
+        HandleDeleteKey();
 
         var hasGen = Document.Generation is { } gen && gen.Job.Texture != null;
 
@@ -179,13 +177,25 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
         if (!Document.IsMutable) return;
 
         if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
-            _shapeEditor.HandleDragStart();
+            HandleDragStart();
         else if (Input.WasButtonReleased(InputCode.MouseLeft))
             HandleLeftClick();
     }
 
     public override void UpdateUI()
     {
+        if (!Document.IsMutable) return;
+
+        using (UI.BeginRow())
+        {
+            using (UI.BeginFlex())
+                OutlinerUI();
+
+            UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
+                EditorStyle.Inspector.Splitter, fixedPane: 1);
+
+            using (UI.BeginFlex()) { }
+        }
     }
 
     public override void UpdateOverlayUI()
@@ -211,19 +221,19 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
         UI.SetChecked(activeTool is PenTool);
         if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit))
-            _shapeEditor.BeginPenTool();
+            BeginPenTool();
 
         UI.SetChecked(activeTool is KnifeTool);
         if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose))
-            _shapeEditor.BeginKnifeTool();
+            BeginKnifeTool();
 
         UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Rectangle });
         if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer))
-            _shapeEditor.BeginRectangleTool();
+            BeginRectangleTool();
 
         UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Circle });
         if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle))
-            _shapeEditor.BeginCircleTool();
+            BeginCircleTool();
 
         FloatingToolbar.Divider();
 
@@ -694,7 +704,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                 else
                 {
                     var nextIdx = FindNextInCycle(anchorHits[..anchorCount], shape.IsAnchorSelected);
-                    _shapeEditor.SelectAnchor(shape, anchorHits[nextIdx], toggle: false);
+                    SelectAnchor(shape, anchorHits[nextIdx], toggle: false);
                 }
             }
             else
@@ -704,11 +714,11 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
                 else
                 {
                     var nextIdx = FindNextInCycle(segmentHits[..segmentCount], shape.IsSegmentSelected);
-                    _shapeEditor.SelectSegment(shape, segmentHits[nextIdx], toggle: false);
+                    SelectSegment(shape, segmentHits[nextIdx], toggle: false);
                 }
             }
 
-            _shapeEditor.UpdateSelection();
+            UpdateSelection();
             return;
         }
 
@@ -725,18 +735,18 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             else
             {
                 var nextIdx = FindNextInCycle(pathHits[..pathCount], shape.IsPathSelected);
-                _shapeEditor.SelectPath(shape, pathHits[nextIdx], toggle: false);
+                SelectPath(shape, pathHits[nextIdx], toggle: false);
             }
 
-            _shapeEditor.UpdateSelection();
+            UpdateSelection();
             return;
         }
 
         // Nothing hit — clear selection
         if (!shift)
         {
-            _shapeEditor.ClearSelection();
-            _shapeEditor.UpdateSelection();
+            ClearSelection();
+            UpdateSelection();
         }
     }
 
@@ -804,8 +814,8 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
     private void DrawWireframe()
     {
         var shape = CurrentShape;
-        ShapeEditor.DrawSegments(shape);
-        ShapeEditor.DrawAnchors(shape);
+        DrawShapeSegments(shape);
+        DrawShapeAnchors(shape);
     }
 
     private void DrawEdges()
@@ -969,7 +979,7 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     private void PathInspectorUI()
     {
-        if (!_shapeEditor.HasPathSelection)
+        if (!HasPathSelection)
             return;
 
         using (Inspector.BeginSection("PATH"))
@@ -1313,48 +1323,4 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
 
     #endregion
 
-    #region IShapeEditorHost
-
-    Document IShapeEditorHost.Document => base.Document;
-    Shape IShapeEditorHost.CurrentShape => CurrentShape;
-    Color32 IShapeEditorHost.NewPathFillColor => Document.CurrentFillColor;
-    PathOperation IShapeEditorHost.NewPathOperation => Document.CurrentOperation;
-    bool IShapeEditorHost.SnapToPixelGrid => Input.IsCtrlDown(InputScope.All);
-
-    void IShapeEditorHost.OnSelectionChanged(bool hasSelection)
-    {
-        var shape = CurrentShape;
-        for (ushort p = (ushort)(shape.PathCount - 1); p < shape.PathCount; p--)
-        {
-            ref readonly var path = ref shape.GetPath(p);
-            if (!path.IsSelected) continue;
-
-            Document.CurrentFillColor = path.FillColor;
-            Document.CurrentStrokeColor = path.StrokeColor;
-            Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
-            Document.CurrentOperation = path.Operation;
-        }
-    }
-
-    void IShapeEditorHost.ClearAllSelections()
-    {
-        for (ushort fi = 0; fi < Document.FrameCount; fi++)
-            Document.Frames[fi].Shape.ClearSelection();
-    }
-
-    void IShapeEditorHost.InvalidateMesh() => _meshVersion = -1;
-
-    Shape? IShapeEditorHost.GetShapeWithSelection()
-    {
-        var shape = CurrentShape;
-        if (shape.HasSelection()) return shape;
-        return null;
-    }
-
-    void IShapeEditorHost.ForEachEditableShape(Action<Shape> action)
-    {
-        action(CurrentShape);
-    }
-
-    #endregion
 }

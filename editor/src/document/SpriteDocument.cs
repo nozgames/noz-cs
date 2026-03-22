@@ -42,6 +42,11 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
     public readonly SpriteFrame[] Frames = new SpriteFrame[Sprite.MaxFrames];
     public ushort FrameCount = 1;
 
+    // New layer-based model (V2)
+    public SpriteLayer RootLayer { get; } = new() { Name = "Root" };
+    public List<SpriteAnimFrame> AnimFrames { get; } = new();
+    public SpriteLayer? ActiveLayer { get; set; }
+
     private readonly List<Rect> _atlasUV = new();
     private Sprite? _sprite;
     public float Depth;
@@ -207,6 +212,10 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         for (var fi = 0; fi < FrameCount; fi++)
             Frames[fi].Shape.Clear();
         FrameCount = 1;
+        RootLayer.Children.Clear();
+        RootLayer.Paths.Clear();
+        AnimFrames.Clear();
+        ActiveLayer = null;
 
         var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
@@ -218,6 +227,31 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
     }
 
     private void Load(ref Tokenizer tk)
+    {
+        // Detect V2 format by scanning for "layer" keyword followed by "{"
+        if (DetectV2Format(tk))
+            LoadV2(ref tk);
+        else
+            LoadV1(ref tk);
+    }
+
+    private static bool DetectV2Format(Tokenizer tk)
+    {
+        // V2 format uses "layer" as a top-level keyword
+        // Scan a copy of the tokenizer to detect without consuming
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectIdentifier("layer"))
+                return true;
+            if (tk.ExpectIdentifier("path") || tk.ExpectIdentifier("frame"))
+                return false;
+            // Skip other top-level identifiers
+            tk.ExpectToken(out _);
+        }
+        return false;
+    }
+
+    private void LoadV1(ref Tokenizer tk)
     {
         FrameCount = 0;
 
@@ -274,6 +308,302 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
 
         if (FrameCount == 0)
             FrameCount = 1;
+
+        // Migrate V1 data into the new layer model
+        MigrateV1ToLayers();
+    }
+
+    private void MigrateV1ToLayers()
+    {
+        RootLayer.Children.Clear();
+        RootLayer.Paths.Clear();
+        AnimFrames.Clear();
+
+        if (FrameCount <= 1)
+        {
+            // Single frame: put all paths into one layer
+            var layer = new SpriteLayer { Name = "Layer 1" };
+            var shape = Frames[0].Shape;
+            for (ushort pi = 0; pi < shape.PathCount; pi++)
+            {
+                ref readonly var path = ref shape.GetPath(pi);
+                var spritePath = new SpritePath
+                {
+                    FillColor = path.FillColor,
+                    StrokeColor = path.StrokeColor,
+                    StrokeWidth = path.StrokeWidth,
+                    Operation = path.Operation,
+                };
+                for (ushort ai = 0; ai < path.AnchorCount; ai++)
+                {
+                    ref readonly var anchor = ref shape.GetAnchor((ushort)(path.AnchorStart + ai));
+                    spritePath.Anchors.Add(new PathAnchor
+                    {
+                        Position = anchor.Position,
+                        Curve = anchor.Curve,
+                    });
+                }
+                layer.Paths.Add(spritePath);
+            }
+            RootLayer.Children.Add(layer);
+        }
+        else
+        {
+            // Multi-frame: each frame becomes a layer, with animation visibility
+            for (ushort fi = 0; fi < FrameCount; fi++)
+            {
+                var layer = new SpriteLayer { Name = $"Frame {fi + 1}" };
+                var shape = Frames[fi].Shape;
+                for (ushort pi = 0; pi < shape.PathCount; pi++)
+                {
+                    ref readonly var path = ref shape.GetPath(pi);
+                    var spritePath = new SpritePath
+                    {
+                        FillColor = path.FillColor,
+                        StrokeColor = path.StrokeColor,
+                        StrokeWidth = path.StrokeWidth,
+                        Operation = path.Operation,
+                    };
+                    for (ushort ai = 0; ai < path.AnchorCount; ai++)
+                    {
+                        ref readonly var anchor = ref shape.GetAnchor((ushort)(path.AnchorStart + ai));
+                        spritePath.Anchors.Add(new PathAnchor
+                        {
+                            Position = anchor.Position,
+                            Curve = anchor.Curve,
+                        });
+                    }
+                    layer.Paths.Add(spritePath);
+                }
+                RootLayer.Children.Add(layer);
+            }
+
+            // Create animation frames with visibility
+            for (ushort fi = 0; fi < FrameCount; fi++)
+            {
+                var animFrame = new SpriteAnimFrame { Hold = Frames[fi].Hold };
+                animFrame.VisibleLayers.Add(RootLayer.Children[fi]);
+                AnimFrames.Add(animFrame);
+            }
+        }
+
+        ActiveLayer = RootLayer.Children.Count > 0 ? RootLayer.Children[0] : null;
+    }
+
+    private void LoadV2(ref Tokenizer tk)
+    {
+        RootLayer.Children.Clear();
+        RootLayer.Paths.Clear();
+        AnimFrames.Clear();
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectIdentifier("layer"))
+                ParseLayerV2(ref tk, RootLayer);
+            else if (tk.ExpectIdentifier("frame"))
+                ParseAnimFrameV2(ref tk);
+            else if (tk.ExpectIdentifier("edges"))
+            {
+                if (tk.ExpectVec4(out var edgesVec))
+                    Edges = new EdgeInsets(edgesVec.X, edgesVec.Y, edgesVec.Z, edgesVec.W);
+            }
+            else if (tk.ExpectIdentifier("skeleton"))
+                Skeleton.Name = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("generate"))
+                ParseGeneration(ref tk);
+            else
+            {
+                tk.ExpectToken(out var badToken);
+                Log.Error($"SpriteDocument.LoadV2: Unexpected token '{tk.GetString(badToken)}'");
+                break;
+            }
+        }
+
+        // Sync to legacy Frames for compatibility during transition
+        SyncLayersToFrames();
+
+        ActiveLayer = RootLayer.Children.Count > 0 ? RootLayer.Children[0] : null;
+    }
+
+    private void ParseLayerV2(ref Tokenizer tk, SpriteLayer parent)
+    {
+        var name = tk.ExpectQuotedString() ?? "";
+        tk.ExpectDelimiter('{');
+
+        var layer = new SpriteLayer { Name = name };
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectDelimiter('}'))
+                break;
+            else if (tk.ExpectIdentifier("layer"))
+                ParseLayerV2(ref tk, layer);
+            else if (tk.ExpectIdentifier("path"))
+                ParsePathV2(ref tk, layer);
+            else
+            {
+                tk.ExpectToken(out var badToken);
+                Log.Error($"SpriteDocument.ParseLayerV2: Unexpected token '{tk.GetString(badToken)}' in layer '{name}'");
+                break;
+            }
+        }
+
+        parent.Children.Add(layer);
+    }
+
+    private static void ParsePathV2(ref Tokenizer tk, SpriteLayer layer)
+    {
+        // Optional path name: path "name" { ... } or path { ... }
+        string? pathName = null;
+        if (!tk.ExpectDelimiter('{'))
+        {
+            pathName = tk.ExpectQuotedString();
+            tk.ExpectDelimiter('{');
+        }
+
+        var path = new SpritePath { Name = pathName };
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectDelimiter('}'))
+                break;
+            else if (tk.ExpectIdentifier("fill"))
+            {
+                if (tk.ExpectColor(out var color))
+                    path.FillColor = color.ToColor32();
+                else
+                {
+                    path.FillColor = PaletteManager.GetColor(0, tk.ExpectInt()).ToColor32();
+                    var legacyOpacity = tk.ExpectFloat(1.0f);
+                    path.FillColor = path.FillColor.WithAlpha(legacyOpacity);
+                }
+            }
+            else if (tk.ExpectIdentifier("stroke"))
+            {
+                if (tk.ExpectColor(out var color))
+                    path.StrokeColor = color.ToColor32();
+                else
+                {
+                    path.StrokeColor = PaletteManager.GetColor(0, tk.ExpectInt()).ToColor32();
+                    var legacyOpacity = tk.ExpectFloat(0.0f);
+                    path.StrokeColor = path.StrokeColor.WithAlpha(legacyOpacity);
+                }
+                path.StrokeWidth = (byte)tk.ExpectInt(path.StrokeWidth);
+            }
+            else if (tk.ExpectIdentifier("subtract"))
+            {
+                if (tk.ExpectBool())
+                    path.Operation = PathOperation.Subtract;
+            }
+            else if (tk.ExpectIdentifier("clip"))
+            {
+                if (tk.ExpectBool())
+                    path.Operation = PathOperation.Clip;
+            }
+            else if (tk.ExpectIdentifier("open"))
+            {
+                path.Open = tk.ExpectBool();
+            }
+            else if (tk.ExpectIdentifier("anchor"))
+            {
+                var x = tk.ExpectFloat();
+                var y = tk.ExpectFloat();
+                var curve = tk.ExpectFloat();
+                path.Anchors.Add(new PathAnchor
+                {
+                    Position = new Vector2(x, y),
+                    Curve = curve,
+                });
+            }
+            else
+                break;
+        }
+
+        layer.Paths.Add(path);
+    }
+
+    private void ParseAnimFrameV2(ref Tokenizer tk)
+    {
+        tk.ExpectDelimiter('{');
+        var frame = new SpriteAnimFrame();
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectDelimiter('}'))
+                break;
+            else if (tk.ExpectIdentifier("hold"))
+                frame.Hold = tk.ExpectInt();
+            else if (tk.ExpectIdentifier("visible"))
+            {
+                // Read layer names until we hit a non-string token
+                while (!tk.IsEOF)
+                {
+                    var name = tk.ExpectQuotedString();
+                    if (name == null)
+                        break;
+                    var layer = RootLayer.FindLayer(name);
+                    if (layer != null)
+                        frame.VisibleLayers.Add(layer);
+                    else
+                        Log.Warning($"SpriteDocument: Animation frame references unknown layer '{name}'");
+                }
+            }
+            else
+            {
+                tk.ExpectToken(out var badToken);
+                Log.Error($"SpriteDocument.ParseAnimFrameV2: Unexpected token '{tk.GetString(badToken)}'");
+                break;
+            }
+        }
+
+        AnimFrames.Add(frame);
+    }
+
+    private void SyncLayersToFrames()
+    {
+        // During transition: populate legacy Frames from layer data
+        // so existing rendering/export code still works
+        if (AnimFrames.Count == 0)
+        {
+            // Single-frame sprite: all visible layers
+            FrameCount = 1;
+            var shape = Frames[0].Shape;
+            shape.Clear();
+
+            var paths = new List<SpritePath>();
+            RootLayer.CollectVisiblePaths(paths);
+            foreach (var p in paths)
+                AddSpritePathToShape(shape, p);
+        }
+        else
+        {
+            FrameCount = (ushort)Math.Min(AnimFrames.Count, Sprite.MaxFrames);
+            for (ushort fi = 0; fi < FrameCount; fi++)
+            {
+                var animFrame = AnimFrames[fi];
+                var shape = Frames[fi].Shape;
+                shape.Clear();
+                Frames[fi].Hold = animFrame.Hold;
+
+                // Apply visibility and collect paths
+                animFrame.ApplyVisibility(RootLayer);
+                var paths = new List<SpritePath>();
+                RootLayer.CollectVisiblePaths(paths);
+                foreach (var p in paths)
+                    AddSpritePathToShape(shape, p);
+            }
+        }
+    }
+
+    private static void AddSpritePathToShape(Shape shape, SpritePath spritePath)
+    {
+        var pathIndex = shape.AddPath(spritePath.FillColor);
+        shape.SetPathStroke(pathIndex, spritePath.StrokeColor, spritePath.StrokeWidth);
+        if (spritePath.Operation != PathOperation.Normal)
+            shape.SetPathOperation(pathIndex, spritePath.Operation);
+
+        foreach (var anchor in spritePath.Anchors)
+            shape.AddAnchor(pathIndex, anchor.Position, anchor.Curve);
     }
 
     private void ParsePath(SpriteFrame f, ref Tokenizer tk)
@@ -490,6 +820,15 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         if (Skeleton.HasValue)
             writer.WriteLine($"skeleton \"{Skeleton.Name}\"");
 
+        // Always save as V2 format if we have layer data
+        if (RootLayer.Children.Count > 0 || RootLayer.Paths.Count > 0)
+        {
+            SaveV2(writer);
+            SaveGeneration(writer);
+            return;
+        }
+
+        // Fallback to V1 for legacy compatibility
         if (FrameCount > 0)
             writer.WriteLine();
 
@@ -507,13 +846,88 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
             }
 
             if (shape.PathCount > 0)
-                SaveFrame(shape, writer);
+                SaveFrameV1(shape, writer);
         }
 
         SaveGeneration(writer);
     }
 
-    private static void SaveFrame(Shape shape, StreamWriter writer)
+    private void SaveV2(StreamWriter writer)
+    {
+        writer.WriteLine();
+        foreach (var layer in RootLayer.Children)
+            SaveLayerV2(writer, layer, 0);
+
+        if (AnimFrames.Count > 0)
+        {
+            foreach (var frame in AnimFrames)
+            {
+                writer.Write("frame {");
+                writer.WriteLine();
+
+                if (frame.Hold > 0)
+                    writer.WriteLine($"  hold {frame.Hold}");
+
+                if (frame.VisibleLayers.Count > 0)
+                {
+                    writer.Write("  visible");
+                    foreach (var layer in frame.VisibleLayers)
+                        writer.Write($" \"{layer.Name}\"");
+                    writer.WriteLine();
+                }
+
+                writer.WriteLine("}");
+                writer.WriteLine();
+            }
+        }
+    }
+
+    private void SaveLayerV2(StreamWriter writer, SpriteLayer layer, int depth)
+    {
+        var indent = new string(' ', depth * 2);
+        writer.WriteLine($"{indent}layer \"{layer.Name}\" {{");
+
+        var innerIndent = new string(' ', (depth + 1) * 2);
+
+        foreach (var path in layer.Paths)
+        {
+            if (path.Name != null)
+                writer.WriteLine($"{innerIndent}path \"{path.Name}\" {{");
+            else
+                writer.WriteLine($"{innerIndent}path {{");
+
+            var propIndent = new string(' ', (depth + 2) * 2);
+            if (path.IsSubtract)
+                writer.WriteLine($"{propIndent}subtract true");
+            if (path.IsClip)
+                writer.WriteLine($"{propIndent}clip true");
+            if (path.Open)
+                writer.WriteLine($"{propIndent}open true");
+            writer.WriteLine($"{propIndent}fill {FormatColor(path.FillColor)}");
+
+            if (path.StrokeColor.A > 0)
+                writer.WriteLine($"{propIndent}stroke {FormatColor(path.StrokeColor)} {path.StrokeWidth}");
+
+            foreach (var anchor in path.Anchors)
+            {
+                writer.Write(string.Format(CultureInfo.InvariantCulture, "{0}anchor {1} {2}", propIndent, anchor.Position.X, anchor.Position.Y));
+                if (MathF.Abs(anchor.Curve) > float.Epsilon)
+                    writer.Write(string.Format(CultureInfo.InvariantCulture, " {0}", anchor.Curve));
+                writer.WriteLine();
+            }
+
+            writer.WriteLine($"{innerIndent}}}");
+            writer.WriteLine();
+        }
+
+        foreach (var child in layer.Children)
+            SaveLayerV2(writer, child, depth + 1);
+
+        writer.WriteLine($"{indent}}}");
+        writer.WriteLine();
+    }
+
+    private static void SaveFrameV1(Shape shape, StreamWriter writer)
     {
         for (ushort pIdx = 0; pIdx < shape.PathCount; pIdx++)
         {
@@ -749,11 +1163,31 @@ public partial class SpriteDocument : Document, IShapeDocument, ISkeletonAttachm
         Edges = src.Edges;
         Skeleton = src.Skeleton;
 
+        // Clone legacy frames
         FrameCount = src.FrameCount;
         for (var fi = 0; fi < FrameCount; fi++)
         {
             Frames[fi].Shape.CopyFrom(src.Frames[fi].Shape);
             Frames[fi].Hold = src.Frames[fi].Hold;
+        }
+
+        // Clone new layer model
+        RootLayer.Children.Clear();
+        RootLayer.Paths.Clear();
+        foreach (var child in src.RootLayer.Children)
+            RootLayer.Children.Add(child.Clone());
+        foreach (var path in src.RootLayer.Paths)
+            RootLayer.Paths.Add(path.Clone());
+
+        AnimFrames.Clear();
+        foreach (var frame in src.AnimFrames)
+            AnimFrames.Add(frame.Clone(src.RootLayer, RootLayer));
+
+        // Restore active layer by matching position in tree
+        if (src.ActiveLayer != null)
+        {
+            var name = src.ActiveLayer.Name;
+            ActiveLayer = RootLayer.FindLayer(name);
         }
 
         CloneGeneration(src);

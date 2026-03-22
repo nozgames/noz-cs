@@ -67,6 +67,11 @@ public class GenerationConfig : Document
         ShouldExport = false;
     }
 
+    public override void LoadMetadata(PropertySet meta)
+    {
+        ShouldExport = false;
+    }
+
     public static void RegisterDef()
     {
         DocumentDef<GenerationConfig>.Register(new DocumentDef

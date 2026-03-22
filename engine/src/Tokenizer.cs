@@ -386,7 +386,7 @@ public ref struct Tokenizer
         _token.Type = type;
     }
 
-    private static bool IsDelimiter(char c) => c == '[' || c == ']' || c == '=' || c == ',' || c == '<' || c == '>' || c == ':';
+    private static bool IsDelimiter(char c) => c == '[' || c == ']' || c == '=' || c == ',' || c == '<' || c == '>' || c == ':' || c == '{' || c == '}';
 
     private static bool IsIdentifierStart(char c) => char.IsLetter(c) || c == '_';
 
