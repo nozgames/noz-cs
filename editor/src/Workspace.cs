@@ -14,8 +14,9 @@ public enum WorkspaceState
 
 public static partial class Workspace
 {
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
+        public static partial WidgetId Menu { get; }
         public static partial WidgetId Toolbar { get; }
         public static partial WidgetId XrayButton { get; }
         public static partial WidgetId CollectionButton { get; }
@@ -63,7 +64,7 @@ public static partial class Workspace
     private static PopupMenuItem[] _workspacePopupItems = null!;
 
     public static Camera Camera => _camera;
-    public static WidgetId SceneWidgetId => ElementId.Scene;
+    public static WidgetId SceneWidgetId => WidgetIds.Scene;
     public static bool XrayMode { get; set; }
     public static float XrayAlpha => XrayMode ? EditorStyle.Workspace.XrayAlpha : 1f;
     public static float Zoom => _zoom;
@@ -379,79 +380,64 @@ public static partial class Workspace
         }
     }
 
-    // :toolbar
     private static void ToolbarUI()
     {
-        using var _ = UI.BeginContainer(new ContainerStyle
-        {
-            Height = Size.Fit,
-            Background = EditorStyle.Palette.Separator
-        });
-        using var __ = UI.BeginRow(new ContainerStyle { 
-            Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
-            Spacing = EditorStyle.Control.Spacing
-        });
+        using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
 
-        CollectionUI();
+        if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
+            ;
 
         UI.Flex();
-        UI.SetChecked(XrayMode);
-        if (UI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
-        {
-            XrayMode = !XrayMode;
-            XrayModeChanged?.Invoke(XrayMode);
-        }
-    }
 
-    private static void CollectionUI()
-    {
-        static void OpenPopup()
+        //UI.Button(WidgetIds.
+
+
+        // Left toolbar
+        //using (UI.BeginRow(new ContainerStyle
+        //{
+        //    Height = Size.Fit,
+        //    Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
+        //    Spacing = EditorStyle.Control.Spacing,
+        //}))
+        //{
+        //    UI.Flex();
+        //    UI.SetChecked(_showReferences);
+        //    if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon))
+        //        _showReferences = !_showReferences;
+        //    UI.SetChecked(XrayMode);
+        //    if (UI.Button(WidgetIds.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
+        //    {
+        //        XrayMode = !XrayMode;
+        //        XrayModeChanged?.Invoke(XrayMode);
+        //    }
+        //}
+
+        static PopupMenuItem[] GetCollectionItems()
         {
-            var items = new List<PopupMenuItem>();
-            foreach (var collection in CollectionManager.Collections)
+            var items = new PopupMenuItem[CollectionManager.Collections.Count];
+            for (int i = 0; i < CollectionManager.Collections.Count; i++)
             {
-                items.Add(PopupMenuItem.Item(
+                var collection = CollectionManager.Collections[i];
+                items[i] = PopupMenuItem.Item(
                     collection.Name,
                     handler: () => SetCollection(collection.Index),
-                    isChecked: () => CollectionManager.VisibleIndex == collection.Index));
+                    isChecked: () => CollectionManager.VisibleIndex == collection.Index);
             }
 
-            if (items.Count == 0) return;
-
-            var buttonRect = UI.GetElementWorldRect(ElementId.CollectionButton);
-            var popupStyle = new PopupStyle
-            {
-                AnchorX = Align.Min,
-                AnchorY = Align.Max,
-                PopupAlignX = Align.Min,
-                PopupAlignY = Align.Min,
-                ClampToScreen = true,
-                AnchorRect = buttonRect,
-                MinWidth = buttonRect.Width,
-            };
-
-            PopupMenu.Open(ElementId.CollectionButton, [.. items], popupStyle);
+            return items;
         }
 
-        UI.SetChecked(EditorUI.IsPopupOpen(ElementId.CollectionButton)); // TODO: migrate to UI.PopupMenu
-        if (UI.Button(ElementId.CollectionButton, () =>
-        {
-            using var _ = UI.BeginRow(new ContainerStyle{
-                Spacing = EditorStyle.Control.Spacing,
-                Padding = EdgeInsets.Right(EditorStyle.Control.Spacing),
-                MinWidth = 150
-            });
-            UI.Image(EditorAssets.Sprites.IconCollection, EditorStyle.Icon.Primary);
-            UI.Text(CollectionManager.VisibleCollection?.Name ?? "None", EditorStyle.Control.Text);
-            UI.Spacer(EditorStyle.Control.Spacing);
-        }, EditorStyle.Button.Secondary))
-            OpenPopup();
+        UI.DropDown(
+            WidgetIds.ContextMenu,
+            text: CollectionManager.VisibleCollection?.Name ?? "None",
+            icon: EditorAssets.Sprites.IconCollection,
+            getItems: GetCollectionItems);
     }
 
     public static void UpdateUI()
     {
         using (UI.BeginContainer())
-            UI.Scene(ElementId.Scene, Camera, DrawScene, new SceneStyle
+            UI.Scene(WidgetIds.Scene, Camera, DrawScene, new SceneStyle
             {
                 Color = EditorStyle.Palette.Canvas,
                 SampleCount = 4
@@ -459,62 +445,17 @@ public static partial class Workspace
 
         using (UI.BeginColumn())
         {
-            // Toolbar row
-            using (UI.BeginRow(new ContainerStyle
-            {
-                Height = Size.Fit,
-                Background = EditorStyle.Palette.Separator,
-            }))
-            {
-                // Left toolbar
-                using (UI.BeginRow(new ContainerStyle
-                {
-                    Height = Size.Fit,
-                    Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
-                    Spacing = EditorStyle.Control.Spacing,
-                }))
-                {
-                    UI.Flex();
-                    UI.SetChecked(_showReferences);
-                    if (UI.Button(ElementId.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon))
-                        _showReferences = !_showReferences;
-                    UI.SetChecked(XrayMode);
-                    if (UI.Button(ElementId.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
-                    {
-                        XrayMode = !XrayMode;
-                        XrayModeChanged?.Invoke(XrayMode);
-                    }
-                }
+            ToolbarUI();
+            EditorUI.PanelSeparator();
 
-                // Right side: collection dropdown
-                using (UI.BeginContainer(new ContainerStyle
-                {
-                    Width = EditorStyle.Inspector.Root.Width,
-                    Height = Size.Fit,
-                    Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
-                }))
-                    CollectionUI();
-            }
-
-            UI.Container(new ContainerStyle { Height = 1, Background = EditorStyle.Palette.Separator });
-
-            // Content row
             using (UI.BeginFlex())
+            using (UI.BeginRow())
             {
-                using (UI.BeginRow())
-                {
-                    using (UI.BeginFlex())
-                    {
-                        ActiveEditor?.UpdateUI();
-                    }
+                // content
+                using (UI.BeginFlex())
+                    ActiveEditor?.UpdateUI();
 
-                    using (UI.BeginColumn(new ContainerStyle
-                    {
-                        Width = EditorStyle.Inspector.Root.Width,
-                        Background = EditorStyle.Palette.Panel,
-                    }))
-                        Inspector.UpdateUI();
-                }
+                Inspector.UpdateUI();
             }
         }
 
@@ -796,7 +737,7 @@ public static partial class Workspace
 
         var effectiveDpi = _dpi * _uiScale * _userUIScale * _zoom;
 
-        var sceneWorldRect = UI.GetElementWorldRect(ElementId.Scene);
+        var sceneWorldRect = UI.GetElementWorldRect(WidgetIds.Scene);
         var sceneScreenRect = UI.Camera!.WorldToScreen(sceneWorldRect);
         var sceneWidth = sceneScreenRect.Width;
         var sceneHeight = sceneScreenRect.Height;
@@ -1274,7 +1215,7 @@ public static partial class Workspace
     {
         if (_activeEditor != null)
         {
-            _activeEditor.OpenContextMenu(ElementId.ContextMenu);
+            _activeEditor.OpenContextMenu(WidgetIds.ContextMenu);
             return;
         }
 
@@ -1305,7 +1246,7 @@ public static partial class Workspace
             }
         }
 
-        PopupMenu.Open(ElementId.ContextMenu, items.ToArray(), title: "Asset");
+        PopupMenu.Open(WidgetIds.ContextMenu, items.ToArray(), title: "Asset");
     }
 
     private static void ConvertDocumentType(Document doc, DocumentDef newDef)

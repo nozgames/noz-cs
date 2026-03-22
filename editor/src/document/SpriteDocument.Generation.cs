@@ -17,10 +17,12 @@ public class SpriteGeneration : IDisposable
     public DocumentRef<GenerationConfig> Config;
     public List<DocumentRef<SpriteDocument>> References = [];
 
-    public GenerationJob Job { get; } = new();
+    public GenerationJob Job { get; private set; } = new();
 
     public bool IsGenerating => Job.IsGenerating;
     public bool HasImageData => Job.HasImageData;
+
+    public void RestoreJob(GenerationJob job) => Job = job;
 
     public void Dispose() => Job.Dispose();
 }
@@ -31,10 +33,23 @@ public partial class SpriteDocument
 
     private const int RasterizeSize = 1024;
 
+    private GenerationJob? _pendingGenerationJob;
+
     private void ReloadGeneration()
     {
-        Generation?.Dispose();
-        Generation = null;
+        // Preserve the active generation job across reloads so that
+        // file-watcher triggered reloads (e.g. after SaveAll on edit exit)
+        // don't destroy in-flight generation state.
+        if (Generation is { IsGenerating: true })
+        {
+            _pendingGenerationJob = Generation.Job;
+            Generation = null;
+        }
+        else
+        {
+            Generation?.Dispose();
+            Generation = null;
+        }
     }
 
     private void PostLoadGeneration()
@@ -52,9 +67,23 @@ public partial class SpriteDocument
     private void ResolveGeneration()
     {
         if (Generation == null)
+        {
+            _pendingGenerationJob = null;
             return;
+        }
 
-        LoadGeneratedTexture();
+        // Restore an in-flight generation job that was preserved across reload
+        if (_pendingGenerationJob != null)
+        {
+            Generation.Job.Dispose();
+            Generation.RestoreJob(_pendingGenerationJob);
+            _pendingGenerationJob = null;
+        }
+        else
+        {
+            LoadGeneratedTexture();
+        }
+
         Generation.Config.Resolve();
 
         foreach (ref var r in System.Runtime.InteropServices.CollectionsMarshal.AsSpan(Generation.References))
@@ -101,6 +130,8 @@ public partial class SpriteDocument
 
     private void DisposeGeneration()
     {
+        _pendingGenerationJob?.Dispose();
+        _pendingGenerationJob = null;
         Generation?.Dispose();
         Generation = null;
     }
@@ -195,7 +226,8 @@ public partial class SpriteDocument
             {
                 Graphics.SetTransform(scale * rotation * Transform);
                 Graphics.SetSortGroup(7);
-                Graphics.SetLayer(EditorLayer.DocumentEditor);
+                if (IsEditing)
+                    Graphics.SetLayer(EditorLayer.DocumentEditor);
                 Graphics.SetColor(Color.White);
                 Graphics.Draw(EditorAssets.Sprites.IconGenerating);
             }
@@ -524,6 +556,24 @@ public partial class SpriteDocument
         if (config?.RemoveBackground == true)
             steps.Add(new() { Type = "rmbg", Output = "clean", Args = new Dictionary<string, object> { ["image"] = "sprite" } });
 
+        if (config?.OutlineColor.A > 0)
+        {
+            var lastOutput = steps[^1].Output!;
+            Span<char> hex = stackalloc char[6];
+            Strings.ColorHex(config.OutlineColor, hex);
+            steps.Add(new()
+            {
+                Type = "outline",
+                Output = "outlined",
+                Args = new Dictionary<string, object>
+                {
+                    ["image"] = lastOutput,
+                    ["thickness"] = config.OutlineThickness,
+                    ["color"] = $"#{hex}"
+                }
+            });
+        }
+
         return new PipelineRequest
         {
             Server = server,
@@ -655,6 +705,8 @@ public partial class SpriteDocument
                     Save();
                     SaveMetadata();
                     DocumentManager.QueueExport(this, force: true);
+                    if (Atlas != null)
+                        AtlasManager.UpdateSource(this);
                     Log.Info($"[Gen] '{Name}' saved and queued for export");
                     break;
 

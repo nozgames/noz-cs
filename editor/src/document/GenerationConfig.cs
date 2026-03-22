@@ -48,6 +48,8 @@ public class GenerationConfig : Document
     public string? ModelName;
     public string? StyleKey;
     public bool RemoveBackground = true;
+    public Color32 OutlineColor = Color32.Transparent;
+    public int OutlineThickness = 3;
 
     public static string FormatPrompt(string template, string input)
     {
@@ -106,6 +108,13 @@ public class GenerationConfig : Document
                 NegativePrompt = tk.ExpectQuotedString() ?? "";
             else if (tk.ExpectIdentifier("remove_bg"))
                 tk.ExpectBool(out RemoveBackground);
+            else if (tk.ExpectIdentifier("outline_color"))
+            {
+                if (tk.ExpectColor(out var color))
+                    OutlineColor = color.ToColor32();
+            }
+            else if (tk.ExpectIdentifier("outline_size"))
+                OutlineThickness = tk.ExpectInt(3);
             else if (tk.ExpectIdentifier("prompt_prefix"))
             {
                 // Legacy support: convert prompt_prefix to format string
@@ -137,6 +146,14 @@ public class GenerationConfig : Document
             writer.WriteLine($"style \"{StyleKey}\"");
         writer.WriteLine();
         writer.WriteLine($"remove_bg {(RemoveBackground ? "true" : "false")}");
+
+        if (OutlineColor.A > 0)
+        {
+            Span<char> hex = stackalloc char[6];
+            Strings.ColorHex(OutlineColor, hex);
+            writer.WriteLine($"outline_color #{hex}");
+            writer.WriteLine($"outline_size {OutlineThickness}");
+        }
     }
 
     public override void Draw()

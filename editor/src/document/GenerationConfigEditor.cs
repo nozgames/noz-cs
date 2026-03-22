@@ -14,6 +14,8 @@ public partial class GenerationConfigEditor : DocumentEditor
         public static partial WidgetId StyleDropDown { get; }
         public static partial WidgetId RefreshModels { get; }
         public static partial WidgetId RemoveBackground { get; }
+        public static partial WidgetId OutlineColor { get; }
+        public static partial WidgetId OutlineThickness { get; }
     }
 
     public new GenerationConfig Document => (GenerationConfig)base.Document;
@@ -133,6 +135,35 @@ public partial class GenerationConfigEditor : DocumentEditor
                 Undo.Record(Document);
                 Document.RemoveBackground = !Document.RemoveBackground;
                 Document.IncrementVersion();
+            }
+        }
+
+        using (Inspector.BeginProperty("Outline"))
+        using (UI.BeginRow(EditorStyle.Control.Spacing))
+        {
+            var outlineColor = Document.OutlineColor;
+            if (EditorUI.ColorButton(WidgetIds.OutlineColor, ref outlineColor))
+            {
+                Undo.Record(Document);
+                Document.OutlineColor = outlineColor;
+                Document.IncrementVersion();
+            }
+
+            if (outlineColor.A > 0)
+            {
+                UI.DropDown(
+                    WidgetIds.OutlineThickness,
+                    text: Strings.Number(Document.OutlineThickness),
+                    icon: EditorAssets.Sprites.IconStrokeSize,
+                    getItems: () => [
+                    ..Enumerable.Range(1, 20).Select(i =>
+                        new PopupMenuItem { Label = Strings.Number(i), Handler = () =>
+                        {
+                            Undo.Record(Document);
+                            Document.OutlineThickness = i;
+                            Document.IncrementVersion();
+                        }})
+                    ]);
             }
         }
     }

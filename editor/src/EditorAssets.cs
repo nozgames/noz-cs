@@ -49,6 +49,7 @@ public static class EditorAssets
         public const string IconLayer = "icon_layer";
         public const string IconLock = "icon_lock";
         public const string IconLoop = "icon_loop";
+        public const string IconMenu = "icon_menu";
         public const string IconMirror = "icon_mirror";
         public const string IconMove = "icon_move";
         public const string IconNofill = "icon_nofill";
@@ -176,6 +177,7 @@ public static class EditorAssets
         public static Sprite IconLayer { get; private set; } = null!;
         public static Sprite IconLock { get; private set; } = null!;
         public static Sprite IconLoop { get; private set; } = null!;
+        public static Sprite IconMenu { get; private set; } = null!;
         public static Sprite IconMirror { get; private set; } = null!;
         public static Sprite IconMove { get; private set; } = null!;
         public static Sprite IconNofill { get; private set; } = null!;
@@ -240,6 +242,7 @@ public static class EditorAssets
             IconLayer = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLayer)!;
             IconLock = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLock)!;
             IconLoop = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLoop)!;
+            IconMenu = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMenu)!;
             IconMirror = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMirror)!;
             IconMove = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMove)!;
             IconNofill = (Sprite)Asset.Load(AssetType.Sprite, Names.IconNofill)!;
@@ -305,6 +308,7 @@ public static class EditorAssets
             IconLayer?.Dispose();
             IconLock?.Dispose();
             IconLoop?.Dispose();
+            IconMenu?.Dispose();
             IconMirror?.Dispose();
             IconMove?.Dispose();
             IconNofill?.Dispose();

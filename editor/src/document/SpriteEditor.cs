@@ -1062,9 +1062,9 @@ public partial class SpriteEditor : DocumentEditor, IShapeEditorHost
             ElementTree.EndAlign(); 
         }
 
-        using (Inspector.BeginSection("GENERATION", content: GenerationSectionContent))
+        using (Inspector.BeginSection("GENERATION", content: GenerationSectionContent, empty: Document.Generation == null))
         {
-            if (Inspector.IsSectionCollapsed) return;
+            if (Document.Generation == null || Inspector.IsSectionCollapsed) return;
 
             // style
             using (Inspector.BeginProperty("Style"))

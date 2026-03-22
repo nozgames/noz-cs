@@ -535,12 +535,11 @@ public static class EditorStyle
     // :toolbar
     public static class Toolbar
     {
-        public static readonly ContainerStyle Root = new()
+        public static readonly ContainerStyle Root = Panel with 
         {
             Padding = EdgeInsets.Symmetric(3, Control.Spacing),
             Spacing = Control.Spacing,
-            Height = Size.Fit,
-            Margin = EdgeInsets.Top(3)
+            Height = Size.Fit
         };
 
         public static readonly ContainerStyle Spacer = new()

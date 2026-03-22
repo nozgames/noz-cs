@@ -246,4 +246,12 @@ internal static partial class EditorUI
 
         return color != prev;
     }
+
+    public static void PanelSeparator()
+    {
+        if (UI.IsRow())
+            UI.Container(new ContainerStyle { Width = 1, Background = EditorStyle.Palette.Separator });
+        else
+            UI.Container(new ContainerStyle { Height = 1, Background = EditorStyle.Palette.Separator });
+    }
 }
