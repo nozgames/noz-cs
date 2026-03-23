@@ -52,7 +52,6 @@ public partial class SpriteEditor
     {
         Height = 22,
         Spacing = 4,
-        AlignY = Align.Center,
         Padding = EdgeInsets.LeftRight(4),
     };
 
@@ -97,10 +96,11 @@ public partial class SpriteEditor
     private void OutlinerUI()
     {
         _outlinerIndex = 0;
-        _outlinerRows.Clear();
 
-        // Update drag state
+        // Update drag state (uses previous frame's row data for hit-testing)
         UpdateOutlinerDrag();
+
+        _outlinerRows.Clear();
 
         using (UI.BeginColumn(WidgetIds.OutlinerPanel, OutlinerPanelStyle))
         {
@@ -120,11 +120,11 @@ public partial class SpriteEditor
 
             // Node tree
             foreach (var child in Document.RootLayer.Children)
-                DrawNodeRow(child, 0);
+                OutlinerNodeUI(child, 0);
         }
     }
 
-    private void DrawNodeRow(SpriteNode node, int depth)
+    private void OutlinerNodeUI(SpriteNode node, int depth)
     {
         var index = _outlinerIndex++;
         var rowId = WidgetIds.OutlinerLayer + index;
@@ -240,7 +240,7 @@ public partial class SpriteEditor
         if (isLayer && node.Expanded)
         {
             foreach (var child in node.Children)
-                DrawNodeRow(child, depth + 1);
+                OutlinerNodeUI(child, depth + 1);
         }
     }
 

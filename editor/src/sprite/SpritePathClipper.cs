@@ -1,6 +1,12 @@
 //
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
+//  Bridge between SpritePath anchors and Clipper2 linear polygons.
+//  Routes through MSDF Shape as an intermediate because MSDF handles
+//  quadratic bezier curves natively for self-union, while Clipper2
+//  only operates on linear segments. This preserves curve fidelity
+//  during the union step before linearizing for boolean ops.
+//
 
 using Clipper2Lib;
 using NoZ.Editor.Msdf;

@@ -55,7 +55,20 @@ public class SpriteAnimFrame
                 clone.VisibleLayers.Add(targetLayer);
         }
 
-        for (var i = 0; i < source.Children.Count && i < target.Children.Count; i++)
+        // Map children by position, then fall back to name matching for unmatched layers
+        var minCount = Math.Min(source.Children.Count, target.Children.Count);
+        for (var i = 0; i < minCount; i++)
             MapLayers(source.Children[i], target.Children[i], clone);
+
+        // Name-based fallback for extra source layers that had no positional match
+        for (var i = minCount; i < source.Children.Count; i++)
+        {
+            if (source.Children[i] is not SpriteLayer extraSource) continue;
+            if (!VisibleLayers.Contains(extraSource)) continue;
+
+            var matched = target.FindLayer(extraSource.Name);
+            if (matched != null)
+                clone.VisibleLayers.Add(matched);
+        }
     }
 }

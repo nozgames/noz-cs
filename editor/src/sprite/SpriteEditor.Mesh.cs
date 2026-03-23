@@ -7,7 +7,6 @@
 
 using Clipper2Lib;
 using LibTessDotNet;
-using NoZ.Editor.Msdf;
 
 namespace NoZ.Editor;
 
@@ -129,126 +128,14 @@ public partial class SpriteEditor
 
     private void TessellateLayer(SpriteLayer layer, ref int vertexOffset, ref int indexOffset)
     {
-        if (!layer.Visible) return;
-
-        // Collect subtract paths within this layer
-        List<PathsD>? subtractContours = null;
-        foreach (var child in layer.Children)
+        var vo = vertexOffset;
+        var io = indexOffset;
+        SpriteLayerProcessor.ProcessLayer(layer, result =>
         {
-            if (child is not SpritePath path) continue;
-            if (!path.IsSubtract || path.Anchors.Count < 3) continue;
-
-            var contours = SpritePathClipper.SpritePathToPaths(path);
-            if (contours.Count > 0)
-            {
-                subtractContours ??= new();
-                subtractContours.Add(contours);
-            }
-        }
-
-        // Tessellate normal/clip paths within this layer
-        PathsD? accumulatedPaths = null;
-
-        foreach (var child in layer.Children)
-        {
-            if (child is not SpritePath path) continue;
-            if (path.IsSubtract || path.Anchors.Count < 3) continue;
-
-            var contours = SpritePathClipper.SpritePathToPaths(path);
-            if (contours.Count == 0) continue;
-
-            if (path.IsClip)
-            {
-                if (accumulatedPaths is not { Count: > 0 }) continue;
-                contours = Clipper.BooleanOp(ClipType.Intersection,
-                    contours, accumulatedPaths, FillRule.NonZero, precision: 6);
-                if (contours.Count == 0) continue;
-            }
-            else
-            {
-                var accContours = contours;
-                if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
-                {
-                    var halfStroke = path.StrokeWidth * SpritePath.StrokeScale;
-                    var contracted = Clipper.InflatePaths(contours, -halfStroke,
-                        JoinType.Round, EndType.Polygon, precision: 6);
-                    if (contracted.Count > 0)
-                        accContours = contracted;
-                }
-
-                if (accumulatedPaths == null)
-                    accumulatedPaths = new PathsD(accContours);
-                else
-                    accumulatedPaths = Clipper.BooleanOp(ClipType.Union,
-                        accumulatedPaths, accContours, FillRule.NonZero, precision: 6);
-            }
-
-            // Apply subtract paths within THIS layer only (layer-scoped)
-            if (subtractContours != null)
-            {
-                PathsD? negativePaths = null;
-                foreach (var subContours in subtractContours)
-                {
-                    negativePaths ??= new PathsD();
-                    negativePaths.AddRange(subContours);
-                }
-
-                if (negativePaths is { Count: > 0 })
-                {
-                    contours = Clipper.BooleanOp(ClipType.Difference,
-                        contours, negativePaths, FillRule.NonZero, precision: 6);
-                    if (contours.Count == 0) continue;
-                }
-            }
-
-            var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
-            var fillColor = path.FillColor;
-            var hasFill = fillColor.A > 0;
-
-            if (hasStroke)
-            {
-                var strokeColor = path.StrokeColor.ToColor();
-                var halfStroke = path.StrokeWidth * SpritePath.StrokeScale;
-                PathsD? contractedPaths = null;
-                if (contours.Count > 0)
-                {
-                    contractedPaths = Clipper.InflatePaths(contours, -halfStroke,
-                        JoinType.Round, EndType.Polygon, precision: 6);
-                }
-
-                if (hasFill)
-                {
-                    TessellateClipper(contours, ref vertexOffset, ref indexOffset, strokeColor);
-                    if (contractedPaths is { Count: > 0 })
-                        TessellateClipper(contractedPaths, ref vertexOffset, ref indexOffset, fillColor.ToColor());
-                }
-                else
-                {
-                    if (contractedPaths is { Count: > 0 })
-                    {
-                        var strokeRing = Clipper.BooleanOp(ClipType.Difference,
-                            contours, contractedPaths, FillRule.NonZero, precision: 6);
-                        if (strokeRing.Count > 0)
-                            TessellateClipper(strokeRing, ref vertexOffset, ref indexOffset, strokeColor);
-                    }
-                    else
-                    {
-                        TessellateClipper(contours, ref vertexOffset, ref indexOffset, strokeColor);
-                    }
-                }
-            }
-            else if (hasFill)
-            {
-                TessellateClipper(contours, ref vertexOffset, ref indexOffset, fillColor.ToColor());
-            }
-        }
-
-        // Recurse into child layers
-        foreach (var child in layer.Children)
-        {
-            if (child is SpriteLayer childLayer)
-                TessellateLayer(childLayer, ref vertexOffset, ref indexOffset);
-        }
+            TessellateClipper(result.Contours, ref vo, ref io, result.Color.ToColor());
+        });
+        vertexOffset = vo;
+        indexOffset = io;
     }
 
     private void DrawColoredMesh(int sortGroup)
