@@ -53,6 +53,19 @@ public static class EditorStyle
         Spacing = Control.Spacing
     };
 
+    public static readonly ContainerStyle Item = new()
+    {
+        Height = Control.Height,
+        Padding = EdgeInsets.LeftRight(Control.Spacing),
+        Spacing = Control.Spacing,
+        Resolve = (s, f) =>
+        {
+            if ((f & WidgetFlags.Hovered) != 0) s.Background = Palette.Active;
+            if ((f & WidgetFlags.Checked) != 0) s.Background = Palette.Active;
+            return s;
+        },
+    };
+
     // :icon
     public static class Icon
     {
@@ -208,6 +221,8 @@ public static class EditorStyle
         public static readonly ImageStyle DisabledIcon = Icon with { Color = Palette.Disabled, Resolve = null };
         public static readonly ImageStyle HoveredIcon = Icon with { Color = Palette.Content, Resolve = null };
     }
+
+
 
     // :popup
     public static class Popup

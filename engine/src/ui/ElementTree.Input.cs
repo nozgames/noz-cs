@@ -262,7 +262,7 @@ public static unsafe partial class ElementTree
         ref var d = ref e.Data.FlexSplitter;
         if (d.State == null || d.PrevFlex == 0 || d.NextFlex == 0) return;
 
-        if (IsDown(d.Id) && !HasCaptureById(d.Id))
+        if (WasPressed(d.Id) && !HasCaptureById(d.Id))
             SetCaptureById(d.Id);
 
         ref var state = ref *d.State;

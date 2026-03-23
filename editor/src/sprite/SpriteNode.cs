@@ -136,6 +136,18 @@ public abstract class SpriteNode
             child.ForEachEditablePath(action);
     }
 
+    public void CollectPathsWithSelection(List<SpritePath> result)
+    {
+        if (this is SpritePath path && path.HasSelection())
+        {
+            result.Add(path);
+            return;
+        }
+
+        foreach (var child in Children)
+            child.CollectPathsWithSelection(result);
+    }
+
     public void ClearAllSelections()
     {
         if (this is SpritePath path)

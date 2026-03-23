@@ -48,19 +48,6 @@ public partial class SpriteEditor
         Spacing = 1,
     };
 
-    private static readonly ContainerStyle OutlinerLayerRowStyle = new()
-    {
-        Height = 22,
-        Spacing = 4,
-        Padding = EdgeInsets.LeftRight(4),
-    };
-
-    private static readonly ContainerStyle OutlinerActiveLayerRowStyle = OutlinerLayerRowStyle with
-    {
-        Background = EditorStyle.Palette.Active,
-        BorderRadius = 3,
-    };
-
     private static readonly TextStyle OutlinerLayerNameStyle = new()
     {
         FontSize = 10,
@@ -107,12 +94,7 @@ public partial class SpriteEditor
             // Header
             using (UI.BeginRow(new ContainerStyle { Height = 22, Spacing = 4, AlignY = Align.Center }))
             {
-                UI.Text("Layers", new TextStyle
-                {
-                    FontSize = 10,
-                    Color = EditorStyle.Palette.SecondaryText,
-                    AlignY = Align.Center,
-                });
+                UI.Text("Layers",  EditorStyle.Text.Secondary);
                 using (UI.BeginFlex()) { }
                 if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, OutlinerIconButtonStyle))
                     AddLayer();
@@ -134,16 +116,11 @@ public partial class SpriteEditor
         var isPathSelected = isPath && ((SpritePath)node).HasSelection();
         var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
 
-        // Highlight: active layer, selected path, or drop-into target
-        var rowStyle = OutlinerLayerRowStyle;
-        if (isDragTarget && _dropZone == DropZone.Into)
-            rowStyle = OutlinerActiveLayerRowStyle;
-        else if (isActive || isPathSelected)
-            rowStyle = OutlinerActiveLayerRowStyle;
-
         _outlinerRows.Add(new OutlinerRowInfo { Node = node, Index = index, Depth = depth });
 
-        using (UI.BeginRow(rowId, rowStyle))
+        UI.SetChecked(isActive || isPathSelected);
+
+        using (UI.BeginRow(rowId, EditorStyle.Item))
         {
             // Indent
             if (depth > 0)

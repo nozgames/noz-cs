@@ -65,5 +65,5 @@ r "icon_tiling" 461 325 68 68 0
 r "icon_unlock" 205 338 36 36 0
 r "icon_xray" 385 389 68 68 0
 r "icon_menu" 1 69 36 36 0
-r "" 688 123 4 4 0
-r "new_sprite" 824 137 118 82 0
+r "" 824 137 118 82 0
+r "new_sprite" 756 219 260 260 0
