@@ -61,9 +61,13 @@ public static class EditorStyle
         Resolve = (s, f) =>
         {
             if ((f & WidgetFlags.Hovered) != 0) s.Background = Palette.Active;
-            if ((f & WidgetFlags.Checked) != 0) s.Background = Palette.Active;
             return s;
         },
+    };
+
+    public static readonly ContainerStyle ItemSelected = Item with
+    {
+        Background = Palette.Active,
     };
 
     // :icon

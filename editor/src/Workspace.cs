@@ -412,11 +412,9 @@ public static partial class Workspace
         //}))
         //{
         //    UI.Flex();
-        //    UI.SetChecked(_showReferences);
-        //    if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon))
+        //    if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon, isSelected: _showReferences))
         //        _showReferences = !_showReferences;
-        //    UI.SetChecked(XrayMode);
-        //    if (UI.Button(WidgetIds.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon))
+        //    if (UI.Button(WidgetIds.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon, isSelected: XrayMode))
         //    {
         //        XrayMode = !XrayMode;
         //        XrayModeChanged?.Invoke(XrayMode);

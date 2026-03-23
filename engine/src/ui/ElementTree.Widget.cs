@@ -161,6 +161,9 @@ public static unsafe partial class ElementTree
         state.Ptr->Flags |= _pendingWidgetFlags;
         _pendingWidgetFlags = WidgetFlags.None;
 
+        if (UI.IsDisabled())
+            state.Ptr->Flags |= WidgetFlags.Disabled;
+
         _widgets[id] = state;
         _currentWidget = id;
         return state;

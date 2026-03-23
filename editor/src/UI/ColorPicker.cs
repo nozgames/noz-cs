@@ -123,12 +123,10 @@ internal static partial class ColorPicker
         {
             UI.Spacer(EditorStyle.Control.Spacing);
 
-            UI.SetChecked(_paletteMode == ColorMode.None);
-            if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon))
+            if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
                 _paletteMode = ColorMode.None;
 
-            UI.SetChecked(_paletteMode == ColorMode.Color);
-            if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
+            if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
             {
                 _paletteMode = ColorMode.Color;
                 if (_alpha == 0)
@@ -137,8 +135,7 @@ internal static partial class ColorPicker
 
             if (PaletteManager.Palettes.Count > 0)
             {
-                UI.SetChecked(_paletteMode == ColorMode.Palette);
-                if (UI.Button(ElementId.ModePalette, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon))
+                if (UI.Button(ElementId.ModePalette, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Palette))
                     _paletteMode = ColorMode.Palette;
             }
 

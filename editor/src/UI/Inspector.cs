@@ -224,7 +224,6 @@ internal static partial class Inspector
             using (BeginProperty("Export"))
             {
                 var shouldExport = doc.ShouldExport;
-                UI.SetChecked(shouldExport);
                 if (UI.Toggle(ElementId.DocumentExport, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
                 {
                     Undo.Record(doc);

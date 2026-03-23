@@ -66,8 +66,7 @@ internal partial class VfxEditor : DocumentEditor
 
         UI.Flex();
 
-        UI.SetChecked(Document.IsPlaying);
-        if (UI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, EditorStyle.Button.ToggleIcon))
+        if (UI.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, EditorStyle.Button.ToggleIcon, isSelected: Document.IsPlaying))
             TogglePlayback();
 
         UI.Flex();
@@ -132,7 +131,6 @@ internal partial class VfxEditor : DocumentEditor
             }
 
             var loop = Document.Loop;
-            UI.SetChecked(loop);
             if (UI.Toggle(NextFieldId(), "Loop", loop, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
             {
                 loop = !loop;

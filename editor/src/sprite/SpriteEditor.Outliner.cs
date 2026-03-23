@@ -118,9 +118,9 @@ public partial class SpriteEditor
 
         _outlinerRows.Add(new OutlinerRowInfo { Node = node, Index = index, Depth = depth });
 
-        UI.SetChecked(isActive || isPathSelected);
+        var rowStyle = (isActive || isPathSelected) ? EditorStyle.ItemSelected : EditorStyle.Item;
 
-        using (UI.BeginRow(rowId, EditorStyle.Item))
+        using (UI.BeginRow(rowId, rowStyle))
         {
             // Indent
             if (depth > 0)

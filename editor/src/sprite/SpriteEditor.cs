@@ -216,20 +216,16 @@ public partial class SpriteEditor : DocumentEditor
         // Tool group: Pen, Knife, Rect, Circle
         var activeTool = Workspace.ActiveTool;
 
-        UI.SetChecked(activeTool is PenTool);
-        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit))
+        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, isSelected: activeTool is PenTool))
             BeginPenTool();
 
-        UI.SetChecked(activeTool is KnifeTool);
-        if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose))
+        if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose, isSelected: activeTool is KnifeTool))
             BeginKnifeTool();
 
-        UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Rectangle });
-        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer))
+        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Rectangle }))
             BeginRectangleTool();
 
-        UI.SetChecked(activeTool is ShapeTool { ShapeType: ShapeType.Circle });
-        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle))
+        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Circle }))
             BeginCircleTool();
 
         FloatingToolbar.Divider();
@@ -241,8 +237,7 @@ public partial class SpriteEditor : DocumentEditor
         FloatingToolbar.Divider();
 
         // Toggle group: Tile
-        UI.SetChecked(Document.ShowTiling);
-        if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling))
+        if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
             Document.ShowTiling = !Document.ShowTiling;
     }
 
@@ -801,7 +796,6 @@ public partial class SpriteEditor : DocumentEditor
             using (Inspector.BeginProperty("Export"))
             {
                 var shouldExport = Document.ShouldExport;
-                UI.SetChecked(shouldExport);
                 if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
                 {
                     shouldExport = !shouldExport;
@@ -859,16 +853,14 @@ public partial class SpriteEditor : DocumentEditor
 
         if (Document.Skeleton.IsResolved)
         {
-            UI.SetChecked(Document.ShowInSkeleton);
-            if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon))
+            if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowInSkeleton))
             {
                 Undo.Record(Document);
                 Document.ShowInSkeleton = !Document.ShowInSkeleton;
                 Document.Skeleton.Value?.UpdateSprites();
             }
 
-            UI.SetChecked(Document.ShowSkeletonOverlay);
-            if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon))
+            if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowSkeletonOverlay))
             {
                 Undo.Record(Document);
                 Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
@@ -889,16 +881,13 @@ public partial class SpriteEditor : DocumentEditor
             using (Inspector.BeginProperty("Operation"))
             using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
-                UI.SetChecked(Document.CurrentOperation == SpritePathOperation.Normal);
-                if (UI.Button(WidgetIds.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon))
+                if (UI.Button(WidgetIds.PathNormal, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentOperation == SpritePathOperation.Normal))
                     SetSpritePathOperation(SpritePathOperation.Normal);
 
-                UI.SetChecked(Document.CurrentOperation == SpritePathOperation.Subtract);
-                if (UI.Button(WidgetIds.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon))
+                if (UI.Button(WidgetIds.PathSubtract, EditorAssets.Sprites.IconSubtract, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentOperation == SpritePathOperation.Subtract))
                     SetSpritePathOperation(SpritePathOperation.Subtract);
 
-                UI.SetChecked(Document.CurrentOperation == SpritePathOperation.Clip);
-                if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon))
+                if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentOperation == SpritePathOperation.Clip))
                     SetSpritePathOperation(SpritePathOperation.Clip);
             }
 
@@ -1155,9 +1144,9 @@ public partial class SpriteEditor : DocumentEditor
             Padding = EdgeInsets.Symmetric(12, 16),
         }))
         {
-            UI.SetDisabled(string.IsNullOrWhiteSpace(Document.Generation!.Prompt) || Document.Generation.Config.Value == null);
-            if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1) }))
-                Document.GenerateAsync();
+            using (UI.BeginEnabled(!string.IsNullOrWhiteSpace(Document.Generation!.Prompt) && Document.Generation.Config.Value != null))
+                if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1) }))
+                    Document.GenerateAsync();
         }
     }
 

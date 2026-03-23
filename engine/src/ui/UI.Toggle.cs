@@ -26,8 +26,8 @@ public static partial class UI
     public static bool Toggle(WidgetId id, string label, bool isChecked, in ToggleStyle style, Sprite? checkIcon = null)
     {
         ElementTree.BeginTree();
+        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isChecked);
         ElementTree.BeginWidget(id);
-        SetChecked(isChecked);
 
         var flags = ElementTree.GetWidgetFlags();
         var s = style.Resolve != null

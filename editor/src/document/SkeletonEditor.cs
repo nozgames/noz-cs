@@ -171,14 +171,12 @@ internal partial class SkeletonEditor : DocumentEditor
     {
         using (FloatingToolbar.Begin())
         {
-            UI.SetChecked(Document.CurrentConnected);
-            if (FloatingToolbar.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected))
+            if (FloatingToolbar.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected, isSelected: Document.CurrentConnected))
                 ToggleConnected();
 
             FloatingToolbar.Divider();
 
-            UI.SetChecked(_showPreview);
-            if (FloatingToolbar.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview))
+            if (FloatingToolbar.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview, isSelected: _showPreview))
                 _showPreview = !_showPreview;
         }
     }

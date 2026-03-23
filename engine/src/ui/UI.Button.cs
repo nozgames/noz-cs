@@ -24,15 +24,16 @@ public struct ButtonStyle()
 
 public static partial class UI
 {
-    public static bool Button(WidgetId id, string text, in ButtonStyle style) =>
-        Button(id, text, null, style);
+    public static bool Button(WidgetId id, string text, in ButtonStyle style, bool isSelected = false) =>
+        Button(id, text, null, style, isSelected);
 
-    public static bool Button(WidgetId id, Sprite icon, in ButtonStyle style) =>
-        Button(id, null, icon, style);
+    public static bool Button(WidgetId id, Sprite icon, in ButtonStyle style, bool isSelected = false) =>
+        Button(id, null, icon, style, isSelected);
 
-    public static bool Button(WidgetId id, string? text, Sprite? icon, in ButtonStyle style)
+    public static bool Button(WidgetId id, string? text, Sprite? icon, in ButtonStyle style, bool isSelected = false)
     {
         ElementTree.BeginTree();
+        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isSelected);
         ElementTree.BeginWidget(id);
 
         var flags = ElementTree.GetWidgetFlags();
@@ -79,9 +80,10 @@ public static partial class UI
         return flags.HasFlag(WidgetFlags.Pressed);
     }
 
-    public static bool Button(WidgetId id, Action content, in ButtonStyle style)
+    public static bool Button(WidgetId id, Action content, in ButtonStyle style, bool isSelected = false)
     {
         ElementTree.BeginTree();
+        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isSelected);
         ElementTree.BeginWidget(id);
 
         var flags = ElementTree.GetWidgetFlags();

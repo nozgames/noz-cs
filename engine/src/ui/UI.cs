@@ -28,6 +28,7 @@ public static partial class UI
     public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
     public struct AutoOpacity : IDisposable { readonly void IDisposable.Dispose() => EndOpacity(); }
     public struct AutoCursor : IDisposable { readonly void IDisposable.Dispose() => EndCursor(); }
+    public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) _disabledDepth--; } }
 
     private static Font? _defaultFont;
     public static Font DefaultFont => _defaultFont!;
@@ -151,10 +152,16 @@ public static partial class UI
     public static bool WasPressed(WidgetId id) => ElementTree.WasPressed(id);
     public static bool IsDown() => ElementTree.IsDown();
 
-    public static void SetDisabled(bool disabled = true) => ElementTree.SetWidgetFlag(WidgetFlags.Disabled, disabled);
-    public static void SetChecked(bool isChecked = true) => ElementTree.SetWidgetFlag(WidgetFlags.Checked, isChecked);
-    public static bool IsDisabled() => ElementTree.IsDisabled();
-    public static bool IsChecked() => ElementTree.IsChecked();
+    private static int _disabledDepth;
+
+    public static AutoEnabled BeginEnabled(bool enabled = true)
+    {
+        var auto = new AutoEnabled { WasDisabled = !enabled };
+        if (!enabled) _disabledDepth++;
+        return auto;
+    }
+
+    public static bool IsDisabled() => _disabledDepth > 0;
 
     public static void SetCapture(WidgetId id) => ElementTree.SetCaptureById(id);
     public static void SetCapture() => ElementTree.SetCapture();
@@ -246,6 +253,7 @@ public static partial class UI
         ElementTree._prevHotId = ElementTree._hotId;
         ElementTree._hotId = WidgetId.None;
         _valueChanged = false;
+        _disabledDepth = 0;
 
         _frame++;
         _refSize = GetRefSize();

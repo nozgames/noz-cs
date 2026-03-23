@@ -54,8 +54,8 @@ public static partial class FloatingToolbar
         UI.Container(EditorStyle.FloatingToolbar.Divider);
     }
 
-    public static bool Button(WidgetId id, Sprite icon)
+    public static bool Button(WidgetId id, Sprite icon, bool isSelected = false)
     {
-        return UI.Button(id, icon, EditorStyle.FloatingToolbar.ToolButton);
+        return UI.Button(id, icon, EditorStyle.FloatingToolbar.ToolButton, isSelected);
     }
 }

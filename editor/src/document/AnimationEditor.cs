@@ -229,7 +229,6 @@ internal partial class AnimationEditor : DocumentEditor
 
     private void SkeletonButtonUI()
     {
-        UI.SetChecked(EditorUI.IsPopupOpen(ElementId.SkeletonButton));
         if (UI.Button(ElementId.SkeletonButton, () =>
         {
             UI.Image(EditorAssets.Sprites.IconBone, EditorStyle.Icon.Primary);
@@ -237,7 +236,7 @@ internal partial class AnimationEditor : DocumentEditor
                 UI.Text("Select Skeleton...", EditorStyle.Control.Text);
             else
                 UI.Text(Document.Skeleton.Name, EditorStyle.Control.Text);
-        }, EditorStyle.Button.Secondary))
+        }, EditorStyle.Button.Secondary, isSelected: EditorUI.IsPopupOpen(ElementId.SkeletonButton)))
             // TODO: migrate to UI.PopupMenu
             EditorUI.TogglePopup(ElementId.SkeletonButton);
 
@@ -276,25 +275,21 @@ internal partial class AnimationEditor : DocumentEditor
 
         FloatingToolbar.Divider();
 
-        UI.SetChecked(Document.IsPlaying);
-        if (FloatingToolbar.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay))
+        if (FloatingToolbar.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, isSelected: Document.IsPlaying))
             TogglePlayback();
 
         FloatingToolbar.Divider();
 
-        UI.SetChecked(_showSkeleton);
-        if (FloatingToolbar.Button(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview))
+        if (FloatingToolbar.Button(ElementId.ShowSkeletonButton, EditorAssets.Sprites.IconPreview, isSelected: _showSkeleton))
             _showSkeleton = !_showSkeleton;
 
-        UI.SetChecked(Document.IsLooping);
-        if (FloatingToolbar.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop))
+        if (FloatingToolbar.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, isSelected: Document.IsLooping))
         {
             Undo.Record(Document);
             Document.IsLooping = !Document.IsLooping;
         }
 
-        UI.SetChecked(_onionSkin);
-        if (FloatingToolbar.Button(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion))
+        if (FloatingToolbar.Button(ElementId.OnionSkinButton, EditorAssets.Sprites.IconOnion, isSelected: _onionSkin))
             _onionSkin = !_onionSkin;
     }
 
