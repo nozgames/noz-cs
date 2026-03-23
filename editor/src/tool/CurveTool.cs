@@ -9,30 +9,18 @@ namespace NoZ.Editor;
 public class CurveTool : Tool
 {
     private readonly SpritePath _path;
-    private readonly Action _update;
-    private readonly Action _commit;
-    private readonly Action _cancel;
-    private readonly float[] _savedCurves;
+    private readonly SpritePathAnchor[] _saved;
     private readonly Matrix3x2 _transform;
     private readonly Matrix3x2 _invTransform;
     private readonly List<int> _selectedSegments = [];
 
     private Vector2 _startWorld;
 
-    public CurveTool(
-        SpritePath path,
-        Matrix3x2 transform,
-        float[] savedCurves,
-        Action update,
-        Action commit,
-        Action cancel)
+    public CurveTool(SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved)
     {
         _path = path;
         _transform = transform;
-        _savedCurves = savedCurves;
-        _update = update;
-        _commit = commit;
-        _cancel = cancel;
+        _saved = saved;
 
         Matrix3x2.Invert(transform, out _invTransform);
 
@@ -58,7 +46,8 @@ public class CurveTool : Tool
 
         if (Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.KeyEnter))
         {
-            _commit();
+            _path.UpdateSamples();
+            _path.UpdateBounds();
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
@@ -84,7 +73,7 @@ public class CurveTool : Tool
             var perp = new Vector2(-dir.Y, dir.X) / len;
             var curveDelta = Vector2.Dot(delta, perp);
 
-            var newCurve = _savedCurves[segIdx] + curveDelta;
+            var newCurve = _saved[segIdx].Curve + curveDelta;
 
             if (Input.IsCtrlDown())
                 newCurve = SnapCurve(newCurve, len);
@@ -94,7 +83,6 @@ public class CurveTool : Tool
 
         _path.UpdateSamples();
         _path.UpdateBounds();
-        _update();
     }
 
     public override void Draw()
@@ -122,10 +110,7 @@ public class CurveTool : Tool
 
     public override void Cancel()
     {
-        _path.RestoreCurves(_savedCurves);
-        _path.UpdateSamples();
-        _path.UpdateBounds();
-        _cancel();
+        Undo.Cancel();
     }
 
     private static float SnapCurve(float curve, float segmentLength)

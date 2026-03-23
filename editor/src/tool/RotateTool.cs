@@ -6,26 +6,43 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class RotateTool(
-    in Vector2 pivotWorld,
-    in Vector2 pivotLocal,
-    in Vector2 originWorld,
-    in Vector2 originLocal,
-    in Matrix3x2 invTransform,
-    Action<float> update,
-    Action<float> commit,
-    Action cancel) : Tool
+public class RotateTool : Tool
 {
-    private readonly Vector2 _pivotWorld = pivotWorld;
-    private readonly Vector2 _pivotLocal = pivotLocal;
-    private readonly Vector2 _originWorld = originWorld;
-    private readonly Vector2 _originLocal = originLocal;
-    private readonly Matrix3x2 _invTransform = invTransform;
-    private readonly Action<float> _update = update;
-    private readonly Action<float> _commit = commit;
-    private readonly Action _cancel = cancel;
+    private readonly Action<float>? _updateCallback;
+    private readonly Action<float>? _commitCallback;
+    private readonly Action? _cancelCallback;
+
+    private readonly Vector2 _pivotWorld;
+    private readonly Vector2 _pivotLocal;
+    private readonly Vector2 _originWorld;
+    private readonly Vector2 _originLocal;
+    private readonly Matrix3x2 _invTransform;
 
     private Vector2 _startMouseLocal;
+
+    public RotateTool(
+        in Vector2 pivotWorld, in Vector2 pivotLocal,
+        in Vector2 originWorld, in Vector2 originLocal,
+        in Matrix3x2 invTransform)
+    {
+        _pivotWorld = pivotWorld;
+        _pivotLocal = pivotLocal;
+        _originWorld = originWorld;
+        _originLocal = originLocal;
+        _invTransform = invTransform;
+    }
+
+    public RotateTool(
+        in Vector2 pivotWorld, in Vector2 pivotLocal,
+        in Vector2 originWorld, in Vector2 originLocal,
+        in Matrix3x2 invTransform,
+        Action<float> update, Action<float> commit, Action cancel)
+        : this(pivotWorld, pivotLocal, originWorld, originLocal, invTransform)
+    {
+        _updateCallback = update;
+        _commitCallback = commit;
+        _cancelCallback = cancel;
+    }
 
     public override void Begin()
     {
@@ -45,13 +62,13 @@ public class RotateTool(
         if (Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
             Input.WasButtonPressed(InputCode.KeyEnter, Scope))
         {
-            _commit(GetCurrentAngle());
+            OnCommit(GetCurrentAngle());
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
         }
 
-        _update(GetCurrentAngle());
+        OnUpdate(GetCurrentAngle());
     }
 
     private static float GetAngleFromPivot(Vector2 localPos, Vector2 pivotLocal)
@@ -60,10 +77,10 @@ public class RotateTool(
         return MathF.Atan2(dir.Y, dir.X);
     }
 
-    private Vector2 GetCurrentPivotLocal() => Input.IsShiftDown(Scope) ? _originLocal : _pivotLocal;
-    private Vector2 GetCurrentPivotWorld() => Input.IsShiftDown(Scope) ? _originWorld : _pivotWorld;
+    protected Vector2 GetCurrentPivotLocal() => Input.IsShiftDown(Scope) ? _originLocal : _pivotLocal;
+    protected Vector2 GetCurrentPivotWorld() => Input.IsShiftDown(Scope) ? _originWorld : _pivotWorld;
 
-    private float GetCurrentAngle()
+    protected float GetCurrentAngle()
     {
         var pivotLocal = GetCurrentPivotLocal();
         var startAngle = GetAngleFromPivot(_startMouseLocal, pivotLocal);
@@ -79,6 +96,10 @@ public class RotateTool(
 
         return angle;
     }
+
+    protected virtual void OnUpdate(float angle) => _updateCallback?.Invoke(angle);
+    protected virtual void OnCommit(float angle) => _commitCallback?.Invoke(angle);
+    protected virtual void OnCancel() => _cancelCallback?.Invoke();
 
     public override void Draw()
     {
@@ -96,6 +117,6 @@ public class RotateTool(
     public override void Cancel()
     {
         base.Cancel();
-        _cancel();
+        OnCancel();
     }
 }

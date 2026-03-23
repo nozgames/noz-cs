@@ -366,77 +366,6 @@ public class SpritePath : SpriteNode
 
     #region Manipulation
 
-    public void TranslateSelected(Vector2 delta, Vector2[] savedPositions, bool snap, int offset = 0)
-    {
-        for (var i = 0; i < Anchors.Count; i++)
-        {
-            if (!Anchors[i].IsSelected) continue;
-            var a = Anchors[i];
-            a.Position = savedPositions[offset + i] + delta;
-            if (snap)
-                a.Position = Grid.SnapToPixelGrid(a.Position);
-            Anchors[i] = a;
-        }
-        MarkDirty();
-    }
-
-    public void RotateSelected(Vector2 pivot, float angle, Vector2[] savedPositions, int savedOffset = 0)
-    {
-        var cos = MathF.Cos(angle);
-        var sin = MathF.Sin(angle);
-
-        for (var i = 0; i < Anchors.Count; i++)
-        {
-            if (!Anchors[i].IsSelected) continue;
-            var off = savedPositions[savedOffset + i] - pivot;
-            var rotated = new Vector2(
-                off.X * cos - off.Y * sin,
-                off.X * sin + off.Y * cos);
-            var a = Anchors[i];
-            a.Position = pivot + rotated;
-            Anchors[i] = a;
-        }
-        MarkDirty();
-    }
-
-    public void ScaleSelected(Vector2 pivot, Vector2 scale, Vector2[] savedPositions, float[] savedCurves, int savedOffset = 0)
-    {
-        var avgScale = (MathF.Abs(scale.X) + MathF.Abs(scale.Y)) * 0.5f;
-        for (var i = 0; i < Anchors.Count; i++)
-        {
-            if (!Anchors[i].IsSelected) continue;
-            var off = savedPositions[savedOffset + i] - pivot;
-            var a = Anchors[i];
-            a.Position = pivot + new Vector2(off.X * scale.X, off.Y * scale.Y);
-            a.Curve = ClampCurve(savedCurves[savedOffset + i] * avgScale);
-            Anchors[i] = a;
-        }
-        MarkDirty();
-    }
-
-    public void RestorePositions(Vector2[] savedPositions, int offset = 0)
-    {
-        for (var i = 0; i < Anchors.Count; i++)
-        {
-            if (!Anchors[i].IsSelected) continue;
-            var a = Anchors[i];
-            a.Position = savedPositions[offset + i];
-            Anchors[i] = a;
-        }
-        MarkDirty();
-    }
-
-    public void RestoreCurves(float[] savedCurves, int offset = 0)
-    {
-        for (var i = 0; i < Anchors.Count; i++)
-        {
-            var a = Anchors[i];
-            a.Curve = savedCurves[offset + i];
-            Anchors[i] = a;
-        }
-        MarkDirty();
-    }
-
     public void SnapSelectedToPixelGrid()
     {
         for (var i = 0; i < Anchors.Count; i++)
@@ -462,16 +391,12 @@ public class SpritePath : SpriteNode
         return count > 0 ? sum / count : null;
     }
 
-    public void SavePositions(Vector2[] target, int offset = 0)
+    public SpritePathAnchor[] SnapshotAnchors()
     {
+        var snapshot = new SpritePathAnchor[Anchors.Count];
         for (var i = 0; i < Anchors.Count; i++)
-            target[offset + i] = Anchors[i].Position;
-    }
-
-    public void SaveCurves(float[] target, int offset = 0)
-    {
-        for (var i = 0; i < Anchors.Count; i++)
-            target[offset + i] = Anchors[i].Curve;
+            snapshot[i] = Anchors[i];
+        return snapshot;
     }
 
     public void SetAnchorCurve(int index, float curve)
@@ -682,7 +607,7 @@ public class SpritePath : SpriteNode
 
     #endregion
 
-    private static float ClampCurve(float curve)
+    internal static float ClampCurve(float curve)
     {
         if (MathF.Abs(curve) < MinCurve)
             return 0;

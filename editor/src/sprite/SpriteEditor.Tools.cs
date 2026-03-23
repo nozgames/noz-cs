@@ -8,22 +8,7 @@ namespace NoZ.Editor;
 
 public partial class SpriteEditor
 {
-    private const int MaxSavedAnchors = 1024;
-    private readonly Vector2[] _savedPositions = new Vector2[MaxSavedAnchors];
-    private readonly float[] _savedCurves = new float[MaxSavedAnchors];
-
-    private struct SavedPathState
-    {
-        public SpritePath Path;
-        public int Offset;
-    }
-
-    private readonly List<SpritePath> _pathsBuffer = new();
-    private readonly List<SavedPathState> _savedPaths = new();
-
     public bool HasPathSelection { get; private set; }
-
-    private bool SnapToPixelGrid => Input.IsCtrlDown(InputScope.All);
 
     private SpriteLayer ActiveLayer => Document.ActiveLayer ?? Document.RootLayer;
 
@@ -41,7 +26,7 @@ public partial class SpriteEditor
             new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete },
             new Command { Name = "Move", Handler = BeginMoveTool, Key = InputCode.KeyG, Icon = EditorAssets.Sprites.IconMove },
             new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
-            new Command { Name = "Scale", Handler = OnScale, Key = InputCode.KeyS },
+            new Command { Name = "Scale", Handler = BeginScaleTool, Key = InputCode.KeyS },
             new Command { Name = "Curve", Handler = BeginCurveTool, Key = InputCode.KeyC },
             new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
             new Command { Name = "Insert Anchor", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
@@ -126,50 +111,6 @@ public partial class SpriteEditor
     }
 
     private void InvalidateMesh() => _meshVersion = -1;
-
-    private bool CollectAndSavePathStates(bool saveCurves)
-    {
-        _pathsBuffer.Clear();
-        Document.RootLayer.CollectPathsWithSelection(_pathsBuffer);
-        if (_pathsBuffer.Count == 0) return false;
-
-        _savedPaths.Clear();
-        var offset = 0;
-        foreach (var path in _pathsBuffer)
-        {
-            path.SavePositions(_savedPositions, offset);
-            if (saveCurves) path.SaveCurves(_savedCurves, offset);
-            _savedPaths.Add(new SavedPathState { Path = path, Offset = offset });
-            offset += path.Anchors.Count;
-        }
-        return true;
-    }
-
-    private Vector2? GetMultiPathCentroid()
-    {
-        var sum = Vector2.Zero;
-        var count = 0;
-        foreach (var sp in _savedPaths)
-        {
-            for (var i = 0; i < sp.Path.Anchors.Count; i++)
-            {
-                if (!sp.Path.Anchors[i].IsSelected) continue;
-                sum += sp.Path.Anchors[i].Position;
-                count++;
-            }
-        }
-        return count > 0 ? sum / count : null;
-    }
-
-    private void UpdateAllSavedPaths()
-    {
-        foreach (var sp in _savedPaths)
-        {
-            sp.Path.UpdateSamples();
-            sp.Path.UpdateBounds();
-        }
-        InvalidateMesh();
-    }
 
     #endregion
 
@@ -280,124 +221,26 @@ public partial class SpriteEditor
 
     private void BeginMoveTool()
     {
-        if (!CollectAndSavePathStates(saveCurves: false)) return;
-
+        var tool = MovePathTool.Create(Document);
+        if (tool == null) return;
         Undo.Record(Document);
-
-        Workspace.BeginTool(new MoveTool(
-            update: delta =>
-            {
-                var snap = Input.IsCtrlDown(InputScope.All);
-                foreach (var sp in _savedPaths)
-                    sp.Path.TranslateSelected(delta, _savedPositions, snap, sp.Offset);
-                UpdateAllSavedPaths();
-            },
-            commit: _ =>
-            {
-                Document.IncrementVersion();
-                Document.UpdateBounds();
-            },
-            cancel: () =>
-            {
-                foreach (var sp in _savedPaths)
-                    sp.Path.RestorePositions(_savedPositions, sp.Offset);
-                UpdateAllSavedPaths();
-                Undo.Cancel();
-            }
-        ));
+        Workspace.BeginTool(tool);
     }
 
     private void BeginRotateTool()
     {
-        if (!CollectAndSavePathStates(saveCurves: false)) return;
-
-        var localPivot = GetMultiPathCentroid();
-        if (!localPivot.HasValue) return;
-
-        var worldPivot = Vector2.Transform(localPivot.Value, Document.Transform);
-        var worldOrigin = Vector2.Transform(Vector2.Zero, Document.Transform);
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-
+        var tool = RotatePathTool.Create(Document);
+        if (tool == null) return;
         Undo.Record(Document);
-
-        Workspace.BeginTool(new RotateTool(
-            worldPivot, localPivot.Value, worldOrigin, Vector2.Zero, invTransform,
-            update: angle =>
-            {
-                var pivot = Input.IsShiftDown() ? Vector2.Zero : localPivot.Value;
-                foreach (var sp in _savedPaths)
-                {
-                    sp.Path.RotateSelected(pivot, angle, _savedPositions, sp.Offset);
-                    if (SnapToPixelGrid) sp.Path.SnapSelectedToPixelGrid();
-                }
-                UpdateAllSavedPaths();
-            },
-            commit: _ =>
-            {
-                foreach (var sp in _savedPaths)
-                {
-                    if (SnapToPixelGrid) sp.Path.SnapSelectedToPixelGrid();
-                }
-                UpdateAllSavedPaths();
-                Document.IncrementVersion();
-                Document.UpdateBounds();
-            },
-            cancel: () =>
-            {
-                foreach (var sp in _savedPaths)
-                    sp.Path.RestorePositions(_savedPositions, sp.Offset);
-                UpdateAllSavedPaths();
-                Undo.Cancel();
-            }
-        ));
+        Workspace.BeginTool(tool);
     }
 
-    private void OnScale()
+    private void BeginScaleTool()
     {
-        if (!CollectAndSavePathStates(saveCurves: true)) return;
-
-        var localPivot = GetMultiPathCentroid();
-        if (!localPivot.HasValue) return;
-
-        var worldPivot = Vector2.Transform(localPivot.Value, Document.Transform);
-        var worldOrigin = Vector2.Transform(Vector2.Zero, Document.Transform);
-
+        var tool = ScalePathTool.Create(Document);
+        if (tool == null) return;
         Undo.Record(Document);
-
-        Workspace.BeginTool(new ScaleTool(
-            worldPivot, worldOrigin,
-            update: scale =>
-            {
-                var pivot = Input.IsShiftDown(InputScope.All) ? Vector2.Zero : localPivot.Value;
-                foreach (var sp in _savedPaths)
-                {
-                    sp.Path.ScaleSelected(pivot, scale, _savedPositions, _savedCurves, sp.Offset);
-                    if (SnapToPixelGrid) sp.Path.SnapSelectedToPixelGrid();
-                }
-                UpdateAllSavedPaths();
-                Document.IncrementVersion();
-            },
-            commit: _ =>
-            {
-                foreach (var sp in _savedPaths)
-                {
-                    if (SnapToPixelGrid) sp.Path.SnapSelectedToPixelGrid();
-                }
-                UpdateAllSavedPaths();
-                Document.IncrementVersion();
-                Document.UpdateBounds();
-            },
-            cancel: () =>
-            {
-                foreach (var sp in _savedPaths)
-                {
-                    sp.Path.RestorePositions(_savedPositions, sp.Offset);
-                    sp.Path.RestoreCurves(_savedCurves, sp.Offset);
-                }
-                UpdateAllSavedPaths();
-                Undo.Cancel();
-            }
-        ));
+        Workspace.BeginTool(tool);
     }
 
     private void BeginCurveTool()
@@ -417,19 +260,8 @@ public partial class SpriteEditor
 
         if (!hasSelectedSegment) return;
 
-        path.SaveCurves(_savedCurves);
         Undo.Record(Document);
-
-        Workspace.BeginTool(new CurveTool(
-            path, Document.Transform, _savedCurves,
-            update: () => Document.IncrementVersion(),
-            commit: () =>
-            {
-                Document.IncrementVersion();
-                Document.UpdateBounds();
-            },
-            cancel: () => Undo.Cancel()
-        ));
+        Workspace.BeginTool(new CurveTool(path, Document.Transform, path.SnapshotAnchors()));
     }
 
     private void InsertAnchorAtHover()
@@ -454,7 +286,6 @@ public partial class SpriteEditor
         path.UpdateBounds();
         Document.UpdateBounds();
 
-        path.SavePositions(_savedPositions);
         BeginMoveTool();
     }
 

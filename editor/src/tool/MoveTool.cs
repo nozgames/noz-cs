@@ -6,14 +6,23 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class MoveTool(Action<Vector2> update, Action<Vector2> commit, Action cancel) : Tool
+public class MoveTool : Tool
 {
-    private readonly Action<Vector2> _update = update;
-    private readonly Action<Vector2> _commit = commit;
-    private readonly Action _cancel = cancel;
+    private readonly Action<Vector2>? _updateCallback;
+    private readonly Action<Vector2>? _commitCallback;
+    private readonly Action? _cancelCallback;
 
     private Vector2 _startWorld;
     private Vector2 _deltaScale = Vector2.One;
+
+    public MoveTool() { }
+
+    public MoveTool(Action<Vector2> update, Action<Vector2> commit, Action cancel)
+    {
+        _updateCallback = update;
+        _commitCallback = commit;
+        _cancelCallback = cancel;
+    }
 
     public override void Begin()
     {
@@ -35,7 +44,7 @@ public class MoveTool(Action<Vector2> update, Action<Vector2> commit, Action can
         {
             var delta = Workspace.MouseWorldPosition - _startWorld;
             delta *= _deltaScale;
-            _commit(delta);
+            OnCommit(delta);
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
@@ -48,12 +57,16 @@ public class MoveTool(Action<Vector2> update, Action<Vector2> commit, Action can
 
         var updateDelta = Workspace.MouseWorldPosition - _startWorld;
         updateDelta *= _deltaScale;
-        _update(updateDelta);
+        OnUpdate(updateDelta);
     }
+
+    protected virtual void OnUpdate(Vector2 delta) => _updateCallback?.Invoke(delta);
+    protected virtual void OnCommit(Vector2 delta) => _commitCallback?.Invoke(delta);
+    protected virtual void OnCancel() => _cancelCallback?.Invoke();
 
     public override void Cancel()
     {
-        _cancel();
+        OnCancel();
         base.Cancel();
     }
 }

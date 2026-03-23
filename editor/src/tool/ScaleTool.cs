@@ -6,21 +6,32 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class ScaleTool(
-    Vector2 pivot,
-    Vector2 origin,
-    Action<Vector2> update,
-    Action<Vector2> commit,
-    Action cancel) : Tool
+public class ScaleTool : Tool
 {
-    private readonly Vector2 _pivot = pivot;
-    private readonly Vector2 _origin = origin;
-    private readonly Action<Vector2> _update = update;
-    private readonly Action<Vector2> _commit = commit;
-    private readonly Action _cancel = cancel;
+    private readonly Action<Vector2>? _updateCallback;
+    private readonly Action<Vector2>? _commitCallback;
+    private readonly Action? _cancelCallback;
+
+    private readonly Vector2 _pivot;
+    private readonly Vector2 _origin;
 
     private Vector2 _startWorld;
     private Vector2 _scaleConstraint = Vector2.One;
+
+    public ScaleTool(Vector2 pivot, Vector2 origin)
+    {
+        _pivot = pivot;
+        _origin = origin;
+    }
+
+    public ScaleTool(Vector2 pivot, Vector2 origin,
+        Action<Vector2> update, Action<Vector2> commit, Action cancel)
+        : this(pivot, origin)
+    {
+        _updateCallback = update;
+        _commitCallback = commit;
+        _cancelCallback = cancel;
+    }
 
     public override void Begin()
     {
@@ -41,7 +52,7 @@ public class ScaleTool(
             Input.WasButtonPressed(InputCode.KeyEnter, Scope))
         {
             var finalScale = GetCurrentScale();
-            _commit(finalScale);
+            OnCommit(finalScale);
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
@@ -53,12 +64,12 @@ public class ScaleTool(
             _scaleConstraint = _scaleConstraint.Y > 0 && _scaleConstraint.X == 0 ? Vector2.One : new Vector2(0, 1);
 
         var scale = GetCurrentScale();
-        _update(scale);
+        OnUpdate(scale);
     }
 
-    private Vector2 GetCurrentPivot() => Input.IsShiftDown(Scope) ? _origin : _pivot;
+    protected Vector2 GetCurrentPivot() => Input.IsShiftDown(Scope) ? _origin : _pivot;
 
-    private Vector2 GetCurrentScale()
+    protected Vector2 GetCurrentScale()
     {
         var pivot = GetCurrentPivot();
         var startDistance = Vector2.Distance(pivot, _startWorld);
@@ -76,6 +87,10 @@ public class ScaleTool(
 
         return scale;
     }
+
+    protected virtual void OnUpdate(Vector2 scale) => _updateCallback?.Invoke(scale);
+    protected virtual void OnCommit(Vector2 scale) => _commitCallback?.Invoke(scale);
+    protected virtual void OnCancel() => _cancelCallback?.Invoke();
 
     public override void Draw()
     {
@@ -107,7 +122,7 @@ public class ScaleTool(
 
     public override void Cancel()
     {
-        _cancel();
+        OnCancel();
     }
 
     public override void Dispose()
