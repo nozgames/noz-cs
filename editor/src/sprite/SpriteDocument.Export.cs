@@ -133,10 +133,10 @@ public partial class SpriteDocument
         Vector2Int sourceOffset,
         int dpi)
     {
-        SpriteLayerProcessor.ProcessLayer(layer, result =>
-        {
+        var results = new List<LayerPathResult>();
+        SpriteLayerProcessor.ProcessLayer(layer, results);
+        foreach (var result in results)
             Rasterizer.Fill(result.Contours, image, targetRect, sourceOffset, dpi, result.Color);
-        });
     }
 
     public override void Export(string outputPath, PropertySet meta)

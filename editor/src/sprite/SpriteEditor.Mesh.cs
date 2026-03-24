@@ -128,14 +128,10 @@ public partial class SpriteEditor
 
     private void TessellateLayer(SpriteLayer layer, ref int vertexOffset, ref int indexOffset)
     {
-        var vo = vertexOffset;
-        var io = indexOffset;
-        SpriteLayerProcessor.ProcessLayer(layer, result =>
-        {
-            TessellateClipper(result.Contours, ref vo, ref io, result.Color.ToColor());
-        });
-        vertexOffset = vo;
-        indexOffset = io;
+        var results = new List<LayerPathResult>();
+        SpriteLayerProcessor.ProcessLayer(layer, results);
+        foreach (var result in results)
+            TessellateClipper(result.Contours, ref vertexOffset, ref indexOffset, result.Color.ToColor());
     }
 
     private void DrawColoredMesh(int sortGroup)
