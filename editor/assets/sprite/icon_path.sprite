@@ -1,0 +1,42 @@
+
+path "" {
+  fill rgba(0,0,0,0)
+  stroke #FFFFFF 2
+  anchor 0.09744309 -0.004323786
+  anchor -0.034733266 0.083014496
+  anchor -0.09100481 -0.019770345
+  anchor 0.01936341 -0.09803365
+}
+
+path "" {
+  fill #FFFFFF
+  anchor -0.109375 -0.0390625
+  anchor -0.109375 0
+  anchor -0.0703125 0
+  anchor -0.0703125 -0.0390625
+}
+
+path "" {
+  fill #FFFFFF
+  anchor 0 -0.1171875
+  anchor 0 -0.078125
+  anchor 0.0390625 -0.078125
+  anchor 0.0390625 -0.1171875
+}
+
+path "" {
+  fill #FFFFFF
+  anchor 0.078125 -0.0234375
+  anchor 0.078125 0.015625
+  anchor 0.1171875 0.015625
+  anchor 0.1171875 -0.0234375
+}
+
+path "" {
+  fill #FFFFFF
+  anchor -0.0546875 0.0625
+  anchor -0.0546875 0.1015625
+  anchor -0.015625 0.1015625
+  anchor -0.015625 0.0625
+}
+

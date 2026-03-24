@@ -6,5 +6,5 @@ collection = icons
 show_in_skeleton = false
 show_tiling = false
 show_skeleton_overlay = false
-constrained_size = 64x64
+constrained_size = 32x32
 

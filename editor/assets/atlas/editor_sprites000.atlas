@@ -48,6 +48,8 @@ r "icon_onion" 137 338 68 68 0
 r "icon_opacity" 69 372 68 68 0
 r "icon_opacity_overlay" 393 315 36 36 0
 r "icon_palette" 1 375 68 68 0
+r "icon_path" 1 69 36 36 0
+r "icon_path_layer" 69 239 36 36 0
 r "icon_play" 756 137 68 68 0
 r "icon_preview" 688 195 68 68 0
 r "icon_publish" 543 259 108 126 0
@@ -65,7 +67,6 @@ r "icon_subtract" 317 383 68 68 0
 r "icon_tiling" 824 137 68 68 0
 r "icon_unlock" 651 259 36 36 0
 r "icon_xray" 892 137 68 68 0
-r "new_sprite" 756 205 144 107 0
-r "new_sprite001" 651 312 186 166 0
+r "new_sprite" 756 205 144 123 0
+r "new_sprite001" 651 328 186 166 0
 r "new_sprite002" 900 205 112 114 0
-r "icon_layer_2" 497 385 68 68 0

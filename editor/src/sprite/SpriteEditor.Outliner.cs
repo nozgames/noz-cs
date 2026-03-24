@@ -62,12 +62,11 @@ public partial class SpriteEditor
 
     private static readonly ButtonStyle OutlinerIconButtonStyle = new()
     {
-        Width = 18,
-        Height = 18,
+        Width = EditorStyle.Icon.Size,
+        Height = EditorStyle.Control.Height,
         Background = Color.Transparent,
         ContentColor = EditorStyle.Palette.Content,
-        IconSize = 9,
-        BorderRadius = 2,
+        IconSize = EditorStyle.Icon.Size,
         Resolve = (s, f) =>
         {
             if ((f & WidgetFlags.Hovered) != 0) s.Background = EditorStyle.Palette.Active;
@@ -132,63 +131,77 @@ public partial class SpriteEditor
         if (isDragSource)
             UI.BeginOpacity(0.35f);
 
-        // Structure: Widget → Size → Column → [top line] + Flex(Fill+Padding+Row) + [bottom line]
-        // All rows always have the same structure so no layout shift when target changes.
         ElementTree.BeginTree();
         ElementTree.BeginWidget(rowId);
-        ElementTree.BeginSize(Size.Default, new Size(EditorStyle.Control.Height));
-        ElementTree.BeginColumn();
-
-        // Top indicator slot
-        ElementTree.BeginSize(Size.Default, new Size(DropLineHeight));
-        if (dropBefore)
-        {
-            ElementTree.BeginPadding(new EdgeInsets(0, depth * 14, 0, 0));
-            ElementTree.BeginFill(EditorStyle.Palette.Primary);
-            ElementTree.EndFill();
-            ElementTree.EndPadding();
-        }
-        ElementTree.EndSize();
+        ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
 
         // Content area
-        ElementTree.BeginFlex();
         if (dropLastChild)
             ElementTree.BeginFill(bg, borderWidth: 1, borderColor: EditorStyle.Palette.Primary);
         else
             ElementTree.BeginFill(bg);
+
+        // drag indicators
+        if (!dropLastChild && (dropBefore || dropAfter))
+        {
+            ElementTree.BeginAlign(Align.Min, dropAfter ? Align.Max : Align.Min);
+            ElementTree.BeginSize(Size.Default, new Size(DropLineHeight));
+            ElementTree.BeginFill(EditorStyle.Palette.Primary);
+            ElementTree.EndFill();
+            ElementTree.EndSize();
+            ElementTree.EndAlign();
+        }
+
         ElementTree.BeginPadding(EditorStyle.Item.Padding);
         ElementTree.BeginRow(EditorStyle.Control.Spacing);
 
-        // Indent
+        // indent
         if (depth > 0)
-            UI.Spacer(depth * 14);
+            ElementTree.Spacer(depth * (EditorStyle.Icon.SmallSize + EditorStyle.Control.Spacing) - EditorStyle.Control.Spacing);
 
-        // Expand/collapse
+        // expand
         if (isLayer && node.Children.Count > 0)
         {
-            var expandIcon = node.Expanded
-                ? EditorAssets.Sprites.IconFoldoutOpen
-                : EditorAssets.Sprites.IconFoldoutClosed;
-            if (UI.Button(WidgetIds.OutlinerExpand + index, expandIcon, OutlinerIconButtonStyle))
+            ElementTree.BeginTree();
+            ElementTree.BeginWidget(WidgetIds.OutlinerExpand + index);
+            ElementTree.BeginSize(EditorStyle.Icon.SmallSize, Size.Default);
+            ElementTree.Image(
+                image: node.Expanded
+                    ? EditorAssets.Sprites.IconFoldoutClosed
+                    : EditorAssets.Sprites.IconFoldoutOpen,
+                size: new Size2(EditorStyle.Icon.SmallSize, Size.Default),
+                align: Align.Center,
+                color: EditorStyle.Palette.SecondaryText);
+
+            if (ElementTree.WasPressed())
                 node.Expanded = !node.Expanded;
+
+            ElementTree.EndTree();
         }
         else
         {
-            UI.Spacer(18);
+            UI.Spacer(EditorStyle.Icon.SmallSize);
         }
 
-        // Type icon
-        var typeIcon = isLayer ? EditorAssets.Sprites.IconLayer : EditorAssets.Sprites.IconEdit;
-        var iconColor = node.Visible ? EditorStyle.Palette.SecondaryText : EditorStyle.Palette.SecondaryText.WithAlpha(0.4f);
-        UI.Image(typeIcon, new ImageStyle { Size = new Size2(9, 9), Color = iconColor });
+        // icon
+        ElementTree.Image(
+            image: isLayer
+                ? EditorAssets.Sprites.IconPathLayer
+                : EditorAssets.Sprites.IconPath,
+            size: new Size2(EditorStyle.Icon.Size, Size.Default),
+            align: Align.Center,
+            color: EditorStyle.Palette.SecondaryText);
 
-        // Node name
-        using (UI.BeginFlex())
-        {
-            var displayName = !string.IsNullOrEmpty(node.Name) ? node.Name : (isLayer ? "Group" : "Path");
-            var nameStyle = node.Visible ? OutlinerLayerNameStyle : OutlinerLayerNameDimStyle;
-            UI.Text(displayName, nameStyle);
-        }
+        // name
+        ElementTree.BeginFlex();
+        ElementTree.Text(
+            value: !string.IsNullOrEmpty(node.Name) ? node.Name : (isLayer ? "Group" : "Path"),
+            font: UI.DefaultFont,
+            fontSize: EditorStyle.Text.Size,
+            color: EditorStyle.Palette.SecondaryText,
+            align: new Align2(Align.Min, Align.Center)
+        );
+        ElementTree.EndFlex();
 
         // Visibility + Lock
         var showVisibility = isHovered || !node.Visible;
@@ -229,19 +242,6 @@ public partial class SpriteEditor
         ElementTree.EndRow();
         ElementTree.EndPadding();
         ElementTree.EndFill();
-        ElementTree.EndFlex();
-
-        // Bottom indicator slot
-        ElementTree.BeginSize(Size.Default, new Size(DropLineHeight));
-        if (dropAfter)
-        {
-            var lineIndent = _dropZone == DropZone.FirstChild ? (depth + 1) * 14 : depth * 14;
-            ElementTree.BeginPadding(new EdgeInsets(0, lineIndent, 0, 0));
-            ElementTree.BeginFill(EditorStyle.Palette.Primary);
-            ElementTree.EndFill();
-            ElementTree.EndPadding();
-        }
-        ElementTree.EndSize();
 
         // EndTree closes Column + Size + Widget
         ElementTree.EndTree();

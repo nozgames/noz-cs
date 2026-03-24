@@ -1,0 +1,27 @@
+
+path {
+  fill rgba(0,0,0,0)
+  stroke #FFFFFF 3
+  anchor 0.1192446 -0.034368817
+  anchor 0 0.020284953
+  anchor -0.1192446 -0.034368817
+  anchor 0 -0.08405407
+}
+
+path {
+  subtract true
+  fill #FFFFFF
+  anchor 0.1192446 -0.012454449
+  anchor 0 0.042199325
+  anchor -0.1192446 -0.012454449
+  anchor 0 -0.072076745
+}
+
+path {
+  fill #FFFFFF
+  anchor 0.1192446 0.030422552
+  anchor 0 0.085076325
+  anchor -0.1192446 0.030422552
+  anchor 0 -0.019262698
+}
+

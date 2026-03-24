@@ -47,7 +47,6 @@ public static class EditorAssets
         public const string IconHidden = "icon_hidden";
         public const string IconKeyframe = "icon_keyframe";
         public const string IconLayer = "icon_layer";
-        public const string IconLayer2 = "icon_layer_2";
         public const string IconLock = "icon_lock";
         public const string IconLoop = "icon_loop";
         public const string IconMenu = "icon_menu";
@@ -58,6 +57,8 @@ public static class EditorAssets
         public const string IconOpacity = "icon_opacity";
         public const string IconOpacityOverlay = "icon_opacity_overlay";
         public const string IconPalette = "icon_palette";
+        public const string IconPath = "icon_path";
+        public const string IconPathLayer = "icon_path_layer";
         public const string IconPlay = "icon_play";
         public const string IconPreview = "icon_preview";
         public const string IconPublish = "icon_publish";
@@ -179,7 +180,6 @@ public static class EditorAssets
         public static Sprite IconHidden { get; private set; } = null!;
         public static Sprite IconKeyframe { get; private set; } = null!;
         public static Sprite IconLayer { get; private set; } = null!;
-        public static Sprite IconLayer2 { get; private set; } = null!;
         public static Sprite IconLock { get; private set; } = null!;
         public static Sprite IconLoop { get; private set; } = null!;
         public static Sprite IconMenu { get; private set; } = null!;
@@ -190,6 +190,8 @@ public static class EditorAssets
         public static Sprite IconOpacity { get; private set; } = null!;
         public static Sprite IconOpacityOverlay { get; private set; } = null!;
         public static Sprite IconPalette { get; private set; } = null!;
+        public static Sprite IconPath { get; private set; } = null!;
+        public static Sprite IconPathLayer { get; private set; } = null!;
         public static Sprite IconPlay { get; private set; } = null!;
         public static Sprite IconPreview { get; private set; } = null!;
         public static Sprite IconPublish { get; private set; } = null!;
@@ -248,7 +250,6 @@ public static class EditorAssets
             IconHidden = (Sprite)Asset.Load(AssetType.Sprite, Names.IconHidden)!;
             IconKeyframe = (Sprite)Asset.Load(AssetType.Sprite, Names.IconKeyframe)!;
             IconLayer = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLayer)!;
-            IconLayer2 = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLayer2)!;
             IconLock = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLock)!;
             IconLoop = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLoop)!;
             IconMenu = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMenu)!;
@@ -259,6 +260,8 @@ public static class EditorAssets
             IconOpacity = (Sprite)Asset.Load(AssetType.Sprite, Names.IconOpacity)!;
             IconOpacityOverlay = (Sprite)Asset.Load(AssetType.Sprite, Names.IconOpacityOverlay)!;
             IconPalette = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPalette)!;
+            IconPath = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPath)!;
+            IconPathLayer = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPathLayer)!;
             IconPlay = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPlay)!;
             IconPreview = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPreview)!;
             IconPublish = (Sprite)Asset.Load(AssetType.Sprite, Names.IconPublish)!;
@@ -318,7 +321,6 @@ public static class EditorAssets
             IconHidden?.Dispose();
             IconKeyframe?.Dispose();
             IconLayer?.Dispose();
-            IconLayer2?.Dispose();
             IconLock?.Dispose();
             IconLoop?.Dispose();
             IconMenu?.Dispose();
@@ -329,6 +331,8 @@ public static class EditorAssets
             IconOpacity?.Dispose();
             IconOpacityOverlay?.Dispose();
             IconPalette?.Dispose();
+            IconPath?.Dispose();
+            IconPathLayer?.Dispose();
             IconPlay?.Dispose();
             IconPreview?.Dispose();
             IconPublish?.Dispose();
