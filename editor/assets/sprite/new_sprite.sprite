@@ -9,7 +9,6 @@ path "" {
 }
 
 path "" {
-  clip true
   fill #FF0000
   anchor 0.5038388 -0.2914842
   anchor 0.44771147 -0.15381633
@@ -19,15 +18,21 @@ path "" {
   anchor -0.17570591 -0.50047636
 }
 
-path "" {
-  clip true
-  fill #FFFFFF
-  anchor 0.20886087 -0.00038814545
-  anchor -0.0248909 0.14757156
-  anchor -0.12311649 0.00085544586
-  anchor -0.049758434 -0.09985733
-}
+layer "Layer 2" {
+  path "" {
+    subtract true
+    fill #FFFFFF
+    anchor 0.13159084 -0.13124847
+    anchor -0.10216093 0.016711235
+    anchor -0.20038652 -0.13000488
+    anchor -0.12702847 -0.23071766
+  }
 
-layer "Layer 3" {
+  layer "Layer 5" {
+    layer "Layer 4" {
+    }
+
+  }
+
 }
 

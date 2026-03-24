@@ -36,7 +36,7 @@ public partial class SpriteEditor
     private Vector2 _dragStartPos;
     private int _dropTargetIndex = -1;
 
-    private enum DropZone { Before, Into, After }
+    private enum DropZone { Before, After, FirstChild, LastChild }
     private DropZone _dropZone;
     private const float DragThreshold = 4f;
 
@@ -45,7 +45,7 @@ public partial class SpriteEditor
         Width = Size.Percent(1),
         Height = Size.Percent(1),
         Padding = EdgeInsets.All(4),
-        Spacing = 1,
+        Spacing = 0,
     };
 
     private static readonly TextStyle OutlinerLayerNameStyle = new()
@@ -106,6 +106,8 @@ public partial class SpriteEditor
         }
     }
 
+    private const float DropLineHeight = 2;
+
     private void OutlinerNodeUI(SpriteNode node, int depth)
     {
         var index = _outlinerIndex++;
@@ -115,103 +117,137 @@ public partial class SpriteEditor
         var isActive = isLayer && node == Document.ActiveLayer;
         var isPathSelected = isPath && ((SpritePath)node).HasSelection();
         var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
+        var isDragSource = _outlinerDragging && _dragNode == node;
+        var dropBefore = isDragTarget && _dropZone == DropZone.Before;
+        var dropAfter = isDragTarget && (_dropZone == DropZone.After || _dropZone == DropZone.FirstChild);
+        var dropLastChild = isDragTarget && _dropZone == DropZone.LastChild;
 
         _outlinerRows.Add(new OutlinerRowInfo { Node = node, Index = index, Depth = depth });
 
-        var rowStyle = (isActive || isPathSelected) ? EditorStyle.ItemSelected : EditorStyle.Item;
+        // Determine background
+        var bg = (isActive || isPathSelected) ? EditorStyle.Palette.Active : Color.Transparent;
+        var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
+        if (isHovered) bg = EditorStyle.Palette.Active;
 
-        using (UI.BeginRow(rowId, rowStyle))
+        if (isDragSource)
+            UI.BeginOpacity(0.35f);
+
+        // Structure: Widget → Size → Column → [top line] + Flex(Fill+Padding+Row) + [bottom line]
+        // All rows always have the same structure so no layout shift when target changes.
+        ElementTree.BeginTree();
+        ElementTree.BeginWidget(rowId);
+        ElementTree.BeginSize(Size.Default, new Size(EditorStyle.Control.Height));
+        ElementTree.BeginColumn();
+
+        // Top indicator slot
+        ElementTree.BeginSize(Size.Default, new Size(DropLineHeight));
+        if (dropBefore)
         {
-            // Indent
-            if (depth > 0)
-                UI.Spacer(depth * 14);
+            ElementTree.BeginPadding(new EdgeInsets(0, depth * 14, 0, 0));
+            ElementTree.BeginFill(EditorStyle.Palette.Primary);
+            ElementTree.EndFill();
+            ElementTree.EndPadding();
+        }
+        ElementTree.EndSize();
 
-            // Expand/collapse (layers with children only)
-            if (isLayer && node.Children.Count > 0)
+        // Content area
+        ElementTree.BeginFlex();
+        if (dropLastChild)
+            ElementTree.BeginFill(bg, borderWidth: 1, borderColor: EditorStyle.Palette.Primary);
+        else
+            ElementTree.BeginFill(bg);
+        ElementTree.BeginPadding(EditorStyle.Item.Padding);
+        ElementTree.BeginRow(EditorStyle.Control.Spacing);
+
+        // Indent
+        if (depth > 0)
+            UI.Spacer(depth * 14);
+
+        // Expand/collapse
+        if (isLayer && node.Children.Count > 0)
+        {
+            var expandIcon = node.Expanded
+                ? EditorAssets.Sprites.IconFoldoutOpen
+                : EditorAssets.Sprites.IconFoldoutClosed;
+            if (UI.Button(WidgetIds.OutlinerExpand + index, expandIcon, OutlinerIconButtonStyle))
+                node.Expanded = !node.Expanded;
+        }
+        else
+        {
+            UI.Spacer(18);
+        }
+
+        // Type icon
+        var typeIcon = isLayer ? EditorAssets.Sprites.IconLayer : EditorAssets.Sprites.IconEdit;
+        var iconColor = node.Visible ? EditorStyle.Palette.SecondaryText : EditorStyle.Palette.SecondaryText.WithAlpha(0.4f);
+        UI.Image(typeIcon, new ImageStyle { Size = new Size2(9, 9), Color = iconColor });
+
+        // Node name
+        using (UI.BeginFlex())
+        {
+            var displayName = !string.IsNullOrEmpty(node.Name) ? node.Name : (isLayer ? "Group" : "Path");
+            var nameStyle = node.Visible ? OutlinerLayerNameStyle : OutlinerLayerNameDimStyle;
+            UI.Text(displayName, nameStyle);
+        }
+
+        // Visibility + Lock
+        var showVisibility = isHovered || !node.Visible;
+        var showLock = isHovered || node.Locked;
+
+        if (showVisibility)
+        {
+            var visIcon = node.Visible ? EditorAssets.Sprites.IconPreview : EditorAssets.Sprites.IconHidden;
+            var visStyle = node.Visible ? OutlinerIconDimButtonStyle : OutlinerIconButtonStyle;
+            if (UI.Button(WidgetIds.OutlinerVisibility + index, visIcon, visStyle))
             {
-                var expandIcon = node.Expanded
-                    ? EditorAssets.Sprites.IconFoldoutOpen
-                    : EditorAssets.Sprites.IconFoldoutClosed;
-                if (UI.Button(WidgetIds.OutlinerExpand + index, expandIcon, OutlinerIconButtonStyle))
-                    node.Expanded = !node.Expanded;
-            }
-            else
-            {
-                UI.Spacer(18);
-            }
-
-            // Type icon (folder for layers, edit for paths)
-            var typeIcon = isLayer ? EditorAssets.Sprites.IconLayer : EditorAssets.Sprites.IconEdit;
-            var iconColor = node.Visible ? EditorStyle.Palette.SecondaryText : EditorStyle.Palette.SecondaryText.WithAlpha(0.4f);
-            UI.Image(typeIcon, new ImageStyle { Size = new Size2(9, 9), Color = iconColor });
-
-            // Node name (fills remaining space)
-            using (UI.BeginFlex())
-            {
-                var displayName = !string.IsNullOrEmpty(node.Name) ? node.Name : (isLayer ? "Group" : "Path");
-                var nameStyle = node.Visible ? OutlinerLayerNameStyle : OutlinerLayerNameDimStyle;
-                UI.Text(displayName, nameStyle);
-            }
-
-            // Visibility + Lock — right-aligned, shown on hover or when non-default
-            var isHovered = UI.IsHovered(rowId);
-            var showVisibility = isHovered || !node.Visible;
-            var showLock = isHovered || node.Locked;
-
-            if (showVisibility)
-            {
-                var visIcon = node.Visible
-                    ? EditorAssets.Sprites.IconPreview
-                    : EditorAssets.Sprites.IconHidden;
-                var visStyle = node.Visible ? OutlinerIconDimButtonStyle : OutlinerIconButtonStyle;
-                if (UI.Button(WidgetIds.OutlinerVisibility + index, visIcon, visStyle))
-                {
-                    Undo.Record(Document);
-                    node.Visible = !node.Visible;
-                    Document.IncrementVersion();
-                }
-            }
-
-            if (showLock)
-            {
-                var lockIcon = node.Locked
-                    ? EditorAssets.Sprites.IconLock
-                    : EditorAssets.Sprites.IconUnlock;
-                var lockStyle = node.Locked ? OutlinerIconButtonStyle : OutlinerIconDimButtonStyle;
-                if (UI.Button(WidgetIds.OutlinerLock + index, lockIcon, lockStyle))
-                {
-                    Undo.Record(Document);
-                    node.Locked = !node.Locked;
-                    Document.IncrementVersion();
-                }
-            }
-
-            // Click to select / start drag
-            if (UI.WasPressed(rowId))
-            {
-                HandleOutlinerClick(node);
-                _dragNode = node;
-                _dragStartPos = Input.MousePosition;
-            }
-
-            // Draw drop indicator line (before/after)
-            if (isDragTarget && _dropZone != DropZone.Into)
-            {
-                var rect = UI.GetElementWorldRect(rowId);
-                if (rect.Width > 0)
-                {
-                    var y = _dropZone == DropZone.Before ? rect.Y : rect.Bottom;
-                    using (Gizmos.PushState(EditorLayer.Tool))
-                    {
-                        Gizmos.SetColor(EditorStyle.Palette.Primary);
-                        Gizmos.DrawLine(
-                            new System.Numerics.Vector2(rect.X + depth * 14, y),
-                            new System.Numerics.Vector2(rect.Right, y),
-                            0.02f, order: 10);
-                    }
-                }
+                Undo.Record(Document);
+                node.Visible = !node.Visible;
+                Document.IncrementVersion();
             }
         }
+
+        if (showLock)
+        {
+            var lockIcon = node.Locked ? EditorAssets.Sprites.IconLock : EditorAssets.Sprites.IconUnlock;
+            var lockStyle = node.Locked ? OutlinerIconButtonStyle : OutlinerIconDimButtonStyle;
+            if (UI.Button(WidgetIds.OutlinerLock + index, lockIcon, lockStyle))
+            {
+                Undo.Record(Document);
+                node.Locked = !node.Locked;
+                Document.IncrementVersion();
+            }
+        }
+
+        if (UI.WasPressed(rowId))
+        {
+            HandleOutlinerClick(node);
+            _dragNode = node;
+            _dragStartPos = Input.MousePosition;
+        }
+
+        // End Row + Padding + Fill + Flex
+        ElementTree.EndRow();
+        ElementTree.EndPadding();
+        ElementTree.EndFill();
+        ElementTree.EndFlex();
+
+        // Bottom indicator slot
+        ElementTree.BeginSize(Size.Default, new Size(DropLineHeight));
+        if (dropAfter)
+        {
+            var lineIndent = _dropZone == DropZone.FirstChild ? (depth + 1) * 14 : depth * 14;
+            ElementTree.BeginPadding(new EdgeInsets(0, lineIndent, 0, 0));
+            ElementTree.BeginFill(EditorStyle.Palette.Primary);
+            ElementTree.EndFill();
+            ElementTree.EndPadding();
+        }
+        ElementTree.EndSize();
+
+        // EndTree closes Column + Size + Widget
+        ElementTree.EndTree();
+
+        if (isDragSource)
+            UI.EndOpacity();
 
         // Draw children if expanded (layers only)
         if (isLayer && node.Expanded)
@@ -231,11 +267,10 @@ public partial class SpriteEditor
         }
 
         var mousePos = Input.MousePosition;
-
         // Check if we should start dragging (mouse moved beyond threshold)
         if (!_outlinerDragging)
         {
-            if (!Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
+            if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
             {
                 _dragNode = null;
                 return;
@@ -260,36 +295,121 @@ public partial class SpriteEditor
         // Find drop target by checking row rects from previous frame
         _dropTargetIndex = -1;
         var mouseWorld = UI.MouseWorldPosition;
+        var closestDist = float.MaxValue;
+        var closestRow = -1;
 
         for (var i = 0; i < _outlinerRows.Count; i++)
         {
             var row = _outlinerRows[i];
-            if (row.Node == _dragNode) continue;
+            if (row.Node == _dragNode)
+            {
+                // Check if mouse is over the drag source — no drop target
+                var srcRect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
+                if (srcRect.Width > 0 && mouseWorld.Y >= srcRect.Y && mouseWorld.Y <= srcRect.Bottom)
+                {
+                    closestRow = -1;
+                    break;
+                }
+                continue;
+            }
 
             var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
             if (rect.Width <= 0) continue;
 
-            if (mouseWorld.Y < rect.Y || mouseWorld.Y > rect.Bottom)
-                continue;
-
-            _dropTargetIndex = row.Index;
-
-            var relY = (mouseWorld.Y - rect.Y) / rect.Height;
-            if (row.Node is SpriteLayer)
+            // Direct hit
+            if (mouseWorld.Y >= rect.Y && mouseWorld.Y <= rect.Bottom)
             {
-                if (relY < 0.25f) _dropZone = DropZone.Before;
-                else if (relY > 0.75f) _dropZone = DropZone.After;
-                else _dropZone = DropZone.Into;
+                _dropTargetIndex = row.Index;
+                var relY = (mouseWorld.Y - rect.Y) / rect.Height;
+
+                if (row.Node is SpriteLayer layer)
+                {
+                    if (layer.Expanded)
+                    {
+                        // Expanded: top=before sibling, mid=last child, bot=first child
+                        if (relY < 0.33f) _dropZone = DropZone.Before;
+                        else if (relY > 0.67f) _dropZone = DropZone.FirstChild;
+                        else _dropZone = DropZone.LastChild;
+                    }
+                    else
+                    {
+                        // Collapsed: top=before sibling, mid=last child, bot=first child
+                        if (relY < 0.33f) _dropZone = DropZone.Before;
+                        else if (relY > 0.67f) _dropZone = DropZone.FirstChild;
+                        else _dropZone = DropZone.LastChild;
+                    }
+                }
+                else
+                {
+                    // Leaf: top=before, bot=after
+                    _dropZone = relY < 0.5f ? DropZone.Before : DropZone.After;
+                }
+
+                // Normalize "Before" to keep the line on one consistent slot
+                if (_dropZone == DropZone.Before && i > 0)
+                {
+                    // Find previous visible row (skip drag source)
+                    var pi = i - 1;
+                    while (pi >= 0 && _outlinerRows[pi].Node == _dragNode) pi--;
+
+                    if (pi >= 0)
+                    {
+                        var prevRow = _outlinerRows[pi];
+                        if (prevRow.Depth == row.Depth)
+                        {
+                            // Same-depth sibling: use "After" on prev row
+                            _dropTargetIndex = prevRow.Index;
+                            _dropZone = DropZone.After;
+                        }
+                        else if (prevRow.Depth == row.Depth - 1 && prevRow.Node is SpriteLayer parentLayer && parentLayer.Expanded)
+                        {
+                            // First child of expanded layer: use "FirstChild" on parent
+                            _dropTargetIndex = prevRow.Index;
+                            _dropZone = DropZone.FirstChild;
+                        }
+                    }
+                }
+
+                break;
+            }
+
+            // Track nearest row for fallback
+            var dist = mouseWorld.Y < rect.Y ? rect.Y - mouseWorld.Y : mouseWorld.Y - rect.Bottom;
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closestRow = i;
+            }
+        }
+
+        // Fallback: mouse in gap or over drag source — snap to nearest
+        if (_dropTargetIndex < 0 && closestRow >= 0)
+        {
+            var row = _outlinerRows[closestRow];
+            var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
+
+            if (mouseWorld.Y > rect.Bottom)
+            {
+                // Below last visible row — find last root-level item to insert after
+                for (var j = _outlinerRows.Count - 1; j >= 0; j--)
+                {
+                    if (_outlinerRows[j].Depth == 0 && _outlinerRows[j].Node != _dragNode)
+                    {
+                        _dropTargetIndex = _outlinerRows[j].Index;
+                        _dropZone = DropZone.After;
+                        break;
+                    }
+                }
             }
             else
             {
-                _dropZone = relY < 0.5f ? DropZone.Before : DropZone.After;
+                _dropTargetIndex = row.Index;
+                _dropZone = mouseWorld.Y < rect.Y + rect.Height * 0.5f ? DropZone.Before : DropZone.After;
             }
-            break;
         }
 
         // Drop on release
-        if (!Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
+        if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
         {
             if (_dropTargetIndex >= 0)
                 CommitOutlinerDrop();
@@ -331,23 +451,28 @@ public partial class SpriteEditor
         if (dragParent == null) return;
         dragParent.Children.Remove(_dragNode);
 
-        if (_dropZone == DropZone.Into && targetNode is SpriteLayer targetLayer)
+        switch (_dropZone)
         {
-            // Drop into layer as child
-            targetLayer.Children.Add(_dragNode);
-            targetLayer.Expanded = true;
-        }
-        else
-        {
-            // Drop before/after target
-            var targetParent = Document.RootLayer.FindParent(targetNode);
-            if (targetParent == null) return;
+            case DropZone.LastChild when targetNode is SpriteLayer layer:
+                layer.Children.Add(_dragNode);
+                layer.Expanded = true;
+                break;
 
-            var targetIdx = targetParent.Children.IndexOf(targetNode);
-            if (_dropZone == DropZone.After)
-                targetIdx++;
+            case DropZone.FirstChild when targetNode is SpriteLayer layer2:
+                layer2.Children.Insert(0, _dragNode);
+                layer2.Expanded = true;
+                break;
 
-            targetParent.Children.Insert(targetIdx, _dragNode);
+            case DropZone.Before:
+            case DropZone.After:
+            {
+                var targetParent = Document.RootLayer.FindParent(targetNode);
+                if (targetParent == null) return;
+                var targetIdx = targetParent.Children.IndexOf(targetNode);
+                if (_dropZone == DropZone.After) targetIdx++;
+                targetParent.Children.Insert(targetIdx, _dragNode);
+                break;
+            }
         }
 
         Document.IncrementVersion();
