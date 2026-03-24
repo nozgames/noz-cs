@@ -67,6 +67,6 @@ r "icon_subtract" 317 383 68 68 0
 r "icon_tiling" 824 137 68 68 0
 r "icon_unlock" 651 259 36 36 0
 r "icon_xray" 892 137 68 68 0
-r "new_sprite" 756 205 144 123 0
-r "new_sprite001" 651 328 186 166 0
-r "new_sprite002" 900 205 112 114 0
+r "new_sprite" 756 205 156 191 0
+r "new_sprite001" 497 385 186 166 0
+r "new_sprite002" 385 389 112 114 0

@@ -121,8 +121,6 @@ internal static partial class ColorPicker
 
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
         {
-            UI.Spacer(EditorStyle.Control.Spacing);
-
             if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
                 _paletteMode = ColorMode.None;
 
@@ -148,8 +146,6 @@ internal static partial class ColorPicker
                 _popupId = WidgetId.None;
                 return;
             }
-
-            UI.Spacer(EditorStyle.Control.Spacing);
         }
 
         if (_paletteMode == ColorMode.Color)

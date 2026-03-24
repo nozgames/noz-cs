@@ -69,10 +69,20 @@ internal static class SpriteLayerProcessor
         PathsD? accumulatedPaths = null;
         var results = new List<LayerPathResult>();
 
-        // Iterate children in reverse so first-in-list renders on top (matches outliner order).
+        // Single reverse pass: first-in-list renders on top (matches outliner order).
+        // Paths and child layers are interleaved so layer ordering is preserved.
         for (int ci = layer.Children.Count - 1; ci >= 0; ci--)
         {
-            if (layer.Children[ci] is not SpritePath path) continue;
+            var child = layer.Children[ci];
+
+            // Child layer: capture output into results so parent subtract/clip can affect it
+            if (child is SpriteLayer childLayer)
+            {
+                ProcessLayer(childLayer, r => results.Add(r));
+                continue;
+            }
+
+            if (child is not SpritePath path) continue;
             if (path.Anchors.Count < 3) continue;
 
             // Subtract: retroactively cut from all already-emitted results below
@@ -164,19 +174,9 @@ internal static class SpriteLayerProcessor
             }
         }
 
-        // Remove geometric overlaps between opaque paths to prevent AA color bleed.
-        // Lower paths get trimmed where higher paths cover them, so the rasterizer
-        // never alpha-blends overlapping opaque regions.
+        // Flush remaining results (paths above all child layers = top of outliner)
         TrimOverlaps(results);
-
         foreach (var result in results)
             emit(result);
-
-        // Recurse into child layers (reverse order to match outliner)
-        for (int ci = layer.Children.Count - 1; ci >= 0; ci--)
-        {
-            if (layer.Children[ci] is SpriteLayer childLayer)
-                ProcessLayer(childLayer, emit);
-        }
     }
 }
