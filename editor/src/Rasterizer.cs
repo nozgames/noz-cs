@@ -121,9 +121,21 @@ internal static class Rasterizer
                     byte srcA = (byte)(alpha * color.A + 0.5f);
                     var srcColor = new Color32(color.R, color.G, color.B, srcA);
                     var dst = target[tx, ty];
-                    target[tx, ty] = (dst.A == 0)
-                        ? srcColor
-                        : Color32.Blend(dst, srcColor);
+                    if (dst.A == 0)
+                    {
+                        target[tx, ty] = srcColor;
+                    }
+                    else
+                    {
+                        var blended = Color32.Blend(dst, srcColor);
+                        // For opaque paths, use additive alpha (clamped) instead of
+                        // Porter-Duff over. After geometry trimming, adjacent path
+                        // coverages are complementary and should sum to full opacity.
+                        // The over formula treats them as independent, causing dark seams.
+                        if (color.A == 255)
+                            blended.A = (byte)Math.Min(srcA + dst.A, 255);
+                        target[tx, ty] = blended;
+                    }
                 }
             }
         }
