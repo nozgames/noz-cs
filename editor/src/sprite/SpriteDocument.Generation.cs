@@ -385,13 +385,14 @@ public partial class SpriteDocument
 
         Clipper2Lib.PathsD? accumulatedPaths = null;
 
-        for (ushort pi = 0; pi < shape.PathCount; pi++)
+        // Iterate in reverse so first-in-list renders on top (matches outliner order).
+        for (int pi = shape.PathCount - 1; pi >= 0; pi--)
         {
-            ref readonly var path = ref shape.GetPath(pi);
+            ref readonly var path = ref shape.GetPath((ushort)pi);
             if (path.IsSubtract || path.AnchorCount < 3) continue;
 
             var pathShape = new Msdf.Shape();
-            Msdf.ShapeClipper.AppendContour(pathShape, shape, pi);
+            Msdf.ShapeClipper.AppendContour(pathShape, shape, (ushort)pi);
             pathShape = Msdf.ShapeClipper.Union(pathShape);
             var contours = Msdf.ShapeClipper.ShapeToPaths(pathShape, 8);
             if (contours.Count == 0) continue;

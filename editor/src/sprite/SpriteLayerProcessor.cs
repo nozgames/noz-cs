@@ -67,21 +67,33 @@ internal static class SpriteLayerProcessor
         if (!layer.Visible) return;
 
         PathsD? accumulatedPaths = null;
-        PathsD? accumulatedSubtracts = null;
         var results = new List<LayerPathResult>();
 
-        foreach (var child in layer.Children)
+        // Iterate children in reverse so first-in-list renders on top (matches outliner order).
+        for (int ci = layer.Children.Count - 1; ci >= 0; ci--)
         {
-            if (child is not SpritePath path) continue;
+            if (layer.Children[ci] is not SpritePath path) continue;
             if (path.Anchors.Count < 3) continue;
 
+            // Subtract: retroactively cut from all already-emitted results below
             if (path.IsSubtract)
             {
                 var subContours = SpritePathClipper.SpritePathToPaths(path);
-                if (subContours.Count > 0)
+                if (subContours.Count > 0 && results.Count > 0)
                 {
-                    accumulatedSubtracts ??= new PathsD();
-                    accumulatedSubtracts.AddRange(subContours);
+                    for (int i = results.Count - 1; i >= 0; i--)
+                    {
+                        var diff = Clipper.BooleanOp(ClipType.Difference,
+                            results[i].Contours, subContours, FillRule.NonZero, precision: 6);
+                        if (diff.Count > 0)
+                            results[i] = new LayerPathResult(diff, results[i].Color, results[i].IsStroke);
+                        else
+                            results.RemoveAt(i);
+                    }
+
+                    if (accumulatedPaths is { Count: > 0 })
+                        accumulatedPaths = Clipper.BooleanOp(ClipType.Difference,
+                            accumulatedPaths, subContours, FillRule.NonZero, precision: 6);
                 }
                 continue;
             }
@@ -89,6 +101,7 @@ internal static class SpriteLayerProcessor
             var contours = SpritePathClipper.SpritePathToPaths(path);
             if (contours.Count == 0) continue;
 
+            // Clip: intersect with accumulated paths below (already processed due to reverse iteration)
             if (path.IsClip)
             {
                 if (accumulatedPaths is not { Count: > 0 }) continue;
@@ -113,14 +126,6 @@ internal static class SpriteLayerProcessor
                 else
                     accumulatedPaths = Clipper.BooleanOp(ClipType.Union,
                         accumulatedPaths, accContours, FillRule.NonZero, precision: 6);
-            }
-
-            // Apply subtract paths that appeared before this path
-            if (accumulatedSubtracts is { Count: > 0 })
-            {
-                contours = Clipper.BooleanOp(ClipType.Difference,
-                    contours, accumulatedSubtracts, FillRule.NonZero, precision: 6);
-                if (contours.Count == 0) continue;
             }
 
             var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
@@ -167,10 +172,10 @@ internal static class SpriteLayerProcessor
         foreach (var result in results)
             emit(result);
 
-        // Recurse into child layers
-        foreach (var child in layer.Children)
+        // Recurse into child layers (reverse order to match outliner)
+        for (int ci = layer.Children.Count - 1; ci >= 0; ci--)
         {
-            if (child is SpriteLayer childLayer)
+            if (layer.Children[ci] is SpriteLayer childLayer)
                 ProcessLayer(childLayer, emit);
         }
     }
