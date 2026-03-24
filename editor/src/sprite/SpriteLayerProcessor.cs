@@ -29,32 +29,62 @@ internal readonly struct LayerPathResult
 
 internal static class SpriteLayerProcessor
 {
+    private static void TrimOverlaps(List<LayerPathResult> results)
+    {
+        if (results.Count < 2) return;
+
+        // Process from top (last) to bottom (first), building cumulative "above" contours.
+        // Each lower opaque path gets its overlapping region with higher paths subtracted,
+        // creating clean geometric boundaries for the rasterizer's AA.
+        PathsD? above = null;
+        for (int i = results.Count - 1; i >= 0; i--)
+        {
+            var r = results[i];
+            bool isOpaque = r.Color.A == 255;
+
+            if (above != null && isOpaque && r.Contours.Count > 0)
+            {
+                var trimmed = Clipper.BooleanOp(ClipType.Difference,
+                    r.Contours, above, FillRule.NonZero, precision: 6);
+                if (trimmed.Count > 0)
+                    results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke);
+            }
+
+            if (isOpaque && r.Contours.Count > 0)
+            {
+                above = above == null
+                    ? new PathsD(r.Contours)
+                    : Clipper.BooleanOp(ClipType.Union,
+                        above, r.Contours, FillRule.NonZero, precision: 6);
+            }
+        }
+    }
+
     internal static void ProcessLayer(
         SpriteLayer layer,
         Action<LayerPathResult> emit)
     {
         if (!layer.Visible) return;
 
-        // Collect and pre-merge subtract contours for this layer
-        PathsD? mergedSubtracts = null;
-        foreach (var child in layer.Children)
-        {
-            if (child is not SpritePath path) continue;
-            if (!path.IsSubtract || path.Anchors.Count < 3) continue;
-            var contours = SpritePathClipper.SpritePathToPaths(path);
-            if (contours.Count > 0)
-            {
-                mergedSubtracts ??= new PathsD();
-                mergedSubtracts.AddRange(contours);
-            }
-        }
-
         PathsD? accumulatedPaths = null;
+        PathsD? accumulatedSubtracts = null;
+        var results = new List<LayerPathResult>();
 
         foreach (var child in layer.Children)
         {
             if (child is not SpritePath path) continue;
-            if (path.IsSubtract || path.Anchors.Count < 3) continue;
+            if (path.Anchors.Count < 3) continue;
+
+            if (path.IsSubtract)
+            {
+                var subContours = SpritePathClipper.SpritePathToPaths(path);
+                if (subContours.Count > 0)
+                {
+                    accumulatedSubtracts ??= new PathsD();
+                    accumulatedSubtracts.AddRange(subContours);
+                }
+                continue;
+            }
 
             var contours = SpritePathClipper.SpritePathToPaths(path);
             if (contours.Count == 0) continue;
@@ -85,11 +115,11 @@ internal static class SpriteLayerProcessor
                         accumulatedPaths, accContours, FillRule.NonZero, precision: 6);
             }
 
-            // Apply pre-merged subtract paths
-            if (mergedSubtracts is { Count: > 0 })
+            // Apply subtract paths that appeared before this path
+            if (accumulatedSubtracts is { Count: > 0 })
             {
                 contours = Clipper.BooleanOp(ClipType.Difference,
-                    contours, mergedSubtracts, FillRule.NonZero, precision: 6);
+                    contours, accumulatedSubtracts, FillRule.NonZero, precision: 6);
                 if (contours.Count == 0) continue;
             }
 
@@ -104,9 +134,9 @@ internal static class SpriteLayerProcessor
 
                 if (hasFill)
                 {
-                    emit(new LayerPathResult(contours, path.StrokeColor, true));
+                    results.Add(new LayerPathResult(contours, path.StrokeColor, true));
                     if (contracted.Count > 0)
-                        emit(new LayerPathResult(contracted, path.FillColor, false));
+                        results.Add(new LayerPathResult(contracted, path.FillColor, false));
                 }
                 else
                 {
@@ -115,19 +145,27 @@ internal static class SpriteLayerProcessor
                         var ring = Clipper.BooleanOp(ClipType.Difference,
                             contours, contracted, FillRule.NonZero, precision: 6);
                         if (ring.Count > 0)
-                            emit(new LayerPathResult(ring, path.StrokeColor, true));
+                            results.Add(new LayerPathResult(ring, path.StrokeColor, true));
                     }
                     else
                     {
-                        emit(new LayerPathResult(contours, path.StrokeColor, true));
+                        results.Add(new LayerPathResult(contours, path.StrokeColor, true));
                     }
                 }
             }
             else if (hasFill)
             {
-                emit(new LayerPathResult(contours, path.FillColor, false));
+                results.Add(new LayerPathResult(contours, path.FillColor, false));
             }
         }
+
+        // Remove geometric overlaps between opaque paths to prevent AA color bleed.
+        // Lower paths get trimmed where higher paths cover them, so the rasterizer
+        // never alpha-blends overlapping opaque regions.
+        TrimOverlaps(results);
+
+        foreach (var result in results)
+            emit(result);
 
         // Recurse into child layers
         foreach (var child in layer.Children)

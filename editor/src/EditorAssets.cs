@@ -47,6 +47,7 @@ public static class EditorAssets
         public const string IconHidden = "icon_hidden";
         public const string IconKeyframe = "icon_keyframe";
         public const string IconLayer = "icon_layer";
+        public const string IconLayer2 = "icon_layer_2";
         public const string IconLock = "icon_lock";
         public const string IconLoop = "icon_loop";
         public const string IconMenu = "icon_menu";
@@ -76,6 +77,7 @@ public static class EditorAssets
         public const string IconXray = "icon_xray";
         public const string NewSprite = "new_sprite";
         public const string NewSprite001 = "new_sprite001";
+        public const string NewSprite002 = "new_sprite002";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
         public const string Text = "text";
@@ -177,6 +179,7 @@ public static class EditorAssets
         public static Sprite IconHidden { get; private set; } = null!;
         public static Sprite IconKeyframe { get; private set; } = null!;
         public static Sprite IconLayer { get; private set; } = null!;
+        public static Sprite IconLayer2 { get; private set; } = null!;
         public static Sprite IconLock { get; private set; } = null!;
         public static Sprite IconLoop { get; private set; } = null!;
         public static Sprite IconMenu { get; private set; } = null!;
@@ -206,6 +209,7 @@ public static class EditorAssets
         public static Sprite IconXray { get; private set; } = null!;
         public static Sprite NewSprite { get; private set; } = null!;
         public static Sprite NewSprite001 { get; private set; } = null!;
+        public static Sprite NewSprite002 { get; private set; } = null!;
 
         public static void Load()
         {
@@ -244,6 +248,7 @@ public static class EditorAssets
             IconHidden = (Sprite)Asset.Load(AssetType.Sprite, Names.IconHidden)!;
             IconKeyframe = (Sprite)Asset.Load(AssetType.Sprite, Names.IconKeyframe)!;
             IconLayer = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLayer)!;
+            IconLayer2 = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLayer2)!;
             IconLock = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLock)!;
             IconLoop = (Sprite)Asset.Load(AssetType.Sprite, Names.IconLoop)!;
             IconMenu = (Sprite)Asset.Load(AssetType.Sprite, Names.IconMenu)!;
@@ -273,6 +278,7 @@ public static class EditorAssets
             IconXray = (Sprite)Asset.Load(AssetType.Sprite, Names.IconXray)!;
             NewSprite = (Sprite)Asset.Load(AssetType.Sprite, Names.NewSprite)!;
             NewSprite001 = (Sprite)Asset.Load(AssetType.Sprite, Names.NewSprite001)!;
+            NewSprite002 = (Sprite)Asset.Load(AssetType.Sprite, Names.NewSprite002)!;
         }
 
         public static void Unload()
@@ -312,6 +318,7 @@ public static class EditorAssets
             IconHidden?.Dispose();
             IconKeyframe?.Dispose();
             IconLayer?.Dispose();
+            IconLayer2?.Dispose();
             IconLock?.Dispose();
             IconLoop?.Dispose();
             IconMenu?.Dispose();
@@ -341,6 +348,7 @@ public static class EditorAssets
             IconXray?.Dispose();
             NewSprite?.Dispose();
             NewSprite001?.Dispose();
+            NewSprite002?.Dispose();
         }
     }
 

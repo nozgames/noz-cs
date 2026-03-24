@@ -1,19 +1,10 @@
 
 path {
   fill #FFFFFF
-  anchor 0.22625515 -0.009427298
-  anchor 0 0.09427298
-  anchor -0.22625515 -0.009427298
-  anchor 0 -0.10370028
-}
-
-path {
-  subtract true
-  fill #FFFFFF
-  anchor 0.22625515 0.067383744
-  anchor 0 0.17108402
-  anchor -0.22625515 0.067383744
-  anchor 0 -0.04574383
+  anchor 0.22718427 -0.14715752
+  anchor 0.0009291172 -0.043457236
+  anchor -0.22532603 -0.14715752
+  anchor 0.0009291172 -0.24143049
 }
 
 path {
@@ -27,10 +18,19 @@ path {
 
 path {
   fill #FFFFFF
-  anchor 0.22625515 -0.13198218
-  anchor 0 -0.028281894
-  anchor -0.22625515 -0.13198218
-  anchor 0 -0.22625515
+  anchor 0.22625515 -0.009807814
+  anchor 0 0.093892455
+  anchor -0.22625515 -0.009807814
+  anchor 0 -0.104080796
+}
+
+path {
+  subtract true
+  fill #FFFFFF
+  anchor 0.22625515 0.03177259
+  anchor 0 0.13547286
+  anchor -0.22625515 0.03177259
+  anchor 0 -0.08135498
 }
 
 path {

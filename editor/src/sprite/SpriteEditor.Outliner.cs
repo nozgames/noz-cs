@@ -235,7 +235,7 @@ public partial class SpriteEditor
         // Check if we should start dragging (mouse moved beyond threshold)
         if (!_outlinerDragging)
         {
-            if (!Input.IsButtonDown(InputCode.MouseLeft))
+            if (!Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
             {
                 _dragNode = null;
                 return;
@@ -249,7 +249,7 @@ public partial class SpriteEditor
         }
 
         // Cancel on escape or right-click
-        if (Input.WasButtonPressed(InputCode.KeyEscape) || Input.WasButtonPressed(InputCode.MouseRight))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) || Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
         {
             _outlinerDragging = false;
             _dragNode = null;
@@ -289,7 +289,7 @@ public partial class SpriteEditor
         }
 
         // Drop on release
-        if (!Input.IsButtonDown(InputCode.MouseLeft))
+        if (!Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
         {
             if (_dropTargetIndex >= 0)
                 CommitOutlinerDrop();
