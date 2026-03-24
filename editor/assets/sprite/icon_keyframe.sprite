@@ -1,6 +1,6 @@
 
 path {
-  subtract true
+  operation subtract
   fill #FFFFFF
   anchor 0.075806074 0.058942754 -0.044422362
   anchor 0 0.13474882 -0.044422362

@@ -109,15 +109,15 @@ public partial class SpriteDocument
                 }
                 path.StrokeWidth = (byte)tk.ExpectInt(path.StrokeWidth);
             }
-            else if (tk.ExpectIdentifier("subtract"))
+            else if (tk.ExpectIdentifier("operation"))
             {
-                if (tk.ExpectBool())
-                    path.Operation = SpritePathOperation.Subtract;
-            }
-            else if (tk.ExpectIdentifier("clip"))
-            {
-                if (tk.ExpectBool())
-                    path.Operation = SpritePathOperation.Clip;
+                if (tk.ExpectIdentifier(out var op))
+                {
+                    if (op == "subtract")
+                        path.Operation = SpritePathOperation.Subtract;
+                    else if (op == "clip")
+                        path.Operation = SpritePathOperation.Clip;
+                }
             }
             else if (tk.ExpectIdentifier("open"))
             {
@@ -198,7 +198,7 @@ public partial class SpriteDocument
         foreach (var child in RootLayer.Children)
         {
             if (child is SpritePath path)
-                SavePathV2(writer, path, 0);
+                SavePath(writer, path, 0);
         }
 
         foreach (var child in RootLayer.Children)
@@ -231,7 +231,7 @@ public partial class SpriteDocument
         }
     }
 
-    private void SavePathV2(StreamWriter writer, SpritePath path, int depth)
+    private void SavePath(StreamWriter writer, SpritePath path, int depth)
     {
         var indent = new string(' ', depth * 2);
         var propIndent = new string(' ', (depth + 1) * 2);
@@ -241,10 +241,8 @@ public partial class SpriteDocument
         else
             writer.WriteLine($"{indent}path {{");
 
-        if (path.IsSubtract)
-            writer.WriteLine($"{propIndent}subtract true");
-        if (path.IsClip)
-            writer.WriteLine($"{propIndent}clip true");
+        if (path.Operation != SpritePathOperation.Normal)
+            writer.WriteLine($"{propIndent}operation {path.Operation.ToString().ToLowerInvariant()}");
         if (path.Open)
             writer.WriteLine($"{propIndent}open true");
         writer.WriteLine($"{propIndent}fill {FormatColor(path.FillColor)}");
@@ -272,7 +270,7 @@ public partial class SpriteDocument
         foreach (var child in layer.Children)
         {
             if (child is SpritePath path)
-                SavePathV2(writer, path, depth + 1);
+                SavePath(writer, path, depth + 1);
             else if (child is SpriteLayer childLayer)
                 SaveLayer(writer, childLayer, depth + 1);
         }

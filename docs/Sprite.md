@@ -65,8 +65,7 @@ Each `path` keyword starts a new vector shape. Paths are rendered in order (late
 |----------|--------|-------------|
 | `fill` | `fill COLOR [OPACITY]` | Fill color. See Color Formats below. |
 | `stroke` | `stroke COLOR [WIDTH]` | Stroke outline with width in stroke units (1 unit = 0.005 world units). |
-| `subtract` | `subtract true` | Makes this path a cutout, subtracting from previous geometry in the same slot. |
-| `clip` | `clip true` | Intersects this path with accumulated geometry below (same slot). |
+| `operation` | `operation subtract\|clip` | Path boolean operation. `subtract` cuts from geometry below; `clip` intersects with geometry below. Omitted for normal paths. |
 | `layer` | `layer "name"` | Assigns to a named sprite layer (for multi-mesh sprites). |
 | `bone` | `bone "name"` | Binds this path to a skeleton bone for animation. |
 

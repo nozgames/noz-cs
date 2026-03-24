@@ -19,7 +19,7 @@ path {
 }
 
 path {
-  subtract true
+  operation subtract
   fill #FFFFFF
   anchor -0.10756385 -0.11753949
   anchor -0.10756385 0.19170524
@@ -28,7 +28,7 @@ path {
 }
 
 path {
-  subtract true
+  operation subtract
   fill #FFFFFF
   anchor -0.017783122 -0.11753949
   anchor -0.017783122 0.19170524
@@ -37,7 +37,7 @@ path {
 }
 
 path {
-  subtract true
+  operation subtract
   fill #FFFFFF
   anchor 0.071997605 -0.11753949
   anchor 0.071997605 0.19170524

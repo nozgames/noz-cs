@@ -9,7 +9,7 @@ path "" {
 
 layer "Layer 2" {
   path "" {
-    subtract true
+    operation subtract
     fill #FFFFFF
     anchor 0.11174822 -0.30487156
     anchor -0.122003555 -0.15691185
@@ -19,7 +19,7 @@ layer "Layer 2" {
 
   layer "Layer 4" {
     path "" {
-      clip true
+      operation clip
       fill #FF0000
       anchor 0.5038388 -0.2914842
       anchor 0.44771147 -0.15381633

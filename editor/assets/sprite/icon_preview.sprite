@@ -8,7 +8,7 @@ path {
 }
 
 path {
-  subtract true
+  operation subtract
   fill #FFFFFF
   anchor 0.08232301 0.0008344801 -0.044884894
   anchor 0.00027816033 0.08287933 -0.044884894
