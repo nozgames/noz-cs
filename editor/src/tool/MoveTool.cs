@@ -15,6 +15,8 @@ public class MoveTool : Tool
     private Vector2 _startWorld;
     private Vector2 _deltaScale = Vector2.One;
 
+    public bool CommitOnRelease { get; set; }
+
     public MoveTool() { }
 
     public MoveTool(Action<Vector2> update, Action<Vector2> commit, Action cancel)
@@ -39,8 +41,12 @@ public class MoveTool : Tool
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
-            Input.WasButtonPressed(InputCode.KeyEnter, Scope))
+        var commitInput = CommitOnRelease
+            ? Input.WasButtonReleased(InputCode.MouseLeft, Scope)
+            : Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
+              Input.WasButtonPressed(InputCode.KeyEnter, Scope);
+
+        if (commitInput)
         {
             var delta = Workspace.MouseWorldPosition - _startWorld;
             delta *= _deltaScale;

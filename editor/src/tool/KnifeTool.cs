@@ -30,7 +30,7 @@ public class KnifeTool : Tool
 
     private readonly List<KnifePoint> _points = new(MaxPoints);
     private readonly SpriteDocument _document;
-    private readonly SpriteLayer _rootLayer;
+    private readonly List<SpritePath> _selectedPaths;
     private Vector2 _hoverPosition;
     private bool _hoverPositionValid;
     private bool _hoverIsClose;
@@ -40,10 +40,10 @@ public class KnifeTool : Tool
     private Action? _commit;
     private Action? _cancel;
 
-    public KnifeTool(SpriteDocument document, SpriteLayer rootLayer, Action? commit = null, Action? cancel = null)
+    public KnifeTool(SpriteDocument document, List<SpritePath> selectedPaths, Action? commit = null, Action? cancel = null)
     {
         _document = document;
-        _rootLayer = rootLayer;
+        _selectedPaths = new List<SpritePath>(selectedPaths);
         _commit = commit;
         _cancel = cancel;
     }
@@ -180,13 +180,13 @@ public class KnifeTool : Tool
             var headPos = _points[ks.Start].Position;
             var tailPos = _points[ks.End].Position;
 
-            // Find head and tail hits
+            // Find head and tail hits (restricted to selected paths)
             allHits.Clear();
-            _rootLayer.HitTestAll(headPos, allHits);
+            HitTestSelectedPathsAll(headPos, allHits);
             var headHits = allHits.ToArray();
 
             allHits.Clear();
-            _rootLayer.HitTestAll(tailPos, allHits);
+            HitTestSelectedPathsAll(tailPos, allHits);
             var tailHits = allHits.ToArray();
 
             // Find a shared path between head and tail
@@ -335,7 +335,7 @@ public class KnifeTool : Tool
         _hoverPosition = mouseLocal;
         _hoverPositionValid = !DoesIntersectSelf(_hoverPosition);
 
-        var hit = _rootLayer.HitTest(_hoverPosition);
+        var hit = HitTestSelectedPaths(_hoverPosition);
 
         _hoverIsClose = _points.Count > 0 &&
             Vector2.DistanceSquared(_hoverPosition, _points[0].Position) <
@@ -409,8 +409,8 @@ public class KnifeTool : Tool
 
         _points.Add(new KnifePoint { Position = from, Intersection = _hoverIsIntersection, IsFree = !_hoverIsFree });
 
-        // Find intersections with all visible paths in the layer tree
-        CollectIntersections(_rootLayer, from, to);
+        // Find intersections with selected paths only
+        CollectIntersections(from, to);
 
         // Sort by distance from 'to' (last committed point)
         var hoverCount = _points.Count - _pointCount;
@@ -445,40 +445,61 @@ public class KnifeTool : Tool
             _points.RemoveAt(_points.Count - 1);
     }
 
-    private void CollectIntersections(SpriteLayer layer, Vector2 from, Vector2 to)
+    private void CollectIntersections(Vector2 from, Vector2 to)
     {
-        if (!layer.Visible) return;
-
-        foreach (var child in layer.Children)
+        foreach (var path in _selectedPaths)
         {
-            if (child is SpritePath path)
+            if (path.Anchors.Count < 2) continue;
+            path.UpdateSamples();
+
+            var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
+            for (var a = 0; a < segmentCount; a++)
             {
-                if (path.Anchors.Count < 2) continue;
-                path.UpdateSamples();
+                var a0 = path.Anchors[a];
+                var a1 = path.Anchors[(a + 1) % path.Anchors.Count];
+                var samples = path.GetSegmentSamples(a);
 
-                var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
-                for (var a = 0; a < segmentCount; a++)
+                if (Physics.OverlapLine(from, to, a0.Position, samples[0], out var intersection))
+                    _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+
+                for (var s = 0; s < SpritePath.MaxSegmentSamples - 1; s++)
                 {
-                    var a0 = path.Anchors[a];
-                    var a1 = path.Anchors[(a + 1) % path.Anchors.Count];
-                    var samples = path.GetSegmentSamples(a);
-
-                    if (Physics.OverlapLine(from, to, a0.Position, samples[0], out var intersection))
-                        _points.Add(new KnifePoint { Position = intersection, Intersection = true });
-
-                    for (var s = 0; s < SpritePath.MaxSegmentSamples - 1; s++)
-                    {
-                        if (Physics.OverlapLine(from, to, samples[s], samples[s + 1], out intersection))
-                            _points.Add(new KnifePoint { Position = intersection, Intersection = true });
-                    }
-
-                    if (Physics.OverlapLine(from, to, samples[SpritePath.MaxSegmentSamples - 1], a1.Position, out intersection))
+                    if (Physics.OverlapLine(from, to, samples[s], samples[s + 1], out intersection))
                         _points.Add(new KnifePoint { Position = intersection, Intersection = true });
                 }
+
+                if (Physics.OverlapLine(from, to, samples[SpritePath.MaxSegmentSamples - 1], a1.Position, out intersection))
+                    _points.Add(new KnifePoint { Position = intersection, Intersection = true });
             }
-            else if (child is SpriteLayer childLayer)
+        }
+    }
+
+    private SpriteNode.NodeHitResult? HitTestSelectedPaths(Vector2 point)
+    {
+        SpriteNode.NodeHitResult? best = null;
+        foreach (var path in _selectedPaths)
+        {
+            var hit = path.HitTest(point);
+            if (hit.AnchorIndex >= 0 || hit.SegmentIndex >= 0 || hit.InPath)
             {
-                CollectIntersections(childLayer, from, to);
+                var result = new SpriteNode.NodeHitResult { Path = path, Hit = hit };
+                if (!best.HasValue)
+                    best = result;
+            }
+        }
+        return best;
+    }
+
+    private void HitTestSelectedPathsAll(Vector2 point, List<SpriteNode.NodeHitResult> results)
+    {
+        foreach (var path in _selectedPaths)
+        {
+            var hit = path.HitTest(point);
+            if (hit.AnchorIndex >= 0 || hit.SegmentIndex >= 0 || hit.InPath)
+            {
+                // Find the parent layer for this path
+                var layer = _document.RootLayer.FindParent(path) as SpriteLayer;
+                results.Add(new SpriteNode.NodeHitResult { Path = path, Layer = layer!, Hit = hit });
             }
         }
     }

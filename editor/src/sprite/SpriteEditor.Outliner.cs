@@ -497,9 +497,9 @@ public partial class SpriteEditor
         {
             // Layer click: set active layer, clear path selection
             if (!shift && !ctrl)
-                ClearAllSelections();
+                Document.RootLayer.ClearAllSelections();
             Document.ActiveLayer = layer;
-            UpdateSelection();
+            RebuildSelectedPaths();
             return;
         }
 
@@ -508,8 +508,8 @@ public partial class SpriteEditor
             if (ctrl)
             {
                 // Ctrl+click: toggle this path's selection
-                if (path.HasSelection())
-                    path.ClearSelection();
+                if (path.IsSelected)
+                    path.ClearAllSelection();
                 else
                     path.SelectAll();
             }
@@ -521,7 +521,7 @@ public partial class SpriteEditor
             else
             {
                 // Plain click: clear all, select this path
-                ClearAllSelections();
+                Document.RootLayer.ClearAllSelections();
                 path.SelectAll();
             }
 
@@ -535,7 +535,7 @@ public partial class SpriteEditor
                     Document.ActiveLayer = Document.RootLayer;
             }
 
-            UpdateSelection();
+            RebuildSelectedPaths();
         }
     }
 

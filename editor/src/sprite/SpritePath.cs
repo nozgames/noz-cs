@@ -26,6 +26,31 @@ public class SpritePath : SpriteNode
     public SpritePathOperation Operation { get; set; } = SpritePathOperation.Normal;
     public bool Open { get; set; }
 
+    // Per-path transform (V-mode operations modify these)
+    public Vector2 PathTranslation { get; set; }
+    public float PathRotation { get; set; }
+    public Vector2 PathScale { get; set; } = Vector2.One;
+
+    public bool HasTransform =>
+        PathTranslation != Vector2.Zero ||
+        PathRotation != 0f ||
+        PathScale != Vector2.One;
+
+    public Matrix3x2 PathTransform
+    {
+        get
+        {
+            if (!HasTransform) return Matrix3x2.Identity;
+            var center = LocalBounds.Center;
+            return Matrix3x2.CreateTranslation(-center)
+                 * Matrix3x2.CreateScale(PathScale)
+                 * Matrix3x2.CreateRotation(PathRotation)
+                 * Matrix3x2.CreateTranslation(center)
+                 * Matrix3x2.CreateTranslation(PathTranslation);
+        }
+    }
+
+    public Rect LocalBounds { get; private set; }
     public Rect Bounds { get; private set; }
 
     // Cached bezier segment samples per anchor (recomputed when anchors change)
@@ -145,7 +170,24 @@ public class SpritePath : SpriteNode
             max += new Vector2(halfStroke, halfStroke);
         }
 
-        Bounds = Rect.FromMinMax(min, max);
+        LocalBounds = Rect.FromMinMax(min, max);
+
+        // Compute world bounds by transforming the local bounding box
+        if (HasTransform)
+        {
+            var transform = PathTransform;
+            var c0 = Vector2.Transform(new Vector2(min.X, min.Y), transform);
+            var c1 = Vector2.Transform(new Vector2(max.X, min.Y), transform);
+            var c2 = Vector2.Transform(new Vector2(max.X, max.Y), transform);
+            var c3 = Vector2.Transform(new Vector2(min.X, max.Y), transform);
+            var wMin = Vector2.Min(Vector2.Min(c0, c1), Vector2.Min(c2, c3));
+            var wMax = Vector2.Max(Vector2.Max(c0, c1), Vector2.Max(c2, c3));
+            Bounds = Rect.FromMinMax(wMin, wMax);
+        }
+        else
+        {
+            Bounds = LocalBounds;
+        }
     }
 
     #endregion
@@ -160,7 +202,7 @@ public class SpritePath : SpriteNode
         return false;
     }
 
-    public void ClearSelection()
+    public void ClearAnchorSelection()
     {
         for (var i = 0; i < Anchors.Count; i++)
         {
@@ -171,6 +213,11 @@ public class SpritePath : SpriteNode
                 Anchors[i] = a;
             }
         }
+    }
+
+    public void ClearAllSelection()
+    {
+        ClearAnchorSelection();
         IsSelected = false;
     }
 
@@ -182,19 +229,10 @@ public class SpritePath : SpriteNode
         else
             a.Flags &= ~SpritePathAnchorFlags.Selected;
         Anchors[index] = a;
-
-        // Update path-level selection flag
-        var allSelected = true;
-        for (var i = 0; i < Anchors.Count; i++)
-        {
-            if (!Anchors[i].IsSelected)
-            {
-                allSelected = false;
-                break;
-            }
-        }
-        IsSelected = allSelected;
     }
+
+    public void SelectPath() => IsSelected = true;
+    public void DeselectPath() => IsSelected = false;
 
     public void SelectAll()
     {
@@ -204,14 +242,17 @@ public class SpritePath : SpriteNode
             a.Flags |= SpritePathAnchorFlags.Selected;
             Anchors[i] = a;
         }
-        IsSelected = true;
     }
 
     public void SelectAnchorsInRect(Rect rect)
     {
+        var hasXform = HasTransform;
+        var xform = hasXform ? PathTransform : Matrix3x2.Identity;
+
         for (var i = 0; i < Anchors.Count; i++)
         {
-            if (rect.Contains(Anchors[i].Position))
+            var pos = hasXform ? Vector2.Transform(Anchors[i].Position, xform) : Anchors[i].Position;
+            if (rect.Contains(pos))
                 SetAnchorSelected(i, true);
         }
     }
@@ -247,6 +288,13 @@ public class SpritePath : SpriteNode
 
     public HitResult HitTest(Vector2 point)
     {
+        // Transform point into path-local space
+        if (HasTransform)
+        {
+            Matrix3x2.Invert(PathTransform, out var inv);
+            point = Vector2.Transform(point, inv);
+        }
+
         var anchorRadius = EditorStyle.Shape.AnchorHitSize / Workspace.Zoom;
         var segmentRadius = EditorStyle.Shape.SegmentHitSize / Workspace.Zoom;
         var anchorRadiusSqr = anchorRadius * anchorRadius;
@@ -594,6 +642,9 @@ public class SpritePath : SpriteNode
             StrokeWidth = StrokeWidth,
             Operation = Operation,
             Open = Open,
+            PathTranslation = PathTranslation,
+            PathRotation = PathRotation,
+            PathScale = PathScale,
         };
         ClonePropertiesTo(clone);
         clone.Anchors.AddRange(Anchors);

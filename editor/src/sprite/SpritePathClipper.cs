@@ -8,6 +8,7 @@
 //  during the union step before linearizing for boolean ops.
 //
 
+using System.Numerics;
 using Clipper2Lib;
 using NoZ.Editor.Msdf;
 
@@ -21,6 +22,9 @@ internal static class SpritePathClipper
     {
         if (spritePath.Anchors.Count < 3) return;
 
+        var hasTransform = spritePath.HasTransform;
+        var transform = hasTransform ? spritePath.PathTransform : Matrix3x2.Identity;
+
         var contour = shape.AddContour();
         var count = spritePath.Anchors.Count;
         var segmentCount = spritePath.Open ? count - 1 : count;
@@ -30,8 +34,11 @@ internal static class SpritePathClipper
             var anchor0 = spritePath.Anchors[a];
             var anchor1 = spritePath.Anchors[(a + 1) % count];
 
-            var p0 = new Vector2Double(anchor0.Position.X, anchor0.Position.Y);
-            var p1 = new Vector2Double(anchor1.Position.X, anchor1.Position.Y);
+            var pos0 = hasTransform ? Vector2.Transform(anchor0.Position, transform) : anchor0.Position;
+            var pos1 = hasTransform ? Vector2.Transform(anchor1.Position, transform) : anchor1.Position;
+
+            var p0 = new Vector2Double(pos0.X, pos0.Y);
+            var p1 = new Vector2Double(pos1.X, pos1.Y);
 
             if (Math.Abs(anchor0.Curve) < 0.0001)
             {

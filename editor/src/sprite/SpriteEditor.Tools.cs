@@ -6,15 +6,38 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
+public enum SpriteEditMode
+{
+    V,  // Transform mode — select/move/rotate/scale paths
+    A,  // Anchor mode — select/edit anchors within selected paths
+}
+
 public partial class SpriteEditor
 {
     public bool HasPathSelection { get; private set; }
+    public SpriteEditMode CurrentMode { get; private set; } = SpriteEditMode.V;
+
+    private readonly List<SpritePath> _selectedPaths = new();
 
     private SpriteLayer ActiveLayer => Document.ActiveLayer ?? Document.RootLayer;
 
     private SpritePath? GetPathWithSelection()
     {
         return Document.RootLayer.GetPathWithSelection();
+    }
+
+    private SpritePath? GetFirstSelectedPath()
+    {
+        return _selectedPaths.Count > 0 ? _selectedPaths[0] : null;
+    }
+
+    private void SetMode(SpriteEditMode mode)
+    {
+        if (CurrentMode == mode) return;
+        CurrentMode = mode;
+
+        if (mode == SpriteEditMode.V)
+            Document.RootLayer.ClearAnchorSelections();
     }
 
     #region Commands
@@ -24,12 +47,10 @@ public partial class SpriteEditor
         return
         [
             new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete },
-            new Command { Name = "Move", Handler = BeginMoveTool, Key = InputCode.KeyG, Icon = EditorAssets.Sprites.IconMove },
-            new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
-            new Command { Name = "Scale", Handler = BeginScaleTool, Key = InputCode.KeyS },
+            new Command { Name = "V Mode", Handler = () => SetMode(SpriteEditMode.V), Key = InputCode.KeyV },
+            new Command { Name = "A Mode", Handler = () => SetMode(SpriteEditMode.A), Key = InputCode.KeyA },
             new Command { Name = "Curve", Handler = BeginCurveTool, Key = InputCode.KeyC },
-            new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
-            new Command { Name = "Insert Anchor", Handler = InsertAnchorAtHover, Key = InputCode.KeyV },
+            new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA, Ctrl = true },
             new Command { Name = "Pen Tool", Handler = BeginPenTool, Key = InputCode.KeyP },
             new Command { Name = "Knife Tool", Handler = BeginKnifeTool, Key = InputCode.KeyK },
             new Command { Name = "Rectangle Tool", Handler = BeginRectangleTool, Key = InputCode.KeyR, Ctrl = true },
@@ -52,7 +73,52 @@ public partial class SpriteEditor
 
     private void HandleDragStart()
     {
-        Workspace.BeginTool(new BoxSelectTool(CommitBoxSelectAnchors));
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+
+        if (CurrentMode == SpriteEditMode.V && _selectedPaths.Count > 0)
+        {
+            // V mode: check for handle hit, then move inside bbox, then box select
+            var combinedBounds = ComputeCombinedBounds();
+            if (combinedBounds.Contains(localMousePos))
+            {
+                // Drag inside combined bounds — move selected paths
+                var tool = MovePathTransformTool.Create(Document, _selectedPaths);
+                if (tool != null)
+                {
+                    tool.CommitOnRelease = true;
+                    Undo.Record(Document);
+                    Workspace.BeginTool(tool);
+                    return;
+                }
+            }
+        }
+        else if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
+        {
+            // A mode: check for anchor hit — start move
+            var hit = Document.RootLayer.HitTest(localMousePos);
+            if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.AnchorIndex >= 0)
+            {
+                // If the anchor isn't selected, select it first
+                if (!hit.Value.Path.Anchors[hit.Value.Hit.AnchorIndex].IsSelected)
+                {
+                    Document.RootLayer.ClearAnchorSelections();
+                    hit.Value.Path.SetAnchorSelected(hit.Value.Hit.AnchorIndex, true);
+                }
+
+                var tool = MovePathTool.Create(Document);
+                if (tool != null)
+                {
+                    tool.CommitOnRelease = true;
+                    Undo.Record(Document);
+                    Workspace.BeginTool(tool);
+                    return;
+                }
+            }
+        }
+
+        // Fallback: box select
+        Workspace.BeginTool(new BoxSelectTool(CommitBoxSelect));
     }
 
     #endregion
@@ -61,41 +127,58 @@ public partial class SpriteEditor
 
     private void SelectAll()
     {
-        Document.RootLayer.ForEachEditablePath(p => p.SelectAll());
-        UpdateSelection();
+        Document.RootLayer.ForEachEditablePath(p => p.SelectPath());
+        RebuildSelectedPaths();
     }
 
     private void ClearSelection()
     {
-        ClearAllSelections();
-        HasPathSelection = false;
+        Document.RootLayer.ClearAllSelections();
+        RebuildSelectedPaths();
     }
 
-    private void UpdateSelection()
+    private void RebuildSelectedPaths()
     {
-        HasPathSelection = GetPathWithSelection() != null;
+        _selectedPaths.Clear();
+        Document.RootLayer.CollectSelectedPaths(_selectedPaths);
+        HasPathSelection = _selectedPaths.Count > 0;
         OnSelectionChanged(HasPathSelection);
     }
 
-    private void CommitBoxSelectAnchors(Rect bounds)
+    private void CommitBoxSelect(Rect bounds)
     {
         var shift = Input.IsShiftDown(InputScope.All);
-
-        if (!shift)
-            ClearAllSelections();
 
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var minLocal = Vector2.Transform(bounds.Min, invTransform);
         var maxLocal = Vector2.Transform(bounds.Max, invTransform);
         var localRect = Rect.FromMinMax(minLocal, maxLocal);
 
-        Document.RootLayer.SelectAnchorsInRect(localRect);
-        UpdateSelection();
+        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
+        {
+            // A mode with selected paths: box select anchors within selected paths
+            if (!shift)
+            {
+                foreach (var p in _selectedPaths)
+                    p.ClearAnchorSelection();
+            }
+            foreach (var p in _selectedPaths)
+                p.SelectAnchorsInRect(localRect);
+        }
+        else
+        {
+            // V mode or A mode with no paths: box select paths
+            if (!shift)
+                Document.RootLayer.ClearPathSelections();
+            Document.RootLayer.SelectPathsInRect(localRect);
+        }
+
+        RebuildSelectedPaths();
     }
 
     private void OnSelectionChanged(bool hasSelection)
     {
-        var path = GetPathWithSelection();
+        var path = GetFirstSelectedPath();
         if (path != null)
         {
             Document.CurrentFillColor = path.FillColor;
@@ -103,11 +186,6 @@ public partial class SpriteEditor
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
             Document.CurrentOperation = path.Operation;
         }
-    }
-
-    private void ClearAllSelections()
-    {
-        Document.RootLayer.ClearAllSelections();
     }
 
     private void InvalidateMesh() => _meshVersion = -1;
@@ -118,57 +196,77 @@ public partial class SpriteEditor
 
     private void DeleteSelected()
     {
-        var path = GetPathWithSelection();
-        if (path == null) return;
-
-        Undo.Record(Document);
-        path.DeleteSelectedAnchors();
-
-        // Remove path if too few anchors remain
-        if (path.Anchors.Count < 3)
+        if (CurrentMode == SpriteEditMode.V)
         {
-            var parent = Document.RootLayer.FindParent(path);
-            parent?.Children.Remove(path);
+            // V mode: delete entire selected paths
+            if (_selectedPaths.Count == 0) return;
+
+            Undo.Record(Document);
+            foreach (var path in _selectedPaths)
+            {
+                var parent = Document.RootLayer.FindParent(path);
+                parent?.Children.Remove(path);
+            }
+            Document.IncrementVersion();
+            Document.UpdateBounds();
+            ClearSelection();
         }
         else
         {
-            path.UpdateSamples();
-            path.UpdateBounds();
-        }
+            // A mode: delete selected anchors
+            var path = GetPathWithSelection();
+            if (path == null) return;
 
-        Document.IncrementVersion();
-        Document.UpdateBounds();
-        HasPathSelection = false;
+            Undo.Record(Document);
+            path.DeleteSelectedAnchors();
+
+            if (path.Anchors.Count < 3)
+            {
+                var parent = Document.RootLayer.FindParent(path);
+                parent?.Children.Remove(path);
+            }
+            else
+            {
+                path.UpdateSamples();
+                path.UpdateBounds();
+            }
+
+            Document.IncrementVersion();
+            Document.UpdateBounds();
+            RebuildSelectedPaths();
+        }
     }
 
     private void DuplicateSelected()
     {
-        var path = GetPathWithSelection();
-        if (path == null) return;
-
-        var parent = Document.RootLayer.FindParent(path);
-        if (parent == null) return;
+        if (_selectedPaths.Count == 0) return;
 
         Undo.Record(Document);
 
-        var clone = path.ClonePath();
-        clone.ClearSelection();
-        clone.SelectAll();
-        path.ClearSelection();
+        // Duplicate all selected paths
+        foreach (var path in _selectedPaths)
+        {
+            var parent = Document.RootLayer.FindParent(path);
+            if (parent == null) continue;
 
-        parent.Children.Add(clone);
+            var clone = path.ClonePath();
+            clone.ClearAnchorSelection();
+            path.DeselectPath();
+            clone.SelectPath();
 
-        clone.UpdateSamples();
-        clone.UpdateBounds();
+            parent.Children.Add(clone);
+            clone.UpdateSamples();
+            clone.UpdateBounds();
+        }
+
         Document.IncrementVersion();
         Document.UpdateBounds();
-
-        BeginMoveTool();
+        RebuildSelectedPaths();
     }
 
     private void CopySelected()
     {
-        var path = GetPathWithSelection();
+        var path = GetFirstSelectedPath() ?? GetPathWithSelection();
         if (path == null) return;
 
         var data = new PathClipboardData(path);
@@ -182,14 +280,14 @@ public partial class SpriteEditor
         if (clipboardData == null) return;
 
         Undo.Record(Document);
-        ClearAllSelections();
+        Document.RootLayer.ClearAllSelections();
 
         var newPath = clipboardData.PasteAsPath();
         ActiveLayer.Children.Add(newPath);
 
         Document.IncrementVersion();
         Document.UpdateBounds();
-        UpdateSelection();
+        RebuildSelectedPaths();
     }
 
     #endregion
@@ -204,7 +302,8 @@ public partial class SpriteEditor
 
     public void BeginKnifeTool()
     {
-        Workspace.BeginTool(new KnifeTool(Document, Document.RootLayer));
+        if (_selectedPaths.Count == 0) return;
+        Workspace.BeginTool(new KnifeTool(Document, _selectedPaths));
     }
 
     public void BeginRectangleTool()
@@ -275,7 +374,7 @@ public partial class SpriteEditor
         Undo.Record(Document);
 
         var path = hit.Value.Path;
-        path.ClearSelection();
+        path.ClearAnchorSelection();
         path.SplitSegmentAtPoint(hit.Value.Hit.SegmentIndex, hit.Value.Hit.SegmentPosition);
 
         var newIdx = hit.Value.Hit.SegmentIndex + 1;

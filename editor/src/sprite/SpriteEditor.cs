@@ -48,6 +48,8 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId CircleToolButton { get; }
         public static partial WidgetId GenImageToggle { get; }
         public static partial WidgetId DopeSheetToggle { get; }
+        public static partial WidgetId VModeButton { get; }
+        public static partial WidgetId AModeButton { get; }
     }
 
     private static readonly WordGenerator _wordGenerator = new();
@@ -213,22 +215,34 @@ public partial class SpriteEditor : DocumentEditor
 
     private void FloatingToolbarUI()
     {
-        // Tool group: Pen, Knife, Rect, Circle
-        var activeTool = Workspace.ActiveTool;
+        // V/A mode toggles
+        if (FloatingToolbar.Button(WidgetIds.VModeButton, EditorAssets.Sprites.IconMove, isSelected: CurrentMode == SpriteEditMode.V))
+            SetMode(SpriteEditMode.V);
 
-        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, isSelected: activeTool is PenTool))
-            BeginPenTool();
-
-        if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose, isSelected: activeTool is KnifeTool))
-            BeginKnifeTool();
-
-        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Rectangle }))
-            BeginRectangleTool();
-
-        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Circle }))
-            BeginCircleTool();
+        if (FloatingToolbar.Button(WidgetIds.AModeButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.A))
+            SetMode(SpriteEditMode.A);
 
         FloatingToolbar.Divider();
+
+        // Tool group: Pen, Knife, Rect, Circle (A mode only)
+        if (CurrentMode == SpriteEditMode.A)
+        {
+            var activeTool = Workspace.ActiveTool;
+
+            if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, isSelected: activeTool is PenTool))
+                BeginPenTool();
+
+            if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose, isSelected: activeTool is KnifeTool))
+                BeginKnifeTool();
+
+            if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Rectangle }))
+                BeginRectangleTool();
+
+            if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Circle }))
+                BeginCircleTool();
+
+            FloatingToolbar.Divider();
+        }
 
         // Add frame
         if (FloatingToolbar.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
@@ -451,9 +465,9 @@ public partial class SpriteEditor : DocumentEditor
     {
         Document.CurrentFillColor = color;
 
-        var path = GetPathWithSelection();
-        if (path == null) return;
-        path.FillColor = color;
+        if (_selectedPaths.Count == 0) return;
+        foreach (var path in _selectedPaths)
+            path.FillColor = color;
         _meshVersion = -1;
     }
 
@@ -461,10 +475,12 @@ public partial class SpriteEditor : DocumentEditor
     {
         Document.CurrentStrokeColor = color;
 
-        var path = GetPathWithSelection();
-        if (path == null) return;
-        path.StrokeColor = color;
-        path.StrokeWidth = Document.CurrentStrokeWidth;
+        if (_selectedPaths.Count == 0) return;
+        foreach (var path in _selectedPaths)
+        {
+            path.StrokeColor = color;
+            path.StrokeWidth = Document.CurrentStrokeWidth;
+        }
         _meshVersion = -1;
     }
 
@@ -473,9 +489,8 @@ public partial class SpriteEditor : DocumentEditor
         Document.CurrentStrokeWidth = width;
         Undo.Record(Document);
 
-        var path = GetPathWithSelection();
-        if (path == null) return;
-        path.StrokeWidth = width;
+        foreach (var path in _selectedPaths)
+            path.StrokeWidth = width;
     }
 
     private void CycleSpritePathOperation()
@@ -487,11 +502,11 @@ public partial class SpriteEditor : DocumentEditor
             _ => SpritePathOperation.Normal,
         };
 
-        var path = GetPathWithSelection();
-        if (path != null)
+        if (_selectedPaths.Count > 0)
         {
             Undo.Record(Document);
-            path.Operation = Document.CurrentOperation;
+            foreach (var path in _selectedPaths)
+                path.Operation = Document.CurrentOperation;
             Document.IncrementVersion();
         }
     }
@@ -501,8 +516,7 @@ public partial class SpriteEditor : DocumentEditor
         Undo.Record(Document);
         Document.CurrentOperation = operation;
 
-        var path = GetPathWithSelection();
-        if (path != null)
+        foreach (var path in _selectedPaths)
             path.Operation = operation;
     }
 
@@ -599,7 +613,7 @@ public partial class SpriteEditor : DocumentEditor
 
     private void MovePathUp()
     {
-        var path = GetPathWithSelection();
+        var path = GetFirstSelectedPath();
         if (path == null) return;
 
         var parent = Document.RootLayer.FindParent(path);
@@ -616,7 +630,7 @@ public partial class SpriteEditor : DocumentEditor
 
     private void MovePathDown()
     {
-        var path = GetPathWithSelection();
+        var path = GetFirstSelectedPath();
         if (path == null) return;
 
         var parent = Document.RootLayer.FindParent(path);
@@ -646,70 +660,283 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
+    private readonly List<SpriteNode.NodeHitResult> _hitResults = new();
+
     private void HandleLeftClick()
     {
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
         var shift = Input.IsShiftDown(InputScope.All);
+        var alt = Input.IsAltDown(InputScope.All);
 
-        var hit = Document.RootLayer.HitTest(localMousePos);
+        // Gather all hits at click point (ordered top-to-bottom)
+        _hitResults.Clear();
+        Document.RootLayer.HitTestAll(localMousePos, _hitResults);
 
-        if (hit.HasValue)
+        // Alt+click on segment in A mode: insert anchor
+        if (alt && CurrentMode == SpriteEditMode.A && HandleAltClickInsert(localMousePos))
+            return;
+
+        // A mode: try anchor/segment selection on selected paths first
+        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
         {
-            var h = hit.Value;
+            if (HandleAnchorClick(shift))
+                return;
+        }
 
-            // Switch active layer to the hit layer
-            if (h.Layer != Document.ActiveLayer)
-                Document.ActiveLayer = h.Layer;
+        // Path selection fallback (works in both V and A modes)
+        if (HandlePathClick(shift))
+            return;
+
+        // Nothing hit — clear everything
+        if (!shift)
+            ClearSelection();
+    }
+
+    private bool HandleAltClickInsert(Vector2 localMousePos)
+    {
+        // Find a segment hit on a selected path
+        foreach (var h in _hitResults)
+        {
+            if (!h.Path.IsSelected || h.Hit.SegmentIndex < 0) continue;
+
+            Undo.Record(Document);
+            h.Path.ClearAnchorSelection();
+            h.Path.SplitSegmentAtPoint(h.Hit.SegmentIndex, h.Hit.SegmentPosition);
+
+            var newIdx = h.Hit.SegmentIndex + 1;
+            if (newIdx < h.Path.Anchors.Count)
+                h.Path.SetAnchorSelected(newIdx, true);
+
+            h.Path.UpdateSamples();
+            h.Path.UpdateBounds();
+            Document.UpdateBounds();
+            return true;
+        }
+        return false;
+    }
+
+    private bool HandleAnchorClick(bool shift)
+    {
+        // Find the topmost anchor or segment hit on a selected path
+        foreach (var h in _hitResults)
+        {
+            if (!h.Path.IsSelected) continue;
 
             if (h.Hit.AnchorIndex >= 0)
             {
-                // Anchor hit
-                if (!shift) ClearAllSelections();
+                // Anchor hit — with cycling
+                if (h.Path.Anchors[h.Hit.AnchorIndex].IsSelected && !shift)
+                {
+                    // Already selected: cycle to next anchor under cursor on selected paths
+                    if (CycleAnchorSelection(h))
+                        return true;
+                }
+
+                if (!shift) Document.RootLayer.ClearAnchorSelections();
                 h.Path.SetAnchorSelected(h.Hit.AnchorIndex, true);
-                UpdateSelection();
-                return;
+                RebuildSelectedPaths();
+                return true;
             }
 
             if (h.Hit.SegmentIndex >= 0)
             {
-                // Segment hit — select both anchors
-                if (!shift) ClearAllSelections();
+                if (!shift) Document.RootLayer.ClearAnchorSelections();
                 var nextIdx = (h.Hit.SegmentIndex + 1) % h.Path.Anchors.Count;
                 h.Path.SetAnchorSelected(h.Hit.SegmentIndex, true);
                 h.Path.SetAnchorSelected(nextIdx, true);
-                UpdateSelection();
-                return;
-            }
-
-            if (h.Hit.InPath)
-            {
-                // Path containment — select all anchors
-                if (!shift) ClearAllSelections();
-                h.Path.SelectAll();
-                UpdateSelection();
-                return;
+                RebuildSelectedPaths();
+                return true;
             }
         }
+        return false;
+    }
 
-        // Nothing hit — clear selection
+    private bool CycleAnchorSelection(SpriteNode.NodeHitResult currentHit)
+    {
+        // Find the next anchor under cursor on selected paths (below currentHit)
+        var foundCurrent = false;
+        foreach (var h in _hitResults)
+        {
+            if (!h.Path.IsSelected || h.Hit.AnchorIndex < 0) continue;
+
+            if (!foundCurrent)
+            {
+                if (h.Path == currentHit.Path && h.Hit.AnchorIndex == currentHit.Hit.AnchorIndex)
+                    foundCurrent = true;
+                continue;
+            }
+
+            // Found the next one
+            Document.RootLayer.ClearAnchorSelections();
+            h.Path.SetAnchorSelected(h.Hit.AnchorIndex, true);
+            RebuildSelectedPaths();
+            return true;
+        }
+
+        // Wrap around: select the first anchor hit on a selected path
+        foreach (var h in _hitResults)
+        {
+            if (!h.Path.IsSelected || h.Hit.AnchorIndex < 0) continue;
+            Document.RootLayer.ClearAnchorSelections();
+            h.Path.SetAnchorSelected(h.Hit.AnchorIndex, true);
+            RebuildSelectedPaths();
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool HandlePathClick(bool shift)
+    {
+        // Find paths under cursor (any hit type counts as hitting a path)
+        // Build list of distinct paths in hit order
+        var hitPaths = new List<SpritePath>();
+        foreach (var h in _hitResults)
+        {
+            if (!hitPaths.Contains(h.Path))
+                hitPaths.Add(h.Path);
+
+            // Switch active layer to the hit layer
+            if (h.Layer != Document.ActiveLayer && hitPaths.Count == 1)
+                Document.ActiveLayer = h.Layer;
+        }
+
+        if (hitPaths.Count == 0)
+            return false;
+
         if (!shift)
         {
-            ClearSelection();
-            UpdateSelection();
+            // Without shift: select topmost, or cycle if already selected
+            var topmost = hitPaths[0];
+            if (topmost.IsSelected)
+            {
+                // Cycle: find next unselected, or wrap
+                SpritePath? next = null;
+                for (var i = 1; i < hitPaths.Count; i++)
+                {
+                    next = hitPaths[i];
+                    break;
+                }
+
+                Document.RootLayer.ClearAllSelections();
+                (next ?? hitPaths[0]).SelectPath();
+            }
+            else
+            {
+                Document.RootLayer.ClearAllSelections();
+                topmost.SelectPath();
+            }
         }
+        else
+        {
+            // Shift: add the next unselected path to selection
+            SpritePath? nextUnselected = null;
+            foreach (var p in hitPaths)
+            {
+                if (!p.IsSelected)
+                {
+                    nextUnselected = p;
+                    break;
+                }
+            }
+
+            if (nextUnselected != null)
+            {
+                nextUnselected.SelectPath();
+            }
+            else if (hitPaths.Count > 0)
+            {
+                // All selected — wrap: deselect topmost, it cycles visually
+                hitPaths[0].DeselectPath();
+            }
+        }
+
+        RebuildSelectedPaths();
+        return true;
     }
 
     private void DrawWireframe()
     {
+        if (_selectedPaths.Count == 0) return;
+
         var transform = Document.Transform;
-        Document.RootLayer.ForEachEditablePath(path =>
+
+        if (CurrentMode == SpriteEditMode.A)
         {
-            if (path.Anchors.Count < 2) return;
-            path.UpdateSamples();
-            DrawPathSegments(path, transform);
-            DrawPathAnchors(path, transform);
-        });
+            // A mode: draw anchors and edges for selected paths only
+            foreach (var path in _selectedPaths)
+            {
+                if (path.Anchors.Count < 2) continue;
+                path.UpdateSamples();
+                var pathTransform = path.HasTransform ? path.PathTransform * transform : transform;
+                DrawPathSegments(path, pathTransform);
+                DrawPathAnchors(path, pathTransform);
+            }
+        }
+        else
+        {
+            // V mode: draw bounding box around each selected path
+            DrawSelectionBounds(transform);
+        }
+    }
+
+    private void DrawSelectionBounds(Matrix3x2 transform)
+    {
+        using var _ = Gizmos.PushState(EditorLayer.DocumentEditor);
+        Graphics.SetTransform(transform);
+
+        // Draw per-path bounding boxes
+        Gizmos.SetColor(EditorStyle.Palette.Primary);
+        foreach (var path in _selectedPaths)
+        {
+            if (path.Anchors.Count < 2) continue;
+            path.UpdateBounds();
+            var b = path.Bounds;
+            Gizmos.DrawRect(b, EditorStyle.Shape.SegmentLineWidth, order: 2);
+        }
+
+        // Draw combined selection handles if any paths selected
+        if (_selectedPaths.Count > 0)
+        {
+            var combinedBounds = ComputeCombinedBounds();
+            if (combinedBounds.Width > 0 || combinedBounds.Height > 0)
+                DrawHandles(combinedBounds);
+        }
+    }
+
+    private Rect ComputeCombinedBounds()
+    {
+        var min = new Vector2(float.MaxValue, float.MaxValue);
+        var max = new Vector2(float.MinValue, float.MinValue);
+
+        foreach (var path in _selectedPaths)
+        {
+            if (path.Anchors.Count < 2) continue;
+            var b = path.Bounds;
+            min = Vector2.Min(min, new Vector2(b.X, b.Y));
+            max = Vector2.Max(max, new Vector2(b.Right, b.Bottom));
+        }
+
+        return min.X <= max.X ? Rect.FromMinMax(min, max) : Rect.Zero;
+    }
+
+    private void DrawHandles(Rect bounds)
+    {
+        var handleSize = EditorStyle.Shape.AnchorSize;
+
+        // Corner handles
+        Gizmos.SetColor(EditorStyle.Palette.Primary);
+        Gizmos.DrawRect(new Vector2(bounds.X, bounds.Y), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.Right, bounds.Y), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.X, bounds.Bottom), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.Right, bounds.Bottom), handleSize, order: 6);
+
+        // Edge midpoint handles
+        Gizmos.DrawRect(new Vector2(bounds.X + bounds.Width * 0.5f, bounds.Y), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.X + bounds.Width * 0.5f, bounds.Bottom), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.X, bounds.Y + bounds.Height * 0.5f), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.Right, bounds.Y + bounds.Height * 0.5f), handleSize, order: 6);
     }
 
     private void DrawEdges()

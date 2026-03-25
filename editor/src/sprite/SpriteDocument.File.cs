@@ -123,6 +123,18 @@ public partial class SpriteDocument
             {
                 path.Open = tk.ExpectBool();
             }
+            else if (tk.ExpectIdentifier("translate"))
+            {
+                path.PathTranslation = new Vector2(tk.ExpectFloat(), tk.ExpectFloat());
+            }
+            else if (tk.ExpectIdentifier("rotate"))
+            {
+                path.PathRotation = tk.ExpectFloat() * MathF.PI / 180f;
+            }
+            else if (tk.ExpectIdentifier("scale"))
+            {
+                path.PathScale = new Vector2(tk.ExpectFloat(), tk.ExpectFloat());
+            }
             else if (tk.ExpectIdentifier("anchor"))
             {
                 var x = tk.ExpectFloat();
@@ -240,6 +252,19 @@ public partial class SpriteDocument
             writer.WriteLine($"{indent}path \"{path.Name}\" {{");
         else
             writer.WriteLine($"{indent}path {{");
+
+        if (path.HasTransform)
+        {
+            if (path.PathTranslation != Vector2.Zero)
+                writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "{0}translate {1} {2}", propIndent, path.PathTranslation.X, path.PathTranslation.Y));
+            if (path.PathRotation != 0f)
+                writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "{0}rotate {1}", propIndent, path.PathRotation * 180f / MathF.PI));
+            if (path.PathScale != Vector2.One)
+                writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "{0}scale {1} {2}", propIndent, path.PathScale.X, path.PathScale.Y));
+        }
 
         if (path.Operation != SpritePathOperation.Normal)
             writer.WriteLine($"{propIndent}operation {path.Operation.ToString().ToLowerInvariant()}");

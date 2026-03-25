@@ -1,5 +1,6 @@
 
 path "" {
+  translate 0.4469099 -0.62418365
   fill #FFC200
   anchor -0.6795411 0.5305257
   anchor -0.6795411 0.91414976
@@ -19,9 +20,10 @@ layer "Layer 2" {
 
   layer "Layer 4" {
     path "" {
+      translate -0.010402203 -0.14197636
       operation clip
       fill #FF0000
-      anchor 0.5038388 -0.2914842
+      anchor 0.394933 -0.30661044
       anchor 0.44771147 -0.15381633
       anchor -0.096060276 -0.2965272
       anchor -0.5104234 -0.12201014
@@ -38,9 +40,10 @@ layer "Layer 2" {
     }
 
     path "" {
+      translate 0.018106937 -0.007858276
       fill #FFFFFF
-      anchor 0.3497939 -0.46932504
-      anchor 0.26404548 -0.014859676
+      anchor 0.345325 -0.43804166
+      anchor 0.2729833 0.061114788
       anchor -0.39621612 0.028014123
       anchor -0.49911338 -0.47790074
       anchor -0.17327076 -0.6236725

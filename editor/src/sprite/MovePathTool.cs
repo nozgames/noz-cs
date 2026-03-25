@@ -45,3 +45,39 @@ public class MovePathTool : MoveTool
 
     protected override void OnCancel() => Undo.Cancel();
 }
+
+public class MovePathTransformTool : MoveTool
+{
+    private PathTransformToolState _state;
+
+    private MovePathTransformTool(PathTransformToolState state)
+    {
+        _state = state;
+    }
+
+    public static MovePathTransformTool? Create(SpriteDocument document, List<SpritePath> selectedPaths)
+    {
+        var state = PathTransformToolState.Create(document, selectedPaths);
+        if (state == null) return null;
+        return new MovePathTransformTool(state.Value);
+    }
+
+    protected override void OnUpdate(Vector2 delta)
+    {
+        // Transform delta from world space to local space
+        Matrix3x2.Invert(_state.Document.Transform, out var invDoc);
+        var localDelta = Vector2.TransformNormal(delta, invDoc);
+
+        foreach (var (path, savedTranslation, _, _) in _state.Snapshots)
+            path.PathTranslation = savedTranslation + localDelta;
+        _state.UpdatePaths();
+    }
+
+    protected override void OnCommit(Vector2 delta)
+    {
+        OnUpdate(delta);
+        _state.Document.UpdateBounds();
+    }
+
+    protected override void OnCancel() => Undo.Cancel();
+}

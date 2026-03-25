@@ -151,10 +151,55 @@ public abstract class SpriteNode
     public void ClearAllSelections()
     {
         if (this is SpritePath path)
-            path.ClearSelection();
+            path.ClearAllSelection();
 
         foreach (var child in Children)
             child.ClearAllSelections();
+    }
+
+    public void ClearPathSelections()
+    {
+        if (this is SpritePath path)
+            path.DeselectPath();
+
+        foreach (var child in Children)
+            child.ClearPathSelections();
+    }
+
+    public void ClearAnchorSelections()
+    {
+        if (this is SpritePath path)
+            path.ClearAnchorSelection();
+
+        foreach (var child in Children)
+            child.ClearAnchorSelections();
+    }
+
+    public void CollectSelectedPaths(List<SpritePath> result)
+    {
+        if (this is SpritePath path && path.IsSelected)
+        {
+            result.Add(path);
+            return;
+        }
+
+        foreach (var child in Children)
+            child.CollectSelectedPaths(result);
+    }
+
+    public void SelectPathsInRect(Rect rect)
+    {
+        if (!Visible || Locked) return;
+
+        if (this is SpritePath path)
+        {
+            if (path.Bounds.Intersects(rect))
+                path.SelectPath();
+            return;
+        }
+
+        foreach (var child in Children)
+            child.SelectPathsInRect(rect);
     }
 
     public void SelectAnchorsInRect(Rect rect)
@@ -241,8 +286,9 @@ public abstract class SpriteNode
             return count;
         }
 
-        foreach (var child in Children)
-            count += child.HitTestAllRecursive(point, results, currentLayer);
+        // Iterate in reverse so results are ordered top-to-bottom (last child = topmost)
+        for (var i = Children.Count - 1; i >= 0; i--)
+            count += Children[i].HitTestAllRecursive(point, results, currentLayer);
 
         return count;
     }
