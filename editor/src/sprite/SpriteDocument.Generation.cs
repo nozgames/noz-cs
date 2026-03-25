@@ -250,11 +250,7 @@ public partial class SpriteDocument
             if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
                 srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
 
-            var w = srcImage.Width;
-            var h = srcImage.Height;
-            var pixels = new byte[w * h * 4];
-            srcImage.CopyPixelDataTo(pixels);
-            gen.Job.Texture = Texture.Create(w, h, pixels, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
+            gen.Job.Texture = CreateTextureFromImage(srcImage, $"{Name}_gen");
         }
         catch (Exception ex)
         {
@@ -617,11 +613,7 @@ public partial class SpriteDocument
             if (createTexture)
             {
                 gen.Job.Dispose();
-                var rw = srcImage.Width;
-                var rh = srcImage.Height;
-                var px = new byte[rw * rh * 4];
-                srcImage.CopyPixelDataTo(px);
-                gen.Job.Texture = Texture.Create(rw, rh, px, TextureFormat.RGBA8, TextureFilter.Linear, $"{Name}_gen");
+                gen.Job.Texture = CreateTextureFromImage(srcImage, $"{Name}_gen");
             }
 
             try

@@ -78,10 +78,10 @@ public partial class SpriteEditor : DocumentEditor
                 ..GetShapeCommands(),
                 new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
                 new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true },
-                new Command { Name = "Flip Horizontal", Handler = FlipHorizontal },
-                new Command { Name = "Flip Vertical", Handler = FlipVertical },
-                new Command { Name = "Bring Forward", Handler = MovePathUp, Key = InputCode.KeyLeftBracket },
-                new Command { Name = "Send Backward", Handler = MovePathDown, Key = InputCode.KeyRightBracket },
+                new Command { Name = "Flip Horizontal", Handler = () => FlipAxis(true) },
+                new Command { Name = "Flip Vertical", Handler = () => FlipAxis(false) },
+                new Command { Name = "Bring Forward", Handler = () => MovePathInOrder(-1), Key = InputCode.KeyLeftBracket },
+                new Command { Name = "Send Backward", Handler = () => MovePathInOrder(1), Key = InputCode.KeyRightBracket },
                 new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
                 new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
                 new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
@@ -568,7 +568,7 @@ public partial class SpriteEditor : DocumentEditor
         Document.IncrementVersion();
     }
 
-    private void FlipHorizontal()
+    private void FlipAxis(bool horizontal)
     {
         var path = GetPathWithSelection();
         if (path == null) return;
@@ -581,7 +581,9 @@ public partial class SpriteEditor : DocumentEditor
         {
             if (!path.Anchors[i].IsSelected) continue;
             var a = path.Anchors[i];
-            a.Position = new Vector2(2 * centroid.Value.X - a.Position.X, a.Position.Y);
+            a.Position = horizontal
+                ? new Vector2(2 * centroid.Value.X - a.Position.X, a.Position.Y)
+                : new Vector2(a.Position.X, 2 * centroid.Value.Y - a.Position.Y);
             a.Curve = -a.Curve;
             path.Anchors[i] = a;
         }
@@ -591,30 +593,7 @@ public partial class SpriteEditor : DocumentEditor
         Document.UpdateBounds();
     }
 
-    private void FlipVertical()
-    {
-        var path = GetPathWithSelection();
-        if (path == null) return;
-
-        var centroid = path.GetSelectedCentroid();
-        if (!centroid.HasValue) return;
-
-        Undo.Record(Document);
-        for (var i = 0; i < path.Anchors.Count; i++)
-        {
-            if (!path.Anchors[i].IsSelected) continue;
-            var a = path.Anchors[i];
-            a.Position = new Vector2(a.Position.X, 2 * centroid.Value.Y - a.Position.Y);
-            a.Curve = -a.Curve;
-            path.Anchors[i] = a;
-        }
-        path.MarkDirty();
-        path.UpdateSamples();
-        path.UpdateBounds();
-        Document.UpdateBounds();
-    }
-
-    private void MovePathUp()
+    private void MovePathInOrder(int direction)
     {
         var path = GetFirstSelectedPath();
         if (path == null) return;
@@ -623,28 +602,12 @@ public partial class SpriteEditor : DocumentEditor
         if (parent == null) return;
 
         var idx = parent.Children.IndexOf(path);
-        if (idx <= 0) return;
+        var newIdx = idx + direction;
+        if (idx < 0 || newIdx < 0 || newIdx >= parent.Children.Count) return;
 
         Undo.Record(Document);
         parent.Children.RemoveAt(idx);
-        parent.Children.Insert(idx - 1, path);
-        Document.IncrementVersion();
-    }
-
-    private void MovePathDown()
-    {
-        var path = GetFirstSelectedPath();
-        if (path == null) return;
-
-        var parent = Document.RootLayer.FindParent(path);
-        if (parent == null) return;
-
-        var idx = parent.Children.IndexOf(path);
-        if (idx < 0 || idx >= parent.Children.Count - 1) return;
-
-        Undo.Record(Document);
-        parent.Children.RemoveAt(idx);
-        parent.Children.Insert(idx + 1, path);
+        parent.Children.Insert(newIdx, path);
         Document.IncrementVersion();
     }
 
@@ -877,7 +840,7 @@ public partial class SpriteEditor : DocumentEditor
 
     private void UpdateHandleCursor()
     {
-        if (CurrentMode != SpriteEditMode.V || _selectedPaths.Count == 0 || Workspace.ActiveTool != null)
+        if (_selectedPaths.Count == 0 || Workspace.ActiveTool != null)
         {
             Cursor.SetDefault();
             return;
@@ -885,12 +848,27 @@ public partial class SpriteEditor : DocumentEditor
 
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
-        var hit = HitTestHandles(localMousePos);
 
-        if (hit != HandleHit.None)
-            Cursor.Set(GetHandleCursor(hit));
-        else
-            Cursor.SetDefault();
+        if (CurrentMode == SpriteEditMode.V)
+        {
+            var hit = HitTestHandles(localMousePos);
+            if (hit != HandleHit.None)
+            {
+                Cursor.Set(GetHandleCursor(hit));
+                return;
+            }
+        }
+        else if (CurrentMode == SpriteEditMode.A)
+        {
+            var hit = Document.RootLayer.HitTest(localMousePos);
+            if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.AnchorIndex >= 0)
+            {
+                Cursor.Set(SystemCursor.Move);
+                return;
+            }
+        }
+
+        Cursor.SetDefault();
     }
 
     private void DrawSelectionBounds(Matrix3x2 transform)

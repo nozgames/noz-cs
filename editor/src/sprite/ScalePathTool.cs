@@ -75,11 +75,10 @@ public class HandleScalePathTransformTool : Tool
         ApplyScale();
     }
 
-    private void ApplyScale()
+    private Vector2 ComputeScale()
     {
         var mouseDoc = Vector2.Transform(Workspace.MouseWorldPosition, _invDocTransform);
 
-        // Project mouse and start position into selection-axis-aligned space
         var invRot = Matrix3x2.CreateRotation(-_selectionRotation);
         var pivotSel = Vector2.Transform(_pivotDoc, invRot);
         var startSel = Vector2.Transform(_mouseStartDoc, invRot);
@@ -94,7 +93,6 @@ public class HandleScalePathTransformTool : Tool
         if (_constrainX) scaleX = 1f;
         if (_constrainY) scaleY = 1f;
 
-        // For corner handles, use uniform scale if Shift held
         if (!_constrainX && !_constrainY && Input.IsShiftDown(InputScope.All))
         {
             var uniform = (scaleX + scaleY) * 0.5f;
@@ -102,21 +100,20 @@ public class HandleScalePathTransformTool : Tool
             scaleY = uniform;
         }
 
-        var scale = new Vector2(scaleX, scaleY);
+        return new Vector2(scaleX, scaleY);
+    }
 
-        // Apply the scale relative to the pivot in document space
+    private void ApplyScale()
+    {
+        var scale = ComputeScale();
+        var invRot = Matrix3x2.CreateRotation(-_selectionRotation);
         var rot = Matrix3x2.CreateRotation(_selectionRotation);
 
         foreach (var (path, savedTranslation, savedRotation, savedScale) in _state.Snapshots)
         {
-            // Compute path's world center from saved state
             var center = path.LocalBounds.Center;
-            var savedXform = Matrix3x2.CreateTranslation(-center)
-                * Matrix3x2.CreateScale(savedScale)
-                * Matrix3x2.CreateRotation(savedRotation)
-                * Matrix3x2.CreateTranslation(center)
-                * Matrix3x2.CreateTranslation(savedTranslation);
-            var savedWorldCenter = Vector2.Transform(center, savedXform);
+            var savedWorldCenter = PathTransformToolState.ComputeWorldCenter(
+                center, savedTranslation, savedRotation, savedScale);
 
             // Scale the center's offset from pivot in selection-aligned space
             var centerSelSpace = Vector2.Transform(savedWorldCenter, invRot);
@@ -124,18 +121,11 @@ public class HandleScalePathTransformTool : Tool
             var scaledCenterSel = pivotSelSpace + (centerSelSpace - pivotSelSpace) * scale;
             var scaledCenterDoc = Vector2.Transform(scaledCenterSel, rot);
 
-            // Apply scale to path
             path.PathScale = savedScale * scale;
 
-            // Compute where the center would be with new scale (but old translation)
-            var newXform = Matrix3x2.CreateTranslation(-center)
-                * Matrix3x2.CreateScale(savedScale * scale)
-                * Matrix3x2.CreateRotation(savedRotation)
-                * Matrix3x2.CreateTranslation(center)
-                * Matrix3x2.CreateTranslation(savedTranslation);
-            var newWorldCenter = Vector2.Transform(center, newXform);
+            var newWorldCenter = PathTransformToolState.ComputeWorldCenter(
+                center, savedTranslation, savedRotation, savedScale * scale);
 
-            // Adjust translation to put center at scaled position
             path.PathTranslation = savedTranslation + (scaledCenterDoc - newWorldCenter);
         }
         _state.UpdatePaths();

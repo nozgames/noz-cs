@@ -266,33 +266,54 @@ public partial class SpriteEditor
             return;
         }
 
-        var mousePos = Input.MousePosition;
-        // Check if we should start dragging (mouse moved beyond threshold)
-        if (!_outlinerDragging)
-        {
-            if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
-            {
-                _dragNode = null;
-                return;
-            }
+        if (!CheckDragThreshold())
+            return;
 
-            var dist = System.Numerics.Vector2.Distance(mousePos, _dragStartPos);
-            if (dist < DragThreshold)
-                return;
-
-            _outlinerDragging = true;
-        }
-
-        // Cancel on escape or right-click
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) || Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
         {
-            _outlinerDragging = false;
-            _dragNode = null;
-            _dropTargetIndex = -1;
+            CancelOutlinerDrag();
             return;
         }
 
-        // Find drop target by checking row rects from previous frame
+        FindDropTarget();
+
+        if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
+        {
+            if (_dropTargetIndex >= 0)
+                CommitOutlinerDrop();
+
+            CancelOutlinerDrag();
+        }
+    }
+
+    private bool CheckDragThreshold()
+    {
+        if (_outlinerDragging)
+            return true;
+
+        if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
+        {
+            _dragNode = null;
+            return false;
+        }
+
+        var dist = System.Numerics.Vector2.Distance(Input.MousePosition, _dragStartPos);
+        if (dist < DragThreshold)
+            return false;
+
+        _outlinerDragging = true;
+        return true;
+    }
+
+    private void CancelOutlinerDrag()
+    {
+        _outlinerDragging = false;
+        _dragNode = null;
+        _dropTargetIndex = -1;
+    }
+
+    private void FindDropTarget()
+    {
         _dropTargetIndex = -1;
         var mouseWorld = UI.MouseWorldPosition;
         var closestDist = float.MaxValue;
@@ -303,7 +324,6 @@ public partial class SpriteEditor
             var row = _outlinerRows[i];
             if (row.Node == _dragNode)
             {
-                // Check if mouse is over the drag source — no drop target
                 var srcRect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
                 if (srcRect.Width > 0 && mouseWorld.Y >= srcRect.Y && mouseWorld.Y <= srcRect.Bottom)
                 {
@@ -316,64 +336,26 @@ public partial class SpriteEditor
             var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
             if (rect.Width <= 0) continue;
 
-            // Direct hit
             if (mouseWorld.Y >= rect.Y && mouseWorld.Y <= rect.Bottom)
             {
                 _dropTargetIndex = row.Index;
                 var relY = (mouseWorld.Y - rect.Y) / rect.Height;
 
-                if (row.Node is SpriteLayer layer)
+                if (row.Node is SpriteLayer)
                 {
-                    if (layer.Expanded)
-                    {
-                        // Expanded: top=before sibling, mid=last child, bot=first child
-                        if (relY < 0.33f) _dropZone = DropZone.Before;
-                        else if (relY > 0.67f) _dropZone = DropZone.FirstChild;
-                        else _dropZone = DropZone.LastChild;
-                    }
-                    else
-                    {
-                        // Collapsed: top=before sibling, mid=last child, bot=first child
-                        if (relY < 0.33f) _dropZone = DropZone.Before;
-                        else if (relY > 0.67f) _dropZone = DropZone.FirstChild;
-                        else _dropZone = DropZone.LastChild;
-                    }
+                    if (relY < 0.33f) _dropZone = DropZone.Before;
+                    else if (relY > 0.67f) _dropZone = DropZone.FirstChild;
+                    else _dropZone = DropZone.LastChild;
                 }
                 else
                 {
-                    // Leaf: top=before, bot=after
                     _dropZone = relY < 0.5f ? DropZone.Before : DropZone.After;
                 }
 
-                // Normalize "Before" to keep the line on one consistent slot
-                if (_dropZone == DropZone.Before && i > 0)
-                {
-                    // Find previous visible row (skip drag source)
-                    var pi = i - 1;
-                    while (pi >= 0 && _outlinerRows[pi].Node == _dragNode) pi--;
-
-                    if (pi >= 0)
-                    {
-                        var prevRow = _outlinerRows[pi];
-                        if (prevRow.Depth == row.Depth)
-                        {
-                            // Same-depth sibling: use "After" on prev row
-                            _dropTargetIndex = prevRow.Index;
-                            _dropZone = DropZone.After;
-                        }
-                        else if (prevRow.Depth == row.Depth - 1 && prevRow.Node is SpriteLayer parentLayer && parentLayer.Expanded)
-                        {
-                            // First child of expanded layer: use "FirstChild" on parent
-                            _dropTargetIndex = prevRow.Index;
-                            _dropZone = DropZone.FirstChild;
-                        }
-                    }
-                }
-
+                NormalizeDropBefore(i, row);
                 break;
             }
 
-            // Track nearest row for fallback
             var dist = mouseWorld.Y < rect.Y ? rect.Y - mouseWorld.Y : mouseWorld.Y - rect.Bottom;
             if (dist < closestDist)
             {
@@ -382,41 +364,54 @@ public partial class SpriteEditor
             }
         }
 
-        // Fallback: mouse in gap or over drag source — snap to nearest
         if (_dropTargetIndex < 0 && closestRow >= 0)
-        {
-            var row = _outlinerRows[closestRow];
-            var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
+            FindDropTargetFallback(closestRow, mouseWorld);
+    }
 
-            if (mouseWorld.Y > rect.Bottom)
+    private void NormalizeDropBefore(int rowIndex, OutlinerRowInfo row)
+    {
+        if (_dropZone != DropZone.Before || rowIndex <= 0)
+            return;
+
+        var pi = rowIndex - 1;
+        while (pi >= 0 && _outlinerRows[pi].Node == _dragNode) pi--;
+
+        if (pi < 0) return;
+
+        var prevRow = _outlinerRows[pi];
+        if (prevRow.Depth == row.Depth)
+        {
+            _dropTargetIndex = prevRow.Index;
+            _dropZone = DropZone.After;
+        }
+        else if (prevRow.Depth == row.Depth - 1 && prevRow.Node is SpriteLayer parentLayer && parentLayer.Expanded)
+        {
+            _dropTargetIndex = prevRow.Index;
+            _dropZone = DropZone.FirstChild;
+        }
+    }
+
+    private void FindDropTargetFallback(int closestRow, Vector2 mouseWorld)
+    {
+        var row = _outlinerRows[closestRow];
+        var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
+
+        if (mouseWorld.Y > rect.Bottom)
+        {
+            for (var j = _outlinerRows.Count - 1; j >= 0; j--)
             {
-                // Below last visible row — find last root-level item to insert after
-                for (var j = _outlinerRows.Count - 1; j >= 0; j--)
+                if (_outlinerRows[j].Depth == 0 && _outlinerRows[j].Node != _dragNode)
                 {
-                    if (_outlinerRows[j].Depth == 0 && _outlinerRows[j].Node != _dragNode)
-                    {
-                        _dropTargetIndex = _outlinerRows[j].Index;
-                        _dropZone = DropZone.After;
-                        break;
-                    }
+                    _dropTargetIndex = _outlinerRows[j].Index;
+                    _dropZone = DropZone.After;
+                    break;
                 }
             }
-            else
-            {
-                _dropTargetIndex = row.Index;
-                _dropZone = mouseWorld.Y < rect.Y + rect.Height * 0.5f ? DropZone.Before : DropZone.After;
-            }
         }
-
-        // Drop on release
-        if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
+        else
         {
-            if (_dropTargetIndex >= 0)
-                CommitOutlinerDrop();
-
-            _outlinerDragging = false;
-            _dragNode = null;
-            _dropTargetIndex = -1;
+            _dropTargetIndex = row.Index;
+            _dropZone = mouseWorld.Y < rect.Y + rect.Height * 0.5f ? DropZone.Before : DropZone.After;
         }
     }
 

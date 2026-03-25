@@ -77,118 +77,126 @@ public partial class SpriteEditor
     private void HandleDragStart()
     {
         Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+        var localMousePos = Vector2.Transform(Workspace.DragWorldPosition, invTransform);
 
-        if (CurrentMode == SpriteEditMode.V && _selectedPaths.Count > 0)
-        {
-            var handleHit = HitTestHandles(localMousePos);
+        if (CurrentMode == SpriteEditMode.V && _selectedPaths.Count > 0 && HandleVModeDrag(localMousePos))
+            return;
 
-            if (IsRotateHandle(handleHit))
-            {
-                var tool = RotatePathTransformTool.Create(Document, _selectedPaths);
-                if (tool != null)
-                {
-                    tool.CommitOnRelease = true;
-                    Undo.Record(Document);
-                    Workspace.BeginTool(tool);
-                    return;
-                }
-            }
+        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0 && HandleAModeDrag(localMousePos))
+            return;
 
-            if (IsScaleHandle(handleHit))
-            {
-                var selToDoc = Matrix3x2.CreateRotation(_selectionRotation);
-                var pivotDoc = Vector2.Transform(_selectionLocalBounds.Center, selToDoc);
-
-                // Edge handles constrain to one axis
-                var constrainX = handleHit is HandleHit.ScaleTop or HandleHit.ScaleBottom;
-                var constrainY = handleHit is HandleHit.ScaleLeft or HandleHit.ScaleRight;
-
-                var tool = HandleScalePathTransformTool.Create(
-                    Document, _selectedPaths,
-                    pivotDoc, _selectionRotation, constrainX, constrainY);
-                if (tool != null)
-                {
-                    Undo.Record(Document);
-                    Workspace.BeginTool(tool);
-                    return;
-                }
-            }
-
-            if (handleHit == HandleHit.Move)
-            {
-                var tool = MovePathTransformTool.Create(Document, _selectedPaths);
-                if (tool != null)
-                {
-                    tool.CommitOnRelease = true;
-                    Undo.Record(Document);
-                    Workspace.BeginTool(tool);
-                    return;
-                }
-            }
-        }
-        else if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
-        {
-            // A mode + Alt: insert anchor on segment edge, then drag it
-            if (Input.IsAltDown(InputScope.All))
-            {
-                var segHit = Document.RootLayer.HitTest(localMousePos);
-                if (segHit.HasValue && segHit.Value.Path.IsSelected && segHit.Value.Hit.SegmentIndex >= 0)
-                {
-                    Undo.Record(Document);
-                    var path = segHit.Value.Path;
-                    path.ClearAnchorSelection();
-                    path.SplitSegmentAtPoint(segHit.Value.Hit.SegmentIndex, segHit.Value.Hit.SegmentPosition);
-
-                    var newIdx = segHit.Value.Hit.SegmentIndex + 1;
-                    if (newIdx < path.Anchors.Count)
-                        path.SetAnchorSelected(newIdx, true);
-
-                    path.UpdateSamples();
-                    path.UpdateBounds();
-                    Document.UpdateBounds();
-
-                    var moveTool = AnchorMoveTool.Create(Document);
-                    if (moveTool != null)
-                    {
-                        Workspace.BeginTool(moveTool);
-                        return;
-                    }
-                }
-            }
-
-            // A mode: check for anchor hit — start move
-            var hit = Document.RootLayer.HitTest(localMousePos);
-            if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.AnchorIndex >= 0)
-            {
-                // If the anchor isn't selected, select it first
-                if (!hit.Value.Path.Anchors[hit.Value.Hit.AnchorIndex].IsSelected)
-                {
-                    Document.RootLayer.ClearAnchorSelections();
-                    hit.Value.Path.SetAnchorSelected(hit.Value.Hit.AnchorIndex, true);
-                }
-
-                var tool = AnchorMoveTool.Create(Document);
-                if (tool != null)
-                {
-                    Undo.Record(Document);
-                    Workspace.BeginTool(tool);
-                    return;
-                }
-            }
-
-            // A mode: drag on segment edge — adjust curve
-            if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.SegmentIndex >= 0)
-            {
-                var path = hit.Value.Path;
-                Undo.Record(Document);
-                Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(), hit.Value.Hit.SegmentIndex) { CommitOnRelease = true });
-                return;
-            }
-        }
-
-        // Fallback: box select
         Workspace.BeginTool(new BoxSelectTool(CommitBoxSelect));
+    }
+
+    private bool HandleVModeDrag(Vector2 localMousePos)
+    {
+        var handleHit = HitTestHandles(localMousePos);
+
+        if (IsRotateHandle(handleHit))
+        {
+            var tool = RotatePathTransformTool.Create(Document, _selectedPaths);
+            if (tool != null)
+            {
+                tool.CommitOnRelease = true;
+                Undo.Record(Document);
+                Workspace.BeginTool(tool);
+                return true;
+            }
+        }
+
+        if (IsScaleHandle(handleHit))
+        {
+            var selToDoc = Matrix3x2.CreateRotation(_selectionRotation);
+            var pivotDoc = Vector2.Transform(_selectionLocalBounds.Center, selToDoc);
+
+            var constrainX = handleHit is HandleHit.ScaleTop or HandleHit.ScaleBottom;
+            var constrainY = handleHit is HandleHit.ScaleLeft or HandleHit.ScaleRight;
+
+            var tool = HandleScalePathTransformTool.Create(
+                Document, _selectedPaths,
+                pivotDoc, _selectionRotation, constrainX, constrainY);
+            if (tool != null)
+            {
+                Undo.Record(Document);
+                Workspace.BeginTool(tool);
+                return true;
+            }
+        }
+
+        if (handleHit == HandleHit.Move)
+        {
+            var tool = MovePathTransformTool.Create(Document, _selectedPaths);
+            if (tool != null)
+            {
+                tool.CommitOnRelease = true;
+                Undo.Record(Document);
+                Workspace.BeginTool(tool);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool HandleAModeDrag(Vector2 localMousePos)
+    {
+        // Alt: insert anchor on segment edge, then drag it
+        if (Input.IsAltDown(InputScope.All))
+        {
+            var segHit = Document.RootLayer.HitTest(localMousePos);
+            if (segHit.HasValue && segHit.Value.Path.IsSelected && segHit.Value.Hit.SegmentIndex >= 0)
+            {
+                Undo.Record(Document);
+                var path = segHit.Value.Path;
+                path.ClearAnchorSelection();
+                path.SplitSegmentAtPoint(segHit.Value.Hit.SegmentIndex, segHit.Value.Hit.SegmentPosition);
+
+                var newIdx = segHit.Value.Hit.SegmentIndex + 1;
+                if (newIdx < path.Anchors.Count)
+                    path.SetAnchorSelected(newIdx, true);
+
+                path.UpdateSamples();
+                path.UpdateBounds();
+                Document.UpdateBounds();
+
+                var moveTool = AnchorMoveTool.Create(Document);
+                if (moveTool != null)
+                {
+                    Workspace.BeginTool(moveTool);
+                    return true;
+                }
+            }
+        }
+
+        // Check for anchor hit — start move
+        var hit = Document.RootLayer.HitTest(localMousePos);
+        if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.AnchorIndex >= 0)
+        {
+            if (!hit.Value.Path.Anchors[hit.Value.Hit.AnchorIndex].IsSelected)
+            {
+                Document.RootLayer.ClearAnchorSelections();
+                hit.Value.Path.SetAnchorSelected(hit.Value.Hit.AnchorIndex, true);
+            }
+
+            var tool = AnchorMoveTool.Create(Document);
+            if (tool != null)
+            {
+                Undo.Record(Document);
+                Workspace.BeginTool(tool);
+                return true;
+            }
+        }
+
+        // Drag on segment edge — adjust curve
+        if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.SegmentIndex >= 0)
+        {
+            var path = hit.Value.Path;
+            Undo.Record(Document);
+            Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(), hit.Value.Hit.SegmentIndex) { CommitOnRelease = true });
+            return true;
+        }
+
+        return false;
     }
 
     #endregion

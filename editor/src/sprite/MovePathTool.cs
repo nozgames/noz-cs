@@ -140,19 +140,7 @@ public class AnchorMoveTool : Tool
         return -1;
     }
 
-    public override void Draw()
-    {
-        if (_snapType == SnapType.None) return;
-        using (Gizmos.PushState(EditorLayer.Tool))
-        {
-            Graphics.SetTransform(_document.Transform);
-            var size = Gizmos.GetVertexSize();
-            Gizmos.SetColor(_snapType == SnapType.Anchor
-                ? EditorStyle.Palette.Primary
-                : EditorStyle.Workspace.SelectionColor);
-            Gizmos.DrawRect(_snapDocLocal, _snapType == SnapType.Anchor ? size * 1.3f : size);
-        }
-    }
+    public override void Draw() => SnapHelper.DrawSnapIndicator(_snapType, _snapDocLocal, _document.Transform);
 
     public override void Cancel()
     {
@@ -213,19 +201,7 @@ public class MovePathTransformTool : MoveTool
         _state.Document.UpdateBounds();
     }
 
-    public override void Draw()
-    {
-        if (_snapType == SnapType.None) return;
-        using (Gizmos.PushState(EditorLayer.Tool))
-        {
-            Graphics.SetTransform(_state.Document.Transform);
-            var size = Gizmos.GetVertexSize();
-            Gizmos.SetColor(_snapType == SnapType.Anchor
-                ? EditorStyle.Palette.Primary
-                : EditorStyle.Workspace.SelectionColor);
-            Gizmos.DrawRect(_snapDocLocal, _snapType == SnapType.Anchor ? size * 1.3f : size);
-        }
-    }
+    public override void Draw() => SnapHelper.DrawSnapIndicator(_snapType, _snapDocLocal, _state.Document.Transform);
 
     protected override void OnCancel() => Undo.Cancel();
 }

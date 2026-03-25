@@ -41,24 +41,15 @@ public class RotatePathTransformTool : RotateTool
         {
             path.PathRotation = savedRotation + angle;
 
-            // Adjust translation so rotation happens around the combined centroid
             var center = path.LocalBounds.Center;
-            var savedWorldCenter = Vector2.Transform(center,
-                Matrix3x2.CreateTranslation(-center)
-                * Matrix3x2.CreateScale(savedScale)
-                * Matrix3x2.CreateRotation(savedRotation)
-                * Matrix3x2.CreateTranslation(center)
-                * Matrix3x2.CreateTranslation(savedTranslation));
+            var savedWorldCenter = PathTransformToolState.ComputeWorldCenter(
+                center, savedTranslation, savedRotation, savedScale);
             var off = savedWorldCenter - pivot;
             var rotatedCenter = pivot + new Vector2(
                 off.X * cos - off.Y * sin,
                 off.X * sin + off.Y * cos);
-            var newWorldCenter = Vector2.Transform(center,
-                Matrix3x2.CreateTranslation(-center)
-                * Matrix3x2.CreateScale(savedScale)
-                * Matrix3x2.CreateRotation(savedRotation + angle)
-                * Matrix3x2.CreateTranslation(center)
-                * Matrix3x2.CreateTranslation(savedTranslation));
+            var newWorldCenter = PathTransformToolState.ComputeWorldCenter(
+                center, savedTranslation, savedRotation + angle, savedScale);
             path.PathTranslation = savedTranslation + (rotatedCenter - newWorldCenter);
         }
         _state.UpdatePaths();

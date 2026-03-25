@@ -41,6 +41,18 @@ internal struct PathTransformToolState
         };
     }
 
+    public static Vector2 ComputeWorldCenter(
+        Vector2 localBoundsCenter, Vector2 translation, float rotation, Vector2 scale)
+    {
+        var c = localBoundsCenter;
+        var xform = Matrix3x2.CreateTranslation(-c)
+            * Matrix3x2.CreateScale(scale)
+            * Matrix3x2.CreateRotation(rotation)
+            * Matrix3x2.CreateTranslation(c)
+            * Matrix3x2.CreateTranslation(translation);
+        return Vector2.Transform(c, xform);
+    }
+
     public void UpdatePaths()
     {
         foreach (var (path, _, _, _) in Snapshots)

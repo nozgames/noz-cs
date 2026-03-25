@@ -266,30 +266,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         if (!IsMutable)
         {
-            // Immutable sprites: use source image size or constrained size
-            if (ConstrainedSize.HasValue)
-            {
-                var cs = ConstrainedSize.Value;
-                RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
-            }
-            else
-            {
-                var w = _sourceImageSize.X;
-                var h = _sourceImageSize.Y;
-                RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
-            }
-
-            var ppu = EditorApplication.Config.PixelsPerUnitInv;
-            Bounds = new Rect(
-                RasterBounds.X * ppu,
-                RasterBounds.Y * ppu,
-                RasterBounds.Width * ppu,
-                RasterBounds.Height * ppu);
-            MarkSpriteDirty();
+            UpdateImmutableBounds();
             return;
         }
 
-        // Compute bounds from layer paths
         var allPaths = new List<SpritePath>();
         RootLayer.CollectVisiblePaths(allPaths);
 
@@ -332,7 +312,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             return;
         }
 
-        // Convert world-space bounds to raster bounds
         var dpi = EditorApplication.Config.PixelsPerUnit;
         RasterBounds = new RectInt(
             (int)MathF.Floor(bounds.X * dpi),
@@ -360,6 +339,29 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         ClampToMaxSpriteSize();
         Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
+        MarkSpriteDirty();
+    }
+
+    private void UpdateImmutableBounds()
+    {
+        if (ConstrainedSize.HasValue)
+        {
+            var cs = ConstrainedSize.Value;
+            RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
+        }
+        else
+        {
+            var w = _sourceImageSize.X;
+            var h = _sourceImageSize.Y;
+            RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
+        }
+
+        var ppu = EditorApplication.Config.PixelsPerUnitInv;
+        Bounds = new Rect(
+            RasterBounds.X * ppu,
+            RasterBounds.Y * ppu,
+            RasterBounds.Width * ppu,
+            RasterBounds.Height * ppu);
         MarkSpriteDirty();
     }
 
@@ -446,13 +448,35 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         {
             using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ImageFilePath);
             _textureSize = new Vector2Int(srcImage.Width, srcImage.Height);
-            var data = new byte[srcImage.Width * srcImage.Height * 4];
-            srcImage.CopyPixelDataTo(data);
-            _texture = Texture.Create(srcImage.Width, srcImage.Height, data, TextureFormat.RGBA8, TextureFilter.Linear, Name + "_preview");
+            _texture = CreateTextureFromImage(srcImage, Name + "_preview");
         }
         catch (Exception ex)
         {
             Log.Error($"Failed to load preview texture '{ImageFilePath}': {ex.Message}");
+        }
+    }
+
+    private static Texture CreateTextureFromImage(Image<Rgba32> image, string name)
+    {
+        var w = image.Width;
+        var h = image.Height;
+        var data = new byte[w * h * 4];
+        image.CopyPixelDataTo(data);
+        return Texture.Create(w, h, data, TextureFormat.RGBA8, TextureFilter.Linear, name);
+    }
+
+    private void DrawTexturedRect(Texture texture, Rect bounds, Color color, Rect? uv = null)
+    {
+        using (Graphics.PushState())
+        {
+            Graphics.SetTransform(Transform);
+            Graphics.SetTexture(texture);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetColor(color);
+            if (uv.HasValue)
+                Graphics.Draw(bounds, uv.Value);
+            else
+                Graphics.Draw(bounds);
         }
     }
 
@@ -463,18 +487,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         var uv = GetAtlasUV(0);
         if (uv == Rect.Zero) return false;
 
-        using (Graphics.PushState())
-        {
-            Graphics.SetTransform(Transform);
-            Graphics.SetTexture(Atlas.Texture);
-            Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetColor(Color.White.WithAlpha(alpha < 0 ? Workspace.XrayAlpha : alpha));
-            Graphics.Draw(Bounds, uv);
-        }
+        DrawTexturedRect(Atlas.Texture, Bounds,
+            Color.White.WithAlpha(alpha < 0 ? Workspace.XrayAlpha : alpha), uv);
         return true;
     }
-
-
 
     private bool DrawFromPreviewTexture()
     {
@@ -490,14 +506,12 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             var cs = ConstrainedSize.Value;
             if (cs.X < _textureSize.X || cs.Y < _textureSize.Y)
             {
-                // Constraint is smaller — crop UVs to center of source image
                 var uW = Math.Min(1f, (float)cs.X / _textureSize.X);
                 var uH = Math.Min(1f, (float)cs.Y / _textureSize.Y);
                 uv = new Rect((1f - uW) * 0.5f, (1f - uH) * 0.5f, uW, uH);
             }
             else if (cs.X > _textureSize.X || cs.Y > _textureSize.Y)
             {
-                // Constraint is larger — draw image at original size centered in bounds
                 var ppu = EditorApplication.Config.PixelsPerUnitInv;
                 var imgW = _textureSize.X * ppu;
                 var imgH = _textureSize.Y * ppu;
@@ -505,14 +519,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             }
         }
 
-        using (Graphics.PushState())
-        {
-            Graphics.SetTransform(Transform);
-            Graphics.SetTexture(_texture);
-            Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
-            Graphics.Draw(drawBounds, uv);
-        }
+        DrawTexturedRect(_texture, drawBounds,
+            Color.White.WithAlpha(Workspace.XrayAlpha), uv);
         return true;
     }
 
@@ -553,14 +561,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             _standaloneTextureVersion = Version;
         }
 
-        using (Graphics.PushState())
-        {
-            Graphics.SetTransform(Transform);
-            Graphics.SetTexture(_standaloneTexture);
-            Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
-            Graphics.Draw(Bounds);
-        }
+        DrawTexturedRect(_standaloneTexture, Bounds,
+            Color.White.WithAlpha(Workspace.XrayAlpha));
         return true;
     }
 
