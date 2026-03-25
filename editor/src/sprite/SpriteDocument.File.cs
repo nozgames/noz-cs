@@ -13,7 +13,7 @@ public partial class SpriteDocument
 {
     private void Load(ref Tokenizer tk)
     {
-        RootLayer.Children.Clear();
+        RootLayer.Clear();
         AnimFrames.Clear();
 
         while (!tk.IsEOF)
@@ -67,7 +67,7 @@ public partial class SpriteDocument
             }
         }
 
-        parent.Children.Add(layer);
+        parent.Add(layer);
     }
 
     private static void ParsePath(ref Tokenizer tk, SpriteLayer layer)
@@ -150,7 +150,7 @@ public partial class SpriteDocument
                 break;
         }
 
-        layer.Children.Add(path);
+        layer.Add(path);
     }
 
     private void ParseAnimFrame(ref Tokenizer tk)

@@ -21,7 +21,7 @@ public class SpriteAnimFrame
 
     public void ApplyVisibility(SpriteLayer root)
     {
-        root.ForEachLayer(layer =>
+        root.ForEach((SpriteLayer layer) =>
         {
             if (layer != root)
                 layer.Visible = VisibleLayers.Contains(layer);
@@ -31,7 +31,7 @@ public class SpriteAnimFrame
     public void CaptureVisibility(SpriteLayer root)
     {
         VisibleLayers.Clear();
-        root.ForEachLayer(layer =>
+        root.ForEach(layer =>
         {
             if (layer != root && layer.Visible)
                 VisibleLayers.Add(layer);

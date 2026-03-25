@@ -11,7 +11,7 @@ public class SpriteLayer : SpriteNode
         var clone = new SpriteLayer();
         ClonePropertiesTo(clone);
         foreach (var child in Children)
-            clone.Children.Add(child.Clone());
+            clone.Add(child.Clone());
         return clone;
     }
 }

@@ -58,7 +58,7 @@ public partial class SpriteDocument
         if (fi < AnimFrames.Count)
         {
             savedVisibility = new Dictionary<SpriteLayer, bool>();
-            RootLayer.ForEachLayer(layer =>
+            RootLayer.ForEach(layer =>
             {
                 if (layer != RootLayer)
                     savedVisibility[layer] = layer.Visible;

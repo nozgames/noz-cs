@@ -84,26 +84,27 @@ public class PenTool : Tool
         _hoveringFirstPoint = false;
         if (_pointCount >= 3)
         {
-            var anchorHitSize = EditorStyle.Shape.AnchorHitSize / Workspace.Zoom;
-            _hoveringFirstPoint = Vector2.DistanceSquared(mouseLocal, _points[0].Position) < anchorHitSize * anchorHitSize;
+            var anchorHitRadius = EditorStyle.Shape.AnchorHitRadius;
+            _hoveringFirstPoint = Vector2.DistanceSquared(mouseLocal, _points[0].Position) < anchorHitRadius * anchorHitRadius;
         }
 
         _hoveringExistingAnchor = false;
         _hoveringSegment = false;
         if (!_hoveringFirstPoint)
         {
-            var hit = _rootLayer.HitTest(mouseLocal);
-            if (hit.HasValue)
+            var anchorHit = _rootLayer.HitTestAnchor(mouseLocal);
+            if (anchorHit.HasValue)
             {
-                if (hit.Value.Hit.AnchorIndex >= 0)
-                {
-                    _hoveringExistingAnchor = true;
-                    _hoverSnapPosition = hit.Value.Hit.AnchorPosition;
-                }
-                else if (hit.Value.Hit.SegmentIndex >= 0)
+                _hoveringExistingAnchor = true;
+                _hoverSnapPosition = anchorHit.Value.Position;
+            }
+            else
+            {
+                var segHit = _rootLayer.HitTestSegment(mouseLocal);
+                if (segHit.HasValue)
                 {
                     _hoveringSegment = true;
-                    _hoverSnapPosition = hit.Value.Hit.SegmentPosition;
+                    _hoverSnapPosition = segHit.Value.Position;
                 }
             }
         }
@@ -232,7 +233,7 @@ public class PenTool : Tool
 
         path.UpdateSamples();
         path.UpdateBounds();
-        _activeLayer.Children.Add(path);
+        _activeLayer.Add(path);
 
         _document.IncrementVersion();
         _document.UpdateBounds();

@@ -275,7 +275,7 @@ public class SpritePath : SpriteNode
         }
     }
 
-    public void ClearAllSelection()
+    public void ClearSelection()
     {
         ClearAnchorSelection();
         IsSelected = false;
@@ -304,7 +304,7 @@ public class SpritePath : SpriteNode
         }
     }
 
-    public void SelectAnchorsInRect(Rect rect)
+    public new void SelectAnchorsInRect(Rect rect)
     {
         var hasXform = HasTransform;
         var xform = hasXform ? PathTransform : Matrix3x2.Identity;
@@ -346,68 +346,119 @@ public class SpritePath : SpriteNode
         };
     }
 
-    public HitResult HitTest(Vector2 point)
+    private void TransformPointAndRadius(ref Vector2 point, ref float radius)
     {
-        // Transform point into path-local space
-        if (HasTransform)
-        {
-            Matrix3x2.Invert(PathTransform, out var inv);
-            point = Vector2.Transform(point, inv);
-        }
+        if (!HasTransform) return;
+        Matrix3x2.Invert(PathTransform, out var inv);
+        point = Vector2.Transform(point, inv);
+        // Use the larger axis scale so the radius covers both directions
+        var scaleX = MathF.Sqrt(inv.M11 * inv.M11 + inv.M12 * inv.M12);
+        var scaleY = MathF.Sqrt(inv.M21 * inv.M21 + inv.M22 * inv.M22);
+        radius *= MathF.Max(scaleX, scaleY);
+    }
 
-        var anchorRadius = EditorStyle.Shape.AnchorHitSize / Workspace.Zoom;
-        var segmentRadius = EditorStyle.Shape.SegmentHitSize / Workspace.Zoom;
-        var anchorRadiusSqr = anchorRadius * anchorRadius;
-        var segmentRadiusSqr = segmentRadius * segmentRadius;
-        var result = HitResult.Empty;
+    public (int Index, float DistSqr, Vector2 Position) HitTestAnchor(Vector2 point)
+    {
+        var radius = EditorStyle.Shape.AnchorHitRadius;
+        TransformPointAndRadius(ref point, ref radius);
+        var radiusSqr = radius * radius;
 
-        if (_samplesDirty) UpdateSamples();
+        var bestIndex = -1;
+        var bestDistSqr = float.MaxValue;
+        var bestPos = Vector2.Zero;
 
-        // Anchor hits
         for (var i = 0; i < Anchors.Count; i++)
         {
             var distSqr = Vector2.DistanceSquared(point, Anchors[i].Position);
-            if (distSqr < anchorRadiusSqr && distSqr < result.AnchorDistSqr)
+            if (distSqr < radiusSqr && distSqr < bestDistSqr)
             {
-                result.AnchorIndex = i;
-                result.AnchorDistSqr = distSqr;
-                result.AnchorPosition = Anchors[i].Position;
+                bestIndex = i;
+                bestDistSqr = distSqr;
+                bestPos = Anchors[i].Position;
             }
         }
 
-        // Segment hits
+        return (bestIndex, bestDistSqr, bestPos);
+    }
+
+    public new (int Index, float DistSqr, Vector2 Position) HitTestSegment(Vector2 point)
+    {
+        var radius = EditorStyle.Shape.SegmentHitRadius;
+        TransformPointAndRadius(ref point, ref radius);
+        var radiusSqr = radius * radius;
+
+        if (_samplesDirty) UpdateSamples();
+
+        var bestIndex = -1;
+        var bestDistSqr = float.MaxValue;
+        var bestPos = Vector2.Zero;
+
         var segmentCount = Open ? Anchors.Count - 1 : Anchors.Count;
         for (var i = 0; i < segmentCount; i++)
         {
             var nextIdx = (i + 1) % Anchors.Count;
             var samples = GetSegmentSamples(i);
 
-            var bestDistSqr = PointToSegmentDistSqr(point, Anchors[i].Position, samples[0], out var bestClosest);
+            var segBestDistSqr = PointToSegmentDistSqr(point, Anchors[i].Position, samples[0], out var segBestClosest);
             for (var s = 0; s < MaxSegmentSamples - 1; s++)
             {
                 var distSqr = PointToSegmentDistSqr(point, samples[s], samples[s + 1], out var closest);
-                if (distSqr < bestDistSqr)
+                if (distSqr < segBestDistSqr)
                 {
-                    bestDistSqr = distSqr;
-                    bestClosest = closest;
+                    segBestDistSqr = distSqr;
+                    segBestClosest = closest;
                 }
             }
             var lastDistSqr = PointToSegmentDistSqr(point, samples[MaxSegmentSamples - 1], Anchors[nextIdx].Position, out var lastClosest);
-            if (lastDistSqr < bestDistSqr)
+            if (lastDistSqr < segBestDistSqr)
             {
-                bestDistSqr = lastDistSqr;
-                bestClosest = lastClosest;
+                segBestDistSqr = lastDistSqr;
+                segBestClosest = lastClosest;
             }
 
-            if (bestDistSqr < segmentRadiusSqr && bestDistSqr < result.SegmentDistSqr)
+            if (segBestDistSqr < radiusSqr && segBestDistSqr < bestDistSqr)
             {
-                result.SegmentIndex = i;
-                result.SegmentDistSqr = bestDistSqr;
-                result.SegmentPosition = bestClosest;
+                bestIndex = i;
+                bestDistSqr = segBestDistSqr;
+                bestPos = segBestClosest;
             }
         }
 
-        result.InPath = !Open && ContainsPoint(point);
+        return (bestIndex, bestDistSqr, bestPos);
+    }
+
+    public new bool HitTestPath(Vector2 point)
+    {
+        if (HasTransform)
+        {
+            Matrix3x2.Invert(PathTransform, out var inv);
+            point = Vector2.Transform(point, inv);
+        }
+        return ContainsPoint(point);
+    }
+
+    // Combined hit test — used by HitTestAll for click cycling
+    public HitResult HitTest(Vector2 point)
+    {
+        var result = HitResult.Empty;
+
+        var anchor = HitTestAnchor(point);
+        if (anchor.Index >= 0)
+        {
+            result.AnchorIndex = anchor.Index;
+            result.AnchorDistSqr = anchor.DistSqr;
+            result.AnchorPosition = anchor.Position;
+        }
+
+        var segment = HitTestSegment(point);
+        if (segment.Index >= 0)
+        {
+            result.SegmentIndex = segment.Index;
+            result.SegmentDistSqr = segment.DistSqr;
+            result.SegmentPosition = segment.Position;
+        }
+
+        result.InPath = HitTestPath(point);
         return result;
     }
 

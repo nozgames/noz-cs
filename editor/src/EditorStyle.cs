@@ -527,6 +527,9 @@ public static class EditorStyle
         public const float SegmentLineWidth = 0.016f;
         public const float SegmentHitSize = SegmentLineWidth * 12.0f;
 
+        public static float AnchorHitRadius => AnchorHitSize * Gizmos.ZoomRefScale;
+        public static float SegmentHitRadius => SegmentHitSize * Gizmos.ZoomRefScale;
+
         public static readonly Color ControlPointColor = Color.FromRgb(0xff7900);
         public static readonly Color ControlPointLineColor = Color.FromRgb(0xfd970e);
         public const float ControlPointSize = 0.06f;

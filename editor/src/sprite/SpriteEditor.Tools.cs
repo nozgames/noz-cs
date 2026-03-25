@@ -22,6 +22,10 @@ public partial class SpriteEditor
     private Rect _selectionLocalBounds; // AABB in selection-rotated space
     private Vector2 _selectionCenter; // center in document-local space
 
+    // A-mode hover state
+    private SpritePath? _hoverPath;
+    private int _hoverAnchorIndex = -1;
+
     private SpriteLayer ActiveLayer => Document.ActiveLayer ?? Document.RootLayer;
 
     private SpritePath? GetPathWithSelection()
@@ -143,15 +147,15 @@ public partial class SpriteEditor
         // Alt: insert anchor on segment edge, then drag it
         if (Input.IsAltDown(InputScope.All))
         {
-            var segHit = Document.RootLayer.HitTest(localMousePos);
-            if (segHit.HasValue && segHit.Value.Path.IsSelected && segHit.Value.Hit.SegmentIndex >= 0)
+            var segHit = Document.RootLayer.HitTestSegment(localMousePos);
+            if (segHit.HasValue && segHit.Value.Path.IsSelected)
             {
                 Undo.Record(Document);
                 var path = segHit.Value.Path;
                 path.ClearAnchorSelection();
-                path.SplitSegmentAtPoint(segHit.Value.Hit.SegmentIndex, segHit.Value.Hit.SegmentPosition);
+                path.SplitSegmentAtPoint(segHit.Value.SegmentIndex, segHit.Value.Position);
 
-                var newIdx = segHit.Value.Hit.SegmentIndex + 1;
+                var newIdx = segHit.Value.SegmentIndex + 1;
                 if (newIdx < path.Anchors.Count)
                     path.SetAnchorSelected(newIdx, true);
 
@@ -169,13 +173,13 @@ public partial class SpriteEditor
         }
 
         // Check for anchor hit — start move
-        var hit = Document.RootLayer.HitTest(localMousePos);
-        if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.AnchorIndex >= 0)
+        var anchorHit = Document.RootLayer.HitTestAnchor(localMousePos, onlySelected: true);
+        if (anchorHit.HasValue)
         {
-            if (!hit.Value.Path.Anchors[hit.Value.Hit.AnchorIndex].IsSelected)
+            if (!anchorHit.Value.Path.Anchors[anchorHit.Value.AnchorIndex].IsSelected)
             {
                 Document.RootLayer.ClearAnchorSelections();
-                hit.Value.Path.SetAnchorSelected(hit.Value.Hit.AnchorIndex, true);
+                anchorHit.Value.Path.SetAnchorSelected(anchorHit.Value.AnchorIndex, true);
             }
 
             var tool = AnchorMoveTool.Create(Document);
@@ -188,11 +192,12 @@ public partial class SpriteEditor
         }
 
         // Drag on segment edge — adjust curve
-        if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.SegmentIndex >= 0)
+        var segDragHit = Document.RootLayer.HitTestSegment(localMousePos);
+        if (segDragHit.HasValue && segDragHit.Value.Path.IsSelected)
         {
-            var path = hit.Value.Path;
+            var path = segDragHit.Value.Path;
             Undo.Record(Document);
-            Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(), hit.Value.Hit.SegmentIndex) { CommitOnRelease = true });
+            Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(), segDragHit.Value.SegmentIndex) { CommitOnRelease = true });
             return true;
         }
 
@@ -211,7 +216,7 @@ public partial class SpriteEditor
 
     private void ClearSelection()
     {
-        Document.RootLayer.ClearAllSelections();
+        Document.RootLayer.ClearSelection();
         RebuildSelectedPaths();
     }
 
@@ -358,10 +363,7 @@ public partial class SpriteEditor
 
             Undo.Record(Document);
             foreach (var path in _selectedPaths)
-            {
-                var parent = Document.RootLayer.FindParent(path);
-                parent?.Children.Remove(path);
-            }
+                path.Parent?.Remove(path);
             Document.IncrementVersion();
             Document.UpdateBounds();
             ClearSelection();
@@ -376,10 +378,7 @@ public partial class SpriteEditor
             path.DeleteSelectedAnchors();
 
             if (path.Anchors.Count < 3)
-            {
-                var parent = Document.RootLayer.FindParent(path);
-                parent?.Children.Remove(path);
-            }
+                path.Parent?.Remove(path);
             else
             {
                 path.UpdateSamples();
@@ -401,7 +400,7 @@ public partial class SpriteEditor
         // Duplicate all selected paths
         foreach (var path in _selectedPaths)
         {
-            var parent = Document.RootLayer.FindParent(path);
+            var parent = path.Parent;
             if (parent == null) continue;
 
             var clone = path.ClonePath();
@@ -409,7 +408,7 @@ public partial class SpriteEditor
             path.DeselectPath();
             clone.SelectPath();
 
-            parent.Children.Add(clone);
+            parent.Add(clone);
             clone.UpdateSamples();
             clone.UpdateBounds();
         }
@@ -435,10 +434,10 @@ public partial class SpriteEditor
         if (clipboardData == null) return;
 
         Undo.Record(Document);
-        Document.RootLayer.ClearAllSelections();
+        Document.RootLayer.ClearSelection();
 
         var newPath = clipboardData.PasteAsPath();
-        ActiveLayer.Children.Add(newPath);
+        ActiveLayer.Add(newPath);
 
         Document.IncrementVersion();
         Document.UpdateBounds();
@@ -507,16 +506,16 @@ public partial class SpriteEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
 
-        var hit = Document.RootLayer.HitTest(mouseLocal);
-        if (!hit.HasValue || hit.Value.Hit.SegmentIndex < 0) return;
+        var hit = Document.RootLayer.HitTestSegment(mouseLocal);
+        if (!hit.HasValue) return;
 
         Undo.Record(Document);
 
         var path = hit.Value.Path;
         path.ClearAnchorSelection();
-        path.SplitSegmentAtPoint(hit.Value.Hit.SegmentIndex, hit.Value.Hit.SegmentPosition);
+        path.SplitSegmentAtPoint(hit.Value.SegmentIndex, hit.Value.Position);
 
-        var newIdx = hit.Value.Hit.SegmentIndex + 1;
+        var newIdx = hit.Value.SegmentIndex + 1;
         if (newIdx < path.Anchors.Count)
             path.SetAnchorSelected(newIdx, true);
 
@@ -568,18 +567,30 @@ public partial class SpriteEditor
         Gizmos.DrawLine(prev, Vector2.Transform(path.Anchors[nextIdx].Position, localTransform), width, order: order);
     }
 
-    private static void DrawPathAnchors(SpritePath path, Matrix3x2 localTransform, Matrix3x2 docTransform, bool selectedOnly = false)
+    private void DrawPathAnchors(SpritePath path, Matrix3x2 localTransform, Matrix3x2 docTransform, bool selectedOnly = false)
     {
         using var _ = Gizmos.PushState(EditorLayer.DocumentEditor);
         Graphics.SetTransform(docTransform);
+
+        var isHoverPath = path == _hoverPath;
 
         if (!selectedOnly)
         {
             for (var i = 0; i < path.Anchors.Count; i++)
             {
                 if (path.Anchors[i].IsSelected) continue;
-                Gizmos.SetColor(EditorStyle.Palette.PathAnchor);
-                Gizmos.DrawRect(Vector2.Transform(path.Anchors[i].Position, localTransform), EditorStyle.Shape.AnchorSize, order: 4);
+                var pos = Vector2.Transform(path.Anchors[i].Position, localTransform);
+
+                if (isHoverPath && i == _hoverAnchorIndex)
+                {
+                    Gizmos.SetColor(EditorStyle.Palette.Primary);
+                    Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize * 1.3f, order: 5);
+                }
+                else
+                {
+                    Gizmos.SetColor(EditorStyle.Palette.PathAnchor);
+                    Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize, order: 4);
+                }
             }
         }
 

@@ -598,7 +598,7 @@ public partial class SpriteEditor : DocumentEditor
         var path = GetFirstSelectedPath();
         if (path == null) return;
 
-        var parent = Document.RootLayer.FindParent(path);
+        var parent = path.Parent;
         if (parent == null) return;
 
         var idx = parent.Children.IndexOf(path);
@@ -606,8 +606,8 @@ public partial class SpriteEditor : DocumentEditor
         if (idx < 0 || newIdx < 0 || newIdx >= parent.Children.Count) return;
 
         Undo.Record(Document);
-        parent.Children.RemoveAt(idx);
-        parent.Children.Insert(newIdx, path);
+        parent.RemoveAt(idx);
+        parent.Insert(newIdx, path);
         Document.IncrementVersion();
     }
 
@@ -626,7 +626,8 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
-    private readonly List<SpriteNode.NodeHitResult> _hitResults = new();
+    private readonly List<SpriteNode.AnchorHitResult> _anchorHitResults = new();
+    private readonly List<SpritePath> _pathHitResults = new();
 
     private void HandleLeftClick()
     {
@@ -635,23 +636,19 @@ public partial class SpriteEditor : DocumentEditor
         var shift = Input.IsShiftDown(InputScope.All);
         var alt = Input.IsAltDown(InputScope.All);
 
-        // Gather all hits at click point (ordered top-to-bottom)
-        _hitResults.Clear();
-        Document.RootLayer.HitTestAll(localMousePos, _hitResults);
-
         // Alt+click on segment in A mode: insert anchor
         if (alt && CurrentMode == SpriteEditMode.A && HandleAltClickInsert(localMousePos))
             return;
 
-        // A mode: try anchor/segment selection on selected paths first
+        // A mode: try anchor selection on selected paths first
         if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
         {
-            if (HandleAnchorClick(shift))
+            if (HandleAnchorClick(localMousePos, shift))
                 return;
         }
 
         // Path selection fallback (works in both V and A modes)
-        if (HandlePathClick(shift))
+        if (HandlePathClick(localMousePos, shift))
             return;
 
         // Nothing hit — clear everything
@@ -661,82 +658,71 @@ public partial class SpriteEditor : DocumentEditor
 
     private bool HandleAltClickInsert(Vector2 localMousePos)
     {
-        // Find a segment hit on a selected path
-        foreach (var h in _hitResults)
+        var hit = Document.RootLayer.HitTestSegment(localMousePos);
+        if (!hit.HasValue || !hit.Value.Path.IsSelected) return false;
+
+        Undo.Record(Document);
+        var path = hit.Value.Path;
+        path.ClearAnchorSelection();
+        path.SplitSegmentAtPoint(hit.Value.SegmentIndex, hit.Value.Position);
+
+        var newIdx = hit.Value.SegmentIndex + 1;
+        if (newIdx < path.Anchors.Count)
+            path.SetAnchorSelected(newIdx, true);
+
+        path.UpdateSamples();
+        path.UpdateBounds();
+        Document.UpdateBounds();
+        return true;
+    }
+
+    private bool HandleAnchorClick(Vector2 localMousePos, bool shift)
+    {
+        _anchorHitResults.Clear();
+        Document.RootLayer.HitTestAnchor(localMousePos, _anchorHitResults, onlySelected: true);
+
+        foreach (var h in _anchorHitResults)
         {
-            if (!h.Path.IsSelected || h.Hit.SegmentIndex < 0) continue;
+            if (h.Path.Anchors[h.AnchorIndex].IsSelected && !shift)
+            {
+                if (CycleAnchorSelection(h))
+                    return true;
+            }
 
-            Undo.Record(Document);
-            h.Path.ClearAnchorSelection();
-            h.Path.SplitSegmentAtPoint(h.Hit.SegmentIndex, h.Hit.SegmentPosition);
-
-            var newIdx = h.Hit.SegmentIndex + 1;
-            if (newIdx < h.Path.Anchors.Count)
-                h.Path.SetAnchorSelected(newIdx, true);
-
-            h.Path.UpdateSamples();
-            h.Path.UpdateBounds();
-            Document.UpdateBounds();
+            if (!shift) Document.RootLayer.ClearAnchorSelections();
+            h.Path.SetAnchorSelected(h.AnchorIndex, true);
+            RebuildSelectedPaths();
             return true;
         }
         return false;
     }
 
-    private bool HandleAnchorClick(bool shift)
+    private bool CycleAnchorSelection(SpriteNode.AnchorHitResult currentHit)
     {
-        // Find the topmost anchor or segment hit on a selected path
-        foreach (var h in _hitResults)
+        var foundCurrent = false;
+        foreach (var h in _anchorHitResults)
         {
             if (!h.Path.IsSelected) continue;
 
-            if (h.Hit.AnchorIndex >= 0)
-            {
-                // Anchor hit — with cycling
-                if (h.Path.Anchors[h.Hit.AnchorIndex].IsSelected && !shift)
-                {
-                    // Already selected: cycle to next anchor under cursor on selected paths
-                    if (CycleAnchorSelection(h))
-                        return true;
-                }
-
-                if (!shift) Document.RootLayer.ClearAnchorSelections();
-                h.Path.SetAnchorSelected(h.Hit.AnchorIndex, true);
-                RebuildSelectedPaths();
-                return true;
-            }
-
-        }
-        return false;
-    }
-
-    private bool CycleAnchorSelection(SpriteNode.NodeHitResult currentHit)
-    {
-        // Find the next anchor under cursor on selected paths (below currentHit)
-        var foundCurrent = false;
-        foreach (var h in _hitResults)
-        {
-            if (!h.Path.IsSelected || h.Hit.AnchorIndex < 0) continue;
-
             if (!foundCurrent)
             {
-                if (h.Path == currentHit.Path && h.Hit.AnchorIndex == currentHit.Hit.AnchorIndex)
+                if (h.Path == currentHit.Path && h.AnchorIndex == currentHit.AnchorIndex)
                     foundCurrent = true;
                 continue;
             }
 
-            // Found the next one
             Document.RootLayer.ClearAnchorSelections();
-            h.Path.SetAnchorSelected(h.Hit.AnchorIndex, true);
+            h.Path.SetAnchorSelected(h.AnchorIndex, true);
             RebuildSelectedPaths();
             return true;
         }
 
-        // Wrap around: select the first anchor hit on a selected path
-        foreach (var h in _hitResults)
+        // Wrap around
+        foreach (var h in _anchorHitResults)
         {
-            if (!h.Path.IsSelected || h.Hit.AnchorIndex < 0) continue;
+            if (!h.Path.IsSelected) continue;
             Document.RootLayer.ClearAnchorSelections();
-            h.Path.SetAnchorSelected(h.Hit.AnchorIndex, true);
+            h.Path.SetAnchorSelected(h.AnchorIndex, true);
             RebuildSelectedPaths();
             return true;
         }
@@ -744,20 +730,37 @@ public partial class SpriteEditor : DocumentEditor
         return false;
     }
 
-    private bool HandlePathClick(bool shift)
+    private bool HandlePathClick(Vector2 localMousePos, bool shift)
     {
-        // Find paths under cursor (any hit type counts as hitting a path)
-        // Build list of distinct paths in hit order
-        var hitPaths = new List<SpritePath>();
-        foreach (var h in _hitResults)
-        {
-            if (!hitPaths.Contains(h.Path))
-                hitPaths.Add(h.Path);
+        // Collect all paths hit by any method: fill, anchor, or segment
+        _pathHitResults.Clear();
+        Document.RootLayer.HitTestPath(localMousePos, _pathHitResults);
 
-            // Switch active layer to the hit layer
-            if (h.Layer != Document.ActiveLayer && hitPaths.Count == 1)
-                Document.ActiveLayer = h.Layer;
+        _anchorHitResults.Clear();
+        Document.RootLayer.HitTestAnchor(localMousePos, _anchorHitResults);
+
+        var segHit = Document.RootLayer.HitTestSegment(localMousePos);
+
+        var hitPaths = new List<SpritePath>();
+
+        void AddPath(SpritePath path)
+        {
+            if (hitPaths.Contains(path)) return;
+            hitPaths.Add(path);
+            if (hitPaths.Count == 1)
+            {
+                var layer = path.Parent as SpriteLayer;
+                if (layer != null && layer != Document.ActiveLayer)
+                    Document.ActiveLayer = layer;
+            }
         }
+
+        foreach (var p in _pathHitResults)
+            AddPath(p);
+        foreach (var h in _anchorHitResults)
+            AddPath(h.Path);
+        if (segHit.HasValue)
+            AddPath(segHit.Value.Path);
 
         if (hitPaths.Count == 0)
             return false;
@@ -776,12 +779,12 @@ public partial class SpriteEditor : DocumentEditor
                     break;
                 }
 
-                Document.RootLayer.ClearAllSelections();
+                Document.RootLayer.ClearSelection();
                 (next ?? hitPaths[0]).SelectPath();
             }
             else
             {
-                Document.RootLayer.ClearAllSelections();
+                Document.RootLayer.ClearSelection();
                 topmost.SelectPath();
             }
         }
@@ -840,6 +843,9 @@ public partial class SpriteEditor : DocumentEditor
 
     private void UpdateHandleCursor()
     {
+        _hoverPath = null;
+        _hoverAnchorIndex = -1;
+
         if (_selectedPaths.Count == 0 || Workspace.ActiveTool != null)
         {
             Cursor.SetDefault();
@@ -860,9 +866,11 @@ public partial class SpriteEditor : DocumentEditor
         }
         else if (CurrentMode == SpriteEditMode.A)
         {
-            var hit = Document.RootLayer.HitTest(localMousePos);
-            if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.AnchorIndex >= 0)
+            var hit = Document.RootLayer.HitTestAnchor(localMousePos, onlySelected: true);
+            if (hit.HasValue)
             {
+                _hoverPath = hit.Value.Path;
+                _hoverAnchorIndex = hit.Value.AnchorIndex;
                 Cursor.Set(SystemCursor.Move);
                 return;
             }
@@ -933,7 +941,7 @@ public partial class SpriteEditor : DocumentEditor
         // Transform from document-local to selection-local space
         var selPos = Vector2.Transform(docLocalPos, Matrix3x2.CreateRotation(-_selectionRotation));
 
-        var hitRadius = EditorStyle.Shape.AnchorHitSize * Gizmos.ZoomRefScale;
+        var hitRadius = EditorStyle.Shape.AnchorHitRadius;
         var hitRadiusSqr = hitRadius * hitRadius;
         var rotateRadius = hitRadius * 2.5f;
         var rotateRadiusSqr = rotateRadius * rotateRadius;

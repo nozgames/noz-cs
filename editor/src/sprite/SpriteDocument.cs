@@ -249,7 +249,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         Edges = EdgeInsets.Zero;
         Skeleton.Clear();
         ReloadGeneration();
-        RootLayer.Children.Clear();
+        RootLayer.Clear();
         AnimFrames.Clear();
         ActiveLayer = null;
 
@@ -639,9 +639,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         Skeleton = src.Skeleton;
 
         // Clone layer model
-        RootLayer.Children.Clear();
+        RootLayer.Clear();
         foreach (var child in src.RootLayer.Children)
-            RootLayer.Children.Add(child.Clone());
+            RootLayer.Add(child.Clone());
 
         AnimFrames.Clear();
         foreach (var frame in src.AnimFrames)

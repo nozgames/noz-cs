@@ -191,7 +191,6 @@ public class KnifeTool : Tool
 
             // Find a shared path between head and tail
             SpritePath? commonPath = null;
-            SpriteLayer? commonLayer = null;
             SpritePath.HitResult headHit = default, tailHit = default;
 
             foreach (var hh in headHits)
@@ -201,7 +200,6 @@ public class KnifeTool : Tool
                     if (hh.Path == th.Path)
                     {
                         commonPath = hh.Path;
-                        commonLayer = hh.Layer;
                         headHit = hh.Hit;
                         tailHit = th.Hit;
                         break;
@@ -210,7 +208,10 @@ public class KnifeTool : Tool
                 if (commonPath != null) break;
             }
 
-            if (commonPath == null || commonLayer == null)
+            if (commonPath == null)
+                continue;
+            var commonLayer = commonPath.Parent as SpriteLayer;
+            if (commonLayer == null)
                 continue;
 
             if (headHit.SegmentIndex < 0 || tailHit.SegmentIndex < 0)
@@ -279,7 +280,7 @@ public class KnifeTool : Tool
             notchPath.AddAnchor(positions[i]);
         notchPath.AddAnchor(tailHit.SegmentPosition);
         if (notchPath.Anchors.Count >= 3)
-            layer.Children.Add(notchPath);
+            layer.Add(notchPath);
     }
 
     private static void CutPath(SpritePath path, SpriteLayer layer,
@@ -323,7 +324,7 @@ public class KnifeTool : Tool
 
         var newPath = path.SplitAtAnchors(headAnchorIdx, tailAnchorIdx, positions, reverseIntermediates);
         if (newPath != null)
-            layer.Children.Add(newPath);
+            layer.Add(newPath);
     }
 
     private void UpdateHover()
@@ -335,31 +336,45 @@ public class KnifeTool : Tool
         _hoverPosition = mouseLocal;
         _hoverPositionValid = !DoesIntersectSelf(_hoverPosition);
 
-        var hit = HitTestSelectedPaths(_hoverPosition);
+        var anchorHitRadius = EditorStyle.Shape.AnchorHitRadius;
 
         _hoverIsClose = _points.Count > 0 &&
             Vector2.DistanceSquared(_hoverPosition, _points[0].Position) <
-            (EditorStyle.Shape.AnchorHitSize / Workspace.Zoom) * (EditorStyle.Shape.AnchorHitSize / Workspace.Zoom);
+            anchorHitRadius * anchorHitRadius;
 
         _hoverIsIntersection = false;
-        _hoverIsFree = hit.HasValue;
+        _hoverIsFree = false;
 
         if (_hoverIsClose)
         {
             _hoverPosition = _points[0].Position;
             _hoverPositionValid = true;
         }
-        else if (hit.HasValue)
+        else
         {
-            if (hit.Value.Hit.AnchorIndex >= 0)
+            // Check anchor/segment hits on selected paths
+            foreach (var path in _selectedPaths)
             {
-                _hoverPosition = hit.Value.Hit.AnchorPosition;
-                _hoverIsIntersection = true;
-            }
-            else if (hit.Value.Hit.SegmentIndex >= 0)
-            {
-                _hoverPosition = hit.Value.Hit.SegmentPosition;
-                _hoverIsIntersection = true;
+                var (anchorIdx, _, anchorPos) = path.HitTestAnchor(_hoverPosition);
+                if (anchorIdx >= 0)
+                {
+                    _hoverPosition = anchorPos;
+                    _hoverIsIntersection = true;
+                    _hoverIsFree = true;
+                    break;
+                }
+
+                var (segIdx, _, segPos) = path.HitTestSegment(_hoverPosition);
+                if (segIdx >= 0)
+                {
+                    _hoverPosition = segPos;
+                    _hoverIsIntersection = true;
+                    _hoverIsFree = true;
+                    break;
+                }
+
+                if (path.HitTestPath(_hoverPosition))
+                    _hoverIsFree = true;
             }
         }
 
@@ -474,22 +489,6 @@ public class KnifeTool : Tool
         }
     }
 
-    private SpriteNode.NodeHitResult? HitTestSelectedPaths(Vector2 point)
-    {
-        SpriteNode.NodeHitResult? best = null;
-        foreach (var path in _selectedPaths)
-        {
-            var hit = path.HitTest(point);
-            if (hit.AnchorIndex >= 0 || hit.SegmentIndex >= 0 || hit.InPath)
-            {
-                var result = new SpriteNode.NodeHitResult { Path = path, Hit = hit };
-                if (!best.HasValue)
-                    best = result;
-            }
-        }
-        return best;
-    }
-
     private void HitTestSelectedPathsAll(Vector2 point, List<SpriteNode.NodeHitResult> results)
     {
         foreach (var path in _selectedPaths)
@@ -498,8 +497,7 @@ public class KnifeTool : Tool
             if (hit.AnchorIndex >= 0 || hit.SegmentIndex >= 0 || hit.InPath)
             {
                 // Find the parent layer for this path
-                var layer = _document.RootLayer.FindParent(path) as SpriteLayer;
-                results.Add(new SpriteNode.NodeHitResult { Path = path, Layer = layer!, Hit = hit });
+                results.Add(new SpriteNode.NodeHitResult { Path = path, Hit = hit });
             }
         }
     }

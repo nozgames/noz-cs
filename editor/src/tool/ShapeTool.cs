@@ -176,7 +176,7 @@ public class ShapeTool : Tool
         Undo.Record(_document);
 
         // Clear selections on all existing paths in the layer
-        _activeLayer.ForEachEditablePath(p => p.ClearAllSelection());
+        _activeLayer.ForEachEditablePath(p => p.ClearSelection());
 
         var path = new SpritePath { FillColor = _fillColor, Operation = _operation };
 
@@ -188,7 +188,7 @@ public class ShapeTool : Tool
         path.SelectAll();
         path.UpdateSamples();
         path.UpdateBounds();
-        _activeLayer.Children.Add(path);
+        _activeLayer.Add(path);
 
         _document.IncrementVersion();
         _document.UpdateBounds();

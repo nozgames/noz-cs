@@ -442,30 +442,28 @@ public partial class SpriteEditor
         Undo.Record(Document);
 
         // Remove from current parent
-        var dragParent = Document.RootLayer.FindParent(_dragNode);
-        if (dragParent == null) return;
-        dragParent.Children.Remove(_dragNode);
+        _dragNode.Parent?.Remove(_dragNode);
 
         switch (_dropZone)
         {
             case DropZone.LastChild when targetNode is SpriteLayer layer:
-                layer.Children.Add(_dragNode);
+                layer.Add(_dragNode);
                 layer.Expanded = true;
                 break;
 
             case DropZone.FirstChild when targetNode is SpriteLayer layer2:
-                layer2.Children.Insert(0, _dragNode);
+                layer2.Insert(0, _dragNode);
                 layer2.Expanded = true;
                 break;
 
             case DropZone.Before:
             case DropZone.After:
             {
-                var targetParent = Document.RootLayer.FindParent(targetNode);
+                var targetParent = targetNode.Parent;
                 if (targetParent == null) return;
                 var targetIdx = targetParent.Children.IndexOf(targetNode);
                 if (_dropZone == DropZone.After) targetIdx++;
-                targetParent.Children.Insert(targetIdx, _dragNode);
+                targetParent.Insert(targetIdx, _dragNode);
                 break;
             }
         }
@@ -492,7 +490,7 @@ public partial class SpriteEditor
         {
             // Layer click: set active layer, clear path selection
             if (!shift && !ctrl)
-                Document.RootLayer.ClearAllSelections();
+                Document.RootLayer.ClearSelection();
             Document.ActiveLayer = layer;
             RebuildSelectedPaths();
             return;
@@ -516,17 +514,16 @@ public partial class SpriteEditor
             else
             {
                 // Plain click: clear all, select this path
-                Document.RootLayer.ClearAllSelections();
+                Document.RootLayer.ClearSelection();
                 path.SelectPath();
             }
 
             // Set active layer from first selection (only if not already set or plain click)
             if (!shift && !ctrl)
             {
-                var parent = Document.RootLayer.FindParent(node);
-                if (parent is SpriteLayer parentLayer)
+                if (node.Parent is SpriteLayer parentLayer)
                     Document.ActiveLayer = parentLayer;
-                else if (parent == Document.RootLayer)
+                else if (node.Parent == Document.RootLayer)
                     Document.ActiveLayer = Document.RootLayer;
             }
 
@@ -539,7 +536,7 @@ public partial class SpriteEditor
         Undo.Record(Document);
         var name = $"Layer {Document.RootLayer.Children.Count + 1}";
         var layer = new SpriteLayer { Name = name };
-        Document.RootLayer.Children.Add(layer);
+        Document.RootLayer.Add(layer);
         Document.ActiveLayer = layer;
         Document.IncrementVersion();
     }

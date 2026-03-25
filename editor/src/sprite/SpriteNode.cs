@@ -8,12 +8,32 @@ namespace NoZ.Editor;
 
 public abstract class SpriteNode
 {
+    public struct NodeHitResult
+    {
+        public SpritePath Path;
+        public SpritePath.HitResult Hit;
+    }
+
+    public struct AnchorHitResult
+    {
+        public SpritePath Path;
+        public int AnchorIndex;
+        public float DistSqr;
+        public Vector2 Position;
+    }
+
+    public struct SegmentHitResult
+    {
+        public SpritePath Path;
+        public int SegmentIndex;
+        public Vector2 Position;
+    }
+
     public string Name { get; set; } = "";
     public bool Visible { get; set; } = true;
     public bool Locked { get; set; }
-    public List<SpriteNode> Children { get; } = new();
-
-    // Editor state (not serialized to file)
+    public List<SpriteNode> Children { get; } = [];
+    public SpriteNode? Parent { get; private set; }
     public bool Expanded { get; set; } = true;
     public bool IsSelected { get; set; }
 
@@ -28,21 +48,56 @@ public abstract class SpriteNode
         target.IsSelected = IsSelected;
     }
 
+    #region Hierarchy
+
+    public void Add(SpriteNode child)
+    {
+        child.Parent = this;
+        Children.Add(child);
+    }
+
+    public void Insert(int index, SpriteNode child)
+    {
+        child.Parent = this;
+        Children.Insert(index, child);
+    }
+
+    public void Remove(SpriteNode child)
+    {
+        child.Parent = null;
+        Children.Remove(child);
+    }
+
+    public void RemoveAt(int index)
+    {
+        Children[index].Parent = null;
+        Children.RemoveAt(index);
+    }
+
+    public void Clear()
+    {
+        foreach (var child in Children)
+            child.Parent = null;
+        Children.Clear();
+    }
+
+    #endregion
+
     #region Tree Traversal
 
-    public void ForEachNode(Action<SpriteNode> action)
+    public void ForEach(Action<SpriteNode> action)
     {
         action(this);
         foreach (var child in Children)
-            child.ForEachNode(action);
+            child.ForEach(action);
     }
 
-    public void ForEachLayer(Action<SpriteLayer> action)
+    public void ForEach(Action<SpriteLayer> action)
     {
         if (this is SpriteLayer layer)
             action(layer);
         foreach (var child in Children)
-            child.ForEachLayer(action);
+            child.ForEach(action);
     }
 
     public SpriteNode? FindNode(string name)
@@ -68,21 +123,6 @@ public abstract class SpriteNode
         foreach (var child in Children)
         {
             var found = child.FindLayer(name);
-            if (found != null)
-                return found;
-        }
-
-        return null;
-    }
-
-    public SpriteNode? FindParent(SpriteNode target)
-    {
-        foreach (var child in Children)
-        {
-            if (child == target)
-                return this;
-
-            var found = child.FindParent(target);
             if (found != null)
                 return found;
         }
@@ -149,13 +189,13 @@ public abstract class SpriteNode
             child.CollectPathsWithSelection(result);
     }
 
-    public void ClearAllSelections()
+    public void ClearSelection()
     {
         if (this is SpritePath path)
-            path.ClearAllSelection();
+            path.ClearSelection();
 
         foreach (var child in Children)
-            child.ClearAllSelections();
+            child.ClearSelection();
     }
 
     public void ClearPathSelections()
@@ -221,90 +261,129 @@ public abstract class SpriteNode
 
     #region Hit Testing
 
-    public struct NodeHitResult
+    public AnchorHitResult? HitTestAnchor(Vector2 point, bool onlySelected = false, HashSet<SpritePath>? exclude = null)
     {
-        public SpriteLayer Layer;
-        public SpritePath Path;
-        public SpritePath.HitResult Hit;
-    }
+        static void Recursive(SpriteNode node, Vector2 point, bool onlySelected, HashSet<SpritePath>? exclude, ref AnchorHitResult? best)
+        {
+            if (!node.Visible) return;
+            if (node is SpritePath path)
+            {
+                if (onlySelected && !path.IsSelected) return;
+                if (exclude != null && exclude.Contains(path)) return;
+                var (index, distSqr, pos) = path.HitTestAnchor(point);
+                if (index >= 0 && (!best.HasValue || distSqr < best.Value.DistSqr))
+                    best = new AnchorHitResult { Path = path, AnchorIndex = index, DistSqr = distSqr, Position = pos };
+                return;
+            }
 
-    public NodeHitResult? HitTest(Vector2 point)
-    {
-        NodeHitResult? best = null;
-        HitTestRecursive(point, ref best, this as SpriteLayer);
+            for (var i = 0; i < node.Children.Count; i++)
+                Recursive(node.Children[i], point, onlySelected, exclude, ref best);
+        }
+
+        AnchorHitResult? best = null;
+        Recursive(this, point, onlySelected, exclude, ref best);
         return best;
     }
 
-    private void HitTestRecursive(Vector2 point, ref NodeHitResult? best, SpriteLayer? parentLayer)
+    public int HitTestAnchor(Vector2 point, List<AnchorHitResult> results, bool onlySelected = false)
     {
-        if (!Visible) return;
-
-        var currentLayer = this is SpriteLayer layer ? layer : parentLayer;
-
-        if (this is SpritePath path)
+        static int Recursive(SpriteNode node, Vector2 point, List<AnchorHitResult> results, bool onlySelected)
         {
-            var hit = path.HitTest(point);
-            if ((hit.AnchorIndex >= 0 || hit.SegmentIndex >= 0 || hit.InPath) && currentLayer != null)
+            if (!node.Visible) return 0;
+            var count = 0;
+
+            if (node is SpritePath path)
             {
-                if (!best.HasValue || IsBetterHit(hit, best.Value.Hit))
+                if (onlySelected && !path.IsSelected) return 0;
+                var (index, distSqr, pos) = path.HitTestAnchor(point);
+                if (index >= 0)
                 {
-                    best = new NodeHitResult
-                    {
-                        Layer = currentLayer,
-                        Path = path,
-                        Hit = hit,
-                    };
+                    results.Add(new AnchorHitResult { Path = path, AnchorIndex = index, DistSqr = distSqr, Position = pos });
+                    count++;
                 }
+                return count;
             }
-            return;
-        }
 
-        // Iterate children in order (first child = topmost, matches render order)
-        for (var i = 0; i < Children.Count; i++)
-            Children[i].HitTestRecursive(point, ref best, currentLayer);
-    }
-
-    public int HitTestAll(Vector2 point, List<NodeHitResult> results)
-    {
-        return HitTestAllRecursive(point, results, this as SpriteLayer);
-    }
-
-    private int HitTestAllRecursive(Vector2 point, List<NodeHitResult> results, SpriteLayer? parentLayer)
-    {
-        if (!Visible) return 0;
-
-        var currentLayer = this is SpriteLayer layer ? layer : parentLayer;
-        var count = 0;
-
-        if (this is SpritePath path && currentLayer != null)
-        {
-            var hit = path.HitTest(point);
-            if (hit.AnchorIndex >= 0 || hit.SegmentIndex >= 0 || hit.InPath)
-            {
-                results.Add(new NodeHitResult { Path = path, Layer = currentLayer, Hit = hit });
-                count++;
-            }
+            for (var i = 0; i < node.Children.Count; i++)
+                count += Recursive(node.Children[i], point, results, onlySelected);
             return count;
         }
 
-        // Iterate children in order (first child = topmost, matches render order)
-        for (var i = 0; i < Children.Count; i++)
-            count += Children[i].HitTestAllRecursive(point, results, currentLayer);
-
-        return count;
+        return Recursive(this, point, results, onlySelected);
     }
 
-    private static bool IsBetterHit(SpritePath.HitResult a, SpritePath.HitResult b)
+    public SegmentHitResult? HitTestSegment(Vector2 point)
     {
-        if (a.AnchorIndex >= 0 && b.AnchorIndex < 0) return true;
-        if (a.AnchorIndex < 0 && b.AnchorIndex >= 0) return false;
-        if (a.AnchorIndex >= 0) return a.AnchorDistSqr < b.AnchorDistSqr;
+        static void Recursive(SpriteNode node, Vector2 point, ref SegmentHitResult? best, ref float bestDistSqr)
+        {
+            if (!node.Visible) return;
 
-        if (a.SegmentIndex >= 0 && b.SegmentIndex < 0) return true;
-        if (a.SegmentIndex < 0 && b.SegmentIndex >= 0) return false;
-        if (a.SegmentIndex >= 0) return a.SegmentDistSqr < b.SegmentDistSqr;
+            if (node is SpritePath path)
+            {
+                var (index, distSqr, pos) = path.HitTestSegment(point);
+                if (index >= 0 && distSqr < bestDistSqr)
+                {
+                    bestDistSqr = distSqr;
+                    best = new SegmentHitResult { Path = path, SegmentIndex = index, Position = pos };
+                }
+                return;
+            }
 
-        return false;
+            for (var i = 0; i < node.Children.Count; i++)
+                Recursive(node.Children[i], point, ref best, ref bestDistSqr);
+        }
+
+        SegmentHitResult? best = null;
+        var bestDistSqr = float.MaxValue;
+        Recursive(this, point, ref best, ref bestDistSqr);
+        return best;
+    }
+
+    public SpritePath? HitTestPath(Vector2 point)
+    {
+        static void Recursive(SpriteNode node, Vector2 point, ref SpritePath? best)
+        {
+            if (!node.Visible) return;
+
+            if (node is SpritePath path)
+            {
+                if (path.HitTestPath(point))
+                    best = path;
+                return;
+            }
+
+            for (var i = 0; i < node.Children.Count; i++)
+                Recursive(node.Children[i], point, ref best);
+        }
+
+        SpritePath? best = null;
+        Recursive(this, point, ref best);
+        return best;
+    }
+
+    public int HitTestPath(Vector2 point, List<SpritePath> results)
+    {
+        static int Recursive(SpriteNode node, Vector2 point, List<SpritePath> results)
+        {
+            if (!node.Visible) return 0;
+            var count = 0;
+            
+            if (node is SpritePath path)
+            {
+                if (path.HitTestPath(point))
+                {
+                    results.Add(path);
+                    count++;
+                }
+                return count;
+            }
+
+            for (var i = 0; i < node.Children.Count; i++)
+                count += Recursive(node.Children[i], point, results);
+            return count;
+        }
+
+        return Recursive(this, point, results);
     }
 
     #endregion
