@@ -190,6 +190,44 @@ public class SpritePath : SpriteNode
         }
     }
 
+    // After anchor edits, LocalBounds.Center may have shifted. Adjust PathTranslation
+    // so the world-space appearance of the path is preserved with the new center.
+    public void CompensateTranslationForCenterShift()
+    {
+        if (!HasTransform) return;
+
+        var center = LocalBounds.Center;
+
+        // World position of center under current transform:
+        // T(-center) * S * R * T(center) * T(translation) applied to center = S*R*0 + center + translation = center + translation
+        // This simplifies: the center always maps to (center + PathTranslation) regardless of S/R.
+        // So if the center shifts from C_old to C_new, we need:
+        //   C_old + T_old = C_new + T_new
+        //   T_new = T_old + C_old - C_new
+        // But we've already updated bounds, so LocalBounds.Center IS the new center.
+        // We need the old center... which we don't have here.
+
+        // Instead: recompute. The caller should capture oldCenter before UpdateBounds().
+    }
+
+    public void CompensateTranslation(Vector2 oldCenter)
+    {
+        if (!HasTransform) return;
+        var newCenter = LocalBounds.Center;
+        if (oldCenter == newCenter) return;
+
+        // For point P, old transform: S*R*(P - oldCenter) + oldCenter + T_old
+        // New transform with new center: S*R*(P - newCenter) + newCenter + T_new
+        // Setting equal for unchanged P:
+        //   S*R*(P - oldCenter) + oldCenter + T_old = S*R*(P - newCenter) + newCenter + T_new
+        //   S*R*(-oldCenter) + oldCenter + T_old = S*R*(-newCenter) + newCenter + T_new
+        //   T_new = T_old + (oldCenter - S*R*oldCenter) - (newCenter - S*R*newCenter)
+        var sr = Matrix3x2.CreateScale(PathScale) * Matrix3x2.CreateRotation(PathRotation);
+        var oldTerm = oldCenter - Vector2.Transform(oldCenter, sr);
+        var newTerm = newCenter - Vector2.Transform(newCenter, sr);
+        PathTranslation += oldTerm - newTerm;
+    }
+
     #endregion
 
     #region Selection

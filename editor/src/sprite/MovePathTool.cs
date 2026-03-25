@@ -6,26 +6,77 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class MovePathTool : MoveTool
+// A-mode tool: moves selected anchors in path-local space.
+// Snapshots world-to-local transform at drag start — immune to bounds/pivot changes.
+public class AnchorMoveTool : Tool
 {
-    private PathToolState _state;
+    private readonly SpriteDocument _document;
+    private readonly (SpritePath Path, SpritePathAnchor[] Saved, Matrix3x2 WorldToLocal)[] _entries;
+    private Vector2 _startWorld;
 
-    private MovePathTool(PathToolState state)
+    private AnchorMoveTool(SpriteDocument document,
+        (SpritePath, SpritePathAnchor[], Matrix3x2)[] entries)
     {
-        _state = state;
+        _document = document;
+        _entries = entries;
     }
 
-    public static MovePathTool? Create(SpriteDocument document)
+    public static AnchorMoveTool? Create(SpriteDocument document)
     {
-        var state = PathToolState.Create(document);
-        if (state == null) return null;
-        return new MovePathTool(state.Value);
-    }
+        var paths = new List<SpritePath>();
+        document.RootLayer.CollectPathsWithSelection(paths);
+        if (paths.Count == 0) return null;
 
-    protected override void OnUpdate(Vector2 delta)
-    {
-        foreach (var (path, saved) in _state.Snapshots)
+        var docXform = document.Transform;
+        var entries = new (SpritePath, SpritePathAnchor[], Matrix3x2)[paths.Count];
+
+        for (var i = 0; i < paths.Count; i++)
         {
+            var path = paths[i];
+            var pathToWorld = path.HasTransform ? path.PathTransform * docXform : docXform;
+            Matrix3x2.Invert(pathToWorld, out var worldToLocal);
+            entries[i] = (path, path.SnapshotAnchors(), worldToLocal);
+        }
+
+        return new AnchorMoveTool(document, entries);
+    }
+
+    public override void Begin()
+    {
+        base.Begin();
+        _startWorld = Workspace.MouseWorldPosition;
+    }
+
+    public override void Update()
+    {
+        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) ||
+            Input.WasButtonPressed(InputCode.MouseRight, Scope))
+        {
+            Workspace.CancelTool();
+            return;
+        }
+
+        if (Input.WasButtonReleased(InputCode.MouseLeft, Scope))
+        {
+            ApplyDelta();
+            CompensateTranslations();
+            _document.UpdateBounds();
+            Input.ConsumeButton(InputCode.MouseLeft);
+            Workspace.EndTool();
+            return;
+        }
+
+        ApplyDelta();
+    }
+
+    private void ApplyDelta()
+    {
+        foreach (var (path, saved, worldToLocal) in _entries)
+        {
+            var startLocal = Vector2.Transform(_startWorld, worldToLocal);
+            var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, worldToLocal);
+            var delta = mouseLocal - startLocal;
+
             for (var i = 0; i < path.Anchors.Count; i++)
             {
                 if (!path.Anchors[i].IsSelected) continue;
@@ -33,17 +84,30 @@ public class MovePathTool : MoveTool
                 a.Position = saved[i].Position + delta;
                 path.Anchors[i] = a;
             }
+
+            path.MarkDirty();
+            path.UpdateSamples();
+            path.UpdateBounds();
         }
-        _state.UpdatePaths();
+        _document.IncrementVersion();
     }
 
-    protected override void OnCommit(Vector2 delta)
+    private void CompensateTranslations()
     {
-        OnUpdate(delta);
-        _state.Document.UpdateBounds();
+        foreach (var (path, _, _) in _entries)
+        {
+            if (!path.HasTransform) continue;
+            var oldCenter = path.LocalBounds.Center;
+            path.UpdateBounds();
+            path.CompensateTranslation(oldCenter);
+        }
     }
 
-    protected override void OnCancel() => Undo.Cancel();
+    public override void Cancel()
+    {
+        Undo.Cancel();
+        base.Cancel();
+    }
 }
 
 public class MovePathTransformTool : MoveTool

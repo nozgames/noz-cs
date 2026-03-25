@@ -46,17 +46,18 @@ internal static class SpritePathClipper
             }
             else
             {
-                var mid = new Vector2Double(
-                    0.5 * (p0.x + p1.x),
-                    0.5 * (p0.y + p1.y));
-                var dir = p1 - p0;
-                double perpMag = MsdfMath.Length(dir);
-                Vector2Double perp;
-                if (perpMag > 1e-10)
-                    perp = new Vector2Double(-dir.y / perpMag, dir.x / perpMag);
-                else
-                    perp = new Vector2Double(0, 1);
-                var cp = mid + perp * anchor0.Curve;
+                // Compute control point in local space, then transform.
+                // Using transformed endpoints with the untransformed curve magnitude
+                // gives wrong results when the transform includes scale.
+                var localMid = (anchor0.Position + anchor1.Position) * 0.5f;
+                var localDir = anchor1.Position - anchor0.Position;
+                var perpMag = localDir.Length();
+                var localPerp = perpMag > 1e-5f
+                    ? new Vector2(-localDir.Y, localDir.X) / perpMag
+                    : new Vector2(0, 1);
+                var localCp = localMid + localPerp * anchor0.Curve;
+                var cpWorld = hasTransform ? Vector2.Transform(localCp, transform) : localCp;
+                var cp = new Vector2Double(cpWorld.X, cpWorld.Y);
                 contour.AddEdge(new QuadraticSegment(p0, cp, p1));
             }
         }

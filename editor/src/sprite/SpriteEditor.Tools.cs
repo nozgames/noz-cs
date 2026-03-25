@@ -140,10 +140,9 @@ public partial class SpriteEditor
                     hit.Value.Path.SetAnchorSelected(hit.Value.Hit.AnchorIndex, true);
                 }
 
-                var tool = MovePathTool.Create(Document);
+                var tool = AnchorMoveTool.Create(Document);
                 if (tool != null)
                 {
-                    tool.CommitOnRelease = true;
                     Undo.Record(Document);
                     Workspace.BeginTool(tool);
                     return;
@@ -416,25 +415,9 @@ public partial class SpriteEditor
             Document.CurrentFillColor, ShapeType.Circle, Document.CurrentOperation));
     }
 
-    private void BeginMoveTool()
+    private void BeginAnchorMoveTool()
     {
-        var tool = MovePathTool.Create(Document);
-        if (tool == null) return;
-        Undo.Record(Document);
-        Workspace.BeginTool(tool);
-    }
-
-    private void BeginRotateTool()
-    {
-        var tool = RotatePathTool.Create(Document);
-        if (tool == null) return;
-        Undo.Record(Document);
-        Workspace.BeginTool(tool);
-    }
-
-    private void BeginScaleTool()
-    {
-        var tool = ScalePathTool.Create(Document);
+        var tool = AnchorMoveTool.Create(Document);
         if (tool == null) return;
         Undo.Record(Document);
         Workspace.BeginTool(tool);
@@ -483,53 +466,54 @@ public partial class SpriteEditor
         path.UpdateBounds();
         Document.UpdateBounds();
 
-        BeginMoveTool();
+        BeginAnchorMoveTool();
     }
 
     #endregion
 
     #region Drawing (SpritePath)
 
-    private static void DrawPathSegments(SpritePath path, Matrix3x2 transform)
+    private static void DrawPathSegments(SpritePath path, Matrix3x2 localTransform, Matrix3x2 docTransform)
     {
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
-            Graphics.SetTransform(transform);
+            Graphics.SetTransform(docTransform);
             var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
 
             Gizmos.SetColor(EditorStyle.Palette.PathSegment);
             for (var i = 0; i < segmentCount; i++)
             {
                 if (!path.IsSegmentSelected(i))
-                    DrawPathSegment(path, i, EditorStyle.Shape.SegmentLineWidth, 1);
+                    DrawPathSegment(path, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 1);
             }
 
             Gizmos.SetColor(EditorStyle.Palette.Primary);
             for (var i = 0; i < segmentCount; i++)
             {
                 if (path.IsSegmentSelected(i))
-                    DrawPathSegment(path, i, EditorStyle.Shape.SegmentLineWidth, 2);
+                    DrawPathSegment(path, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 2);
             }
         }
     }
 
-    private static void DrawPathSegment(SpritePath path, int segmentIndex, float width, ushort order = 0)
+    private static void DrawPathSegment(SpritePath path, int segmentIndex, Matrix3x2 localTransform, float width, ushort order = 0)
     {
         var samples = path.GetSegmentSamples(segmentIndex);
-        var prev = path.Anchors[segmentIndex].Position;
+        var prev = Vector2.Transform(path.Anchors[segmentIndex].Position, localTransform);
         foreach (var sample in samples)
         {
-            Gizmos.DrawLine(prev, sample, width, order: order);
-            prev = sample;
+            var transformed = Vector2.Transform(sample, localTransform);
+            Gizmos.DrawLine(prev, transformed, width, order: order);
+            prev = transformed;
         }
         var nextIdx = (segmentIndex + 1) % path.Anchors.Count;
-        Gizmos.DrawLine(prev, path.Anchors[nextIdx].Position, width, order: order);
+        Gizmos.DrawLine(prev, Vector2.Transform(path.Anchors[nextIdx].Position, localTransform), width, order: order);
     }
 
-    private static void DrawPathAnchors(SpritePath path, Matrix3x2 transform, bool selectedOnly = false)
+    private static void DrawPathAnchors(SpritePath path, Matrix3x2 localTransform, Matrix3x2 docTransform, bool selectedOnly = false)
     {
         using var _ = Gizmos.PushState(EditorLayer.DocumentEditor);
-        Graphics.SetTransform(transform);
+        Graphics.SetTransform(docTransform);
 
         if (!selectedOnly)
         {
@@ -537,7 +521,7 @@ public partial class SpriteEditor
             {
                 if (path.Anchors[i].IsSelected) continue;
                 Gizmos.SetColor(EditorStyle.Palette.PathAnchor);
-                Gizmos.DrawRect(path.Anchors[i].Position, EditorStyle.Shape.AnchorSize, order: 4);
+                Gizmos.DrawRect(Vector2.Transform(path.Anchors[i].Position, localTransform), EditorStyle.Shape.AnchorSize, order: 4);
             }
         }
 
@@ -545,7 +529,7 @@ public partial class SpriteEditor
         {
             if (!path.Anchors[i].IsSelected) continue;
             Gizmos.SetColor(EditorStyle.Palette.Primary);
-            Gizmos.DrawRect(path.Anchors[i].Position, EditorStyle.Shape.AnchorSize, order: 5);
+            Gizmos.DrawRect(Vector2.Transform(path.Anchors[i].Position, localTransform), EditorStyle.Shape.AnchorSize, order: 5);
         }
     }
 

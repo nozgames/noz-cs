@@ -18,6 +18,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     private Texture? _texture;
     private Vector2Int _textureSize;
     private Vector2Int _sourceImageSize;
+    private Texture? _standaloneTexture;
+    private int _standaloneTextureVersion = -1;
 
     private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
 
@@ -382,6 +384,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     private void ClampToMaxSpriteSize()
     {
+        // Only clamp when constrained — unconstrained sprites use their natural size
+        if (!ConstrainedSize.HasValue)
+            return;
+
         var maxSize = EditorApplication.Config.AtlasMaxSpriteSize;
         var width = RasterBounds.Width;
         var height = RasterBounds.Height;
@@ -468,6 +474,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         return true;
     }
 
+
+
     private bool DrawFromPreviewTexture()
     {
         EnsurePreviewTexture();
@@ -519,8 +527,41 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         if (Bounds.Width <= 0 || Bounds.Height <= 0)
             return;
 
-        if (!DrawFromAtlas())
+        if (!DrawFromAtlas() && !DrawFromStandaloneTexture())
             DrawBounds();
+    }
+
+    private bool DrawFromStandaloneTexture()
+    {
+        var w = RasterBounds.Width;
+        var h = RasterBounds.Height;
+        if (w <= 0 || h <= 0) return false;
+
+        if (_standaloneTexture == null || _standaloneTextureVersion != Version)
+        {
+            _standaloneTexture?.Dispose();
+            using var image = new PixelData<Color32>(w, h);
+            var rect = new AtlasSpriteRect
+            {
+                Name = Name,
+                Source = this,
+                Rect = new RectInt(0, 0, w, h),
+                FrameIndex = 0
+            };
+            Rasterize(image, rect, padding: 0);
+            _standaloneTexture = Texture.Create(w, h, image.AsByteSpan(), TextureFormat.RGBA8, TextureFilter.Linear, Name + "_standalone");
+            _standaloneTextureVersion = Version;
+        }
+
+        using (Graphics.PushState())
+        {
+            Graphics.SetTransform(Transform);
+            Graphics.SetTexture(_standaloneTexture);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
+            Graphics.Draw(Bounds);
+        }
+        return true;
     }
 
     public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f, int frame = 0)
@@ -791,6 +832,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         _texture?.Dispose();
         _texture = null;
+        _standaloneTexture?.Dispose();
+        _standaloneTexture = null;
         DisposeGeneration();
         base.Dispose();
     }

@@ -871,9 +871,9 @@ public partial class SpriteEditor : DocumentEditor
             {
                 if (path.Anchors.Count < 2) continue;
                 path.UpdateSamples();
-                var pathTransform = path.HasTransform ? path.PathTransform * transform : transform;
-                DrawPathSegments(path, pathTransform);
-                DrawPathAnchors(path, pathTransform);
+                var localTransform = path.HasTransform ? path.PathTransform : Matrix3x2.Identity;
+                DrawPathSegments(path, localTransform, transform);
+                DrawPathAnchors(path, localTransform, transform);
             }
         }
         else
