@@ -172,16 +172,38 @@ public class SpritePath : SpriteNode
 
         LocalBounds = Rect.FromMinMax(min, max);
 
-        // Compute world bounds by transforming the local bounding box
+        // Compute world bounds by transforming each anchor and sample individually
+        // for a tight AABB (transforming LocalBounds corners over-approximates for rotations)
         if (HasTransform)
         {
             var transform = PathTransform;
-            var c0 = Vector2.Transform(new Vector2(min.X, min.Y), transform);
-            var c1 = Vector2.Transform(new Vector2(max.X, min.Y), transform);
-            var c2 = Vector2.Transform(new Vector2(max.X, max.Y), transform);
-            var c3 = Vector2.Transform(new Vector2(min.X, max.Y), transform);
-            var wMin = Vector2.Min(Vector2.Min(c0, c1), Vector2.Min(c2, c3));
-            var wMax = Vector2.Max(Vector2.Max(c0, c1), Vector2.Max(c2, c3));
+            var wMin = new Vector2(float.MaxValue, float.MaxValue);
+            var wMax = new Vector2(float.MinValue, float.MinValue);
+
+            for (var i = 0; i < Anchors.Count; i++)
+            {
+                var tp = Vector2.Transform(Anchors[i].Position, transform);
+                wMin = Vector2.Min(wMin, tp);
+                wMax = Vector2.Max(wMax, tp);
+
+                if (i < segmentCount && MathF.Abs(Anchors[i].Curve) > MinCurve)
+                {
+                    var samples = GetSegmentSamples(i);
+                    for (var s = 0; s < MaxSegmentSamples; s++)
+                    {
+                        var ts = Vector2.Transform(samples[s], transform);
+                        wMin = Vector2.Min(wMin, ts);
+                        wMax = Vector2.Max(wMax, ts);
+                    }
+                }
+            }
+
+            if (halfStroke > 0)
+            {
+                wMin -= new Vector2(halfStroke, halfStroke);
+                wMax += new Vector2(halfStroke, halfStroke);
+            }
+
             Bounds = Rect.FromMinMax(wMin, wMax);
         }
         else
