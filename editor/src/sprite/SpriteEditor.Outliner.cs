@@ -442,7 +442,7 @@ public partial class SpriteEditor
         Undo.Record(Document);
 
         // Remove from current parent
-        _dragNode.Parent?.Remove(_dragNode);
+        _dragNode.RemoveFromParent();
 
         switch (_dropZone)
         {

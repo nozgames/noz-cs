@@ -363,7 +363,7 @@ public partial class SpriteEditor
 
             Undo.Record(Document);
             foreach (var path in _selectedPaths)
-                path.Parent?.Remove(path);
+                path.RemoveFromParent();
             Document.IncrementVersion();
             Document.UpdateBounds();
             ClearSelection();
@@ -378,7 +378,7 @@ public partial class SpriteEditor
             path.DeleteSelectedAnchors();
 
             if (path.Anchors.Count < 3)
-                path.Parent?.Remove(path);
+                path.RemoveFromParent();
             else
             {
                 path.UpdateSamples();

@@ -68,6 +68,8 @@ public abstract class SpriteNode
         Children.Remove(child);
     }
 
+    public void RemoveFromParent() => Parent?.Remove(this);
+
     public void RemoveAt(int index)
     {
         Children[index].Parent = null;
