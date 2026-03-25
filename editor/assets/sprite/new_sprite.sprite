@@ -19,9 +19,9 @@ path "" {
 }
 
 path "" {
-  translate -0.18784113 -1.07627
-  rotate -0.037941698
-  scale 1.1360352 2.707794
+  translate -0.7541654 -1.3527452
+  rotate 50.786686
+  scale 1.2271465 3.5203815
   operation clip
   fill #FF0000
   anchor 0.69661546 -0.5878135

@@ -25,6 +25,7 @@ public abstract class SpriteNode
         target.Visible = Visible;
         target.Locked = Locked;
         target.Expanded = Expanded;
+        target.IsSelected = IsSelected;
     }
 
     #region Tree Traversal

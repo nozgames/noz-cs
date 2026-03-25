@@ -125,6 +125,7 @@ public partial class SpriteEditor : DocumentEditor
     public override void OnUndoRedo()
     {
         Document.UpdateBounds();
+        RebuildSelectedPaths();
     }
 
     public override void Update()
