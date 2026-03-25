@@ -20,6 +20,8 @@ public class RotateTool : Tool
 
     private Vector2 _startMouseLocal;
 
+    public bool CommitOnRelease { get; set; }
+
     public RotateTool(
         in Vector2 pivotWorld, in Vector2 pivotLocal,
         in Vector2 originWorld, in Vector2 originLocal,
@@ -59,8 +61,12 @@ public class RotateTool : Tool
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
-            Input.WasButtonPressed(InputCode.KeyEnter, Scope))
+        var commitInput = CommitOnRelease
+            ? Input.WasButtonReleased(InputCode.MouseLeft, Scope)
+            : Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
+              Input.WasButtonPressed(InputCode.KeyEnter, Scope);
+
+        if (commitInput)
         {
             OnCommit(GetCurrentAngle());
             Input.ConsumeButton(InputCode.MouseLeft);

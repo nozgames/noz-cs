@@ -175,6 +175,8 @@ public partial class SpriteEditor : DocumentEditor
     {
         if (!Document.IsMutable) return;
 
+        UpdateHandleCursor();
+
         if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
             HandleDragStart();
         else if (Input.WasButtonReleased(InputCode.MouseLeft))
@@ -881,62 +883,217 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
+    private void UpdateHandleCursor()
+    {
+        if (CurrentMode != SpriteEditMode.V || _selectedPaths.Count == 0 || Workspace.ActiveTool != null)
+        {
+            Cursor.SetDefault();
+            return;
+        }
+
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+        var hit = HitTestHandles(localMousePos);
+
+        if (hit != HandleHit.None)
+            Cursor.Set(GetHandleCursor(hit));
+        else
+            Cursor.SetDefault();
+    }
+
     private void DrawSelectionBounds(Matrix3x2 transform)
     {
+        if (_selectedPaths.Count == 0) return;
+
+        UpdateSelectionBounds();
+
+        var bounds = _selectionLocalBounds;
+        if (bounds.Width <= 0 && bounds.Height <= 0) return;
+
         using var _ = Gizmos.PushState(EditorLayer.DocumentEditor);
-        Graphics.SetTransform(transform);
 
-        // Draw per-path bounding boxes
+        // Draw the oriented bounding box
+        var selToDoc = Matrix3x2.CreateRotation(_selectionRotation);
+        Graphics.SetTransform(selToDoc * transform);
+
         Gizmos.SetColor(EditorStyle.Palette.Primary);
-        foreach (var path in _selectedPaths)
-        {
-            if (path.Anchors.Count < 2) continue;
-            path.UpdateBounds();
-            var b = path.Bounds;
-            Gizmos.DrawRect(b, EditorStyle.Shape.SegmentLineWidth, order: 2);
-        }
+        var lineWidth = EditorStyle.Shape.SegmentLineWidth;
+        var tl = new Vector2(bounds.X, bounds.Y);
+        var tr = new Vector2(bounds.Right, bounds.Y);
+        var br = new Vector2(bounds.Right, bounds.Bottom);
+        var bl = new Vector2(bounds.X, bounds.Bottom);
+        Gizmos.DrawLine(tl, tr, lineWidth, order: 2);
+        Gizmos.DrawLine(tr, br, lineWidth, order: 2);
+        Gizmos.DrawLine(br, bl, lineWidth, order: 2);
+        Gizmos.DrawLine(bl, tl, lineWidth, order: 2);
 
-        // Draw combined selection handles if any paths selected
-        if (_selectedPaths.Count > 0)
-        {
-            var combinedBounds = ComputeCombinedBounds();
-            if (combinedBounds.Width > 0 || combinedBounds.Height > 0)
-                DrawHandles(combinedBounds);
-        }
-    }
-
-    private Rect ComputeCombinedBounds()
-    {
-        var min = new Vector2(float.MaxValue, float.MaxValue);
-        var max = new Vector2(float.MinValue, float.MinValue);
-
-        foreach (var path in _selectedPaths)
-        {
-            if (path.Anchors.Count < 2) continue;
-            var b = path.Bounds;
-            min = Vector2.Min(min, new Vector2(b.X, b.Y));
-            max = Vector2.Max(max, new Vector2(b.Right, b.Bottom));
-        }
-
-        return min.X <= max.X ? Rect.FromMinMax(min, max) : Rect.Zero;
-    }
-
-    private void DrawHandles(Rect bounds)
-    {
+        // Draw handles at corners and edge midpoints (in selection space)
         var handleSize = EditorStyle.Shape.AnchorSize;
+        var midX = bounds.X + bounds.Width * 0.5f;
+        var midY = bounds.Y + bounds.Height * 0.5f;
 
-        // Corner handles
-        Gizmos.SetColor(EditorStyle.Palette.Primary);
-        Gizmos.DrawRect(new Vector2(bounds.X, bounds.Y), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.Right, bounds.Y), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.X, bounds.Bottom), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.Right, bounds.Bottom), handleSize, order: 6);
+        Gizmos.DrawRect(tl, handleSize, order: 6);
+        Gizmos.DrawRect(tr, handleSize, order: 6);
+        Gizmos.DrawRect(br, handleSize, order: 6);
+        Gizmos.DrawRect(bl, handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(midX, bounds.Y), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(midX, bounds.Bottom), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.X, midY), handleSize, order: 6);
+        Gizmos.DrawRect(new Vector2(bounds.Right, midY), handleSize, order: 6);
+    }
+
+    private enum HandleHit
+    {
+        None,
+        Move,
+        ScaleTopLeft, ScaleTop, ScaleTopRight, ScaleRight,
+        ScaleBottomRight, ScaleBottom, ScaleBottomLeft, ScaleLeft,
+        RotateTopLeft, RotateTopRight, RotateBottomRight, RotateBottomLeft
+    }
+
+    private static bool IsScaleHandle(HandleHit hit) => hit >= HandleHit.ScaleTopLeft && hit <= HandleHit.ScaleLeft;
+    private static bool IsRotateHandle(HandleHit hit) => hit >= HandleHit.RotateTopLeft && hit <= HandleHit.RotateBottomLeft;
+
+    // Hit test handles in selection-rotated space
+    private HandleHit HitTestHandles(Vector2 docLocalPos)
+    {
+        var bounds = _selectionLocalBounds;
+        if (bounds.Width <= 0 && bounds.Height <= 0) return HandleHit.None;
+
+        // Transform from document-local to selection-local space
+        var selPos = Vector2.Transform(docLocalPos, Matrix3x2.CreateRotation(-_selectionRotation));
+
+        var hitRadius = EditorStyle.Shape.AnchorHitSize * Gizmos.ZoomRefScale;
+        var hitRadiusSqr = hitRadius * hitRadius;
+        var rotateRadius = hitRadius * 2.5f;
+        var rotateRadiusSqr = rotateRadius * rotateRadius;
+
+        var midX = bounds.X + bounds.Width * 0.5f;
+        var midY = bounds.Y + bounds.Height * 0.5f;
+
+        // Corner positions in selection space
+        Span<Vector2> corners = stackalloc Vector2[4];
+        corners[0] = new Vector2(bounds.X, bounds.Y);
+        corners[1] = new Vector2(bounds.Right, bounds.Y);
+        corners[2] = new Vector2(bounds.Right, bounds.Bottom);
+        corners[3] = new Vector2(bounds.X, bounds.Bottom);
+
+        // Test rotation zones (outside corners)
+        for (var i = 0; i < 4; i++)
+        {
+            var distSqr = Vector2.DistanceSquared(selPos, corners[i]);
+            if (distSqr <= rotateRadiusSqr && distSqr > hitRadiusSqr)
+                return HandleHit.RotateTopLeft + i;
+        }
+
+        // Test corner scale handles
+        for (var i = 0; i < 4; i++)
+        {
+            if (Vector2.DistanceSquared(selPos, corners[i]) <= hitRadiusSqr)
+                return HandleHit.ScaleTopLeft + i * 2; // TL=0, TR=2, BR=4, BL=6
+        }
 
         // Edge midpoint handles
-        Gizmos.DrawRect(new Vector2(bounds.X + bounds.Width * 0.5f, bounds.Y), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.X + bounds.Width * 0.5f, bounds.Bottom), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.X, bounds.Y + bounds.Height * 0.5f), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.Right, bounds.Y + bounds.Height * 0.5f), handleSize, order: 6);
+        Span<Vector2> edges = stackalloc Vector2[4];
+        edges[0] = new Vector2(midX, bounds.Y);
+        edges[1] = new Vector2(bounds.Right, midY);
+        edges[2] = new Vector2(midX, bounds.Bottom);
+        edges[3] = new Vector2(bounds.X, midY);
+
+        Span<HandleHit> edgeHits = stackalloc HandleHit[4];
+        edgeHits[0] = HandleHit.ScaleTop;
+        edgeHits[1] = HandleHit.ScaleRight;
+        edgeHits[2] = HandleHit.ScaleBottom;
+        edgeHits[3] = HandleHit.ScaleLeft;
+
+        for (var i = 0; i < 4; i++)
+        {
+            if (Vector2.DistanceSquared(selPos, edges[i]) <= hitRadiusSqr)
+                return edgeHits[i];
+        }
+
+        // Inside oriented bbox = move (test in selection space using axis-aligned check)
+        if (bounds.Contains(selPos))
+            return HandleHit.Move;
+
+        return HandleHit.None;
+    }
+
+    // Get cursor for a given handle hit
+    private SystemCursor GetHandleCursor(HandleHit hit)
+    {
+        // Determine base cursor direction, then rotate by selection rotation
+        var angle = _selectionRotation;
+
+        return hit switch
+        {
+            HandleHit.ScaleTop or HandleHit.ScaleBottom => GetRotatedResizeCursor(angle),
+            HandleHit.ScaleLeft or HandleHit.ScaleRight => GetRotatedResizeCursor(angle + MathF.PI / 2f),
+            HandleHit.ScaleTopLeft or HandleHit.ScaleBottomRight => GetRotatedResizeCursor(angle + MathF.PI / 4f),
+            HandleHit.ScaleTopRight or HandleHit.ScaleBottomLeft => GetRotatedResizeCursor(angle - MathF.PI / 4f),
+            HandleHit.RotateTopLeft or HandleHit.RotateTopRight or
+            HandleHit.RotateBottomRight or HandleHit.RotateBottomLeft => SystemCursor.Crosshair,
+            HandleHit.Move => SystemCursor.Move,
+            _ => SystemCursor.Default,
+        };
+    }
+
+    private static SystemCursor GetRotatedResizeCursor(float angle)
+    {
+        // Normalize to 0..PI (resize cursors are symmetric)
+        angle = ((angle % MathF.PI) + MathF.PI) % MathF.PI;
+
+        // Map angle to nearest cursor direction
+        return angle switch
+        {
+            < MathF.PI / 8f => SystemCursor.ResizeNS,
+            < 3f * MathF.PI / 8f => SystemCursor.ResizeNESW,
+            < 5f * MathF.PI / 8f => SystemCursor.ResizeEW,
+            < 7f * MathF.PI / 8f => SystemCursor.ResizeNWSE,
+            _ => SystemCursor.ResizeNS,
+        };
+    }
+
+    // Get the handle position in selection-local space
+    private Vector2 GetHandlePositionInSelSpace(HandleHit hit)
+    {
+        var b = _selectionLocalBounds;
+        var midX = b.X + b.Width * 0.5f;
+        var midY = b.Y + b.Height * 0.5f;
+
+        return hit switch
+        {
+            HandleHit.ScaleTopLeft => new Vector2(b.X, b.Y),
+            HandleHit.ScaleTop => new Vector2(midX, b.Y),
+            HandleHit.ScaleTopRight => new Vector2(b.Right, b.Y),
+            HandleHit.ScaleRight => new Vector2(b.Right, midY),
+            HandleHit.ScaleBottomRight => new Vector2(b.Right, b.Bottom),
+            HandleHit.ScaleBottom => new Vector2(midX, b.Bottom),
+            HandleHit.ScaleBottomLeft => new Vector2(b.X, b.Bottom),
+            HandleHit.ScaleLeft => new Vector2(b.X, midY),
+            _ => b.Center,
+        };
+    }
+
+    // Get the pivot (opposite handle) in selection-local space
+    private Vector2 GetOppositePivotInSelSpace(HandleHit hit)
+    {
+        var b = _selectionLocalBounds;
+        var midX = b.X + b.Width * 0.5f;
+        var midY = b.Y + b.Height * 0.5f;
+
+        return hit switch
+        {
+            HandleHit.ScaleTopLeft => new Vector2(b.Right, b.Bottom),
+            HandleHit.ScaleTop => new Vector2(midX, b.Bottom),
+            HandleHit.ScaleTopRight => new Vector2(b.X, b.Bottom),
+            HandleHit.ScaleRight => new Vector2(b.X, midY),
+            HandleHit.ScaleBottomRight => new Vector2(b.X, b.Y),
+            HandleHit.ScaleBottom => new Vector2(midX, b.Y),
+            HandleHit.ScaleBottomLeft => new Vector2(b.Right, b.Y),
+            HandleHit.ScaleLeft => new Vector2(b.Right, midY),
+            _ => b.Center,
+        };
     }
 
     private void DrawEdges()

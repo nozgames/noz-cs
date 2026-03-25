@@ -354,7 +354,7 @@ public class SpritePath : SpriteNode
     public bool ContainsPoint(Vector2 point)
     {
         if (Open || Anchors.Count < 3) return false;
-        if (!Bounds.Contains(point)) return false;
+        if (!LocalBounds.Contains(point)) return false;
 
         // Winding number test using sampled segments
         var winding = 0;

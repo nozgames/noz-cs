@@ -18,6 +18,8 @@ public class ScaleTool : Tool
     private Vector2 _startWorld;
     private Vector2 _scaleConstraint = Vector2.One;
 
+    public bool CommitOnRelease { get; set; }
+
     public ScaleTool(Vector2 pivot, Vector2 origin)
     {
         _pivot = pivot;
@@ -48,8 +50,12 @@ public class ScaleTool : Tool
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
-            Input.WasButtonPressed(InputCode.KeyEnter, Scope))
+        var commitInput = CommitOnRelease
+            ? Input.WasButtonReleased(InputCode.MouseLeft, Scope)
+            : Input.WasButtonPressed(InputCode.MouseLeft, Scope) ||
+              Input.WasButtonPressed(InputCode.KeyEnter, Scope);
+
+        if (commitInput)
         {
             var finalScale = GetCurrentScale();
             OnCommit(finalScale);

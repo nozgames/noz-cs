@@ -15,6 +15,8 @@ public enum SystemCursor
     Wait,
     ResizeEW,
     ResizeNS,
+    ResizeNWSE,
+    ResizeNESW,
 }
 
 public static class Cursor

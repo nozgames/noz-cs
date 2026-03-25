@@ -114,7 +114,7 @@ public partial class SpriteEditor
         var isLayer = node is SpriteLayer;
         var isPath = node is SpritePath;
         var isActive = isLayer && node == Document.ActiveLayer;
-        var isPathSelected = isPath && ((SpritePath)node).HasSelection();
+        var isPathSelected = isPath && ((SpritePath)node).IsSelected;
         var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
         var isDragSource = _outlinerDragging && _dragNode == node;
         var dropBefore = isDragTarget && _dropZone == DropZone.Before;
@@ -509,20 +509,20 @@ public partial class SpriteEditor
             {
                 // Ctrl+click: toggle this path's selection
                 if (path.IsSelected)
-                    path.ClearAllSelection();
+                    path.DeselectPath();
                 else
-                    path.SelectAll();
+                    path.SelectPath();
             }
             else if (shift)
             {
                 // Shift+click: add to selection
-                path.SelectAll();
+                path.SelectPath();
             }
             else
             {
                 // Plain click: clear all, select this path
                 Document.RootLayer.ClearAllSelections();
-                path.SelectAll();
+                path.SelectPath();
             }
 
             // Set active layer from first selection (only if not already set or plain click)

@@ -18,6 +18,9 @@ public partial class SpriteEditor
     public SpriteEditMode CurrentMode { get; private set; } = SpriteEditMode.V;
 
     private readonly List<SpritePath> _selectedPaths = new();
+    private float _selectionRotation; // rotation of the selection bounding box
+    private Rect _selectionLocalBounds; // AABB in selection-rotated space
+    private Vector2 _selectionCenter; // center in document-local space
 
     private SpriteLayer ActiveLayer => Document.ActiveLayer ?? Document.RootLayer;
 
@@ -78,11 +81,42 @@ public partial class SpriteEditor
 
         if (CurrentMode == SpriteEditMode.V && _selectedPaths.Count > 0)
         {
-            // V mode: check for handle hit, then move inside bbox, then box select
-            var combinedBounds = ComputeCombinedBounds();
-            if (combinedBounds.Contains(localMousePos))
+            var handleHit = HitTestHandles(localMousePos);
+
+            if (IsRotateHandle(handleHit))
             {
-                // Drag inside combined bounds — move selected paths
+                var tool = RotatePathTransformTool.Create(Document, _selectedPaths);
+                if (tool != null)
+                {
+                    tool.CommitOnRelease = true;
+                    Undo.Record(Document);
+                    Workspace.BeginTool(tool);
+                    return;
+                }
+            }
+
+            if (IsScaleHandle(handleHit))
+            {
+                var selToDoc = Matrix3x2.CreateRotation(_selectionRotation);
+                var pivotDoc = Vector2.Transform(_selectionLocalBounds.Center, selToDoc);
+
+                // Edge handles constrain to one axis
+                var constrainX = handleHit is HandleHit.ScaleTop or HandleHit.ScaleBottom;
+                var constrainY = handleHit is HandleHit.ScaleLeft or HandleHit.ScaleRight;
+
+                var tool = HandleScalePathTransformTool.Create(
+                    Document, _selectedPaths,
+                    pivotDoc, _selectionRotation, constrainX, constrainY);
+                if (tool != null)
+                {
+                    Undo.Record(Document);
+                    Workspace.BeginTool(tool);
+                    return;
+                }
+            }
+
+            if (handleHit == HandleHit.Move)
+            {
                 var tool = MovePathTransformTool.Create(Document, _selectedPaths);
                 if (tool != null)
                 {
@@ -142,7 +176,71 @@ public partial class SpriteEditor
         _selectedPaths.Clear();
         Document.RootLayer.CollectSelectedPaths(_selectedPaths);
         HasPathSelection = _selectedPaths.Count > 0;
+        UpdateSelectionBounds();
         OnSelectionChanged(HasPathSelection);
+    }
+
+    private void UpdateSelectionBounds()
+    {
+        if (_selectedPaths.Count == 0)
+        {
+            _selectionRotation = 0;
+            _selectionLocalBounds = Rect.Zero;
+            _selectionCenter = Vector2.Zero;
+            return;
+        }
+
+        // If all selected paths share the same rotation, use it; otherwise axis-aligned
+        var firstRotation = _selectedPaths[0].PathRotation;
+        var allSameRotation = true;
+        for (var i = 1; i < _selectedPaths.Count; i++)
+        {
+            if (MathF.Abs(_selectedPaths[i].PathRotation - firstRotation) > 0.001f)
+            {
+                allSameRotation = false;
+                break;
+            }
+        }
+
+        _selectionRotation = allSameRotation ? firstRotation : 0;
+        ComputeOrientedBounds();
+    }
+
+    private void ComputeOrientedBounds()
+    {
+        // Transform each anchor through PathTransform into document space,
+        // then into selection-rotated space to compute a tight AABB.
+        var invRot = Matrix3x2.CreateRotation(-_selectionRotation);
+        var min = new Vector2(float.MaxValue);
+        var max = new Vector2(float.MinValue);
+
+        foreach (var path in _selectedPaths)
+        {
+            if (path.Anchors.Count < 2) continue;
+
+            // Compose: anchor-local → document → selection space
+            var toSelSpace = path.HasTransform
+                ? path.PathTransform * invRot
+                : invRot;
+
+            foreach (var anchor in path.Anchors)
+            {
+                var p = Vector2.Transform(anchor.Position, toSelSpace);
+                min = Vector2.Min(min, p);
+                max = Vector2.Max(max, p);
+            }
+        }
+
+        if (min.X <= max.X)
+        {
+            _selectionLocalBounds = Rect.FromMinMax(min, max);
+            _selectionCenter = Vector2.Transform(_selectionLocalBounds.Center, Matrix3x2.CreateRotation(_selectionRotation));
+        }
+        else
+        {
+            _selectionLocalBounds = Rect.Zero;
+            _selectionCenter = Vector2.Zero;
+        }
     }
 
     private void CommitBoxSelect(Rect bounds)
