@@ -259,8 +259,8 @@ public abstract class SpriteNode
             return;
         }
 
-        // Iterate children in reverse (topmost drawn last = first hit priority)
-        for (var i = Children.Count - 1; i >= 0; i--)
+        // Iterate children in order (first child = topmost, matches render order)
+        for (var i = 0; i < Children.Count; i++)
             Children[i].HitTestRecursive(point, ref best, currentLayer);
     }
 
@@ -287,8 +287,8 @@ public abstract class SpriteNode
             return count;
         }
 
-        // Iterate in reverse so results are ordered top-to-bottom (last child = topmost)
-        for (var i = Children.Count - 1; i >= 0; i--)
+        // Iterate children in order (first child = topmost, matches render order)
+        for (var i = 0; i < Children.Count; i++)
             count += Children[i].HitTestAllRecursive(point, results, currentLayer);
 
         return count;

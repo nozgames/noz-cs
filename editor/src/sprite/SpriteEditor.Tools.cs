@@ -129,6 +129,34 @@ public partial class SpriteEditor
         }
         else if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
         {
+            // A mode + Alt: insert anchor on segment edge, then drag it
+            if (Input.IsAltDown(InputScope.All))
+            {
+                var segHit = Document.RootLayer.HitTest(localMousePos);
+                if (segHit.HasValue && segHit.Value.Path.IsSelected && segHit.Value.Hit.SegmentIndex >= 0)
+                {
+                    Undo.Record(Document);
+                    var path = segHit.Value.Path;
+                    path.ClearAnchorSelection();
+                    path.SplitSegmentAtPoint(segHit.Value.Hit.SegmentIndex, segHit.Value.Hit.SegmentPosition);
+
+                    var newIdx = segHit.Value.Hit.SegmentIndex + 1;
+                    if (newIdx < path.Anchors.Count)
+                        path.SetAnchorSelected(newIdx, true);
+
+                    path.UpdateSamples();
+                    path.UpdateBounds();
+                    Document.UpdateBounds();
+
+                    var moveTool = AnchorMoveTool.Create(Document);
+                    if (moveTool != null)
+                    {
+                        Workspace.BeginTool(moveTool);
+                        return;
+                    }
+                }
+            }
+
             // A mode: check for anchor hit — start move
             var hit = Document.RootLayer.HitTest(localMousePos);
             if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.AnchorIndex >= 0)
