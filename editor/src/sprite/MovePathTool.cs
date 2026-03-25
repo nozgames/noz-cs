@@ -87,7 +87,8 @@ public class AnchorMoveTool : Tool
 
             path.MarkDirty();
             path.UpdateSamples();
-            path.UpdateBounds();
+            if (!path.HasTransform)
+                path.UpdateBounds();
         }
         _document.IncrementVersion();
     }
