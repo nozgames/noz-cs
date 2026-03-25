@@ -742,15 +742,6 @@ public partial class SpriteEditor : DocumentEditor
                 return true;
             }
 
-            if (h.Hit.SegmentIndex >= 0)
-            {
-                if (!shift) Document.RootLayer.ClearAnchorSelections();
-                var nextIdx = (h.Hit.SegmentIndex + 1) % h.Path.Anchors.Count;
-                h.Path.SetAnchorSelected(h.Hit.SegmentIndex, true);
-                h.Path.SetAnchorSelected(nextIdx, true);
-                RebuildSelectedPaths();
-                return true;
-            }
         }
         return false;
     }

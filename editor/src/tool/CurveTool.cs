@@ -8,19 +8,28 @@ namespace NoZ.Editor;
 
 public class CurveTool : Tool
 {
+    private readonly SpriteDocument _document;
     private readonly SpritePath _path;
     private readonly SpritePathAnchor[] _saved;
     private readonly Matrix3x2 _transform;
     private readonly Matrix3x2 _invTransform;
     private readonly List<int> _selectedSegments = [];
 
+    private readonly Vector2 _savedBoundsCenter;
+    private readonly Vector2 _savedTranslation;
+
     private Vector2 _startWorld;
 
-    public CurveTool(SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved)
+    public bool CommitOnRelease { get; set; }
+
+    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved)
     {
+        _document = document;
         _path = path;
         _transform = transform;
         _saved = saved;
+        _savedBoundsCenter = path.LocalBounds.Center;
+        _savedTranslation = path.PathTranslation;
 
         Matrix3x2.Invert(transform, out _invTransform);
 
@@ -29,6 +38,18 @@ public class CurveTool : Tool
             if (path.IsSegmentSelected(i))
                 _selectedSegments.Add(i);
         }
+    }
+
+    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int segmentIndex)
+    {
+        _document = document;
+        _path = path;
+        _transform = transform;
+        _saved = saved;
+        _savedBoundsCenter = path.LocalBounds.Center;
+        _savedTranslation = path.PathTranslation;
+        Matrix3x2.Invert(transform, out _invTransform);
+        _selectedSegments.Add(segmentIndex);
     }
 
     public override void Begin()
@@ -44,10 +65,17 @@ public class CurveTool : Tool
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.KeyEnter))
+        var commitInput = CommitOnRelease
+            ? Input.WasButtonReleased(InputCode.MouseLeft, Scope)
+            : Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.KeyEnter);
+
+        if (commitInput)
         {
             _path.UpdateSamples();
             _path.UpdateBounds();
+            _path.PathTranslation = _savedTranslation;
+            _path.CompensateTranslation(_savedBoundsCenter);
+            _document.IncrementVersion();
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
@@ -83,6 +111,9 @@ public class CurveTool : Tool
 
         _path.UpdateSamples();
         _path.UpdateBounds();
+        _path.PathTranslation = _savedTranslation;
+        _path.CompensateTranslation(_savedBoundsCenter);
+        _document.IncrementVersion();
     }
 
     public override void Draw()

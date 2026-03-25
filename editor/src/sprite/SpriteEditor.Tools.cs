@@ -176,6 +176,15 @@ public partial class SpriteEditor
                     return;
                 }
             }
+
+            // A mode: drag on segment edge — adjust curve
+            if (hit.HasValue && hit.Value.Path.IsSelected && hit.Value.Hit.SegmentIndex >= 0)
+            {
+                var path = hit.Value.Path;
+                Undo.Record(Document);
+                Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(), hit.Value.Hit.SegmentIndex) { CommitOnRelease = true });
+                return;
+            }
         }
 
         // Fallback: box select
@@ -235,7 +244,7 @@ public partial class SpriteEditor
 
     private void ComputeOrientedBounds()
     {
-        // Transform each anchor through PathTransform into document space,
+        // Transform each anchor and curve sample through PathTransform into document space,
         // then into selection-rotated space to compute a tight AABB.
         var invRot = Matrix3x2.CreateRotation(-_selectionRotation);
         var min = new Vector2(float.MaxValue);
@@ -250,11 +259,24 @@ public partial class SpriteEditor
                 ? path.PathTransform * invRot
                 : invRot;
 
-            foreach (var anchor in path.Anchors)
+            var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
+
+            for (var i = 0; i < path.Anchors.Count; i++)
             {
-                var p = Vector2.Transform(anchor.Position, toSelSpace);
+                var p = Vector2.Transform(path.Anchors[i].Position, toSelSpace);
                 min = Vector2.Min(min, p);
                 max = Vector2.Max(max, p);
+
+                if (i < segmentCount && MathF.Abs(path.Anchors[i].Curve) > SpritePath.MinCurve)
+                {
+                    var samples = path.GetSegmentSamples(i);
+                    for (var s = 0; s < SpritePath.MaxSegmentSamples; s++)
+                    {
+                        var sp = Vector2.Transform(samples[s], toSelSpace);
+                        min = Vector2.Min(min, sp);
+                        max = Vector2.Max(max, sp);
+                    }
+                }
             }
         }
 
@@ -469,7 +491,7 @@ public partial class SpriteEditor
         if (!hasSelectedSegment) return;
 
         Undo.Record(Document);
-        Workspace.BeginTool(new CurveTool(path, Document.Transform, path.SnapshotAnchors()));
+        Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors()));
     }
 
     private void InsertAnchorAtHover()

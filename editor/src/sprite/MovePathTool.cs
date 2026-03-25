@@ -11,11 +11,11 @@ namespace NoZ.Editor;
 public class AnchorMoveTool : Tool
 {
     private readonly SpriteDocument _document;
-    private readonly (SpritePath Path, SpritePathAnchor[] Saved, Matrix3x2 WorldToLocal)[] _entries;
+    private readonly (SpritePath Path, SpritePathAnchor[] Saved, Matrix3x2 WorldToLocal, Vector2 SavedBoundsCenter, Vector2 SavedTranslation)[] _entries;
     private Vector2 _startWorld;
 
     private AnchorMoveTool(SpriteDocument document,
-        (SpritePath, SpritePathAnchor[], Matrix3x2)[] entries)
+        (SpritePath, SpritePathAnchor[], Matrix3x2, Vector2, Vector2)[] entries)
     {
         _document = document;
         _entries = entries;
@@ -28,14 +28,14 @@ public class AnchorMoveTool : Tool
         if (paths.Count == 0) return null;
 
         var docXform = document.Transform;
-        var entries = new (SpritePath, SpritePathAnchor[], Matrix3x2)[paths.Count];
+        var entries = new (SpritePath, SpritePathAnchor[], Matrix3x2, Vector2, Vector2)[paths.Count];
 
         for (var i = 0; i < paths.Count; i++)
         {
             var path = paths[i];
             var pathToWorld = path.HasTransform ? path.PathTransform * docXform : docXform;
             Matrix3x2.Invert(pathToWorld, out var worldToLocal);
-            entries[i] = (path, path.SnapshotAnchors(), worldToLocal);
+            entries[i] = (path, path.SnapshotAnchors(), worldToLocal, path.LocalBounds.Center, path.PathTranslation);
         }
 
         return new AnchorMoveTool(document, entries);
@@ -59,7 +59,6 @@ public class AnchorMoveTool : Tool
         if (Input.WasButtonReleased(InputCode.MouseLeft, Scope))
         {
             ApplyDelta();
-            CompensateTranslations();
             _document.UpdateBounds();
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
@@ -71,7 +70,7 @@ public class AnchorMoveTool : Tool
 
     private void ApplyDelta()
     {
-        foreach (var (path, saved, worldToLocal) in _entries)
+        foreach (var (path, saved, worldToLocal, savedCenter, savedTranslation) in _entries)
         {
             var startLocal = Vector2.Transform(_startWorld, worldToLocal);
             var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, worldToLocal);
@@ -87,21 +86,11 @@ public class AnchorMoveTool : Tool
 
             path.MarkDirty();
             path.UpdateSamples();
-            if (!path.HasTransform)
-                path.UpdateBounds();
+            path.UpdateBounds();
+            path.PathTranslation = savedTranslation;
+            path.CompensateTranslation(savedCenter);
         }
         _document.IncrementVersion();
-    }
-
-    private void CompensateTranslations()
-    {
-        foreach (var (path, _, _) in _entries)
-        {
-            if (!path.HasTransform) continue;
-            var oldCenter = path.LocalBounds.Center;
-            path.UpdateBounds();
-            path.CompensateTranslation(oldCenter);
-        }
     }
 
     public override void Cancel()
