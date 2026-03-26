@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 public class CurveTool : Tool
 {
-    private readonly SpriteDocument _document;
+    private readonly SpriteEditor _editor;
     private readonly SpritePath _path;
     private readonly int _contourIndex;
     private readonly SpritePathAnchor[] _saved;
@@ -22,9 +22,9 @@ public class CurveTool : Tool
 
     public bool CommitOnRelease { get; set; }
 
-    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int contourIndex = 0)
+    public CurveTool(SpriteEditor editor, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int contourIndex = 0)
     {
-        _document = document;
+        _editor = editor;
         _path = path;
         _contourIndex = contourIndex;
         _transform = transform;
@@ -42,9 +42,9 @@ public class CurveTool : Tool
         }
     }
 
-    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int segmentIndex, int contourIndex = 0)
+    public CurveTool(SpriteEditor editor, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int segmentIndex, int contourIndex = 0)
     {
-        _document = document;
+        _editor = editor;
         _path = path;
         _contourIndex = contourIndex;
         _transform = transform;
@@ -94,7 +94,7 @@ public class CurveTool : Tool
             _path.UpdateBounds();
             _path.PathTranslation = _savedTranslation;
             _path.CompensateTranslation(_savedBoundsCenter);
-            _document.UpdateBounds();
+            _editor.MarkDirty();
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
@@ -127,8 +127,7 @@ public class CurveTool : Tool
         _path.UpdateBounds();
         _path.PathTranslation = _savedTranslation;
         _path.CompensateTranslation(_savedBoundsCenter);
-        _document.UpdateBounds();
-        _document.MarkSpriteDirty();
+        _editor.MarkDirty();
     }
 
     public override void Draw()

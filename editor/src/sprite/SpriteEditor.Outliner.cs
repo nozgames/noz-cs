@@ -215,7 +215,7 @@ public partial class SpriteEditor
             {
                 Undo.Record(Document);
                 node.Visible = !node.Visible;
-                Document.IncrementVersion();
+                MarkDirty();
             }
         }
 
@@ -227,7 +227,7 @@ public partial class SpriteEditor
             {
                 Undo.Record(Document);
                 node.Locked = !node.Locked;
-                Document.IncrementVersion();
+                MarkDirty();
             }
         }
 
@@ -468,7 +468,7 @@ public partial class SpriteEditor
             }
         }
 
-        Document.IncrementVersion();
+        MarkDirty();
     }
 
     private static bool IsDescendant(SpriteNode parent, SpriteNode candidate)
@@ -539,6 +539,6 @@ public partial class SpriteEditor
         var layer = new SpriteLayer { Name = name };
         Document.RootLayer.Add(layer);
         Document.ActiveLayer = layer;
-        Document.IncrementVersion();
+        MarkDirty();
     }
 }

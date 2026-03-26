@@ -14,7 +14,7 @@ public enum ShapeType
 
 public class ShapeTool : Tool
 {
-    private readonly SpriteDocument _document;
+    private readonly SpriteEditor _editor;
     private readonly SpriteLayer _activeLayer;
     private readonly Color32 _fillColor;
     public readonly ShapeType ShapeType;
@@ -24,10 +24,10 @@ public class ShapeTool : Tool
     private Vector2 _currentLocal;
     private bool _isDragging;
 
-    public ShapeTool(SpriteDocument document, SpriteLayer activeLayer,
+    public ShapeTool(SpriteEditor editor, SpriteLayer activeLayer,
         Color32 fillColor, ShapeType shapeType, SpritePathOperation operation = SpritePathOperation.Normal)
     {
-        _document = document;
+        _editor = editor;
         _activeLayer = activeLayer;
         _fillColor = fillColor;
         ShapeType = shapeType;
@@ -47,7 +47,7 @@ public class ShapeTool : Tool
             return;
         }
 
-        Matrix3x2.Invert(_document.Transform, out var invTransform);
+        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
 
         if (Input.IsCtrlDown(Scope))
@@ -98,7 +98,7 @@ public class ShapeTool : Tool
 
         using (Gizmos.PushState(EditorLayer.Tool))
         {
-            Graphics.SetTransform(_document.Transform);
+            Graphics.SetTransform(_editor.Document.Transform);
 
             var lineWidth = Gizmos.GetLineWidth();
             Gizmos.SetColor(EditorStyle.Tool.LineColor);
@@ -128,7 +128,7 @@ public class ShapeTool : Tool
         var textY = max.Y + Gizmos.ZoomRefScale * 0.1f;
 
         Graphics.SetColor(EditorStyle.Tool.LineColor);
-        Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY) * _document.Transform);
+        Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY) * _editor.Document.Transform);
         TextRender.Draw(text, font, fontSize);
     }
 
@@ -173,7 +173,7 @@ public class ShapeTool : Tool
             return;
         }
 
-        Undo.Record(_document);
+        Undo.Record(_editor.Document);
 
         // Clear selections on all existing paths in the layer
         _activeLayer.ForEachEditablePath(p => p.ClearSelection());
@@ -190,8 +190,7 @@ public class ShapeTool : Tool
         path.UpdateBounds();
         _activeLayer.Add(path);
 
-        _document.IncrementVersion();
-        _document.UpdateBounds();
+        _editor.MarkDirty();
         Finish();
     }
 

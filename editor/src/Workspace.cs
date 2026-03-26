@@ -187,7 +187,6 @@ public static partial class Workspace
         var deleteCommand = new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete };
         var duplicateCommand = new Command { Name = "Duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true, Icon = EditorAssets.Sprites.IconDuplicate };
         var editCommand = new Command { Name = "Edit", Handler = BeginEdit, Key = InputCode.KeyTab, Icon = EditorAssets.Sprites.IconEdit };
-        var moveCommand = new Command { Name = "Move", Handler = BeginMoveTool, Key = InputCode.KeyG, Icon = EditorAssets.Sprites.IconMove };
         var hideCommand = new Command { Name = "Hide", Handler = HandleHide, Key = InputCode.KeyH, Icon = EditorAssets.Sprites.IconPreview };
         var unhideAllCommand = new Command { Name = "Unhide All", Handler = HandleUnhideAll, Key = InputCode.KeyH, Ctrl = true, Icon = EditorAssets.Sprites.IconPreview };
 
@@ -211,7 +210,6 @@ public static partial class Workspace
             renameCommand,
             deleteCommand,
             duplicateCommand,
-            moveCommand,
             hideCommand,
             unhideAllCommand,
             new() { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
@@ -267,7 +265,6 @@ public static partial class Workspace
         items.Add(duplicateCommand.ToPopupMenuItem());
         items.Add(renameCommand.ToPopupMenuItem());
         items.Add(deleteCommand.ToPopupMenuItem());
-        items.Add(moveCommand.ToPopupMenuItem());
         _workspacePopupItems = [.. items];
     }
 
@@ -332,6 +329,7 @@ public static partial class Workspace
             {
                 UpdateDefaultState();
                 UpdateToolAutoStart();
+                UpdateCursor();
             }
 
             if (Input.WasButtonReleased(InputCode.MouseRight) && !_wasDragging)
@@ -370,7 +368,40 @@ public static partial class Workspace
             return;
 
         if (_dragStarted && _dragButton == InputCode.MouseLeft)
-            BeginTool(new BoxSelectTool(CommitBoxSelect));
+        {
+            if (HitTestSelected(DragWorldPosition))
+            {
+                _clearSelectionOnRelease = false;
+                BeginDragMove();
+            }
+            else
+            {
+                BeginTool(new BoxSelectTool(CommitBoxSelect));
+            }
+        }
+    }
+
+    private static void UpdateCursor()
+    {
+        if (ActiveTool != null || _isDragging)
+            return;
+
+        if (HitTestSelected(_mouseWorldPosition))
+            EditorCursor.SetMove();
+        else
+            EditorCursor.SetArrow();
+    }
+
+    private static bool HitTestSelected(Vector2 point)
+    {
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected || !doc.Loaded || !doc.PostLoaded)
+                continue;
+            if (doc.Bounds.Translate(doc.Position).Contains(point))
+                return true;
+        }
+        return false;
     }
 
     private static void CommitBoxSelect(Rect bounds)
@@ -660,11 +691,10 @@ public static partial class Workspace
         return best;
     }
 
-    private static void BeginMoveTool()
-    {
-        if (SelectedCount == 0 || ActiveTool != null || State != WorkspaceState.Default)
-            return;
+    private static void BeginDragMove() => BeginMoveTool(commitOnRelease: true);
 
+    private static void BeginMoveTool(bool commitOnRelease = false)
+    {
         Undo.BeginGroup();
         foreach (var doc in DocumentManager.Documents)
         {
@@ -676,7 +706,7 @@ public static partial class Workspace
         }
         Undo.EndGroup();
 
-        BeginTool(new MoveTool(
+        var tool = new MoveTool(
             update: delta =>
             {
                 foreach (var doc in DocumentManager.Documents)
@@ -700,7 +730,9 @@ public static partial class Workspace
                         doc.Position = doc.SavedPosition;
                 }
             }
-        ));
+        );
+        tool.CommitOnRelease = commitOnRelease;
+        BeginTool(tool);
     }
 
     private static void ToggleGrid()
@@ -1202,10 +1234,19 @@ public static partial class Workspace
     {
         if (Input.WasButtonPressed(InputCode.MouseLeft))
         {
+            _clearSelectionOnRelease = false;
+
+            // If clicking over a selected doc, defer selection changes to release
+            // so drag-move can happen without switching selection first
+            if (HitTestSelected(_mouseWorldPosition))
+            {
+                _clearSelectionOnRelease = true;
+                return;
+            }
+
             var hitDoc = HitTestDocuments(_mouseWorldPosition);
             if (hitDoc != null)
             {
-                _clearSelectionOnRelease = false;
                 if (Input.IsShiftDown())
                     ToggleSelected(hitDoc);
                 else
@@ -1220,7 +1261,18 @@ public static partial class Workspace
 
         if (Input.WasButtonReleased(InputCode.MouseLeft) && _clearSelectionOnRelease)
         {
-            ClearSelection();
+            // Clicked a selected doc without dragging — select what's under the cursor
+            var hitDoc = HitTestDocuments(_mouseWorldPosition);
+            if (hitDoc != null)
+            {
+                if (!Input.IsShiftDown())
+                    ClearSelection();
+                SetSelected(hitDoc, true);
+            }
+            else
+            {
+                ClearSelection();
+            }
         }
     }
 

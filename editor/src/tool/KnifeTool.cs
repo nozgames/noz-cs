@@ -29,7 +29,7 @@ public class KnifeTool : Tool
     }
 
     private readonly List<KnifePoint> _points = new(MaxPoints);
-    private readonly SpriteDocument _document;
+    private readonly SpriteEditor _editor;
     private readonly List<SpritePath> _selectedPaths;
     private Vector2 _hoverPosition;
     private bool _hoverPositionValid;
@@ -40,9 +40,9 @@ public class KnifeTool : Tool
     private Action? _commit;
     private Action? _cancel;
 
-    public KnifeTool(SpriteDocument document, List<SpritePath> selectedPaths, Action? commit = null, Action? cancel = null)
+    public KnifeTool(SpriteEditor editor, List<SpritePath> selectedPaths, Action? commit = null, Action? cancel = null)
     {
-        _document = document;
+        _editor = editor;
         _selectedPaths = new List<SpritePath>(selectedPaths);
         _commit = commit;
         _cancel = cancel;
@@ -167,7 +167,7 @@ public class KnifeTool : Tool
             return;
         }
 
-        Undo.Record(_document);
+        Undo.Record(_editor.Document);
 
         Span<KnifeSegment> knifeSegments = stackalloc KnifeSegment[MaxPoints / 2];
         var knifeSegmentCount = GetKnifeSegments(knifeSegments);
@@ -230,8 +230,7 @@ public class KnifeTool : Tool
             commonPath.UpdateSamples();
         }
 
-        _document.IncrementVersion();
-        _document.UpdateBounds();
+        _editor.MarkDirty();
         Finish();
         _commit?.Invoke();
     }
@@ -331,7 +330,7 @@ public class KnifeTool : Tool
 
     private void UpdateHover()
     {
-        Matrix3x2.Invert(_document.Transform, out var invTransform);
+        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
         if (_hoverPosition == mouseLocal) return;
 
@@ -388,7 +387,7 @@ public class KnifeTool : Tool
     {
         using (Gizmos.PushState(EditorLayer.Tool))
         {
-            Graphics.SetTransform(_document.Transform);
+            Graphics.SetTransform(_editor.Document.Transform);
 
             Gizmos.SetColor(EditorStyle.Tool.LineColor);
             for (var i = 0; i < _points.Count - 1; i++)

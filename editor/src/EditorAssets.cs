@@ -22,8 +22,10 @@ public static class EditorAssets
         public const string AssetIconSprite = "asset_icon_sprite";
         public const string AssetIconVfx = "asset_icon_vfx";
         public const string Composite = "composite";
+        public const string CurorDropper = "curor_dropper";
         public const string CursorArrow = "cursor_arrow";
         public const string CursorMove = "cursor_move";
+        public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
         public const string Cursors = "cursors";
         public const string EditorSprites000 = "editor_sprites000";
@@ -164,8 +166,10 @@ public static class EditorAssets
         public static Sprite AssetIconSound { get; private set; } = null!;
         public static Sprite AssetIconSprite { get; private set; } = null!;
         public static Sprite AssetIconVfx { get; private set; } = null!;
+        public static Sprite CurorDropper { get; private set; } = null!;
         public static Sprite CursorArrow { get; private set; } = null!;
         public static Sprite CursorMove { get; private set; } = null!;
+        public static Sprite CursorRotate { get; private set; } = null!;
         public static Sprite CursorScale { get; private set; } = null!;
         public static Sprite Cursors { get; private set; } = null!;
         public static Sprite GizmoHandle { get; private set; } = null!;
@@ -242,8 +246,10 @@ public static class EditorAssets
             AssetIconSound = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconSound)!;
             AssetIconSprite = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconSprite)!;
             AssetIconVfx = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconVfx)!;
+            CurorDropper = (Sprite)Asset.Load(AssetType.Sprite, Names.CurorDropper)!;
             CursorArrow = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorArrow)!;
             CursorMove = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorMove)!;
+            CursorRotate = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorRotate)!;
             CursorScale = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorScale)!;
             Cursors = (Sprite)Asset.Load(AssetType.Sprite, Names.Cursors)!;
             GizmoHandle = (Sprite)Asset.Load(AssetType.Sprite, Names.GizmoHandle)!;
@@ -321,8 +327,10 @@ public static class EditorAssets
             AssetIconSound?.Dispose();
             AssetIconSprite?.Dispose();
             AssetIconVfx?.Dispose();
+            CurorDropper?.Dispose();
             CursorArrow?.Dispose();
             CursorMove?.Dispose();
+            CursorRotate?.Dispose();
             CursorScale?.Dispose();
             Cursors?.Dispose();
             GizmoHandle?.Dispose();

@@ -36,11 +36,11 @@ internal class HandleScalePathTransformTool : Tool
     }
 
     public static HandleScalePathTransformTool? Create(
-        SpriteDocument document, List<SpritePath> selectedPaths,
+        SpriteDocument document, SpriteEditor editor, List<SpritePath> selectedPaths,
         Vector2 pivotDoc,
         float selectionRotation, SpritePathHandle handle)
     {
-        var state = PathTransformToolState.Create(document, selectedPaths);
+        var state = PathTransformToolState.Create(document, editor, selectedPaths);
         if (state == null) return null;
 
         Matrix3x2.Invert(document.Transform, out var invDoc);
@@ -69,7 +69,6 @@ internal class HandleScalePathTransformTool : Tool
         if (Input.WasButtonReleased(InputCode.MouseLeft, Scope))
         {
             ApplyScale();
-            _state.Document.UpdateBounds();
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;

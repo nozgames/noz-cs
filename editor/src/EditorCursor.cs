@@ -23,6 +23,20 @@ internal static class EditorCursor
         };
         SetScale(rotation);
     }
-    public static void SetRotate() => Cursor.Set(SystemCursor.Crosshair);
+    public static void SetRotate() => Cursor.Set(EditorAssets.Sprites.CursorRotate);
+    public static void SetRotate(float rotation) => Cursor.Set(EditorAssets.Sprites.CursorRotate, rotation);
+
+    public static void SetRotate(SpritePathHandle handle, float selectionRotation)
+    {
+        var rotation = handle switch
+        {
+            SpritePathHandle.RotateBottomRight => selectionRotation,
+            SpritePathHandle.RotateBottomLeft => selectionRotation + MathF.PI / 2f,
+            SpritePathHandle.RotateTopLeft => selectionRotation + MathF.PI,
+            SpritePathHandle.RotateTopRight => selectionRotation - MathF.PI / 2f,
+            _ => selectionRotation,
+        };
+        SetRotate(rotation);
+    }
     public static void SetCrosshair() => Cursor.SetCrosshair();
 }

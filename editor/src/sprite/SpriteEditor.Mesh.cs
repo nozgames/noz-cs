@@ -17,7 +17,7 @@ public partial class SpriteEditor
 
     private readonly MeshVertex[] _meshVertices = new MeshVertex[MaxMeshVertices];
     private readonly ushort[] _meshIndices = new ushort[MaxMeshIndices];
-    private int _meshVersion = -1;
+    private bool _meshDirty = true;
 
     private struct MeshSlotData
     {
@@ -115,9 +115,9 @@ public partial class SpriteEditor
     // Layer-scoped mesh update: tessellates paths per-layer with booleans scoped to each layer
     private void UpdateMeshFromLayers()
     {
-        if (_meshVersion == Document.Version && _meshFrame == CurrentFrameIndex) return;
+        if (!_meshDirty && _meshFrame == CurrentFrameIndex) return;
 
-        _meshVersion = Document.Version;
+        _meshDirty = false;
         _meshFrame = CurrentFrameIndex;
         _meshSlots.Clear();
 

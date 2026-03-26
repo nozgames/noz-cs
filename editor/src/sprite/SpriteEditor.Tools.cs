@@ -102,7 +102,7 @@ public partial class SpriteEditor
 
         if (IsRotateHandle(handleHit))
         {
-            var tool = RotatePathTransformTool.Create(Document, _selectedPaths);
+            var tool = RotatePathTransformTool.Create(Document, this, _selectedPaths);
             if (tool != null)
             {
                 tool.CommitOnRelease = true;
@@ -119,7 +119,7 @@ public partial class SpriteEditor
             var pivotDoc = Vector2.Transform(pivotSel, selToDoc);
 
             var tool = HandleScalePathTransformTool.Create(
-                Document, _selectedPaths,
+                Document, this, _selectedPaths,
                 pivotDoc, _selectionRotation, handleHit);
             if (tool != null)
             {
@@ -131,7 +131,7 @@ public partial class SpriteEditor
 
         if (handleHit == SpritePathHandle.Move)
         {
-            var tool = MovePathTransformTool.Create(Document, _selectedPaths);
+            var tool = MovePathTransformTool.Create(Document, this, _selectedPaths);
             if (tool != null)
             {
                 tool.CommitOnRelease = true;
@@ -164,9 +164,9 @@ public partial class SpriteEditor
 
                 path.UpdateSamples();
                 path.UpdateBounds();
-                Document.UpdateBounds();
+                MarkDirty();
 
-                var moveTool = AnchorMoveTool.Create(Document);
+                var moveTool = AnchorMoveTool.Create(Document, this);
                 if (moveTool != null)
                 {
                     Workspace.BeginTool(moveTool);
@@ -185,7 +185,7 @@ public partial class SpriteEditor
                 anchorHit.Value.Path.SetAnchorSelected(anchorHit.Value.ContourIndex, anchorHit.Value.AnchorIndex, true);
             }
 
-            var tool = AnchorMoveTool.Create(Document);
+            var tool = AnchorMoveTool.Create(Document, this);
             if (tool != null)
             {
                 Undo.Record(Document);
@@ -201,7 +201,7 @@ public partial class SpriteEditor
             var path = segDragHit.Value.Path;
             var segCi = segDragHit.Value.ContourIndex;
             Undo.Record(Document);
-            Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(segCi), segDragHit.Value.SegmentIndex, contourIndex: segCi) { CommitOnRelease = true });
+            Workspace.BeginTool(new CurveTool(this, path, Document.Transform, path.SnapshotAnchors(segCi), segDragHit.Value.SegmentIndex, contourIndex: segCi) { CommitOnRelease = true });
             return true;
         }
 
@@ -366,7 +366,13 @@ public partial class SpriteEditor
         }
     }
 
-    private void InvalidateMesh() => _meshVersion = -1;
+    private void InvalidateMesh() => _meshDirty = true;
+
+    internal void MarkDirty()
+    {
+        InvalidateMesh();
+        Document.UpdateBounds();
+    }
 
     #endregion
 
@@ -382,8 +388,7 @@ public partial class SpriteEditor
             Undo.Record(Document);
             foreach (var path in _selectedPaths)
                 path.RemoveFromParent();
-            Document.IncrementVersion();
-            Document.UpdateBounds();
+            MarkDirty();
             ClearSelection();
         }
         else
@@ -405,8 +410,7 @@ public partial class SpriteEditor
                 path.CompensateTranslation(oldCenter);
             }
 
-            Document.IncrementVersion();
-            Document.UpdateBounds();
+            MarkDirty();
             RebuildSelectedPaths();
         }
     }
@@ -433,8 +437,7 @@ public partial class SpriteEditor
             clone.UpdateBounds();
         }
 
-        Document.IncrementVersion();
-        Document.UpdateBounds();
+        MarkDirty();
         RebuildSelectedPaths();
     }
 
@@ -459,7 +462,7 @@ public partial class SpriteEditor
         foreach (var path in newPaths)
             ActiveLayer.Add(path);
 
-        Document.UpdateBounds();
+        MarkDirty();
         RebuildSelectedPaths();
     }
 
@@ -477,31 +480,31 @@ public partial class SpriteEditor
 
     public void BeginPenTool()
     {
-        Workspace.BeginTool(new PenTool(Document, Document.RootLayer, ActiveLayer,
+        Workspace.BeginTool(new PenTool(this, Document.RootLayer, ActiveLayer,
             Document.CurrentFillColor, Document.CurrentOperation));
     }
 
     public void BeginKnifeTool()
     {
         if (_selectedPaths.Count == 0) return;
-        Workspace.BeginTool(new KnifeTool(Document, _selectedPaths));
+        Workspace.BeginTool(new KnifeTool(this, _selectedPaths));
     }
 
     public void BeginRectangleTool()
     {
-        Workspace.BeginTool(new ShapeTool(Document, ActiveLayer,
+        Workspace.BeginTool(new ShapeTool(this, ActiveLayer,
             Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentOperation));
     }
 
     public void BeginCircleTool()
     {
-        Workspace.BeginTool(new ShapeTool(Document, ActiveLayer,
+        Workspace.BeginTool(new ShapeTool(this, ActiveLayer,
             Document.CurrentFillColor, ShapeType.Circle, Document.CurrentOperation));
     }
 
     private void BeginAnchorMoveTool()
     {
-        var tool = AnchorMoveTool.Create(Document);
+        var tool = AnchorMoveTool.Create(Document, this);
         if (tool == null) return;
         Undo.Record(Document);
         Workspace.BeginTool(tool);
@@ -531,7 +534,7 @@ public partial class SpriteEditor
         if (foundContour < 0) return;
 
         Undo.Record(Document);
-        Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(foundContour), contourIndex: foundContour));
+        Workspace.BeginTool(new CurveTool(this, path, Document.Transform, path.SnapshotAnchors(foundContour), contourIndex: foundContour));
     }
 
     private void InsertAnchorAtHover()
@@ -555,7 +558,7 @@ public partial class SpriteEditor
 
         path.UpdateSamples();
         path.UpdateBounds();
-        Document.UpdateBounds();
+        MarkDirty();
 
         BeginAnchorMoveTool();
     }

@@ -127,7 +127,7 @@ public partial class SpriteEditor : DocumentEditor
 
     public override void OnUndoRedo()
     {
-        Document.UpdateBounds();
+        MarkDirty();
         RebuildSelectedPaths();
     }
 
@@ -360,7 +360,7 @@ public partial class SpriteEditor : DocumentEditor
     {
         Undo.Record(Document);
         Document.ConstrainedSize = size;
-        Document.UpdateBounds();
+        MarkDirty();
         EditorUI.ClosePopup();
     }
 
@@ -423,8 +423,7 @@ public partial class SpriteEditor : DocumentEditor
         var newFrame = Document.InsertFrame(fi);
         if (newFrame >= 0)
             _currentTimeSlot = TimeSlotForFrame(newFrame);
-        Document.UpdateBounds();
-        Document.IncrementVersion();
+        MarkDirty();
     }
 
     private void InsertFrameAfter()
@@ -434,8 +433,7 @@ public partial class SpriteEditor : DocumentEditor
         var newFrame = Document.InsertFrame(fi + 1);
         if (newFrame >= 0)
             _currentTimeSlot = TimeSlotForFrame(newFrame);
-        Document.UpdateBounds();
-        Document.IncrementVersion();
+        MarkDirty();
     }
 
     private void DeleteCurrentFrame()
@@ -444,8 +442,7 @@ public partial class SpriteEditor : DocumentEditor
         Undo.Record(Document);
         var fi = Document.DeleteFrame(CurrentFrameIndex);
         _currentTimeSlot = TimeSlotForFrame(fi);
-        Document.UpdateBounds();
-        Document.IncrementVersion();
+        MarkDirty();
     }
 
     private void AddHoldFrame()
@@ -475,7 +472,7 @@ public partial class SpriteEditor : DocumentEditor
         if (_selectedPaths.Count == 0) return;
         foreach (var path in _selectedPaths)
             path.FillColor = color;
-        _meshVersion = -1;
+        _meshDirty = true;
     }
 
     private void SetStrokeColor(Color32 color)
@@ -489,7 +486,7 @@ public partial class SpriteEditor : DocumentEditor
             path.StrokeWidth = Document.CurrentStrokeWidth;
             path.StrokeJoin = Document.CurrentStrokeJoin;
         }
-        _meshVersion = -1;
+        _meshDirty = true;
     }
 
     private void SetStrokeWidth(byte width)
@@ -589,8 +586,7 @@ public partial class SpriteEditor : DocumentEditor
             });
         }
 
-        Document.UpdateBounds();
-        Document.IncrementVersion();
+        MarkDirty();
     }
 
     private void FlipAxis(bool horizontal)
@@ -633,7 +629,7 @@ public partial class SpriteEditor : DocumentEditor
             path.UpdateSamples();
             path.UpdateBounds();
         }
-        Document.UpdateBounds();
+        MarkDirty();
     }
 
     #region Boolean Operations
@@ -687,8 +683,7 @@ public partial class SpriteEditor : DocumentEditor
         resultPath.SelectPath();
         resultPath.UpdateSamples();
         resultPath.UpdateBounds();
-        Document.UpdateBounds();
-        Document.IncrementVersion();
+        MarkDirty();
         RebuildSelectedPaths();
     }
 
@@ -789,7 +784,7 @@ public partial class SpriteEditor : DocumentEditor
 
         path.UpdateSamples();
         path.UpdateBounds();
-        Document.UpdateBounds();
+        MarkDirty();
         return true;
     }
 
@@ -1131,7 +1126,7 @@ public partial class SpriteEditor : DocumentEditor
             EditorCursor.SetMove();
         else if (hit is SpritePathHandle.RotateTopLeft or SpritePathHandle.RotateTopRight or
                  SpritePathHandle.RotateBottomRight or SpritePathHandle.RotateBottomLeft)
-            EditorCursor.SetRotate();
+            EditorCursor.SetRotate(hit, _selectionRotation);
         else
             EditorCursor.SetScale(hit, _selectionRotation);
     }

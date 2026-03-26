@@ -16,7 +16,7 @@ public class PenTool : Tool
         public bool IsExistingAnchor;
     }
 
-    private readonly SpriteDocument _document;
+    private readonly SpriteEditor _editor;
     private readonly SpriteLayer _rootLayer;
     private readonly SpriteLayer _activeLayer;
     private readonly Color32 _fillColor;
@@ -31,10 +31,10 @@ public class PenTool : Tool
     private bool _snappingToGrid;
     private Vector2 _gridSnapPosition;
 
-    public PenTool(SpriteDocument document, SpriteLayer rootLayer, SpriteLayer activeLayer,
+    public PenTool(SpriteEditor editor, SpriteLayer rootLayer, SpriteLayer activeLayer,
         Color32 fillColor, SpritePathOperation operation = SpritePathOperation.Normal)
     {
-        _document = document;
+        _editor = editor;
         _rootLayer = rootLayer;
         _activeLayer = activeLayer;
         _fillColor = fillColor;
@@ -50,7 +50,7 @@ public class PenTool : Tool
     public override void Update()
     {
         var mouseWorld = Workspace.MouseWorldPosition;
-        Matrix3x2.Invert(_document.Transform, out var invTransform);
+        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(mouseWorld, invTransform);
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, Scope))
@@ -153,7 +153,7 @@ public class PenTool : Tool
     {
         using (Gizmos.PushState(EditorLayer.Tool))
         {
-            Graphics.SetTransform(_document.Transform);
+            Graphics.SetTransform(_editor.Document.Transform);
 
             var lineWidth = Gizmos.GetLineWidth();
             var vertexSize = Gizmos.GetVertexSize();
@@ -199,7 +199,7 @@ public class PenTool : Tool
         if (_hoveringExistingAnchor || _hoveringSegment) return _hoverSnapPosition;
         if (_snappingToGrid) return _gridSnapPosition;
 
-        Matrix3x2.Invert(_document.Transform, out var invTransform);
+        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
         return Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
     }
 
@@ -211,7 +211,7 @@ public class PenTool : Tool
             return;
         }
 
-        Undo.Record(_document);
+        Undo.Record(_editor.Document);
 
         // Ensure consistent winding
         var signedArea = 0f;
@@ -235,8 +235,7 @@ public class PenTool : Tool
         path.UpdateBounds();
         _activeLayer.Add(path);
 
-        _document.IncrementVersion();
-        _document.UpdateBounds();
+        _editor.MarkDirty();
         Finish();
     }
 

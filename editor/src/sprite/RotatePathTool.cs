@@ -21,9 +21,9 @@ public class RotatePathTransformTool : RotateTool
     }
 
     public static RotatePathTransformTool? Create(
-        SpriteDocument document, List<SpritePath> selectedPaths)
+        SpriteDocument document, SpriteEditor editor, List<SpritePath> selectedPaths)
     {
-        var state = PathTransformToolState.Create(document, selectedPaths);
+        var state = PathTransformToolState.Create(document, editor, selectedPaths);
         if (state == null) return null;
         var s = state.Value;
         var worldPivot = Vector2.Transform(s.Centroid, document.Transform);
@@ -58,7 +58,6 @@ public class RotatePathTransformTool : RotateTool
     protected override void OnCommit(float angle)
     {
         OnUpdate(angle);
-        _state.Document.UpdateBounds();
     }
 
     protected override void OnCancel() => Undo.Cancel();

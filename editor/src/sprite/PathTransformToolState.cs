@@ -9,10 +9,11 @@ namespace NoZ.Editor;
 internal struct PathTransformToolState
 {
     public SpriteDocument Document;
+    public SpriteEditor Editor;
     public (SpritePath Path, Vector2 SavedTranslation, float SavedRotation, Vector2 SavedScale)[] Snapshots;
     public Vector2 Centroid;
 
-    public static PathTransformToolState? Create(SpriteDocument document, List<SpritePath> selectedPaths)
+    public static PathTransformToolState? Create(SpriteDocument document, SpriteEditor editor, List<SpritePath> selectedPaths)
     {
         if (selectedPaths.Count == 0) return null;
 
@@ -36,6 +37,7 @@ internal struct PathTransformToolState
         return new PathTransformToolState
         {
             Document = document,
+            Editor = editor,
             Snapshots = snapshots,
             Centroid = sum / count,
         };
@@ -61,12 +63,6 @@ internal struct PathTransformToolState
             path.UpdateSamples();
             path.UpdateBounds();
         }
-        Document.IncrementVersion();
-    }
-
-    public void Commit()
-    {
-        UpdatePaths();
-        Document.UpdateBounds();
+        Editor.MarkDirty();
     }
 }

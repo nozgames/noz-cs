@@ -10,6 +10,7 @@ namespace NoZ.Editor;
 // Snapshots world-to-local transform at drag start — immune to bounds/pivot changes.
 public class AnchorMoveTool : Tool
 {
+    private readonly SpriteEditor _editor;
     private readonly SpriteDocument _document;
     private readonly (SpritePath Path, SpritePathAnchor[][] Saved, Matrix3x2 WorldToLocal, Vector2 SavedBoundsCenter, Vector2 SavedTranslation)[] _entries;
     private readonly HashSet<SpritePath> _movingPaths;
@@ -17,9 +18,10 @@ public class AnchorMoveTool : Tool
     private SnapType _snapType;
     private Vector2 _snapDocLocal;
 
-    private AnchorMoveTool(SpriteDocument document,
+    private AnchorMoveTool(SpriteDocument document, SpriteEditor editor,
         (SpritePath, SpritePathAnchor[][], Matrix3x2, Vector2, Vector2)[] entries)
     {
+        _editor = editor;
         _document = document;
         _entries = entries;
         _movingPaths = new HashSet<SpritePath>(entries.Length);
@@ -27,7 +29,7 @@ public class AnchorMoveTool : Tool
             _movingPaths.Add(path);
     }
 
-    public static AnchorMoveTool? Create(SpriteDocument document)
+    public static AnchorMoveTool? Create(SpriteDocument document, SpriteEditor editor)
     {
         var paths = new List<SpritePath>();
         document.RootLayer.CollectPathsWithSelection(paths);
@@ -44,7 +46,7 @@ public class AnchorMoveTool : Tool
             entries[i] = (path, path.SnapshotAllAnchors(), worldToLocal, path.LocalBounds.Center, path.PathTranslation);
         }
 
-        return new AnchorMoveTool(document, entries);
+        return new AnchorMoveTool(document, editor, entries);
     }
 
     public override void Begin()
@@ -65,7 +67,6 @@ public class AnchorMoveTool : Tool
         if (Input.WasButtonReleased(InputCode.MouseLeft, Scope))
         {
             ApplyDelta();
-            _document.UpdateBounds();
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
@@ -134,7 +135,7 @@ public class AnchorMoveTool : Tool
             path.PathTranslation = savedTranslation;
             path.CompensateTranslation(savedCenter);
         }
-        _document.IncrementVersion();
+        _editor.MarkDirty();
     }
 
     private static (int ContourIndex, int AnchorIndex) FindFirstSelectedIndex(SpritePath path)
@@ -172,9 +173,9 @@ public class MovePathTransformTool : MoveTool
             _movingPaths.Add(path);
     }
 
-    public static MovePathTransformTool? Create(SpriteDocument document, List<SpritePath> selectedPaths)
+    public static MovePathTransformTool? Create(SpriteDocument document, SpriteEditor editor, List<SpritePath> selectedPaths)
     {
-        var state = PathTransformToolState.Create(document, selectedPaths);
+        var state = PathTransformToolState.Create(document, editor, selectedPaths);
         if (state == null) return null;
         return new MovePathTransformTool(state.Value);
     }
@@ -206,7 +207,6 @@ public class MovePathTransformTool : MoveTool
     protected override void OnCommit(Vector2 delta)
     {
         OnUpdate(delta);
-        _state.Document.UpdateBounds();
     }
 
     public override void Draw() => SnapHelper.DrawSnapIndicator(_snapType, _snapDocLocal, _state.Document.Transform);
