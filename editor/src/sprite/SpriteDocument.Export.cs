@@ -4,6 +4,7 @@
 //  Sprite document rasterization and binary export.
 //
 
+using Clipper2Lib;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -71,7 +72,18 @@ public partial class SpriteDocument
             new Vector2Int(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2));
         var sourceOffset = -RasterBounds.Position + new Vector2Int(padding, padding);
 
-        RasterizeLayer(RootLayer, image, targetRect, sourceOffset, dpi);
+        Rect? clipRect = null;
+        if (ConstrainedSize.HasValue)
+        {
+            float invDpi = 1f / dpi;
+            clipRect = new Rect(
+                RasterBounds.X * invDpi,
+                RasterBounds.Y * invDpi,
+                RasterBounds.Width * invDpi,
+                RasterBounds.Height * invDpi);
+        }
+
+        RasterizeLayer(RootLayer, image, targetRect, sourceOffset, dpi, clipRect);
 
         // Restore original visibility
         if (savedVisibility != null)
@@ -131,12 +143,35 @@ public partial class SpriteDocument
         PixelData<Color32> image,
         RectInt targetRect,
         Vector2Int sourceOffset,
-        int dpi)
+        int dpi,
+        Rect? clipRect = null)
     {
         var results = new List<LayerPathResult>();
         SpriteLayerProcessor.ProcessLayer(layer, results);
+
+        PathsD? clipPaths = null;
+        if (clipRect.HasValue)
+        {
+            var cr = clipRect.Value;
+            clipPaths = new PathsD { new PathD {
+                new PointD(cr.Left, cr.Top),
+                new PointD(cr.Right, cr.Top),
+                new PointD(cr.Right, cr.Bottom),
+                new PointD(cr.Left, cr.Bottom)
+            }};
+        }
+
         foreach (var result in results)
-            Rasterizer.Fill(result.Contours, image, targetRect, sourceOffset, dpi, result.Color);
+        {
+            var contours = result.Contours;
+            if (clipPaths != null && contours.Count > 0)
+            {
+                contours = Clipper.BooleanOp(ClipType.Intersection,
+                    contours, clipPaths, FillRule.NonZero, precision: 6);
+                if (contours.Count == 0) continue;
+            }
+            Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
+        }
     }
 
     public override void Export(string outputPath, PropertySet meta)

@@ -434,7 +434,7 @@ public partial class SpriteEditor
             path.DeselectPath();
             clone.SelectPath();
 
-            parent.Add(clone);
+            parent.Insert(0, clone);
             clone.UpdateSamples();
             clone.UpdateBounds();
         }
@@ -462,7 +462,7 @@ public partial class SpriteEditor
 
         var newPaths = clipboardData.PasteAsPaths();
         foreach (var path in newPaths)
-            ActiveLayer.Add(path);
+            ActiveLayer.Insert(0, path);
 
         MarkDirty();
         RebuildSelectedPaths();

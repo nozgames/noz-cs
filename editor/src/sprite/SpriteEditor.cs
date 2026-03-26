@@ -531,6 +531,8 @@ public partial class SpriteEditor : DocumentEditor
             Document.CurrentOperation = newOp;
             foreach (var path in _selectedPaths)
                 path.Operation = newOp;
+
+            InvalidateMesh();
         }
         else
         {
@@ -545,6 +547,8 @@ public partial class SpriteEditor : DocumentEditor
 
         foreach (var path in _selectedPaths)
             path.Operation = operation;
+
+        InvalidateMesh();
     }
 
     private void CenterShape()
