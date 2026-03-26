@@ -16,7 +16,6 @@ public static class EditorAssets
         public const string AssetIconEvent = "asset_icon_event";
         public const string AssetIconFont = "asset_icon_font";
         public const string AssetIconGenstyle = "asset_icon_genstyle";
-        public const string AssetIconLua = "asset_icon_lua";
         public const string AssetIconShader = "asset_icon_shader";
         public const string AssetIconSound = "asset_icon_sound";
         public const string AssetIconSprite = "asset_icon_sprite";
@@ -28,7 +27,6 @@ public static class EditorAssets
         public const string CursorMove = "cursor_move";
         public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
-        public const string Cursors = "cursors";
         public const string EditorSprites000 = "editor_sprites000";
         public const string GizmoHandle = "gizmo_handle";
         public const string IconAdd = "icon_add";
@@ -87,9 +85,6 @@ public static class EditorAssets
         public const string IconTiling = "icon_tiling";
         public const string IconUnlock = "icon_unlock";
         public const string IconXray = "icon_xray";
-        public const string NewSprite = "new_sprite";
-        public const string NewSprite001 = "new_sprite001";
-        public const string NewSprite002 = "new_sprite002";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
         public const string Text = "text";
@@ -162,7 +157,6 @@ public static class EditorAssets
         public static readonly Sprite AssetIconEvent = new();
         public static readonly Sprite AssetIconFont = new();
         public static readonly Sprite AssetIconGenstyle = new();
-        public static readonly Sprite AssetIconLua = new();
         public static readonly Sprite AssetIconShader = new();
         public static readonly Sprite AssetIconSound = new();
         public static readonly Sprite AssetIconSprite = new();
@@ -173,7 +167,6 @@ public static class EditorAssets
         public static readonly Sprite CursorMove = new();
         public static readonly Sprite CursorRotate = new();
         public static readonly Sprite CursorScale = new();
-        public static readonly Sprite Cursors = new();
         public static readonly Sprite GizmoHandle = new();
         public static readonly Sprite IconAdd = new();
         public static readonly Sprite IconAi = new();
@@ -231,9 +224,6 @@ public static class EditorAssets
         public static readonly Sprite IconTiling = new();
         public static readonly Sprite IconUnlock = new();
         public static readonly Sprite IconXray = new();
-        public static readonly Sprite NewSprite = new();
-        public static readonly Sprite NewSprite001 = new();
-        public static readonly Sprite NewSprite002 = new();
 
         public static void Load()
         {
@@ -243,7 +233,6 @@ public static class EditorAssets
             AssetIconEvent.Load(Names.AssetIconEvent);
             AssetIconFont.Load(Names.AssetIconFont);
             AssetIconGenstyle.Load(Names.AssetIconGenstyle);
-            AssetIconLua.Load(Names.AssetIconLua);
             AssetIconShader.Load(Names.AssetIconShader);
             AssetIconSound.Load(Names.AssetIconSound);
             AssetIconSprite.Load(Names.AssetIconSprite);
@@ -254,7 +243,6 @@ public static class EditorAssets
             CursorMove.Load(Names.CursorMove);
             CursorRotate.Load(Names.CursorRotate);
             CursorScale.Load(Names.CursorScale);
-            Cursors.Load(Names.Cursors);
             GizmoHandle.Load(Names.GizmoHandle);
             IconAdd.Load(Names.IconAdd);
             IconAi.Load(Names.IconAi);
@@ -312,9 +300,6 @@ public static class EditorAssets
             IconTiling.Load(Names.IconTiling);
             IconUnlock.Load(Names.IconUnlock);
             IconXray.Load(Names.IconXray);
-            NewSprite.Load(Names.NewSprite);
-            NewSprite001.Load(Names.NewSprite001);
-            NewSprite002.Load(Names.NewSprite002);
         }
 
         public static void Unload()
@@ -325,7 +310,6 @@ public static class EditorAssets
             AssetIconEvent.Dispose();
             AssetIconFont.Dispose();
             AssetIconGenstyle.Dispose();
-            AssetIconLua.Dispose();
             AssetIconShader.Dispose();
             AssetIconSound.Dispose();
             AssetIconSprite.Dispose();
@@ -336,7 +320,6 @@ public static class EditorAssets
             CursorMove.Dispose();
             CursorRotate.Dispose();
             CursorScale.Dispose();
-            Cursors.Dispose();
             GizmoHandle.Dispose();
             IconAdd.Dispose();
             IconAi.Dispose();
@@ -394,9 +377,6 @@ public static class EditorAssets
             IconTiling.Dispose();
             IconUnlock.Dispose();
             IconXray.Dispose();
-            NewSprite.Dispose();
-            NewSprite001.Dispose();
-            NewSprite002.Dispose();
         }
     }
 

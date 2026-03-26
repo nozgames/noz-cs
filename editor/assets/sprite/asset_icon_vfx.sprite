@@ -1,5 +1,6 @@
+
 path {
-  fill 0 1
+  fill #FFFFFF
   anchor 0.09375 -0.09375
   anchor 0.1796875 0.0703125
   anchor 0.2561922 -0.0072126985 -0.060667314
@@ -22,11 +23,11 @@ path {
   anchor -0.078125 0.2734375 -0.021808859
   anchor 0 0.296875
   anchor 0.09375 0.1875
-  anchor -0 -0
+  anchor 0 0
 }
 
 path {
-  fill 0 1
+  fill #FFFFFF
   anchor 0.0078125 0
   anchor -0.2265625 0
   anchor -0.328125 0.4609375

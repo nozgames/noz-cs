@@ -58,6 +58,9 @@ public sealed class PathClipboardData
         public byte StrokeWidth;
         public SpritePathOperation Operation;
         public ContourData[] Contours;
+        public Vector2 Translation;
+        public float Rotation;
+        public Vector2 Scale;
 
         // Backward compat helpers
         public Vector2[] Anchors => Contours[0].Anchors;
@@ -101,6 +104,9 @@ public sealed class PathClipboardData
                 StrokeWidth = path.StrokeWidth,
                 Operation = path.Operation,
                 Contours = contours,
+                Translation = path.PathTranslation,
+                Rotation = path.PathRotation,
+                Scale = path.PathScale,
             };
         }
     }
@@ -117,6 +123,9 @@ public sealed class PathClipboardData
                 StrokeColor = pathData.StrokeColor,
                 StrokeWidth = pathData.StrokeWidth,
                 Operation = pathData.Operation,
+                PathTranslation = pathData.Translation,
+                PathRotation = pathData.Rotation,
+                PathScale = pathData.Scale,
             };
 
             for (var ci = 0; ci < pathData.Contours.Length; ci++)

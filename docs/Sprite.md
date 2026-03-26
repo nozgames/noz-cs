@@ -31,6 +31,7 @@ frame {
 | Property | Syntax | Description |
 |----------|--------|-------------|
 | `skeleton` | `skeleton "name"` | Binds the sprite to a named skeleton for skeletal animation. |
+| `bone` | `bone "name"` | Binds the sprite to a specific bone within the skeleton. Resolved to a bone index at export. |
 
 Note: The `palette` keyword is legacy and ignored by the parser. Colors are stored directly.
 

@@ -1,20 +1,6 @@
-path {
-  fill 0 1
-  anchor 0.328125 -0.1640625
-  anchor 0.328125 0.3671875 -0.00952738
-  anchor 0.296875 0.3984375
-  anchor -0.3046875 0.3984375
-  anchor -0.328125 0.3984375
-  anchor -0.328125 0.375
-  anchor -0.328125 -0.3671875 -0.0095537845
-  anchor -0.296875 -0.3984375
-  anchor 0.125 -0.3984375
-  anchor 0.125 -0.1953125 0.018655695
-  anchor 0.1484375 -0.1640625
-}
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor 0.125 -0.3984375
   anchor 0.328125 -0.1640625
   anchor 0.1484375 -0.1640625 -0.018655695
@@ -22,7 +8,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.15625 -0.09375
   anchor -0.1171875 -0.09375
   anchor -0.1171875 0.0703125
@@ -31,7 +17,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.0625 -0.09375
   anchor 0.015625 -0.09375
   anchor 0.015625 -0.0625
@@ -44,7 +30,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.15625 -0.09375
   anchor -0.1171875 -0.09375
   anchor -0.1171875 0.0703125
@@ -53,7 +39,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.15625 -0.0625
   anchor -0.1953125 -0.0625
   anchor -0.1953125 -0.09375
@@ -61,7 +47,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor 0.1328125 -0.09375
   anchor 0.171875 -0.09375
   anchor 0.171875 0.0703125
@@ -70,7 +56,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor 0.1328125 -0.0625
   anchor 0.09375 -0.0625
   anchor 0.09375 -0.09375
@@ -78,7 +64,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.0078125 0.1171875
   anchor 0.03125 0.1171875
   anchor 0.03125 0.28125
@@ -87,7 +73,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.0078125 0.15625
   anchor -0.046875 0.15625
   anchor -0.046875 0.1171875
@@ -95,7 +81,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor 0.0546875 0.0703125
   anchor 0.015625 0.0703125
   anchor 0.015625 -0.09375
@@ -103,7 +89,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.203125 0.1171875
   anchor -0.125 0.1171875
   anchor -0.125 0.1484375
@@ -115,7 +101,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor -0.0859375 0.28125
   anchor -0.125 0.28125
   anchor -0.125 0.1171875
@@ -123,7 +109,7 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor 0.0859375 0.1171875
   anchor 0.1640625 0.1171875
   anchor 0.1640625 0.1484375
@@ -135,10 +121,25 @@ path {
 }
 
 path {
-  fill 9 1
+  fill #D4D4D4
   anchor 0.203125 0.28125
   anchor 0.1640625 0.28125
   anchor 0.1640625 0.1171875
   anchor 0.203125 0.1171875
+}
+
+path {
+  fill #FFFFFF
+  anchor 0.328125 -0.1640625
+  anchor 0.328125 0.3671875 -0.00952738
+  anchor 0.296875 0.3984375
+  anchor -0.3046875 0.3984375
+  anchor -0.328125 0.3984375
+  anchor -0.328125 0.375
+  anchor -0.328125 -0.3671875 -0.0095537845
+  anchor -0.296875 -0.3984375
+  anchor 0.125 -0.3984375
+  anchor 0.125 -0.1953125 0.018655695
+  anchor 0.1484375 -0.1640625
 }
 

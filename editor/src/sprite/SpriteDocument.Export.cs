@@ -146,6 +146,7 @@ public partial class SpriteDocument
 
         var totalSlots = (ushort)TotalTimeSlots;
         var isStandalone = !ShouldAtlas || Atlas == null;
+        var boneIndex = (short)BoneIndex;
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
@@ -157,7 +158,7 @@ public partial class SpriteDocument
         writer.Write((short)RasterBounds.Bottom);
         writer.Write((float)EditorApplication.Config.PixelsPerUnit);
         writer.Write((byte)TextureFilter.Linear);
-        writer.Write((short)-1);  // Legacy bone index field
+        writer.Write(boneIndex);
         writer.Write(totalSlots); // totalMeshes = 1 per frame = totalSlots
         writer.Write(DefaultFrameRate);
 
@@ -183,7 +184,7 @@ public partial class SpriteDocument
             {
                 uv = GetAtlasUV(frameIndex);
             }
-            WriteMesh(writer, uv, sortOrder: 0, boneIndex: -1, RasterBounds);
+            WriteMesh(writer, uv, sortOrder: 0, boneIndex: boneIndex, RasterBounds);
         }
 
         // Frame table

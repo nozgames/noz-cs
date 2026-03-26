@@ -31,6 +31,10 @@ public partial class SpriteDocument
             }
             else if (tk.ExpectIdentifier("skeleton"))
                 Skeleton.Name = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("bone"))
+                BoneName = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("sort"))
+                SortOrderId = tk.ExpectQuotedString();
             else if (tk.ExpectIdentifier("generate"))
                 ParseGeneration(ref tk);
             else
@@ -214,6 +218,12 @@ public partial class SpriteDocument
 
         if (Skeleton.HasValue)
             writer.WriteLine($"skeleton \"{Skeleton.Name}\"");
+
+        if (BoneName != null)
+            writer.WriteLine($"bone \"{BoneName}\"");
+
+        if (SortOrderId != null)
+            writer.WriteLine($"sort \"{SortOrderId}\"");
 
         SaveLayers(writer);
         SaveGeneration(writer);

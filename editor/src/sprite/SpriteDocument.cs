@@ -10,6 +10,8 @@ namespace NoZ.Editor;
 
 public partial class SpriteDocument : Document, ISkeletonAttachment
 {
+    private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
+
     public const float DefaultFrameRate = 12f;
 
     public override bool CanSave => IsMutable;
@@ -22,8 +24,15 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     private Vector2Int _sourceImageSize;
     private Texture? _standaloneTexture;
     private int _standaloneTextureVersion = -1;
+    
+    public byte SortOrder { get; private set; }
 
-    private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
+    private string? _sortOrderId;
+    public string? SortOrderId
+    {
+        get => _sortOrderId;
+        set { _sortOrderId = value; ResolveSortOrder(); }
+    }
 
     public bool ShouldAtlas
     {
@@ -95,6 +104,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     internal AtlasDocument? Atlas { get; set; }
 
     public DocumentRef<SkeletonDocument> Skeleton;
+    public string? BoneName;
+    public int BoneIndex { get; private set; } = -1;
 
     public bool ShouldShowInSkeleton(SkeletonDocument skeleton) => ShowInSkeleton;
 
@@ -123,7 +134,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         return Math.Min(frameIndex, AnimFrames.Count - 1);
     }
 
-    public void DrawSkinned(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform)
+    public void DrawSkinned(
+        ReadOnlySpan<Matrix3x2> bindPose,
+        ReadOnlySpan<Matrix3x2> animatedPose,
+        in Matrix3x2 baseTransform)
     {
         DrawSprite(bindPose, animatedPose, baseTransform);
     }
@@ -248,6 +262,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         Edges = EdgeInsets.Zero;
         Skeleton.Clear();
+        BoneName = null;
         ReloadGeneration();
         RootLayer.Clear();
         AnimFrames.Clear();
@@ -259,7 +274,23 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         Skeleton.Resolve();
         ResolveGeneration();
+        ResolveSortOrder();
+        ResolveBone();
         UpdateBounds();
+    }
+
+    public void ResolveBone()
+    {
+        BoneIndex = -1;
+        if (BoneName != null && Skeleton.Value is { } skel)
+            BoneIndex = skel.FindBoneIndex(BoneName);
+    }
+
+    private void ResolveSortOrder()
+    {
+        SortOrder = 0;
+        if (EditorApplication.Config != null && EditorApplication.Config.TryGetSortOrder(_sortOrderId, out var def))
+            SortOrder = def.SortOrder;
     }
 
     public void UpdateBounds()
@@ -633,7 +664,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
                     bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
 
                 Graphics.SetColor(Color.White);
-                Graphics.SetTransform(baseTransform);
+
+                var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
+                var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
+                Graphics.SetTransform(transform);
                 Graphics.Draw(bounds, sf.UV);
             }
         }
@@ -651,6 +685,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         Edges = src.Edges;
         Skeleton = src.Skeleton;
+        BoneName = src.BoneName;
 
         // Clone layer model
         RootLayer.Clear();
@@ -727,6 +762,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         Skeleton.Resolve();
         PostLoadGeneration();
+        ResolveSortOrder();
+        ResolveBone();
     }
 
     public override void GetReferences(List<Document> references)

@@ -26,6 +26,7 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId PlayButton { get; }
         public static partial WidgetId ConstraintDropDown { get; }
         public static partial WidgetId SkeletonDropDown { get; }
+        public static partial WidgetId BoneDropDown { get; }
         public static partial WidgetId ShowInSkeleton { get; }
         public static partial WidgetId ShowSkeletonOverlay { get; }
         public static partial WidgetId PathNormal { get; }
@@ -56,6 +57,7 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId DopeSheetToggle { get; }
         public static partial WidgetId VModeButton { get; }
         public static partial WidgetId AModeButton { get; }
+        public static partial WidgetId SortOrder { get; }
     }
 
     private static readonly WordGenerator _wordGenerator = new();
@@ -66,6 +68,12 @@ public partial class SpriteEditor : DocumentEditor
     private readonly int _versionOnOpen;
 
     public new SpriteDocument Document => (SpriteDocument)base.Document;
+
+    public int CurrentTimeSlot => _currentTimeSlot;
+
+    public bool IsPlaying => _isPlaying;
+
+    public static List<SpritePath> HitPaths => _hitPaths;
 
     public override bool ShowInspector => true;
 
@@ -111,8 +119,6 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
-    public int CurrentTimeSlot => _currentTimeSlot;
-    public bool IsPlaying => _isPlaying;
 
     public override void Dispose()
     {
@@ -735,9 +741,9 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
-    private readonly List<SpriteNode.AnchorHitResult> _anchorHitResults = new();
-    private readonly List<SpritePath> _pathHitResults = new();
-    private readonly List<SpritePath> _hitPaths = new();
+    private static readonly List<SpriteNode.AnchorHitResult> _anchorHitResults = [];
+    private static readonly List<SpritePath> _pathHitResults = [];
+    private static readonly List<SpritePath> _hitPaths = [];
 
     private void HandleLeftClick()
     {
@@ -852,17 +858,18 @@ public partial class SpriteEditor : DocumentEditor
 
         var segHit = Document.RootLayer.HitTestSegment(localMousePos);
 
-        _hitPaths.Clear();
+        HitPaths.Clear();
 
-        void AddPath(SpritePath path)
+        static void AddPath(SpritePath path)
         {
-            if (_hitPaths.Contains(path)) return;
-            _hitPaths.Add(path);
-            if (_hitPaths.Count == 1)
+            if (HitPaths.Contains(path)) return;
+            HitPaths.Add(path);
+            if (HitPaths.Count == 1)
             {
                 var layer = path.Parent as SpriteLayer;
-                if (layer != null && layer != Document.ActiveLayer)
-                    Document.ActiveLayer = layer;
+                var doc = (SpriteDocument)Workspace.ActiveDocument!;
+                if (layer != null && layer != doc.ActiveLayer)
+                    doc.ActiveLayer = layer;
             }
         }
 
@@ -873,25 +880,25 @@ public partial class SpriteEditor : DocumentEditor
         if (segHit.HasValue)
             AddPath(segHit.Value.Path);
 
-        if (_hitPaths.Count == 0)
+        if (HitPaths.Count == 0)
             return false;
 
         if (!shift)
         {
             // Without shift: select topmost, or cycle if already selected
-            var topmost = _hitPaths[0];
+            var topmost = HitPaths[0];
             if (topmost.IsSelected)
             {
                 // Cycle: find next unselected, or wrap
                 SpritePath? next = null;
-                for (var i = 1; i < _hitPaths.Count; i++)
+                for (var i = 1; i < HitPaths.Count; i++)
                 {
-                    next = _hitPaths[i];
+                    next = HitPaths[i];
                     break;
                 }
 
                 Document.RootLayer.ClearSelection();
-                (next ?? _hitPaths[0]).SelectPath();
+                (next ?? HitPaths[0]).SelectPath();
             }
             else
             {
@@ -903,7 +910,7 @@ public partial class SpriteEditor : DocumentEditor
         {
             // Shift: add the next unselected path to selection
             SpritePath? nextUnselected = null;
-            foreach (var p in _hitPaths)
+            foreach (var p in HitPaths)
             {
                 if (!p.IsSelected)
                 {
@@ -916,10 +923,10 @@ public partial class SpriteEditor : DocumentEditor
             {
                 nextUnselected.SelectPath();
             }
-            else if (_hitPaths.Count > 0)
+            else if (HitPaths.Count > 0)
             {
                 // All selected — wrap: deselect topmost, it cycles visually
-                _hitPaths[0].DeselectPath();
+                HitPaths[0].DeselectPath();
             }
         }
 
@@ -1286,6 +1293,15 @@ public partial class SpriteEditor : DocumentEditor
             ], constraintLabel, EditorAssets.Sprites.IconConstraint);
         }
 
+        using (Inspector.BeginProperty("Sort Order"))
+        {
+            EditorUI.SortOrderDropDown(WidgetIds.SortOrder, Document.SortOrderId, id =>
+            {
+                Undo.Record(Document);
+                Document.SortOrderId = id;
+            });
+        }
+
         // Skeleton
         using (Inspector.BeginProperty("Skeleton"))
         {
@@ -1307,12 +1323,32 @@ public partial class SpriteEditor : DocumentEditor
                 }
 
                 skeletonItems.Add(new PopupMenuItem { Label = "None", Handler = ClearSkeletonBinding });
-                return skeletonItems.ToArray();
+                return [.. skeletonItems];
             }, skeletonLabel, EditorAssets.Sprites.IconBone);
         }
 
         if (Document.Skeleton.IsResolved)
         {
+            using (Inspector.BeginProperty("Bone"))
+            {
+                var skeleton = Document.Skeleton.Value!;
+                var boneLabel = Document.BoneName ?? "None";
+
+                UI.DropDown(WidgetIds.BoneDropDown, () =>
+                {
+                    var boneItems = new List<PopupMenuItem>();
+
+                    for (var i = 0; i < skeleton.BoneCount; i++)
+                    {
+                        var boneName = skeleton.Bones[i].Name;
+                        boneItems.Add(new PopupMenuItem { Label = boneName, Handler = () => CommitBoneBinding(boneName) });
+                    }
+
+                    boneItems.Add(new PopupMenuItem { Label = "None", Handler = () => CommitBoneBinding(null) });
+                    return [.. boneItems];
+                }, boneLabel, EditorAssets.Sprites.IconBone);
+            }
+
             if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowInSkeleton))
             {
                 Undo.Record(Document);
@@ -1693,7 +1729,16 @@ public partial class SpriteEditor : DocumentEditor
         var skeleton = Document.Skeleton.Value;
         Undo.Record(Document);
         Document.Skeleton.Clear();
+        Document.BoneName = null;
         skeleton?.UpdateSprites();
+    }
+
+    private void CommitBoneBinding(string? boneName)
+    {
+        Undo.Record(Document);
+        Document.BoneName = boneName;
+        Document.ResolveBone();
+        Document.Skeleton.Value?.UpdateSprites();
     }
 
     #endregion

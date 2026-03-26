@@ -254,4 +254,27 @@ internal static partial class EditorUI
         else
             UI.Container(new ContainerStyle { Height = 1, Background = EditorStyle.Palette.Separator });
     }
+
+    public static void SortOrderDropDown(WidgetId id, string? sortOrderId, Action<string?> onChanged)
+    {
+        var config = EditorApplication.Config;
+        var label = "None";
+        if (config != null && !string.IsNullOrEmpty(sortOrderId) && config.TryGetSortOrder(sortOrderId, out var current))
+            label = current.Label;
+
+        UI.DropDown(id, () =>
+        {
+            var items = new List<PopupMenuItem>();
+            if (config != null)
+            {
+                foreach (var def in config.SortOrders)
+                {
+                    var defId = def.Id;
+                    items.Add(new PopupMenuItem { Label = $"{def.Label} {def.SortOrderLabel}", Handler = () => onChanged(defId) });
+                }
+            }
+            items.Add(new PopupMenuItem { Label = "None", Handler = () => onChanged(null) });
+            return [.. items];
+        }, label);
+    }
 }

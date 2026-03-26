@@ -113,7 +113,7 @@ public static partial class Graphics
         if (!rt.IsValid) return;
 
         using var _ = PushState();
-        SetShader(_spriteShader!);
+        SetShader(_textureShader!);
         SetTexture(rt.Handle, filter: TextureFilter.Linear);
         SetBlendMode(BlendMode.Alpha);
 
@@ -150,7 +150,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetShader(_spriteShader!);
+            SetShader(sprite.HasTexture ? _textureShader! : _spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
             Span<MeshVertex> verts =
@@ -181,7 +181,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetShader(_spriteShader!);
+            SetShader(sprite.HasTexture ? _textureShader! : _spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
             Span<MeshVertex> verts =
@@ -218,7 +218,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetShader(_spriteShader!);
+            SetShader(sprite.HasTexture ? _textureShader! : _spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
             Span<MeshVertex> verts =
@@ -350,7 +350,7 @@ public static partial class Graphics
         using (PushState())
         {
             SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetShader(_spriteShader!);
+            SetShader(sprite.HasTexture ? _textureShader! : _spriteShader!);
             SetTextureFilter(sprite.TextureFilter);
 
             for (int row = 0; row < 3; row++)

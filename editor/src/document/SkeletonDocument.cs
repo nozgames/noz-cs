@@ -795,6 +795,12 @@ public class SkeletonDocument : Document
 
     public void NotifyBoneRenamed(int boneIndex, string oldName, string newName)
     {
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (doc is SpriteDocument sprite && sprite.Skeleton.Value == this && sprite.BoneName == oldName)
+                sprite.BoneName = newName;
+        }
+
         BoneRenamed?.Invoke(this, boneIndex, oldName, newName);
         UpdateSprites();
     }
