@@ -184,10 +184,10 @@ public static class Grid
 
     public static Vector2 SnapToPixelGrid(Vector2 position)
     {
-        var spacing = 1f / (float)EditorApplication.Config!.PixelsPerUnit;
+        var ppu = (float)EditorApplication.Config!.PixelsPerUnit;
         return new Vector2(
-            MathF.Round(position.X / spacing) * spacing,
-            MathF.Round(position.Y / spacing) * spacing
+            MathF.Round(position.X * ppu) / ppu,
+            MathF.Round(position.Y * ppu) / ppu
         );
     }
 

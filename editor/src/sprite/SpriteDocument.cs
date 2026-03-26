@@ -10,6 +10,8 @@ namespace NoZ.Editor;
 
 public partial class SpriteDocument : Document, ISkeletonAttachment
 {
+    public const float DefaultFrameRate = 12f;
+
     public override bool CanSave => IsMutable;
 
     public bool IsMutable { get; private set; } = true;
@@ -44,6 +46,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public SpriteLayer? ActiveLayer { get; set; }
 
     private readonly List<Rect> _atlasUV = new();
+    private readonly List<SpritePath> _visiblePathsCache = new();
     private Sprite? _sprite;
     public float Depth;
     public RectInt RasterBounds { get; private set; }
@@ -54,7 +57,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public byte CurrentStrokeWidth = 1;
     public SpritePathOperation CurrentOperation;
 
-    public bool IsActiveLayerLocked => false;
+    public bool IsActiveLayerLocked => ActiveLayer?.Locked ?? false;
 
     public int TotalTimeSlots
     {
@@ -133,10 +136,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             if (_sprite == null) UpdateSprite();
             return _sprite;
         }
-    }
-
-    static SpriteDocument()
-    {
     }
 
     public static void RegisterDef()
@@ -270,10 +269,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             return;
         }
 
-        var allPaths = new List<SpritePath>();
-        RootLayer.CollectVisiblePaths(allPaths);
+        _visiblePathsCache.Clear();
+        RootLayer.CollectVisiblePaths(_visiblePathsCache);
 
-        if (allPaths.Count == 0)
+        if (_visiblePathsCache.Count == 0)
         {
             SetDefaultBounds();
             return;
@@ -282,7 +281,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         var first = true;
         var bounds = Rect.Zero;
 
-        foreach (var path in allPaths)
+        foreach (var path in _visiblePathsCache)
         {
             path.UpdateSamples();
             path.UpdateBounds();
@@ -313,11 +312,11 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         }
 
         var dpi = EditorApplication.Config.PixelsPerUnit;
-        RasterBounds = new RectInt(
-            (int)MathF.Floor(bounds.X * dpi),
-            (int)MathF.Floor(bounds.Y * dpi),
-            (int)MathF.Ceiling(bounds.Width * dpi),
-            (int)MathF.Ceiling(bounds.Height * dpi));
+        var rMinX = SnapFloor(bounds.X * dpi);
+        var rMinY = SnapFloor(bounds.Y * dpi);
+        var rMaxX = SnapCeil(bounds.Right * dpi);
+        var rMaxY = SnapCeil(bounds.Bottom * dpi);
+        RasterBounds = new RectInt(rMinX, rMinY, rMaxX - rMinX, rMaxY - rMinY);
 
         Bounds = bounds;
 
@@ -382,6 +381,18 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         {
             Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
         }
+    }
+
+    private static int SnapFloor(float v)
+    {
+        var r = MathF.Round(v);
+        return (int)(MathF.Abs(v - r) < 0.01f ? r : MathF.Floor(v));
+    }
+
+    private static int SnapCeil(float v)
+    {
+        var r = MathF.Round(v);
+        return (int)(MathF.Abs(v - r) < 0.01f ? r : MathF.Ceiling(v));
     }
 
     private void ClampToMaxSpriteSize()
@@ -472,6 +483,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             Graphics.SetTransform(Transform);
             Graphics.SetTexture(texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetTextureFilter(TextureFilter.Linear);
             Graphics.SetColor(color);
             if (uv.HasValue)
                 Graphics.Draw(bounds, uv.Value);

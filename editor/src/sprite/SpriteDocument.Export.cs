@@ -159,7 +159,7 @@ public partial class SpriteDocument
         writer.Write((byte)TextureFilter.Linear);
         writer.Write((short)-1);  // Legacy bone index field
         writer.Write(totalSlots); // totalMeshes = 1 per frame = totalSlots
-        writer.Write(12.0f);  // Frame rate
+        writer.Write(DefaultFrameRate);
 
         // 9-slice edges
         var activeEdges = ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero;

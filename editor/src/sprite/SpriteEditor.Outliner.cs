@@ -492,6 +492,7 @@ public partial class SpriteEditor
             if (!shift && !ctrl)
                 Document.RootLayer.ClearSelection();
             Document.ActiveLayer = layer;
+            layer.ForEachEditablePath(p => p.SelectPath());
             RebuildSelectedPaths();
             return;
         }

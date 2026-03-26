@@ -7,17 +7,23 @@ The `.sprite` format is a text-based vector path format used by the NoZ engine f
 ```
 [global properties]
 
-[frame]
-[hold N]
+layer "name" {
+  path ["name"] {
+    [path properties]
+    anchor X Y [CURVE]
+    anchor X Y [CURVE]
+    ...
+  }
+}
 
-path
-  [path properties]
-  anchor X Y [CURVE]
-  anchor X Y [CURVE]
+path {
   ...
+}
 
-path
-  ...
+frame {
+  hold N
+  visible "Layer1" "Layer2"
+}
 ```
 
 ## Global Properties
@@ -33,23 +39,22 @@ Note: The `palette` keyword is legacy and ignored by the parser. Colors are stor
 For animated sprites, use `frame` to define multiple frames:
 
 ```
-frame
-hold 3
+frame {
+  hold 3
+  visible "Layer1" "Layer2"
+}
 
-path
-...
-
-frame
-hold 2
-
-path
-...
+frame {
+  hold 2
+  visible "Layer1"
+}
 ```
 
 | Property | Syntax | Description |
 |----------|--------|-------------|
-| `frame` | `frame` | Starts a new animation frame. |
-| `hold` | `hold N` | Number of extra ticks to hold this frame (integer). Appears on its own line after `frame`. |
+| `frame` | `frame { ... }` | Starts a new animation frame block. |
+| `hold` | `hold N` | Number of extra ticks to hold this frame (integer). Inside `frame` block. |
+| `visible` | `visible "Layer1" "Layer2"` | Layer names visible during this frame. Inside `frame` block. |
 
 For single-frame sprites, `frame` can be omitted entirely. Paths are implicitly part of frame 0.
 
@@ -66,8 +71,10 @@ Each `path` keyword starts a new vector shape. Paths are rendered in order (late
 | `fill` | `fill COLOR [OPACITY]` | Fill color. See Color Formats below. |
 | `stroke` | `stroke COLOR [WIDTH]` | Stroke outline with width in stroke units (1 unit = 0.005 world units). |
 | `operation` | `operation subtract\|clip` | Path boolean operation. `subtract` cuts from geometry below; `clip` intersects with geometry below. Omitted for normal paths. |
-| `layer` | `layer "name"` | Assigns to a named sprite layer (for multi-mesh sprites). |
-| `bone` | `bone "name"` | Binds this path to a skeleton bone for animation. |
+| `open` | `open true` | If true, path doesn't close (no final anchor→first segment). |
+| `translate` | `translate X Y` | Per-path translation offset. |
+| `rotate` | `rotate DEGREES` | Per-path rotation in degrees. |
+| `scale` | `scale X Y` | Per-path scale factors. |
 
 ### Color Formats
 
@@ -153,12 +160,9 @@ Sprite rendering converts pixel bounds to world units by dividing by `PixelsPerU
 | Constant | Value |
 |----------|-------|
 | `Sprite.MaxFrames` | 64 |
-| `Shape.MaxAnchors` | 1024 |
-| `Shape.MaxPaths` | 256 |
-| `Shape.MaxAnchorsPerPath` | 128 |
-| `Shape.MaxSegmentSamples` | 8 |
-| `Shape.MinCurve` | 0.0001 |
-| `Shape.StrokeScale` | 0.005 |
+| `SpritePath.MaxSegmentSamples` | 8 |
+| `SpritePath.MinCurve` | 0.0001 |
+| `SpritePath.StrokeScale` | 0.005 |
 | Default `PixelsPerUnit` | 64 |
 | Default `FrameRate` | 12 fps |
 
@@ -214,7 +218,7 @@ anchor -0.21 0.09 -0.035
 
 path
 fill #FFFFFF
-subtract true
+operation subtract
 anchor -0.09 -0.03 -0.023
 anchor -0.14 0.01 -0.023
 anchor -0.18 -0.03 -0.023
@@ -249,8 +253,8 @@ anchor 0.03 -0.265
 ## Tips
 
 - **Path order matters**: Later paths render on top. Draw base shapes first, then details.
-- **Subtract paths**: Use `subtract true` to punch holes (donut shapes, cutout details).
-- **Clip paths**: Use `clip true` to intersect with geometry below (masking effects).
+- **Subtract paths**: Use `operation subtract` to punch holes (donut shapes, cutout details).
+- **Clip paths**: Use `operation clip` to intersect with geometry below (masking effects).
 - **Rounded rectangles**: 4 anchors with curve values around `-0.015` to `-0.02`.
 - **Circles/ovals**: 4 anchors in a diamond with curve values around `-0.05` to `-0.07`.
 - **Thin lines**: Create narrow filled shapes rather than using strokes for better control.
@@ -259,8 +263,9 @@ anchor 0.03 -0.265
 
 ## Source Reference
 
-- Text format parser: `noz/editor/src/document/SpriteDocument.cs` — `Load()` and `ParsePath()` methods
+- Text format parser: `noz/editor/src/Sprite/SpriteDocument.File.cs` — `Load()` and `ParsePath()` methods
+- Vector paths: `noz/editor/src/Sprite/SpritePath.cs` — anchors, bezier curves, hit testing
+- Boolean operations: `noz/editor/src/Sprite/SpriteLayerProcessor.cs` — layer-scoped subtract/clip
 - Runtime sprite class: `noz/engine/src/graphics/Sprite.cs`
 - Sprite rendering: `noz/engine/src/graphics/Graphics.Draw.cs`
 - Rasterizer: `noz/editor/src/Rasterizer.cs`
-- Shape geometry: `noz/editor/src/Shape.cs`

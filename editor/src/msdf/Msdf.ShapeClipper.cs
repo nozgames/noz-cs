@@ -1,5 +1,5 @@
 //
-//  Clipper2 boolean operations on MSDF shapes, plus sprite path conversion.
+//  Clipper2 boolean operations on MSDF shapes for font SDF generation.
 //
 
 using System;
@@ -50,7 +50,7 @@ internal static class ShapeClipper
         return TreeToShape(tree, subject) ?? subject;
     }
 
-    internal static PathsD ShapeToPaths(Shape shape, int stepsPerCurve)
+    private static PathsD ShapeToPaths(Shape shape, int stepsPerCurve)
     {
         var paths = new PathsD();
         foreach (var contour in shape.contours)
@@ -128,18 +128,6 @@ internal static class ShapeClipper
 
         for (int i = 0; i < node.Count; i++)
             CollectContours(node[i], shape);
-    }
-
-    // Ensure all contours wind in the same direction (positive).
-    // Sprites have no holes, so all paths should be outer contours
-    // with consistent winding for NonZero fill rule to union correctly.
-    private static void NormalizeWindings(Shape shape)
-    {
-        foreach (var contour in shape.contours)
-        {
-            if (contour.Winding() < 0)
-                contour.Reverse();
-        }
     }
 
 }

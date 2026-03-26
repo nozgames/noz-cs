@@ -16,7 +16,7 @@ public enum SpritePathOperation : byte
 public class SpritePath : SpriteNode
 {
     public const int MaxSegmentSamples = 8;
-    public const float StrokeScale = 0.005f;
+    public static float StrokeScale => EditorApplication.Config.PixelsPerUnitInv;
     public const float MinCurve = 0.0001f;
 
     public List<SpritePathAnchor> Anchors { get; } = new();
@@ -162,14 +162,6 @@ public class SpritePath : SpriteNode
             }
         }
 
-        var halfStroke = (StrokeColor.A > 0 && StrokeWidth > 0)
-            ? StrokeWidth * StrokeScale : 0f;
-        if (halfStroke > 0)
-        {
-            min -= new Vector2(halfStroke, halfStroke);
-            max += new Vector2(halfStroke, halfStroke);
-        }
-
         LocalBounds = Rect.FromMinMax(min, max);
 
         // Compute world bounds by transforming each anchor and sample individually
@@ -198,38 +190,12 @@ public class SpritePath : SpriteNode
                 }
             }
 
-            if (halfStroke > 0)
-            {
-                wMin -= new Vector2(halfStroke, halfStroke);
-                wMax += new Vector2(halfStroke, halfStroke);
-            }
-
             Bounds = Rect.FromMinMax(wMin, wMax);
         }
         else
         {
             Bounds = LocalBounds;
         }
-    }
-
-    // After anchor edits, LocalBounds.Center may have shifted. Adjust PathTranslation
-    // so the world-space appearance of the path is preserved with the new center.
-    public void CompensateTranslationForCenterShift()
-    {
-        if (!HasTransform) return;
-
-        var center = LocalBounds.Center;
-
-        // World position of center under current transform:
-        // T(-center) * S * R * T(center) * T(translation) applied to center = S*R*0 + center + translation = center + translation
-        // This simplifies: the center always maps to (center + PathTranslation) regardless of S/R.
-        // So if the center shifts from C_old to C_new, we need:
-        //   C_old + T_old = C_new + T_new
-        //   T_new = T_old + C_old - C_new
-        // But we've already updated bounds, so LocalBounds.Center IS the new center.
-        // We need the old center... which we don't have here.
-
-        // Instead: recompute. The caller should capture oldCenter before UpdateBounds().
     }
 
     public void CompensateTranslation(Vector2 oldCenter)

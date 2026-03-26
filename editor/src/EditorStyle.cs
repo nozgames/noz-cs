@@ -523,7 +523,7 @@ public static class EditorStyle
     public static class Shape
     {
         public const float AnchorSize = 0.12f;
-        public const float AnchorHitSize = AnchorSize * 2.0f;
+        public const float AnchorHitSize = AnchorSize;
         public const float SegmentLineWidth = 0.016f;
         public const float SegmentHitSize = SegmentLineWidth * 12.0f;
 

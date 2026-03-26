@@ -55,24 +55,23 @@ public sealed class PathClipboardData
     }
 
     public PathData[] Paths { get; }
-    public Vector2 Center { get; }
 
-    public PathClipboardData(SpritePath path)
+    public PathClipboardData(IReadOnlyList<SpritePath> paths)
     {
-        var anchors = new Vector2[path.Anchors.Count];
-        var curves = new float[path.Anchors.Count];
-        var sum = Vector2.Zero;
-
-        for (var i = 0; i < path.Anchors.Count; i++)
+        Paths = new PathData[paths.Count];
+        for (var p = 0; p < paths.Count; p++)
         {
-            anchors[i] = path.Anchors[i].Position;
-            curves[i] = path.Anchors[i].Curve;
-            sum += anchors[i];
-        }
+            var path = paths[p];
+            var anchors = new Vector2[path.Anchors.Count];
+            var curves = new float[path.Anchors.Count];
 
-        Paths =
-        [
-            new PathData
+            for (var i = 0; i < path.Anchors.Count; i++)
+            {
+                anchors[i] = path.Anchors[i].Position;
+                curves[i] = path.Anchors[i].Curve;
+            }
+
+            Paths[p] = new PathData
             {
                 FillColor = path.FillColor,
                 StrokeColor = path.StrokeColor,
@@ -80,30 +79,33 @@ public sealed class PathClipboardData
                 Operation = path.Operation,
                 Anchors = anchors,
                 Curves = curves,
-            }
-        ];
-
-        Center = path.Anchors.Count > 0 ? sum / path.Anchors.Count : Vector2.Zero;
+            };
+        }
     }
 
-    public SpritePath PasteAsPath()
+    public List<SpritePath> PasteAsPaths()
     {
-        var result = new SpritePath();
+        var results = new List<SpritePath>(Paths.Length);
 
         foreach (var pathData in Paths)
         {
-            result.FillColor = pathData.FillColor;
-            result.StrokeColor = pathData.StrokeColor;
-            result.StrokeWidth = pathData.StrokeWidth;
-            result.Operation = pathData.Operation;
+            var path = new SpritePath
+            {
+                FillColor = pathData.FillColor,
+                StrokeColor = pathData.StrokeColor,
+                StrokeWidth = pathData.StrokeWidth,
+                Operation = pathData.Operation,
+            };
 
             for (var a = 0; a < pathData.Anchors.Length; a++)
-                result.AddAnchor(pathData.Anchors[a], pathData.Curves[a]);
+                path.AddAnchor(pathData.Anchors[a], pathData.Curves[a]);
+
+            path.SelectPath();
+            path.UpdateSamples();
+            path.UpdateBounds();
+            results.Add(path);
         }
 
-        result.SelectAll();
-        result.UpdateSamples();
-        result.UpdateBounds();
-        return result;
+        return results;
     }
 }

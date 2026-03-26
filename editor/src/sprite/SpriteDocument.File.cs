@@ -206,16 +206,11 @@ public partial class SpriteDocument
     {
         writer.WriteLine();
 
-        // Paths directly on root layer are written at top level (no wrapping layer)
         foreach (var child in RootLayer.Children)
         {
             if (child is SpritePath path)
                 SavePath(writer, path, 0);
-        }
-
-        foreach (var child in RootLayer.Children)
-        {
-            if (child is SpriteLayer layer)
+            else if (child is SpriteLayer layer)
                 SaveLayer(writer, layer, 0);
         }
 

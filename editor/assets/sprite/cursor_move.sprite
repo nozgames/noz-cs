@@ -1,0 +1,39 @@
+
+layer "Layer 5" {
+  path "" {
+    translate 0.0006198883 0.025473595
+    fill #000000
+    stroke #FFFFFF 1
+    anchor 0.055434942 -0.12607765
+    anchor -0.054104805 -0.12696171
+    anchor -0.00021839142 -0.2135334
+  }
+
+  path "" {
+    translate 0.0013195034 -0.049689293
+    scale 1.7837709 1
+    fill #000000
+    stroke #FFFFFF 1
+    anchor -0.014352322 -0.08985901
+    anchor -0.014352322 0.1654396
+    anchor 0.012148857 0.1654396
+    anchor 0.012148857 -0.08985901
+  }
+
+}
+
+layer "Layer 7" {
+  path "" {
+    translate -0.0016859383 -0.0379731
+    rotate 90
+    scale 1.772315 1
+    fill #000000
+    stroke #FFFFFF 1
+    anchor -0.014352322 -0.08985901
+    anchor -0.014352322 0.1654396
+    anchor 0.012148857 0.1654396
+    anchor 0.012148857 -0.08985901
+  }
+
+}
+

@@ -57,7 +57,6 @@ public partial class SpriteEditor : DocumentEditor
     private int _currentTimeSlot;
     private bool _isPlaying;
     private float _playTimer;
-    //private PopupMenuItem[] _contextMenuItems;
     private readonly int _versionOnOpen;
 
     public new SpriteDocument Document => (SpriteDocument)base.Document;
@@ -85,8 +84,8 @@ public partial class SpriteEditor : DocumentEditor
                 new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
                 new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
                 new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
-                new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI },
-                new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO },
+                new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI, Ctrl = true },
+                new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO, Ctrl = true },
                 new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
                 new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
                 new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
@@ -115,11 +114,6 @@ public partial class SpriteEditor : DocumentEditor
             AtlasManager.UpdateSource(Document);
 
         base.Dispose();
-    }
-
-    public override void OpenContextMenu(WidgetId id)
-    {
-        //PopupMenu.Open(id, _contextMenuItems, "Sprite");
     }
 
     public override void OnUndoRedo()
@@ -494,11 +488,13 @@ public partial class SpriteEditor : DocumentEditor
 
         foreach (var path in _selectedPaths)
             path.StrokeWidth = width;
+
+        InvalidateMesh();
     }
 
     private void CycleSpritePathOperation()
     {
-        Document.CurrentOperation = Document.CurrentOperation switch
+        var newOp = Document.CurrentOperation switch
         {
             SpritePathOperation.Normal => SpritePathOperation.Subtract,
             SpritePathOperation.Subtract => SpritePathOperation.Clip,
@@ -508,9 +504,13 @@ public partial class SpriteEditor : DocumentEditor
         if (_selectedPaths.Count > 0)
         {
             Undo.Record(Document);
+            Document.CurrentOperation = newOp;
             foreach (var path in _selectedPaths)
-                path.Operation = Document.CurrentOperation;
-            Document.IncrementVersion();
+                path.Operation = newOp;
+        }
+        else
+        {
+            Document.CurrentOperation = newOp;
         }
     }
 
@@ -570,45 +570,71 @@ public partial class SpriteEditor : DocumentEditor
 
     private void FlipAxis(bool horizontal)
     {
-        var path = GetPathWithSelection();
-        if (path == null) return;
+        if (_selectedPaths.Count == 0) return;
 
-        var centroid = path.GetSelectedCentroid();
-        if (!centroid.HasValue) return;
+        // Compute centroid across all selected paths
+        var sum = Vector2.Zero;
+        var count = 0;
+        foreach (var path in _selectedPaths)
+        {
+            foreach (var anchor in path.Anchors)
+            {
+                sum += anchor.Position;
+                count++;
+            }
+        }
+        if (count == 0) return;
+        var centroid = sum / count;
 
         Undo.Record(Document);
-        for (var i = 0; i < path.Anchors.Count; i++)
+        foreach (var path in _selectedPaths)
         {
-            if (!path.Anchors[i].IsSelected) continue;
-            var a = path.Anchors[i];
-            a.Position = horizontal
-                ? new Vector2(2 * centroid.Value.X - a.Position.X, a.Position.Y)
-                : new Vector2(a.Position.X, 2 * centroid.Value.Y - a.Position.Y);
-            a.Curve = -a.Curve;
-            path.Anchors[i] = a;
+            for (var i = 0; i < path.Anchors.Count; i++)
+            {
+                var a = path.Anchors[i];
+                a.Position = horizontal
+                    ? new Vector2(2 * centroid.X - a.Position.X, a.Position.Y)
+                    : new Vector2(a.Position.X, 2 * centroid.Y - a.Position.Y);
+                a.Curve = -a.Curve;
+                path.Anchors[i] = a;
+            }
+            path.MarkDirty();
+            path.UpdateSamples();
+            path.UpdateBounds();
         }
-        path.MarkDirty();
-        path.UpdateSamples();
-        path.UpdateBounds();
         Document.UpdateBounds();
     }
 
     private void MovePathInOrder(int direction)
     {
-        var path = GetFirstSelectedPath();
-        if (path == null) return;
+        if (_selectedPaths.Count == 0) return;
 
-        var parent = path.Parent;
-        if (parent == null) return;
-
-        var idx = parent.Children.IndexOf(path);
-        var newIdx = idx + direction;
-        if (idx < 0 || newIdx < 0 || newIdx >= parent.Children.Count) return;
-
+        // Group selected paths by parent layer, constrain moves within each layer
+        var moved = false;
         Undo.Record(Document);
-        parent.RemoveAt(idx);
-        parent.Insert(newIdx, path);
-        Document.IncrementVersion();
+
+        // Process in correct order to avoid index conflicts:
+        // moving forward (direction > 0) = process from end, backward = process from start
+        var ordered = direction > 0
+            ? _selectedPaths.OrderByDescending(p => p.Parent?.Children.IndexOf(p) ?? -1)
+            : _selectedPaths.OrderBy(p => p.Parent?.Children.IndexOf(p) ?? -1);
+
+        foreach (var path in ordered)
+        {
+            var parent = path.Parent;
+            if (parent == null) continue;
+
+            var idx = parent.Children.IndexOf(path);
+            var newIdx = idx + direction;
+            if (idx < 0 || newIdx < 0 || newIdx >= parent.Children.Count) continue;
+
+            parent.RemoveAt(idx);
+            parent.Insert(newIdx, path);
+            moved = true;
+        }
+
+        if (!moved)
+            Undo.Cancel();
     }
 
     private void UpdateAnimation()
@@ -617,7 +643,7 @@ public partial class SpriteEditor : DocumentEditor
             return;
 
         _playTimer += Time.DeltaTime;
-        var slotDuration = 1f / 12f;
+        var slotDuration = 1f / SpriteDocument.DefaultFrameRate;
 
         if (_playTimer >= slotDuration)
         {
@@ -628,6 +654,7 @@ public partial class SpriteEditor : DocumentEditor
 
     private readonly List<SpriteNode.AnchorHitResult> _anchorHitResults = new();
     private readonly List<SpritePath> _pathHitResults = new();
+    private readonly List<SpritePath> _hitPaths = new();
 
     private void HandleLeftClick()
     {
@@ -741,13 +768,13 @@ public partial class SpriteEditor : DocumentEditor
 
         var segHit = Document.RootLayer.HitTestSegment(localMousePos);
 
-        var hitPaths = new List<SpritePath>();
+        _hitPaths.Clear();
 
         void AddPath(SpritePath path)
         {
-            if (hitPaths.Contains(path)) return;
-            hitPaths.Add(path);
-            if (hitPaths.Count == 1)
+            if (_hitPaths.Contains(path)) return;
+            _hitPaths.Add(path);
+            if (_hitPaths.Count == 1)
             {
                 var layer = path.Parent as SpriteLayer;
                 if (layer != null && layer != Document.ActiveLayer)
@@ -762,25 +789,25 @@ public partial class SpriteEditor : DocumentEditor
         if (segHit.HasValue)
             AddPath(segHit.Value.Path);
 
-        if (hitPaths.Count == 0)
+        if (_hitPaths.Count == 0)
             return false;
 
         if (!shift)
         {
             // Without shift: select topmost, or cycle if already selected
-            var topmost = hitPaths[0];
+            var topmost = _hitPaths[0];
             if (topmost.IsSelected)
             {
                 // Cycle: find next unselected, or wrap
                 SpritePath? next = null;
-                for (var i = 1; i < hitPaths.Count; i++)
+                for (var i = 1; i < _hitPaths.Count; i++)
                 {
-                    next = hitPaths[i];
+                    next = _hitPaths[i];
                     break;
                 }
 
                 Document.RootLayer.ClearSelection();
-                (next ?? hitPaths[0]).SelectPath();
+                (next ?? _hitPaths[0]).SelectPath();
             }
             else
             {
@@ -792,7 +819,7 @@ public partial class SpriteEditor : DocumentEditor
         {
             // Shift: add the next unselected path to selection
             SpritePath? nextUnselected = null;
-            foreach (var p in hitPaths)
+            foreach (var p in _hitPaths)
             {
                 if (!p.IsSelected)
                 {
@@ -805,10 +832,10 @@ public partial class SpriteEditor : DocumentEditor
             {
                 nextUnselected.SelectPath();
             }
-            else if (hitPaths.Count > 0)
+            else if (_hitPaths.Count > 0)
             {
                 // All selected — wrap: deselect topmost, it cycles visually
-                hitPaths[0].DeselectPath();
+                _hitPaths[0].DeselectPath();
             }
         }
 
@@ -847,10 +874,7 @@ public partial class SpriteEditor : DocumentEditor
         _hoverAnchorIndex = -1;
 
         if (_selectedPaths.Count == 0 || Workspace.ActiveTool != null)
-        {
-            Cursor.SetDefault();
             return;
-        }
 
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
@@ -876,7 +900,7 @@ public partial class SpriteEditor : DocumentEditor
             }
         }
 
-        Cursor.SetDefault();
+        Cursor.Set(EditorAssets.Sprites.CursorArrow);
     }
 
     private void DrawSelectionBounds(Matrix3x2 transform)
@@ -943,8 +967,6 @@ public partial class SpriteEditor : DocumentEditor
 
         var hitRadius = EditorStyle.Shape.AnchorHitRadius;
         var hitRadiusSqr = hitRadius * hitRadius;
-        var rotateRadius = hitRadius * 2.5f;
-        var rotateRadiusSqr = rotateRadius * rotateRadius;
 
         var midX = bounds.X + bounds.Width * 0.5f;
         var midY = bounds.Y + bounds.Height * 0.5f;
@@ -956,19 +978,21 @@ public partial class SpriteEditor : DocumentEditor
         corners[2] = new Vector2(bounds.Right, bounds.Bottom);
         corners[3] = new Vector2(bounds.X, bounds.Bottom);
 
-        // Test rotation zones (outside corners)
-        for (var i = 0; i < 4; i++)
+        // Test rotation zones (outside the bounding box, same radius as scale)
+        if (!bounds.Contains(selPos))
         {
-            var distSqr = Vector2.DistanceSquared(selPos, corners[i]);
-            if (distSqr <= rotateRadiusSqr && distSqr > hitRadiusSqr)
-                return HandleHit.RotateTopLeft + i;
+            for (var i = 0; i < 4; i++)
+            {
+                if (Vector2.DistanceSquared(selPos, corners[i]) <= hitRadiusSqr)
+                    return HandleHit.RotateTopLeft + i;
+            }
         }
 
         // Test corner scale handles
         for (var i = 0; i < 4; i++)
         {
             if (Vector2.DistanceSquared(selPos, corners[i]) <= hitRadiusSqr)
-                return HandleHit.ScaleTopLeft + i * 2; // TL=0, TR=2, BR=4, BL=6
+                return HandleHit.ScaleTopLeft + i * 2;
         }
 
         // Edge midpoint handles
@@ -1441,11 +1465,6 @@ public partial class SpriteEditor : DocumentEditor
         Document.Generation!.References.RemoveAt(index);
     }
 
-    private void GenerationStyleUI()
-    {
-
-    }
-
     private void SetStyle(GenerationConfig? style)
     {
         Undo.Record(Document);
@@ -1528,24 +1547,25 @@ public partial class SpriteEditor : DocumentEditor
 
     private void BeginEyeDropper()
     {
-        if (Document.Generation?.Job.Texture == null)
-            return;
         Workspace.BeginTool(new EyeDropperTool(this));
     }
 
-    internal void ApplyEyeDropperColor(Color32 color, bool shift)
+    internal void ApplyEyeDropperColor(SpritePath path, bool alt)
     {
-        if (shift)
+        Undo.Record(Document);
+
+        if (alt)
         {
-            SetStrokeColor(color);
+            Document.CurrentStrokeWidth = path.StrokeWidth;
+            SetStrokeColor(path.StrokeColor);
             if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
-                ColorPicker.Open(WidgetIds.StrokeColor, color);
+                ColorPicker.Open(WidgetIds.StrokeColor, path.StrokeColor);
         }
         else
         {
-            SetFillColor(color);
+            SetFillColor(path.FillColor);
             if (ColorPicker.IsOpen(WidgetIds.FillColor))
-                ColorPicker.Open(WidgetIds.FillColor, color);
+                ColorPicker.Open(WidgetIds.FillColor, path.FillColor);
         }
     }
 

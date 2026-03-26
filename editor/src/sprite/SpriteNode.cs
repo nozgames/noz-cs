@@ -343,24 +343,24 @@ public abstract class SpriteNode
 
     public SpritePath? HitTestPath(Vector2 point)
     {
-        static void Recursive(SpriteNode node, Vector2 point, ref SpritePath? best)
+        static SpritePath? Recursive(SpriteNode node, Vector2 point)
         {
-            if (!node.Visible) return;
+            if (!node.Visible) return null;
 
             if (node is SpritePath path)
-            {
-                if (path.HitTestPath(point))
-                    best = path;
-                return;
-            }
+                return path.HitTestPath(point) ? path : null;
 
             for (var i = 0; i < node.Children.Count; i++)
-                Recursive(node.Children[i], point, ref best);
+            {
+                var hit = Recursive(node.Children[i], point);
+                if (hit != null)
+                    return hit;
+            }
+
+            return null;
         }
 
-        SpritePath? best = null;
-        Recursive(this, point, ref best);
-        return best;
+        return Recursive(this, point);
     }
 
     public int HitTestPath(Vector2 point, List<SpritePath> results)

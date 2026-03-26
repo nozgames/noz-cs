@@ -65,6 +65,7 @@ public partial class SpriteEditor
             new Command { Name = "Duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
             new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true },
             new Command { Name = "Paste", Handler = PasteSelected, Key = InputCode.KeyV, Ctrl = true },
+            new Command { Name = "Cut", Handler = CutSelected, Key = InputCode.KeyX, Ctrl = true },
         ];
     }
 
@@ -111,7 +112,8 @@ public partial class SpriteEditor
         if (IsScaleHandle(handleHit))
         {
             var selToDoc = Matrix3x2.CreateRotation(_selectionRotation);
-            var pivotDoc = Vector2.Transform(_selectionLocalBounds.Center, selToDoc);
+            var pivotSel = GetOppositePivotInSelSpace(handleHit);
+            var pivotDoc = Vector2.Transform(pivotSel, selToDoc);
 
             var constrainX = handleHit is HandleHit.ScaleTop or HandleHit.ScaleBottom;
             var constrainY = handleHit is HandleHit.ScaleLeft or HandleHit.ScaleRight;
@@ -420,10 +422,9 @@ public partial class SpriteEditor
 
     private void CopySelected()
     {
-        var path = GetFirstSelectedPath() ?? GetPathWithSelection();
-        if (path == null) return;
+        if (_selectedPaths.Count == 0) return;
 
-        var data = new PathClipboardData(path);
+        var data = new PathClipboardData(_selectedPaths);
         if (data.Paths.Length > 0)
             Clipboard.Copy(data);
     }
@@ -436,12 +437,20 @@ public partial class SpriteEditor
         Undo.Record(Document);
         Document.RootLayer.ClearSelection();
 
-        var newPath = clipboardData.PasteAsPath();
-        ActiveLayer.Add(newPath);
+        var newPaths = clipboardData.PasteAsPaths();
+        foreach (var path in newPaths)
+            ActiveLayer.Add(path);
 
-        Document.IncrementVersion();
         Document.UpdateBounds();
         RebuildSelectedPaths();
+    }
+
+    private void CutSelected()
+    {
+        if (_selectedPaths.Count == 0) return;
+
+        CopySelected();
+        DeleteSelected();
     }
 
     #endregion

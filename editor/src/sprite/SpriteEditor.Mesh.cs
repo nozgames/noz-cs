@@ -29,6 +29,7 @@ public partial class SpriteEditor
     }
 
     private readonly List<MeshSlotData> _meshSlots = new();
+    private readonly List<LayerPathResult> _tessellateResults = new();
 
     private int _meshFrame = -1;
 
@@ -128,9 +129,9 @@ public partial class SpriteEditor
 
     private void TessellateLayer(SpriteLayer layer, ref int vertexOffset, ref int indexOffset)
     {
-        var results = new List<LayerPathResult>();
-        SpriteLayerProcessor.ProcessLayer(layer, results);
-        foreach (var result in results)
+        _tessellateResults.Clear();
+        SpriteLayerProcessor.ProcessLayer(layer, _tessellateResults);
+        foreach (var result in _tessellateResults)
             TessellateClipper(result.Contours, ref vertexOffset, ref indexOffset, result.Color.ToColor());
     }
 

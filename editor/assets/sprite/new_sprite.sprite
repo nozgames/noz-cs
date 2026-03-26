@@ -1,16 +1,18 @@
 
 path "" {
-  translate 0.9197297 0.3616562
+  translate 0.2799391 -0.5878945
+  scale 2.7967405 2.5049195
   operation subtract
   fill #FFFFFF
-  anchor 0.11174822 -0.30487156
-  anchor -0.122003555 -0.15691185
-  anchor -0.22022915 -0.30362797
-  anchor -0.14687109 -0.40434074
+  anchor 0.05000949 -0.41382647
+  anchor -0.078189015 -0.10021019
+  anchor -0.23715752 -0.2647152
+  anchor -0.32147408 -0.6214318
+  anchor -0.09191775 -0.5320828
 }
 
 path "" {
-  translate 0.48339832 -3.8592062
+  translate 0.36008084 -4.1606493
   scale 1 0.6204072
   fill #FFC200
   anchor -0.95717907 0.45070696 0.12000513
@@ -20,11 +22,11 @@ path "" {
 }
 
 path "" {
-  translate -0.3077374 -1.1207483
+  translate -0.19255608 -1.5150869
   rotate 133.59637
   scale 0.986714 3.2365675
   operation clip
-  fill #FF0000
+  fill #FFFFFF
   anchor 0.7133391 -0.59459364
   anchor 1.1481631 -0.09813066
   anchor 0.0704875 -0.30165237
@@ -49,10 +51,10 @@ path "" {
 }
 
 path "" {
-  translate 0.24904624 -0.6277257
+  translate 0.30564252 -0.55698025
   rotate 52.736797
   scale 1.5003228 1.1746174
-  fill #FFFFFF
+  fill #D738FF
   anchor 0.27515888 -0.5956602
   anchor 0.2729833 0.061114788
   anchor -0.39621612 0.028014123
