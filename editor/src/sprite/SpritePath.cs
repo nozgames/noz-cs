@@ -584,7 +584,7 @@ public class SpritePath : SpriteNode
         var a = anchors[anchorIndex];
         a.Curve = ClampCurve(curve);
         anchors[anchorIndex] = a;
-        Contours[contourIndex].MarkDirty();
+        MarkDirty();
     }
 
     public void DeleteSelectedAnchors()
@@ -596,7 +596,6 @@ public class SpritePath : SpriteNode
                 if (contour.Anchors[i].IsSelected)
                     contour.Anchors.RemoveAt(i);
             }
-            contour.MarkDirty();
         }
 
         // Remove empty contours (but keep at least the primary one)
@@ -605,6 +604,8 @@ public class SpritePath : SpriteNode
             if (Contours[ci].Anchors.Count == 0)
                 Contours.RemoveAt(ci);
         }
+
+        MarkDirty();
     }
 
     public int AddAnchor(Vector2 position, float curve = 0)

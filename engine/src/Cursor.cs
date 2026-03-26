@@ -24,6 +24,7 @@ public static class Cursor
     private const float Scale = 0.75f;
 
     private static Sprite? _sprite;
+    private static float _rotation;
     private static SystemCursor _systemCursor = SystemCursor.Default;
     private static readonly Camera _camera = new() { FlipY = false };
 
@@ -40,6 +41,15 @@ public static class Cursor
     public static void Set(Sprite sprite)
     {
         _sprite = sprite;
+        _rotation = 0;
+        _systemCursor = SystemCursor.None;
+        Application.Platform.SetCursor(SystemCursor.None);
+    }
+
+    public static void Set(Sprite sprite, float rotation)
+    {
+        _sprite = sprite;
+        _rotation = rotation;
         _systemCursor = SystemCursor.None;
         Application.Platform.SetCursor(SystemCursor.None);
     }
@@ -65,6 +75,7 @@ public static class Cursor
         Graphics.SetColor(Color.White);
         Graphics.SetTransform(
             Matrix3x2.CreateScale(_sprite.PixelsPerUnit * Scale) *
+            Matrix3x2.CreateRotation(_rotation) *
             Matrix3x2.CreateTranslation(Input.MousePosition));
         Graphics.DrawFlat(_sprite);
     }

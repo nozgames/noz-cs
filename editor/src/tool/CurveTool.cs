@@ -15,11 +15,10 @@ public class CurveTool : Tool
     private readonly Matrix3x2 _transform;
     private readonly Matrix3x2 _invTransform;
     private readonly List<int> _selectedSegments = [];
+    private Vector2[] _offsets = [];  // offset from mouse to control point at drag start
 
     private readonly Vector2 _savedBoundsCenter;
     private readonly Vector2 _savedTranslation;
-
-    private Vector2 _startWorld;
 
     public bool CommitOnRelease { get; set; }
 
@@ -58,7 +57,23 @@ public class CurveTool : Tool
 
     public override void Begin()
     {
-        _startWorld = Workspace.MouseWorldPosition;
+        var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, _invTransform);
+        var anchors = _path.Contours[_contourIndex].Anchors;
+
+        _offsets = new Vector2[_selectedSegments.Count];
+        for (var i = 0; i < _selectedSegments.Count; i++)
+        {
+            var segIdx = _selectedSegments[i];
+            var a0 = anchors[segIdx];
+            var a1 = anchors[(segIdx + 1) % anchors.Count];
+            var mid = (a0.Position + a1.Position) * 0.5f;
+            var dir = a1.Position - a0.Position;
+            var len = dir.Length();
+            if (len < 0.0001f) continue;
+            var perp = new Vector2(-dir.Y, dir.X) / len;
+            var controlPoint = mid + perp * a0.Curve;
+            _offsets[i] = controlPoint - mouseLocal;
+        }
     }
 
     public override void Update()
@@ -86,27 +101,21 @@ public class CurveTool : Tool
         }
 
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, _invTransform);
-        var startLocal = Vector2.Transform(_startWorld, _invTransform);
-        var delta = mouseLocal - startLocal;
-
         var anchors = _path.Contours[_contourIndex].Anchors;
-        foreach (var segIdx in _selectedSegments)
+
+        for (var i = 0; i < _selectedSegments.Count; i++)
         {
+            var segIdx = _selectedSegments[i];
             var a0 = anchors[segIdx];
             var a1 = anchors[(segIdx + 1) % anchors.Count];
-
-            var p0 = a0.Position;
-            var p1 = a1.Position;
-            var dir = p1 - p0;
+            var dir = a1.Position - a0.Position;
             var len = dir.Length();
-
-            if (len < 0.0001f)
-                continue;
+            if (len < 0.0001f) continue;
 
             var perp = new Vector2(-dir.Y, dir.X) / len;
-            var curveDelta = Vector2.Dot(delta, perp);
-
-            var newCurve = _saved[segIdx].Curve + curveDelta;
+            var mid = (a0.Position + a1.Position) * 0.5f;
+            var desiredControlPoint = mouseLocal + _offsets[i];
+            var newCurve = Vector2.Dot(desiredControlPoint - mid, perp);
 
             if (Input.IsCtrlDown())
                 newCurve = SnapCurve(newCurve, len);
@@ -135,14 +144,6 @@ public class CurveTool : Tool
             var a1 = anchors[(segIdx + 1) % anchors.Count];
             Gizmos.DrawDashedLine(a0.Position, a1.Position);
         }
-
-        Graphics.SetTransform(Matrix3x2.Identity);
-
-        Gizmos.SetColor(EditorStyle.Tool.PointColor);
-        Gizmos.DrawCircle(_startWorld, EditorStyle.Tool.PointSize, order: 10);
-
-        Gizmos.SetColor(EditorStyle.Tool.LineColor);
-        Gizmos.DrawDashedLine(_startWorld, Workspace.MouseWorldPosition);
     }
 
     public override void Cancel()

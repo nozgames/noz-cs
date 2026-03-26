@@ -107,9 +107,12 @@ internal static class SpritePathClipper
                 var cp = hasTransform ? Vector2.Transform(localCp, transform) : localCp;
 
                 // Sample quadratic bezier: (1-t)^2*p0 + 2(1-t)t*cp + t^2*p1
+                // Start with the anchor point, then sample interior points
+                // matching SpriteContour's t = (s+1)/(steps+1) spacing.
+                path.Add(new PointD(pos0.X, pos0.Y));
                 for (int i = 0; i < stepsPerCurve; i++)
                 {
-                    double t = (double)i / stepsPerCurve;
+                    double t = (double)(i + 1) / (stepsPerCurve + 1);
                     double u = 1.0 - t;
                     double x = u * u * pos0.X + 2 * u * t * cp.X + t * t * pos1.X;
                     double y = u * u * pos0.Y + 2 * u * t * cp.Y + t * t * pos1.Y;

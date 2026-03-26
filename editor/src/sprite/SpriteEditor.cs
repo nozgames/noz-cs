@@ -1103,34 +1103,21 @@ public partial class SpriteEditor : DocumentEditor
             Cursor.Set(EditorAssets.Sprites.CursorArrow);
         else if (hit == HandleHit.Move)
             Cursor.Set(EditorAssets.Sprites.CursorMove);
+        else if (hit is HandleHit.RotateTopLeft or HandleHit.RotateTopRight or
+                 HandleHit.RotateBottomRight or HandleHit.RotateBottomLeft)
+            Cursor.Set(SystemCursor.Crosshair);
         else
-            Cursor.Set(hit switch
-            {
-                HandleHit.ScaleTop or HandleHit.ScaleBottom => GetRotatedResizeCursor(angle),
-                HandleHit.ScaleLeft or HandleHit.ScaleRight => GetRotatedResizeCursor(angle + MathF.PI / 2f),
-                HandleHit.ScaleTopLeft or HandleHit.ScaleBottomRight => GetRotatedResizeCursor(angle + MathF.PI / 4f),
-                HandleHit.ScaleTopRight or HandleHit.ScaleBottomLeft => GetRotatedResizeCursor(angle - MathF.PI / 4f),
-                HandleHit.RotateTopLeft or HandleHit.RotateTopRight or
-                HandleHit.RotateBottomRight or HandleHit.RotateBottomLeft => SystemCursor.Crosshair,
-                HandleHit.Move => SystemCursor.Move,
-                _ => SystemCursor.Default,
-            });
-    }
-
-    private static SystemCursor GetRotatedResizeCursor(float angle)
-    {
-        // Normalize to 0..PI (resize cursors are symmetric)
-        angle = ((angle % MathF.PI) + MathF.PI) % MathF.PI;
-
-        // Map angle to nearest cursor direction
-        return angle switch
         {
-            < MathF.PI / 8f => SystemCursor.ResizeNS,
-            < 3f * MathF.PI / 8f => SystemCursor.ResizeNESW,
-            < 5f * MathF.PI / 8f => SystemCursor.ResizeEW,
-            < 7f * MathF.PI / 8f => SystemCursor.ResizeNWSE,
-            _ => SystemCursor.ResizeNS,
-        };
+            var rotation = hit switch
+            {
+                HandleHit.ScaleTop or HandleHit.ScaleBottom => angle + MathF.PI / 2f,
+                HandleHit.ScaleLeft or HandleHit.ScaleRight => angle,
+                HandleHit.ScaleTopLeft or HandleHit.ScaleBottomRight => angle + MathF.PI / 4f,
+                HandleHit.ScaleTopRight or HandleHit.ScaleBottomLeft => angle - MathF.PI / 4f,
+                _ => 0f,
+            };
+            Cursor.Set(EditorAssets.Sprites.CursorScale, rotation);
+        }
     }
 
     // Get the handle position in selection-local space

@@ -384,6 +384,7 @@ public partial class SpriteEditor
             if (path == null) return;
 
             Undo.Record(Document);
+            var oldCenter = path.LocalBounds.Center;
             path.DeleteSelectedAnchors();
 
             if (path.TotalAnchorCount < 3)
@@ -392,6 +393,7 @@ public partial class SpriteEditor
             {
                 path.UpdateSamples();
                 path.UpdateBounds();
+                path.CompensateTranslation(oldCenter);
             }
 
             Document.IncrementVersion();
