@@ -214,8 +214,16 @@ public partial class SpriteEditor
 
     private void SelectAll()
     {
-        Document.RootLayer.ForEachEditablePath(p => p.SelectPath());
-        RebuildSelectedPaths();
+        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
+        {
+            foreach (var path in _selectedPaths)
+                path.SelectAll();
+        }
+        else
+        {
+            Document.RootLayer.ForEachEditablePath(p => p.SelectPath());
+            RebuildSelectedPaths();
+        }
     }
 
     private void ClearSelection()

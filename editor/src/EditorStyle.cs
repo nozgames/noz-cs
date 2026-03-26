@@ -527,6 +527,8 @@ public static class EditorStyle
         public const float AnchorOutlineSize = 0.04f;
         public const float SegmentLineWidth = 0.02f;
         public const float SegmentHitSize = SegmentLineWidth * 12.0f;
+        public const float RotateHandleScale = 0.6f;
+        public const float RotateHandleOffset = AnchorSize * 1.2f;
 
         public static float AnchorHitRadius => AnchorHitSize * Gizmos.ZoomRefScale;
         public static float SegmentHitRadius => SegmentHitSize * Gizmos.ZoomRefScale;

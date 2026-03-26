@@ -960,12 +960,12 @@ public partial class SpriteEditor : DocumentEditor
 
     private void UpdateHandleCursor()
     {
+        if (Workspace.ActiveTool != null)
+            return;
+
         _hoverPath = null;
         _hoverAnchorIndex = -1;
         _hoverHandle = SpritePathHandle.None;
-
-        if (Workspace.ActiveTool != null)
-            return;
 
         if (_selectedPaths.Count == 0)
         {
@@ -1029,14 +1029,29 @@ public partial class SpriteEditor : DocumentEditor
         var midY = bounds.Y + bounds.Height * 0.5f;
 
         var h = _hoverHandle;
-        Gizmos.DrawAnchor(tl, selected: h is SpritePathHandle.ScaleTopLeft or SpritePathHandle.RotateTopLeft, order: 6);
-        Gizmos.DrawAnchor(tr, selected: h is SpritePathHandle.ScaleTopRight or SpritePathHandle.RotateTopRight, order: 6);
-        Gizmos.DrawAnchor(br, selected: h is SpritePathHandle.ScaleBottomRight or SpritePathHandle.RotateBottomRight, order: 6);
-        Gizmos.DrawAnchor(bl, selected: h is SpritePathHandle.ScaleBottomLeft or SpritePathHandle.RotateBottomLeft, order: 6);
+        Gizmos.DrawAnchor(tl, selected: h is SpritePathHandle.ScaleTopLeft, order: 6);
+        Gizmos.DrawAnchor(tr, selected: h is SpritePathHandle.ScaleTopRight, order: 6);
+        Gizmos.DrawAnchor(br, selected: h is SpritePathHandle.ScaleBottomRight, order: 6);
+        Gizmos.DrawAnchor(bl, selected: h is SpritePathHandle.ScaleBottomLeft, order: 6);
         Gizmos.DrawAnchor(new Vector2(midX, bounds.Y), selected: h is SpritePathHandle.ScaleTop, order: 6);
         Gizmos.DrawAnchor(new Vector2(midX, bounds.Bottom), selected: h is SpritePathHandle.ScaleBottom, order: 6);
         Gizmos.DrawAnchor(new Vector2(bounds.X, midY), selected: h is SpritePathHandle.ScaleLeft, order: 6);
         Gizmos.DrawAnchor(new Vector2(bounds.Right, midY), selected: h is SpritePathHandle.ScaleRight, order: 6);
+
+        // Draw rotation handles at offset positions outside corners
+        var center = new Vector2(midX, midY);
+        var rotScale = EditorStyle.SpritePath.RotateHandleScale;
+        Gizmos.DrawAnchor(GetRotateHandleOffset(tl, center), selected: h is SpritePathHandle.RotateTopLeft, scale: rotScale, order: 6);
+        Gizmos.DrawAnchor(GetRotateHandleOffset(tr, center), selected: h is SpritePathHandle.RotateTopRight, scale: rotScale, order: 6);
+        Gizmos.DrawAnchor(GetRotateHandleOffset(br, center), selected: h is SpritePathHandle.RotateBottomRight, scale: rotScale, order: 6);
+        Gizmos.DrawAnchor(GetRotateHandleOffset(bl, center), selected: h is SpritePathHandle.RotateBottomLeft, scale: rotScale, order: 6);
+    }
+
+    private static Vector2 GetRotateHandleOffset(Vector2 corner, Vector2 boundsCenter)
+    {
+        var dir = Vector2.Normalize(corner - boundsCenter);
+        var offset = EditorStyle.SpritePath.RotateHandleOffset * Gizmos.ZoomRefScale;
+        return corner + dir * offset;
     }
 
     private static bool IsScaleHandle(SpritePathHandle hit) => hit >= SpritePathHandle.ScaleTopLeft && hit <= SpritePathHandle.ScaleLeft;
@@ -1064,14 +1079,15 @@ public partial class SpriteEditor : DocumentEditor
         corners[2] = new Vector2(bounds.Right, bounds.Bottom);
         corners[3] = new Vector2(bounds.X, bounds.Bottom);
 
-        // Test rotation zones (outside the bounding box, same radius as scale)
-        if (!bounds.Contains(selPos))
+        // Test rotation handles at offset positions outside corners
+        var boundsCenter = new Vector2(midX, midY);
+        var rotateHitRadius = hitRadius * EditorStyle.SpritePath.RotateHandleScale;
+        var rotateHitRadiusSqr = rotateHitRadius * rotateHitRadius;
+        for (var i = 0; i < 4; i++)
         {
-            for (var i = 0; i < 4; i++)
-            {
-                if (Vector2.DistanceSquared(selPos, corners[i]) <= hitRadiusSqr)
-                    return SpritePathHandle.RotateTopLeft + i;
-            }
+            var rotPos = GetRotateHandleOffset(corners[i], boundsCenter);
+            if (Vector2.DistanceSquared(selPos, rotPos) <= rotateHitRadiusSqr)
+                return SpritePathHandle.RotateTopLeft + i;
         }
 
         // Test corner scale handles

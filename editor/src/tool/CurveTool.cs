@@ -94,7 +94,7 @@ public class CurveTool : Tool
             _path.UpdateBounds();
             _path.PathTranslation = _savedTranslation;
             _path.CompensateTranslation(_savedBoundsCenter);
-            _document.IncrementVersion();
+            _document.UpdateBounds();
             Input.ConsumeButton(InputCode.MouseLeft);
             Workspace.EndTool();
             return;
@@ -127,7 +127,8 @@ public class CurveTool : Tool
         _path.UpdateBounds();
         _path.PathTranslation = _savedTranslation;
         _path.CompensateTranslation(_savedBoundsCenter);
-        _document.IncrementVersion();
+        _document.UpdateBounds();
+        _document.MarkSpriteDirty();
     }
 
     public override void Draw()
@@ -136,7 +137,27 @@ public class CurveTool : Tool
 
         Graphics.SetTransform(_transform);
 
-        var anchors = _path.Contours[_contourIndex].Anchors;
+        var contour = _path.Contours[_contourIndex];
+        var anchors = contour.Anchors;
+
+        // Draw the curved segment in the selected color
+        var localTransform = _path.HasTransform ? _path.PathTransform : Matrix3x2.Identity;
+        Gizmos.SetColor(EditorStyle.Palette.Primary);
+        foreach (var segIdx in _selectedSegments)
+        {
+            var samples = contour.GetSegmentSamples(segIdx);
+            var prev = Vector2.Transform(anchors[segIdx].Position, localTransform);
+            foreach (var sample in samples)
+            {
+                var transformed = Vector2.Transform(sample, localTransform);
+                Gizmos.DrawLine(prev, transformed, EditorStyle.SpritePath.SegmentLineWidth, order: 2);
+                prev = transformed;
+            }
+            var nextIdx = (segIdx + 1) % anchors.Count;
+            Gizmos.DrawLine(prev, Vector2.Transform(anchors[nextIdx].Position, localTransform), EditorStyle.SpritePath.SegmentLineWidth, order: 2);
+        }
+
+        // Draw dashed chord lines
         Gizmos.SetColor(EditorStyle.Workspace.SelectionColor.WithAlpha(0.5f));
         foreach (var segIdx in _selectedSegments)
         {

@@ -826,6 +826,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         _sprite?.Dispose();
         _sprite = null;
+        _standaloneTexture?.Dispose();
+        _standaloneTexture = null;
     }
 
     public override void OnUndoRedo()
