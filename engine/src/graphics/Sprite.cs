@@ -33,6 +33,7 @@ public class Sprite : Asset, IImage
     public SpriteFrame[] Frames { get; private set; } = [];
     public EdgeInsets Edges { get; private set; } = EdgeInsets.Zero;
     public ushort SliceMask { get; private set; }
+    public ushort SortOrder { get; private set; }
     public bool IsSliced => SliceMask != 0;
     public Rect UV => Frames.Length > 0 ? Frames[0].UV : Rect.Zero;
     public Texture? Texture { get; private set; }
@@ -72,18 +73,17 @@ public class Sprite : Asset, IImage
 
     protected override void Load(BinaryReader reader)
     {
-        var frameCount = reader.ReadUInt16();
+        var ppu = (int)reader.ReadUInt16();
+        var filter = (TextureFilter)reader.ReadByte();
         var atlasIndex = reader.ReadUInt16();
         var l = reader.ReadInt16();
         var t = reader.ReadInt16();
         var r = reader.ReadInt16();
         var b = reader.ReadInt16();
-        var ppu = reader.ReadSingle();
-        var filter = (TextureFilter)reader.ReadByte();
-        var boneIndex = reader.ReadInt16();
-        var meshCount = reader.ReadUInt16();
-        var frameRate = reader.ReadSingle();
+        var sortOrder = reader.ReadUInt16();
+        var boneIndex = (int)reader.ReadByte();
 
+        // 9-slice
         var et = reader.ReadInt16();
         var el = reader.ReadInt16();
         var eb = reader.ReadInt16();
@@ -91,16 +91,16 @@ public class Sprite : Asset, IImage
         var edges = new EdgeInsets(et, el, eb, er);
         var sliceMask = reader.ReadUInt16();
 
-        // Read mesh data (1 mesh per frame, meshCount == frameCount)
-        var frames = new SpriteFrame[meshCount];
-        for (int i = 0; i < meshCount; i++)
+        // frames
+        var frameCount = reader.ReadUInt16();
+        var frameRate = reader.ReadByte();
+        var frames = new SpriteFrame[frameCount];
+        for (int i = 0; i < frameCount; i++)
         {
             var ul = reader.ReadSingle();
             var ut = reader.ReadSingle();
             var ur = reader.ReadSingle();
             var ub = reader.ReadSingle();
-            reader.ReadInt16(); // sortOrder (legacy, ignored)
-            reader.ReadInt16(); // meshBoneIndex (legacy, ignored)
             var offsetX = reader.ReadInt16();
             var offsetY = reader.ReadInt16();
             var sizeX = reader.ReadInt16();
@@ -112,17 +112,10 @@ public class Sprite : Asset, IImage
                 new Vector2Int(sizeX, sizeY));
         }
 
-        // Skip legacy frame table (meshStart + meshCount per frame)
-        for (int i = 0; i < frameCount; i++)
-        {
-            reader.ReadUInt16(); // meshStart
-            reader.ReadUInt16(); // meshCount
-        }
-
         Bounds = RectInt.FromMinMax(l, t, r, b);
         FrameCount = frameCount;
         AtlasIndex = atlasIndex;
-        BoneIndex = boneIndex;
+        BoneIndex = boneIndex == 255 ? -1 : (int)boneIndex;
         PixelsPerUnit = ppu;
         PixelsPerUnitInv = 1.0f / ppu;
         FrameRate = frameRate;
@@ -130,6 +123,7 @@ public class Sprite : Asset, IImage
         Frames = frames;
         Edges = edges;
         SliceMask = sliceMask;
+        SortOrder = sortOrder;
 
         // Embedded texture for sprites that don't fit in an atlas
         if (atlasIndex == 0xFFFF && reader.BaseStream.Position < reader.BaseStream.Length)

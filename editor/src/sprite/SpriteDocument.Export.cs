@@ -142,25 +142,24 @@ public partial class SpriteDocument
     public override void Export(string outputPath, PropertySet meta)
     {
         Skeleton.Resolve();
+        ResolveBone();
         UpdateBounds();
 
-        var totalSlots = (ushort)TotalTimeSlots;
+        var frameCount = (ushort)TotalTimeSlots;
         var isStandalone = !ShouldAtlas || Atlas == null;
-        var boneIndex = (short)BoneIndex;
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
-        writer.Write(totalSlots);
+
+        writer.Write((ushort)EditorApplication.Config.PixelsPerUnit);
+        writer.Write((byte)TextureFilter.Linear);
         writer.Write(isStandalone ? (ushort)0xFFFF : (ushort)(Atlas?.Index ?? 0));
         writer.Write((short)RasterBounds.Left);
         writer.Write((short)RasterBounds.Top);
         writer.Write((short)RasterBounds.Right);
         writer.Write((short)RasterBounds.Bottom);
-        writer.Write((float)EditorApplication.Config.PixelsPerUnit);
-        writer.Write((byte)TextureFilter.Linear);
-        writer.Write(boneIndex);
-        writer.Write(totalSlots); // totalMeshes = 1 per frame = totalSlots
-        writer.Write(DefaultFrameRate);
+        writer.Write((ushort)SortOrder);
+        writer.Write((byte)(BoneIndex == -1 ? 255 : BoneIndex));
 
         // 9-slice edges
         var activeEdges = ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero;
@@ -170,28 +169,23 @@ public partial class SpriteDocument
         writer.Write((short)activeEdges.R);
         writer.Write(Sprite.CalculateSliceMask(RasterBounds, activeEdges));
 
-        // Write one mesh per frame
-        for (ushort frameIndex = 0; frameIndex < totalSlots; frameIndex++)
+        // Write frames
+        writer.Write(frameCount);
+        writer.Write((byte)DefaultFrameRate);
+        for (ushort frameIndex = 0; frameIndex < frameCount; frameIndex++)
         {
             Rect uv;
             if (isStandalone)
             {
                 // Standalone sprites pack frames in a vertical strip
-                var frameH = 1.0f / totalSlots;
+                var frameH = 1.0f / frameCount;
                 uv = new Rect(0, frameIndex * frameH, 1, frameH);
             }
             else
             {
                 uv = GetAtlasUV(frameIndex);
             }
-            WriteMesh(writer, uv, sortOrder: 0, boneIndex: boneIndex, RasterBounds);
-        }
-
-        // Frame table
-        for (ushort frameIndex = 0; frameIndex < totalSlots; frameIndex++)
-        {
-            writer.Write(frameIndex);   // meshStart
-            writer.Write((ushort)1);    // meshCount
+            WriteMesh(writer, uv, RasterBounds);
         }
 
         // Embedded texture for standalone sprites
@@ -231,14 +225,12 @@ public partial class SpriteDocument
         writer.Write(image.AsByteSpan());
     }
 
-    private static void WriteMesh(BinaryWriter writer, Rect uv, short sortOrder, short boneIndex, RectInt bounds)
+    private static void WriteMesh(BinaryWriter writer, Rect uv, RectInt bounds)
     {
         writer.Write(uv.Left);
         writer.Write(uv.Top);
         writer.Write(uv.Right);
         writer.Write(uv.Bottom);
-        writer.Write(sortOrder);
-        writer.Write(boneIndex);
         writer.Write((short)bounds.X);
         writer.Write((short)bounds.Y);
         writer.Write((short)bounds.Width);

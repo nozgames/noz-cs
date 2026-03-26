@@ -2,9 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-//#define NOZ_GRAPHICS_DEBUG
-//#define NOZ_GRAPHICS_DEBUG_VERBOSE
-
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -348,20 +345,6 @@ public static unsafe partial class Graphics
 
         _currentBatchState = (ushort)_batchStates.Length;
         _batchStates.Add() = candidate;
-
-        LogGraphics(
-            $"AddBatchState: " +
-            $" {_batchStates.Length - 1}" +
-            $" Pass={candidate.Pass}" +
-            $" Globals={candidate.GlobalsIndex}" +
-            $" Shader=0x{candidate.Shader:X}" +
-            $" ({Asset.Get<Shader>(AssetType.Shader, candidate.Shader)?.Name ?? "???"})" +
-            $" Texture0=0x{candidate.Textures[0]:X}" +
-            $" Texture1=0x{candidate.Textures[1]:X}" +
-            $" BlendMode={candidate.BlendMode}" +
-            $" Viewport={candidate.Viewport}" +
-            $" Scissor={(candidate.ScissorEnabled?candidate.Scissor.ToString():"None")}" +
-            $" Mesh=0x{candidate.Mesh:X}");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -416,8 +399,6 @@ public static unsafe partial class Graphics
         cmd.IndexOffset = _indices.Length;
         cmd.IndexCount = indices.Length;
         cmd.BatchState = _currentBatchState;
-
-        LogGraphics($"AddQuad: BatchState={_currentBatchState} SortKey={cmd.SortKey} Count={cmd.IndexCount} Offset={cmd.IndexOffset} Order={order}");
 
         var baseVertex = _vertices.Length;
         var color = Color;
@@ -478,7 +459,6 @@ public static unsafe partial class Graphics
                 lastCommand.IndexOffset + lastCommand.IndexCount == indexOffset)
             {
                 lastCommand.IndexCount += (ushort)indexCount;
-                LogGraphicsVerbose($"DrawElements (MERGE): BatchState={lastCommand.BatchState} Count={lastCommand.IndexCount} Offset={indexOffset} Order={order}");
                 return;
             }
         }
@@ -488,8 +468,6 @@ public static unsafe partial class Graphics
         cmd.IndexOffset = indexOffset;
         cmd.IndexCount = indexCount;
         cmd.BatchState = _currentBatchState;
-
-        LogGraphicsVerbose($"DrawElements: BatchState={cmd.BatchState} SortKey={sortKey} Count={indexCount} Offset={indexOffset} Order={order}");
     }
 
     private static void CreateBatches()
@@ -517,8 +495,6 @@ public static unsafe partial class Graphics
         {
             ref var cmd = ref _commands[commandIndex];
             ref var cmdState = ref _batchStates[cmd.BatchState];
-
-            LogGraphicsVerbose($"  Command: Index={commandIndex}  SortKey={cmd.SortKey}  IndexOffset={cmd.IndexOffset} IndexCount={cmd.IndexCount} State={cmd.BatchState}");
 
             // External mesh: merge if same state and contiguous indices, otherwise new batch.
             if (cmdState.Mesh != _mesh.Handle)
@@ -576,9 +552,6 @@ public static unsafe partial class Graphics
 
         CreateBatches();
 
-        LogGraphics(
-            $"ExecuteCommands: BatchStates={_batchStates.Length} Commands={_commands.Length} Vertices={_vertices.Length} Indices={_indices.Length}");
-
         if (_vertices.Length > 0 || _indices.Length > 0)
         {
             // Pad indices to 4-byte alignment for WebGPU
@@ -595,8 +568,6 @@ public static unsafe partial class Graphics
         // Upload all globals snapshots to driver
         UploadGlobals();
 
-        LogGraphics($"ExecuteBatches: Batches={_batches.Length} BatchStates={_batchStates.Length} Commands={_commands.Length} Vertices={_vertices.Length} Indices={_indices.Length}");
-
         // Track current render target for pass switching (0 = scene pass, non-zero = RT pass)
         nuint currentRT = nuint.MaxValue;  // Invalid value to force first pass begin
         bool scenePassStarted = false;
@@ -612,15 +583,9 @@ public static unsafe partial class Graphics
             {
                 // End previous pass (if any)
                 if (currentRT == 0)
-                {
                     Driver.EndScenePass();
-                    LogGraphics($"  EndPass: Scene");
-                }
                 else if (currentRT != nuint.MaxValue)
-                {
                     Driver.EndRenderTexturePass();
-                    LogGraphics($"  EndPass: RT 0x{currentRT:X}");
-                }
 
                 currentRT = batchState.RenderTextureHandle;
 
@@ -632,19 +597,16 @@ public static unsafe partial class Graphics
                     {
                         Driver.BeginScenePass(ClearColor);
                         scenePassStarted = true;
-                        LogGraphics($"  BeginPass: Scene (clear)");
                     }
                     else
                     {
                         Driver.ResumeScenePass();
-                        LogGraphics($"  BeginPass: Scene (load)");
                     }
                 }
                 else
                 {
                     // RT pass - get clear color from batch state
                     Driver.BeginRenderTexturePass(currentRT, batchState.ClearColor);
-                    LogGraphics($"  BeginPass: RT 0x{currentRT:X}");
 
                     // Mark this RT as visited
                     for (int r = 0; r < _rtPassCount; r++)
@@ -660,8 +622,6 @@ public static unsafe partial class Graphics
                 // Re-bind bone texture — driver state was reset by BeginPass
                 Driver.BindTexture(_boneTexture, BoneTextureSlot);
             }
-
-            LogGraphics($"  Batch: Mesh={batchState.Mesh:X}  Shader={Asset.Get<Shader>(AssetType.Shader, batchState.Shader)!.Name}  Index={batchIndex} IndexOffset={batch.IndexOffset} IndexCount={batch.IndexCount} State={batch.State} Pass={batchState.Pass} RT=0x{batchState.RenderTextureHandle:X}");
 
             // Apply all state unconditionally — driver early-exits handle optimization
             Driver.SetViewport(batchState.Viewport);
@@ -687,15 +647,9 @@ public static unsafe partial class Graphics
 
         // End the final pass
         if (currentRT == 0)
-        {
             Driver.EndScenePass();
-            LogGraphics($"  EndPass: Scene");
-        }
         else if (currentRT != nuint.MaxValue)
-        {
             Driver.EndRenderTexturePass();
-            LogGraphics($"  EndPass: RT 0x{currentRT:X}");
-        }
 
         // Clear any RT passes that had no draw commands (e.g. empty workspace with grid hidden)
         for (int r = 0; r < _rtPassCount; r++)
@@ -704,11 +658,9 @@ public static unsafe partial class Graphics
             {
                 Driver.BeginRenderTexturePass(_rtPasses[r].Handle, _rtPasses[r].ClearColor);
                 Driver.EndRenderTexturePass();
-                LogGraphics($"  ClearOnly RT 0x{_rtPasses[r].Handle:X}");
             }
         }
 
-        LogGraphics($"Clearing buffers");
         _commands.Clear();
         _vertices.Clear();
         _indices.Clear();
@@ -717,11 +669,9 @@ public static unsafe partial class Graphics
 
         // Advance base index so subsequent ExecuteCommands calls (like RTT) use different buffer slots
         // This prevents RTT from overwriting globals that main frame draw commands still reference
-        LogGraphics($"Clearing Snapshots:  baseIndex={_globalsBaseIndex}");
         _globalsBaseIndex += _globalsSnapshots.Length;
         _globalsSnapshots.Clear();
 
-        LogGraphics($"ExecuteCommands Done");
         _batchStateDirty = true;
         _currentBatchState = 0;
     }
@@ -791,17 +741,5 @@ public static unsafe partial class Graphics
             }
         }
         return -1;
-    }
-
-    [Conditional("NOZ_GRAPHICS_DEBUG")]
-    private static void LogGraphics(string msg)
-    {
-        Log.Debug($"[GRAPHICS] {msg}");
-    }
-
-    [Conditional("NOZ_GRAPHICS_DEBUG_VERBOSE")]
-    private static void LogGraphicsVerbose(string msg)
-    {
-        Log.Debug($"[GRAPHICS] {msg}");
     }
 }

@@ -2,9 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-// #define NOZ_GRAPHICS_DEBUG
-// #define NOZ_GRAPHICS_DEBUG_VERBOSE
-
 using System.Numerics;
 
 namespace NoZ;
@@ -161,7 +158,7 @@ public static partial class Graphics
                 new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
             ];
             ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
-            AddTriangles(verts, indices, order: 0, bone: drawBone);
+            AddTriangles(verts, indices, order: sprite.SortOrder, bone: drawBone);
         }
     }
 
