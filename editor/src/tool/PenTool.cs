@@ -44,7 +44,7 @@ public class PenTool : Tool
     public override void Begin()
     {
         base.Begin();
-        Cursor.SetCrosshair();
+        EditorCursor.SetCrosshair();
     }
 
     public override void Update()

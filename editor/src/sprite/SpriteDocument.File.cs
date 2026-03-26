@@ -119,6 +119,16 @@ public partial class SpriteDocument
                         path.Operation = SpritePathOperation.Clip;
                 }
             }
+            else if (tk.ExpectIdentifier("strokejoin"))
+            {
+                if (tk.ExpectIdentifier(out var join))
+                {
+                    if (join == "miter")
+                        path.StrokeJoin = SpriteStrokeJoin.Miter;
+                    else if (join == "bevel")
+                        path.StrokeJoin = SpriteStrokeJoin.Bevel;
+                }
+            }
             else if (tk.ExpectIdentifier("open"))
             {
                 path.Open = tk.ExpectBool();
@@ -275,7 +285,11 @@ public partial class SpriteDocument
         writer.WriteLine($"{propIndent}fill {FormatColor(path.FillColor)}");
 
         if (path.StrokeColor.A > 0)
+        {
             writer.WriteLine($"{propIndent}stroke {FormatColor(path.StrokeColor)} {path.StrokeWidth}");
+            if (path.StrokeJoin != SpriteStrokeJoin.Round)
+                writer.WriteLine($"{propIndent}strokejoin {path.StrokeJoin.ToString().ToLowerInvariant()}");
+        }
 
         for (var ci = 0; ci < path.Contours.Count; ci++)
         {

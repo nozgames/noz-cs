@@ -12,6 +12,8 @@ public class SpriteContour
     public bool Open { get; set; }
 
     private Vector2[]? _samples;
+    private int[] _sampleOffsets = [];
+    private int[] _sampleCounts = [];
     private bool _samplesDirty = true;
 
     public void MarkDirty() => _samplesDirty = true;
@@ -21,8 +23,11 @@ public class SpriteContour
         if (_samplesDirty)
             UpdateSamples();
 
-        var offset = anchorIndex * SpritePath.MaxSegmentSamples;
-        return new ReadOnlySpan<Vector2>(_samples, offset, SpritePath.MaxSegmentSamples);
+        var count = _sampleCounts![anchorIndex];
+        if (count == 0)
+            return ReadOnlySpan<Vector2>.Empty;
+
+        return new ReadOnlySpan<Vector2>(_samples, _sampleOffsets[anchorIndex], count);
     }
 
     public void UpdateSamples()
@@ -31,47 +36,76 @@ public class SpriteContour
         if (count == 0)
         {
             _samples = null;
+            _sampleOffsets = [];
+            _sampleCounts = [];
             _samplesDirty = false;
             return;
         }
 
         var segmentCount = Open ? count - 1 : count;
-        var totalSamples = count * SpritePath.MaxSegmentSamples;
-        if (_samples == null || _samples.Length < totalSamples)
-            _samples = new Vector2[totalSamples];
 
+        if (_sampleOffsets.Length < count)
+        {
+            _sampleOffsets = new int[count];
+            _sampleCounts = new int[count];
+        }
+
+        // First pass: compute per-segment sample counts and total
+        var totalSamples = 0;
         for (var i = 0; i < segmentCount; i++)
         {
             var a0 = Anchors[i];
             var a1 = Anchors[(i + 1) % count];
-            var offset = i * SpritePath.MaxSegmentSamples;
+            var dir = a1.Position - a0.Position;
+            var len = dir.Length();
+            var sc = SpritePath.ComputeSegmentSamples(a0.Curve, len);
+            _sampleOffsets[i] = totalSamples;
+            _sampleCounts[i] = sc;
+            totalSamples += sc;
+        }
 
-            if (MathF.Abs(a0.Curve) < SpritePath.MinCurve)
-            {
-                for (var s = 0; s < SpritePath.MaxSegmentSamples; s++)
-                {
-                    var t = (s + 1) / (float)(SpritePath.MaxSegmentSamples + 1);
-                    _samples[offset + s] = Vector2.Lerp(a0.Position, a1.Position, t);
-                }
-            }
-            else
-            {
-                var mid = (a0.Position + a1.Position) * 0.5f;
-                var dir = a1.Position - a0.Position;
-                var perp = new Vector2(-dir.Y, dir.X);
-                var len = perp.Length();
-                if (len > 0) perp /= len;
-                var control = mid + perp * a0.Curve;
+        // Zero out non-segment entries
+        for (var i = segmentCount; i < count; i++)
+        {
+            _sampleOffsets[i] = totalSamples;
+            _sampleCounts[i] = 0;
+        }
 
-                for (var s = 0; s < SpritePath.MaxSegmentSamples; s++)
-                {
-                    var t = (s + 1) / (float)(SpritePath.MaxSegmentSamples + 1);
-                    var u = 1.0f - t;
-                    _samples[offset + s] =
-                        u * u * a0.Position +
-                        2 * u * t * control +
-                        t * t * a1.Position;
-                }
+        if (totalSamples == 0)
+        {
+            _samples = null;
+            _samplesDirty = false;
+            return;
+        }
+
+        if (_samples == null || _samples.Length < totalSamples)
+            _samples = new Vector2[totalSamples];
+
+        // Second pass: generate samples
+        for (var i = 0; i < segmentCount; i++)
+        {
+            var sc = _sampleCounts[i];
+            if (sc == 0) continue;
+
+            var a0 = Anchors[i];
+            var a1 = Anchors[(i + 1) % count];
+            var offset = _sampleOffsets[i];
+
+            var mid = (a0.Position + a1.Position) * 0.5f;
+            var dir = a1.Position - a0.Position;
+            var perp = new Vector2(-dir.Y, dir.X);
+            var len = perp.Length();
+            if (len > 0) perp /= len;
+            var control = mid + perp * a0.Curve;
+
+            for (var s = 0; s < sc; s++)
+            {
+                var t = (s + 1) / (float)(sc + 1);
+                var u = 1.0f - t;
+                _samples[offset + s] =
+                    u * u * a0.Position +
+                    2 * u * t * control +
+                    t * t * a1.Position;
             }
         }
 

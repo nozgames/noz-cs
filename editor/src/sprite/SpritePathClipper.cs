@@ -13,10 +13,9 @@ namespace NoZ.Editor;
 
 internal static class SpritePathClipper
 {
-    const int DefaultStepsPerCurve = 8;
     const int ClipperPrecision = 6;
 
-    internal static PathsD SpritePathToPaths(SpritePath spritePath, int stepsPerCurve = DefaultStepsPerCurve)
+    internal static PathsD SpritePathToPaths(SpritePath spritePath)
     {
         var hasTransform = spritePath.HasTransform;
         var transform = hasTransform ? spritePath.PathTransform : Matrix3x2.Identity;
@@ -26,7 +25,7 @@ internal static class SpritePathClipper
         {
             if (contour.Anchors.Count < 3) continue;
 
-            var path = ContourToPath(contour, hasTransform, transform, stepsPerCurve);
+            var path = ContourToPath(contour, hasTransform, transform);
             if (path.Count < 3) continue;
 
             // Ensure positive winding for NonZero fill rule.
@@ -48,13 +47,14 @@ internal static class SpritePathClipper
         return result;
     }
 
-    internal static SpritePath PathsToSpritePath(PathsD paths, Color32 fillColor, Color32 strokeColor = default, byte strokeWidth = 0, SpritePathOperation operation = SpritePathOperation.Normal)
+    internal static SpritePath PathsToSpritePath(PathsD paths, Color32 fillColor, Color32 strokeColor = default, byte strokeWidth = 0, SpritePathOperation operation = SpritePathOperation.Normal, SpriteStrokeJoin strokeJoin = SpriteStrokeJoin.Round)
     {
         var spritePath = new SpritePath
         {
             FillColor = fillColor,
             StrokeColor = strokeColor,
             StrokeWidth = strokeWidth,
+            StrokeJoin = strokeJoin,
             Operation = operation,
         };
 
@@ -76,7 +76,7 @@ internal static class SpritePathClipper
         return spritePath;
     }
 
-    static PathD ContourToPath(SpriteContour contour, bool hasTransform, Matrix3x2 transform, int stepsPerCurve)
+    static PathD ContourToPath(SpriteContour contour, bool hasTransform, Matrix3x2 transform)
     {
         var path = new PathD();
         var count = contour.Anchors.Count;
@@ -90,29 +90,28 @@ internal static class SpritePathClipper
             var pos0 = hasTransform ? Vector2.Transform(anchor0.Position, transform) : anchor0.Position;
             var pos1 = hasTransform ? Vector2.Transform(anchor1.Position, transform) : anchor1.Position;
 
-            if (Math.Abs(anchor0.Curve) < 0.0001)
+            var localDir = anchor1.Position - anchor0.Position;
+            var segLen = localDir.Length();
+            var steps = SpritePath.ComputeSegmentSamples(anchor0.Curve, segLen);
+
+            if (steps == 0)
             {
                 path.Add(new PointD(pos0.X, pos0.Y));
             }
             else
             {
-                // Compute control point in local space, then transform.
                 var localMid = (anchor0.Position + anchor1.Position) * 0.5f;
-                var localDir = anchor1.Position - anchor0.Position;
-                var perpMag = localDir.Length();
-                var localPerp = perpMag > 1e-5f
-                    ? new Vector2(-localDir.Y, localDir.X) / perpMag
+                var localPerp = segLen > 1e-5f
+                    ? new Vector2(-localDir.Y, localDir.X) / segLen
                     : new Vector2(0, 1);
                 var localCp = localMid + localPerp * anchor0.Curve;
                 var cp = hasTransform ? Vector2.Transform(localCp, transform) : localCp;
 
-                // Sample quadratic bezier: (1-t)^2*p0 + 2(1-t)t*cp + t^2*p1
-                // Start with the anchor point, then sample interior points
-                // matching SpriteContour's t = (s+1)/(steps+1) spacing.
+                // Anchor point + interior samples matching SpriteContour spacing
                 path.Add(new PointD(pos0.X, pos0.Y));
-                for (int i = 0; i < stepsPerCurve; i++)
+                for (int i = 0; i < steps; i++)
                 {
-                    double t = (double)(i + 1) / (stepsPerCurve + 1);
+                    double t = (double)(i + 1) / (steps + 1);
                     double u = 1.0 - t;
                     double x = u * u * pos0.X + 2 * u * t * cp.X + t * t * pos1.X;
                     double y = u * u * pos0.Y + 2 * u * t * cp.Y + t * t * pos1.Y;

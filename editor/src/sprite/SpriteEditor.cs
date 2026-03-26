@@ -19,6 +19,9 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId FillColorButton { get; }
         public static partial WidgetId StrokeColor { get; }
         public static partial WidgetId StrokeWidth { get; }
+        public static partial WidgetId StrokeJoinRound { get; }
+        public static partial WidgetId StrokeJoinMiter { get; }
+        public static partial WidgetId StrokeJoinBevel { get; }
         public static partial WidgetId AddFrameButton { get; }
         public static partial WidgetId PlayButton { get; }
         public static partial WidgetId ConstraintDropDown { get; }
@@ -370,6 +373,7 @@ public partial class SpriteEditor : DocumentEditor
         ], Strings.Number(Document.CurrentStrokeWidth), EditorAssets.Sprites.IconStrokeSize);
     }
 
+
     public void SetCurrentTimeSlot(int timeSlot)
     {
         var maxSlots = Document.TotalTimeSlots;
@@ -483,6 +487,7 @@ public partial class SpriteEditor : DocumentEditor
         {
             path.StrokeColor = color;
             path.StrokeWidth = Document.CurrentStrokeWidth;
+            path.StrokeJoin = Document.CurrentStrokeJoin;
         }
         _meshVersion = -1;
     }
@@ -494,6 +499,17 @@ public partial class SpriteEditor : DocumentEditor
 
         foreach (var path in _selectedPaths)
             path.StrokeWidth = width;
+
+        InvalidateMesh();
+    }
+
+    private void SetStrokeJoin(SpriteStrokeJoin join)
+    {
+        Document.CurrentStrokeJoin = join;
+        Undo.Record(Document);
+
+        foreach (var path in _selectedPaths)
+            path.StrokeJoin = join;
 
         InvalidateMesh();
     }
@@ -652,7 +668,7 @@ public partial class SpriteEditor : DocumentEditor
         // Create result path inheriting properties from the first selected path
         var firstPath = _selectedPaths[0];
         var resultPath = SpritePathClipper.PathsToSpritePath(
-            result, firstPath.FillColor, firstPath.StrokeColor, firstPath.StrokeWidth);
+            result, firstPath.FillColor, firstPath.StrokeColor, firstPath.StrokeWidth, strokeJoin: firstPath.StrokeJoin);
 
         // Insert result into the first path's parent at its position
         var parent = firstPath.Parent ?? ActiveLayer;
@@ -947,9 +963,12 @@ public partial class SpriteEditor : DocumentEditor
         _hoverPath = null;
         _hoverAnchorIndex = -1;
 
-        if (_selectedPaths.Count == 0 || Workspace.ActiveTool != null)
+        if (Workspace.ActiveTool != null)
+            return;
+
+        if (_selectedPaths.Count == 0)
         {
-            SetCursor(HandleHit.None);
+            SetCursor(SpritePathHandle.None);
             return;
         }
 
@@ -967,14 +986,14 @@ public partial class SpriteEditor : DocumentEditor
             {
                 _hoverPath = hit.Value.Path;
                 _hoverAnchorIndex = hit.Value.AnchorIndex;
-                SetCursor(HandleHit.Move);
+                SetCursor(SpritePathHandle.Move);
                 return;
             }
             else
-                SetCursor(HandleHit.None);
+                SetCursor(SpritePathHandle.None);
         }
         else
-            SetCursor(HandleHit.None);
+            SetCursor(SpritePathHandle.None);
     }
 
     private void DrawSelectionBounds(Matrix3x2 transform)
@@ -1018,23 +1037,14 @@ public partial class SpriteEditor : DocumentEditor
         Gizmos.DrawRect(new Vector2(bounds.Right, midY), handleSize, order: 6);
     }
 
-    private enum HandleHit
-    {
-        None,
-        Move,
-        ScaleTopLeft, ScaleTop, ScaleTopRight, ScaleRight,
-        ScaleBottomRight, ScaleBottom, ScaleBottomLeft, ScaleLeft,
-        RotateTopLeft, RotateTopRight, RotateBottomRight, RotateBottomLeft
-    }
-
-    private static bool IsScaleHandle(HandleHit hit) => hit >= HandleHit.ScaleTopLeft && hit <= HandleHit.ScaleLeft;
-    private static bool IsRotateHandle(HandleHit hit) => hit >= HandleHit.RotateTopLeft && hit <= HandleHit.RotateBottomLeft;
+    private static bool IsScaleHandle(SpritePathHandle hit) => hit >= SpritePathHandle.ScaleTopLeft && hit <= SpritePathHandle.ScaleLeft;
+    private static bool IsRotateHandle(SpritePathHandle hit) => hit >= SpritePathHandle.RotateTopLeft && hit <= SpritePathHandle.RotateBottomLeft;
 
     // Hit test handles in selection-rotated space
-    private HandleHit HitTestHandles(Vector2 docLocalPos)
+    private SpritePathHandle HitTestHandles(Vector2 docLocalPos)
     {
         var bounds = _selectionLocalBounds;
-        if (bounds.Width <= 0 && bounds.Height <= 0) return HandleHit.None;
+        if (bounds.Width <= 0 && bounds.Height <= 0) return SpritePathHandle.None;
 
         // Transform from document-local to selection-local space
         var selPos = Vector2.Transform(docLocalPos, Matrix3x2.CreateRotation(-_selectionRotation));
@@ -1058,7 +1068,7 @@ public partial class SpriteEditor : DocumentEditor
             for (var i = 0; i < 4; i++)
             {
                 if (Vector2.DistanceSquared(selPos, corners[i]) <= hitRadiusSqr)
-                    return HandleHit.RotateTopLeft + i;
+                    return SpritePathHandle.RotateTopLeft + i;
             }
         }
 
@@ -1066,7 +1076,7 @@ public partial class SpriteEditor : DocumentEditor
         for (var i = 0; i < 4; i++)
         {
             if (Vector2.DistanceSquared(selPos, corners[i]) <= hitRadiusSqr)
-                return HandleHit.ScaleTopLeft + i * 2;
+                return SpritePathHandle.ScaleTopLeft + i * 2;
         }
 
         // Edge midpoint handles
@@ -1076,11 +1086,11 @@ public partial class SpriteEditor : DocumentEditor
         edges[2] = new Vector2(midX, bounds.Bottom);
         edges[3] = new Vector2(bounds.X, midY);
 
-        Span<HandleHit> edgeHits = stackalloc HandleHit[4];
-        edgeHits[0] = HandleHit.ScaleTop;
-        edgeHits[1] = HandleHit.ScaleRight;
-        edgeHits[2] = HandleHit.ScaleBottom;
-        edgeHits[3] = HandleHit.ScaleLeft;
+        Span<SpritePathHandle> edgeHits = stackalloc SpritePathHandle[4];
+        edgeHits[0] = SpritePathHandle.ScaleTop;
+        edgeHits[1] = SpritePathHandle.ScaleRight;
+        edgeHits[2] = SpritePathHandle.ScaleBottom;
+        edgeHits[3] = SpritePathHandle.ScaleLeft;
 
         for (var i = 0; i < 4; i++)
         {
@@ -1090,38 +1100,26 @@ public partial class SpriteEditor : DocumentEditor
 
         // Inside oriented bbox = move (test in selection space using axis-aligned check)
         if (bounds.Contains(selPos))
-            return HandleHit.Move;
+            return SpritePathHandle.Move;
 
-        return HandleHit.None;
+        return SpritePathHandle.None;
     }
 
-    private void SetCursor(HandleHit hit)
+    private void SetCursor(SpritePathHandle hit)
     {
-        var angle = _selectionRotation;
-
-        if (hit == HandleHit.None)
-            Cursor.Set(EditorAssets.Sprites.CursorArrow);
-        else if (hit == HandleHit.Move)
-            Cursor.Set(EditorAssets.Sprites.CursorMove);
-        else if (hit is HandleHit.RotateTopLeft or HandleHit.RotateTopRight or
-                 HandleHit.RotateBottomRight or HandleHit.RotateBottomLeft)
-            Cursor.Set(SystemCursor.Crosshair);
+        if (hit == SpritePathHandle.None)
+            EditorCursor.SetArrow();
+        else if (hit == SpritePathHandle.Move)
+            EditorCursor.SetMove();
+        else if (hit is SpritePathHandle.RotateTopLeft or SpritePathHandle.RotateTopRight or
+                 SpritePathHandle.RotateBottomRight or SpritePathHandle.RotateBottomLeft)
+            EditorCursor.SetRotate();
         else
-        {
-            var rotation = hit switch
-            {
-                HandleHit.ScaleTop or HandleHit.ScaleBottom => angle + MathF.PI / 2f,
-                HandleHit.ScaleLeft or HandleHit.ScaleRight => angle,
-                HandleHit.ScaleTopLeft or HandleHit.ScaleBottomRight => angle + MathF.PI / 4f,
-                HandleHit.ScaleTopRight or HandleHit.ScaleBottomLeft => angle - MathF.PI / 4f,
-                _ => 0f,
-            };
-            Cursor.Set(EditorAssets.Sprites.CursorScale, rotation);
-        }
+            EditorCursor.SetScale(hit, _selectionRotation);
     }
 
     // Get the handle position in selection-local space
-    private Vector2 GetHandlePositionInSelSpace(HandleHit hit)
+    private Vector2 GetHandlePositionInSelSpace(SpritePathHandle hit)
     {
         var b = _selectionLocalBounds;
         var midX = b.X + b.Width * 0.5f;
@@ -1129,20 +1127,20 @@ public partial class SpriteEditor : DocumentEditor
 
         return hit switch
         {
-            HandleHit.ScaleTopLeft => new Vector2(b.X, b.Y),
-            HandleHit.ScaleTop => new Vector2(midX, b.Y),
-            HandleHit.ScaleTopRight => new Vector2(b.Right, b.Y),
-            HandleHit.ScaleRight => new Vector2(b.Right, midY),
-            HandleHit.ScaleBottomRight => new Vector2(b.Right, b.Bottom),
-            HandleHit.ScaleBottom => new Vector2(midX, b.Bottom),
-            HandleHit.ScaleBottomLeft => new Vector2(b.X, b.Bottom),
-            HandleHit.ScaleLeft => new Vector2(b.X, midY),
+            SpritePathHandle.ScaleTopLeft => new Vector2(b.X, b.Y),
+            SpritePathHandle.ScaleTop => new Vector2(midX, b.Y),
+            SpritePathHandle.ScaleTopRight => new Vector2(b.Right, b.Y),
+            SpritePathHandle.ScaleRight => new Vector2(b.Right, midY),
+            SpritePathHandle.ScaleBottomRight => new Vector2(b.Right, b.Bottom),
+            SpritePathHandle.ScaleBottom => new Vector2(midX, b.Bottom),
+            SpritePathHandle.ScaleBottomLeft => new Vector2(b.X, b.Bottom),
+            SpritePathHandle.ScaleLeft => new Vector2(b.X, midY),
             _ => b.Center,
         };
     }
 
     // Get the pivot (opposite handle) in selection-local space
-    private Vector2 GetOppositePivotInSelSpace(HandleHit hit)
+    private Vector2 GetOppositePivotInSelSpace(SpritePathHandle hit)
     {
         var b = _selectionLocalBounds;
         var midX = b.X + b.Width * 0.5f;
@@ -1150,14 +1148,14 @@ public partial class SpriteEditor : DocumentEditor
 
         return hit switch
         {
-            HandleHit.ScaleTopLeft => new Vector2(b.Right, b.Bottom),
-            HandleHit.ScaleTop => new Vector2(midX, b.Bottom),
-            HandleHit.ScaleTopRight => new Vector2(b.X, b.Bottom),
-            HandleHit.ScaleRight => new Vector2(b.X, midY),
-            HandleHit.ScaleBottomRight => new Vector2(b.X, b.Y),
-            HandleHit.ScaleBottom => new Vector2(midX, b.Y),
-            HandleHit.ScaleBottomLeft => new Vector2(b.Right, b.Y),
-            HandleHit.ScaleLeft => new Vector2(b.Right, midY),
+            SpritePathHandle.ScaleTopLeft => new Vector2(b.Right, b.Bottom),
+            SpritePathHandle.ScaleTop => new Vector2(midX, b.Bottom),
+            SpritePathHandle.ScaleTopRight => new Vector2(b.X, b.Bottom),
+            SpritePathHandle.ScaleRight => new Vector2(b.X, midY),
+            SpritePathHandle.ScaleBottomRight => new Vector2(b.X, b.Y),
+            SpritePathHandle.ScaleBottom => new Vector2(midX, b.Y),
+            SpritePathHandle.ScaleBottomLeft => new Vector2(b.Right, b.Y),
+            SpritePathHandle.ScaleLeft => new Vector2(b.Right, midY),
             _ => b.Center,
         };
     }
@@ -1377,6 +1375,22 @@ public partial class SpriteEditor : DocumentEditor
 
                 if (strokeColor.A > 0)
                     StrokeWidthButtonUI();
+            }
+
+            if (Document.CurrentStrokeColor.A > 0)
+            {
+                using (Inspector.BeginProperty("Join"))
+                using (UI.BeginRow(EditorStyle.Control.Spacing))
+                {
+                    if (UI.Button(WidgetIds.StrokeJoinRound, EditorAssets.Sprites.IconStrokeJoinRound, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Round))
+                        SetStrokeJoin(SpriteStrokeJoin.Round);
+
+                    if (UI.Button(WidgetIds.StrokeJoinMiter, EditorAssets.Sprites.IconStrokeJoinMiter, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Miter))
+                        SetStrokeJoin(SpriteStrokeJoin.Miter);
+
+                    if (UI.Button(WidgetIds.StrokeJoinBevel, EditorAssets.Sprites.IconStrokeJoinBevel, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Bevel))
+                        SetStrokeJoin(SpriteStrokeJoin.Bevel);
+                }
             }
         }
     }
@@ -1635,6 +1649,7 @@ public partial class SpriteEditor : DocumentEditor
         if (alt)
         {
             Document.CurrentStrokeWidth = path.StrokeWidth;
+            Document.CurrentStrokeJoin = path.StrokeJoin;
             SetStrokeColor(path.StrokeColor);
             if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
                 ColorPicker.Open(WidgetIds.StrokeColor, path.StrokeColor);

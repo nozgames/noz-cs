@@ -55,6 +55,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public Color32 CurrentFillColor = Color32.White;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
+    public SpriteStrokeJoin CurrentStrokeJoin;
     public SpritePathOperation CurrentOperation;
 
     public bool IsActiveLayerLocked => ActiveLayer?.Locked ?? false;
@@ -646,6 +647,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         CurrentFillColor = src.CurrentFillColor;
         CurrentStrokeColor = src.CurrentStrokeColor;
         CurrentStrokeWidth = src.CurrentStrokeWidth;
+        CurrentStrokeJoin = src.CurrentStrokeJoin;
 
         Edges = src.Edges;
         Skeleton = src.Skeleton;

@@ -50,7 +50,7 @@ public class KnifeTool : Tool
 
     public override void Begin()
     {
-        Cursor.SetCrosshair();
+        EditorCursor.SetCrosshair();
     }
 
     public override void Update()
@@ -481,17 +481,16 @@ public class KnifeTool : Tool
                     var a1 = contour.Anchors[(a + 1) % count];
                     var samples = contour.GetSegmentSamples(a);
 
-                    if (Physics.OverlapLine(from, to, a0.Position, samples[0], out var intersection))
-                        _points.Add(new KnifePoint { Position = intersection, Intersection = true });
-
-                    for (var s = 0; s < SpritePath.MaxSegmentSamples - 1; s++)
+                    var prev = a0.Position;
+                    foreach (var sample in samples)
                     {
-                        if (Physics.OverlapLine(from, to, samples[s], samples[s + 1], out intersection))
+                        if (Physics.OverlapLine(from, to, prev, sample, out var intersection))
                             _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+                        prev = sample;
                     }
 
-                    if (Physics.OverlapLine(from, to, samples[SpritePath.MaxSegmentSamples - 1], a1.Position, out intersection))
-                        _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+                    if (Physics.OverlapLine(from, to, prev, a1.Position, out var lastIntersection))
+                        _points.Add(new KnifePoint { Position = lastIntersection, Intersection = true });
                 }
             }
         }

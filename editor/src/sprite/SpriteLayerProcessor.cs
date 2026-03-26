@@ -134,7 +134,7 @@ internal static class SpriteLayerProcessor
                     {
                         contracted = Clipper.InflatePaths(contours,
                             -(path.StrokeWidth * SpritePath.StrokeScale),
-                            JoinType.Round, EndType.Polygon, precision: ClipperPrecision);
+                            ToClipperJoinType(path.StrokeJoin), EndType.Polygon, precision: ClipperPrecision);
                         if (contracted.Count > 0)
                             accContours = contracted;
                     }
@@ -154,7 +154,7 @@ internal static class SpriteLayerProcessor
             {
                 contracted ??= Clipper.InflatePaths(contours,
                     -(path.StrokeWidth * SpritePath.StrokeScale),
-                    JoinType.Round, EndType.Polygon, precision: ClipperPrecision);
+                    ToClipperJoinType(path.StrokeJoin), EndType.Polygon, precision: ClipperPrecision);
 
                 if (hasFill)
                 {
@@ -187,4 +187,11 @@ internal static class SpriteLayerProcessor
         TrimOverlaps(results);
         output.AddRange(results);
     }
+
+    private static JoinType ToClipperJoinType(SpriteStrokeJoin join) => join switch
+    {
+        SpriteStrokeJoin.Miter => JoinType.Miter,
+        SpriteStrokeJoin.Bevel => JoinType.Bevel,
+        _ => JoinType.Round,
+    };
 }

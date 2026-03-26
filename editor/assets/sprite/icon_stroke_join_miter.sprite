@@ -1,0 +1,9 @@
+path {
+  fill #FFFFFF
+  anchor -0.15 0.2
+  anchor -0.15 -0.15
+  anchor 0.2 -0.15
+  anchor 0.2 -0.05
+  anchor -0.05 -0.05
+  anchor -0.05 0.2
+}

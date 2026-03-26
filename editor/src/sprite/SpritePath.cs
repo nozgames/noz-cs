@@ -14,11 +14,26 @@ public enum SpritePathOperation : byte
     Clip
 }
 
+public enum SpriteStrokeJoin : byte
+{
+    Round,
+    Miter,
+    Bevel
+}
+
 public class SpritePath : SpriteNode
 {
-    public const int MaxSegmentSamples = 8;
+    public const int MinSegmentSamples = 4;
+    public const int MaxSegmentSamples = 16;
     public static float StrokeScale => EditorApplication.Config.PixelsPerUnitInv;
     public const float MinCurve = 0.0001f;
+
+    public static int ComputeSegmentSamples(float curve, float segmentLength)
+    {
+        if (MathF.Abs(curve) < MinCurve) return 0;
+        var ratio = MathF.Abs(curve) / MathF.Max(segmentLength, 0.001f);
+        return Math.Clamp((int)(ratio * 32) + 4, MinSegmentSamples, MaxSegmentSamples);
+    }
 
     public List<SpriteContour> Contours { get; } = new() { new SpriteContour() };
 
@@ -30,6 +45,7 @@ public class SpritePath : SpriteNode
     public Color32 StrokeColor { get; set; } = new(0, 0, 0, 0);
     public byte StrokeWidth { get; set; }
     public SpritePathOperation Operation { get; set; } = SpritePathOperation.Normal;
+    public SpriteStrokeJoin StrokeJoin { get; set; } = SpriteStrokeJoin.Round;
 
     // Per-path transform (V-mode operations modify these)
     public Vector2 PathTranslation { get; set; }
@@ -141,10 +157,10 @@ public class SpritePath : SpriteNode
                 if (i < segmentCount && MathF.Abs(contour.Anchors[i].Curve) > MinCurve)
                 {
                     var samples = contour.GetSegmentSamples(i);
-                    for (var s = 0; s < MaxSegmentSamples; s++)
+                    foreach (var sample in samples)
                     {
-                        min = Vector2.Min(min, samples[s]);
-                        max = Vector2.Max(max, samples[s]);
+                        min = Vector2.Min(min, sample);
+                        max = Vector2.Max(max, sample);
                     }
                 }
             }
@@ -173,9 +189,9 @@ public class SpritePath : SpriteNode
                     if (i < segmentCount && MathF.Abs(contour.Anchors[i].Curve) > MinCurve)
                     {
                         var samples = contour.GetSegmentSamples(i);
-                        for (var s = 0; s < MaxSegmentSamples; s++)
+                        foreach (var sample in samples)
                         {
-                            var ts = Vector2.Transform(samples[s], transform);
+                            var ts = Vector2.Transform(sample, transform);
                             wMin = Vector2.Min(wMin, ts);
                             wMax = Vector2.Max(wMax, ts);
                         }
@@ -383,17 +399,20 @@ public class SpritePath : SpriteNode
                 var nextIdx = (i + 1) % count;
                 var samples = contour.GetSegmentSamples(i);
 
-                var segBestDistSqr = PointToSegmentDistSqr(point, anchors[i].Position, samples[0], out var segBestClosest);
-                for (var s = 0; s < MaxSegmentSamples - 1; s++)
+                var prev = anchors[i].Position;
+                var segBestDistSqr = float.MaxValue;
+                var segBestClosest = prev;
+                foreach (var sample in samples)
                 {
-                    var distSqr = PointToSegmentDistSqr(point, samples[s], samples[s + 1], out var closest);
+                    var distSqr = PointToSegmentDistSqr(point, prev, sample, out var closest);
                     if (distSqr < segBestDistSqr)
                     {
                         segBestDistSqr = distSqr;
                         segBestClosest = closest;
                     }
+                    prev = sample;
                 }
-                var lastDistSqr = PointToSegmentDistSqr(point, samples[MaxSegmentSamples - 1], anchors[nextIdx].Position, out var lastClosest);
+                var lastDistSqr = PointToSegmentDistSqr(point, prev, anchors[nextIdx].Position, out var lastClosest);
                 if (lastDistSqr < segBestDistSqr)
                 {
                     segBestDistSqr = lastDistSqr;
@@ -475,10 +494,13 @@ public class SpritePath : SpriteNode
                 var nextIdx = (i + 1) % count;
                 var samples = contour.GetSegmentSamples(i);
 
-                winding += WindingSegment(point, contour.Anchors[i].Position, samples[0]);
-                for (var s = 0; s < MaxSegmentSamples - 1; s++)
-                    winding += WindingSegment(point, samples[s], samples[s + 1]);
-                winding += WindingSegment(point, samples[MaxSegmentSamples - 1], contour.Anchors[nextIdx].Position);
+                var prev = contour.Anchors[i].Position;
+                foreach (var sample in samples)
+                {
+                    winding += WindingSegment(point, prev, sample);
+                    prev = sample;
+                }
+                winding += WindingSegment(point, prev, contour.Anchors[nextIdx].Position);
             }
         }
 
@@ -645,12 +667,12 @@ public class SpritePath : SpriteNode
         // Find best T on the piecewise linear approximation
         var bestT = 0f;
         var bestDistSqr = float.MaxValue;
-        var totalSegments = MaxSegmentSamples + 1;
+        var totalSegments = samples.Length + 1;
 
         var prev = a0.Position;
-        for (var s = 0; s <= MaxSegmentSamples; s++)
+        for (var s = 0; s <= samples.Length; s++)
         {
-            var next = s < MaxSegmentSamples ? samples[s] : a1.Position;
+            var next = s < samples.Length ? samples[s] : a1.Position;
             var distSqr = PointToSegmentDistSqr(targetPoint, prev, next, out _);
             if (distSqr < bestDistSqr)
             {

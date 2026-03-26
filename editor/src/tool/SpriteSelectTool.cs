@@ -13,7 +13,7 @@ internal class SpriteSelectTool : Tool
 
     public override void Begin()
     {
-        Cursor.Set(SystemCursor.Crosshair);
+        EditorCursor.SetCrosshair();
     }
 
     public override void Update()

@@ -5,6 +5,7 @@ layer "Layer 5" {
     scale 1.1616411 1.1616411
     fill #000000
     stroke #FFFFFF 2
+    strokejoin miter
     anchor 0.08587029 -0.026507832
     anchor 0.0791445 -0.060134433
     anchor 0.1733003 0.00039482117

@@ -2,6 +2,7 @@
 path "" {
   fill #000000
   stroke #FFFFFF 2
+  strokejoin miter
   anchor -0.0008177757 -0.0023975372
   anchor 0.28880358 0.1491127
   anchor 0.14038563 0.1882782

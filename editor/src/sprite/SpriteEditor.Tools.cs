@@ -115,12 +115,9 @@ public partial class SpriteEditor
             var pivotSel = GetOppositePivotInSelSpace(handleHit);
             var pivotDoc = Vector2.Transform(pivotSel, selToDoc);
 
-            var constrainX = handleHit is HandleHit.ScaleTop or HandleHit.ScaleBottom;
-            var constrainY = handleHit is HandleHit.ScaleLeft or HandleHit.ScaleRight;
-
             var tool = HandleScalePathTransformTool.Create(
                 Document, _selectedPaths,
-                pivotDoc, _selectionRotation, constrainX, constrainY);
+                pivotDoc, _selectionRotation, handleHit);
             if (tool != null)
             {
                 Undo.Record(Document);
@@ -129,7 +126,7 @@ public partial class SpriteEditor
             }
         }
 
-        if (handleHit == HandleHit.Move)
+        if (handleHit == SpritePathHandle.Move)
         {
             var tool = MovePathTransformTool.Create(Document, _selectedPaths);
             if (tool != null)
@@ -291,9 +288,9 @@ public partial class SpriteEditor
                     if (i < segmentCount && MathF.Abs(contour.Anchors[i].Curve) > SpritePath.MinCurve)
                     {
                         var samples = contour.GetSegmentSamples(i);
-                        for (var s = 0; s < SpritePath.MaxSegmentSamples; s++)
+                        foreach (var sample in samples)
                         {
-                            var sp = Vector2.Transform(samples[s], toSelSpace);
+                            var sp = Vector2.Transform(sample, toSelSpace);
                             min = Vector2.Min(min, sp);
                             max = Vector2.Max(max, sp);
                         }
@@ -353,6 +350,7 @@ public partial class SpriteEditor
             Document.CurrentFillColor = path.FillColor;
             Document.CurrentStrokeColor = path.StrokeColor;
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
+            Document.CurrentStrokeJoin = path.StrokeJoin;
             Document.CurrentOperation = path.Operation;
         }
     }

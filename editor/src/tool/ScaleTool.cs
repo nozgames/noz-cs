@@ -39,6 +39,7 @@ public class ScaleTool : Tool
     {
         base.Begin();
         _startWorld = Workspace.MouseWorldPosition;
+        EditorCursor.SetScale();
     }
 
     public override void Update()

@@ -8,11 +8,12 @@ namespace NoZ.Editor;
 
 // Handle-based scale tool: the mouse tracks the handle position.
 // Scale is computed by projecting mouse onto local axes relative to pivot.
-public class HandleScalePathTransformTool : Tool
+internal class HandleScalePathTransformTool : Tool
 {
     private PathTransformToolState _state;
     private readonly Vector2 _pivotDoc; // pivot in document-local space
     private readonly float _selectionRotation; // for axis-aligned scaling
+    private readonly SpritePathHandle _handle;
     private readonly bool _constrainX; // edge handle: only scale X
     private readonly bool _constrainY; // edge handle: only scale Y
     private readonly Matrix3x2 _invDocTransform;
@@ -22,21 +23,22 @@ public class HandleScalePathTransformTool : Tool
         PathTransformToolState state,
         Vector2 pivotDoc,
         float selectionRotation,
-        bool constrainX, bool constrainY,
+        SpritePathHandle handle,
         Matrix3x2 invDocTransform)
     {
         _state = state;
         _pivotDoc = pivotDoc;
         _selectionRotation = selectionRotation;
-        _constrainX = constrainX;
-        _constrainY = constrainY;
+        _handle = handle;
+        _constrainX = handle is SpritePathHandle.ScaleTop or SpritePathHandle.ScaleBottom;
+        _constrainY = handle is SpritePathHandle.ScaleLeft or SpritePathHandle.ScaleRight;
         _invDocTransform = invDocTransform;
     }
 
     public static HandleScalePathTransformTool? Create(
         SpriteDocument document, List<SpritePath> selectedPaths,
         Vector2 pivotDoc,
-        float selectionRotation, bool constrainX, bool constrainY)
+        float selectionRotation, SpritePathHandle handle)
     {
         var state = PathTransformToolState.Create(document, selectedPaths);
         if (state == null) return null;
@@ -45,13 +47,14 @@ public class HandleScalePathTransformTool : Tool
 
         return new HandleScalePathTransformTool(
             state.Value, pivotDoc,
-            selectionRotation, constrainX, constrainY, invDoc);
+            selectionRotation, handle, invDoc);
     }
 
     public override void Begin()
     {
         base.Begin();
         _mouseStartDoc = Vector2.Transform(Workspace.MouseWorldPosition, _invDocTransform);
+        UpdateCursor();
     }
 
     public override void Update()
@@ -72,6 +75,7 @@ public class HandleScalePathTransformTool : Tool
             return;
         }
 
+        UpdateCursor();
         ApplyScale();
     }
 
@@ -130,6 +134,8 @@ public class HandleScalePathTransformTool : Tool
         }
         _state.UpdatePaths();
     }
+
+    private void UpdateCursor() => EditorCursor.SetScale(_handle, _selectionRotation);
 
     public override void Draw()
     {

@@ -19,7 +19,7 @@ public class BoneSelectTool : Tool
 
     public override void Begin()
     {
-        Cursor.Set(SystemCursor.Crosshair);
+        EditorCursor.SetCrosshair();
         CollectionManager.ShowAlways(typeof(SkeletonDocument), true);
     }
 

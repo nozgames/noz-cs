@@ -36,7 +36,7 @@ public class ShapeTool : Tool
 
     public override void Begin()
     {
-        Cursor.SetCrosshair();
+        EditorCursor.SetCrosshair();
     }
 
     public override void Update()
