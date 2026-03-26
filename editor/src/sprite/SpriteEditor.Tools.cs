@@ -26,6 +26,9 @@ public partial class SpriteEditor
     private SpritePath? _hoverPath;
     private int _hoverAnchorIndex = -1;
 
+    // V-mode hover state
+    private SpritePathHandle _hoverHandle;
+
     private SpriteLayer ActiveLayer => Document.ActiveLayer ?? Document.RootLayer;
 
     private SpritePath? GetPathWithSelection()
@@ -568,14 +571,14 @@ public partial class SpriteEditor
                 for (var i = 0; i < segmentCount; i++)
                 {
                     if (!path.IsSegmentSelected(ci, i))
-                        DrawContourSegment(contour, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 1);
+                        DrawContourSegment(contour, i, localTransform, EditorStyle.SpritePath.SegmentLineWidth, 1);
                 }
 
                 Gizmos.SetColor(EditorStyle.Palette.Primary);
                 for (var i = 0; i < segmentCount; i++)
                 {
                     if (path.IsSegmentSelected(ci, i))
-                        DrawContourSegment(contour, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 2);
+                        DrawContourSegment(contour, i, localTransform, EditorStyle.SpritePath.SegmentLineWidth, 2);
                 }
             }
         }
@@ -610,25 +613,15 @@ public partial class SpriteEditor
                 {
                     if (contour.Anchors[i].IsSelected) continue;
                     var pos = Vector2.Transform(contour.Anchors[i].Position, localTransform);
-
-                    if (isHoverPath && contour == path.Contours[0] && i == _hoverAnchorIndex)
-                    {
-                        Gizmos.SetColor(EditorStyle.Palette.Primary);
-                        Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize * 1.3f, order: 5);
-                    }
-                    else
-                    {
-                        Gizmos.SetColor(EditorStyle.Palette.PathAnchor);
-                        Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize, order: 4);
-                    }
+                    var hovered = isHoverPath && contour == path.Contours[0] && i == _hoverAnchorIndex;
+                    Gizmos.DrawAnchor(pos, selected: false, scale: hovered ? 1.3f : 1.0f, order: 4);
                 }
             }
 
             for (var i = 0; i < contour.Anchors.Count; i++)
             {
                 if (!contour.Anchors[i].IsSelected) continue;
-                Gizmos.SetColor(EditorStyle.Palette.Primary);
-                Gizmos.DrawRect(Vector2.Transform(contour.Anchors[i].Position, localTransform), EditorStyle.Shape.AnchorSize, order: 5);
+                Gizmos.DrawAnchor(Vector2.Transform(contour.Anchors[i].Position, localTransform), selected: true, order: 5);
             }
         }
     }

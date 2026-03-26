@@ -962,6 +962,7 @@ public partial class SpriteEditor : DocumentEditor
     {
         _hoverPath = null;
         _hoverAnchorIndex = -1;
+        _hoverHandle = SpritePathHandle.None;
 
         if (Workspace.ActiveTool != null)
             return;
@@ -977,7 +978,8 @@ public partial class SpriteEditor : DocumentEditor
 
         if (CurrentMode == SpriteEditMode.V)
         {
-            SetCursor(HitTestHandles(localMousePos));
+            _hoverHandle = HitTestHandles(localMousePos);
+            SetCursor(_hoverHandle);
         }
         else if (CurrentMode == SpriteEditMode.A)
         {
@@ -1012,7 +1014,7 @@ public partial class SpriteEditor : DocumentEditor
         Graphics.SetTransform(selToDoc * transform);
 
         Gizmos.SetColor(EditorStyle.Palette.Primary);
-        var lineWidth = EditorStyle.Shape.SegmentLineWidth;
+        var lineWidth = EditorStyle.SpritePath.SegmentLineWidth;
         var tl = new Vector2(bounds.X, bounds.Y);
         var tr = new Vector2(bounds.Right, bounds.Y);
         var br = new Vector2(bounds.Right, bounds.Bottom);
@@ -1023,18 +1025,18 @@ public partial class SpriteEditor : DocumentEditor
         Gizmos.DrawLine(bl, tl, lineWidth, order: 2);
 
         // Draw handles at corners and edge midpoints (in selection space)
-        var handleSize = EditorStyle.Shape.AnchorSize;
         var midX = bounds.X + bounds.Width * 0.5f;
         var midY = bounds.Y + bounds.Height * 0.5f;
 
-        Gizmos.DrawRect(tl, handleSize, order: 6);
-        Gizmos.DrawRect(tr, handleSize, order: 6);
-        Gizmos.DrawRect(br, handleSize, order: 6);
-        Gizmos.DrawRect(bl, handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(midX, bounds.Y), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(midX, bounds.Bottom), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.X, midY), handleSize, order: 6);
-        Gizmos.DrawRect(new Vector2(bounds.Right, midY), handleSize, order: 6);
+        var h = _hoverHandle;
+        Gizmos.DrawAnchor(tl, selected: h is SpritePathHandle.ScaleTopLeft or SpritePathHandle.RotateTopLeft, order: 6);
+        Gizmos.DrawAnchor(tr, selected: h is SpritePathHandle.ScaleTopRight or SpritePathHandle.RotateTopRight, order: 6);
+        Gizmos.DrawAnchor(br, selected: h is SpritePathHandle.ScaleBottomRight or SpritePathHandle.RotateBottomRight, order: 6);
+        Gizmos.DrawAnchor(bl, selected: h is SpritePathHandle.ScaleBottomLeft or SpritePathHandle.RotateBottomLeft, order: 6);
+        Gizmos.DrawAnchor(new Vector2(midX, bounds.Y), selected: h is SpritePathHandle.ScaleTop, order: 6);
+        Gizmos.DrawAnchor(new Vector2(midX, bounds.Bottom), selected: h is SpritePathHandle.ScaleBottom, order: 6);
+        Gizmos.DrawAnchor(new Vector2(bounds.X, midY), selected: h is SpritePathHandle.ScaleLeft, order: 6);
+        Gizmos.DrawAnchor(new Vector2(bounds.Right, midY), selected: h is SpritePathHandle.ScaleRight, order: 6);
     }
 
     private static bool IsScaleHandle(SpritePathHandle hit) => hit >= SpritePathHandle.ScaleTopLeft && hit <= SpritePathHandle.ScaleLeft;
@@ -1049,7 +1051,7 @@ public partial class SpriteEditor : DocumentEditor
         // Transform from document-local to selection-local space
         var selPos = Vector2.Transform(docLocalPos, Matrix3x2.CreateRotation(-_selectionRotation));
 
-        var hitRadius = EditorStyle.Shape.AnchorHitRadius;
+        var hitRadius = EditorStyle.SpritePath.AnchorHitRadius;
         var hitRadiusSqr = hitRadius * hitRadius;
 
         var midX = bounds.X + bounds.Width * 0.5f;

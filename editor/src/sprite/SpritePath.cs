@@ -347,7 +347,7 @@ public class SpritePath : SpriteNode
 
     public (int ContourIndex, int AnchorIndex, float DistSqr, Vector2 Position) HitTestAnchor(Vector2 point)
     {
-        var radius = EditorStyle.Shape.AnchorHitRadius;
+        var radius = EditorStyle.SpritePath.AnchorHitRadius;
         TransformPointAndRadius(ref point, ref radius);
         var radiusSqr = radius * radius;
 
@@ -377,7 +377,7 @@ public class SpritePath : SpriteNode
 
     public new (int ContourIndex, int SegmentIndex, float DistSqr, Vector2 Position) HitTestSegment(Vector2 point)
     {
-        var radius = EditorStyle.Shape.SegmentHitRadius;
+        var radius = EditorStyle.SpritePath.SegmentHitRadius;
         TransformPointAndRadius(ref point, ref radius);
         var radiusSqr = radius * radius;
 

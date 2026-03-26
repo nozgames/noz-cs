@@ -27,6 +27,7 @@ public static class EditorAssets
         public const string CursorScale = "cursor_scale";
         public const string Cursors = "cursors";
         public const string EditorSprites000 = "editor_sprites000";
+        public const string GizmoHandle = "gizmo_handle";
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
         public const string IconBone = "icon_bone";
@@ -167,6 +168,7 @@ public static class EditorAssets
         public static Sprite CursorMove { get; private set; } = null!;
         public static Sprite CursorScale { get; private set; } = null!;
         public static Sprite Cursors { get; private set; } = null!;
+        public static Sprite GizmoHandle { get; private set; } = null!;
         public static Sprite IconAdd { get; private set; } = null!;
         public static Sprite IconAi { get; private set; } = null!;
         public static Sprite IconBone { get; private set; } = null!;
@@ -244,6 +246,7 @@ public static class EditorAssets
             CursorMove = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorMove)!;
             CursorScale = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorScale)!;
             Cursors = (Sprite)Asset.Load(AssetType.Sprite, Names.Cursors)!;
+            GizmoHandle = (Sprite)Asset.Load(AssetType.Sprite, Names.GizmoHandle)!;
             IconAdd = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAdd)!;
             IconAi = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAi)!;
             IconBone = (Sprite)Asset.Load(AssetType.Sprite, Names.IconBone)!;
@@ -322,6 +325,7 @@ public static class EditorAssets
             CursorMove?.Dispose();
             CursorScale?.Dispose();
             Cursors?.Dispose();
+            GizmoHandle?.Dispose();
             IconAdd?.Dispose();
             IconAi?.Dispose();
             IconBone?.Dispose();

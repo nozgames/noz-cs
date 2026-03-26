@@ -338,7 +338,7 @@ public class KnifeTool : Tool
         _hoverPosition = mouseLocal;
         _hoverPositionValid = !DoesIntersectSelf(_hoverPosition);
 
-        var anchorHitRadius = EditorStyle.Shape.AnchorHitRadius;
+        var anchorHitRadius = EditorStyle.SpritePath.AnchorHitRadius;
 
         _hoverIsClose = _points.Count > 0 &&
             Vector2.DistanceSquared(_hoverPosition, _points[0].Position) <
@@ -392,26 +392,20 @@ public class KnifeTool : Tool
 
             Gizmos.SetColor(EditorStyle.Tool.LineColor);
             for (var i = 0; i < _points.Count - 1; i++)
-                Gizmos.DrawLine(_points[i].Position, _points[i + 1].Position, EditorStyle.Shape.SegmentLineWidth);
+                Gizmos.DrawLine(_points[i].Position, _points[i + 1].Position, EditorStyle.SpritePath.SegmentLineWidth);
 
             if (_points.Count > 0)
             {
                 Gizmos.SetColor(_hoverPositionValid
                     ? EditorStyle.Tool.LineColor
                     : EditorStyle.KnifeTool.InvalidSegmentColor);
-                Gizmos.DrawLine(_points[^1].Position, _hoverPosition, EditorStyle.Shape.SegmentLineWidth);
+                Gizmos.DrawLine(_points[^1].Position, _hoverPosition, EditorStyle.SpritePath.SegmentLineWidth);
             }
 
             for (var i = 0; i < _points.Count; i++)
-            {
-                Gizmos.SetColor(_points[i].Intersection
-                    ? EditorStyle.KnifeTool.IntersectionColor
-                    : EditorStyle.KnifeTool.AnchorColor);
-                Gizmos.DrawRect(_points[i].Position, EditorStyle.Shape.AnchorSize * IntersectionAnchorScale);
-            }
+                Gizmos.DrawAnchor(_points[i].Position, selected: true, scale: IntersectionAnchorScale);
 
-            Gizmos.SetColor(EditorStyle.Tool.PointColor);
-            Gizmos.DrawCircle(_hoverPosition, EditorStyle.Shape.AnchorSize * HoverAnchorScale);
+            Gizmos.DrawAnchor(_hoverPosition, selected: false, scale: HoverAnchorScale);
         }
     }
 

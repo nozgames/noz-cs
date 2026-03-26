@@ -520,20 +520,16 @@ public static class EditorStyle
     }
 
     // :shape
-    public static class Shape
+    public static class SpritePath
     {
-        public const float AnchorSize = 0.12f;
+        public const float AnchorSize = 0.2f;
         public const float AnchorHitSize = AnchorSize;
-        public const float SegmentLineWidth = 0.016f;
+        public const float AnchorOutlineSize = 0.04f;
+        public const float SegmentLineWidth = 0.02f;
         public const float SegmentHitSize = SegmentLineWidth * 12.0f;
 
         public static float AnchorHitRadius => AnchorHitSize * Gizmos.ZoomRefScale;
         public static float SegmentHitRadius => SegmentHitSize * Gizmos.ZoomRefScale;
-
-        public static readonly Color ControlPointColor = Color.FromRgb(0xff7900);
-        public static readonly Color ControlPointLineColor = Color.FromRgb(0xfd970e);
-        public const float ControlPointSize = 0.06f;
-        public const float ControlPointLineWidth = 0.01f;
     }
 
     // :skeleton
@@ -1246,7 +1242,7 @@ public static class EditorStyle
     {
         public static readonly Color LineColor = Color.FromRgba(0xf5f04e, 0.7f);
         public static readonly Color PointColor = Color.FromRgb(0x63ffff);
-        public const float PointSize = Shape.AnchorSize * 1.5f;
+        public const float PointSize = SpritePath.AnchorSize * 1.5f;
     }
 
     // :knifetool

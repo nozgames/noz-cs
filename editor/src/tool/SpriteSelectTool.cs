@@ -84,7 +84,7 @@ internal class SpriteSelectTool : Tool
             else
             {
                 Graphics.SetColor(EditorStyle.Palette.Primary.WithAlpha(0.5f));
-                Gizmos.DrawRect(Workspace.MouseWorldPosition, EditorStyle.Shape.AnchorSize * 2f);
+                Gizmos.DrawRect(Workspace.MouseWorldPosition, EditorStyle.SpritePath.AnchorSize * 2f);
             }
         }
     }

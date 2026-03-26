@@ -84,7 +84,7 @@ public class PenTool : Tool
         _hoveringFirstPoint = false;
         if (_pointCount >= 3)
         {
-            var anchorHitRadius = EditorStyle.Shape.AnchorHitRadius;
+            var anchorHitRadius = EditorStyle.SpritePath.AnchorHitRadius;
             _hoveringFirstPoint = Vector2.DistanceSquared(mouseLocal, _points[0].Position) < anchorHitRadius * anchorHitRadius;
         }
 

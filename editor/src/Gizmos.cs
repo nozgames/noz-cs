@@ -140,6 +140,34 @@ public static class Gizmos
         Graphics.Draw(verts, indices, order);
     }
 
+    public static void DrawAnchor(Vector2 center, bool selected, float scale = 1.0f, ushort order = 0)
+    {
+        var sprite = EditorAssets.Sprites.GizmoHandle;
+        var baseSize = EditorStyle.SpritePath.AnchorSize * scale * ZoomRefScale;
+        var ppu = sprite.PixelsPerUnit / sprite.Bounds.Width;
+
+        using (Graphics.PushState())
+        {
+            var baseTransform = Matrix3x2.CreateTranslation(center) * Graphics.Transform;
+
+            // Outline (full size)
+            Graphics.SetTransform(Matrix3x2.CreateScale(baseSize * ppu) * baseTransform);
+            Graphics.SetTextureFilter(TextureFilter.Linear);
+            Graphics.SetColor(EditorStyle.Palette.Primary);
+            Graphics.Draw(sprite, order);
+
+            // Fill (inset by outline width)
+            if (!selected)
+            {
+                var fillSize = (baseSize - EditorStyle.SpritePath.AnchorOutlineSize * ZoomRefScale) * ppu;
+                Graphics.SetTransform(Matrix3x2.CreateScale(fillSize) * baseTransform);
+                Graphics.SetTextureFilter(TextureFilter.Linear);
+                Graphics.SetColor(Color.White);
+                Graphics.Draw(sprite, (ushort)(order + 1));
+            }
+        }
+    }
+
     public static void DrawPieChart(Vector2 center, float size, ReadOnlySpan<float> weights, ReadOnlySpan<Color> colors, ushort order = 0)
     {
         var radius = size * 0.5f * ZoomRefScale;
