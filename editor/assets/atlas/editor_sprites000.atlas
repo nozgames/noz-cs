@@ -15,8 +15,9 @@ r "asset_icon_sound" 600 1 92 122 0
 r "asset_icon_sprite" 484 117 68 68 0
 r "asset_icon_vfx" 362 125 122 122 0
 r "cursor_arrow" 1 69 42 47 0
+r "cursor_move" 235 134 56 56 0
 r "icon_add" 552 117 36 36 0
-r "icon_ai" 268 134 68 68 0
+r "icon_ai" 291 134 68 68 0
 r "icon_bone" 235 202 68 68 0
 r "icon_check" 121 236 68 68 0
 r "icon_circle" 692 1 126 126 0
@@ -70,4 +71,4 @@ r "icon_unlock" 972 137 36 36 0
 r "icon_xray" 928 321 68 68 0
 r "new_sprite001" 605 331 186 167 0
 r "new_sprite002" 205 383 113 115 0
-r "new_sprite003" 972 173 51 51 0
+r "cursor_move_2" 137 406 56 56 0

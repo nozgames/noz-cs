@@ -28,6 +28,9 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId PathNormal { get; }
         public static partial WidgetId PathSubtract { get; }
         public static partial WidgetId PathClip { get; }
+        public static partial WidgetId BoolUnion { get; }
+        public static partial WidgetId BoolSubtract { get; }
+        public static partial WidgetId BoolIntersect { get; }
         public static partial WidgetId FillColor { get; }
         public static partial WidgetId GenerateButton { get; }
         public static partial WidgetId CancelButton { get; }
@@ -91,6 +94,9 @@ public partial class SpriteEditor : DocumentEditor
                 new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
                 new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
                 new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
+                new Command { Name = "Boolean Union", Handler = BooleanUnion, Key = InputCode.KeyU, Ctrl = true, Shift = true },
+                new Command { Name = "Boolean Subtract", Handler = BooleanSubtract, Key = InputCode.KeyD, Ctrl = true, Shift = true },
+                new Command { Name = "Boolean Intersect", Handler = BooleanIntersect, Key = InputCode.KeyI, Ctrl = true, Shift = true },
             ];
         }
         else
@@ -533,7 +539,7 @@ public partial class SpriteEditor : DocumentEditor
 
         Document.RootLayer.ForEachEditablePath(p =>
         {
-            if (p.Anchors.Count == 0) return;
+            if (p.TotalAnchorCount == 0) return;
             hasAnchors = true;
             p.UpdateSamples();
             p.UpdateBounds();
@@ -554,11 +560,14 @@ public partial class SpriteEditor : DocumentEditor
             // Translate all paths to center origin
             Document.RootLayer.ForEachEditablePath(p =>
             {
-                for (var i = 0; i < p.Anchors.Count; i++)
+                foreach (var contour in p.Contours)
                 {
-                    var a = p.Anchors[i];
-                    a.Position -= center;
-                    p.Anchors[i] = a;
+                    for (var i = 0; i < contour.Anchors.Count; i++)
+                    {
+                        var a = contour.Anchors[i];
+                        a.Position -= center;
+                        contour.Anchors[i] = a;
+                    }
                 }
                 p.MarkDirty();
             });
@@ -577,10 +586,13 @@ public partial class SpriteEditor : DocumentEditor
         var count = 0;
         foreach (var path in _selectedPaths)
         {
-            foreach (var anchor in path.Anchors)
+            foreach (var contour in path.Contours)
             {
-                sum += anchor.Position;
-                count++;
+                foreach (var anchor in contour.Anchors)
+                {
+                    sum += anchor.Position;
+                    count++;
+                }
             }
         }
         if (count == 0) return;
@@ -589,14 +601,17 @@ public partial class SpriteEditor : DocumentEditor
         Undo.Record(Document);
         foreach (var path in _selectedPaths)
         {
-            for (var i = 0; i < path.Anchors.Count; i++)
+            foreach (var contour in path.Contours)
             {
-                var a = path.Anchors[i];
-                a.Position = horizontal
-                    ? new Vector2(2 * centroid.X - a.Position.X, a.Position.Y)
-                    : new Vector2(a.Position.X, 2 * centroid.Y - a.Position.Y);
-                a.Curve = -a.Curve;
-                path.Anchors[i] = a;
+                for (var i = 0; i < contour.Anchors.Count; i++)
+                {
+                    var a = contour.Anchors[i];
+                    a.Position = horizontal
+                        ? new Vector2(2 * centroid.X - a.Position.X, a.Position.Y)
+                        : new Vector2(a.Position.X, 2 * centroid.Y - a.Position.Y);
+                    a.Curve = -a.Curve;
+                    contour.Anchors[i] = a;
+                }
             }
             path.MarkDirty();
             path.UpdateSamples();
@@ -604,6 +619,64 @@ public partial class SpriteEditor : DocumentEditor
         }
         Document.UpdateBounds();
     }
+
+    #region Boolean Operations
+
+    private void BooleanUnion() => BooleanOp(Clipper2Lib.ClipType.Union);
+    private void BooleanSubtract() => BooleanOp(Clipper2Lib.ClipType.Difference);
+    private void BooleanIntersect() => BooleanOp(Clipper2Lib.ClipType.Intersection);
+
+    private void BooleanOp(Clipper2Lib.ClipType clipType)
+    {
+        if (_selectedPaths.Count < 2) return;
+
+        var subject = _selectedPaths[0].GetClipperPaths();
+        if (subject.Count == 0) return;
+
+        // Accumulate clip paths from remaining selected paths
+        var clip = new Clipper2Lib.PathsD();
+        for (var i = 1; i < _selectedPaths.Count; i++)
+        {
+            var paths = _selectedPaths[i].GetClipperPaths();
+            clip.AddRange(paths);
+        }
+        if (clip.Count == 0) return;
+
+        // Run the boolean operation
+        var result = Clipper2Lib.Clipper.BooleanOp(clipType,
+            subject, clip, Clipper2Lib.FillRule.NonZero, precision: 6);
+        if (result.Count == 0) return;
+
+        Undo.Record(Document);
+
+        // Create result path inheriting properties from the first selected path
+        var firstPath = _selectedPaths[0];
+        var resultPath = SpritePathClipper.PathsToSpritePath(
+            result, firstPath.FillColor, firstPath.StrokeColor, firstPath.StrokeWidth);
+
+        // Insert result into the first path's parent at its position
+        var parent = firstPath.Parent ?? ActiveLayer;
+        var insertIndex = parent.Children.IndexOf(firstPath);
+
+        // Remove all original paths
+        foreach (var path in _selectedPaths)
+            path.RemoveFromParent();
+
+        // Insert result
+        if (insertIndex >= 0 && insertIndex <= parent.Children.Count)
+            parent.Insert(insertIndex, resultPath);
+        else
+            parent.Add(resultPath);
+
+        resultPath.SelectPath();
+        resultPath.UpdateSamples();
+        resultPath.UpdateBounds();
+        Document.UpdateBounds();
+        Document.IncrementVersion();
+        RebuildSelectedPaths();
+    }
+
+    #endregion
 
     private void MovePathInOrder(int direction)
     {
@@ -690,12 +763,13 @@ public partial class SpriteEditor : DocumentEditor
 
         Undo.Record(Document);
         var path = hit.Value.Path;
+        var hitCi = hit.Value.ContourIndex;
         path.ClearAnchorSelection();
-        path.SplitSegmentAtPoint(hit.Value.SegmentIndex, hit.Value.Position);
+        path.SplitSegmentAtPoint(hitCi, hit.Value.SegmentIndex, hit.Value.Position);
 
         var newIdx = hit.Value.SegmentIndex + 1;
-        if (newIdx < path.Anchors.Count)
-            path.SetAnchorSelected(newIdx, true);
+        if (newIdx < path.Contours[hitCi].Anchors.Count)
+            path.SetAnchorSelected(hitCi, newIdx, true);
 
         path.UpdateSamples();
         path.UpdateBounds();
@@ -710,14 +784,14 @@ public partial class SpriteEditor : DocumentEditor
 
         foreach (var h in _anchorHitResults)
         {
-            if (h.Path.Anchors[h.AnchorIndex].IsSelected && !shift)
+            if (h.Path.Contours[h.ContourIndex].Anchors[h.AnchorIndex].IsSelected && !shift)
             {
                 if (CycleAnchorSelection(h))
                     return true;
             }
 
             if (!shift) Document.RootLayer.ClearAnchorSelections();
-            h.Path.SetAnchorSelected(h.AnchorIndex, true);
+            h.Path.SetAnchorSelected(h.ContourIndex, h.AnchorIndex, true);
             RebuildSelectedPaths();
             return true;
         }
@@ -854,7 +928,7 @@ public partial class SpriteEditor : DocumentEditor
             // A mode: draw anchors and edges for selected paths only
             foreach (var path in _selectedPaths)
             {
-                if (path.Anchors.Count < 2) continue;
+                if (path.TotalAnchorCount < 2) continue;
                 path.UpdateSamples();
                 var localTransform = path.HasTransform ? path.PathTransform : Matrix3x2.Identity;
                 DrawPathSegments(path, localTransform, transform);
@@ -874,19 +948,17 @@ public partial class SpriteEditor : DocumentEditor
         _hoverAnchorIndex = -1;
 
         if (_selectedPaths.Count == 0 || Workspace.ActiveTool != null)
+        {
+            SetCursor(HandleHit.None);
             return;
+        }
 
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
 
         if (CurrentMode == SpriteEditMode.V)
         {
-            var hit = HitTestHandles(localMousePos);
-            if (hit != HandleHit.None)
-            {
-                Cursor.Set(GetHandleCursor(hit));
-                return;
-            }
+            SetCursor(HitTestHandles(localMousePos));
         }
         else if (CurrentMode == SpriteEditMode.A)
         {
@@ -895,12 +967,14 @@ public partial class SpriteEditor : DocumentEditor
             {
                 _hoverPath = hit.Value.Path;
                 _hoverAnchorIndex = hit.Value.AnchorIndex;
-                Cursor.Set(SystemCursor.Move);
+                SetCursor(HandleHit.Move);
                 return;
             }
+            else
+                SetCursor(HandleHit.None);
         }
-
-        Cursor.Set(EditorAssets.Sprites.CursorArrow);
+        else
+            SetCursor(HandleHit.None);
     }
 
     private void DrawSelectionBounds(Matrix3x2 transform)
@@ -1021,23 +1095,26 @@ public partial class SpriteEditor : DocumentEditor
         return HandleHit.None;
     }
 
-    // Get cursor for a given handle hit
-    private SystemCursor GetHandleCursor(HandleHit hit)
+    private void SetCursor(HandleHit hit)
     {
-        // Determine base cursor direction, then rotate by selection rotation
         var angle = _selectionRotation;
 
-        return hit switch
-        {
-            HandleHit.ScaleTop or HandleHit.ScaleBottom => GetRotatedResizeCursor(angle),
-            HandleHit.ScaleLeft or HandleHit.ScaleRight => GetRotatedResizeCursor(angle + MathF.PI / 2f),
-            HandleHit.ScaleTopLeft or HandleHit.ScaleBottomRight => GetRotatedResizeCursor(angle + MathF.PI / 4f),
-            HandleHit.ScaleTopRight or HandleHit.ScaleBottomLeft => GetRotatedResizeCursor(angle - MathF.PI / 4f),
-            HandleHit.RotateTopLeft or HandleHit.RotateTopRight or
-            HandleHit.RotateBottomRight or HandleHit.RotateBottomLeft => SystemCursor.Crosshair,
-            HandleHit.Move => SystemCursor.Move,
-            _ => SystemCursor.Default,
-        };
+        if (hit == HandleHit.None)
+            Cursor.Set(EditorAssets.Sprites.CursorArrow);
+        else if (hit == HandleHit.Move)
+            Cursor.Set(EditorAssets.Sprites.CursorMove);
+        else
+            Cursor.Set(hit switch
+            {
+                HandleHit.ScaleTop or HandleHit.ScaleBottom => GetRotatedResizeCursor(angle),
+                HandleHit.ScaleLeft or HandleHit.ScaleRight => GetRotatedResizeCursor(angle + MathF.PI / 2f),
+                HandleHit.ScaleTopLeft or HandleHit.ScaleBottomRight => GetRotatedResizeCursor(angle + MathF.PI / 4f),
+                HandleHit.ScaleTopRight or HandleHit.ScaleBottomLeft => GetRotatedResizeCursor(angle - MathF.PI / 4f),
+                HandleHit.RotateTopLeft or HandleHit.RotateTopRight or
+                HandleHit.RotateBottomRight or HandleHit.RotateBottomLeft => SystemCursor.Crosshair,
+                HandleHit.Move => SystemCursor.Move,
+                _ => SystemCursor.Default,
+            });
     }
 
     private static SystemCursor GetRotatedResizeCursor(float angle)
@@ -1275,6 +1352,20 @@ public partial class SpriteEditor : DocumentEditor
 
                 if (UI.Button(WidgetIds.PathClip, EditorAssets.Sprites.IconClip, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentOperation == SpritePathOperation.Clip))
                     SetSpritePathOperation(SpritePathOperation.Clip);
+            }
+
+            if (_selectedPaths.Count >= 2)
+            {
+                using (Inspector.BeginProperty("Boolean"))
+                using (UI.BeginRow(EditorStyle.Control.Spacing))
+                {
+                    if (UI.Button(WidgetIds.BoolUnion, "Union", EditorStyle.Button.Secondary))
+                        BooleanUnion();
+                    if (UI.Button(WidgetIds.BoolSubtract, "Subtract", EditorStyle.Button.Secondary))
+                        BooleanSubtract();
+                    if (UI.Button(WidgetIds.BoolIntersect, "Intersect", EditorStyle.Button.Secondary))
+                        BooleanIntersect();
+                }
             }
 
             using (Inspector.BeginProperty("Fill"))

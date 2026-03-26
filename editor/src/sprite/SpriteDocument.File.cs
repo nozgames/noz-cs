@@ -135,12 +135,19 @@ public partial class SpriteDocument
             {
                 path.PathScale = new Vector2(tk.ExpectFloat(), tk.ExpectFloat());
             }
+            else if (tk.ExpectIdentifier("contour"))
+            {
+                // Start a new contour within this path
+                var newContour = new SpriteContour();
+                path.Contours.Add(newContour);
+            }
             else if (tk.ExpectIdentifier("anchor"))
             {
                 var x = tk.ExpectFloat();
                 var y = tk.ExpectFloat();
                 var curve = tk.ExpectFloat();
-                path.Anchors.Add(new SpritePathAnchor
+                // Add to the last contour (primary if no 'contour' keyword seen)
+                path.Contours[^1].Anchors.Add(new SpritePathAnchor
                 {
                     Position = new Vector2(x, y),
                     Curve = curve,
@@ -270,12 +277,18 @@ public partial class SpriteDocument
         if (path.StrokeColor.A > 0)
             writer.WriteLine($"{propIndent}stroke {FormatColor(path.StrokeColor)} {path.StrokeWidth}");
 
-        foreach (var anchor in path.Anchors)
+        for (var ci = 0; ci < path.Contours.Count; ci++)
         {
-            writer.Write(string.Format(CultureInfo.InvariantCulture, "{0}anchor {1} {2}", propIndent, anchor.Position.X, anchor.Position.Y));
-            if (MathF.Abs(anchor.Curve) > float.Epsilon)
-                writer.Write(string.Format(CultureInfo.InvariantCulture, " {0}", anchor.Curve));
-            writer.WriteLine();
+            if (ci > 0)
+                writer.WriteLine($"{propIndent}contour");
+
+            foreach (var anchor in path.Contours[ci].Anchors)
+            {
+                writer.Write(string.Format(CultureInfo.InvariantCulture, "{0}anchor {1} {2}", propIndent, anchor.Position.X, anchor.Position.Y));
+                if (MathF.Abs(anchor.Curve) > float.Epsilon)
+                    writer.Write(string.Format(CultureInfo.InvariantCulture, " {0}", anchor.Curve));
+                writer.WriteLine();
+            }
         }
 
         writer.WriteLine($"{indent}}}");

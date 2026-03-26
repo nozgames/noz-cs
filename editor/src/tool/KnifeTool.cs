@@ -240,8 +240,10 @@ public class KnifeTool : Tool
         SpritePath.HitResult headHit, SpritePath.HitResult tailHit,
         ReadOnlySpan<Vector2> intermediatePoints)
     {
-        var headDistToA = Vector2.DistanceSquared(headHit.SegmentPosition, path.Anchors[headHit.SegmentIndex].Position);
-        var tailDistToA = Vector2.DistanceSquared(tailHit.SegmentPosition, path.Anchors[tailHit.SegmentIndex].Position);
+        var headAnchors = path.Contours[headHit.ContourIndex].Anchors;
+        var tailAnchors = path.Contours[tailHit.ContourIndex].Anchors;
+        var headDistToA = Vector2.DistanceSquared(headHit.SegmentPosition, headAnchors[headHit.SegmentIndex].Position);
+        var tailDistToA = Vector2.DistanceSquared(tailHit.SegmentPosition, tailAnchors[tailHit.SegmentIndex].Position);
         var reversed = headDistToA > tailDistToA;
 
         if (reversed)
@@ -355,7 +357,7 @@ public class KnifeTool : Tool
             // Check anchor/segment hits on selected paths
             foreach (var path in _selectedPaths)
             {
-                var (anchorIdx, _, anchorPos) = path.HitTestAnchor(_hoverPosition);
+                var (_, anchorIdx, _, anchorPos) = path.HitTestAnchor(_hoverPosition);
                 if (anchorIdx >= 0)
                 {
                     _hoverPosition = anchorPos;
@@ -364,7 +366,7 @@ public class KnifeTool : Tool
                     break;
                 }
 
-                var (segIdx, _, segPos) = path.HitTestSegment(_hoverPosition);
+                var (_, segIdx, _, segPos) = path.HitTestSegment(_hoverPosition);
                 if (segIdx >= 0)
                 {
                     _hoverPosition = segPos;
@@ -464,27 +466,33 @@ public class KnifeTool : Tool
     {
         foreach (var path in _selectedPaths)
         {
-            if (path.Anchors.Count < 2) continue;
+            if (path.TotalAnchorCount < 2) continue;
             path.UpdateSamples();
 
-            var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
-            for (var a = 0; a < segmentCount; a++)
+            foreach (var contour in path.Contours)
             {
-                var a0 = path.Anchors[a];
-                var a1 = path.Anchors[(a + 1) % path.Anchors.Count];
-                var samples = path.GetSegmentSamples(a);
+                var count = contour.Anchors.Count;
+                if (count < 2) continue;
+                var segmentCount = contour.Open ? count - 1 : count;
 
-                if (Physics.OverlapLine(from, to, a0.Position, samples[0], out var intersection))
-                    _points.Add(new KnifePoint { Position = intersection, Intersection = true });
-
-                for (var s = 0; s < SpritePath.MaxSegmentSamples - 1; s++)
+                for (var a = 0; a < segmentCount; a++)
                 {
-                    if (Physics.OverlapLine(from, to, samples[s], samples[s + 1], out intersection))
+                    var a0 = contour.Anchors[a];
+                    var a1 = contour.Anchors[(a + 1) % count];
+                    var samples = contour.GetSegmentSamples(a);
+
+                    if (Physics.OverlapLine(from, to, a0.Position, samples[0], out var intersection))
+                        _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+
+                    for (var s = 0; s < SpritePath.MaxSegmentSamples - 1; s++)
+                    {
+                        if (Physics.OverlapLine(from, to, samples[s], samples[s + 1], out intersection))
+                            _points.Add(new KnifePoint { Position = intersection, Intersection = true });
+                    }
+
+                    if (Physics.OverlapLine(from, to, samples[SpritePath.MaxSegmentSamples - 1], a1.Position, out intersection))
                         _points.Add(new KnifePoint { Position = intersection, Intersection = true });
                 }
-
-                if (Physics.OverlapLine(from, to, samples[SpritePath.MaxSegmentSamples - 1], a1.Position, out intersection))
-                    _points.Add(new KnifePoint { Position = intersection, Intersection = true });
             }
         }
     }

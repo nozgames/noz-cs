@@ -154,12 +154,13 @@ public partial class SpriteEditor
             {
                 Undo.Record(Document);
                 var path = segHit.Value.Path;
+                var ci = segHit.Value.ContourIndex;
                 path.ClearAnchorSelection();
-                path.SplitSegmentAtPoint(segHit.Value.SegmentIndex, segHit.Value.Position);
+                path.SplitSegmentAtPoint(ci, segHit.Value.SegmentIndex, segHit.Value.Position);
 
                 var newIdx = segHit.Value.SegmentIndex + 1;
-                if (newIdx < path.Anchors.Count)
-                    path.SetAnchorSelected(newIdx, true);
+                if (newIdx < path.Contours[ci].Anchors.Count)
+                    path.SetAnchorSelected(ci, newIdx, true);
 
                 path.UpdateSamples();
                 path.UpdateBounds();
@@ -178,10 +179,10 @@ public partial class SpriteEditor
         var anchorHit = Document.RootLayer.HitTestAnchor(localMousePos, onlySelected: true);
         if (anchorHit.HasValue)
         {
-            if (!anchorHit.Value.Path.Anchors[anchorHit.Value.AnchorIndex].IsSelected)
+            if (!anchorHit.Value.Path.Contours[anchorHit.Value.ContourIndex].Anchors[anchorHit.Value.AnchorIndex].IsSelected)
             {
                 Document.RootLayer.ClearAnchorSelections();
-                anchorHit.Value.Path.SetAnchorSelected(anchorHit.Value.AnchorIndex, true);
+                anchorHit.Value.Path.SetAnchorSelected(anchorHit.Value.ContourIndex, anchorHit.Value.AnchorIndex, true);
             }
 
             var tool = AnchorMoveTool.Create(Document);
@@ -198,8 +199,9 @@ public partial class SpriteEditor
         if (segDragHit.HasValue && segDragHit.Value.Path.IsSelected)
         {
             var path = segDragHit.Value.Path;
+            var segCi = segDragHit.Value.ContourIndex;
             Undo.Record(Document);
-            Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(), segDragHit.Value.SegmentIndex) { CommitOnRelease = true });
+            Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(segCi), segDragHit.Value.SegmentIndex, contourIndex: segCi) { CommitOnRelease = true });
             return true;
         }
 
@@ -267,29 +269,34 @@ public partial class SpriteEditor
 
         foreach (var path in _selectedPaths)
         {
-            if (path.Anchors.Count < 2) continue;
+            if (path.TotalAnchorCount < 2) continue;
 
             // Compose: anchor-local → document → selection space
             var toSelSpace = path.HasTransform
                 ? path.PathTransform * invRot
                 : invRot;
 
-            var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
-
-            for (var i = 0; i < path.Anchors.Count; i++)
+            foreach (var contour in path.Contours)
             {
-                var p = Vector2.Transform(path.Anchors[i].Position, toSelSpace);
-                min = Vector2.Min(min, p);
-                max = Vector2.Max(max, p);
+                var count = contour.Anchors.Count;
+                if (count < 2) continue;
+                var segmentCount = contour.Open ? count - 1 : count;
 
-                if (i < segmentCount && MathF.Abs(path.Anchors[i].Curve) > SpritePath.MinCurve)
+                for (var i = 0; i < count; i++)
                 {
-                    var samples = path.GetSegmentSamples(i);
-                    for (var s = 0; s < SpritePath.MaxSegmentSamples; s++)
+                    var p = Vector2.Transform(contour.Anchors[i].Position, toSelSpace);
+                    min = Vector2.Min(min, p);
+                    max = Vector2.Max(max, p);
+
+                    if (i < segmentCount && MathF.Abs(contour.Anchors[i].Curve) > SpritePath.MinCurve)
                     {
-                        var sp = Vector2.Transform(samples[s], toSelSpace);
-                        min = Vector2.Min(min, sp);
-                        max = Vector2.Max(max, sp);
+                        var samples = contour.GetSegmentSamples(i);
+                        for (var s = 0; s < SpritePath.MaxSegmentSamples; s++)
+                        {
+                            var sp = Vector2.Transform(samples[s], toSelSpace);
+                            min = Vector2.Min(min, sp);
+                            max = Vector2.Max(max, sp);
+                        }
                     }
                 }
             }
@@ -379,7 +386,7 @@ public partial class SpriteEditor
             Undo.Record(Document);
             path.DeleteSelectedAnchors();
 
-            if (path.Anchors.Count < 3)
+            if (path.TotalAnchorCount < 3)
                 path.RemoveFromParent();
             else
             {
@@ -494,20 +501,26 @@ public partial class SpriteEditor
         var path = GetPathWithSelection();
         if (path == null) return;
 
-        var hasSelectedSegment = false;
-        for (var i = 0; i < path.Anchors.Count; i++)
+        // Find first contour with a selected segment
+        var foundContour = -1;
+        for (var ci = 0; ci < path.Contours.Count; ci++)
         {
-            if (path.IsSegmentSelected(i))
+            var contour = path.Contours[ci];
+            for (var i = 0; i < contour.Anchors.Count; i++)
             {
-                hasSelectedSegment = true;
-                break;
+                if (path.IsSegmentSelected(ci, i))
+                {
+                    foundContour = ci;
+                    break;
+                }
             }
+            if (foundContour >= 0) break;
         }
 
-        if (!hasSelectedSegment) return;
+        if (foundContour < 0) return;
 
         Undo.Record(Document);
-        Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors()));
+        Workspace.BeginTool(new CurveTool(Document, path, Document.Transform, path.SnapshotAnchors(foundContour), contourIndex: foundContour));
     }
 
     private void InsertAnchorAtHover()
@@ -521,12 +534,13 @@ public partial class SpriteEditor
         Undo.Record(Document);
 
         var path = hit.Value.Path;
+        var ci = hit.Value.ContourIndex;
         path.ClearAnchorSelection();
-        path.SplitSegmentAtPoint(hit.Value.SegmentIndex, hit.Value.Position);
+        path.SplitSegmentAtPoint(ci, hit.Value.SegmentIndex, hit.Value.Position);
 
         var newIdx = hit.Value.SegmentIndex + 1;
-        if (newIdx < path.Anchors.Count)
-            path.SetAnchorSelected(newIdx, true);
+        if (newIdx < path.Contours[ci].Anchors.Count)
+            path.SetAnchorSelected(ci, newIdx, true);
 
         path.UpdateSamples();
         path.UpdateBounds();
@@ -544,36 +558,41 @@ public partial class SpriteEditor
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(docTransform);
-            var segmentCount = path.Open ? path.Anchors.Count - 1 : path.Anchors.Count;
 
-            Gizmos.SetColor(EditorStyle.Palette.PathSegment);
-            for (var i = 0; i < segmentCount; i++)
+            for (var ci = 0; ci < path.Contours.Count; ci++)
             {
-                if (!path.IsSegmentSelected(i))
-                    DrawPathSegment(path, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 1);
-            }
+                var contour = path.Contours[ci];
+                var segmentCount = contour.Open ? contour.Anchors.Count - 1 : contour.Anchors.Count;
 
-            Gizmos.SetColor(EditorStyle.Palette.Primary);
-            for (var i = 0; i < segmentCount; i++)
-            {
-                if (path.IsSegmentSelected(i))
-                    DrawPathSegment(path, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 2);
+                Gizmos.SetColor(EditorStyle.Palette.PathSegment);
+                for (var i = 0; i < segmentCount; i++)
+                {
+                    if (!path.IsSegmentSelected(ci, i))
+                        DrawContourSegment(contour, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 1);
+                }
+
+                Gizmos.SetColor(EditorStyle.Palette.Primary);
+                for (var i = 0; i < segmentCount; i++)
+                {
+                    if (path.IsSegmentSelected(ci, i))
+                        DrawContourSegment(contour, i, localTransform, EditorStyle.Shape.SegmentLineWidth, 2);
+                }
             }
         }
     }
 
-    private static void DrawPathSegment(SpritePath path, int segmentIndex, Matrix3x2 localTransform, float width, ushort order = 0)
+    private static void DrawContourSegment(SpriteContour contour, int segmentIndex, Matrix3x2 localTransform, float width, ushort order = 0)
     {
-        var samples = path.GetSegmentSamples(segmentIndex);
-        var prev = Vector2.Transform(path.Anchors[segmentIndex].Position, localTransform);
+        var samples = contour.GetSegmentSamples(segmentIndex);
+        var prev = Vector2.Transform(contour.Anchors[segmentIndex].Position, localTransform);
         foreach (var sample in samples)
         {
             var transformed = Vector2.Transform(sample, localTransform);
             Gizmos.DrawLine(prev, transformed, width, order: order);
             prev = transformed;
         }
-        var nextIdx = (segmentIndex + 1) % path.Anchors.Count;
-        Gizmos.DrawLine(prev, Vector2.Transform(path.Anchors[nextIdx].Position, localTransform), width, order: order);
+        var nextIdx = (segmentIndex + 1) % contour.Anchors.Count;
+        Gizmos.DrawLine(prev, Vector2.Transform(contour.Anchors[nextIdx].Position, localTransform), width, order: order);
     }
 
     private void DrawPathAnchors(SpritePath path, Matrix3x2 localTransform, Matrix3x2 docTransform, bool selectedOnly = false)
@@ -583,31 +602,34 @@ public partial class SpriteEditor
 
         var isHoverPath = path == _hoverPath;
 
-        if (!selectedOnly)
+        foreach (var contour in path.Contours)
         {
-            for (var i = 0; i < path.Anchors.Count; i++)
+            if (!selectedOnly)
             {
-                if (path.Anchors[i].IsSelected) continue;
-                var pos = Vector2.Transform(path.Anchors[i].Position, localTransform);
+                for (var i = 0; i < contour.Anchors.Count; i++)
+                {
+                    if (contour.Anchors[i].IsSelected) continue;
+                    var pos = Vector2.Transform(contour.Anchors[i].Position, localTransform);
 
-                if (isHoverPath && i == _hoverAnchorIndex)
-                {
-                    Gizmos.SetColor(EditorStyle.Palette.Primary);
-                    Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize * 1.3f, order: 5);
-                }
-                else
-                {
-                    Gizmos.SetColor(EditorStyle.Palette.PathAnchor);
-                    Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize, order: 4);
+                    if (isHoverPath && contour == path.Contours[0] && i == _hoverAnchorIndex)
+                    {
+                        Gizmos.SetColor(EditorStyle.Palette.Primary);
+                        Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize * 1.3f, order: 5);
+                    }
+                    else
+                    {
+                        Gizmos.SetColor(EditorStyle.Palette.PathAnchor);
+                        Gizmos.DrawRect(pos, EditorStyle.Shape.AnchorSize, order: 4);
+                    }
                 }
             }
-        }
 
-        for (var i = 0; i < path.Anchors.Count; i++)
-        {
-            if (!path.Anchors[i].IsSelected) continue;
-            Gizmos.SetColor(EditorStyle.Palette.Primary);
-            Gizmos.DrawRect(Vector2.Transform(path.Anchors[i].Position, localTransform), EditorStyle.Shape.AnchorSize, order: 5);
+            for (var i = 0; i < contour.Anchors.Count; i++)
+            {
+                if (!contour.Anchors[i].IsSelected) continue;
+                Gizmos.SetColor(EditorStyle.Palette.Primary);
+                Gizmos.DrawRect(Vector2.Transform(contour.Anchors[i].Position, localTransform), EditorStyle.Shape.AnchorSize, order: 5);
+            }
         }
     }
 

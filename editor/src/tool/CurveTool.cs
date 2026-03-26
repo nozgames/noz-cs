@@ -10,6 +10,7 @@ public class CurveTool : Tool
 {
     private readonly SpriteDocument _document;
     private readonly SpritePath _path;
+    private readonly int _contourIndex;
     private readonly SpritePathAnchor[] _saved;
     private readonly Matrix3x2 _transform;
     private readonly Matrix3x2 _invTransform;
@@ -22,10 +23,11 @@ public class CurveTool : Tool
 
     public bool CommitOnRelease { get; set; }
 
-    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved)
+    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int contourIndex = 0)
     {
         _document = document;
         _path = path;
+        _contourIndex = contourIndex;
         _transform = transform;
         _saved = saved;
         _savedBoundsCenter = path.LocalBounds.Center;
@@ -33,17 +35,19 @@ public class CurveTool : Tool
 
         Matrix3x2.Invert(transform, out _invTransform);
 
-        for (var i = 0; i < path.Anchors.Count; i++)
+        var contour = path.Contours[contourIndex];
+        for (var i = 0; i < contour.Anchors.Count; i++)
         {
-            if (path.IsSegmentSelected(i))
+            if (path.IsSegmentSelected(contourIndex, i))
                 _selectedSegments.Add(i);
         }
     }
 
-    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int segmentIndex)
+    public CurveTool(SpriteDocument document, SpritePath path, Matrix3x2 transform, SpritePathAnchor[] saved, int segmentIndex, int contourIndex = 0)
     {
         _document = document;
         _path = path;
+        _contourIndex = contourIndex;
         _transform = transform;
         _saved = saved;
         _savedBoundsCenter = path.LocalBounds.Center;
@@ -85,10 +89,11 @@ public class CurveTool : Tool
         var startLocal = Vector2.Transform(_startWorld, _invTransform);
         var delta = mouseLocal - startLocal;
 
+        var anchors = _path.Contours[_contourIndex].Anchors;
         foreach (var segIdx in _selectedSegments)
         {
-            var a0 = _path.Anchors[segIdx];
-            var a1 = _path.Anchors[(segIdx + 1) % _path.Anchors.Count];
+            var a0 = anchors[segIdx];
+            var a1 = anchors[(segIdx + 1) % anchors.Count];
 
             var p0 = a0.Position;
             var p1 = a1.Position;
@@ -106,7 +111,7 @@ public class CurveTool : Tool
             if (Input.IsCtrlDown())
                 newCurve = SnapCurve(newCurve, len);
 
-            _path.SetAnchorCurve(segIdx, newCurve);
+            _path.SetAnchorCurve(_contourIndex, segIdx, newCurve);
         }
 
         _path.UpdateSamples();
@@ -122,11 +127,12 @@ public class CurveTool : Tool
 
         Graphics.SetTransform(_transform);
 
+        var anchors = _path.Contours[_contourIndex].Anchors;
         Gizmos.SetColor(EditorStyle.Workspace.SelectionColor.WithAlpha(0.5f));
         foreach (var segIdx in _selectedSegments)
         {
-            var a0 = _path.Anchors[segIdx];
-            var a1 = _path.Anchors[(segIdx + 1) % _path.Anchors.Count];
+            var a0 = anchors[segIdx];
+            var a1 = anchors[(segIdx + 1) % anchors.Count];
             Gizmos.DrawDashedLine(a0.Position, a1.Position);
         }
 

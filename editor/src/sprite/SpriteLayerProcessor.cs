@@ -85,12 +85,12 @@ internal static class SpriteLayerProcessor
             }
 
             if (child is not SpritePath path) continue;
-            if (path.Anchors.Count < 3) continue;
+            if (path.TotalAnchorCount < 3) continue;
 
             // Subtract: retroactively cut from all already-emitted results below
             if (path.IsSubtract)
             {
-                var subContours = SpritePathClipper.SpritePathToPaths(path);
+                var subContours = path.GetClipperPaths();
                 if (subContours.Count > 0 && results.Count > 0)
                 {
                     for (int i = results.Count - 1; i >= 0; i--)
@@ -110,7 +110,7 @@ internal static class SpriteLayerProcessor
                 continue;
             }
 
-            var contours = SpritePathClipper.SpritePathToPaths(path);
+            var contours = path.GetClipperPaths();
             if (contours.Count == 0) continue;
 
             // Contracted paths for stroked shapes -- computed once, reused for

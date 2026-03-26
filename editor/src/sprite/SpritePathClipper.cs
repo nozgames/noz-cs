@@ -18,39 +18,74 @@ internal static class SpritePathClipper
 
     internal static PathsD SpritePathToPaths(SpritePath spritePath, int stepsPerCurve = DefaultStepsPerCurve)
     {
-        if (spritePath.Anchors.Count < 3)
-            return new PathsD();
+        var hasTransform = spritePath.HasTransform;
+        var transform = hasTransform ? spritePath.PathTransform : Matrix3x2.Identity;
+        var allPaths = new PathsD();
 
-        var path = AnchorsToPath(spritePath, stepsPerCurve);
-        if (path.Count < 3)
-            return new PathsD();
+        foreach (var contour in spritePath.Contours)
+        {
+            if (contour.Anchors.Count < 3) continue;
 
-        // Ensure positive winding for NonZero fill rule.
-        if (ComputeSignedArea(path) < 0)
-            path.Reverse();
+            var path = ContourToPath(contour, hasTransform, transform, stepsPerCurve);
+            if (path.Count < 3) continue;
+
+            // Ensure positive winding for NonZero fill rule.
+            if (ComputeSignedArea(path) < 0)
+                path.Reverse();
+
+            allPaths.Add(path);
+        }
+
+        if (allPaths.Count == 0)
+            return new PathsD();
 
         // Self-union to resolve any self-intersections.
-        var paths = new PathsD { path };
         var tree = new PolyTreeD();
-        Clipper.BooleanOp(ClipType.Union, paths, null, tree, FillRule.NonZero, ClipperPrecision);
+        Clipper.BooleanOp(ClipType.Union, allPaths, null, tree, FillRule.NonZero, ClipperPrecision);
 
         var result = new PathsD();
         CollectPaths(tree, result);
         return result;
     }
 
-    static PathD AnchorsToPath(SpritePath spritePath, int stepsPerCurve)
+    internal static SpritePath PathsToSpritePath(PathsD paths, Color32 fillColor, Color32 strokeColor = default, byte strokeWidth = 0, SpritePathOperation operation = SpritePathOperation.Normal)
+    {
+        var spritePath = new SpritePath
+        {
+            FillColor = fillColor,
+            StrokeColor = strokeColor,
+            StrokeWidth = strokeWidth,
+            Operation = operation,
+        };
+
+        for (var pi = 0; pi < paths.Count; pi++)
+        {
+            var clipperPath = paths[pi];
+            if (clipperPath.Count < 3) continue;
+
+            var contour = pi == 0 ? spritePath.Contours[0] : new SpriteContour();
+
+            foreach (var pt in clipperPath)
+                contour.Anchors.Add(new SpritePathAnchor { Position = new Vector2((float)pt.x, (float)pt.y) });
+
+            if (pi > 0)
+                spritePath.Contours.Add(contour);
+        }
+
+        spritePath.MarkDirty();
+        return spritePath;
+    }
+
+    static PathD ContourToPath(SpriteContour contour, bool hasTransform, Matrix3x2 transform, int stepsPerCurve)
     {
         var path = new PathD();
-        var hasTransform = spritePath.HasTransform;
-        var transform = hasTransform ? spritePath.PathTransform : Matrix3x2.Identity;
-        var count = spritePath.Anchors.Count;
-        var segmentCount = spritePath.Open ? count - 1 : count;
+        var count = contour.Anchors.Count;
+        var segmentCount = contour.Open ? count - 1 : count;
 
         for (var a = 0; a < segmentCount; a++)
         {
-            var anchor0 = spritePath.Anchors[a];
-            var anchor1 = spritePath.Anchors[(a + 1) % count];
+            var anchor0 = contour.Anchors[a];
+            var anchor1 = contour.Anchors[(a + 1) % count];
 
             var pos0 = hasTransform ? Vector2.Transform(anchor0.Position, transform) : anchor0.Position;
             var pos1 = hasTransform ? Vector2.Transform(anchor1.Position, transform) : anchor1.Position;

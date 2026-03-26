@@ -286,7 +286,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             path.UpdateSamples();
             path.UpdateBounds();
 
-            if (path.Anchors.Count == 0)
+            if (path.TotalAnchorCount == 0)
                 continue;
 
             if (first)

@@ -17,6 +17,7 @@ public abstract class SpriteNode
     public struct AnchorHitResult
     {
         public SpritePath Path;
+        public int ContourIndex;
         public int AnchorIndex;
         public float DistSqr;
         public Vector2 Position;
@@ -25,6 +26,7 @@ public abstract class SpriteNode
     public struct SegmentHitResult
     {
         public SpritePath Path;
+        public int ContourIndex;
         public int SegmentIndex;
         public Vector2 Position;
     }
@@ -272,9 +274,9 @@ public abstract class SpriteNode
             {
                 if (onlySelected && !path.IsSelected) return;
                 if (exclude != null && exclude.Contains(path)) return;
-                var (index, distSqr, pos) = path.HitTestAnchor(point);
-                if (index >= 0 && (!best.HasValue || distSqr < best.Value.DistSqr))
-                    best = new AnchorHitResult { Path = path, AnchorIndex = index, DistSqr = distSqr, Position = pos };
+                var (contourIndex, anchorIndex, distSqr, pos) = path.HitTestAnchor(point);
+                if (anchorIndex >= 0 && (!best.HasValue || distSqr < best.Value.DistSqr))
+                    best = new AnchorHitResult { Path = path, ContourIndex = contourIndex, AnchorIndex = anchorIndex, DistSqr = distSqr, Position = pos };
                 return;
             }
 
@@ -297,10 +299,10 @@ public abstract class SpriteNode
             if (node is SpritePath path)
             {
                 if (onlySelected && !path.IsSelected) return 0;
-                var (index, distSqr, pos) = path.HitTestAnchor(point);
-                if (index >= 0)
+                var (contourIndex, anchorIndex, distSqr, pos) = path.HitTestAnchor(point);
+                if (anchorIndex >= 0)
                 {
-                    results.Add(new AnchorHitResult { Path = path, AnchorIndex = index, DistSqr = distSqr, Position = pos });
+                    results.Add(new AnchorHitResult { Path = path, ContourIndex = contourIndex, AnchorIndex = anchorIndex, DistSqr = distSqr, Position = pos });
                     count++;
                 }
                 return count;
@@ -322,11 +324,11 @@ public abstract class SpriteNode
 
             if (node is SpritePath path)
             {
-                var (index, distSqr, pos) = path.HitTestSegment(point);
-                if (index >= 0 && distSqr < bestDistSqr)
+                var (contourIndex, segmentIndex, distSqr, pos) = path.HitTestSegment(point);
+                if (segmentIndex >= 0 && distSqr < bestDistSqr)
                 {
                     bestDistSqr = distSqr;
-                    best = new SegmentHitResult { Path = path, SegmentIndex = index, Position = pos };
+                    best = new SegmentHitResult { Path = path, ContourIndex = contourIndex, SegmentIndex = segmentIndex, Position = pos };
                 }
                 return;
             }

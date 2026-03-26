@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using Clipper2Lib;
 
 namespace NoZ.Editor;
 
@@ -19,12 +20,16 @@ public class SpritePath : SpriteNode
     public static float StrokeScale => EditorApplication.Config.PixelsPerUnitInv;
     public const float MinCurve = 0.0001f;
 
-    public List<SpritePathAnchor> Anchors { get; } = new();
+    public List<SpriteContour> Contours { get; } = new() { new SpriteContour() };
+
+    // Convenience accessors for primary contour (backward compat)
+    public List<SpritePathAnchor> Anchors => Contours[0].Anchors;
+    public bool Open { get => Contours[0].Open; set => Contours[0].Open = value; }
+
     public Color32 FillColor { get; set; } = Color32.White;
     public Color32 StrokeColor { get; set; } = new(0, 0, 0, 0);
     public byte StrokeWidth { get; set; }
     public SpritePathOperation Operation { get; set; } = SpritePathOperation.Normal;
-    public bool Open { get; set; }
 
     // Per-path transform (V-mode operations modify these)
     public Vector2 PathTranslation { get; set; }
@@ -53,77 +58,49 @@ public class SpritePath : SpriteNode
     public Rect LocalBounds { get; private set; }
     public Rect Bounds { get; private set; }
 
-    // Cached bezier segment samples per anchor (recomputed when anchors change)
-    private Vector2[]? _samples;
-    private bool _samplesDirty = true;
-
     public bool IsSubtract => Operation == SpritePathOperation.Subtract;
     public bool IsClip => Operation == SpritePathOperation.Clip;
+
+    // Cached Clipper2 paths — invalidated when anchors or transform change
+    private PathsD? _cachedClipperPaths;
+
+    public PathsD GetClipperPaths()
+    {
+        if (_cachedClipperPaths == null)
+            _cachedClipperPaths = SpritePathClipper.SpritePathToPaths(this);
+        return _cachedClipperPaths;
+    }
+
+    public int TotalAnchorCount
+    {
+        get
+        {
+            var total = 0;
+            foreach (var c in Contours)
+                total += c.Anchors.Count;
+            return total;
+        }
+    }
 
     #region Samples
 
     public ReadOnlySpan<Vector2> GetSegmentSamples(int anchorIndex)
+        => Contours[0].GetSegmentSamples(anchorIndex);
+
+    public ReadOnlySpan<Vector2> GetSegmentSamples(int contourIndex, int anchorIndex)
+        => Contours[contourIndex].GetSegmentSamples(anchorIndex);
+
+    public void MarkDirty()
     {
-        if (_samplesDirty)
-            UpdateSamples();
-
-        var offset = anchorIndex * MaxSegmentSamples;
-        return new ReadOnlySpan<Vector2>(_samples, offset, MaxSegmentSamples);
+        foreach (var c in Contours)
+            c.MarkDirty();
+        _cachedClipperPaths = null;
     }
-
-    public void MarkDirty() => _samplesDirty = true;
 
     public void UpdateSamples()
     {
-        var count = Anchors.Count;
-        if (count == 0)
-        {
-            _samples = null;
-            _samplesDirty = false;
-            return;
-        }
-
-        var segmentCount = Open ? count - 1 : count;
-        var totalSamples = count * MaxSegmentSamples;
-        if (_samples == null || _samples.Length < totalSamples)
-            _samples = new Vector2[totalSamples];
-
-        for (var i = 0; i < segmentCount; i++)
-        {
-            var a0 = Anchors[i];
-            var a1 = Anchors[(i + 1) % count];
-            var offset = i * MaxSegmentSamples;
-
-            if (MathF.Abs(a0.Curve) < MinCurve)
-            {
-                for (var s = 0; s < MaxSegmentSamples; s++)
-                {
-                    var t = (s + 1) / (float)(MaxSegmentSamples + 1);
-                    _samples[offset + s] = Vector2.Lerp(a0.Position, a1.Position, t);
-                }
-            }
-            else
-            {
-                var mid = (a0.Position + a1.Position) * 0.5f;
-                var dir = a1.Position - a0.Position;
-                var perp = new Vector2(-dir.Y, dir.X);
-                var len = perp.Length();
-                if (len > 0) perp /= len;
-                var control = mid + perp * a0.Curve;
-
-                for (var s = 0; s < MaxSegmentSamples; s++)
-                {
-                    var t = (s + 1) / (float)(MaxSegmentSamples + 1);
-                    var u = 1.0f - t;
-                    _samples[offset + s] =
-                        u * u * a0.Position +
-                        2 * u * t * control +
-                        t * t * a1.Position;
-                }
-            }
-        }
-
-        _samplesDirty = false;
+        foreach (var c in Contours)
+            c.UpdateSamples();
     }
 
     #endregion
@@ -132,60 +109,76 @@ public class SpritePath : SpriteNode
 
     public void UpdateBounds()
     {
-        if (Anchors.Count == 0)
+        var hasAnchors = false;
+        foreach (var c in Contours)
+        {
+            if (c.Anchors.Count > 0) { hasAnchors = true; break; }
+        }
+
+        if (!hasAnchors)
         {
             Bounds = Rect.Zero;
             return;
         }
 
-        if (_samplesDirty)
-            UpdateSamples();
+        UpdateSamples();
 
         var min = new Vector2(float.MaxValue, float.MaxValue);
         var max = new Vector2(float.MinValue, float.MinValue);
-        var segmentCount = Open ? Anchors.Count - 1 : Anchors.Count;
 
-        for (var i = 0; i < Anchors.Count; i++)
+        foreach (var contour in Contours)
         {
-            var pos = Anchors[i].Position;
-            min = Vector2.Min(min, pos);
-            max = Vector2.Max(max, pos);
+            var count = contour.Anchors.Count;
+            if (count == 0) continue;
+            var segmentCount = contour.Open ? count - 1 : count;
 
-            if (i < segmentCount && MathF.Abs(Anchors[i].Curve) > MinCurve)
+            for (var i = 0; i < count; i++)
             {
-                var samples = GetSegmentSamples(i);
-                for (var s = 0; s < MaxSegmentSamples; s++)
+                var pos = contour.Anchors[i].Position;
+                min = Vector2.Min(min, pos);
+                max = Vector2.Max(max, pos);
+
+                if (i < segmentCount && MathF.Abs(contour.Anchors[i].Curve) > MinCurve)
                 {
-                    min = Vector2.Min(min, samples[s]);
-                    max = Vector2.Max(max, samples[s]);
+                    var samples = contour.GetSegmentSamples(i);
+                    for (var s = 0; s < MaxSegmentSamples; s++)
+                    {
+                        min = Vector2.Min(min, samples[s]);
+                        max = Vector2.Max(max, samples[s]);
+                    }
                 }
             }
         }
 
         LocalBounds = Rect.FromMinMax(min, max);
 
-        // Compute world bounds by transforming each anchor and sample individually
-        // for a tight AABB (transforming LocalBounds corners over-approximates for rotations)
         if (HasTransform)
         {
             var transform = PathTransform;
             var wMin = new Vector2(float.MaxValue, float.MaxValue);
             var wMax = new Vector2(float.MinValue, float.MinValue);
 
-            for (var i = 0; i < Anchors.Count; i++)
+            foreach (var contour in Contours)
             {
-                var tp = Vector2.Transform(Anchors[i].Position, transform);
-                wMin = Vector2.Min(wMin, tp);
-                wMax = Vector2.Max(wMax, tp);
+                var count = contour.Anchors.Count;
+                if (count == 0) continue;
+                var segmentCount = contour.Open ? count - 1 : count;
 
-                if (i < segmentCount && MathF.Abs(Anchors[i].Curve) > MinCurve)
+                for (var i = 0; i < count; i++)
                 {
-                    var samples = GetSegmentSamples(i);
-                    for (var s = 0; s < MaxSegmentSamples; s++)
+                    var tp = Vector2.Transform(contour.Anchors[i].Position, transform);
+                    wMin = Vector2.Min(wMin, tp);
+                    wMax = Vector2.Max(wMax, tp);
+
+                    if (i < segmentCount && MathF.Abs(contour.Anchors[i].Curve) > MinCurve)
                     {
-                        var ts = Vector2.Transform(samples[s], transform);
-                        wMin = Vector2.Min(wMin, ts);
-                        wMax = Vector2.Max(wMax, ts);
+                        var samples = contour.GetSegmentSamples(i);
+                        for (var s = 0; s < MaxSegmentSamples; s++)
+                        {
+                            var ts = Vector2.Transform(samples[s], transform);
+                            wMin = Vector2.Min(wMin, ts);
+                            wMax = Vector2.Max(wMax, ts);
+                        }
                     }
                 }
             }
@@ -204,12 +197,6 @@ public class SpritePath : SpriteNode
         var newCenter = LocalBounds.Center;
         if (oldCenter == newCenter) return;
 
-        // For point P, old transform: S*R*(P - oldCenter) + oldCenter + T_old
-        // New transform with new center: S*R*(P - newCenter) + newCenter + T_new
-        // Setting equal for unchanged P:
-        //   S*R*(P - oldCenter) + oldCenter + T_old = S*R*(P - newCenter) + newCenter + T_new
-        //   S*R*(-oldCenter) + oldCenter + T_old = S*R*(-newCenter) + newCenter + T_new
-        //   T_new = T_old + (oldCenter - S*R*oldCenter) - (newCenter - S*R*newCenter)
         var sr = Matrix3x2.CreateScale(PathScale) * Matrix3x2.CreateRotation(PathRotation);
         var oldTerm = oldCenter - Vector2.Transform(oldCenter, sr);
         var newTerm = newCenter - Vector2.Transform(newCenter, sr);
@@ -222,39 +209,47 @@ public class SpritePath : SpriteNode
 
     public bool HasSelection()
     {
-        for (var i = 0; i < Anchors.Count; i++)
-            if (Anchors[i].IsSelected)
-                return true;
+        foreach (var contour in Contours)
+            for (var i = 0; i < contour.Anchors.Count; i++)
+                if (contour.Anchors[i].IsSelected)
+                    return true;
         return false;
     }
 
     public void ClearAnchorSelection()
     {
-        for (var i = 0; i < Anchors.Count; i++)
+        foreach (var contour in Contours)
         {
-            var a = Anchors[i];
-            if (a.IsSelected)
+            for (var i = 0; i < contour.Anchors.Count; i++)
             {
-                a.Flags &= ~SpritePathAnchorFlags.Selected;
-                Anchors[i] = a;
+                var a = contour.Anchors[i];
+                if (a.IsSelected)
+                {
+                    a.Flags &= ~SpritePathAnchorFlags.Selected;
+                    contour.Anchors[i] = a;
+                }
             }
         }
     }
 
-    public void ClearSelection()
+    public new void ClearSelection()
     {
         ClearAnchorSelection();
         IsSelected = false;
     }
 
     public void SetAnchorSelected(int index, bool selected)
+        => SetAnchorSelected(0, index, selected);
+
+    public void SetAnchorSelected(int contourIndex, int anchorIndex, bool selected)
     {
-        var a = Anchors[index];
+        var anchors = Contours[contourIndex].Anchors;
+        var a = anchors[anchorIndex];
         if (selected)
             a.Flags |= SpritePathAnchorFlags.Selected;
         else
             a.Flags &= ~SpritePathAnchorFlags.Selected;
-        Anchors[index] = a;
+        anchors[anchorIndex] = a;
     }
 
     public void SelectPath() => IsSelected = true;
@@ -262,11 +257,14 @@ public class SpritePath : SpriteNode
 
     public void SelectAll()
     {
-        for (var i = 0; i < Anchors.Count; i++)
+        foreach (var contour in Contours)
         {
-            var a = Anchors[i];
-            a.Flags |= SpritePathAnchorFlags.Selected;
-            Anchors[i] = a;
+            for (var i = 0; i < contour.Anchors.Count; i++)
+            {
+                var a = contour.Anchors[i];
+                a.Flags |= SpritePathAnchorFlags.Selected;
+                contour.Anchors[i] = a;
+            }
         }
     }
 
@@ -275,18 +273,25 @@ public class SpritePath : SpriteNode
         var hasXform = HasTransform;
         var xform = hasXform ? PathTransform : Matrix3x2.Identity;
 
-        for (var i = 0; i < Anchors.Count; i++)
+        foreach (var contour in Contours)
         {
-            var pos = hasXform ? Vector2.Transform(Anchors[i].Position, xform) : Anchors[i].Position;
-            if (rect.Contains(pos))
-                SetAnchorSelected(i, true);
+            for (var i = 0; i < contour.Anchors.Count; i++)
+            {
+                var pos = hasXform ? Vector2.Transform(contour.Anchors[i].Position, xform) : contour.Anchors[i].Position;
+                if (rect.Contains(pos))
+                    SetAnchorSelected(Contours.IndexOf(contour), i, true);
+            }
         }
     }
 
     public bool IsSegmentSelected(int anchorIndex)
+        => IsSegmentSelected(0, anchorIndex);
+
+    public bool IsSegmentSelected(int contourIndex, int anchorIndex)
     {
-        var nextIndex = (anchorIndex + 1) % Anchors.Count;
-        return Anchors[anchorIndex].IsSelected && Anchors[nextIndex].IsSelected;
+        var anchors = Contours[contourIndex].Anchors;
+        var nextIndex = (anchorIndex + 1) % anchors.Count;
+        return anchors[anchorIndex].IsSelected && anchors[nextIndex].IsSelected;
     }
 
     #endregion
@@ -295,6 +300,7 @@ public class SpritePath : SpriteNode
 
     public struct HitResult
     {
+        public int ContourIndex;
         public int AnchorIndex;
         public int SegmentIndex;
         public float AnchorDistSqr;
@@ -305,6 +311,7 @@ public class SpritePath : SpriteNode
 
         public static HitResult Empty => new()
         {
+            ContourIndex = -1,
             AnchorIndex = -1,
             SegmentIndex = -1,
             AnchorDistSqr = float.MaxValue,
@@ -317,80 +324,93 @@ public class SpritePath : SpriteNode
         if (!HasTransform) return;
         Matrix3x2.Invert(PathTransform, out var inv);
         point = Vector2.Transform(point, inv);
-        // Use the larger axis scale so the radius covers both directions
         var scaleX = MathF.Sqrt(inv.M11 * inv.M11 + inv.M12 * inv.M12);
         var scaleY = MathF.Sqrt(inv.M21 * inv.M21 + inv.M22 * inv.M22);
         radius *= MathF.Max(scaleX, scaleY);
     }
 
-    public (int Index, float DistSqr, Vector2 Position) HitTestAnchor(Vector2 point)
+    public (int ContourIndex, int AnchorIndex, float DistSqr, Vector2 Position) HitTestAnchor(Vector2 point)
     {
         var radius = EditorStyle.Shape.AnchorHitRadius;
         TransformPointAndRadius(ref point, ref radius);
         var radiusSqr = radius * radius;
 
+        var bestContour = -1;
         var bestIndex = -1;
         var bestDistSqr = float.MaxValue;
         var bestPos = Vector2.Zero;
 
-        for (var i = 0; i < Anchors.Count; i++)
+        for (var ci = 0; ci < Contours.Count; ci++)
         {
-            var distSqr = Vector2.DistanceSquared(point, Anchors[i].Position);
-            if (distSqr < radiusSqr && distSqr < bestDistSqr)
+            var anchors = Contours[ci].Anchors;
+            for (var i = 0; i < anchors.Count; i++)
             {
-                bestIndex = i;
-                bestDistSqr = distSqr;
-                bestPos = Anchors[i].Position;
+                var distSqr = Vector2.DistanceSquared(point, anchors[i].Position);
+                if (distSqr < radiusSqr && distSqr < bestDistSqr)
+                {
+                    bestContour = ci;
+                    bestIndex = i;
+                    bestDistSqr = distSqr;
+                    bestPos = anchors[i].Position;
+                }
             }
         }
 
-        return (bestIndex, bestDistSqr, bestPos);
+        return (bestContour, bestIndex, bestDistSqr, bestPos);
     }
 
-    public new (int Index, float DistSqr, Vector2 Position) HitTestSegment(Vector2 point)
+    public new (int ContourIndex, int SegmentIndex, float DistSqr, Vector2 Position) HitTestSegment(Vector2 point)
     {
         var radius = EditorStyle.Shape.SegmentHitRadius;
         TransformPointAndRadius(ref point, ref radius);
         var radiusSqr = radius * radius;
 
-        if (_samplesDirty) UpdateSamples();
-
+        var bestContour = -1;
         var bestIndex = -1;
         var bestDistSqr = float.MaxValue;
         var bestPos = Vector2.Zero;
 
-        var segmentCount = Open ? Anchors.Count - 1 : Anchors.Count;
-        for (var i = 0; i < segmentCount; i++)
+        for (var ci = 0; ci < Contours.Count; ci++)
         {
-            var nextIdx = (i + 1) % Anchors.Count;
-            var samples = GetSegmentSamples(i);
+            var contour = Contours[ci];
+            contour.UpdateSamples();
+            var anchors = contour.Anchors;
+            var count = anchors.Count;
+            var segmentCount = contour.Open ? count - 1 : count;
 
-            var segBestDistSqr = PointToSegmentDistSqr(point, Anchors[i].Position, samples[0], out var segBestClosest);
-            for (var s = 0; s < MaxSegmentSamples - 1; s++)
+            for (var i = 0; i < segmentCount; i++)
             {
-                var distSqr = PointToSegmentDistSqr(point, samples[s], samples[s + 1], out var closest);
-                if (distSqr < segBestDistSqr)
+                var nextIdx = (i + 1) % count;
+                var samples = contour.GetSegmentSamples(i);
+
+                var segBestDistSqr = PointToSegmentDistSqr(point, anchors[i].Position, samples[0], out var segBestClosest);
+                for (var s = 0; s < MaxSegmentSamples - 1; s++)
                 {
-                    segBestDistSqr = distSqr;
-                    segBestClosest = closest;
+                    var distSqr = PointToSegmentDistSqr(point, samples[s], samples[s + 1], out var closest);
+                    if (distSqr < segBestDistSqr)
+                    {
+                        segBestDistSqr = distSqr;
+                        segBestClosest = closest;
+                    }
                 }
-            }
-            var lastDistSqr = PointToSegmentDistSqr(point, samples[MaxSegmentSamples - 1], Anchors[nextIdx].Position, out var lastClosest);
-            if (lastDistSqr < segBestDistSqr)
-            {
-                segBestDistSqr = lastDistSqr;
-                segBestClosest = lastClosest;
-            }
+                var lastDistSqr = PointToSegmentDistSqr(point, samples[MaxSegmentSamples - 1], anchors[nextIdx].Position, out var lastClosest);
+                if (lastDistSqr < segBestDistSqr)
+                {
+                    segBestDistSqr = lastDistSqr;
+                    segBestClosest = lastClosest;
+                }
 
-            if (segBestDistSqr < radiusSqr && segBestDistSqr < bestDistSqr)
-            {
-                bestIndex = i;
-                bestDistSqr = segBestDistSqr;
-                bestPos = segBestClosest;
+                if (segBestDistSqr < radiusSqr && segBestDistSqr < bestDistSqr)
+                {
+                    bestContour = ci;
+                    bestIndex = i;
+                    bestDistSqr = segBestDistSqr;
+                    bestPos = segBestClosest;
+                }
             }
         }
 
-        return (bestIndex, bestDistSqr, bestPos);
+        return (bestContour, bestIndex, bestDistSqr, bestPos);
     }
 
     public new bool HitTestPath(Vector2 point)
@@ -403,23 +423,26 @@ public class SpritePath : SpriteNode
         return ContainsPoint(point);
     }
 
-    // Combined hit test — used by HitTestAll for click cycling
     public HitResult HitTest(Vector2 point)
     {
         var result = HitResult.Empty;
 
         var anchor = HitTestAnchor(point);
-        if (anchor.Index >= 0)
+        if (anchor.AnchorIndex >= 0)
         {
-            result.AnchorIndex = anchor.Index;
+            result.ContourIndex = anchor.ContourIndex;
+            result.AnchorIndex = anchor.AnchorIndex;
             result.AnchorDistSqr = anchor.DistSqr;
             result.AnchorPosition = anchor.Position;
         }
 
         var segment = HitTestSegment(point);
-        if (segment.Index >= 0)
+        if (segment.SegmentIndex >= 0)
         {
-            result.SegmentIndex = segment.Index;
+            // Use segment's contour index if no anchor hit, or if segment is closer
+            if (result.ContourIndex < 0)
+                result.ContourIndex = segment.ContourIndex;
+            result.SegmentIndex = segment.SegmentIndex;
             result.SegmentDistSqr = segment.DistSqr;
             result.SegmentPosition = segment.Position;
         }
@@ -430,23 +453,33 @@ public class SpritePath : SpriteNode
 
     public bool ContainsPoint(Vector2 point)
     {
-        if (Open || Anchors.Count < 3) return false;
+        // Need at least one closed contour with 3+ anchors
+        var hasClosedContour = false;
+        foreach (var c in Contours)
+        {
+            if (!c.Open && c.Anchors.Count >= 3) { hasClosedContour = true; break; }
+        }
+        if (!hasClosedContour) return false;
         if (!LocalBounds.Contains(point)) return false;
 
-        // Winding number test using sampled segments
+        // Winding number test across all contours (holes cancel via opposite winding)
         var winding = 0;
-        var segmentCount = Anchors.Count;
-
-        for (var i = 0; i < segmentCount; i++)
+        foreach (var contour in Contours)
         {
-            var nextIdx = (i + 1) % Anchors.Count;
-            var samples = GetSegmentSamples(i);
+            if (contour.Open || contour.Anchors.Count < 3) continue;
+            contour.UpdateSamples();
+            var count = contour.Anchors.Count;
 
-            // Test anchor→first sample, then sample chain, then last sample→next anchor
-            winding += WindingSegment(point, Anchors[i].Position, samples[0]);
-            for (var s = 0; s < MaxSegmentSamples - 1; s++)
-                winding += WindingSegment(point, samples[s], samples[s + 1]);
-            winding += WindingSegment(point, samples[MaxSegmentSamples - 1], Anchors[nextIdx].Position);
+            for (var i = 0; i < count; i++)
+            {
+                var nextIdx = (i + 1) % count;
+                var samples = contour.GetSegmentSamples(i);
+
+                winding += WindingSegment(point, contour.Anchors[i].Position, samples[0]);
+                for (var s = 0; s < MaxSegmentSamples - 1; s++)
+                    winding += WindingSegment(point, samples[s], samples[s + 1]);
+                winding += WindingSegment(point, samples[MaxSegmentSamples - 1], contour.Anchors[nextIdx].Position);
+            }
         }
 
         return winding != 0;
@@ -493,12 +526,15 @@ public class SpritePath : SpriteNode
 
     public void SnapSelectedToPixelGrid()
     {
-        for (var i = 0; i < Anchors.Count; i++)
+        foreach (var contour in Contours)
         {
-            if (!Anchors[i].IsSelected) continue;
-            var a = Anchors[i];
-            a.Position = Grid.SnapToPixelGrid(a.Position);
-            Anchors[i] = a;
+            for (var i = 0; i < contour.Anchors.Count; i++)
+            {
+                if (!contour.Anchors[i].IsSelected) continue;
+                var a = contour.Anchors[i];
+                a.Position = Grid.SnapToPixelGrid(a.Position);
+                contour.Anchors[i] = a;
+            }
         }
         MarkDirty();
     }
@@ -507,39 +543,68 @@ public class SpritePath : SpriteNode
     {
         var sum = Vector2.Zero;
         var count = 0;
-        for (var i = 0; i < Anchors.Count; i++)
+        foreach (var contour in Contours)
         {
-            if (!Anchors[i].IsSelected) continue;
-            sum += Anchors[i].Position;
-            count++;
+            for (var i = 0; i < contour.Anchors.Count; i++)
+            {
+                if (!contour.Anchors[i].IsSelected) continue;
+                sum += contour.Anchors[i].Position;
+                count++;
+            }
         }
         return count > 0 ? sum / count : null;
     }
 
     public SpritePathAnchor[] SnapshotAnchors()
+        => SnapshotAnchors(0);
+
+    public SpritePathAnchor[] SnapshotAnchors(int contourIndex)
     {
-        var snapshot = new SpritePathAnchor[Anchors.Count];
-        for (var i = 0; i < Anchors.Count; i++)
-            snapshot[i] = Anchors[i];
+        var anchors = Contours[contourIndex].Anchors;
+        var snapshot = new SpritePathAnchor[anchors.Count];
+        for (var i = 0; i < anchors.Count; i++)
+            snapshot[i] = anchors[i];
         return snapshot;
     }
 
-    public void SetAnchorCurve(int index, float curve)
+    public SpritePathAnchor[][] SnapshotAllAnchors()
     {
-        var a = Anchors[index];
+        var result = new SpritePathAnchor[Contours.Count][];
+        for (var ci = 0; ci < Contours.Count; ci++)
+            result[ci] = SnapshotAnchors(ci);
+        return result;
+    }
+
+    public void SetAnchorCurve(int index, float curve)
+        => SetAnchorCurve(0, index, curve);
+
+    public void SetAnchorCurve(int contourIndex, int anchorIndex, float curve)
+    {
+        var anchors = Contours[contourIndex].Anchors;
+        var a = anchors[anchorIndex];
         a.Curve = ClampCurve(curve);
-        Anchors[index] = a;
-        MarkDirty();
+        anchors[anchorIndex] = a;
+        Contours[contourIndex].MarkDirty();
     }
 
     public void DeleteSelectedAnchors()
     {
-        for (var i = Anchors.Count - 1; i >= 0; i--)
+        foreach (var contour in Contours)
         {
-            if (Anchors[i].IsSelected)
-                Anchors.RemoveAt(i);
+            for (var i = contour.Anchors.Count - 1; i >= 0; i--)
+            {
+                if (contour.Anchors[i].IsSelected)
+                    contour.Anchors.RemoveAt(i);
+            }
+            contour.MarkDirty();
         }
-        MarkDirty();
+
+        // Remove empty contours (but keep at least the primary one)
+        for (var ci = Contours.Count - 1; ci > 0; ci--)
+        {
+            if (Contours[ci].Anchors.Count == 0)
+                Contours.RemoveAt(ci);
+        }
     }
 
     public int AddAnchor(Vector2 position, float curve = 0)
@@ -553,24 +618,28 @@ public class SpritePath : SpriteNode
         }
 
         Anchors.Add(new SpritePathAnchor { Position = position, Curve = curve });
-        MarkDirty();
+        Contours[0].MarkDirty();
         return Anchors.Count - 1;
     }
 
     public void InsertAnchor(int afterIndex, Vector2 position, float curve = 0)
     {
         Anchors.Insert(afterIndex + 1, new SpritePathAnchor { Position = position, Curve = curve });
-        MarkDirty();
+        Contours[0].MarkDirty();
     }
 
     public void SplitSegmentAtPoint(int anchorIndex, Vector2 targetPoint)
-    {
-        if (_samplesDirty) UpdateSamples();
+        => SplitSegmentAtPoint(0, anchorIndex, targetPoint);
 
-        var nextIdx = (anchorIndex + 1) % Anchors.Count;
-        var a0 = Anchors[anchorIndex];
-        var a1 = Anchors[nextIdx];
-        var samples = GetSegmentSamples(anchorIndex);
+    public void SplitSegmentAtPoint(int contourIndex, int anchorIndex, Vector2 targetPoint)
+    {
+        var contour = Contours[contourIndex];
+        contour.UpdateSamples();
+
+        var nextIdx = (anchorIndex + 1) % contour.Anchors.Count;
+        var a0 = contour.Anchors[anchorIndex];
+        var a1 = contour.Anchors[nextIdx];
+        var samples = contour.GetSegmentSamples(anchorIndex);
 
         // Find best T on the piecewise linear approximation
         var bestT = 0f;
@@ -611,22 +680,22 @@ public class SpritePath : SpriteNode
 
         // Insert the new anchor and zero out curves on split segments
         var insertIdx = anchorIndex + 1;
-        if (insertIdx > Anchors.Count) insertIdx = Anchors.Count;
-        Anchors.Insert(insertIdx, new SpritePathAnchor { Position = splitPoint });
+        if (insertIdx > contour.Anchors.Count) insertIdx = contour.Anchors.Count;
+        contour.Anchors.Insert(insertIdx, new SpritePathAnchor { Position = splitPoint });
 
-        // Zero out the original segment curve (crude but functional)
-        var aa = Anchors[anchorIndex];
+        // Zero out the original segment curve
+        var aa = contour.Anchors[anchorIndex];
         aa.Curve = 0;
-        Anchors[anchorIndex] = aa;
+        contour.Anchors[anchorIndex] = aa;
 
-        MarkDirty();
+        contour.MarkDirty();
     }
 
     #endregion
 
     // Split this path into two paths at the given anchor indices.
     // Returns the new second path. This path becomes the first path.
-    // anchor1 must come before anchor2 in the anchor list.
+    // Operates on the primary contour only.
     public SpritePath? SplitAtAnchors(int anchor1, int anchor2, ReadOnlySpan<Vector2> intermediatePoints, bool reverseIntermediates)
     {
         if (anchor1 < 0 || anchor2 < 0 || anchor1 >= Anchors.Count || anchor2 >= Anchors.Count)
@@ -634,12 +703,9 @@ public class SpritePath : SpriteNode
         if (anchor1 == anchor2)
             return null;
 
-        // Path 1: anchor1 → anchor2, plus reversed intermediates
-        // Path 2: anchor2 → wrap → anchor1, plus intermediates
         var path1Anchors = new List<SpritePathAnchor>();
         var path2Anchors = new List<SpritePathAnchor>();
 
-        // Collect path1: anchor1 to anchor2 (forward)
         for (var i = anchor1; ; i = (i + 1) % Anchors.Count)
         {
             var a = Anchors[i];
@@ -648,7 +714,6 @@ public class SpritePath : SpriteNode
             if (i == anchor2) break;
         }
 
-        // Add reversed intermediates to path1 (knife line, curve=0)
         if (intermediatePoints.Length > 0)
         {
             if (reverseIntermediates)
@@ -663,7 +728,6 @@ public class SpritePath : SpriteNode
             }
         }
 
-        // Collect path2: anchor2 to anchor1 (forward, wrapping)
         for (var i = anchor2; ; i = (i + 1) % Anchors.Count)
         {
             var a = Anchors[i];
@@ -672,7 +736,6 @@ public class SpritePath : SpriteNode
             if (i == anchor1) break;
         }
 
-        // Add intermediates to path2
         if (intermediatePoints.Length > 0)
         {
             if (reverseIntermediates)
@@ -687,12 +750,10 @@ public class SpritePath : SpriteNode
             }
         }
 
-        // Update this path to be path1
         Anchors.Clear();
         Anchors.AddRange(path1Anchors);
         MarkDirty();
 
-        // Create path2
         if (path2Anchors.Count < 3)
             return null;
 
@@ -718,13 +779,20 @@ public class SpritePath : SpriteNode
             StrokeColor = StrokeColor,
             StrokeWidth = StrokeWidth,
             Operation = Operation,
-            Open = Open,
             PathTranslation = PathTranslation,
             PathRotation = PathRotation,
             PathScale = PathScale,
         };
         ClonePropertiesTo(clone);
-        clone.Anchors.AddRange(Anchors);
+
+        // Clone primary contour (already exists in clone)
+        clone.Contours[0].Open = Contours[0].Open;
+        clone.Contours[0].Anchors.AddRange(Contours[0].Anchors);
+
+        // Clone additional contours
+        for (var ci = 1; ci < Contours.Count; ci++)
+            clone.Contours.Add(Contours[ci].Clone());
+
         return clone;
     }
 

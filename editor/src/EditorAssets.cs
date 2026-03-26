@@ -24,6 +24,7 @@ public static class EditorAssets
         public const string Composite = "composite";
         public const string CursorArrow = "cursor_arrow";
         public const string CursorMove = "cursor_move";
+        public const string CursorMove2 = "cursor_move_2";
         public const string Cursors = "cursors";
         public const string EditorSprites000 = "editor_sprites000";
         public const string IconAdd = "icon_add";
@@ -161,6 +162,7 @@ public static class EditorAssets
         public static Sprite AssetIconVfx { get; private set; } = null!;
         public static Sprite CursorArrow { get; private set; } = null!;
         public static Sprite CursorMove { get; private set; } = null!;
+        public static Sprite CursorMove2 { get; private set; } = null!;
         public static Sprite Cursors { get; private set; } = null!;
         public static Sprite IconAdd { get; private set; } = null!;
         public static Sprite IconAi { get; private set; } = null!;
@@ -234,6 +236,7 @@ public static class EditorAssets
             AssetIconVfx = (Sprite)Asset.Load(AssetType.Sprite, Names.AssetIconVfx)!;
             CursorArrow = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorArrow)!;
             CursorMove = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorMove)!;
+            CursorMove2 = (Sprite)Asset.Load(AssetType.Sprite, Names.CursorMove2)!;
             Cursors = (Sprite)Asset.Load(AssetType.Sprite, Names.Cursors)!;
             IconAdd = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAdd)!;
             IconAi = (Sprite)Asset.Load(AssetType.Sprite, Names.IconAi)!;
@@ -308,6 +311,7 @@ public static class EditorAssets
             AssetIconVfx?.Dispose();
             CursorArrow?.Dispose();
             CursorMove?.Dispose();
+            CursorMove2?.Dispose();
             Cursors?.Dispose();
             IconAdd?.Dispose();
             IconAi?.Dispose();

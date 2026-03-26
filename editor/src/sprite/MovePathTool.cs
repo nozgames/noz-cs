@@ -11,14 +11,14 @@ namespace NoZ.Editor;
 public class AnchorMoveTool : Tool
 {
     private readonly SpriteDocument _document;
-    private readonly (SpritePath Path, SpritePathAnchor[] Saved, Matrix3x2 WorldToLocal, Vector2 SavedBoundsCenter, Vector2 SavedTranslation)[] _entries;
+    private readonly (SpritePath Path, SpritePathAnchor[][] Saved, Matrix3x2 WorldToLocal, Vector2 SavedBoundsCenter, Vector2 SavedTranslation)[] _entries;
     private readonly HashSet<SpritePath> _movingPaths;
     private Vector2 _startWorld;
     private SnapType _snapType;
     private Vector2 _snapDocLocal;
 
     private AnchorMoveTool(SpriteDocument document,
-        (SpritePath, SpritePathAnchor[], Matrix3x2, Vector2, Vector2)[] entries)
+        (SpritePath, SpritePathAnchor[][], Matrix3x2, Vector2, Vector2)[] entries)
     {
         _document = document;
         _entries = entries;
@@ -34,14 +34,14 @@ public class AnchorMoveTool : Tool
         if (paths.Count == 0) return null;
 
         var docXform = document.Transform;
-        var entries = new (SpritePath, SpritePathAnchor[], Matrix3x2, Vector2, Vector2)[paths.Count];
+        var entries = new (SpritePath, SpritePathAnchor[][], Matrix3x2, Vector2, Vector2)[paths.Count];
 
         for (var i = 0; i < paths.Count; i++)
         {
             var path = paths[i];
             var pathToWorld = path.HasTransform ? path.PathTransform * docXform : docXform;
             Matrix3x2.Invert(pathToWorld, out var worldToLocal);
-            entries[i] = (path, path.SnapshotAnchors(), worldToLocal, path.LocalBounds.Center, path.PathTranslation);
+            entries[i] = (path, path.SnapshotAllAnchors(), worldToLocal, path.LocalBounds.Center, path.PathTranslation);
         }
 
         return new AnchorMoveTool(document, entries);
@@ -84,12 +84,12 @@ public class AnchorMoveTool : Tool
         if (Input.IsCtrlDown(Scope))
         {
             var (refPath, refSaved, refW2L, _, _) = _entries[0];
-            var refIndex = FindFirstSelectedIndex(refPath);
-            if (refIndex >= 0)
+            var (refCi, refAi) = FindFirstSelectedIndex(refPath);
+            if (refAi >= 0)
             {
                 var startLocal = Vector2.Transform(_startWorld, refW2L);
                 var mouseLocal = Vector2.Transform(mouseWorld, refW2L);
-                var candidatePathLocal = refSaved[refIndex].Position + (mouseLocal - startLocal);
+                var candidatePathLocal = refSaved[refCi][refAi].Position + (mouseLocal - startLocal);
 
                 // Path-local → doc-local
                 var candidateDocLocal = refPath.HasTransform
@@ -116,12 +116,16 @@ public class AnchorMoveTool : Tool
             var mouseLocal = Vector2.Transform(mouseWorld, worldToLocal);
             var delta = mouseLocal - startLocal;
 
-            for (var i = 0; i < path.Anchors.Count; i++)
+            for (var ci = 0; ci < path.Contours.Count; ci++)
             {
-                if (!path.Anchors[i].IsSelected) continue;
-                var a = path.Anchors[i];
-                a.Position = saved[i].Position + delta;
-                path.Anchors[i] = a;
+                var anchors = path.Contours[ci].Anchors;
+                for (var i = 0; i < anchors.Count; i++)
+                {
+                    if (!anchors[i].IsSelected) continue;
+                    var a = anchors[i];
+                    a.Position = saved[ci][i].Position + delta;
+                    anchors[i] = a;
+                }
             }
 
             path.MarkDirty();
@@ -133,11 +137,15 @@ public class AnchorMoveTool : Tool
         _document.IncrementVersion();
     }
 
-    private static int FindFirstSelectedIndex(SpritePath path)
+    private static (int ContourIndex, int AnchorIndex) FindFirstSelectedIndex(SpritePath path)
     {
-        for (var i = 0; i < path.Anchors.Count; i++)
-            if (path.Anchors[i].IsSelected) return i;
-        return -1;
+        for (var ci = 0; ci < path.Contours.Count; ci++)
+        {
+            var anchors = path.Contours[ci].Anchors;
+            for (var i = 0; i < anchors.Count; i++)
+                if (anchors[i].IsSelected) return (ci, i);
+        }
+        return (-1, -1);
     }
 
     public override void Draw() => SnapHelper.DrawSnapIndicator(_snapType, _snapDocLocal, _document.Transform);
