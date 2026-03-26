@@ -8,41 +8,37 @@ public class Atlas : Asset
 {
     internal const ushort Version = 1;
 
-    public int Width { get; private init; }
-    public int Height { get; private init; }
+    public int Width { get; private set; }
+    public int Height { get; private set; }
     public TextureFormat Format { get; private set; }
     public TextureFilter Filter { get; private set; }
     public TextureClamp Clamp { get; private set; }
-    public byte[] Data { get; private init; } = [];
+    public byte[] Data { get; private set; } = [];
     public int Index { get; internal set; }
 
     private Atlas(string name) : base(AssetType.Atlas, name)
     {
     }
 
+    public Atlas() : base(AssetType.Atlas) { }
+
+    protected override void Load(BinaryReader reader)
+    {
+        Format = (TextureFormat)reader.ReadByte();
+        Filter = (TextureFilter)reader.ReadByte();
+        Clamp = (TextureClamp)reader.ReadByte();
+        Width = (int)reader.ReadUInt32();
+        Height = (int)reader.ReadUInt32();
+
+        var dataSize = Width * Height * GetBytesPerPixel(Format);
+        Data = reader.ReadBytes(dataSize);
+    }
+
     private static Atlas? Load(Stream stream, string name)
     {
+        var atlas = new Atlas(name);
         using var reader = new BinaryReader(stream);
-
-        var format = (TextureFormat)reader.ReadByte();
-        var filter = (TextureFilter)reader.ReadByte();
-        var clamp = (TextureClamp)reader.ReadByte();
-        var width = (int)reader.ReadUInt32();
-        var height = (int)reader.ReadUInt32();
-
-        var dataSize = width * height * GetBytesPerPixel(format);
-        var data = reader.ReadBytes(dataSize);
-
-        var atlas = new Atlas(name)
-        {
-            Width = width,
-            Height = height,
-            Format = format,
-            Filter = filter,
-            Clamp = clamp,
-            Data = data
-        };
-
+        atlas.Load(reader);
         return atlas;
     }
 

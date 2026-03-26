@@ -525,6 +525,7 @@ public unsafe partial class SDLPlatform : IPlatform
                 SystemCursor.ResizeNS => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NS_RESIZE,
                 SystemCursor.ResizeNWSE => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NWSE_RESIZE,
                 SystemCursor.ResizeNESW => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NESW_RESIZE,
+                SystemCursor.Text => SDL_SystemCursor.SDL_SYSTEM_CURSOR_TEXT,
                 _ => SDL_SystemCursor.SDL_SYSTEM_CURSOR_DEFAULT
             };
             _cursors[index] = SDL_CreateSystemCursor(sdlCursor);

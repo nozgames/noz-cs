@@ -162,8 +162,10 @@ public partial class SpriteEditor
                 if (newIdx < path.Contours[ci].Anchors.Count)
                     path.SetAnchorSelected(ci, newIdx, true);
 
+                var oldCenter = path.LocalBounds.Center;
                 path.UpdateSamples();
                 path.UpdateBounds();
+                path.CompensateTranslation(oldCenter);
                 MarkDirty();
 
                 var moveTool = AnchorMoveTool.Create(Document, this);

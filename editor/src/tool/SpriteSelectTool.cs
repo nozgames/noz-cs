@@ -11,13 +11,9 @@ internal class SpriteSelectTool : Tool
 
     public SpriteSelectTool(Action<SpriteDocument> commit) => _commit = commit;
 
-    public override void Begin()
-    {
-        EditorCursor.SetCrosshair();
-    }
-
     public override void Update()
     {
+        EditorCursor.SetCrosshair();
         if (Input.WasButtonPressed(InputCode.KeyEscape) ||
             Input.WasButtonPressed(InputCode.MouseRight))
         {

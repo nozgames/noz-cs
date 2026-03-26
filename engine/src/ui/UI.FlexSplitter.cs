@@ -14,6 +14,7 @@ public struct FlexSplitterStyle()
     public Color BarColor = new(0.3f, 0.3f, 0.3f, 1f);
     public Color BarHoverColor = new(0.5f, 0.5f, 0.5f, 1f);
     public Color BarDragColor = new(0.4f, 0.6f, 1f, 1f);
+    public SpriteCursor? Cursor;
     public Func<FlexSplitterStyle, WidgetFlags, FlexSplitterStyle>? Resolve;
 
     public static readonly FlexSplitterStyle Default = new();
@@ -53,8 +54,10 @@ public static partial class UI
         ElementTree.BeginFlexSplitter(ref state, id, s.BarSize,
             s.MinSize, s.MaxSize, s.MinSize2, s.MaxSize2);
 
-        var cursorType = isRow ? SystemCursor.ResizeEW : SystemCursor.ResizeNS;
-        ElementTree.BeginCursor(cursorType);
+        if (s.Cursor.HasValue)
+            ElementTree.BeginCursor(s.Cursor.Value);
+        else
+            ElementTree.BeginCursor(isRow ? SystemCursor.ResizeEW : SystemCursor.ResizeNS);
 
         ElementTree.BeginSize(barWidth, barHeight);
         ElementTree.BeginFill(barColor);

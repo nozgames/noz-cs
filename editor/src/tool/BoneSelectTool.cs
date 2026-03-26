@@ -19,7 +19,6 @@ public class BoneSelectTool : Tool
 
     public override void Begin()
     {
-        EditorCursor.SetCrosshair();
         CollectionManager.ShowAlways(typeof(SkeletonDocument), true);
     }
 
@@ -30,6 +29,7 @@ public class BoneSelectTool : Tool
 
     public override void Update()
     {
+        EditorCursor.SetCrosshair();
         if (Input.WasButtonPressed(InputCode.KeyEscape) || Input.WasButtonPressed(InputCode.MouseRight))
         {
             Workspace.CancelTool();

@@ -39,6 +39,7 @@ public class Sprite : Asset, IImage
     public bool HasTexture => Texture != null;
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
+    public Sprite() : base(AssetType.Sprite) { }
 
     internal static Sprite Create(
         string name,
@@ -69,17 +70,8 @@ public class Sprite : Asset, IImage
         };
     }
 
-    private static Asset Load(Stream stream, string name)
+    protected override void Load(BinaryReader reader)
     {
-        // Read version from asset header (sig:4 + type:4 + version:2 + flags:2 = 12 bytes)
-        var savedPos = stream.Position;
-        stream.Position = 8;
-        var version = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true).ReadUInt16();
-        stream.Position = savedPos;
-
-        var sprite = new Sprite(name);
-        var reader = new BinaryReader(stream);
-
         var frameCount = reader.ReadUInt16();
         var atlasIndex = reader.ReadUInt16();
         var l = reader.ReadInt16();
@@ -127,20 +119,20 @@ public class Sprite : Asset, IImage
             reader.ReadUInt16(); // meshCount
         }
 
-        sprite.Bounds = RectInt.FromMinMax(l, t, r, b);
-        sprite.FrameCount = frameCount;
-        sprite.AtlasIndex = atlasIndex;
-        sprite.BoneIndex = boneIndex;
-        sprite.PixelsPerUnit = ppu;
-        sprite.PixelsPerUnitInv = 1.0f / ppu;
-        sprite.FrameRate = frameRate;
-        sprite.TextureFilter = filter;
-        sprite.Frames = frames;
-        sprite.Edges = edges;
-        sprite.SliceMask = sliceMask;
+        Bounds = RectInt.FromMinMax(l, t, r, b);
+        FrameCount = frameCount;
+        AtlasIndex = atlasIndex;
+        BoneIndex = boneIndex;
+        PixelsPerUnit = ppu;
+        PixelsPerUnitInv = 1.0f / ppu;
+        FrameRate = frameRate;
+        TextureFilter = filter;
+        Frames = frames;
+        Edges = edges;
+        SliceMask = sliceMask;
 
         // Embedded texture for sprites that don't fit in an atlas
-        if (atlasIndex == 0xFFFF && stream.Position < stream.Length)
+        if (atlasIndex == 0xFFFF && reader.BaseStream.Position < reader.BaseStream.Length)
         {
             var texFormat = (TextureFormat)reader.ReadByte();
             var texFilter = (TextureFilter)reader.ReadByte();
@@ -156,9 +148,15 @@ public class Sprite : Asset, IImage
                 _ => 4
             };
             var texData = reader.ReadBytes(texWidth * texHeight * bpp);
-            sprite.Texture = Texture.Create(texWidth, texHeight, texData, texFormat, texFilter, name + "_tex");
+            Texture = Texture.Create(texWidth, texHeight, texData, texFormat, texFilter, Name + "_tex");
         }
+    }
 
+    private static Asset Load(Stream stream, string name)
+    {
+        var sprite = new Sprite(name);
+        var reader = new BinaryReader(stream);
+        sprite.Load(reader);
         return sprite;
     }
 

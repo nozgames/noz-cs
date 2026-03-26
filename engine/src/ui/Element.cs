@@ -189,8 +189,11 @@ internal unsafe struct TrackElement
 internal struct CursorElement
 {
     public SystemCursor SystemCursor;
-    public ushort AssetIndex; // 0 = no sprite, use SystemCursor
+    public ushort AssetIndex;
     public bool IsSprite;
+    public float Rotation;
+    public float HotspotX;
+    public float HotspotY;
 }
 
 internal struct PopupElement

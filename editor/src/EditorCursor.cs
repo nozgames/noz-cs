@@ -6,10 +6,13 @@ namespace NoZ.Editor;
 
 internal static class EditorCursor
 {
-    public static void SetArrow() => Cursor.Set(EditorAssets.Sprites.CursorArrow);
-    public static void SetMove() => Cursor.Set(EditorAssets.Sprites.CursorMove);
-    public static void SetScale() => Cursor.Set(EditorAssets.Sprites.CursorScale);
-    public static void SetScale(float rotation) => Cursor.Set(EditorAssets.Sprites.CursorScale, rotation);
+    private static SpriteCursor? _cursor;
+    private static SystemCursor _systemCursor;
+
+    public static void SetArrow() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
+    public static void SetMove() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorMove));
+    public static void SetScale() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorScale));
+    public static void SetScale(float rotation) => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorScale, rotation));
 
     public static void SetScale(SpritePathHandle handle, float selectionRotation)
     {
@@ -23,8 +26,9 @@ internal static class EditorCursor
         };
         SetScale(rotation);
     }
-    public static void SetRotate() => Cursor.Set(EditorAssets.Sprites.CursorRotate);
-    public static void SetRotate(float rotation) => Cursor.Set(EditorAssets.Sprites.CursorRotate, rotation);
+
+    public static void SetRotate() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorRotate));
+    public static void SetRotate(float rotation) => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorRotate, rotation));
 
     public static void SetRotate(SpritePathHandle handle, float selectionRotation)
     {
@@ -38,5 +42,32 @@ internal static class EditorCursor
         };
         SetRotate(rotation);
     }
-    public static void SetCrosshair() => Cursor.SetCrosshair();
+
+    public static void SetDropper() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CurorDropper));
+
+    public static void SetCrosshair()
+    {
+        _cursor = null;
+        _systemCursor = SystemCursor.Crosshair;
+    }
+
+    public static void Begin()
+    {
+        if (_cursor.HasValue)
+            ElementTree.BeginCursor(_cursor.Value);
+        else
+            ElementTree.BeginCursor(_systemCursor);
+    }
+
+    public static void End()
+    {
+        ElementTree.EndCursor();
+        SetArrow();
+    }
+
+    private static void SetSprite(SpriteCursor cursor)
+    {
+        _cursor = cursor;
+        _systemCursor = SystemCursor.None;
+    }
 }

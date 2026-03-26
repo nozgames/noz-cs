@@ -22,6 +22,41 @@ public class Asset : IDisposable {
         Def = GetDef(type) ?? throw new InvalidOperationException($"No AssetDef registered for type {type}");
     }
 
+    protected internal Asset(AssetType type)
+    {
+        Name = string.Empty;
+        Def = GetDef(type) ?? throw new InvalidOperationException($"No AssetDef registered for type {type}");
+    }
+
+    protected virtual void Load(BinaryReader reader) { }
+
+    public void Load(string name)
+    {
+        Name = name;
+        Id = StringId.Get(name);
+        var type = Def.Type;
+
+        var stream = LoadAssetStream(name, type);
+        if (stream == null)
+        {
+            Log.Error($"Asset not found: {type}/{name}");
+            return;
+        }
+
+        using (stream)
+        {
+            if (!ValidateAssetHeader(stream, type))
+            {
+                Log.Error($"Invalid asset header: {type}/{name}");
+                return;
+            }
+            using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+            Load(reader);
+        }
+
+        _registry[(type, name)] = this;
+    }
+
     public static Asset? Load(AssetType type, string name, bool useRegistry=true, string? libraryPath = null)
     {
         if (_registry.TryGetValue((type, name), out var cached))

@@ -142,7 +142,7 @@ public static class Gizmos
 
     public static void DrawAnchor(Vector2 center, bool selected, float scale = 1.0f, ushort order = 0)
     {
-        var sprite = EditorAssets.Sprites.GizmoHandle;
+        Sprite sprite = EditorAssets.Sprites.GizmoHandle;
         var baseSize = EditorStyle.SpritePath.AnchorSize * scale * ZoomRefScale;
         var ppu = sprite.PixelsPerUnit / sprite.Bounds.Width;
 

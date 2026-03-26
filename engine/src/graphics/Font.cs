@@ -21,15 +21,15 @@ public class Font : Asset
 {
     internal const ushort Version = 6;
 
-    public int FontSize { get; private init; }
-    public int AtlasWidth { get; private init; }
-    public int AtlasHeight { get; private init; }
-    public float Ascent { get; private init; }
-    public float Descent { get; private init; }
-    public float LineHeight { get; private init; }
-    public float Baseline { get; private init; }
-    public float InternalLeading { get; private init; }
-    public string FamilyName { get; private init; } = "";
+    public int FontSize { get; private set; }
+    public int AtlasWidth { get; private set; }
+    public int AtlasHeight { get; private set; }
+    public float Ascent { get; private set; }
+    public float Descent { get; private set; }
+    public float LineHeight { get; private set; }
+    public float Baseline { get; private set; }
+    public float InternalLeading { get; private set; }
+    public string FamilyName { get; private set; } = "";
 
     private readonly Dictionary<int, FontGlyph> _glyphs = new();
     private readonly Dictionary<uint, float> _kerning = new();
@@ -51,6 +51,8 @@ public class Font : Asset
     {
     }
 
+    public Font() : base(AssetType.Font) { }
+
     public FontGlyph GetGlyph(char c)
     {
         if (_glyphs.TryGetValue((int)c, out var glyph) && glyph.Advance > 0)
@@ -70,38 +72,22 @@ public class Font : Asset
         return _kerning.GetValueOrDefault(key, 0f);
     }
 
-    private static Font? Load(Stream stream, string name)
+    protected override void Load(BinaryReader reader)
     {
-        using var reader = new BinaryReader(stream);
-
-        var fontSize = (int)reader.ReadUInt32();
-        var atlasWidth = (int)reader.ReadUInt32();
-        var atlasHeight = (int)reader.ReadUInt32();
-        var ascent = reader.ReadSingle();
-        var descent = reader.ReadSingle();
-        var lineHeight = reader.ReadSingle();
-        var baseline = reader.ReadSingle();
-        var internalLeading = reader.ReadSingle();
+        FontSize = (int)reader.ReadUInt32();
+        AtlasWidth = (int)reader.ReadUInt32();
+        AtlasHeight = (int)reader.ReadUInt32();
+        Ascent = reader.ReadSingle();
+        Descent = reader.ReadSingle();
+        LineHeight = reader.ReadSingle();
+        Baseline = reader.ReadSingle();
+        InternalLeading = reader.ReadSingle();
 
         var familyNameLength = reader.ReadUInt16();
-        var familyName = familyNameLength > 0
+        FamilyName = familyNameLength > 0
             ? new string(reader.ReadChars(familyNameLength))
             : "";
 
-        var font = new Font(name)
-        {
-            FontSize = fontSize,
-            AtlasWidth = atlasWidth,
-            AtlasHeight = atlasHeight,
-            Ascent = ascent,
-            Descent = descent,
-            LineHeight = lineHeight,
-            Baseline = baseline,
-            InternalLeading = internalLeading,
-            FamilyName = familyName
-        };
-
-        // Read glyphs
         var glyphCount = reader.ReadUInt16();
         var glyphCodepoints = new int[glyphCount];
         for (var i = 0; i < glyphCount; i++)
@@ -118,7 +104,7 @@ public class Font : Asset
             var bearingX = reader.ReadSingle();
             var bearingY = reader.ReadSingle();
 
-            font._glyphs[(int)codepoint] = new FontGlyph
+            _glyphs[(int)codepoint] = new FontGlyph
             {
                 UVMin = new Vector2(uvMinX, uvMinY),
                 UVMax = new Vector2(uvMaxX, uvMaxY),
@@ -128,7 +114,6 @@ public class Font : Asset
             };
         }
 
-        // Read kerning
         var kerningCount = reader.ReadUInt16();
         for (var i = 0; i < kerningCount; i++)
         {
@@ -136,36 +121,39 @@ public class Font : Asset
             var second = reader.ReadUInt32();
             var amount = reader.ReadSingle();
             var key = (first << 16) | second;
-            font._kerning[key] = amount;
+            _kerning[key] = amount;
         }
 
-        // Read atlas texture data (RGBA8 format for MSDF)
-        var atlasDataSize = atlasWidth * atlasHeight * 4;
+        var atlasDataSize = AtlasWidth * AtlasHeight * 4;
         var rgbaData = reader.ReadBytes(atlasDataSize);
+        _atlasTexture = Texture.Create(AtlasWidth, AtlasHeight, rgbaData, TextureFormat.RGBA8, name: Name + "_atlas");
 
-        font._atlasTexture = Texture.Create(atlasWidth, atlasHeight, rgbaData, TextureFormat.RGBA8, name: name + "_atlas");
-
-        // Read glyph names (appended after atlas in v5+)
         if (reader.BaseStream.Position < reader.BaseStream.Length)
         {
             var nameBufferLength = reader.ReadUInt16();
             if (nameBufferLength > 0)
-                font._glyphNameBuffer = reader.ReadChars(nameBufferLength);
+                _glyphNameBuffer = reader.ReadChars(nameBufferLength);
 
             for (var i = 0; i < glyphCount; i++)
             {
                 var nameStart = reader.ReadUInt16();
                 var nameLength = reader.ReadUInt16();
                 var cp = glyphCodepoints[i];
-                if (font._glyphs.TryGetValue(cp, out var g))
+                if (_glyphs.TryGetValue(cp, out var g))
                 {
                     g.NameStart = nameStart;
                     g.NameLength = nameLength;
-                    font._glyphs[cp] = g;
+                    _glyphs[cp] = g;
                 }
             }
         }
+    }
 
+    private static Font? Load(Stream stream, string name)
+    {
+        var font = new Font(name);
+        using var reader = new BinaryReader(stream);
+        font.Load(reader);
         return font;
     }
 

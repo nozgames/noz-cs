@@ -141,6 +141,7 @@ public partial class SpriteEditor : DocumentEditor
             return;
         }
 
+        UpdateHandleCursor();
         UpdateAnimation();
         HandleDeleteKey();
 
@@ -178,8 +179,6 @@ public partial class SpriteEditor : DocumentEditor
     public override void LateUpdate()
     {
         if (!Document.IsMutable) return;
-
-        UpdateHandleCursor();
 
         if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
             HandleDragStart();

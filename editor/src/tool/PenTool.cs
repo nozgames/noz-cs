@@ -44,11 +44,11 @@ public class PenTool : Tool
     public override void Begin()
     {
         base.Begin();
-        EditorCursor.SetCrosshair();
     }
 
     public override void Update()
     {
+        EditorCursor.SetCrosshair();
         var mouseWorld = Workspace.MouseWorldPosition;
         Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(mouseWorld, invTransform);

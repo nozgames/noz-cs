@@ -43,25 +43,23 @@ public class Skeleton : Asset
     {
     }
 
+    public Skeleton() : base(AssetType.Skeleton) { }
+
     internal static void RegisterDef()
     {
         RegisterDef(new AssetDef(AssetType.Skeleton, "Skeleton", typeof(Skeleton), Load));
     }
 
-    private static Skeleton? Load(Stream stream, string name)
+    protected override void Load(BinaryReader reader)
     {
-        var reader = new BinaryReader(stream);
-        var skeleton = new Skeleton(name);
-
         var boneCount = reader.ReadByte();
-        skeleton.BoneCount = boneCount;
-        skeleton.Bones = new Bone[boneCount];
-
-        skeleton.BindPoses = new NativeArray<Matrix3x2>(boneCount, boneCount);
+        BoneCount = boneCount;
+        Bones = new Bone[boneCount];
+        BindPoses = new NativeArray<Matrix3x2>(boneCount, boneCount);
 
         for (var i = 0; i < boneCount; i++)
         {
-            ref var bone = ref skeleton.Bones[i];
+            ref var bone = ref Bones[i];
             bone.Name = reader.ReadString();
             bone.Index = i;
             bone.ParentIndex = reader.ReadSByte();
@@ -69,19 +67,24 @@ public class Skeleton : Asset
             bone.Transform.Rotation = reader.ReadSingle();
             bone.Transform.Scale = new Vector2(reader.ReadSingle(), reader.ReadSingle());
 
-            skeleton.BindPoses[i] = new Matrix3x2(
+            BindPoses[i] = new Matrix3x2(
                 reader.ReadSingle(), reader.ReadSingle(),
                 reader.ReadSingle(), reader.ReadSingle(),
                 reader.ReadSingle(), reader.ReadSingle()
             );
 
-            // v2: envelope radius
-            if (stream.Position + 4 <= stream.Length)
+            if (reader.BaseStream.Position + 4 <= reader.BaseStream.Length)
             {
                 bone.Radius = reader.ReadSingle();
             }
         }
+    }
 
+    private static Skeleton? Load(Stream stream, string name)
+    {
+        var skeleton = new Skeleton(name);
+        var reader = new BinaryReader(stream);
+        skeleton.Load(reader);
         return skeleton;
     }
 

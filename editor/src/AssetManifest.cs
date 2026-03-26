@@ -196,11 +196,11 @@ public static class AssetManifest
             writer.WriteLine($"    public static class {pluralName}");
             writer.WriteLine("    {");
 
-            // Properties with private setters
+            // Pre-allocated asset fields
             foreach (var doc in orderedDocs)
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"        public static {runtimeType} {fieldName} {{ get; private set; }} = null!;");
+                writer.WriteLine($"        public static readonly {runtimeType} {fieldName} = new();");
             }
 
             // Load method
@@ -210,7 +210,7 @@ public static class AssetManifest
             foreach (var doc in orderedDocs)
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"            {fieldName} = ({runtimeType})Asset.Load({assetTypeExpr}, Names.{fieldName})!;");
+                writer.WriteLine($"            {fieldName}.Load(Names.{fieldName});");
             }
             writer.WriteLine("        }");
 
@@ -221,7 +221,7 @@ public static class AssetManifest
             foreach (var doc in orderedDocs)
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"            {fieldName}?.Dispose();");
+                writer.WriteLine($"            {fieldName}.Dispose();");
             }
             writer.WriteLine("        }");
 

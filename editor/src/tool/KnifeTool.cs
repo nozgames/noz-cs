@@ -48,13 +48,9 @@ public class KnifeTool : Tool
         _cancel = cancel;
     }
 
-    public override void Begin()
-    {
-        EditorCursor.SetCrosshair();
-    }
-
     public override void Update()
     {
+        EditorCursor.SetCrosshair();
         if (Input.WasButtonPressed(InputCode.KeyEscape))
         {
             Cancel();

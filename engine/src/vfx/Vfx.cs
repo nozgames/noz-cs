@@ -119,29 +119,23 @@ public class Vfx : Asset
     public bool Loop { get; internal set; }
 
     internal Vfx(string name) : base(AssetType.Vfx, name) { }
+    public Vfx() : base(AssetType.Vfx) { }
 
-    private static Asset Load(Stream stream, string name)
+    protected override void Load(BinaryReader reader)
     {
-        using var reader = new BinaryReader(stream);
-
-        var vfx = new Vfx(name);
-
-        // Bounds
-        vfx.Bounds = new Rect(
+        Bounds = new Rect(
             reader.ReadSingle(), reader.ReadSingle(),
             reader.ReadSingle(), reader.ReadSingle());
 
-        // Duration
-        vfx.Duration = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
-        vfx.Loop = reader.ReadBoolean();
+        Duration = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
+        Loop = reader.ReadBoolean();
 
-        // Emitters
         var emitterCount = reader.ReadInt32();
-        vfx.EmitterDefs = new VfxEmitterDef[emitterCount];
+        EmitterDefs = new VfxEmitterDef[emitterCount];
 
         for (var i = 0; i < emitterCount; i++)
         {
-            ref var e = ref vfx.EmitterDefs[i];
+            ref var e = ref EmitterDefs[i];
 
             e.Rate = new VfxIntRange(reader.ReadInt32(), reader.ReadInt32());
             e.Burst = new VfxIntRange(reader.ReadInt32(), reader.ReadInt32());
@@ -155,7 +149,6 @@ public class Vfx : Asset
                 new Vector2(reader.ReadSingle(), reader.ReadSingle()));
             e.WorldSpace = reader.ReadBoolean();
 
-            // Particle def
             ref var p = ref e.Particle;
             p.Duration = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.Size = ReadFloatCurve(reader);
@@ -168,12 +161,17 @@ public class Vfx : Asset
             p.Drag = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.Rotation = ReadFloatCurve(reader);
 
-            // mesh name (skip - not used for flat quads)
             var meshNameLen = reader.ReadInt32();
             if (meshNameLen > 0)
                 reader.ReadBytes(meshNameLen);
         }
+    }
 
+    private static Asset Load(Stream stream, string name)
+    {
+        var vfx = new Vfx(name);
+        using var reader = new BinaryReader(stream);
+        vfx.Load(reader);
         return vfx;
     }
 

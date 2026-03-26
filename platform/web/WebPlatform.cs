@@ -173,6 +173,7 @@ public class WebPlatform : IPlatform
             SystemCursor.ResizeNS => "row-resize",
             SystemCursor.ResizeNWSE => "nwse-resize",
             SystemCursor.ResizeNESW => "nesw-resize",
+            SystemCursor.Text => "text",
             _ => "default"
         };
         _module?.InvokeVoidAsync("setCursor", cursorStyle);

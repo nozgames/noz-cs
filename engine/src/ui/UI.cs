@@ -376,9 +376,9 @@ public static partial class UI
 
     public static void EndOpacity() => ElementTree.EndOpacity();
 
-    public static AutoCursor BeginCursor(Sprite sprite)
+    public static AutoCursor BeginCursor(SpriteCursor cursor)
     {
-        ElementTree.BeginCursor(sprite);
+        ElementTree.BeginCursor(cursor);
         return new AutoCursor();
     }
 

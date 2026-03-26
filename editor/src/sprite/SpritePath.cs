@@ -524,6 +524,17 @@ public class SpritePath : SpriteNode
 
     private static float Cross(Vector2 a, Vector2 b) => a.X * b.Y - a.Y * b.X;
 
+    private static float ProjectCurve(Vector2 p0, Vector2 p1, Vector2 control)
+    {
+        var mid = (p0 + p1) * 0.5f;
+        var dir = p1 - p0;
+        var perp = new Vector2(-dir.Y, dir.X);
+        var len = perp.Length();
+        if (len < float.Epsilon) return 0f;
+        perp /= len;
+        return Vector2.Dot(control - mid, perp);
+    }
+
     private static float PointToSegmentDistSqr(Vector2 point, Vector2 a, Vector2 b, out Vector2 closest)
     {
         var ab = b - a;
@@ -673,17 +684,21 @@ public class SpritePath : SpriteNode
         for (var s = 0; s <= samples.Length; s++)
         {
             var next = s < samples.Length ? samples[s] : a1.Position;
-            var distSqr = PointToSegmentDistSqr(targetPoint, prev, next, out _);
+            var distSqr = PointToSegmentDistSqr(targetPoint, prev, next, out var segClosest);
             if (distSqr < bestDistSqr)
             {
                 bestDistSqr = distSqr;
-                bestT = (s + 0.5f) / totalSegments;
+                var segLenSqr = Vector2.DistanceSquared(prev, next);
+                var segT = segLenSqr < float.Epsilon ? 0.5f : Vector2.Dot(segClosest - prev, next - prev) / segLenSqr;
+                bestT = (s + segT) / totalSegments;
             }
             prev = next;
         }
 
-        // Compute split point on the quadratic bezier
+        // Compute split point and sub-curve values
         Vector2 splitPoint;
+        var leftCurve = 0f;
+        var rightCurve = 0f;
         if (MathF.Abs(a0.Curve) < MinCurve)
         {
             splitPoint = Vector2.Lerp(a0.Position, a1.Position, bestT);
@@ -699,16 +714,21 @@ public class SpritePath : SpriteNode
 
             var u = 1 - bestT;
             splitPoint = u * u * a0.Position + 2 * u * bestT * control + bestT * bestT * a1.Position;
+
+            // De Casteljau split — compute sub-control points
+            var cLeft = Vector2.Lerp(a0.Position, control, bestT);
+            var cRight = Vector2.Lerp(control, a1.Position, bestT);
+            leftCurve = ProjectCurve(a0.Position, splitPoint, cLeft);
+            rightCurve = ProjectCurve(splitPoint, a1.Position, cRight);
         }
 
-        // Insert the new anchor and zero out curves on split segments
+        // Insert the new anchor with sub-curve values
         var insertIdx = anchorIndex + 1;
         if (insertIdx > contour.Anchors.Count) insertIdx = contour.Anchors.Count;
-        contour.Anchors.Insert(insertIdx, new SpritePathAnchor { Position = splitPoint });
+        contour.Anchors.Insert(insertIdx, new SpritePathAnchor { Position = splitPoint, Curve = rightCurve });
 
-        // Zero out the original segment curve
         var aa = contour.Anchors[anchorIndex];
-        aa.Curve = 0;
+        aa.Curve = leftCurve;
         contour.Anchors[anchorIndex] = aa;
 
         contour.MarkDirty();

@@ -124,12 +124,15 @@ public static unsafe partial class ElementTree
 
     public static void EndOpacity() => EndElement(ElementType.Opacity);
 
-    public static int BeginCursor(Sprite sprite)
+    public static int BeginCursor(SpriteCursor cursor)
     {
         ref var e = ref BeginElement(ElementType.Cursor);
         ref var d = ref e.Data.Cursor;
         d.IsSprite = true;
-        d.AssetIndex = AddObject(sprite);
+        d.AssetIndex = AddObject(cursor.Sprite);
+        d.Rotation = cursor.Rotation;
+        d.HotspotX = cursor.Hotspot.X;
+        d.HotspotY = cursor.Hotspot.Y;
         return e.Index;
     }
 

@@ -34,13 +34,9 @@ public class ShapeTool : Tool
         _operation = operation;
     }
 
-    public override void Begin()
-    {
-        EditorCursor.SetCrosshair();
-    }
-
     public override void Update()
     {
+        EditorCursor.SetCrosshair();
         if (Input.WasButtonPressed(InputCode.KeyEscape, Scope))
         {
             Cancel();

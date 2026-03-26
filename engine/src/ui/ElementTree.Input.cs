@@ -119,10 +119,7 @@ public static unsafe partial class ElementTree
         return false;
     }
 
-    // Cursor state
-    private static bool _cursorActive;
-    private static Sprite? _savedCursorSprite;
-    private static SystemCursor _savedSystemCursor;
+    private static int _cursorOffset;
 
     internal static void HandleInput()
     {
@@ -138,62 +135,27 @@ public static unsafe partial class ElementTree
         }
 
         _hoveredWidget = WidgetId.None;
+        _cursorOffset = -1;
         FindHoveredWidget(0);
         HandlePopupAutoClose();
         HandleInputElement(0);
         HandleScrollableInput();
-        HandleCursor(0);
-    }
 
-    private static void HandleCursor(int offset)
-    {
-        int cursorOffset = -1;
-        FindCursorUnderMouse(0, ref cursorOffset);
-
-        if (cursorOffset >= 0)
+        if (_cursorOffset >= 0)
         {
-            if (!_cursorActive)
-            {
-                _savedCursorSprite = Cursor.ActiveSprite;
-                _savedSystemCursor = Cursor.ActiveSystemCursor;
-                _cursorActive = true;
-            }
-
-            ref var ce = ref GetElement(cursorOffset);
+            ref var ce = ref GetElement(_cursorOffset);
             ref var cd = ref ce.Data.Cursor;
             if (cd.IsSprite)
-                Cursor.Set((Sprite)_assets[cd.AssetIndex]!);
+                Cursor.Set(new SpriteCursor(
+                    (Sprite)_assets[cd.AssetIndex]!,
+                    cd.Rotation,
+                    new Vector2(cd.HotspotX, cd.HotspotY)));
             else
                 Cursor.Set(cd.SystemCursor);
         }
-        else if (_cursorActive)
+        else
         {
-            _cursorActive = false;
-            if (_savedCursorSprite != null)
-                Cursor.Set(_savedCursorSprite);
-            else
-                Cursor.Set(_savedSystemCursor);
-        }
-    }
-
-    private static void FindCursorUnderMouse(int offset, ref int foundOffset)
-    {
-        ref var e = ref GetElement(offset);
-
-        if (e.Type == ElementType.Cursor)
-        {
-            Matrix3x2.Invert(e.Transform, out var cursorInv);
-            var localMouse = Vector2.Transform(MouseWorldPosition, cursorInv);
-            if (e.Rect.Contains(localMouse))
-                foundOffset = offset;
-        }
-
-        var childOffset = (int)e.FirstChild;
-        for (int i = 0; i < e.ChildCount; i++)
-        {
-            ref var child = ref GetElement(childOffset);
-            FindCursorUnderMouse(childOffset, ref foundOffset);
-            childOffset = child.NextSibling;
+            Cursor.SetDefault();
         }
     }
 
@@ -356,6 +318,13 @@ public static unsafe partial class ElementTree
                     _hoveredWidget = e.Data.Widget.Id;
                 }
             }
+        }
+        else if (e.Type == ElementType.Cursor)
+        {
+            Matrix3x2.Invert(e.Transform, out var inv);
+            var localMouse = Vector2.Transform(MouseWorldPosition, inv);
+            if (e.Rect.Contains(localMouse))
+                _cursorOffset = index;
         }
 
         var childIndex = (int)e.FirstChild;

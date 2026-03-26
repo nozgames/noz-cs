@@ -388,8 +388,6 @@ public static partial class Workspace
 
         if (HitTestSelected(_mouseWorldPosition))
             EditorCursor.SetMove();
-        else
-            EditorCursor.SetArrow();
     }
 
     private static bool HitTestSelected(Vector2 point)
@@ -477,11 +475,15 @@ public static partial class Workspace
     public static void UpdateUI()
     {
         using (UI.BeginContainer())
+        {
+            EditorCursor.Begin();
             UI.Scene(WidgetIds.Scene, Camera, DrawScene, new SceneStyle
             {
                 Color = EditorStyle.Palette.Canvas,
                 SampleCount = 4
             });
+            EditorCursor.End();
+        }
 
         using (UI.BeginColumn())
         {
@@ -1216,7 +1218,6 @@ public static partial class Workspace
 
         ActiveTool.Dispose();
         ActiveTool = null;
-        Cursor.SetDefault();
     }
 
     public static void CancelTool()
@@ -1227,7 +1228,6 @@ public static partial class Workspace
         ActiveTool.Cancel();
         ActiveTool.Dispose();
         ActiveTool = null;
-        Cursor.SetDefault();
     }
 
     public static void UpdateDefaultState()

@@ -18,21 +18,24 @@ public class Sound : Asset
     {
     }
 
+    public Sound() : base(AssetType.Sound) { }
+
+    protected override void Load(BinaryReader reader)
+    {
+        SampleRate = reader.ReadInt32();
+        Channels = reader.ReadInt32();
+        BitsPerSample = reader.ReadInt32();
+        DataSize = reader.ReadInt32();
+
+        var pcmData = reader.ReadBytes(DataSize);
+        PlatformHandle = Audio.Driver.CreateSound(pcmData, SampleRate, Channels, BitsPerSample);
+    }
+
     private static Asset Load(Stream stream, string name)
     {
+        var sound = new Sound(name);
         using var reader = new BinaryReader(stream);
-
-        var sound = new Sound(name)
-        {
-            SampleRate = reader.ReadInt32(),
-            Channels = reader.ReadInt32(),
-            BitsPerSample = reader.ReadInt32(),
-            DataSize = reader.ReadInt32()
-        };
-
-        var pcmData = reader.ReadBytes(sound.DataSize);
-        sound.PlatformHandle = Audio.Driver.CreateSound(pcmData, sound.SampleRate, sound.Channels, sound.BitsPerSample);
-
+        sound.Load(reader);
         return sound;
     }
 

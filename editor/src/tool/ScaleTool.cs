@@ -39,11 +39,11 @@ public class ScaleTool : Tool
     {
         base.Begin();
         _startWorld = Workspace.MouseWorldPosition;
-        EditorCursor.SetScale();
     }
 
     public override void Update()
     {
+        EditorCursor.SetScale();
         if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) ||
             Input.WasButtonPressed(InputCode.MouseRight, Scope))
         {

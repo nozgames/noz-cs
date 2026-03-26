@@ -43,10 +43,10 @@ public class Shader : Asset
     {
     }
 
-    private static Asset? Load(Stream stream, string name)
-    {
-        using var reader = new BinaryReader(stream);
+    public Shader() : base(AssetType.Shader) { }
 
+    protected override void Load(BinaryReader reader)
+    {
         var sourceLength = reader.ReadUInt32();
         var source = System.Text.Encoding.UTF8.GetString(reader.ReadBytes((int)sourceLength));
         var flags = (ShaderFlags)reader.ReadByte();
@@ -64,15 +64,18 @@ public class Shader : Asset
         }
         var vertexFormatHash = reader.ReadUInt32();
 
-        var shader = new Shader(name)
-        {
-            Flags = flags,
-            Source = source,
-            Bindings = bindings,
-            VertexFormatHash = vertexFormatHash,
-        };
+        Flags = flags;
+        Source = source;
+        Bindings = bindings;
+        VertexFormatHash = vertexFormatHash;
+        Handle = Graphics.Driver.CreateShader(Name, source, source, bindings);
+    }
 
-        shader.Handle = Graphics.Driver.CreateShader(name, source, source, bindings);
+    private static Asset? Load(Stream stream, string name)
+    {
+        var shader = new Shader(name);
+        using var reader = new BinaryReader(stream);
+        shader.Load(reader);
         return shader;
     }
 

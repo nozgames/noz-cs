@@ -18,11 +18,11 @@ public class EyeDropperTool : Tool
     public override void Begin()
     {
         base.Begin();
-        EditorCursor.SetCrosshair();
     }
 
     public override void Update()
     {
+        EditorCursor.SetDropper();
         if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) ||
             Input.WasButtonPressed(InputCode.MouseRight, Scope))
         {

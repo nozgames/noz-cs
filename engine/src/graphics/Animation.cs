@@ -75,56 +75,61 @@ public class Animation : Asset
     {
     }
 
+    public Animation() : base(AssetType.Animation) { }
+
     internal static void RegisterDef()
     {
         RegisterDef(new AssetDef(AssetType.Animation, "Animation", typeof(Animation), Load));
     }
 
-    private static Animation? Load(Stream stream, string name)
+    protected override void Load(BinaryReader reader)
     {
-        var reader = new BinaryReader(stream);
-        var animation = new Animation(name);
-
         var boneCount = reader.ReadByte();
         var transformCount = reader.ReadByte();
         var frameCount = reader.ReadByte();
         var frameRate = reader.ReadByte();
         var flags = (AnimationFlags)reader.ReadByte();
 
-        animation.BoneCount = boneCount;
-        animation.TransformCount = transformCount;
-        animation.FrameCount = frameCount;
-        animation.FrameRate = frameRate;
-        animation.FrameRateInv = 1f / frameRate;
-        animation.Duration = frameCount * animation.FrameRateInv;
-        animation.Flags = flags;
+        BoneCount = boneCount;
+        TransformCount = transformCount;
+        FrameCount = frameCount;
+        FrameRate = frameRate;
+        FrameRateInv = 1f / frameRate;
+        Duration = frameCount * FrameRateInv;
+        Flags = flags;
 
-        animation.Bones = new AnimationBone[boneCount];
-        animation.Transforms = new AnimationTransform[boneCount * transformCount];
-        animation.Frames = new AnimationFrame[frameCount + 1];
+        Bones = new AnimationBone[boneCount];
+        Transforms = new AnimationTransform[boneCount * transformCount];
+        Frames = new AnimationFrame[frameCount + 1];
 
         for (var i = 0; i < boneCount; i++)
-            animation.Bones[i].Index = reader.ReadByte();
+            Bones[i].Index = reader.ReadByte();
 
         for (var i = 0; i < boneCount * transformCount; i++)
         {
-            animation.Transforms[i].Position = new Vector2(reader.ReadSingle(), reader.ReadSingle());
-            animation.Transforms[i].Rotation = reader.ReadSingle();
-            animation.Transforms[i].Scale = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+            Transforms[i].Position = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+            Transforms[i].Rotation = reader.ReadSingle();
+            Transforms[i].Scale = new Vector2(reader.ReadSingle(), reader.ReadSingle());
         }
 
         for (var i = 0; i < frameCount; i++)
         {
-            animation.Frames[i].Event = reader.ReadByte();
-            animation.Frames[i].Transform0 = reader.ReadByte();
-            animation.Frames[i].Transform1 = reader.ReadByte();
-            animation.Frames[i].Fraction0 = reader.ReadSingle();
-            animation.Frames[i].Fraction1 = reader.ReadSingle();
+            Frames[i].Event = reader.ReadByte();
+            Frames[i].Transform0 = reader.ReadByte();
+            Frames[i].Transform1 = reader.ReadByte();
+            Frames[i].Fraction0 = reader.ReadSingle();
+            Frames[i].Fraction1 = reader.ReadSingle();
         }
 
         if (frameCount > 0)
-            animation.Frames[frameCount] = animation.Frames[frameCount - 1];
+            Frames[frameCount] = Frames[frameCount - 1];
+    }
 
+    private static Animation? Load(Stream stream, string name)
+    {
+        var animation = new Animation(name);
+        var reader = new BinaryReader(stream);
+        animation.Load(reader);
         return animation;
     }
 
