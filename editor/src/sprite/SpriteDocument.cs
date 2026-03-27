@@ -514,9 +514,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             Graphics.SetTextureFilter(TextureFilter.Linear);
             Graphics.SetColor(color);
             if (uv.HasValue)
-                Graphics.Draw(bounds, uv.Value);
+                Graphics.Draw(bounds, uv.Value, order: SortOrder);
             else
-                Graphics.Draw(bounds);
+                Graphics.Draw(bounds, order: SortOrder);
         }
     }
 
@@ -630,7 +630,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
                 else
                     bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv).Translate(offset);
 
-                Graphics.Draw(bounds, sf.UV);
+                Graphics.Draw(bounds, sf.UV, order: SortOrder);
             }
         }
     }
@@ -664,7 +664,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
                 var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
                 var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
                 Graphics.SetTransform(transform);
-                Graphics.Draw(bounds, sf.UV);
+                Graphics.Draw(bounds, sf.UV, order: SortOrder);
             }
         }
     }

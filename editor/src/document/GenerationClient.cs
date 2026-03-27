@@ -120,15 +120,6 @@ public static class GenerationClient
                 // Phase 1: Submit job
                 var json = JsonSerializer.Serialize(request, _jsonOptions);
 
-                // Debug: write request JSON to tmp folder
-                try
-                {
-                    var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
-                    Directory.CreateDirectory(tmpDir);
-                    File.WriteAllText(System.IO.Path.Combine(tmpDir, "generation_request.json"), json);
-                }
-                catch { }
-
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await _http.PostAsync($"{request.Server}/api/image/pipeline", content, cancellationToken);
 
@@ -231,15 +222,6 @@ public static class GenerationClient
         try
         {
             var json = JsonSerializer.Serialize(request, _jsonOptions);
-
-            try
-            {
-                var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
-                Directory.CreateDirectory(tmpDir);
-                File.WriteAllText(System.IO.Path.Combine(tmpDir, "generation_request.json"), json);
-            }
-            catch { }
-
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _http.PostAsync($"{request.Server}/api/image/pipeline", content, cancellationToken);
 
