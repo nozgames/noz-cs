@@ -45,7 +45,7 @@ internal static class SpriteLayerProcessor
             var r = results[i];
             bool isOpaque = r.Color.A == 255;
 
-            if (above != null && isOpaque && r.Contours.Count > 0)
+            if (above != null && r.Contours.Count > 0)
             {
                 var trimmed = Clipper.BooleanOp(ClipType.Difference,
                     r.Contours, above, FillRule.NonZero, precision: ClipperPrecision);

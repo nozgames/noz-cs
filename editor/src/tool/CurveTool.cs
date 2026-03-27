@@ -27,12 +27,12 @@ public class CurveTool : Tool
         _editor = editor;
         _path = path;
         _contourIndex = contourIndex;
-        _transform = transform;
+        _transform = _path.HasTransform ? _path.PathTransform * transform : transform;
         _saved = saved;
         _savedBoundsCenter = path.LocalBounds.Center;
         _savedTranslation = path.PathTranslation;
 
-        Matrix3x2.Invert(transform, out _invTransform);
+        Matrix3x2.Invert(_transform, out _invTransform);
 
         var contour = path.Contours[contourIndex];
         for (var i = 0; i < contour.Anchors.Count; i++)
@@ -47,11 +47,11 @@ public class CurveTool : Tool
         _editor = editor;
         _path = path;
         _contourIndex = contourIndex;
-        _transform = transform;
+        _transform = _path.HasTransform ? _path.PathTransform * transform : transform;
         _saved = saved;
         _savedBoundsCenter = path.LocalBounds.Center;
         _savedTranslation = path.PathTranslation;
-        Matrix3x2.Invert(transform, out _invTransform);
+        Matrix3x2.Invert(_transform, out _invTransform);
         _selectedSegments.Add(segmentIndex);
     }
 
@@ -140,20 +140,18 @@ public class CurveTool : Tool
         var anchors = contour.Anchors;
 
         // Draw the curved segment in the selected color
-        var localTransform = _path.HasTransform ? _path.PathTransform : Matrix3x2.Identity;
         Gizmos.SetColor(EditorStyle.Palette.Primary);
         foreach (var segIdx in _selectedSegments)
         {
             var samples = contour.GetSegmentSamples(segIdx);
-            var prev = Vector2.Transform(anchors[segIdx].Position, localTransform);
+            var prev = anchors[segIdx].Position;
             foreach (var sample in samples)
             {
-                var transformed = Vector2.Transform(sample, localTransform);
-                Gizmos.DrawLine(prev, transformed, EditorStyle.SpritePath.SegmentLineWidth, order: 2);
-                prev = transformed;
+                Gizmos.DrawLine(prev, sample, EditorStyle.SpritePath.SegmentLineWidth, order: 2);
+                prev = sample;
             }
             var nextIdx = (segIdx + 1) % anchors.Count;
-            Gizmos.DrawLine(prev, Vector2.Transform(anchors[nextIdx].Position, localTransform), EditorStyle.SpritePath.SegmentLineWidth, order: 2);
+            Gizmos.DrawLine(prev, anchors[nextIdx].Position, EditorStyle.SpritePath.SegmentLineWidth, order: 2);
         }
 
         // Draw dashed chord lines

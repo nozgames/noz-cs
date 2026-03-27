@@ -96,7 +96,10 @@ public class PenTool : Tool
             if (anchorHit.HasValue)
             {
                 _hoveringExistingAnchor = true;
-                _hoverSnapPosition = anchorHit.Value.Position;
+                var pos = anchorHit.Value.Position;
+                _hoverSnapPosition = anchorHit.Value.Path.HasTransform
+                    ? Vector2.Transform(pos, anchorHit.Value.Path.PathTransform)
+                    : pos;
             }
             else
             {
@@ -104,7 +107,10 @@ public class PenTool : Tool
                 if (segHit.HasValue)
                 {
                     _hoveringSegment = true;
-                    _hoverSnapPosition = segHit.Value.Position;
+                    var pos = segHit.Value.Position;
+                    _hoverSnapPosition = segHit.Value.Path.HasTransform
+                        ? Vector2.Transform(pos, segHit.Value.Path.PathTransform)
+                        : pos;
                 }
             }
         }
