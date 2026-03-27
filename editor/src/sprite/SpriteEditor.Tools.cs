@@ -8,27 +8,23 @@ namespace NoZ.Editor;
 
 public enum SpriteEditMode
 {
-    V,  // Transform mode — select/move/rotate/scale paths
-    A,  // Anchor mode — select/edit anchors within selected paths
+    Transform,
+    Anchor,
 }
 
 public partial class SpriteEditor
 {
     public bool HasPathSelection { get; private set; }
     public bool HasLayerSelection { get; private set; }
-    public SpriteEditMode CurrentMode { get; private set; } = SpriteEditMode.V;
+    public SpriteEditMode CurrentMode { get; private set; } = SpriteEditMode.Transform;
 
     private readonly List<SpritePath> _selectedPaths = new();
     private readonly List<SpriteLayer> _selectedLayers = new();
-    private float _selectionRotation; // rotation of the selection bounding box
-    private Rect _selectionLocalBounds; // AABB in selection-rotated space
-    private Vector2 _selectionCenter; // center in document-local space
-
-    // A-mode hover state
+    private float _selectionRotation;
+    private Rect _selectionLocalBounds;
+    private Vector2 _selectionCenter;
     private SpritePath? _hoverPath;
     private int _hoverAnchorIndex = -1;
-
-    // V-mode hover state
     private SpritePathHandle _hoverHandle;
 
     private SpritePath? GetPathWithSelection()
@@ -46,7 +42,7 @@ public partial class SpriteEditor
         if (CurrentMode == mode) return;
         CurrentMode = mode;
 
-        if (mode == SpriteEditMode.V)
+        if (mode == SpriteEditMode.Transform)
             Document.RootLayer.ClearAnchorSelections();
     }
 
@@ -57,8 +53,8 @@ public partial class SpriteEditor
         return
         [
             new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete },
-            new Command { Name = "V Mode", Handler = () => SetMode(SpriteEditMode.V), Key = InputCode.KeyV },
-            new Command { Name = "A Mode", Handler = () => SetMode(SpriteEditMode.A), Key = InputCode.KeyA },
+            new Command { Name = "V Mode", Handler = () => SetMode(SpriteEditMode.Transform), Key = InputCode.KeyV },
+            new Command { Name = "A Mode", Handler = () => SetMode(SpriteEditMode.Anchor), Key = InputCode.KeyA },
             new Command { Name = "Curve", Handler = BeginCurveTool, Key = InputCode.KeyC },
             new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA, Ctrl = true },
             new Command { Name = "Pen Tool", Handler = BeginPenTool, Key = InputCode.KeyP },
@@ -69,6 +65,7 @@ public partial class SpriteEditor
             new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true },
             new Command { Name = "Paste", Handler = PasteSelected, Key = InputCode.KeyV, Ctrl = true },
             new Command { Name = "Cut", Handler = CutSelected, Key = InputCode.KeyX, Ctrl = true },
+            new Command { Name = "Rename", Handler = BeginRename, Key = InputCode.KeyF2 },
         ];
     }
 
@@ -87,10 +84,10 @@ public partial class SpriteEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.DragWorldPosition, invTransform);
 
-        if (CurrentMode == SpriteEditMode.V && _selectedPaths.Count > 0 && HandleVModeDrag(localMousePos))
+        if (CurrentMode == SpriteEditMode.Transform && _selectedPaths.Count > 0 && HandleVModeDrag(localMousePos))
             return;
 
-        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0 && HandleAModeDrag(localMousePos))
+        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0 && HandleAModeDrag(localMousePos))
             return;
 
         Workspace.BeginTool(new BoxSelectTool(CommitBoxSelect));
@@ -216,7 +213,7 @@ public partial class SpriteEditor
 
     private void SelectAll()
     {
-        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
+        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0)
         {
             foreach (var path in _selectedPaths)
                 path.SelectAll();
@@ -348,7 +345,7 @@ public partial class SpriteEditor
         var maxLocal = Vector2.Transform(bounds.Max, invTransform);
         var localRect = Rect.FromMinMax(minLocal, maxLocal);
 
-        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
+        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0)
         {
             // A mode with selected paths: box select anchors within selected paths
             if (!shift)
@@ -397,7 +394,7 @@ public partial class SpriteEditor
 
     private void DeleteSelected()
     {
-        if (CurrentMode == SpriteEditMode.V)
+        if (CurrentMode == SpriteEditMode.Transform)
         {
             // V mode: delete entire selected paths
             if (_selectedPaths.Count == 0) return;

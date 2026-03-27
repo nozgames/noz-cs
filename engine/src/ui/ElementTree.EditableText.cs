@@ -244,6 +244,14 @@ public static unsafe partial class ElementTree
 
         if (!focused) return;
 
+        // Click outside — defocus and commit
+        if (_inputMousePressed && !mouseInside)
+        {
+            state.FocusExited = 1;
+            state.Focused = 0;
+            return;
+        }
+
         // Mouse click to place cursor / drag to select
         if (_inputMouseDown && mouseInside)
         {

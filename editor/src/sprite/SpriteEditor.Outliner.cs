@@ -8,6 +8,17 @@ namespace NoZ.Editor;
 
 public partial class SpriteEditor
 {
+    private const float DragThreshold = 4f;
+
+    private struct OutlinerRowInfo
+    {
+        public SpriteNode Node;
+        public int Index;
+        public int Depth;
+    }
+
+    private enum DropZone { Before, After, FirstChild, LastChild }
+
     private static partial class WidgetIds
     {
         public static partial WidgetId OutlinerPanel { get; }
@@ -17,28 +28,19 @@ public partial class SpriteEditor
         public static partial WidgetId OutlinerLock { get; }
         public static partial WidgetId OutlinerExpand { get; }
         public static partial WidgetId AddLayerButton { get; }
+        public static partial WidgetId OutlinerRename { get; }
     }
 
     private float _outlinerSize = 180;
     private int _outlinerIndex;
-
-    // Drag-drop state
-    private struct OutlinerRowInfo
-    {
-        public SpriteNode Node;
-        public int Index;
-        public int Depth;
-    }
-
-    private readonly List<OutlinerRowInfo> _outlinerRows = new();
+    private SpriteNode? _renameNode;
+    private string _renameText = "";
+    private readonly List<OutlinerRowInfo> _outlinerRows = [];
     private bool _outlinerDragging;
     private SpriteNode? _dragNode;
     private Vector2 _dragStartPos;
     private int _dropTargetIndex = -1;
-
-    private enum DropZone { Before, After, FirstChild, LastChild }
     private DropZone _dropZone;
-    private const float DragThreshold = 4f;
 
     private static readonly ContainerStyle OutlinerPanelStyle = EditorStyle.Panel with
     {
@@ -82,6 +84,21 @@ public partial class SpriteEditor
     private void OutlinerUI()
     {
         _outlinerIndex = 0;
+
+        // Handle rename input before anything else
+        if (_renameNode != null)
+        {
+            if (Input.WasButtonPressed(InputCode.KeyEnter, InputScope.All))
+            {
+                Input.ConsumeButton(InputCode.KeyEnter);
+                CommitRename();
+            }
+            else if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
+            {
+                Input.ConsumeButton(InputCode.KeyEscape);
+                CancelRename();
+            }
+        }
 
         // Update drag state (uses previous frame's row data for hit-testing)
         UpdateOutlinerDrag();
@@ -192,15 +209,27 @@ public partial class SpriteEditor
             align: Align.Center,
             color: EditorStyle.Palette.SecondaryText);
 
-        // name
+        // name (inline rename or static text)
         ElementTree.BeginFlex();
-        ElementTree.Text(
-            value: !string.IsNullOrEmpty(node.Name) ? node.Name : (isLayer ? "Group" : "Path"),
-            font: UI.DefaultFont,
-            fontSize: EditorStyle.Text.Size,
-            color: EditorStyle.Palette.SecondaryText,
-            align: new Align2(Align.Min, Align.Center)
-        );
+        if (node == _renameNode)
+        {
+            ElementTree.BeginMargin(EdgeInsets.TopLeft(2, -2));
+            _renameText = UI.TextInput(WidgetIds.OutlinerRename, _renameText, EditorStyle.SpriteEditor.OutlinerRename);
+            ElementTree.EndMargin();
+
+            if (UI.HotExit())
+                CommitRename();
+        }
+        else
+        {
+            ElementTree.Text(
+                value: !string.IsNullOrEmpty(node.Name) ? node.Name : (isLayer ? "Group" : "Path"),
+                font: UI.DefaultFont,
+                fontSize: EditorStyle.Text.Size,
+                color: EditorStyle.Palette.SecondaryText,
+                align: new Align2(Align.Min, Align.Center)
+            );
+        }
         ElementTree.EndFlex();
 
         // Visibility + Lock
@@ -557,4 +586,45 @@ public partial class SpriteEditor
         Document.RootLayer.Add(layer);
         MarkDirty();
     }
+
+    #region Rename
+
+    private void BeginRename()
+    {
+        // Layer and path selection are mutually exclusive; when a layer is selected,
+        // _selectedPaths contains its child paths for bounds, so check them separately.
+        SpriteNode node;
+        if (HasLayerSelection)
+        {
+            if (_selectedLayers.Count != 1) return;
+            node = _selectedLayers[0];
+        }
+        else
+        {
+            if (_selectedPaths.Count != 1) return;
+            node = _selectedPaths[0];
+        }
+
+        _renameNode = node;
+        _renameText = node.Name;
+        UI.SetHot(WidgetIds.OutlinerRename);
+    }
+
+    private void CommitRename()
+    {
+        if (_renameNode != null && !string.IsNullOrWhiteSpace(_renameText) && _renameText != _renameNode.Name)
+        {
+            Undo.Record(Document);
+            _renameNode.Name = _renameText;
+            MarkDirty();
+        }
+        _renameNode = null;
+    }
+
+    private void CancelRename()
+    {
+        _renameNode = null;
+    }
+
+    #endregion
 }

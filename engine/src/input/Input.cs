@@ -82,15 +82,8 @@ public static class Input
         }
     }
 
-    private static bool CheckScope(InputScope scope)
-    {
-        // All (0) bypasses scope check
-        if (scope._id == 0)
-            return true;
-
-        // Check if scope matches top of stack
-        return _scopeStack.Count > 0 && _scopeStack.Peek() == scope._id;
-    }
+    private static bool CheckScope(InputScope scope) =>
+        scope._id == 0 || (_scopeStack.Count > 0 && _scopeStack.Peek() == scope._id);
 
     public static void BeginFrame()
     {

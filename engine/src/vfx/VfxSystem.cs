@@ -168,6 +168,12 @@ public static class VfxSystem
         return new VfxHandle { Id = (uint)instanceIndex, Version = instance.Version };
     }
 
+    public static void Stop(ref VfxHandle handle)
+    {
+        Stop(handle);
+        handle = VfxHandle.Invalid;
+    }
+
     public static void Stop(VfxHandle handle)
     {
         var instance = GetInstance(handle);

@@ -1048,6 +1048,20 @@ public static class EditorStyle
         public readonly static ContainerStyle OpacityPopupRoot = Popup.Root;
 
         public readonly static ContainerStyle ConstraintsPopupRoot = Popup.Root;
+
+        public static readonly TextInputStyle OutlinerRename = new()
+        {
+            FontSize = Text.Size,
+            Height = Control.Height - 4,
+            Width = Size.Percent(1),
+            BackgroundColor = Palette.Control,
+            TextColor = Palette.Content,
+            SelectionColor = Palette.TextSelection,
+            BorderRadius = Control.BorderRadius,
+            BorderWidth = 1,
+            BorderColor = Palette.Primary,
+            Padding = EdgeInsets.Symmetric(0, 2)
+        };
     }
 
     // :colorpicker

@@ -227,16 +227,16 @@ public partial class SpriteEditor : DocumentEditor
     private void FloatingToolbarUI()
     {
         // V/A mode toggles
-        if (FloatingToolbar.Button(WidgetIds.VModeButton, EditorAssets.Sprites.IconMove, isSelected: CurrentMode == SpriteEditMode.V))
-            SetMode(SpriteEditMode.V);
+        if (FloatingToolbar.Button(WidgetIds.VModeButton, EditorAssets.Sprites.IconMove, isSelected: CurrentMode == SpriteEditMode.Transform))
+            SetMode(SpriteEditMode.Transform);
 
-        if (FloatingToolbar.Button(WidgetIds.AModeButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.A))
-            SetMode(SpriteEditMode.A);
+        if (FloatingToolbar.Button(WidgetIds.AModeButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.Anchor))
+            SetMode(SpriteEditMode.Anchor);
 
         FloatingToolbar.Divider();
 
         // Tool group: Pen, Knife, Rect, Circle (A mode only)
-        if (CurrentMode == SpriteEditMode.A)
+        if (CurrentMode == SpriteEditMode.Anchor)
         {
             var activeTool = Workspace.ActiveTool;
 
@@ -757,11 +757,11 @@ public partial class SpriteEditor : DocumentEditor
         var alt = Input.IsAltDown(InputScope.All);
 
         // Alt+click on segment in A mode: insert anchor
-        if (alt && CurrentMode == SpriteEditMode.A && HandleAltClickInsert(localMousePos))
+        if (alt && CurrentMode == SpriteEditMode.Anchor && HandleAltClickInsert(localMousePos))
             return;
 
         // A mode: try anchor selection on selected paths first
-        if (CurrentMode == SpriteEditMode.A && _selectedPaths.Count > 0)
+        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0)
         {
             if (HandleAnchorClick(localMousePos, shift))
                 return;
@@ -940,7 +940,7 @@ public partial class SpriteEditor : DocumentEditor
 
         var transform = Document.Transform;
 
-        if (CurrentMode == SpriteEditMode.A)
+        if (CurrentMode == SpriteEditMode.Anchor)
         {
             // A mode: draw anchors and edges for selected paths only
             foreach (var path in _selectedPaths)
@@ -977,12 +977,12 @@ public partial class SpriteEditor : DocumentEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
 
-        if (CurrentMode == SpriteEditMode.V)
+        if (CurrentMode == SpriteEditMode.Transform)
         {
             _hoverHandle = HitTestHandles(localMousePos);
             SetCursor(_hoverHandle);
         }
-        else if (CurrentMode == SpriteEditMode.A)
+        else if (CurrentMode == SpriteEditMode.Anchor)
         {
             var hit = Document.RootLayer.HitTestAnchor(localMousePos, onlySelected: true);
             if (hit.HasValue)
