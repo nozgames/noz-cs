@@ -15,9 +15,11 @@ public enum SpriteEditMode
 public partial class SpriteEditor
 {
     public bool HasPathSelection { get; private set; }
+    public bool HasLayerSelection { get; private set; }
     public SpriteEditMode CurrentMode { get; private set; } = SpriteEditMode.V;
 
     private readonly List<SpritePath> _selectedPaths = new();
+    private readonly List<SpriteLayer> _selectedLayers = new();
     private float _selectionRotation; // rotation of the selection bounding box
     private Rect _selectionLocalBounds; // AABB in selection-rotated space
     private Vector2 _selectionCenter; // center in document-local space
@@ -28,8 +30,6 @@ public partial class SpriteEditor
 
     // V-mode hover state
     private SpritePathHandle _hoverHandle;
-
-    private SpriteLayer ActiveLayer => Document.ActiveLayer ?? Document.RootLayer;
 
     private SpritePath? GetPathWithSelection()
     {
@@ -231,13 +231,28 @@ public partial class SpriteEditor
     private void ClearSelection()
     {
         Document.RootLayer.ClearSelection();
+        Document.RootLayer.ClearLayerSelections();
         RebuildSelectedPaths();
     }
 
     private void RebuildSelectedPaths()
     {
         _selectedPaths.Clear();
-        Document.RootLayer.CollectSelectedPaths(_selectedPaths);
+        _selectedLayers.Clear();
+        Document.RootLayer.CollectSelectedLayers(_selectedLayers);
+        HasLayerSelection = _selectedLayers.Count > 0;
+
+        if (HasLayerSelection)
+        {
+            // Layer selection: collect all editable paths from selected layers for bounds/transforms
+            foreach (var layer in _selectedLayers)
+                layer.ForEachEditablePath(p => _selectedPaths.Add(p));
+        }
+        else
+        {
+            Document.RootLayer.CollectSelectedPaths(_selectedPaths);
+        }
+
         HasPathSelection = _selectedPaths.Count > 0;
         UpdateSelectionBounds();
         OnSelectionChanged(HasPathSelection);
@@ -462,7 +477,7 @@ public partial class SpriteEditor
 
         var newPaths = clipboardData.PasteAsPaths();
         foreach (var path in newPaths)
-            ActiveLayer.Insert(0, path);
+            Document.RootLayer.Insert(0, path);
 
         MarkDirty();
         RebuildSelectedPaths();
@@ -482,7 +497,7 @@ public partial class SpriteEditor
 
     public void BeginPenTool()
     {
-        Workspace.BeginTool(new PenTool(this, Document.RootLayer, ActiveLayer,
+        Workspace.BeginTool(new PenTool(this, Document.RootLayer, Document.RootLayer,
             Document.CurrentFillColor, Document.CurrentOperation));
     }
 
@@ -494,13 +509,13 @@ public partial class SpriteEditor
 
     public void BeginRectangleTool()
     {
-        Workspace.BeginTool(new ShapeTool(this, ActiveLayer,
+        Workspace.BeginTool(new ShapeTool(this, Document.RootLayer,
             Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentOperation));
     }
 
     public void BeginCircleTool()
     {
-        Workspace.BeginTool(new ShapeTool(this, ActiveLayer,
+        Workspace.BeginTool(new ShapeTool(this, Document.RootLayer,
             Document.CurrentFillColor, ShapeType.Circle, Document.CurrentOperation));
     }
 

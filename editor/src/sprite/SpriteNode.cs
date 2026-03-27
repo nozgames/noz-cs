@@ -220,6 +220,27 @@ public abstract class SpriteNode
             child.ClearAnchorSelections();
     }
 
+    public void ClearLayerSelections()
+    {
+        if (this is SpriteLayer)
+            IsSelected = false;
+
+        foreach (var child in Children)
+            child.ClearLayerSelections();
+    }
+
+    public void CollectSelectedLayers(List<SpriteLayer> result)
+    {
+        if (this is SpriteLayer layer && layer.IsSelected)
+        {
+            result.Add(layer);
+            return;
+        }
+
+        foreach (var child in Children)
+            child.CollectSelectedLayers(result);
+    }
+
     public void CollectSelectedPaths(List<SpritePath> result)
     {
         if (this is SpritePath path && path.IsSelected)

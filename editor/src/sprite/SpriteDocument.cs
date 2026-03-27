@@ -52,7 +52,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     // Layer-based model
     public SpriteLayer RootLayer { get; } = new() { Name = "Root" };
     public List<SpriteAnimFrame> AnimFrames { get; } = new();
-    public SpriteLayer? ActiveLayer { get; set; }
 
     private readonly List<Rect> _atlasUV = new();
     private readonly List<SpritePath> _visiblePathsCache = new();
@@ -67,7 +66,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public SpriteStrokeJoin CurrentStrokeJoin;
     public SpritePathOperation CurrentOperation;
 
-    public bool IsActiveLayerLocked => ActiveLayer?.Locked ?? false;
 
     public int TotalTimeSlots
     {
@@ -266,8 +264,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         ReloadGeneration();
         RootLayer.Clear();
         AnimFrames.Clear();
-        ActiveLayer = null;
-
         var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
@@ -695,13 +691,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         AnimFrames.Clear();
         foreach (var frame in src.AnimFrames)
             AnimFrames.Add(frame.Clone(src.RootLayer, RootLayer));
-
-        // Restore active layer by matching position in tree
-        if (src.ActiveLayer != null)
-        {
-            var name = src.ActiveLayer.Name;
-            ActiveLayer = RootLayer.FindLayer(name);
-        }
 
         CloneGeneration(src);
     }

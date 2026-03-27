@@ -676,7 +676,7 @@ public partial class SpriteEditor : DocumentEditor
             result, firstPath.FillColor, firstPath.StrokeColor, firstPath.StrokeWidth, strokeJoin: firstPath.StrokeJoin);
 
         // Insert result into the first path's parent at its position
-        var parent = firstPath.Parent ?? ActiveLayer;
+        var parent = firstPath.Parent ?? Document.RootLayer;
         var insertIndex = parent.Children.IndexOf(firstPath);
 
         // Remove all original paths
@@ -868,13 +868,6 @@ public partial class SpriteEditor : DocumentEditor
         {
             if (HitPaths.Contains(path)) return;
             HitPaths.Add(path);
-            if (HitPaths.Count == 1)
-            {
-                var layer = path.Parent as SpriteLayer;
-                var doc = (SpriteDocument)Workspace.ActiveDocument!;
-                if (layer != null && layer != doc.ActiveLayer)
-                    doc.ActiveLayer = layer;
-            }
         }
 
         foreach (var p in _pathHitResults)
@@ -886,6 +879,9 @@ public partial class SpriteEditor : DocumentEditor
 
         if (HitPaths.Count == 0)
             return false;
+
+        // Viewport path clicks are mutually exclusive with layer selection
+        Document.RootLayer.ClearLayerSelections();
 
         if (!shift)
         {

@@ -45,7 +45,6 @@ public partial class SpriteDocument
             }
         }
 
-        ActiveLayer = RootLayer.Children.OfType<SpriteLayer>().FirstOrDefault() ?? RootLayer;
     }
 
     private void ParseLayer(ref Tokenizer tk, SpriteLayer parent)

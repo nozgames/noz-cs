@@ -113,7 +113,7 @@ public partial class SpriteEditor
         var rowId = WidgetIds.OutlinerLayer + index;
         var isLayer = node is SpriteLayer;
         var isPath = node is SpritePath;
-        var isActive = isLayer && node == Document.ActiveLayer;
+        var isActive = isLayer && node.IsSelected;
         var isPathSelected = isPath && ((SpritePath)node).IsSelected;
         var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
         var isDragSource = _outlinerDragging && _dragNode == node;
@@ -488,17 +488,43 @@ public partial class SpriteEditor
 
         if (node is SpriteLayer layer)
         {
-            // Layer click: set active layer, clear path selection
-            if (!shift && !ctrl)
+            // Layer selection is mutually exclusive with path selection
+            if (ctrl)
+            {
+                // Ctrl+click: toggle this layer
+                if (layer.IsSelected)
+                {
+                    layer.IsSelected = false;
+                }
+                else
+                {
+                    Document.RootLayer.ClearSelection();
+                    layer.IsSelected = true;
+                }
+            }
+            else if (shift)
+            {
+                // Shift+click: add layer, deselect all paths
                 Document.RootLayer.ClearSelection();
-            Document.ActiveLayer = layer;
-            layer.ForEachEditablePath(p => p.SelectPath());
+                layer.IsSelected = true;
+            }
+            else
+            {
+                // Plain click: clear everything, select this layer
+                Document.RootLayer.ClearSelection();
+                Document.RootLayer.ClearLayerSelections();
+                layer.IsSelected = true;
+            }
+
             RebuildSelectedPaths();
             return;
         }
 
         if (node is SpritePath path)
         {
+            // Path selection is mutually exclusive with layer selection
+            Document.RootLayer.ClearLayerSelections();
+
             if (ctrl)
             {
                 // Ctrl+click: toggle this path's selection
@@ -519,15 +545,6 @@ public partial class SpriteEditor
                 path.SelectPath();
             }
 
-            // Set active layer from first selection (only if not already set or plain click)
-            if (!shift && !ctrl)
-            {
-                if (node.Parent is SpriteLayer parentLayer)
-                    Document.ActiveLayer = parentLayer;
-                else if (node.Parent == Document.RootLayer)
-                    Document.ActiveLayer = Document.RootLayer;
-            }
-
             RebuildSelectedPaths();
         }
     }
@@ -538,7 +555,6 @@ public partial class SpriteEditor
         var name = $"Layer {Document.RootLayer.Children.Count + 1}";
         var layer = new SpriteLayer { Name = name };
         Document.RootLayer.Add(layer);
-        Document.ActiveLayer = layer;
         MarkDirty();
     }
 }
