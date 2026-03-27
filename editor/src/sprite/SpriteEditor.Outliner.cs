@@ -37,7 +37,8 @@ public partial class SpriteEditor
     private string _renameText = "";
     private readonly List<OutlinerRowInfo> _outlinerRows = [];
     private bool _outlinerDragging;
-    private SpriteNode? _dragNode;
+    private readonly List<SpriteNode> _dragNodes = [];
+    private SpriteNode? _deferredClickNode;
     private Vector2 _dragStartPos;
     private int _dropTargetIndex = -1;
     private DropZone _dropZone;
@@ -133,7 +134,7 @@ public partial class SpriteEditor
         var isActive = isLayer && node.IsSelected;
         var isPathSelected = isPath && ((SpritePath)node).IsSelected;
         var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
-        var isDragSource = _outlinerDragging && _dragNode == node;
+        var isDragSource = _outlinerDragging && _dragNodes.Contains(node);
         var dropBefore = isDragTarget && _dropZone == DropZone.Before;
         var dropAfter = isDragTarget && (_dropZone == DropZone.After || _dropZone == DropZone.FirstChild);
         var dropLastChild = isDragTarget && _dropZone == DropZone.LastChild;
@@ -262,8 +263,42 @@ public partial class SpriteEditor
 
         if (UI.WasPressed(rowId))
         {
-            HandleOutlinerClick(node);
-            _dragNode = node;
+            var nodeIsSelected = (node is SpriteLayer && node.IsSelected) ||
+                                 (node is SpritePath sp && sp.IsSelected);
+            var shift = Input.IsShiftDown(InputScope.All);
+            var ctrl = Input.IsCtrlDown(InputScope.All);
+
+            if (nodeIsSelected && !shift && !ctrl)
+            {
+                // Defer selection change so we can drag the multi-selection
+                _deferredClickNode = node;
+            }
+            else
+            {
+                HandleOutlinerClick(node);
+                _deferredClickNode = null;
+            }
+
+            // Populate drag candidates from current selection
+            _dragNodes.Clear();
+            if (HasLayerSelection)
+            {
+                foreach (var l in _selectedLayers)
+                    _dragNodes.Add(l);
+            }
+            else
+            {
+                foreach (var p in _selectedPaths)
+                    _dragNodes.Add(p);
+            }
+
+            // Ensure the clicked node is always included
+            if (!_dragNodes.Contains(node))
+            {
+                _dragNodes.Clear();
+                _dragNodes.Add(node);
+            }
+
             _dragStartPos = Input.MousePosition;
         }
 
@@ -288,7 +323,7 @@ public partial class SpriteEditor
 
     private void UpdateOutlinerDrag()
     {
-        if (_dragNode == null)
+        if (_dragNodes.Count == 0)
         {
             _outlinerDragging = false;
             _dropTargetIndex = -1;
@@ -322,7 +357,13 @@ public partial class SpriteEditor
 
         if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
         {
-            _dragNode = null;
+            // Mouse released before drag threshold — apply deferred click
+            if (_deferredClickNode != null)
+            {
+                HandleOutlinerClick(_deferredClickNode);
+                _deferredClickNode = null;
+            }
+            _dragNodes.Clear();
             return false;
         }
 
@@ -330,6 +371,7 @@ public partial class SpriteEditor
         if (dist < DragThreshold)
             return false;
 
+        _deferredClickNode = null;
         _outlinerDragging = true;
         return true;
     }
@@ -337,7 +379,8 @@ public partial class SpriteEditor
     private void CancelOutlinerDrag()
     {
         _outlinerDragging = false;
-        _dragNode = null;
+        _dragNodes.Clear();
+        _deferredClickNode = null;
         _dropTargetIndex = -1;
     }
 
@@ -351,7 +394,7 @@ public partial class SpriteEditor
         for (var i = 0; i < _outlinerRows.Count; i++)
         {
             var row = _outlinerRows[i];
-            if (row.Node == _dragNode)
+            if (_dragNodes.Contains(row.Node))
             {
                 var srcRect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
                 if (srcRect.Width > 0 && mouseWorld.Y >= srcRect.Y && mouseWorld.Y <= srcRect.Bottom)
@@ -403,7 +446,7 @@ public partial class SpriteEditor
             return;
 
         var pi = rowIndex - 1;
-        while (pi >= 0 && _outlinerRows[pi].Node == _dragNode) pi--;
+        while (pi >= 0 && _dragNodes.Contains(_outlinerRows[pi].Node)) pi--;
 
         if (pi < 0) return;
 
@@ -429,7 +472,7 @@ public partial class SpriteEditor
         {
             for (var j = _outlinerRows.Count - 1; j >= 0; j--)
             {
-                if (_outlinerRows[j].Depth == 0 && _outlinerRows[j].Node != _dragNode)
+                if (_outlinerRows[j].Depth == 0 && !_dragNodes.Contains(_outlinerRows[j].Node))
                 {
                     _dropTargetIndex = _outlinerRows[j].Index;
                     _dropZone = DropZone.After;
@@ -446,7 +489,7 @@ public partial class SpriteEditor
 
     private void CommitOutlinerDrop()
     {
-        if (_dragNode == null) return;
+        if (_dragNodes.Count == 0) return;
 
         // Find the target node
         SpriteNode? targetNode = null;
@@ -460,28 +503,39 @@ public partial class SpriteEditor
         }
         if (targetNode == null) return;
 
-        // Cycle detection: don't drop a parent into its own descendant
-        if (IsDescendant(_dragNode, targetNode))
-            return;
+        // Validate all drag nodes
+        foreach (var dragNode in _dragNodes)
+        {
+            if (dragNode == targetNode) return;
+            if (IsDescendant(dragNode, targetNode)) return;
+        }
 
-        // Don't drop onto self
-        if (_dragNode == targetNode)
-            return;
+        // Sort drag nodes by outliner order to preserve relative ordering
+        var ordered = new List<SpriteNode>(_dragNodes.Count);
+        foreach (var row in _outlinerRows)
+        {
+            if (_dragNodes.Contains(row.Node))
+                ordered.Add(row.Node);
+        }
 
         Undo.Record(Document);
 
-        // Remove from current parent
-        _dragNode.RemoveFromParent();
+        // Remove all from parents first
+        foreach (var node in ordered)
+            node.RemoveFromParent();
 
+        // Insert all at the drop location
         switch (_dropZone)
         {
             case DropZone.LastChild when targetNode is SpriteLayer layer:
-                layer.Add(_dragNode);
+                foreach (var node in ordered)
+                    layer.Add(node);
                 layer.Expanded = true;
                 break;
 
             case DropZone.FirstChild when targetNode is SpriteLayer layer2:
-                layer2.Insert(0, _dragNode);
+                for (var i = ordered.Count - 1; i >= 0; i--)
+                    layer2.Insert(0, ordered[i]);
                 layer2.Expanded = true;
                 break;
 
@@ -492,7 +546,8 @@ public partial class SpriteEditor
                 if (targetParent == null) return;
                 var targetIdx = targetParent.Children.IndexOf(targetNode);
                 if (_dropZone == DropZone.After) targetIdx++;
-                targetParent.Insert(targetIdx, _dragNode);
+                for (var i = 0; i < ordered.Count; i++)
+                    targetParent.Insert(targetIdx + i, ordered[i]);
                 break;
             }
         }

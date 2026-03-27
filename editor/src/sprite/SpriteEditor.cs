@@ -1366,7 +1366,7 @@ public partial class SpriteEditor : DocumentEditor
 
     private void PathInspectorUI()
     {
-        if (!HasPathSelection)
+        if (!HasPathSelection || HasLayerSelection)
             return;
 
         using (Inspector.BeginSection("PATH"))
@@ -1445,7 +1445,8 @@ public partial class SpriteEditor : DocumentEditor
 
     public override void InspectorUI()
     {
-        SpriteInspectorUI();
+        if (!HasPathSelection && !HasLayerSelection)
+            SpriteInspectorUI();
 
         if (Document.IsMutable)
         {
