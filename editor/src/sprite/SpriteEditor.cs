@@ -58,6 +58,7 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId VModeButton { get; }
         public static partial WidgetId AModeButton { get; }
         public static partial WidgetId SortOrder { get; }
+        public static partial WidgetId ContextMenu { get; }
     }
 
     private static readonly WordGenerator _wordGenerator = new();
@@ -135,6 +136,97 @@ public partial class SpriteEditor : DocumentEditor
     {
         MarkDirty();
         RebuildSelectedPaths();
+    }
+
+    public override void OpenContextMenu(WidgetId popupId)
+    {
+        var vMode = CurrentMode == SpriteEditMode.Transform;
+        var hasPath = HasPathSelection && _selectedPaths.Count > 0;
+        var hasSelection = hasPath || HasLayerSelection;
+        var multiPath = _selectedPaths.Count >= 2 && vMode;
+        var singleNode = (HasLayerSelection && _selectedLayers.Count == 1) ||
+                         (!HasLayerSelection && _selectedPaths.Count == 1);
+        var canDelete = hasPath || (CurrentMode == SpriteEditMode.Anchor && GetPathWithSelection() != null);
+
+        var items = new List<PopupMenuItem>
+        {
+            PopupMenuItem.Item("Cut", CutSelected, InputCode.KeyX, ctrl: true,
+                enabled: () => hasPath && vMode),
+            PopupMenuItem.Item("Copy", CopySelected, InputCode.KeyC, ctrl: true,
+                enabled: () => hasPath && vMode),
+            PopupMenuItem.Item("Paste", PasteSelected, InputCode.KeyV, ctrl: true,
+                enabled: () => Clipboard.Get<PathClipboardData>() != null),
+            PopupMenuItem.Item("Duplicate", DuplicateSelected, InputCode.KeyD, ctrl: true,
+                enabled: () => hasPath && vMode),
+            PopupMenuItem.Item("Delete", DeleteSelected, InputCode.KeyX,
+                enabled: () => canDelete),
+
+            PopupMenuItem.Separator(),
+            PopupMenuItem.Item("Select All", SelectAll, InputCode.KeyA, ctrl: true),
+
+            PopupMenuItem.Separator(),
+            PopupMenuItem.Item("Rename", BeginRename, InputCode.KeyF2,
+                enabled: () => singleNode),
+
+            PopupMenuItem.Separator(),
+            PopupMenuItem.Item("Flip Horizontal", () => FlipAxis(true),
+                enabled: () => hasPath && vMode),
+            PopupMenuItem.Item("Flip Vertical", () => FlipAxis(false),
+                enabled: () => hasPath && vMode),
+            PopupMenuItem.Item("Origin to Center", CenterShape, InputCode.KeyC, shift: true,
+                enabled: () => hasPath && vMode),
+
+            PopupMenuItem.Separator(),
+            PopupMenuItem.Item("Bring Forward", () => MovePathInOrder(-1), InputCode.KeyLeftBracket,
+                enabled: () => hasPath && vMode),
+            PopupMenuItem.Item("Send Backward", () => MovePathInOrder(1), InputCode.KeyRightBracket,
+                enabled: () => hasPath && vMode),
+
+            PopupMenuItem.Separator(),
+            PopupMenuItem.Item("Group", GroupSelected,
+                enabled: () => hasPath && vMode),
+
+            PopupMenuItem.Separator(),
+            PopupMenuItem.Submenu("Boolean", showIcons: false),
+            PopupMenuItem.Item("Union", BooleanUnion, InputCode.KeyU, ctrl: true, shift: true,
+                level: 1, enabled: () => multiPath),
+            PopupMenuItem.Item("Subtract", BooleanSubtract, InputCode.KeyD, ctrl: true, shift: true,
+                level: 1, enabled: () => multiPath),
+            PopupMenuItem.Item("Intersect", BooleanIntersect, InputCode.KeyI, ctrl: true, shift: true,
+                level: 1, enabled: () => multiPath),
+        };
+
+        PopupMenu.Open(WidgetIds.ContextMenu, items.ToArray());
+    }
+
+    private void GroupSelected()
+    {
+        if (_selectedPaths.Count == 0) return;
+
+        Undo.Record(Document);
+
+        var layer = new SpriteLayer { Name = "Group" };
+
+        // Insert the new layer at the position of the first selected path
+        var firstPath = _selectedPaths[0];
+        var parent = firstPath.Parent ?? Document.RootLayer;
+        var insertIndex = parent.Children.IndexOf(firstPath);
+        if (insertIndex < 0) insertIndex = 0;
+        parent.Insert(insertIndex, layer);
+
+        // Move all selected paths into the new layer
+        foreach (var path in _selectedPaths)
+            path.RemoveFromParent();
+        foreach (var path in _selectedPaths)
+            layer.Add(path);
+
+        // Select the new layer
+        Document.RootLayer.ClearSelection();
+        Document.RootLayer.ClearLayerSelections();
+        layer.IsSelected = true;
+        layer.Expanded = true;
+        RebuildSelectedPaths();
+        MarkDirty();
     }
 
     public override void Update()
@@ -602,34 +694,21 @@ public partial class SpriteEditor : DocumentEditor
     {
         if (_selectedPaths.Count == 0) return;
 
-        // Compute centroid across all selected paths
-        var sum = Vector2.Zero;
-        var count = 0;
-        foreach (var path in _selectedPaths)
-        {
-            foreach (var contour in path.Contours)
-            {
-                foreach (var anchor in contour.Anchors)
-                {
-                    sum += anchor.Position;
-                    count++;
-                }
-            }
-        }
-        if (count == 0) return;
-        var centroid = sum / count;
-
         Undo.Record(Document);
         foreach (var path in _selectedPaths)
         {
+            // Flip around the path's own local bounds center so the AABB stays in place
+            var center = path.LocalBounds.Center;
+            var oldCenter = center;
+
             foreach (var contour in path.Contours)
             {
                 for (var i = 0; i < contour.Anchors.Count; i++)
                 {
                     var a = contour.Anchors[i];
                     a.Position = horizontal
-                        ? new Vector2(2 * centroid.X - a.Position.X, a.Position.Y)
-                        : new Vector2(a.Position.X, 2 * centroid.Y - a.Position.Y);
+                        ? new Vector2(2 * center.X - a.Position.X, a.Position.Y)
+                        : new Vector2(a.Position.X, 2 * center.Y - a.Position.Y);
                     a.Curve = -a.Curve;
                     contour.Anchors[i] = a;
                 }
@@ -637,6 +716,7 @@ public partial class SpriteEditor : DocumentEditor
             path.MarkDirty();
             path.UpdateSamples();
             path.UpdateBounds();
+            path.CompensateTranslation(oldCenter);
         }
         MarkDirty();
     }

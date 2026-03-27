@@ -302,6 +302,25 @@ public partial class SpriteEditor
             _dragStartPos = Input.MousePosition;
         }
 
+        // Right-click context menu
+        if (isHovered && Input.WasButtonReleased(InputCode.MouseRight))
+        {
+            var nodeIsAlreadySelected = (node is SpriteLayer sl && sl.IsSelected) ||
+                                        (node is SpritePath sp2 && sp2.IsSelected);
+            if (!nodeIsAlreadySelected)
+            {
+                Document.RootLayer.ClearSelection();
+                Document.RootLayer.ClearLayerSelections();
+                if (node is SpritePath p)
+                    p.SelectPath();
+                else if (node is SpriteLayer l)
+                    l.IsSelected = true;
+                RebuildSelectedPaths();
+            }
+
+            OpenContextMenu(WidgetIds.ContextMenu);
+        }
+
         // End Row + Padding + Fill + Flex
         ElementTree.EndRow();
         ElementTree.EndPadding();
