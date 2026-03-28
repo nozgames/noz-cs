@@ -94,7 +94,8 @@ public struct VfxParticleDef
     public VfxFloatCurve Speed;
     public VfxColorCurve Color;
     public VfxFloatCurve Opacity;
-    public VfxFloatCurve Rotation;
+    public VfxRange Rotation;
+    public VfxFloatCurve RotationSpeed;
 }
 
 public struct VfxEmitterDef
@@ -159,7 +160,8 @@ public class Vfx : Asset
                 new Vector2(reader.ReadSingle(), reader.ReadSingle()),
                 new Vector2(reader.ReadSingle(), reader.ReadSingle()));
             p.Drag = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
-            p.Rotation = ReadFloatCurve(reader);
+            p.Rotation = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
+            p.RotationSpeed = ReadFloatCurve(reader);
 
             var meshNameLen = reader.ReadInt32();
             if (meshNameLen > 0)

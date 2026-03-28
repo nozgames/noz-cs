@@ -24,6 +24,8 @@ public static class Application
     public static Vector2Int WindowPosition => Platform.WindowPosition;
     public static string AssetPath { get; private set; } = null!;
 
+    public static bool HasFocus => _focused;
+
     public static event Action? BeginFrame;
     public static event Action? PreFrame;
     public static event Action<bool>? FocusChanged;
@@ -135,9 +137,6 @@ public static class Application
         while (RunFrame())
         {
             Platform.SwapBuffers();
-
-            if (!_focused)
-                Thread.Sleep(100);
         }
     }
 

@@ -20,6 +20,21 @@ public class VfxDocument : Document
     private string[] _emitterNames = [];
     private VfxRange _duration;
     private bool _loop;
+    private float _rotation;
+
+    public float Rotation
+    {
+        get => _rotation;
+        set
+        {
+            _rotation = value;
+            VfxSystem.SetTransform(_handle, PlayTransform);
+        }
+    }
+
+    private Matrix3x2 PlayTransform =>
+        Matrix3x2.CreateRotation(MathEx.Deg2Rad * _rotation) *
+        Matrix3x2.CreateTranslation(Position);
 
     public int EmitterCount => _emitterDefs.Length;
     public int SelectedEmitterIndex { get; set; }
@@ -81,7 +96,7 @@ public class VfxDocument : Document
         if (_playing && _vfx != null)
         {
             VfxSystem.Stop(_handle);
-            _handle = VfxSystem.Play(_vfx, Position);
+            _handle = VfxSystem.Play(_vfx, PlayTransform);
         }
     }
 
@@ -147,7 +162,7 @@ public class VfxDocument : Document
         // Restart if was playing
         if (wasPlaying && _vfx != null)
         {
-            _handle = VfxSystem.Play(_vfx, Position);
+            _handle = VfxSystem.Play(_vfx, PlayTransform);
             _playing = true;
         }
     }
@@ -167,7 +182,7 @@ public class VfxDocument : Document
 
         // Restart if the effect finished
         if (!VfxSystem.IsPlaying(_handle) && _vfx != null)
-            _handle = VfxSystem.Play(_vfx, Position);
+            _handle = VfxSystem.Play(_vfx, PlayTransform);
     }
 
     public override bool CanPlay => _emitterDefs.Length > 0;
@@ -179,14 +194,25 @@ public class VfxDocument : Document
             return;
 
         _playing = true;
-        _handle = VfxSystem.Play(_vfx, Position);
+        _handle = VfxSystem.Play(_vfx, PlayTransform);
     }
 
     public override void Stop()
     {
-        VfxSystem.Stop(_handle);
+        VfxSystem.Kill(_handle);
         _handle = VfxHandle.Invalid;
         _playing = false;
+    }
+
+    public override void LoadMetadata(PropertySet meta)
+    {
+        _rotation = meta.GetFloat("editor", "rotation", 0f);
+    }
+
+    public override void SaveMetadata(PropertySet meta)
+    {
+        if (_rotation != 0f)
+            meta.SetFloat("editor", "rotation", _rotation);
     }
 
     public override void Dispose()
@@ -246,7 +272,8 @@ public class VfxDocument : Document
             p.Opacity = ParseFloatCurve(props.GetString(particleSection, "opacity", "1.0"), VfxFloatCurve.One);
             p.Gravity = ParseVec2(props.GetString(particleSection, "gravity", "(0, 0)"), VfxVec2Range.Zero);
             p.Drag = ParseFloat(props.GetString(particleSection, "drag", "0"), VfxRange.Zero);
-            p.Rotation = ParseFloatCurve(props.GetString(particleSection, "rotation", "0"), VfxFloatCurve.Zero);
+            p.Rotation = ParseFloat(props.GetString(particleSection, "rotation", "0"), VfxRange.Zero);
+            p.RotationSpeed = ParseFloatCurve(props.GetString(particleSection, "rotationSpeed", "0"), VfxFloatCurve.Zero);
 
             emitters.Add(emitter);
             names.Add(emitterName);
@@ -358,7 +385,9 @@ public class VfxDocument : Document
             writer.Write(p.Gravity.Max.Y);
             writer.Write(p.Drag.Min);
             writer.Write(p.Drag.Max);
-            WriteFloatCurve(writer, p.Rotation);
+            writer.Write(p.Rotation.Min);
+            writer.Write(p.Rotation.Max);
+            WriteFloatCurve(writer, p.RotationSpeed);
 
             // mesh name (empty)
             writer.Write(0);
@@ -714,7 +743,8 @@ public class VfxDocument : Document
             sw.WriteLine($"opacity = {FormatFloatCurve(e.Particle.Opacity)}");
             sw.WriteLine($"gravity = {FormatVec2Range(e.Particle.Gravity)}");
             sw.WriteLine($"drag = {FormatRange(e.Particle.Drag)}");
-            sw.WriteLine($"rotation = {FormatFloatCurve(e.Particle.Rotation)}");
+            sw.WriteLine($"rotation = {FormatRange(e.Particle.Rotation)}");
+            sw.WriteLine($"rotationSpeed = {FormatFloatCurve(e.Particle.RotationSpeed)}");
         }
     }
 
@@ -793,4 +823,10 @@ public class VfxDocument : Document
         VfxCurveType.Bell => "bell",
         _ => "linear"
     };
+
+    public override void Clone(Document source)
+    {
+        var src = (VfxDocument)source;
+        _rotation = src._rotation;
+    }
 }

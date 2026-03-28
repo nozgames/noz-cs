@@ -343,15 +343,18 @@ public static partial class Workspace
 
     private static void DrawScene()
     {
-        DrawDocuments();
+        var isolation = State == WorkspaceState.Edit && ActiveEditor is { ShowInIsolation: true };
 
-        if (_showReferences)
+        if (!isolation)
+            DrawDocuments();
+
+        if (!isolation && _showReferences)
             DrawReferences();
 
-        if (_showGrid)
+        if (!isolation && _showGrid)
             Grid.Draw(_camera);
 
-        if (ShowNames)
+        if (!isolation && ShowNames)
             DrawNames();
 
         ActiveTool?.Draw();

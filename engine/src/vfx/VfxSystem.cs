@@ -24,9 +24,9 @@ public static class VfxSystem
     {
         public Vector2 Position;
         public Vector2 Velocity;
-        public VfxCurveType RotationCurve;
-        public float RotationStart;
-        public float RotationEnd;
+        public VfxCurveType RotationSpeedCurve;
+        public float RotationSpeedStart;
+        public float RotationSpeedEnd;
         public VfxCurveType ColorCurve;
         public Color ColorStart;
         public Color ColorEnd;
@@ -65,7 +65,7 @@ public static class VfxSystem
         public Vfx Vfx;
         public Matrix3x2 Transform;
         public float Depth;
-        public int Layer;
+        public ushort Layer;
         public int EmitterCount;
         public bool Loop;
         public uint Version;
@@ -115,10 +115,8 @@ public static class VfxSystem
         Shader = null;
     }
 
-    public static VfxHandle Play(Vfx? vfx, Vector2 position, float depth = 0f, int layer = 0)
-    {
-        return Play(vfx, Matrix3x2.CreateTranslation(position), depth, layer);
-    }
+    public static VfxHandle Play(Vfx? vfx, Vector2 position, float depth = 0f, int layer = 0) =>
+        Play(vfx, Matrix3x2.CreateTranslation(position), depth, layer);
 
     public static VfxHandle Play(Vfx? vfx, Matrix3x2 transform, float depth = 0f, int layer = 0)
     {
@@ -133,7 +131,7 @@ public static class VfxSystem
         instance.Vfx = vfx;
         instance.Transform = transform;
         instance.Depth = depth;
-        instance.Layer = layer;
+        instance.Layer = (ushort)layer;
         instance.EmitterCount = 0;
         instance.Loop = vfx.Loop;
 
@@ -221,10 +219,8 @@ public static class VfxSystem
         }
     }
 
-    public static bool IsPlaying(VfxHandle handle)
-    {
-        return GetInstance(handle) >= 0;
-    }
+    public static bool IsPlaying(VfxHandle handle) =>
+        GetInstance(handle) >= 0;
 
     public static void SetTransform(VfxHandle handle, Matrix3x2 transform)
     {
@@ -267,16 +263,12 @@ public static class VfxSystem
         SimulateParticles();
     }
 
-    public static void Render() => RenderInternal(int.MinValue);
+    public static void Render() => RenderInternal();
 
-    public static void Render(int layer) => RenderInternal(layer);
-
-    private static void RenderInternal(int layerFilter)
+    private static void RenderInternal()
     {
         if (_particleCount == 0 || Shader == null)
             return;
-
-        var filterByLayer = layerFilter != int.MinValue;
 
         using (Graphics.PushState())
         {
@@ -299,10 +291,7 @@ public static class VfxSystem
                 if (!_instanceValid[e.InstanceIndex])
                     continue;
 
-                ref var inst = ref _instances[e.InstanceIndex];
-
-                if (filterByLayer && inst.Layer != layerFilter)
-                    continue;
+                ref var instance = ref _instances[e.InstanceIndex];
 
                 var t = p.Elapsed / p.Lifetime;
                 ref var pdef = ref e.Vfx.EmitterDefs[e.DefIndex].Particle;
@@ -316,16 +305,15 @@ public static class VfxSystem
                     Matrix3x2.CreateTranslation(p.Position);
 
                 if (!p.WorldSpace)
-                    particleTransform *= inst.Transform;
+                    particleTransform *= instance.Transform;
 
+                Graphics.SetLayer(instance.Layer);
                 Graphics.SetColor(col.WithAlpha(opacity));
-                Graphics.SetSortGroup((int)inst.Depth);
+                Graphics.SetSortGroup((int)instance.Depth);
                 Graphics.Draw(-0.5f, -0.5f, 1f, 1f, particleTransform);
             }
         }
     }
-
-    // --- Private Implementation ---
 
     private static void UpdateEmitters()
     {
@@ -412,7 +400,10 @@ public static class VfxSystem
 
             p.Position += vel * dt;
             p.Velocity = vel;
-            p.Rotation = MathEx.Mix(p.RotationStart, p.RotationEnd, EvaluateCurve(p.RotationCurve, t, pdef.Rotation.Bezier));
+
+            var rotationSpeedT = EvaluateCurve(p.RotationSpeedCurve, t, pdef.RotationSpeed.Bezier);
+            var rotationSpeed = MathEx.Mix(p.RotationSpeedStart, p.RotationSpeedEnd, rotationSpeedT);
+            p.Rotation += rotationSpeed * dt;
         }
     }
 
@@ -438,6 +429,7 @@ public static class VfxSystem
         var dir = GetRandom(def.Direction);
         if (MathF.Abs(dir.X) < 0.0001f && MathF.Abs(dir.Y) < 0.0001f)
             dir = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+        dir = Vector2.TransformNormal(dir, inst.Transform);
 
         ref var p = ref _particles[particleIndex];
 
@@ -471,10 +463,10 @@ public static class VfxSystem
         p.Gravity = GetRandom(pdef.Gravity);
         p.Drag = GetRandom(pdef.Drag);
 
-        p.RotationStart = MathEx.Radians(GetRandom(pdef.Rotation.Start));
-        p.RotationEnd = p.RotationStart + MathEx.Radians(GetRandom(pdef.Rotation.End));
-        p.RotationCurve = pdef.Rotation.Type;
-        p.Rotation = p.RotationStart;
+        p.Rotation = MathEx.Radians(GetRandom(pdef.Rotation));
+        p.RotationSpeedStart = MathEx.Radians(GetRandom(pdef.RotationSpeed.Start));
+        p.RotationSpeedEnd = MathEx.Radians(GetRandom(pdef.RotationSpeed.End));
+        p.RotationSpeedCurve = pdef.RotationSpeed.Type;
 
         p.EmitterIndex = (ushort)emitterIndex;
 
@@ -572,7 +564,10 @@ public static class VfxSystem
             if (!_instanceValid[i])
             {
                 _instanceValid[i] = true;
-                _instances[i] = default;
+                ref var instance = ref _instances[i];
+                var version = instance.Version;
+                instance = default;
+                instance.Version = version;
                 _instanceCount++;
                 return i;
             }

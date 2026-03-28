@@ -344,6 +344,9 @@ public static partial class EditorApplication
             while (_mainThreadQueue.Count > 0)
                 _mainThreadQueue.Dequeue().Invoke();
 
+        if (!Application.HasFocus && !(Workspace.ActiveEditor is { RunInBackground: true}))
+            Thread.Sleep(1000 / 30);
+
         DocumentManager.UpdateExports();
         ConfirmDialog.Update();
         CommandPalette.Update();
