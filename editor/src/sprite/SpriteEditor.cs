@@ -1791,6 +1791,14 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
+    internal void ApplyEyeDropperColor(Color32 color)
+    {
+        Undo.Record(Document);
+        SetFillColor(color);
+        if (ColorPicker.IsOpen(WidgetIds.FillColor))
+            ColorPicker.Open(WidgetIds.FillColor, color);
+    }
+
     #endregion
 
     #region Skeleton Binding
