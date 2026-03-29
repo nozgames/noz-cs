@@ -394,7 +394,19 @@ public partial class SpriteEditor
 
     private void DeleteSelected()
     {
-        if (CurrentMode == SpriteEditMode.Transform)
+        if (HasLayerSelection)
+        {
+            // Don't delete the last layer
+            var remaining = Document.RootLayer.Children.Count - _selectedLayers.Count;
+            if (remaining < 1) return;
+
+            Undo.Record(Document);
+            foreach (var layer in _selectedLayers)
+                layer.RemoveFromParent();
+            MarkDirty();
+            ClearSelection();
+        }
+        else if (CurrentMode == SpriteEditMode.Transform)
         {
             // V mode: delete entire selected paths
             if (_selectedPaths.Count == 0) return;
@@ -474,7 +486,7 @@ public partial class SpriteEditor
 
         var newPaths = clipboardData.PasteAsPaths();
         foreach (var path in newPaths)
-            Document.RootLayer.Insert(0, path);
+            Document.RootLayer.Add(path);
 
         MarkDirty();
         RebuildSelectedPaths();

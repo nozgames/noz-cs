@@ -146,7 +146,7 @@ public partial class SpriteEditor : DocumentEditor
         var multiPath = _selectedPaths.Count >= 2 && vMode;
         var singleNode = (HasLayerSelection && _selectedLayers.Count == 1) ||
                          (!HasLayerSelection && _selectedPaths.Count == 1);
-        var canDelete = hasPath || (CurrentMode == SpriteEditMode.Anchor && GetPathWithSelection() != null);
+        var canDelete = hasPath || HasLayerSelection || (CurrentMode == SpriteEditMode.Anchor && GetPathWithSelection() != null);
 
         var items = new List<PopupMenuItem>
         {
@@ -933,29 +933,12 @@ public partial class SpriteEditor : DocumentEditor
 
     private bool HandlePathClick(Vector2 localMousePos, bool shift)
     {
-        // Collect all paths hit by any method: fill, anchor, or segment
         _pathHitResults.Clear();
         Document.RootLayer.HitTestPath(localMousePos, _pathHitResults);
 
-        _anchorHitResults.Clear();
-        Document.RootLayer.HitTestAnchor(localMousePos, _anchorHitResults);
-
-        var segHit = Document.RootLayer.HitTestSegment(localMousePos);
-
         HitPaths.Clear();
-
-        static void AddPath(SpritePath path)
-        {
-            if (HitPaths.Contains(path)) return;
-            HitPaths.Add(path);
-        }
-
         foreach (var p in _pathHitResults)
-            AddPath(p);
-        foreach (var h in _anchorHitResults)
-            AddPath(h.Path);
-        if (segHit.HasValue)
-            AddPath(segHit.Value.Path);
+            HitPaths.Add(p);
 
         if (HitPaths.Count == 0)
             return false;
@@ -1034,7 +1017,8 @@ public partial class SpriteEditor : DocumentEditor
         }
         else
         {
-            // V mode: draw bounding box around each selected path
+            // V mode: draw path outlines and bounding box around each selected path
+            DrawSelectedPathOutlines(transform);
             DrawSelectionBounds(transform);
         }
     }
@@ -1077,6 +1061,30 @@ public partial class SpriteEditor : DocumentEditor
         }
         else
             SetCursor(SpritePathHandle.None);
+    }
+
+    private void DrawSelectedPathOutlines(Matrix3x2 docTransform)
+    {
+        var lineWidth = EditorStyle.SpritePath.SegmentLineWidth * 0.5f;
+
+        using var _ = Gizmos.PushState(EditorLayer.DocumentEditor);
+        Graphics.SetTransform(docTransform);
+        Gizmos.SetColor(EditorStyle.Palette.Primary);
+
+        foreach (var path in _selectedPaths)
+        {
+            if (path.TotalAnchorCount < 2) continue;
+            path.UpdateSamples();
+            var localTransform = path.HasTransform ? path.PathTransform : Matrix3x2.Identity;
+
+            for (var ci = 0; ci < path.Contours.Count; ci++)
+            {
+                var contour = path.Contours[ci];
+                var segmentCount = contour.Open ? contour.Anchors.Count - 1 : contour.Anchors.Count;
+                for (var i = 0; i < segmentCount; i++)
+                    DrawContourSegment(contour, i, localTransform, lineWidth, 1);
+            }
+        }
     }
 
     private void DrawSelectionBounds(Matrix3x2 transform)

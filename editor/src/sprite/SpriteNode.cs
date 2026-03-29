@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using Clipper2Lib;
 
 namespace NoZ.Editor;
 
@@ -371,7 +372,7 @@ public abstract class SpriteNode
             if (!node.Visible) return null;
 
             if (node is SpritePath path)
-                return path.HitTestPath(point) ? path : null;
+                return HitTestPathWithStroke(path, point) ? path : null;
 
             for (var i = 0; i < node.Children.Count; i++)
             {
@@ -392,10 +393,10 @@ public abstract class SpriteNode
         {
             if (!node.Visible) return 0;
             var count = 0;
-            
+
             if (node is SpritePath path)
             {
-                if (path.HitTestPath(point))
+                if (HitTestPathWithStroke(path, point))
                 {
                     results.Add(path);
                     count++;
@@ -409,6 +410,35 @@ public abstract class SpriteNode
         }
 
         return Recursive(this, point, results);
+    }
+
+    private static bool HitTestPathWithStroke(SpritePath path, Vector2 point)
+    {
+        if (!path.HitTestPath(point))
+            return false;
+
+        // Filled paths: any point inside the contour is a hit
+        if (path.FillColor.A > 0)
+            return true;
+
+        // Stroke-only paths: exclude the empty interior (inside contracted boundary)
+        if (path.StrokeColor.A > 0 && path.StrokeWidth > 0)
+        {
+            var contracted = path.GetContractedPaths();
+            if (contracted is { Count: > 0 })
+            {
+                var p = new PointD(point.X, point.Y);
+                foreach (var cp in contracted)
+                {
+                    if (Clipper.PointInPolygon(p, cp) != PointInPolygonResult.IsOutside)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        // No fill, no stroke — nothing visible to hit
+        return false;
     }
 
     #endregion

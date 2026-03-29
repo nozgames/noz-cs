@@ -79,12 +79,31 @@ public class SpritePath : SpriteNode
 
     // Cached Clipper2 paths — invalidated when anchors or transform change
     private PathsD? _cachedClipperPaths;
+    private PathsD? _cachedContractedPaths;
+    private bool _contractedComputed;
 
     public PathsD GetClipperPaths()
     {
         if (_cachedClipperPaths == null)
             _cachedClipperPaths = SpritePathClipper.SpritePathToPaths(this);
         return _cachedClipperPaths;
+    }
+
+    public PathsD? GetContractedPaths()
+    {
+        if (!_contractedComputed)
+        {
+            _contractedComputed = true;
+            var contours = GetClipperPaths();
+            if (contours.Count > 0 && StrokeColor.A > 0 && StrokeWidth > 0)
+            {
+                _cachedContractedPaths = Clipper.InflatePaths(contours,
+                    -(StrokeWidth * StrokeScale),
+                    SpriteLayerProcessor.ToClipperJoinType(StrokeJoin),
+                    EndType.Polygon, precision: SpriteLayerProcessor.ClipperPrecision);
+            }
+        }
+        return _cachedContractedPaths;
     }
 
     public int TotalAnchorCount
@@ -111,6 +130,8 @@ public class SpritePath : SpriteNode
         foreach (var c in Contours)
             c.MarkDirty();
         _cachedClipperPaths = null;
+        _cachedContractedPaths = null;
+        _contractedComputed = false;
     }
 
     public void UpdateSamples()
@@ -434,12 +455,18 @@ public class SpritePath : SpriteNode
 
     public new bool HitTestPath(Vector2 point)
     {
-        if (HasTransform)
+        // Use Clipper paths (same geometry as rendering) for containment.
+        // Clipper paths have PathTransform baked in, so point must be in document space.
+        var paths = GetClipperPaths();
+        if (paths.Count == 0) return false;
+
+        var p = new PointD(point.X, point.Y);
+        foreach (var path in paths)
         {
-            Matrix3x2.Invert(PathTransform, out var inv);
-            point = Vector2.Transform(point, inv);
+            if (Clipper.PointInPolygon(p, path) != PointInPolygonResult.IsOutside)
+                return true;
         }
-        return ContainsPoint(point);
+        return false;
     }
 
     public HitResult HitTest(Vector2 point)

@@ -22,7 +22,7 @@ internal readonly struct LayerPathResult(PathsD Contours, Color32 Color, bool Is
 
 internal static class SpriteLayerProcessor
 {
-    const int ClipperPrecision = 6;
+    internal const int ClipperPrecision = 6;
 
     private static bool HasClipPaths(SpriteLayer layer)
     {
@@ -188,7 +188,7 @@ internal static class SpriteLayerProcessor
         output.AddRange(results);
     }
 
-    private static JoinType ToClipperJoinType(SpriteStrokeJoin join) => join switch
+    internal static JoinType ToClipperJoinType(SpriteStrokeJoin join) => join switch
     {
         SpriteStrokeJoin.Miter => JoinType.Miter,
         SpriteStrokeJoin.Bevel => JoinType.Bevel,
