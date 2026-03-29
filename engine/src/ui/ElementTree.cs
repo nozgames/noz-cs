@@ -15,7 +15,7 @@ namespace NoZ;
 public static unsafe partial class ElementTree
 {
     private const int MaxElements = 1024;
-    private const int MaxDataSize = 8192;
+    private const int MaxDataSize = 8192 * 4;
     private const int MaxWidgets = 1024;
     private const int MaxElementDepth = 512;
 

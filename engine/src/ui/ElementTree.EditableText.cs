@@ -330,8 +330,8 @@ public static unsafe partial class ElementTree
         InputScope scope,
         bool commitOnEnter)
     {
-        var ctrl = Input.IsCtrlDown();
-        var shift = Input.IsShiftDown();
+        var ctrl = Input.IsCtrlDown(scope);
+        var shift = Input.IsShiftDown(scope);
         ref var text = ref state.EditText;
 
         // Escape — cancel
@@ -480,20 +480,24 @@ public static unsafe partial class ElementTree
             return;
         }
 
-        // Left arrow
+        // Left arrow (Ctrl = word boundary)
         if (Input.WasButtonPressed(InputCode.KeyLeft, true, scope))
         {
-            if (state.CursorIndex > 0)
+            if (ctrl)
+                state.CursorIndex = FindPreviousWordBoundary(text.AsReadOnlySpan(), state.CursorIndex);
+            else if (state.CursorIndex > 0)
                 state.CursorIndex--;
             if (!shift)
                 state.SelectionStart = state.CursorIndex;
             return;
         }
 
-        // Right arrow
+        // Right arrow (Ctrl = word boundary)
         if (Input.WasButtonPressed(InputCode.KeyRight, true, scope))
         {
-            if (state.CursorIndex < text.AsReadOnlySpan().Length)
+            if (ctrl)
+                state.CursorIndex = FindNextWordBoundary(text.AsReadOnlySpan(), state.CursorIndex);
+            else if (state.CursorIndex < text.AsReadOnlySpan().Length)
                 state.CursorIndex++;
             if (!shift)
                 state.SelectionStart = state.CursorIndex;
@@ -875,5 +879,39 @@ public static unsafe partial class ElementTree
             x += advance;
         }
         return text.Length;
+    }
+
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    private static int FindPreviousWordBoundary(ReadOnlySpan<char> text, int index)
+    {
+        if (index <= 0) return 0;
+
+        // Skip whitespace/punctuation going back
+        var i = index - 1;
+        while (i > 0 && !IsWordChar(text[i]))
+            i--;
+
+        // Skip word chars going back
+        while (i > 0 && IsWordChar(text[i - 1]))
+            i--;
+
+        return i;
+    }
+
+    private static int FindNextWordBoundary(ReadOnlySpan<char> text, int index)
+    {
+        if (index >= text.Length) return text.Length;
+
+        // Skip word chars forward
+        var i = index;
+        while (i < text.Length && IsWordChar(text[i]))
+            i++;
+
+        // Skip whitespace/punctuation forward
+        while (i < text.Length && !IsWordChar(text[i]))
+            i++;
+
+        return i;
     }
 }
