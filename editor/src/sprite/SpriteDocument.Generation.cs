@@ -258,8 +258,44 @@ public partial class SpriteDocument
         }
     }
 
-    // TODO: Port to layer-based model
-    private byte[] RasterizeColorToPng() => [];
+    private byte[] RasterizeColorToPng()
+    {
+        var w = RasterBounds.Width;
+        var h = RasterBounds.Height;
+        if (w <= 0 || h <= 0) return [];
+
+        // Scale DPI so paths render at RasterizeSize regardless of actual constraint size
+        var dpi = EditorApplication.Config.PixelsPerUnit;
+        var scale = (float)RasterizeSize / MathF.Max(w, h);
+        var scaledDpi = (int)MathF.Round(dpi * scale);
+        var outW = (int)MathF.Round(w * scale);
+        var outH = (int)MathF.Round(h * scale);
+
+        using var pixels = new PixelData<Color32>(outW, outH);
+
+        var targetRect = new RectInt(0, 0, outW, outH);
+        var sourceOffset = new Vector2Int(
+            (int)MathF.Round(-RasterBounds.X * scale),
+            (int)MathF.Round(-RasterBounds.Y * scale));
+
+        Rect? clipRect = null;
+        if (ConstrainedSize.HasValue)
+        {
+            float invDpi = 1f / dpi;
+            clipRect = new Rect(
+                RasterBounds.X * invDpi,
+                RasterBounds.Y * invDpi,
+                RasterBounds.Width * invDpi,
+                RasterBounds.Height * invDpi);
+        }
+
+        RasterizeLayer(RootLayer, pixels, targetRect, sourceOffset, scaledDpi, clipRect);
+
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
+        using var ms = new MemoryStream();
+        image.SaveAsPng(ms);
+        return ms.ToArray();
+    }
 
     public PipelineRequest BuildGenerationRequest()
     {
@@ -269,17 +305,14 @@ public partial class SpriteDocument
         var negPrompt = GenerationConfig.FormatPrompt(config?.NegativePrompt ?? "", gen.NegativePrompt);
         var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
 
-        var inputs = new Dictionary<string, string>();
         var references = new List<Dictionary<string, object>>();
 
         var imageBytes = RasterizeColorToPng();
         if (imageBytes.Length > 0)
         {
-            inputs["composition"] = Convert.ToBase64String(imageBytes);
             references.Add(new Dictionary<string, object>
             {
-                ["image"] = "composition",
-                ["type"] = "composition"
+                ["data"] = Convert.ToBase64String(imageBytes)
             });
         }
 
@@ -293,17 +326,15 @@ public partial class SpriteDocument
 
             if (refBytes.Length > 0)
             {
-                var name = $"ref_{i}";
-                inputs[name] = Convert.ToBase64String(refBytes);
                 references.Add(new Dictionary<string, object>
                 {
-                    ["image"] = name,
-                    ["type"] = "composition"
+                    ["data"] = Convert.ToBase64String(refBytes)
                 });
             }
         }
 
-        var genArgs = new Dictionary<string, object> { ["prompt"] = prompt, ["workflow"] = "sprite" };
+        var workflow = references.Count > 0 ? "sprite" : "txt2img";
+        var genArgs = new Dictionary<string, object> { ["prompt"] = prompt, ["workflow"] = workflow };
         if (!string.IsNullOrEmpty(negPrompt))
             genArgs["negative"] = negPrompt;
         if (!string.IsNullOrEmpty(config?.ModelName))
@@ -344,7 +375,6 @@ public partial class SpriteDocument
         return new PipelineRequest
         {
             Server = server,
-            Inputs = inputs.Count > 0 ? inputs : null,
             Steps = steps,
         };
     }

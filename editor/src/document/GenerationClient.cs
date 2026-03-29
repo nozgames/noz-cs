@@ -20,7 +20,6 @@ public class PipelineRequest
     [JsonIgnore]
     public string Server { get; set; } = "";
 
-    public Dictionary<string, string>? Inputs { get; set; }
     public List<PipelineStep> Steps { get; set; } = [];
 }
 
@@ -119,6 +118,7 @@ public static class GenerationClient
             {
                 // Phase 1: Submit job
                 var json = JsonSerializer.Serialize(request, _jsonOptions);
+                Log.Info($"Generation request JSON: {json}");
 
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await _http.PostAsync($"{request.Server}/api/image/pipeline", content, cancellationToken);
