@@ -15,6 +15,8 @@ public static partial class UI
         Sprite? icon = null,
         bool multiLine = false)
     {
+        value ??= "";
+
         ElementTree.BeginTree();
 
         ref var state = ref ElementTree.BeginWidget<EditableTextState>(id);

@@ -680,7 +680,7 @@ public partial class SpriteEditor
         }
 
         _renameNode = node;
-        _renameText = node.Name;
+        _renameText = node.Name ?? "";
         UI.SetHot(WidgetIds.OutlinerRename);
     }
 
