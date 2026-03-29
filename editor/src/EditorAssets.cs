@@ -20,7 +20,6 @@ public static class EditorAssets
         public const string AssetIconSound = "asset_icon_sound";
         public const string AssetIconSprite = "asset_icon_sprite";
         public const string AssetIconVfx = "asset_icon_vfx";
-        public const string Composite = "composite";
         public const string CurorDropper = "curor_dropper";
         public const string CursorArrow = "cursor_arrow";
         public const string CursorBeam = "cursor_beam";
@@ -124,7 +123,6 @@ public static class EditorAssets
 
     public static class Shaders
     {
-        public static readonly Shader Composite = new();
         public static readonly Shader Sprite = new();
         public static readonly Shader Text = new();
         public static readonly Shader Texture = new();
@@ -132,7 +130,6 @@ public static class EditorAssets
 
         public static void Load()
         {
-            Composite.Load(Names.Composite);
             Sprite.Load(Names.Sprite);
             Text.Load(Names.Text);
             Texture.Load(Names.Texture);
@@ -141,7 +138,6 @@ public static class EditorAssets
 
         public static void Unload()
         {
-            Composite.Dispose();
             Sprite.Dispose();
             Text.Dispose();
             Texture.Dispose();

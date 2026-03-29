@@ -20,6 +20,7 @@ struct VertexInput {
     @location(4) border_width: f32,
     @location(5) border_color: vec4<f32>,
     @location(6) corner_radii: vec4<f32>,  // TL, TR, BL, BR
+    @location(7) overlay_color: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -30,6 +31,7 @@ struct VertexOutput {
     @location(3) @interpolate(flat) border_width: f32,
     @location(4) @interpolate(flat) border_color: vec4<f32>,
     @location(5) @interpolate(flat) corner_radii: vec4<f32>,
+    @location(6) @interpolate(flat) overlay_color: vec4<f32>,
 }
 
 @vertex
@@ -42,6 +44,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     output.border_width = input.border_width;
     output.border_color = input.border_color;
     output.corner_radii = input.corner_radii;
+    output.overlay_color = input.overlay_color;
     return output;
 }
 
@@ -79,7 +82,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // Border blend - antialiased inner border edge (half-pixel transition)
     let border_blend = smoothstep(-0.5 * edge, 0.5 * edge, dist + input.border_width);
     let has_border = step(0.001, input.border_width) * step(0.001, input.border_color.a);
-    let base_color = input.color * tex_color;
+    let natural = input.color * tex_color;
+    let base_color = vec4(mix(natural.rgb, input.overlay_color.rgb, input.overlay_color.a), natural.a);
     let final_color = mix(base_color, input.border_color, border_blend * has_border);
 
     // Early discard for fully transparent pixels

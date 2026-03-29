@@ -182,25 +182,31 @@ public static partial class ElementTree
         var uv2 = new Vector2(uvRect.X + uvRect.Width, uvRect.Y + uvRect.Height);
         var uv3 = new Vector2(uvRect.X, uvRect.Y + uvRect.Height);
 
+        var overlayColor = Graphics.OverlayColor;
+
         _vertices.Add(new UIVertex
         {
             Position = p0, UV = uv0, Normal = rectSize,
-            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii,
+            OverlayColor = overlayColor
         });
         _vertices.Add(new UIVertex
         {
             Position = p1, UV = uv1, Normal = rectSize,
-            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii,
+            OverlayColor = overlayColor
         });
         _vertices.Add(new UIVertex
         {
             Position = p2, UV = uv2, Normal = rectSize,
-            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii,
+            OverlayColor = overlayColor
         });
         _vertices.Add(new UIVertex
         {
             Position = p3, UV = uv3, Normal = rectSize,
-            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii
+            Color = color, BorderRatio = borderWidth, BorderColor = borderColor, CornerRadii = radii,
+            OverlayColor = overlayColor
         });
 
         _indices.Add((ushort)vertexOffset);
@@ -504,6 +510,8 @@ public static partial class ElementTree
         ref var t = ref e.Transform;
         var asset = _assets[d.Asset];
         if (asset == null) return;
+
+        Graphics.SetOverlayColor(d.OverlayColor);
 
         var srcSize = new Vector2(d.Width, d.Height);
         var dstSize = new Vector2(
@@ -819,6 +827,13 @@ public static partial class ElementTree
             {
                 ref var d = ref e.Data.Scroll;
                 sb.Append($" speed={d.ScrollSpeed}");
+                break;
+            }
+            case ElementType.Transform:
+            {
+                ref var d = ref e.Data.Transform;
+                sb.Append($" pivot={d.Pivot} translate={d.Translate} rotate={d.Rotate} scale={d.Scale}");
+                sb.Append($" matrix=[{e.Transform.M31:F1},{e.Transform.M32:F1}]");
                 break;
             }
         }

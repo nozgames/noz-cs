@@ -22,6 +22,7 @@ public struct MeshVertex(float x, float y, float u, float v, Color color, int at
     public float FrameWidth = 0;
     public float FrameRate = 0;
     public float AnimStartTime = 0;
+    public Color OverlayColor = Color.Transparent;
 
     public static readonly int SizeInBytes = Marshal.SizeOf<MeshVertex>();
     public static readonly uint VertexHash = VertexFormatHash.Compute(GetFormatDescriptor().Attributes);
@@ -89,7 +90,13 @@ public struct MeshVertex(float x, float y, float u, float v, Color color, int at
                 9,
                 1,
                 VertexAttribType.Float,
-                (int)Marshal.OffsetOf<MeshVertex>(nameof(AnimStartTime)))
+                (int)Marshal.OffsetOf<MeshVertex>(nameof(AnimStartTime))),
+
+            new VertexAttribute(
+                10,
+                4,
+                VertexAttribType.Float,
+                (int)Marshal.OffsetOf<MeshVertex>(nameof(OverlayColor)))
         ]
     };
 }

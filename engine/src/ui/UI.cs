@@ -137,6 +137,8 @@ public static partial class UI
         return ElementTree.GetWidgetWorldRect(id);
     }
 
+    public static string DumpElementTree() => ElementTree.DebugDumpTree();
+
     public static bool TryGetSceneRenderInfo(WidgetId id, out SceneRenderInfo info) =>
         ElementTree.TryGetSceneRenderInfo(id, out info);
 
@@ -497,7 +499,7 @@ public static partial class UI
     {
         if (image == null) return;
         var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags()) : style;
-        ElementTree.Image(image, resolved.Size, resolved.Stretch, resolved.Color, resolved.Scale, resolved.Align);
+        ElementTree.Image(image, resolved.Size, resolved.Stretch, resolved.Color, resolved.Scale, resolved.Align, resolved.OverlayColor);
     }
 
     public static void Image(Sprite? sprite) => Image((IImage?)sprite);

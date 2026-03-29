@@ -132,7 +132,7 @@ public static unsafe partial class ElementTree
 
         LayoutAxis(0, 0, ScreenSize.X, 0, -1);
         LayoutAxis(0, 0, ScreenSize.Y, 1, -1);
-        UpdateTransforms(0, Matrix3x2.Identity, Vector2.Zero);
+        UpdateTransforms(0, Matrix3x2.Identity, Matrix3x2.Identity, Vector2.Zero);
     }
 
     public static void BeginTree()

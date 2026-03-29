@@ -52,12 +52,14 @@ struct VertexInput {
     @location(7) frame_width: f32,
     @location(8) frame_rate: f32,
     @location(9) frame_time: f32,
+    @location(10) overlay_color: vec4<f32>,
 }
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) @interpolate(flat) overlay_color: vec4<f32>,
 }
 
 @vertex
@@ -74,10 +76,12 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     output.position = globals.projection * vec4<f32>(pos, 0.0, 1.0);
     output.uv = input.uv;
     output.color = input.color;
+    output.overlay_color = input.overlay_color;
     return output;
 }
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(texture0, sampler0, input.uv) * input.color;
+    let natural = textureSample(texture0, sampler0, input.uv) * input.color;
+    return vec4(mix(natural.rgb, input.overlay_color.rgb, input.overlay_color.a), natural.a);
 }

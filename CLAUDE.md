@@ -165,12 +165,12 @@ WGSL (WebGPU Shading Language). Located in `engine/assets/shader/`.
 | Shader | Purpose |
 |--------|---------|
 | `sprite.wgsl` | Standard sprite rendering with bone transforms, UV animation, texture array, vertex color |
-| `sprite_sdf.wgsl` | SDF sprite rendering — median(r,g,b) reconstruction with adaptive antialiasing |
+
 | `text.wgsl` | SDF text rendering with outline support |
 | `texture.wgsl` | Simple texture display |
 | `texture_sdf.wgsl` | SDF texture display (editor single-atlas path) |
 | `ui.wgsl` | UI elements with border radius, shadows, gradients |
-| `composite.wgsl` | Post-processing / screen-space effects |
+
 
 Globals uniform: `projection: mat4x4<f32>`, `time: f32`.
 

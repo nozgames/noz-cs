@@ -51,6 +51,7 @@ struct VertexInput {
     @location(7) frame_width: f32,
     @location(8) frame_rate: f32,
     @location(9) frame_time: f32,
+    @location(10) overlay_color: vec4<f32>,
 }
 
 // Vertex output / Fragment input
@@ -59,6 +60,7 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
     @location(2) @interpolate(flat) atlas: i32,
+    @location(3) @interpolate(flat) overlay_color: vec4<f32>,
 }
 
 @vertex
@@ -85,11 +87,13 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     output.uv = uv;
     output.color = input.color;
     output.atlas = input.atlas;
+    output.overlay_color = input.overlay_color;
 
     return output;
 }
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(texture_array, texture_sampler, input.uv, input.atlas) * input.color;
+    let natural = textureSample(texture_array, texture_sampler, input.uv, input.atlas) * input.color;
+    return vec4(mix(natural.rgb, input.overlay_color.rgb, input.overlay_color.a), natural.a);
 }

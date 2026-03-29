@@ -677,23 +677,28 @@ public static unsafe partial class ElementTree
         }
     }
 
-    private static void UpdateTransforms(int offset, in Matrix3x2 parentTransform, Vector2 parentSize)
+    private static void UpdateTransforms(int offset, in Matrix3x2 parentTransform, in Matrix3x2 parentLayoutTransform, Vector2 parentSize)
     {
         ref var e = ref GetElement(offset);
 
         Matrix3x2 localTransform;
         Matrix3x2 worldTransform;
+        Matrix3x2 layoutTransform; // Tracks only layout positioning, excludes Transform visual offsets
         if (e.Type == ElementType.Transform)
         {
             ref var d = ref e.Data.Transform;
             var pivot = new Vector2(e.Rect.Width * d.Pivot.X, e.Rect.Height * d.Pivot.Y);
             localTransform =
+                Matrix3x2.CreateTranslation(-pivot) *
                 Matrix3x2.CreateScale(d.Scale) *
                 Matrix3x2.CreateRotation(MathEx.Deg2Rad * d.Rotate) *
                 Matrix3x2.CreateTranslation(e.Rect.X + pivot.X + d.Translate.X,
                                              e.Rect.Y + pivot.Y + d.Translate.Y);
             worldTransform = localTransform * parentTransform;
             e.Transform = worldTransform;
+
+            // Layout transform uses only the layout position (no pivot/translate)
+            layoutTransform = Matrix3x2.CreateTranslation(e.Rect.X, e.Rect.Y) * parentLayoutTransform;
 
             // Rect becomes element-local (relative to pivot)
             e.Rect.X = -e.Rect.Width * d.Pivot.X;
@@ -703,6 +708,7 @@ public static unsafe partial class ElementTree
         {
             localTransform = Matrix3x2.CreateTranslation(e.Rect.X, e.Rect.Y);
             worldTransform = localTransform * parentTransform;
+            layoutTransform = localTransform * parentLayoutTransform;
 
             e.Transform = worldTransform;
             e.Rect.X = 0;
@@ -723,9 +729,9 @@ public static unsafe partial class ElementTree
         {
             ref var child = ref GetElement(childOffset);
             var absPos = child.Rect.Position;
-            child.Rect.X = absPos.X - worldTransform.M31;
-            child.Rect.Y = absPos.Y - worldTransform.M32;
-            UpdateTransforms(childOffset, worldTransform, rectSize);
+            child.Rect.X = absPos.X - layoutTransform.M31;
+            child.Rect.Y = absPos.Y - layoutTransform.M32;
+            UpdateTransforms(childOffset, worldTransform, layoutTransform, rectSize);
             childOffset = child.NextSibling;
         }
     }

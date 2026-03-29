@@ -28,6 +28,7 @@ public static unsafe partial class Graphics
         public RectInt Scissor;
         public RenderMesh Mesh;
         public float Opacity;
+        public Color OverlayColor;
     }
 
     public struct AutoState(bool pop) : IDisposable
@@ -35,6 +36,8 @@ public static unsafe partial class Graphics
         private readonly bool _pop = pop;
         readonly void IDisposable.Dispose() { if (_pop) PopState(); }
     }
+
+    public static Color OverlayColor => CurrentState.OverlayColor;
 
     public static AutoState PushState()
     {
@@ -80,6 +83,7 @@ public static unsafe partial class Graphics
         CurrentState.SortLayer = 0;
         CurrentState.Color = Color.White;
         CurrentState.Opacity = 1.0f;
+        CurrentState.OverlayColor = Color.Transparent;
         CurrentState.Shader = null;
         CurrentState.BlendMode = default;
         CurrentState.BoneIndex = 0;
@@ -221,6 +225,11 @@ public static unsafe partial class Graphics
         if (CurrentState.TextureFilters[slot] == filterByte) return;
         CurrentState.TextureFilters[slot] = filterByte;
         _batchStateDirty = true;
+    }
+
+    public static void SetOverlayColor(Color color)
+    {
+        CurrentState.OverlayColor = color;
     }
 
     public static void SetBlendMode(BlendMode blendMode)

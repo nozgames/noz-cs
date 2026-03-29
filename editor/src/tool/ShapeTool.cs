@@ -184,7 +184,7 @@ public class ShapeTool : Tool
         path.SelectAll();
         path.UpdateSamples();
         path.UpdateBounds();
-        _activeLayer.Add(path);
+        _activeLayer.Insert(0, path);
 
         _editor.MarkDirty();
         Finish();

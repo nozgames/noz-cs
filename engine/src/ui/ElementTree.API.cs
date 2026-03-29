@@ -328,7 +328,8 @@ public static unsafe partial class ElementTree
         ImageStretch stretch = ImageStretch.Uniform,
         Color color = default,
         float scale = 1.0f,
-        Align2 align = default)
+        Align2 align = default,
+        Color overlayColor = default)
     {
         ref var e = ref BeginElement(ElementType.Image);
         ref var d = ref e.Data.Image;
@@ -337,6 +338,7 @@ public static unsafe partial class ElementTree
         d.Align = align;
         d.Scale = scale;
         d.Color = color.IsTransparent ? Color.White : color;
+        d.OverlayColor = overlayColor;
         d.Width = image.ImageWidth;
         d.Height = image.ImageHeight;
         d.Asset = AddObject(image);

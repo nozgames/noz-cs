@@ -87,6 +87,7 @@ public struct ImageStyle()
     public Color Color = NoZ.Color.White;
     public BorderRadius BorderRadius = BorderRadius.Zero;
     public ushort Order = 1;
+    public Color OverlayColor = Color.Transparent;
     public Func<ImageStyle, WidgetFlags, ImageStyle>? Resolve;
 
     public Size Width { readonly get => Size.Width; set => Size.Width = value; }

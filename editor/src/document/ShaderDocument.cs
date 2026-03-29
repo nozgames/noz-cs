@@ -13,7 +13,6 @@ public class ShaderDocument : Document
     public bool Depth { get; set; }
     public bool DepthLess { get; set; }
     public bool Postprocess { get; set; }
-    public bool UiComposite { get; set; }
     public bool PremultipliedAlpha { get; set; }
 
     public static void RegisterDef()
@@ -33,7 +32,6 @@ public class ShaderDocument : Document
         Depth = meta.GetBool("shader", "depth", false);
         DepthLess = meta.GetBool("shader", "depth_less", false);
         Postprocess = meta.GetBool("shader", "postproc", false);
-        UiComposite = meta.GetBool("shader", "composite", false);
         PremultipliedAlpha = meta.GetBool("shader", "premultiplied", false);
     }
 
@@ -43,7 +41,6 @@ public class ShaderDocument : Document
         if (Depth) meta.SetBool("shader", "depth", true);
         if (DepthLess) meta.SetBool("shader", "depth_less", true);
         if (Postprocess) meta.SetBool("shader", "postproc", true);
-        if (UiComposite) meta.SetBool("shader", "composite", true);
         if (PremultipliedAlpha) meta.SetBool("shader", "premultiplied", true);
     }
 
@@ -184,7 +181,7 @@ public class ShaderDocument : Document
         var flags = ShaderFlags.None;
         if (Blend) flags |= ShaderFlags.Blend;
         if (Depth) flags |= ShaderFlags.Depth;
-        if (DepthLess) flags |= ShaderFlags.DepthLess;
+        if (DepthLess) flags |= ShaderFlags.DepthLess   ;
         if (PremultipliedAlpha) flags |= ShaderFlags.PremultipliedAlpha;
         return flags;
     }

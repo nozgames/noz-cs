@@ -402,6 +402,7 @@ public static unsafe partial class Graphics
 
         var baseVertex = _vertices.Length;
         var color = Color;
+        var overlayColor = CurrentState.OverlayColor;
 
         if (bone == -1)
         {
@@ -411,6 +412,7 @@ public static unsafe partial class Graphics
                 {
                     Position = Vector2.Transform(v.Position, CurrentState.Transform),
                     Color = v.Color * color,
+                    OverlayColor = overlayColor,
                     Bone = 0
                 });
             }
@@ -423,6 +425,7 @@ public static unsafe partial class Graphics
                 _vertices.Add(v with
                 {
                     Color = v.Color * color,
+                    OverlayColor = overlayColor,
                     Bone = bone
                 });
             }

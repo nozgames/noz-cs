@@ -18,6 +18,7 @@ internal struct UIVertex : IVertex
     public float BorderRatio;
     public Color BorderColor;
     public Vector4 CornerRadii;
+    public Color OverlayColor;
 
     public static readonly int SizeInBytes = Marshal.SizeOf(typeof(UIVertex));
     public static readonly uint VertexHash = VertexFormatHash.Compute(GetFormatDescriptor().Attributes);
@@ -61,7 +62,13 @@ internal struct UIVertex : IVertex
                 6,
                 4,
                 VertexAttribType.Float,
-                (int)Marshal.OffsetOf<UIVertex>(nameof(CornerRadii)))
+                (int)Marshal.OffsetOf<UIVertex>(nameof(CornerRadii))),
+
+            new VertexAttribute(
+                7,
+                4,
+                VertexAttribType.Float,
+                (int)Marshal.OffsetOf<UIVertex>(nameof(OverlayColor)))
         ]
     };
 }

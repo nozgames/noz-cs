@@ -138,6 +138,7 @@ internal struct ImageElement
     public Align2 Align;
     public float Scale;
     public Color Color;
+    public Color OverlayColor;
     public float Width;
     public float Height;
     public ushort Asset;
