@@ -331,6 +331,7 @@ public static partial class ElementTree
             if (asset is Sprite sprite)
             {
                 using var _ = Graphics.PushState();
+                Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
                 Graphics.SetColor(ApplyOpacity(d.ImageColor));
                 Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -367,6 +368,7 @@ public static partial class ElementTree
         else if (asset is Sprite sprite)
         {
             using var _ = Graphics.PushState();
+            Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
             Graphics.SetColor(ApplyOpacity(d.ImageColor));
             Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -549,6 +551,7 @@ public static partial class ElementTree
                 else
                 {
                     using var _ = Graphics.PushState();
+                    Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
                     Graphics.SetColor(ApplyOpacity(d.Color));
                     Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -604,6 +607,7 @@ public static partial class ElementTree
                 else
                 {
                     using var _ = Graphics.PushState();
+                    Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
                     Graphics.SetColor(ApplyOpacity(d.Color));
                     Graphics.SetTextureFilter(sprite.TextureFilter);
 
@@ -686,6 +690,7 @@ public static partial class ElementTree
 
         using (Graphics.PushState())
         {
+            Graphics.SetShader(_textureShader);
             Graphics.SetColor(ApplyOpacity(Color.White));
             Graphics.SetTextureFilter(TextureFilter.Point);
             Graphics.Draw(rt, topLeft, bottomRight);

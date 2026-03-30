@@ -35,6 +35,8 @@ public static class Cursor
     private static SystemCursor _systemCursor = SystemCursor.Default;
     private static readonly Camera _camera = new() { FlipY = false };
 
+    public static Shader? Shader { get; set; }
+
     internal static SpriteCursor ActiveSpriteCursor => _spriteCursor;
     internal static SystemCursor ActiveSystemCursor => _systemCursor;
 
@@ -64,6 +66,9 @@ public static class Cursor
 
     internal static void Update()
     {
+        if (Shader == null)
+            return;
+
         var sprite = _spriteCursor.Sprite;
         if (sprite == null || !Input.MouseInWindow) return;
 
@@ -73,6 +78,7 @@ public static class Cursor
 
         using var _ = Graphics.PushState();
         Graphics.SetCamera(_camera);
+        Graphics.SetShader(Shader);
         Graphics.SetLayer(Graphics.MaxLayer);
         Graphics.SetBlendMode(BlendMode.Alpha);
         Graphics.SetColor(Color.White);

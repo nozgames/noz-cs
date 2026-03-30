@@ -9,6 +9,11 @@ internal static class EditorCursor
     private static SpriteCursor? _cursor;
     private static SystemCursor _systemCursor;
 
+    public static void Init()
+    {
+        Cursor.Shader = EditorAssets.Shaders.Sprite;
+    }
+
     public static void SetArrow() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
     public static void SetMove() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorMove));
     public static void SetScale() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorScale));

@@ -95,6 +95,9 @@ internal partial class VfxEditor : DocumentEditor
         {
             if (FloatingToolbar.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, isSelected: Document.IsPlaying))
                 TogglePlayback();
+
+            if (FloatingToolbar.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, isSelected: Document.EditorLoop))
+                Document.EditorLoop = !Document.EditorLoop;
         }
     }
 

@@ -53,6 +53,7 @@ public sealed class PathClipboardData
 
     public struct PathData
     {
+        public string? Name;
         public Color32 FillColor;
         public Color32 StrokeColor;
         public byte StrokeWidth;
@@ -99,6 +100,7 @@ public sealed class PathClipboardData
 
             Paths[p] = new PathData
             {
+                Name = path.Name,
                 FillColor = path.FillColor,
                 StrokeColor = path.StrokeColor,
                 StrokeWidth = path.StrokeWidth,
@@ -119,6 +121,7 @@ public sealed class PathClipboardData
         {
             var path = new SpritePath
             {
+                Name = pathData.Name,
                 FillColor = pathData.FillColor,
                 StrokeColor = pathData.StrokeColor,
                 StrokeWidth = pathData.StrokeWidth,

@@ -170,6 +170,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("SPAWN", emitter.Def.Spawn != VfxVec2Range.Zero, FieldId.AddSpawn, FieldId.RemoveSpawn,
@@ -181,6 +182,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("DIRECTION", emitter.Def.Direction != VfxVec2Range.Zero, FieldId.AddDirection, FieldId.RemoveDirection,
@@ -192,6 +194,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
     }
 
@@ -220,6 +223,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("SPEED", particle.Def.Speed != VfxFloatCurve.Zero, FieldId.AddSpeed, FieldId.RemoveSpeed,
@@ -231,6 +235,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("COLOR", particle.Def.Color != VfxColorCurve.White, FieldId.AddColor, FieldId.RemoveColor,
@@ -242,6 +247,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("OPACITY", particle.Def.Opacity != VfxFloatCurve.One, FieldId.AddOpacity, FieldId.RemoveOpacity,
@@ -253,6 +259,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("GRAVITY", particle.Def.Gravity != VfxVec2Range.Zero, FieldId.AddGravity, FieldId.RemoveGravity,
@@ -264,6 +271,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("DRAG", particle.Def.Drag != VfxRange.Zero, FieldId.AddDrag, FieldId.RemoveDrag,
@@ -275,6 +283,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("ROTATION", particle.Def.Rotation != VfxRange.Zero || particle.Def.RotationSpeed != VfxFloatCurve.Zero,
@@ -290,6 +299,7 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+            EndAddableSection();
         }
 
         if (AddableSection("SPRITE", particle.SpriteRef.HasValue, FieldId.AddSprite, FieldId.RemoveSprite,
@@ -326,10 +336,13 @@ internal partial class VfxEditor
                     return [.. items];
                 }, text: currentName);
             }
+            EndAddableSection();
         }
     }
 
     // --- Addable Section Helper ---
+
+    private Inspector.AutoSection _addableSectionHandle;
 
     private bool AddableSection(string name, bool isActive, WidgetId addId, WidgetId removeId, Action onAdd, Action onRemove)
     {
@@ -349,7 +362,7 @@ internal partial class VfxEditor
             return false;
         }
 
-        Inspector.Section(name, content: () =>
+        _addableSectionHandle = Inspector.BeginSection(name, content: () =>
         {
             ElementTree.BeginAlign(Align.Min, Align.Center);
             if (UI.Button(removeId, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
@@ -361,7 +374,18 @@ internal partial class VfxEditor
             ElementTree.EndAlign();
         });
 
-        return !Inspector.IsSectionCollapsed;
+        if (Inspector.IsSectionCollapsed)
+        {
+            ((IDisposable)_addableSectionHandle).Dispose();
+            return false;
+        }
+
+        return true;
+    }
+
+    private void EndAddableSection()
+    {
+        ((IDisposable)_addableSectionHandle).Dispose();
     }
 
     // --- Field Helpers ---
@@ -492,18 +516,13 @@ internal partial class VfxEditor
 
     private static bool ColorInput(WidgetId id, ref Color color)
     {
-        var hex = VfxDocument.FormatColor(color);
-        bool changed = false;
-        using (UI.BeginFlex())
+        var color32 = color.ToColor32();
+        if (EditorUI.ColorButton(id, ref color32))
         {
-            var result = UI.TextInput(id, hex, EditorStyle.Inspector.TextBox, "#fff");
-            if (result != hex && TryParseHexColor(result, out var parsed))
-            {
-                color = parsed;
-                changed = true;
-            }
+            color = color32.ToColor();
+            return true;
         }
-        return changed;
+        return false;
     }
 
     private static readonly string[] CurveTypeNames =
@@ -546,35 +565,4 @@ internal partial class VfxEditor
         return curveType != oldType;
     }
 
-    private static bool TryParseHexColor(string text, out Color color)
-    {
-        color = Color.White;
-        text = text.Trim();
-        if (text.StartsWith('#'))
-            text = text[1..];
-
-        if (text.Length == 6)
-        {
-            if (byte.TryParse(text[0..2], System.Globalization.NumberStyles.HexNumber, null, out var r) &&
-                byte.TryParse(text[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g) &&
-                byte.TryParse(text[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b))
-            {
-                color = new Color(r / 255f, g / 255f, b / 255f, 1f);
-                return true;
-            }
-        }
-        else if (text.Length == 8)
-        {
-            if (byte.TryParse(text[0..2], System.Globalization.NumberStyles.HexNumber, null, out var r) &&
-                byte.TryParse(text[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g) &&
-                byte.TryParse(text[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b) &&
-                byte.TryParse(text[6..8], System.Globalization.NumberStyles.HexNumber, null, out var a))
-            {
-                color = new Color(r / 255f, g / 255f, b / 255f, a / 255f);
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

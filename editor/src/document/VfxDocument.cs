@@ -34,6 +34,7 @@ public class VfxDocument : Document
     private bool _playing;
     private VfxRange _duration;
     private bool _loop;
+    private bool _editorLoop = true;
     private float _rotation;
 
     public readonly List<VfxDocEmitter> Emitters = [];
@@ -44,6 +45,7 @@ public class VfxDocument : Document
 
     public ref VfxRange Duration => ref _duration;
     public ref bool Loop => ref _loop;
+    public bool EditorLoop { get => _editorLoop; set => _editorLoop = value; }
 
     public float Rotation
     {
@@ -196,6 +198,14 @@ public class VfxDocument : Document
 
     private void BuildVfx()
     {
+        // Resolve sprite refs for all particles
+        foreach (var p in Particles)
+        {
+            if (p.SpriteRef.HasValue && !p.SpriteRef.IsResolved)
+                p.SpriteRef.Resolve();
+            p.Def.Sprite = p.SpriteRef.Value?.Sprite;
+        }
+
         var emitterDefs = new VfxEmitterDef[Emitters.Count];
         for (var i = 0; i < Emitters.Count; i++)
         {
@@ -205,7 +215,6 @@ public class VfxDocument : Document
             if (particle != null)
             {
                 emitterDefs[i].Particle = particle.Def;
-                emitterDefs[i].Particle.Sprite = particle.SpriteRef.Value?.Sprite;
             }
         }
 
@@ -262,25 +271,23 @@ public class VfxDocument : Document
             EditorFactory = doc => new VfxEditor((VfxDocument)doc),
             NewFile = writer =>
             {
-                writer.WriteLine("[vfx]");
-                writer.WriteLine("duration = 1");
-                writer.WriteLine("loop = false");
+                writer.WriteLine("duration 1");
+                writer.WriteLine("loop false");
                 writer.WriteLine();
-                writer.WriteLine("[emitters]");
-                writer.WriteLine("default");
+                writer.WriteLine("particle \"default.particle\" {");
+                writer.WriteLine("  duration [0.5, 1.0]");
+                writer.WriteLine("  size 0.5=>[0.0, 0.1]:easeout");
+                writer.WriteLine("  speed [20, 40]=>[5, 10]:linear");
+                writer.WriteLine("  opacity 1.0=>0.0:easeout");
+                writer.WriteLine("}");
                 writer.WriteLine();
-                writer.WriteLine("[default]");
-                writer.WriteLine("rate = 10");
-                writer.WriteLine("burst = 0");
-                writer.WriteLine("duration = 1");
-                writer.WriteLine("angle = [0, 360]");
-                writer.WriteLine();
-                writer.WriteLine("[default.particle]");
-                writer.WriteLine("duration = [0.5, 1.0]");
-                writer.WriteLine("size = 0.5=>[0.0, 0.1]:easeout");
-                writer.WriteLine("speed = [20, 40]=>[5, 10]:linear");
-                writer.WriteLine("color = white");
-                writer.WriteLine("opacity = 1.0=>0.0:easeout");
+                writer.WriteLine("emitter \"default\" {");
+                writer.WriteLine("  rate 10");
+                writer.WriteLine("  burst 0");
+                writer.WriteLine("  duration 1");
+                writer.WriteLine("  particle \"default.particle\"");
+                writer.WriteLine("  angle [0, 360]");
+                writer.WriteLine("}");
             },
             Icon = () => EditorAssets.Sprites.AssetIconVfx
         });
@@ -325,17 +332,26 @@ public class VfxDocument : Document
     {
         if (!_playing || Emitters.Count == 0)
         {
-            using (Graphics.PushState())
+            if (!IsEditing)
             {
-                Graphics.SetLayer(EditorLayer.Document);
-                Graphics.SetColor(Color.White);
-                Graphics.Draw(EditorAssets.Sprites.AssetIconVfx);
+                using (Graphics.PushState())
+                {
+                    Graphics.SetShader(EditorAssets.Shaders.Sprite);
+                    Graphics.SetLayer(EditorLayer.Document);
+                    Graphics.SetColor(Color.White);
+                    Graphics.Draw(EditorAssets.Sprites.AssetIconVfx);
+                }
             }
             return;
         }
 
         if (!VfxSystem.IsPlaying(_handle) && _vfx != null)
-            _handle = VfxSystem.Play(_vfx, PlayTransform);
+        {
+            if (_editorLoop)
+                _handle = VfxSystem.Play(_vfx, PlayTransform);
+            else
+                _playing = false;
+        }
     }
 
     public override bool CanPlay => Emitters.Count > 0;
@@ -383,111 +399,90 @@ public class VfxDocument : Document
     private void ParseVfxFile()
     {
         var content = File.ReadAllText(Path);
-        var props = PropertySet.Load(content);
-        if (props == null) return;
+        var tk = new Tokenizer(content);
+        Emitters.Clear();
+        Particles.Clear();
 
-        _duration = ParseFloat(props.GetString("vfx", "duration", "1.0"), new VfxRange(1, 1));
-        _loop = props.GetBool("vfx", "loop", false);
-
-        // Parse particles first — collect unique particle sections
-        var parsedParticles = new Dictionary<string, VfxDocParticle>();
-        var emitterNames = props.GetKeys("emitters").ToArray();
-
-        foreach (var emitterName in emitterNames)
+        while (!tk.IsEOF)
         {
-            if (string.IsNullOrWhiteSpace(emitterName)) continue;
-            if (!props.HasGroup(emitterName)) continue;
-
-            var particleSection = props.GetString(emitterName, "particle", "");
-            if (string.IsNullOrEmpty(particleSection))
-                particleSection = emitterName + ".particle";
-
-            if (!props.HasGroup(particleSection)) continue;
-
-            if (!parsedParticles.ContainsKey(particleSection))
+            if (tk.ExpectIdentifier("duration"))
             {
-                var particle = new VfxDocParticle { Name = particleSection };
-                ref var p = ref particle.Def;
-
-                p.Duration = ParseFloat(props.GetString(particleSection, "duration", "1.0"), VfxRange.One);
-
-                if (props.HasKey(particleSection, "size"))
-                    p.Size = ParseFloatCurve(props.GetString(particleSection, "size", ""), VfxFloatCurve.One);
-
-                if (props.HasKey(particleSection, "speed"))
-                    p.Speed = ParseFloatCurve(props.GetString(particleSection, "speed", ""), VfxFloatCurve.Zero);
-
-                if (props.HasKey(particleSection, "color"))
-                    p.Color = ParseColorCurve(props.GetString(particleSection, "color", ""), VfxColorCurve.White);
-
-                if (props.HasKey(particleSection, "opacity"))
-                    p.Opacity = ParseFloatCurve(props.GetString(particleSection, "opacity", ""), VfxFloatCurve.One);
-
-                if (props.HasKey(particleSection, "gravity"))
-                    p.Gravity = ParseVec2(props.GetString(particleSection, "gravity", ""), VfxVec2Range.Zero);
-
-                if (props.HasKey(particleSection, "drag"))
-                    p.Drag = ParseFloat(props.GetString(particleSection, "drag", ""), VfxRange.Zero);
-
-                if (props.HasKey(particleSection, "rotation"))
-                    p.Rotation = ParseFloat(props.GetString(particleSection, "rotation", ""), VfxRange.Zero);
-
-                if (props.HasKey(particleSection, "rotationSpeed"))
-                    p.RotationSpeed = ParseFloatCurve(props.GetString(particleSection, "rotationSpeed", ""), VfxFloatCurve.Zero);
-
-                particle.SpriteRef = new DocumentRef<SpriteDocument>
-                {
-                    Name = props.GetString(particleSection, "sprite", "")
-                };
-
-                parsedParticles[particleSection] = particle;
+                if (tk.ExpectLine(out var line))
+                    _duration = ParseFloat(line, new VfxRange(1, 1));
+            }
+            else if (tk.ExpectIdentifier("loop"))
+            {
+                _loop = tk.ExpectBool();
+            }
+            else if (tk.ExpectIdentifier("particle"))
+            {
+                ParseParticleBlock(ref tk);
+            }
+            else if (tk.ExpectIdentifier("emitter"))
+            {
+                ParseEmitterBlock(ref tk);
+            }
+            else if (tk.ExpectToken(out var badToken))
+            {
+                Log.Error($"VfxDocument: Unexpected token '{tk.GetString(badToken)}'");
+                break;
             }
         }
+    }
 
-        // Parse emitters
-        var parsedEmitters = new List<VfxDocEmitter>();
-        foreach (var emitterName in emitterNames)
+    private void ParseParticleBlock(ref Tokenizer tk)
+    {
+        var name = tk.ExpectQuotedString() ?? $"particle{Particles.Count}";
+        tk.ExpectDelimiter('{');
+
+        var particle = new VfxDocParticle { Name = name };
+        ref var p = ref particle.Def;
+        p.Duration = VfxRange.One;
+
+        while (!tk.IsEOF)
         {
-            if (string.IsNullOrWhiteSpace(emitterName)) continue;
-            if (!props.HasGroup(emitterName)) continue;
-
-            var particleSection = props.GetString(emitterName, "particle", "");
-            if (string.IsNullOrEmpty(particleSection))
-                particleSection = emitterName + ".particle";
-
-            if (!parsedParticles.ContainsKey(particleSection)) continue;
-
-            var emitter = new VfxDocEmitter
-            {
-                Name = emitterName,
-                ParticleRef = particleSection
-            };
-            ref var e = ref emitter.Def;
-
-            e.Rate = ParseInt(props.GetString(emitterName, "rate", "0"), VfxIntRange.Zero);
-            e.Burst = ParseInt(props.GetString(emitterName, "burst", "0"), VfxIntRange.Zero);
-            e.Duration = ParseFloat(props.GetString(emitterName, "duration", "1.0"), VfxRange.One);
-            e.WorldSpace = props.GetString(emitterName, "worldSpace", "true").Trim()
-                .Equals("true", StringComparison.OrdinalIgnoreCase);
-
-            if (props.HasKey(emitterName, "angle"))
-                e.Angle = ParseFloat(props.GetString(emitterName, "angle", ""), new VfxRange(0, 360));
-
-            if (props.HasKey(emitterName, "spawn"))
-                e.Spawn = ParseVec2(props.GetString(emitterName, "spawn", ""), VfxVec2Range.Zero);
-
-            if (props.HasKey(emitterName, "direction"))
-                e.Direction = ParseVec2(props.GetString(emitterName, "direction", ""), VfxVec2Range.Zero);
-
-            parsedEmitters.Add(emitter);
-            if (parsedEmitters.Count >= MaxEmitters) break;
+            if (tk.ExpectDelimiter('}')) break;
+            else if (tk.ExpectIdentifier("duration")) { if (tk.ExpectLine(out var v)) p.Duration = ParseFloat(v, VfxRange.One); }
+            else if (tk.ExpectIdentifier("size")) { if (tk.ExpectLine(out var v)) p.Size = ParseFloatCurve(v, VfxFloatCurve.One); }
+            else if (tk.ExpectIdentifier("speed")) { if (tk.ExpectLine(out var v)) p.Speed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
+            else if (tk.ExpectIdentifier("color")) { if (tk.ExpectLine(out var v)) p.Color = ParseColorCurve(v, VfxColorCurve.White); }
+            else if (tk.ExpectIdentifier("opacity")) { if (tk.ExpectLine(out var v)) p.Opacity = ParseFloatCurve(v, VfxFloatCurve.One); }
+            else if (tk.ExpectIdentifier("gravity")) { if (tk.ExpectLine(out var v)) p.Gravity = ParseVec2(v, VfxVec2Range.Zero); }
+            else if (tk.ExpectIdentifier("drag")) { if (tk.ExpectLine(out var v)) p.Drag = ParseFloat(v, VfxRange.Zero); }
+            else if (tk.ExpectIdentifier("rotation")) { if (tk.ExpectLine(out var v)) p.Rotation = ParseFloat(v, VfxRange.Zero); }
+            else if (tk.ExpectIdentifier("rotationSpeed")) { if (tk.ExpectLine(out var v)) p.RotationSpeed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
+            else if (tk.ExpectIdentifier("sprite")) { particle.SpriteRef = new DocumentRef<SpriteDocument> { Name = tk.ExpectQuotedString() ?? "" }; }
+            else { tk.ExpectToken(out _); break; }
         }
 
-        Emitters.Clear();
-        Emitters.AddRange(parsedEmitters);
+        Particles.Add(particle);
+    }
 
-        Particles.Clear();
-        Particles.AddRange(parsedParticles.Values);
+    private void ParseEmitterBlock(ref Tokenizer tk)
+    {
+        var name = tk.ExpectQuotedString() ?? $"emitter{Emitters.Count}";
+        tk.ExpectDelimiter('{');
+
+        var emitter = new VfxDocEmitter { Name = name };
+        ref var e = ref emitter.Def;
+        e.Duration = VfxRange.One;
+        e.WorldSpace = true;
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectDelimiter('}')) break;
+            else if (tk.ExpectIdentifier("rate")) { if (tk.ExpectLine(out var v)) e.Rate = ParseInt(v, VfxIntRange.Zero); }
+            else if (tk.ExpectIdentifier("burst")) { if (tk.ExpectLine(out var v)) e.Burst = ParseInt(v, VfxIntRange.Zero); }
+            else if (tk.ExpectIdentifier("duration")) { if (tk.ExpectLine(out var v)) e.Duration = ParseFloat(v, VfxRange.One); }
+            else if (tk.ExpectIdentifier("angle")) { if (tk.ExpectLine(out var v)) e.Angle = ParseFloat(v, new VfxRange(0, 360)); }
+            else if (tk.ExpectIdentifier("spawn")) { if (tk.ExpectLine(out var v)) e.Spawn = ParseVec2(v, VfxVec2Range.Zero); }
+            else if (tk.ExpectIdentifier("direction")) { if (tk.ExpectLine(out var v)) e.Direction = ParseVec2(v, VfxVec2Range.Zero); }
+            else if (tk.ExpectIdentifier("worldSpace")) { e.WorldSpace = tk.ExpectBool(); }
+            else if (tk.ExpectIdentifier("particle")) { emitter.ParticleRef = tk.ExpectQuotedString() ?? ""; }
+            else { tk.ExpectToken(out _); break; }
+        }
+
+        Emitters.Add(emitter);
     }
 
     private void ResolveSpriteRefs()
@@ -503,67 +498,61 @@ public class VfxDocument : Document
 
     public override void Save(StreamWriter sw)
     {
-        sw.WriteLine("[vfx]");
-        sw.WriteLine($"duration = {FormatRange(_duration)}");
-        sw.WriteLine($"loop = {_loop.ToString().ToLowerInvariant()}");
+        sw.WriteLine($"duration {FormatRange(_duration)}");
+        sw.WriteLine($"loop {_loop.ToString().ToLowerInvariant()}");
 
-        // Emitter list
-        sw.WriteLine();
-        sw.WriteLine("[emitters]");
-        foreach (var e in Emitters)
-            sw.WriteLine(e.Name);
-
-        // Emitter sections
-        foreach (var e in Emitters)
-        {
-            sw.WriteLine();
-            sw.WriteLine($"[{e.Name}]");
-            sw.WriteLine($"rate = {FormatIntRange(e.Def.Rate)}");
-            sw.WriteLine($"burst = {FormatIntRange(e.Def.Burst)}");
-            sw.WriteLine($"duration = {FormatRange(e.Def.Duration)}");
-
-            if (e.Def.Angle != default)
-                sw.WriteLine($"angle = {FormatRange(e.Def.Angle)}");
-            if (e.Def.Spawn != VfxVec2Range.Zero)
-                sw.WriteLine($"spawn = {FormatVec2Range(e.Def.Spawn)}");
-            if (e.Def.Direction != VfxVec2Range.Zero)
-                sw.WriteLine($"direction = {FormatVec2Range(e.Def.Direction)}");
-            if (!e.Def.WorldSpace)
-                sw.WriteLine("worldSpace = false");
-
-            // Write particle ref if it doesn't match the default naming
-            if (e.ParticleRef != e.Name + ".particle")
-                sw.WriteLine($"particle = {e.ParticleRef}");
-        }
-
-        // Particle sections — write each unique particle once
+        // Particle blocks
         var written = new HashSet<string>();
         foreach (var p in Particles)
         {
             if (!written.Add(p.Name)) continue;
 
             sw.WriteLine();
-            sw.WriteLine($"[{p.Name}]");
-            sw.WriteLine($"duration = {FormatRange(p.Def.Duration)}");
+            sw.WriteLine($"particle \"{p.Name}\" {{");
+            sw.WriteLine($"  duration {FormatRange(p.Def.Duration)}");
 
             if (p.Def.Size != VfxFloatCurve.One)
-                sw.WriteLine($"size = {FormatFloatCurve(p.Def.Size)}");
+                sw.WriteLine($"  size {FormatFloatCurve(p.Def.Size)}");
             if (p.Def.Speed != VfxFloatCurve.Zero)
-                sw.WriteLine($"speed = {FormatFloatCurve(p.Def.Speed)}");
+                sw.WriteLine($"  speed {FormatFloatCurve(p.Def.Speed)}");
             if (p.Def.Color != VfxColorCurve.White)
-                sw.WriteLine($"color = {FormatColorCurve(p.Def.Color)}");
+                sw.WriteLine($"  color {FormatColorCurve(p.Def.Color)}");
             if (p.Def.Opacity != VfxFloatCurve.One)
-                sw.WriteLine($"opacity = {FormatFloatCurve(p.Def.Opacity)}");
+                sw.WriteLine($"  opacity {FormatFloatCurve(p.Def.Opacity)}");
             if (p.Def.Gravity != VfxVec2Range.Zero)
-                sw.WriteLine($"gravity = {FormatVec2Range(p.Def.Gravity)}");
+                sw.WriteLine($"  gravity {FormatVec2Range(p.Def.Gravity)}");
             if (p.Def.Drag != VfxRange.Zero)
-                sw.WriteLine($"drag = {FormatRange(p.Def.Drag)}");
+                sw.WriteLine($"  drag {FormatRange(p.Def.Drag)}");
             if (p.Def.Rotation != VfxRange.Zero)
-                sw.WriteLine($"rotation = {FormatRange(p.Def.Rotation)}");
+                sw.WriteLine($"  rotation {FormatRange(p.Def.Rotation)}");
             if (p.Def.RotationSpeed != VfxFloatCurve.Zero)
-                sw.WriteLine($"rotationSpeed = {FormatFloatCurve(p.Def.RotationSpeed)}");
+                sw.WriteLine($"  rotationSpeed {FormatFloatCurve(p.Def.RotationSpeed)}");
             if (p.SpriteRef.HasValue)
-                sw.WriteLine($"sprite = {p.SpriteRef.Name}");
+                sw.WriteLine($"  sprite \"{p.SpriteRef.Name}\"");
+
+            sw.WriteLine("}");
+        }
+
+        // Emitter blocks
+        foreach (var e in Emitters)
+        {
+            sw.WriteLine();
+            sw.WriteLine($"emitter \"{e.Name}\" {{");
+            sw.WriteLine($"  rate {FormatIntRange(e.Def.Rate)}");
+            sw.WriteLine($"  burst {FormatIntRange(e.Def.Burst)}");
+            sw.WriteLine($"  duration {FormatRange(e.Def.Duration)}");
+            sw.WriteLine($"  particle \"{e.ParticleRef}\"");
+
+            if (e.Def.Angle != default)
+                sw.WriteLine($"  angle {FormatRange(e.Def.Angle)}");
+            if (e.Def.Spawn != VfxVec2Range.Zero)
+                sw.WriteLine($"  spawn {FormatVec2Range(e.Def.Spawn)}");
+            if (e.Def.Direction != VfxVec2Range.Zero)
+                sw.WriteLine($"  direction {FormatVec2Range(e.Def.Direction)}");
+            if (!e.Def.WorldSpace)
+                sw.WriteLine("  worldSpace false");
+
+            sw.WriteLine("}");
         }
     }
 
@@ -572,17 +561,8 @@ public class VfxDocument : Document
     private void WriteBinary(string outputPath)
     {
         // Build the runtime emitter array first
-        var emitterDefs = new VfxEmitterDef[Emitters.Count];
-        for (var i = 0; i < Emitters.Count; i++)
-        {
-            emitterDefs[i] = Emitters[i].Def;
-            var particle = FindParticle(Emitters[i].ParticleRef);
-            if (particle != null)
-            {
-                emitterDefs[i].Particle = particle.Def;
-                emitterDefs[i].Particle.Sprite = particle.SpriteRef.Value?.Sprite;
-            }
-        }
+        // BuildVfx resolves sprites, so just reuse the built asset's emitter defs
+        var emitterDefs = _vfx?.EmitterDefs ?? [];
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Vfx, Vfx.Version);

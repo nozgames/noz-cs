@@ -69,6 +69,7 @@ public static class VfxSystem
         public int EmitterCount;
         public bool Loop;
         public uint Version;
+        public Shader? Shader;
     }
 
     private static Particle[] _particles = null!;
@@ -115,10 +116,10 @@ public static class VfxSystem
         Shader = null;
     }
 
-    public static VfxHandle Play(Vfx? vfx, Vector2 position, float depth = 0f, int layer = 0) =>
-        Play(vfx, Matrix3x2.CreateTranslation(position), depth, layer);
+    public static VfxHandle Play(Vfx? vfx, Vector2 position, float depth = 0f, int layer = 0, Shader? shader = null) =>
+        Play(vfx, Matrix3x2.CreateTranslation(position), depth, layer, shader);
 
-    public static VfxHandle Play(Vfx? vfx, Matrix3x2 transform, float depth = 0f, int layer = 0)
+    public static VfxHandle Play(Vfx? vfx, Matrix3x2 transform, float depth = 0f, int layer = 0, Shader? shader = null)
     {
         if (vfx == null || vfx.EmitterDefs.Length == 0)
             return VfxHandle.Invalid;
@@ -134,6 +135,7 @@ public static class VfxSystem
         instance.Layer = (ushort)layer;
         instance.EmitterCount = 0;
         instance.Loop = vfx.Loop;
+        instance.Shader = shader;
 
         for (var i = 0; i < vfx.EmitterDefs.Length; i++)
         {
@@ -267,12 +269,13 @@ public static class VfxSystem
 
     private static void RenderInternal()
     {
-        if (_particleCount == 0 || Shader == null)
+        if (_particleCount == 0)
             return;
 
         using (Graphics.PushState())
         {
-            Graphics.SetShader(Shader);
+            if (Shader != null)
+                Graphics.SetShader(Shader);
             Graphics.SetTexture(Graphics.WhiteTexture);
             Graphics.SetBlendMode(BlendMode.Alpha);
 
@@ -306,6 +309,10 @@ public static class VfxSystem
 
                 if (!p.WorldSpace)
                     particleTransform *= instance.Transform;
+
+                var particleShader = instance.Shader ?? Shader;
+                if (particleShader != null)
+                    Graphics.SetShader(particleShader);
 
                 Graphics.SetLayer(instance.Layer);
                 Graphics.SetColor(col.WithAlpha(opacity));

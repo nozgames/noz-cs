@@ -31,6 +31,7 @@ public class BinDocument : Document
     {
         using (Graphics.PushState())
         {
+            Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetColor(Color.White);
             Graphics.Draw(EditorAssets.Sprites.AssetIconBin);

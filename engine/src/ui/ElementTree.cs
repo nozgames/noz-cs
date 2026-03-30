@@ -58,6 +58,8 @@ public static unsafe partial class ElementTree
     private static NativeArray<UIVertex> _vertices;
     private static NativeArray<ushort> _indices;
     private static Shader _shader = null!;
+    private static Shader _spriteShader = null!;
+    private static Shader _textureShader = null!;
     private static float _drawOpacity = 1.0f;
 
     public static void Init()
@@ -76,6 +78,8 @@ public static unsafe partial class ElementTree
         _indices = new NativeArray<ushort>(MaxIndices);
         _mesh = Graphics.CreateMesh<UIVertex>(MaxVertices, MaxIndices, BufferUsage.Dynamic, "ElementTreeMesh");
         _shader = Asset.Get<Shader>(AssetType.Shader, "ui")!;
+        _spriteShader = Asset.Get<Shader>(AssetType.Shader, "sprite")!;
+        _textureShader = Asset.Get<Shader>(AssetType.Shader, "texture")!;
     }
 
     internal static void Shutdown()

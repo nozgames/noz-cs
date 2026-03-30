@@ -224,6 +224,7 @@ public partial class SpriteDocument
 
             using (Graphics.PushState())
             {
+                Graphics.SetShader(EditorAssets.Shaders.Sprite);
                 Graphics.SetTransform(scale * rotation * Transform);
                 Graphics.SetSortGroup(7);
                 if (IsEditing)
