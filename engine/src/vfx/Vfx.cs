@@ -30,6 +30,11 @@ public struct VfxRange
 
     public static readonly VfxRange Zero = new(0, 0);
     public static readonly VfxRange One = new(1, 1);
+
+    public static bool operator ==(VfxRange a, VfxRange b) => a.Min == b.Min && a.Max == b.Max;
+    public static bool operator !=(VfxRange a, VfxRange b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxRange r && this == r;
+    public override int GetHashCode() => HashCode.Combine(Min, Max);
 }
 
 public struct VfxIntRange
@@ -41,6 +46,11 @@ public struct VfxIntRange
     public VfxIntRange(int value) { Min = value; Max = value; }
 
     public static readonly VfxIntRange Zero = new(0, 0);
+
+    public static bool operator ==(VfxIntRange a, VfxIntRange b) => a.Min == b.Min && a.Max == b.Max;
+    public static bool operator !=(VfxIntRange a, VfxIntRange b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxIntRange r && this == r;
+    public override int GetHashCode() => HashCode.Combine(Min, Max);
 }
 
 public struct VfxColorRange
@@ -52,6 +62,11 @@ public struct VfxColorRange
     public VfxColorRange(Color value) { Min = value; Max = value; }
 
     public static readonly VfxColorRange White = new(Color.White, Color.White);
+
+    public static bool operator ==(VfxColorRange a, VfxColorRange b) => a.Min == b.Min && a.Max == b.Max;
+    public static bool operator !=(VfxColorRange a, VfxColorRange b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxColorRange r && this == r;
+    public override int GetHashCode() => HashCode.Combine(Min, Max);
 }
 
 public struct VfxVec2Range
@@ -63,6 +78,11 @@ public struct VfxVec2Range
     public VfxVec2Range(Vector2 value) { Min = value; Max = value; }
 
     public static readonly VfxVec2Range Zero = new(Vector2.Zero, Vector2.Zero);
+
+    public static bool operator ==(VfxVec2Range a, VfxVec2Range b) => a.Min == b.Min && a.Max == b.Max;
+    public static bool operator !=(VfxVec2Range a, VfxVec2Range b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxVec2Range r && this == r;
+    public override int GetHashCode() => HashCode.Combine(Min, Max);
 }
 
 public struct VfxFloatCurve
@@ -74,6 +94,12 @@ public struct VfxFloatCurve
 
     public static readonly VfxFloatCurve Zero = new() { Type = VfxCurveType.Linear, Start = VfxRange.Zero, End = VfxRange.Zero };
     public static readonly VfxFloatCurve One = new() { Type = VfxCurveType.Linear, Start = VfxRange.One, End = VfxRange.One };
+
+    public static bool operator ==(VfxFloatCurve a, VfxFloatCurve b) =>
+        a.Type == b.Type && a.Start == b.Start && a.End == b.End && a.Bezier == b.Bezier;
+    public static bool operator !=(VfxFloatCurve a, VfxFloatCurve b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxFloatCurve c && this == c;
+    public override int GetHashCode() => HashCode.Combine(Type, Start, End, Bezier);
 }
 
 public struct VfxColorCurve
@@ -84,6 +110,12 @@ public struct VfxColorCurve
     public Vector4 Bezier;
 
     public static readonly VfxColorCurve White = new() { Type = VfxCurveType.Linear, Start = VfxColorRange.White, End = VfxColorRange.White };
+
+    public static bool operator ==(VfxColorCurve a, VfxColorCurve b) =>
+        a.Type == b.Type && a.Start == b.Start && a.End == b.End && a.Bezier == b.Bezier;
+    public static bool operator !=(VfxColorCurve a, VfxColorCurve b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxColorCurve c && this == c;
+    public override int GetHashCode() => HashCode.Combine(Type, Start, End, Bezier);
 }
 
 public struct VfxParticleDef
