@@ -17,6 +17,7 @@ public class VfxDocument : Document
     private bool _playing;
     private VfxEmitterDef[] _emitterDefs = [];
     private string[] _emitterNames = [];
+    private DocumentRef<SpriteDocument>[] _spriteRefs = [];
     private VfxRange _duration;
     private bool _loop;
     private float _rotation;
@@ -65,6 +66,7 @@ public class VfxDocument : Document
 
         _emitterDefs = [.. _emitterDefs, emitter];
         _emitterNames = [.. _emitterNames, name];
+        _spriteRefs = [.. _spriteRefs, default];
         SelectedEmitterIndex = _emitterDefs.Length - 1;
         ApplyChanges();
     }
@@ -76,10 +78,13 @@ public class VfxDocument : Document
 
         var defs = _emitterDefs.ToList();
         var names = _emitterNames.ToList();
+        var sprites = _spriteRefs.ToList();
         defs.RemoveAt(index);
         names.RemoveAt(index);
+        sprites.RemoveAt(index);
         _emitterDefs = defs.ToArray();
         _emitterNames = names.ToArray();
+        _spriteRefs = sprites.ToArray();
 
         if (SelectedEmitterIndex >= _emitterDefs.Length)
             SelectedEmitterIndex = _emitterDefs.Length - 1;
@@ -137,6 +142,12 @@ public class VfxDocument : Document
     public override void Load()
     {
         ParseVfxFile();
+        BuildVfx();
+    }
+
+    public override void PostLoad()
+    {
+        ResolveSpriteRefs();
         BuildVfx();
     }
 
@@ -237,6 +248,7 @@ public class VfxDocument : Document
         var parsedNames = props.GetKeys("emitters").ToArray();
         var emitters = new List<VfxEmitterDef>();
         var names = new List<string>();
+        var spriteRefs = new List<DocumentRef<SpriteDocument>>();
 
         foreach (var emitterName in parsedNames)
         {
@@ -274,8 +286,14 @@ public class VfxDocument : Document
             p.Rotation = ParseFloat(props.GetString(particleSection, "rotation", "0"), VfxRange.Zero);
             p.RotationSpeed = ParseFloatCurve(props.GetString(particleSection, "rotationSpeed", "0"), VfxFloatCurve.Zero);
 
+            var spriteRef = new DocumentRef<SpriteDocument>
+            {
+                Name = props.GetString(particleSection, "sprite", "")
+            };
+
             emitters.Add(emitter);
             names.Add(emitterName);
+            spriteRefs.Add(spriteRef);
 
             if (emitters.Count >= MaxEmittersPerVfx)
                 break;
@@ -283,10 +301,23 @@ public class VfxDocument : Document
 
         _emitterDefs = emitters.ToArray();
         _emitterNames = names.ToArray();
+        _spriteRefs = spriteRefs.ToArray();
+    }
+
+    private void ResolveSpriteRefs()
+    {
+        for (var i = 0; i < _spriteRefs.Length; i++)
+        {
+            _spriteRefs[i].Resolve();
+            _emitterDefs[i].Particle.Sprite = _spriteRefs[i].Value?.Sprite;
+        }
     }
 
     private void BuildVfx()
     {
+        for (var i = 0; i < _spriteRefs.Length; i++)
+            _emitterDefs[i].Particle.Sprite = _spriteRefs[i].Value?.Sprite;
+
         _vfx = new Vfx(Name)
         {
             Duration = _duration,
@@ -388,8 +419,12 @@ public class VfxDocument : Document
             writer.Write(p.Rotation.Max);
             WriteFloatCurve(writer, p.RotationSpeed);
 
-            // mesh name (empty)
-            writer.Write(0);
+            // sprite name
+            var spriteName = _spriteRefs[i].Name ?? "";
+            var spriteBytes = System.Text.Encoding.UTF8.GetBytes(spriteName);
+            writer.Write(spriteBytes.Length);
+            if (spriteBytes.Length > 0)
+                writer.Write(spriteBytes);
         }
     }
 
@@ -744,6 +779,8 @@ public class VfxDocument : Document
             sw.WriteLine($"drag = {FormatRange(e.Particle.Drag)}");
             sw.WriteLine($"rotation = {FormatRange(e.Particle.Rotation)}");
             sw.WriteLine($"rotationSpeed = {FormatFloatCurve(e.Particle.RotationSpeed)}");
+            if (_spriteRefs[i].HasValue)
+                sw.WriteLine($"sprite = {_spriteRefs[i].Name}");
         }
     }
 

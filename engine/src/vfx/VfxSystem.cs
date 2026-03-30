@@ -310,7 +310,15 @@ public static class VfxSystem
                 Graphics.SetLayer(instance.Layer);
                 Graphics.SetColor(col.WithAlpha(opacity));
                 Graphics.SetSortGroup((int)instance.Depth);
-                Graphics.Draw(-0.5f, -0.5f, 1f, 1f, particleTransform);
+                if (pdef.Sprite != null)
+                {
+                    Graphics.SetTransform(particleTransform);
+                    Graphics.Draw(pdef.Sprite);
+                }
+                else
+                {
+                    Graphics.Draw(-0.5f, -0.5f, 1f, 1f, particleTransform);
+                }
             }
         }
     }

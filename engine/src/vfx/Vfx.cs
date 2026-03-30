@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Text;
 
 namespace NoZ;
 
@@ -96,6 +97,7 @@ public struct VfxParticleDef
     public VfxFloatCurve Opacity;
     public VfxRange Rotation;
     public VfxFloatCurve RotationSpeed;
+    public Sprite? Sprite;
 }
 
 public struct VfxEmitterDef
@@ -163,9 +165,12 @@ public class Vfx : Asset
             p.Rotation = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.RotationSpeed = ReadFloatCurve(reader);
 
-            var meshNameLen = reader.ReadInt32();
-            if (meshNameLen > 0)
-                reader.ReadBytes(meshNameLen);
+            var spriteNameLen = reader.ReadInt32();
+            if (spriteNameLen > 0)
+            {
+                var spriteName = Encoding.UTF8.GetString(reader.ReadBytes(spriteNameLen));
+                p.Sprite = Asset.Load(AssetType.Sprite, spriteName) as Sprite;
+            }
         }
     }
 
