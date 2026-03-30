@@ -122,7 +122,8 @@ internal static class TextRender
 
         using var _ = Graphics.PushState();
         Graphics.SetShader(_textShader);
-        Graphics.SetTexture(atlasTexture, filter: TextureFilter.Linear);
+        Graphics.SetTextureFilter(TextureFilter.Linear);
+        Graphics.SetTexture(atlasTexture);
         Graphics.SetMesh(_mesh);
 
         var color = Graphics.Color.ToColor32();
@@ -549,7 +550,8 @@ internal static class TextRender
 
         using var _ = Graphics.PushState();
         Graphics.SetShader(_textShader);
-        Graphics.SetTexture(atlasTexture, filter: TextureFilter.Linear);
+        Graphics.SetTextureFilter(TextureFilter.Linear);
+        Graphics.SetTexture(atlasTexture);
         Graphics.SetMesh(_mesh);
 
         var lineHeight = font.LineHeight * fontSize;
@@ -641,7 +643,8 @@ internal static class TextRender
 
         using var _ = Graphics.PushState();
         Graphics.SetShader(_textShader);
-        Graphics.SetTexture(atlasTexture, filter: TextureFilter.Linear);
+        Graphics.SetTextureFilter(TextureFilter.Linear);
+        Graphics.SetTexture(atlasTexture);
         Graphics.SetMesh(_mesh);
 
         var currentX = 0f;
@@ -747,7 +750,8 @@ internal static class TextRender
 
         using var _ = Graphics.PushState();
         Graphics.SetShader(_textShader);
-        Graphics.SetTexture(atlasTexture, filter: TextureFilter.Linear);
+        Graphics.SetTextureFilter(TextureFilter.Linear);
+        Graphics.SetTexture(atlasTexture);
         Graphics.SetMesh(_mesh);
 
         var currentX = 0f;

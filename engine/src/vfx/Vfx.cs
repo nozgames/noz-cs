@@ -203,6 +203,7 @@ public class Vfx : Asset
                 var spriteName = Encoding.UTF8.GetString(reader.ReadBytes(spriteNameLen));
                 p.Sprite = Asset.Load(AssetType.Sprite, spriteName) as Sprite;
             }
+            p.Sprite ??= Asset.Load(AssetType.Sprite, "square") as Sprite;
         }
     }
 

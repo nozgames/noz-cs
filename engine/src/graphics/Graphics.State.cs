@@ -90,7 +90,7 @@ public static unsafe partial class Graphics
         for (var i = 0; i < MaxTextures; i++)
         {
             CurrentState.Textures[i] = 0;
-            CurrentState.TextureFilters[i] = (byte)TextureFilter.Point;
+            CurrentState.TextureFilters[i] = (byte)TextureFilter.Linear;
         }
 
         CurrentState.ScissorEnabled = false;
@@ -183,24 +183,20 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
-    public static void SetTexture(nuint texture, int slot = 0, TextureFilter filter = TextureFilter.Point)
+    public static void SetTexture(nuint texture, int slot = 0)
     {
         Debug.Assert(slot is >= 0 and < MaxTextures);
-        var filterByte = (byte)filter;
-        if (CurrentState.Textures[slot] == texture && CurrentState.TextureFilters[slot] == filterByte) return;
+        if (CurrentState.Textures[slot] == texture) return;
         CurrentState.Textures[slot] = texture;
-        CurrentState.TextureFilters[slot] = filterByte;
         _batchStateDirty = true;
     }
 
-    public static void SetTexture(Texture? texture, int slot = 0, TextureFilter filter = TextureFilter.Point)
+    public static void SetTexture(Texture? texture, int slot = 0)
     {
         Debug.Assert(slot is >= 0 and < MaxTextures);
         var handle = texture?.Handle ?? nuint.Zero;
-        var filterByte = (byte)filter;
-        if (CurrentState.Textures[slot] == handle && CurrentState.TextureFilters[slot] == filterByte) return;
+        if (CurrentState.Textures[slot] == handle) return;
         CurrentState.Textures[slot] = handle;
-        CurrentState.TextureFilters[slot] = filterByte;
         _batchStateDirty = true;
     }
 

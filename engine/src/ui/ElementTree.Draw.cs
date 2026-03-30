@@ -217,7 +217,8 @@ public static partial class ElementTree
         _indices.Add((ushort)vertexOffset);
 
         using var _ = Graphics.PushState();
-        Graphics.SetTexture(texture ?? Graphics.WhiteTexture, filter: texture?.Filter ?? TextureFilter.Point);
+        Graphics.SetTextureFilter(texture?.Filter ?? TextureFilter.Linear);
+        Graphics.SetTexture(texture ?? Graphics.WhiteTexture);
         Graphics.SetMesh(_mesh);
         Graphics.DrawElements(6, indexOffset, order: order);
     }
@@ -303,7 +304,8 @@ public static partial class ElementTree
         _indices.Add((ushort)vertexOffset);
 
         using var _ = Graphics.PushState();
-        Graphics.SetTexture(Graphics.WhiteTexture, filter: TextureFilter.Point);
+        Graphics.SetTextureFilter(TextureFilter.Linear);
+        Graphics.SetTexture(Graphics.WhiteTexture);
         Graphics.SetMesh(_mesh);
         Graphics.DrawElements(6, indexOffset, order: order);
     }
@@ -331,9 +333,9 @@ public static partial class ElementTree
             if (asset is Sprite sprite)
             {
                 using var _ = Graphics.PushState();
-                Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
+                Graphics.SetShader(_spriteShader);
                 Graphics.SetColor(ApplyOpacity(d.ImageColor));
-                Graphics.SetTextureFilter(sprite.TextureFilter);
+                Graphics.SetTextureFilter(TextureFilter.Linear);
 
                 var clipTopLeft = Vector2.Transform(e.Rect.Position, t);
                 var clipBottomRight = Vector2.Transform(e.Rect.Position + dstSize, t);
@@ -368,9 +370,9 @@ public static partial class ElementTree
         else if (asset is Sprite sprite)
         {
             using var _ = Graphics.PushState();
-            Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
+            Graphics.SetShader(_spriteShader);
             Graphics.SetColor(ApplyOpacity(d.ImageColor));
-            Graphics.SetTextureFilter(sprite.TextureFilter);
+            Graphics.SetTextureFilter(TextureFilter.Linear);
 
             if (sprite.IsSliced)
             {
@@ -533,27 +535,11 @@ public static partial class ElementTree
 
             if (asset is Sprite sprite)
             {
-                if (sprite.HasTexture)
-                {
-                    var spriteUV = sprite.UV;
-                    var combinedUV = new Rect(
-                        spriteUV.X + uvRect.X * spriteUV.Width,
-                        spriteUV.Y + uvRect.Y * spriteUV.Height,
-                        uvRect.Width * spriteUV.Width,
-                        uvRect.Height * spriteUV.Height);
-                    DrawTexturedRect(
-                        new Rect(e.Rect.X, e.Rect.Y, dstSize.X, dstSize.Y),
-                        t,
-                        sprite.Texture!,
-                        ApplyOpacity(d.Color),
-                        combinedUV);
-                }
-                else
                 {
                     using var _ = Graphics.PushState();
-                    Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
+                    Graphics.SetShader(_spriteShader);
                     Graphics.SetColor(ApplyOpacity(d.Color));
-                    Graphics.SetTextureFilter(sprite.TextureFilter);
+                    Graphics.SetTextureFilter(TextureFilter.Linear);
 
                     // For sprites, use scissor clipping since sprite meshes have baked UVs
                     var clipTopLeft = Vector2.Transform(e.Rect.Position, t);
@@ -595,34 +581,22 @@ public static partial class ElementTree
         {
             if (asset is Sprite sprite)
             {
-                if (sprite.HasTexture)
+                using var _ = Graphics.PushState();
+                Graphics.SetShader(_spriteShader);
+                Graphics.SetColor(ApplyOpacity(d.Color));
+                Graphics.SetTextureFilter(TextureFilter.Linear);
+
+                if (sprite.IsSliced)
                 {
-                    DrawTexturedRect(
-                        new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y),
-                        t,
-                        sprite.Texture!,
-                        ApplyOpacity(d.Color),
-                        sprite.UV);
+                    Graphics.SetTransform(t);
+                    Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y));
                 }
                 else
                 {
-                    using var _ = Graphics.PushState();
-                    Graphics.SetShader(sprite.HasTexture ? _textureShader : _spriteShader);
-                    Graphics.SetColor(ApplyOpacity(d.Color));
-                    Graphics.SetTextureFilter(sprite.TextureFilter);
-
-                    if (sprite.IsSliced)
-                    {
-                        Graphics.SetTransform(t);
-                        Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y));
-                    }
-                    else
-                    {
-                        offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-                        var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
-                        Graphics.SetTransform(transform);
-                        Graphics.DrawFlat(sprite, bone: -1);
-                    }
+                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                    Graphics.SetTransform(transform);
+                    Graphics.DrawFlat(sprite, bone: -1);
                 }
             }
             else if (asset is Texture texture)
@@ -692,7 +666,7 @@ public static partial class ElementTree
         {
             Graphics.SetShader(_textureShader);
             Graphics.SetColor(ApplyOpacity(Color.White));
-            Graphics.SetTextureFilter(TextureFilter.Point);
+            Graphics.SetTextureFilter(TextureFilter.Linear);
             Graphics.Draw(rt, topLeft, bottomRight);
         }
     }

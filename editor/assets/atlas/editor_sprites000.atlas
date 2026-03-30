@@ -76,3 +76,6 @@ r "icon_subtract" 37 477 68 68 0
 r "icon_tiling" 277 389 68 68 0
 r "icon_unlock" 1 479 36 36 0
 r "icon_xray" 430 335 68 68 0
+r "circle" 855 321 132 132 0
+r "square" 665 331 132 132 0
+r "star" 498 341 126 120 0

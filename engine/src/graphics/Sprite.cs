@@ -29,15 +29,12 @@ public class Sprite : Asset, IImage
     public float PixelsPerUnit { get; private set; } = 64.0f;
     public float PixelsPerUnitInv { get; private set; }
     public float FrameRate { get; private set; } = 12.0f;
-    public TextureFilter TextureFilter { get; set; } = TextureFilter.Point;
     public SpriteFrame[] Frames { get; private set; } = [];
     public EdgeInsets Edges { get; private set; } = EdgeInsets.Zero;
     public ushort SliceMask { get; private set; }
     public ushort SortOrder { get; private set; }
     public bool IsSliced => SliceMask != 0;
     public Rect UV => Frames.Length > 0 ? Frames[0].UV : Rect.Zero;
-    public Texture? Texture { get; private set; }
-    public bool HasTexture => Texture != null;
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
     public Sprite() : base(AssetType.Sprite) { }
@@ -46,13 +43,11 @@ public class Sprite : Asset, IImage
         string name,
         RectInt bounds,
         float pixelsPerUnit,
-        TextureFilter filter,
         int boneIndex,
         SpriteFrame[] frames,
         float frameRate = 12.0f,
         EdgeInsets edges = default,
-        ushort sliceMask = 0,
-        Texture? texture = null)
+        ushort sliceMask = 0)
     {
         return new Sprite(name)
         {
@@ -62,19 +57,16 @@ public class Sprite : Asset, IImage
             PixelsPerUnit = pixelsPerUnit,
             PixelsPerUnitInv = 1.0f / pixelsPerUnit,
             FrameRate = frameRate,
-            TextureFilter = filter,
             BoneIndex = boneIndex,
             Frames = frames,
             Edges = edges,
             SliceMask = sliceMask,
-            Texture = texture,
         };
     }
 
     protected override void Load(BinaryReader reader)
     {
         var ppu = (int)reader.ReadUInt16();
-        var filter = (TextureFilter)reader.ReadByte();
         var atlasIndex = reader.ReadUInt16();
         var l = reader.ReadInt16();
         var t = reader.ReadInt16();
@@ -119,31 +111,11 @@ public class Sprite : Asset, IImage
         PixelsPerUnit = ppu;
         PixelsPerUnitInv = 1.0f / ppu;
         FrameRate = frameRate;
-        TextureFilter = filter;
         Frames = frames;
         Edges = edges;
         SliceMask = sliceMask;
         SortOrder = sortOrder;
 
-        // Embedded texture for sprites that don't fit in an atlas
-        if (atlasIndex == 0xFFFF && reader.BaseStream.Position < reader.BaseStream.Length)
-        {
-            var texFormat = (TextureFormat)reader.ReadByte();
-            var texFilter = (TextureFilter)reader.ReadByte();
-            reader.ReadByte(); // clamp (unused, always Clamp)
-            var texWidth = (int)reader.ReadUInt32();
-            var texHeight = (int)reader.ReadUInt32();
-            var bpp = texFormat switch
-            {
-                TextureFormat.RGBA8 => 4,
-                TextureFormat.RGB8 => 3,
-                TextureFormat.RG8 => 2,
-                TextureFormat.R8 => 1,
-                _ => 4
-            };
-            var texData = reader.ReadBytes(texWidth * texHeight * bpp);
-            Texture = Texture.Create(texWidth, texHeight, texData, texFormat, texFilter, Name + "_tex");
-        }
     }
 
     private static Asset Load(Stream stream, string name)

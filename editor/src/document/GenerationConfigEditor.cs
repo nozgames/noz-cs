@@ -49,11 +49,17 @@ public partial class GenerationConfigEditor : DocumentEditor
 
         using (Inspector.BeginRow())
         using (UI.BeginFlex())
-            Document.Prompt = UI.TextInput(WidgetIds.GenerationPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt (use {0} for sprite prompt)", Document, multiLine: true);
+        {
+            Document.Prompt = UI.TextInput(WidgetIds.GenerationPrompt, Document.Prompt, EditorStyle.TextArea, "Prompt (use {0} for sprite prompt)", multiLine: true);
+            UI.HandleChange(Document);
+        }
 
         using (Inspector.BeginRow())
         using (UI.BeginFlex())
-            Document.NegativePrompt = UI.TextInput(WidgetIds.GenerationNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
+        {
+            Document.NegativePrompt = UI.TextInput(WidgetIds.GenerationNegativePrompt, Document.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", multiLine: true);
+            UI.HandleChange(Document);
+        }
     }
 
     private void StyleUI()

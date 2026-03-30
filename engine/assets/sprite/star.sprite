@@ -1,0 +1,15 @@
+
+path {
+  fill #FFFFFF
+  anchor 0 -0.5
+  anchor 0.1176 -0.1545
+  anchor 0.4755 -0.1545
+  anchor 0.1902 0.059
+  anchor 0.2939 0.4045
+  anchor 0 0.191
+  anchor -0.2939 0.4045
+  anchor -0.1902 0.059
+  anchor -0.4755 -0.1545
+  anchor -0.1176 -0.1545
+}
+

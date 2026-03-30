@@ -148,6 +148,7 @@ public static class Gizmos
 
         using (Graphics.PushState())
         {
+            Graphics.SetShader(EditorAssets.Shaders.Sprite);
             var baseTransform = Matrix3x2.CreateTranslation(center) * Graphics.Transform;
 
             // Outline (full size)

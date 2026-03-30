@@ -382,6 +382,12 @@ public class VfxDocument : Document
             meta.SetFloat("editor", "rotation", _rotation);
     }
 
+    protected override void OnNotifyChange()
+    {
+        // ApplyChanges includes IncrementVersion, which is what base does
+        ApplyChanges();
+    }
+
     public override void Dispose()
     {
         if (_playing) Stop();

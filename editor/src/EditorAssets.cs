@@ -20,6 +20,7 @@ public static class EditorAssets
         public const string AssetIconSound = "asset_icon_sound";
         public const string AssetIconSprite = "asset_icon_sprite";
         public const string AssetIconVfx = "asset_icon_vfx";
+        public const string Circle = "circle";
         public const string CurorDropper = "curor_dropper";
         public const string CursorArrow = "cursor_arrow";
         public const string CursorBeam = "cursor_beam";
@@ -27,6 +28,8 @@ public static class EditorAssets
         public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
         public const string EditorSprites000 = "editor_sprites000";
+        public const string EditorSprites001 = "editor_sprites001";
+        public const string EditorSprites003 = "editor_sprites003";
         public const string GizmoHandle = "gizmo_handle";
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
@@ -86,6 +89,8 @@ public static class EditorAssets
         public const string IconXray = "icon_xray";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
+        public const string Square = "square";
+        public const string Star = "star";
         public const string Text = "text";
         public const string Texture = "texture";
         public const string Ui = "ui";
@@ -94,15 +99,21 @@ public static class EditorAssets
     public static class Atlases
     {
         public static readonly Atlas EditorSprites000 = new();
+        public static readonly Atlas EditorSprites001 = new();
+        public static readonly Atlas EditorSprites003 = new();
 
         public static void Load()
         {
             EditorSprites000.Load(Names.EditorSprites000);
+            EditorSprites001.Load(Names.EditorSprites001);
+            EditorSprites003.Load(Names.EditorSprites003);
         }
 
         public static void Unload()
         {
             EditorSprites000.Dispose();
+            EditorSprites001.Dispose();
+            EditorSprites003.Dispose();
         }
     }
 
@@ -157,6 +168,7 @@ public static class EditorAssets
         public static readonly Sprite AssetIconSound = new();
         public static readonly Sprite AssetIconSprite = new();
         public static readonly Sprite AssetIconVfx = new();
+        public static readonly Sprite Circle = new();
         public static readonly Sprite CurorDropper = new();
         public static readonly Sprite CursorArrow = new();
         public static readonly Sprite CursorBeam = new();
@@ -220,6 +232,8 @@ public static class EditorAssets
         public static readonly Sprite IconTiling = new();
         public static readonly Sprite IconUnlock = new();
         public static readonly Sprite IconXray = new();
+        public static readonly Sprite Square = new();
+        public static readonly Sprite Star = new();
 
         public static void Load()
         {
@@ -233,6 +247,7 @@ public static class EditorAssets
             AssetIconSound.Load(Names.AssetIconSound);
             AssetIconSprite.Load(Names.AssetIconSprite);
             AssetIconVfx.Load(Names.AssetIconVfx);
+            Circle.Load(Names.Circle);
             CurorDropper.Load(Names.CurorDropper);
             CursorArrow.Load(Names.CursorArrow);
             CursorBeam.Load(Names.CursorBeam);
@@ -296,6 +311,8 @@ public static class EditorAssets
             IconTiling.Load(Names.IconTiling);
             IconUnlock.Load(Names.IconUnlock);
             IconXray.Load(Names.IconXray);
+            Square.Load(Names.Square);
+            Star.Load(Names.Star);
         }
 
         public static void Unload()
@@ -310,6 +327,7 @@ public static class EditorAssets
             AssetIconSound.Dispose();
             AssetIconSprite.Dispose();
             AssetIconVfx.Dispose();
+            Circle.Dispose();
             CurorDropper.Dispose();
             CursorArrow.Dispose();
             CursorBeam.Dispose();
@@ -373,6 +391,8 @@ public static class EditorAssets
             IconTiling.Dispose();
             IconUnlock.Dispose();
             IconXray.Dispose();
+            Square.Dispose();
+            Star.Dispose();
         }
     }
 
@@ -386,7 +406,7 @@ public static class EditorAssets
         Sprites.Load();
 
         // Create texture array from all atlases
-        AtlasArray = Texture.CreateArray("SpriteAtlas",Atlases.EditorSprites000);
+        AtlasArray = Texture.CreateArray("SpriteAtlas",Atlases.EditorSprites000, Atlases.EditorSprites001, Atlases.EditorSprites003);
         Graphics.SpriteAtlas = AtlasArray;
     }
 

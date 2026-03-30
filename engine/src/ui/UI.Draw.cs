@@ -127,7 +127,8 @@ public static partial class UI
         _indices.Add((ushort)vertexOffset);
 
         using var _ = Graphics.PushState();
-        Graphics.SetTexture(texture ?? Graphics.WhiteTexture, filter: texture?.Filter ?? TextureFilter.Point);
+        Graphics.SetTextureFilter(texture?.Filter ?? TextureFilter.Linear);
+        Graphics.SetTexture(texture ?? Graphics.WhiteTexture);
         Graphics.SetMesh(_mesh);
         Graphics.DrawElements(6, indexOffset, order: order);
     }

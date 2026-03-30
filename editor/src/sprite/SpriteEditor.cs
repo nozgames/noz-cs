@@ -1602,17 +1602,24 @@ public partial class SpriteEditor : DocumentEditor
             var g = Document.Generation!;
 
             using (Inspector.BeginProperty("Prompt"))
-                g.Prompt = UI.TextInput(WidgetIds.GenerationPrompt, g.Prompt, EditorStyle.TextArea, "Prompt", Document, multiLine: true);
+            {
+                g.Prompt = UI.TextInput(WidgetIds.GenerationPrompt, g.Prompt, EditorStyle.TextArea, "Prompt", multiLine: true);
+                UI.HandleChange(Document);
+            }
 
             using (Inspector.BeginProperty("Negative Prompt"))
-                g.NegativePrompt = UI.TextInput(WidgetIds.GenerationNegativePrompt, g.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", Document, multiLine: true);
+            {
+                g.NegativePrompt = UI.TextInput(WidgetIds.GenerationNegativePrompt, g.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", multiLine: true);
+                UI.HandleChange(Document);
+            }
 
             using (Inspector.BeginProperty("Seed"))
             using (UI.BeginRow())
             {
                 using (UI.BeginFlex())
                 {
-                    g.Seed = UI.TextInput(WidgetIds.Seed, g.Seed, EditorStyle.TextInput, "Seed", Document, icon: EditorAssets.Sprites.IconSeed);
+                    g.Seed = UI.TextInput(WidgetIds.Seed, g.Seed, EditorStyle.TextInput, "Seed", icon: EditorAssets.Sprites.IconSeed);
+                    UI.HandleChange(Document);
                 }
 
                 if (UI.Button(WidgetIds.RandomizeSeed, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))

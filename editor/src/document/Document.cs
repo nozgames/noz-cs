@@ -101,9 +101,13 @@ public abstract class Document : IDisposable, IChangeHandler
         Save(sw);
     }
 
-    void IChangeHandler.BeginChange() => Undo.Record(this);
-    void IChangeHandler.NotifyChange() => IncrementVersion();
-    void IChangeHandler.CancelChange() => Undo.Cancel();
+    void IChangeHandler.BeginChange() => OnBeginChange();
+    void IChangeHandler.NotifyChange() => OnNotifyChange();
+    void IChangeHandler.CancelChange() => OnCancelChange();
+
+    protected virtual void OnBeginChange() => Undo.Record(this);
+    protected virtual void OnNotifyChange() => IncrementVersion();
+    protected virtual void OnCancelChange() => Undo.Cancel();
 
     public void IncrementVersion()
     {

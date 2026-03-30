@@ -110,7 +110,8 @@ public static partial class Graphics
         if (!rt.IsValid) return;
 
         using var _ = PushState();
-        SetTexture(rt.Handle, filter: TextureFilter.Linear);
+        SetTextureFilter(TextureFilter.Linear);
+        SetTexture(rt.Handle);
         SetBlendMode(BlendMode.Alpha);
 
         var p0 = topLeft;
@@ -125,10 +126,10 @@ public static partial class Graphics
 
     public static void Draw(Sprite sprite, int bone = -1, int frame = 0)
     {
-        if (sprite == null || (SpriteAtlas == null && !sprite.HasTexture)) return;
+        if (sprite == null || SpriteAtlas == null) return;
 
         ref readonly var sf = ref sprite.Frames[frame];
-        var atlas = sprite.HasTexture ? 0 : sprite.AtlasIndex;
+        var atlas = sprite.AtlasIndex;
         var drawBone = bone >= 0 ? bone : sprite.BoneIndex;
 
         Rect bounds;
@@ -145,8 +146,8 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetTextureFilter(sprite.TextureFilter);
+            SetTexture(SpriteAtlas!);
+
 
             Span<MeshVertex> verts =
             [
@@ -162,10 +163,10 @@ public static partial class Graphics
 
     public static void Draw(Sprite sprite, ushort order, int bone = -1, int frame = 0)
     {
-        if (sprite == null || (SpriteAtlas == null && !sprite.HasTexture)) return;
+        if (sprite == null || (SpriteAtlas == null)) return;
 
         ref readonly var sf = ref sprite.Frames[frame];
-        var atlas = sprite.HasTexture ? 0 : sprite.AtlasIndex;
+        var atlas = sprite.AtlasIndex;
         var uv = sf.UV;
         var meshBounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
         var p0 = new Vector2(meshBounds.Left, meshBounds.Top);
@@ -175,8 +176,8 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetTextureFilter(sprite.TextureFilter);
+            SetTexture(SpriteAtlas!);
+
 
             Span<MeshVertex> verts =
             [
@@ -192,10 +193,10 @@ public static partial class Graphics
 
     public static void DrawFlat(Sprite sprite, ushort order = 0, int bone = -1, int frame = 0)
     {
-        if (sprite == null || (SpriteAtlas == null && !sprite.HasTexture)) return;
+        if (sprite == null || (SpriteAtlas == null)) return;
 
         ref readonly var sf = ref sprite.Frames[frame];
-        var atlas = sprite.HasTexture ? 0 : sprite.AtlasIndex;
+        var atlas = sprite.AtlasIndex;
 
         Rect bounds;
         if (sf.Size.X > 0 && sf.Size.Y > 0)
@@ -211,8 +212,7 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetTextureFilter(sprite.TextureFilter);
+            SetTexture(SpriteAtlas!);
 
             Span<MeshVertex> verts =
             [
@@ -231,7 +231,7 @@ public static partial class Graphics
         if (sprite == null) return;
 
         ref readonly var sf = ref sprite.Frames[frame];
-        var atlas = sprite.HasTexture ? 0 : sprite.AtlasIndex;
+        var atlas = sprite.AtlasIndex;
         var uv = sf.UV;
         var bounds = sprite.Bounds.ToRect().Scale(sprite.PixelsPerUnitInv);
         var p0 = new Vector2(bounds.Left, bounds.Top);
@@ -308,7 +308,7 @@ public static partial class Graphics
 
     public static void DrawSliced(Sprite sprite, in Rect targetRect, ushort order = 0, int bone = -1, int frame = 0)
     {
-        if (sprite == null || (SpriteAtlas == null && !sprite.HasTexture) || !sprite.IsSliced)
+        if (sprite == null || (SpriteAtlas == null) || !sprite.IsSliced)
         {
             if (sprite != null) Draw(sprite, bone, frame);
             return;
@@ -342,8 +342,8 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(sprite.HasTexture ? sprite.Texture! : SpriteAtlas!);
-            SetTextureFilter(sprite.TextureFilter);
+            SetTexture(SpriteAtlas!);
+
 
             for (int row = 0; row < 3; row++)
             {

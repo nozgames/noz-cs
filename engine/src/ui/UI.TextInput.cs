@@ -11,7 +11,6 @@ public static partial class UI
         string value,
         TextInputStyle style,
         string? placeholder = null,
-        IChangeHandler? handler = null,
         Sprite? icon = null,
         bool multiLine = false)
     {
@@ -82,19 +81,14 @@ public static partial class UI
             false,
             s.Scope);
 
-        if (handler != null)
-        {
-            if (state.JustFocused != 0)
-                handler.BeginChange();
+        if (state.JustFocused != 0)
+            SetHot(id, state.PrevTextHash);
 
-            if (state.FocusExited != 0)
-            {
-                if (state.WasCancelled == 0 && state.TextHash != state.PrevTextHash)
-                    handler.NotifyChange();
-                else
-                    handler.CancelChange();
-            }
-        }
+        if (state.Focused != 0 && state.TextHash != state.PrevTextHash)
+            NotifyChanged(state.TextHash);
+
+        if (state.FocusExited != 0)
+            ClearHot();
 
         if (hasIcon)
             ElementTree.EndRow();

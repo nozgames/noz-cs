@@ -128,9 +128,9 @@ public static class AtlasManager
         // Update both the old atlas (to clear the old rect) and the new one
         oldAtlas.Update();
         oldAtlas.Reexport();
-        if (source.Atlas != oldAtlas)
+        if (source.Atlas != null && source.Atlas != oldAtlas)
         {
-            source.Atlas!.Update(source, pixels);
+            source.Atlas.Update(source, pixels);
             source.Atlas.Reexport();
         }
     }
@@ -177,12 +177,16 @@ public static class AtlasManager
 
         // No existing atlas has space — create a new one and pack into it
         var atlas = DocumentManager.New(AssetType.Atlas, GetAtlasName(_atlases.Count)) as AtlasDocument;
-        Debug.Assert(atlas != null);
+        if (atlas == null)
+        {
+            Log.Error($"Failed to create new atlas for '{source.Name}'");
+            return;
+        }
         atlas.IsVisible = false;
         _atlases.Add(atlas);
 
         if (!atlas.TryAdd(source))
-            Log.Warning($"Add: failed to add '{source.Name}' to new atlas");
+            Log.Error($"Sprite '{source.Name}' too large for atlas ({source.RasterBounds.Width}x{source.RasterBounds.Height})");
         else
             atlas.IncrementVersion();
     }
@@ -191,6 +195,10 @@ public static class AtlasManager
     {
         for (int i = 0; i < _atlases.Count; i++)
             _atlases[i].Clear();
+
+        // Ensure all sprite bounds are clamped before packing
+        for (int i = 0; i < _sources.Count; i++)
+            _sources[i].UpdateBounds();
 
         for (int i = 0; i < _sources.Count; i++)
         {

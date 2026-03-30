@@ -7,32 +7,34 @@ namespace NoZ.Editor;
 internal partial class VfxEditor
 {
     // Fixed field ID offsets — deterministic regardless of which sections are open
+    // RangeField uses 3 IDs: min, random, max
+    // IntRangeField uses 3 IDs: min, random, max
+    // FloatCurveField uses 7 IDs: startMin, startRandom, startMax, endMin, endRandom, endMax, curveType
+    // ColorCurveField uses 7 IDs: startMin, startRandom, startMax, endMin, endRandom, endMax, curveType
+    // Vec2RangeField uses 4 IDs: minX, minY, maxX, maxY
     private static partial class FieldId
     {
-        // VFX global (0-9)
-        public static partial WidgetId VfxDuration { get; }      // +0,+1
-        public static partial WidgetId VfxLoop { get; }           // +0
+        public static partial WidgetId VfxDuration { get; }       // +0..+2
+        public static partial WidgetId VfxLoop { get; }
 
-        // Emitter (10-39)
-        public static partial WidgetId EmitterRate { get; }       // +0,+1
-        public static partial WidgetId EmitterBurst { get; }      // +0,+1
-        public static partial WidgetId EmitterDuration { get; }   // +0,+1
-        public static partial WidgetId EmitterWorldSpace { get; } // +0
-        public static partial WidgetId EmitterParticle { get; }   // +0
-        public static partial WidgetId EmitterAngle { get; }      // +0,+1
-        public static partial WidgetId EmitterSpawn { get; }      // +0,+1,+2,+3
-        public static partial WidgetId EmitterDirection { get; }  // +0,+1,+2,+3
+        public static partial WidgetId EmitterRate { get; }       // +0..+2
+        public static partial WidgetId EmitterBurst { get; }      // +0..+2
+        public static partial WidgetId EmitterDuration { get; }   // +0..+2
+        public static partial WidgetId EmitterWorldSpace { get; }
+        public static partial WidgetId EmitterParticle { get; }
+        public static partial WidgetId EmitterAngle { get; }      // +0..+2
+        public static partial WidgetId EmitterSpawn { get; }      // +0..+3
+        public static partial WidgetId EmitterDirection { get; }  // +0..+3
 
-        // Particle (40-99)
-        public static partial WidgetId ParticleDuration { get; }      // +0,+1
-        public static partial WidgetId ParticleSize { get; }          // +0..+4
-        public static partial WidgetId ParticleSpeed { get; }         // +0..+4
-        public static partial WidgetId ParticleColor { get; }         // +0..+4
-        public static partial WidgetId ParticleOpacity { get; }       // +0..+4
+        public static partial WidgetId ParticleDuration { get; }      // +0..+2
+        public static partial WidgetId ParticleSize { get; }          // +0..+6
+        public static partial WidgetId ParticleSpeed { get; }         // +0..+6
+        public static partial WidgetId ParticleColor { get; }         // +0..+6
+        public static partial WidgetId ParticleOpacity { get; }       // +0..+6
         public static partial WidgetId ParticleGravity { get; }       // +0..+3
-        public static partial WidgetId ParticleDrag { get; }          // +0,+1
-        public static partial WidgetId ParticleRotation { get; }      // +0,+1
-        public static partial WidgetId ParticleRotationSpeed { get; } // +0..+4
+        public static partial WidgetId ParticleDrag { get; }          // +0..+2
+        public static partial WidgetId ParticleRotation { get; }      // +0..+2
+        public static partial WidgetId ParticleRotationSpeed { get; } // +0..+6
 
         // Addable section buttons
         public static partial WidgetId AddAngle { get; }
@@ -303,38 +305,13 @@ internal partial class VfxEditor
         }
 
         if (AddableSection("SPRITE", particle.SpriteRef.HasValue, FieldId.AddSprite, FieldId.RemoveSprite,
-            () => { }, // just show the section, user picks from dropdown
+            () => { }, // just show the section, user picks from asset palette
             () => { particle.SpriteRef.Clear(); }))
         {
             using (Inspector.BeginProperty("Sprite"))
             {
-                var currentName = particle.SpriteRef.Name ?? "None";
-                UI.DropDown(FieldId.SpriteDropDown, () =>
-                {
-                    var items = new List<PopupMenuItem>
-                    {
-                        PopupMenuItem.Item("None", () =>
-                        {
-                            Undo.Record(Document);
-                            particle.SpriteRef.Clear();
-                            Document.ApplyChanges();
-                        })
-                    };
-                    foreach (var doc in DocumentManager.Documents)
-                    {
-                        if (doc is SpriteDocument sprite)
-                        {
-                            var name = sprite.Name;
-                            items.Add(PopupMenuItem.Item(name, () =>
-                            {
-                                Undo.Record(Document);
-                                particle.SpriteRef = sprite;
-                                Document.ApplyChanges();
-                            }));
-                        }
-                    }
-                    return [.. items];
-                }, text: currentName);
+                particle.SpriteRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
+                UI.HandleChange(Document);
             }
             EndAddableSection();
         }
@@ -390,30 +367,48 @@ internal partial class VfxEditor
 
     // --- Field Helpers ---
 
+    private static readonly ContainerStyle ValueRowStyle = new() { Spacing = 4, Height = Size.Fit, MinHeight = EditorStyle.Control.Height };
+    private static readonly ContainerStyle CurveRowStyle = new() { Spacing = 4, Height = Size.Fit, MinHeight = 22 };
+
+    // Range field: [label] [min] [⇄] [max]  — no curve row
     private static bool RangeField(WidgetId baseId, string label, ref VfxRange value)
     {
         var changed = false;
         using (Inspector.BeginProperty(label))
-        using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+        using (UI.BeginRow(ValueRowStyle))
         {
             if (FloatInput(baseId, ref value.Min)) changed = true;
-            if (FloatInput(baseId + 1, ref value.Max)) changed = true;
+            if (RandomToggle(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max)) changed = true;
+            if (value.Min != value.Max)
+            {
+                if (FloatInput(baseId + 2, ref value.Max)) changed = true;
+            }
+            else
+                using (UI.BeginFlex()) { } // reserve space
         }
         return changed;
     }
 
+    // Int range field: [label] [min] [⇄] [max]  — no curve row
     private static bool IntRangeField(WidgetId baseId, string label, ref VfxIntRange value)
     {
         var changed = false;
         using (Inspector.BeginProperty(label))
-        using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+        using (UI.BeginRow(ValueRowStyle))
         {
             if (IntInput(baseId, ref value.Min)) changed = true;
-            if (IntInput(baseId + 1, ref value.Max)) changed = true;
+            if (RandomToggleInt(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max)) changed = true;
+            if (value.Min != value.Max)
+            {
+                if (IntInput(baseId + 2, ref value.Max)) changed = true;
+            }
+            else
+                using (UI.BeginFlex()) { }
         }
         return changed;
     }
 
+    // Vec2 range field: two rows of min/max (no random toggle — too complex)
     private static bool Vec2RangeField(WidgetId baseId, string label, ref VfxVec2Range value)
     {
         var changed = false;
@@ -434,50 +429,201 @@ internal partial class VfxEditor
         return changed;
     }
 
+    // Float curve field with progressive disclosure
+    // baseId+0: startMin, +1: startRandom, +2: startMax, +3: endMin, +4: endRandom, +5: endMax, +6: curveType
     private static bool FloatCurveField(WidgetId baseId, string label, ref VfxFloatCurve curve)
     {
         var changed = false;
-        using (Inspector.BeginProperty(label))
-        using (UI.BeginColumn(new ContainerStyle { Spacing = 2 }))
+        var hasCurve = curve.Start != curve.End;
+        var startLabel = hasCurve ? "Start" : "Value";
+
+        // Start/Value row
+        using (Inspector.BeginProperty(startLabel))
+        using (UI.BeginRow(ValueRowStyle))
         {
-            // Start range
-            using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+            if (FloatInput(baseId, ref curve.Start.Min)) changed = true;
+            if (RandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max)) changed = true;
+            if (curve.Start.Min != curve.Start.Max)
             {
-                if (FloatInput(baseId, ref curve.Start.Min)) changed = true;
-                if (FloatInput(baseId + 1, ref curve.Start.Max)) changed = true;
+                if (FloatInput(baseId + 2, ref curve.Start.Max)) changed = true;
             }
-            // End range + curve type
-            using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+            else
+                using (UI.BeginFlex()) { }
+        }
+
+        // End row (only when curve active)
+        if (hasCurve)
+        {
+            using (Inspector.BeginProperty("End"))
+            using (UI.BeginRow(ValueRowStyle))
             {
-                if (FloatInput(baseId + 2, ref curve.End.Min)) changed = true;
-                if (FloatInput(baseId + 3, ref curve.End.Max)) changed = true;
-                if (CurveTypeDropdown(baseId + 4, ref curve.Type)) changed = true;
+                if (FloatInput(baseId + 3, ref curve.End.Min)) changed = true;
+                if (RandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max)) changed = true;
+                if (curve.End.Min != curve.End.Max)
+                {
+                    if (FloatInput(baseId + 5, ref curve.End.Max)) changed = true;
+                }
+                else
+                    using (UI.BeginFlex()) { }
             }
         }
+
+        // Curve type row (always visible)
+        if (CurveRow(baseId + 6, hasCurve, ref curve.Type, ref curve.Start, ref curve.End))
+            changed = true;
+
         return changed;
     }
 
+    // Color curve field with progressive disclosure
     private static bool ColorCurveField(WidgetId baseId, string label, ref VfxColorCurve curve)
     {
         var changed = false;
-        using (Inspector.BeginProperty(label))
-        using (UI.BeginColumn(new ContainerStyle { Spacing = 2 }))
+        var hasCurve = curve.Start != curve.End;
+        var startLabel = hasCurve ? "Start" : "Value";
+
+        // Start/Value row
+        using (Inspector.BeginProperty(startLabel))
+        using (UI.BeginRow(ValueRowStyle))
         {
-            // Start color range
-            using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
-            {
+            using (UI.BeginFlex())
                 if (ColorInput(baseId, ref curve.Start.Min)) changed = true;
-                if (ColorInput(baseId + 1, ref curve.Start.Max)) changed = true;
-            }
-            // End color range + curve type
-            using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+            if (ColorRandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max)) changed = true;
+            if (curve.Start.Min != curve.Start.Max)
             {
-                if (ColorInput(baseId + 2, ref curve.End.Min)) changed = true;
-                if (ColorInput(baseId + 3, ref curve.End.Max)) changed = true;
-                if (CurveTypeDropdown(baseId + 4, ref curve.Type)) changed = true;
+                using (UI.BeginFlex())
+                    if (ColorInput(baseId + 2, ref curve.Start.Max)) changed = true;
+            }
+            else
+                using (UI.BeginFlex()) { }
+        }
+
+        // End row
+        if (hasCurve)
+        {
+            using (Inspector.BeginProperty("End"))
+            using (UI.BeginRow(ValueRowStyle))
+            {
+                using (UI.BeginFlex())
+                    if (ColorInput(baseId + 3, ref curve.End.Min)) changed = true;
+                if (ColorRandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max)) changed = true;
+                if (curve.End.Min != curve.End.Max)
+                {
+                    using (UI.BeginFlex())
+                        if (ColorInput(baseId + 5, ref curve.End.Max)) changed = true;
+                }
+                else
+                    using (UI.BeginFlex()) { }
             }
         }
+
+        // Curve type row
+        if (ColorCurveRow(baseId + 6, hasCurve, ref curve.Type, ref curve.Start, ref curve.End))
+            changed = true;
+
         return changed;
+    }
+
+    // --- Curve Row ---
+
+    // Curve type dropdown row for float curves. Returns true if changed.
+    // When "None" selected: copies start to end. When type selected from None: keeps end as-is (user will edit).
+    private static bool CurveRow(WidgetId id, bool hasCurve, ref VfxCurveType type, ref VfxRange start, ref VfxRange end)
+    {
+        using (Inspector.BeginProperty(""))
+        using (UI.BeginRow(CurveRowStyle))
+        {
+            var oldHasCurve = hasCurve;
+            var oldType = type;
+
+            if (CurveTypeDropdown(id, ref type, ref hasCurve))
+            {
+                if (!hasCurve)
+                    end = start; // "None" selected — collapse curve
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool ColorCurveRow(WidgetId id, bool hasCurve, ref VfxCurveType type, ref VfxColorRange start, ref VfxColorRange end)
+    {
+        using (Inspector.BeginProperty(""))
+        using (UI.BeginRow(CurveRowStyle))
+        {
+            if (CurveTypeDropdown(id, ref type, ref hasCurve))
+            {
+                if (!hasCurve)
+                    end = start;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // --- Random Toggle ---
+
+    private static readonly ButtonStyle RandomButtonStyle = new()
+    {
+        Width = 21,
+        Height = 21,
+        Background = EditorStyle.Palette.Canvas,
+        ContentColor = EditorStyle.Palette.SecondaryText,
+        IconSize = 11,
+        BorderRadius = EditorStyle.Control.BorderRadius,
+        Resolve = (s, f) =>
+        {
+            if ((f & WidgetFlags.Hovered) != 0) s.Background = EditorStyle.Palette.Active;
+            return s;
+        },
+    };
+
+    private static readonly ButtonStyle RandomButtonActiveStyle = RandomButtonStyle with
+    {
+        Background = EditorStyle.Palette.Active,
+        ContentColor = EditorStyle.Palette.Content,
+    };
+
+    private static bool RandomToggle(WidgetId id, bool isRandom, ref float min, ref float max)
+    {
+        var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
+        if (UI.Button(id, EditorAssets.Sprites.IconRandom, style))
+        {
+            if (isRandom)
+                max = min; // collapse
+            else
+                max = min + MathF.Max(MathF.Abs(min) * 0.5f, 0.1f); // expand with reasonable spread
+            return true;
+        }
+        return false;
+    }
+
+    private static bool RandomToggleInt(WidgetId id, bool isRandom, ref int min, ref int max)
+    {
+        var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
+        if (UI.Button(id, EditorAssets.Sprites.IconRandom, style))
+        {
+            if (isRandom)
+                max = min;
+            else
+                max = min + Math.Max(Math.Abs(min) / 2, 1);
+            return true;
+        }
+        return false;
+    }
+
+    private static bool ColorRandomToggle(WidgetId id, bool isRandom, ref Color min, ref Color max)
+    {
+        var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
+        if (UI.Button(id, EditorAssets.Sprites.IconRandom, style))
+        {
+            if (isRandom)
+                max = min;
+            else
+                max = min; // user picks the second color via color picker
+            return true;
+        }
+        return false;
     }
 
     // --- Primitive Input Helpers ---
@@ -525,44 +671,55 @@ internal partial class VfxEditor
         return false;
     }
 
+    // --- Curve Type Dropdown ---
+
     private static readonly string[] CurveTypeNames =
-        ["Linear", "EaseIn", "EaseOut", "EaseInOut", "Quadratic", "Cubic", "Sine", "Bell"];
+        ["None", "Linear", "EaseIn", "EaseOut", "EaseInOut", "Quadratic", "Cubic", "Sine", "Bell"];
 
-    private static VfxCurveType _curveTypeValue;
+    private static bool _curveChanged;
+    private static VfxCurveType _curveNewType;
+    private static bool _curveNewHasCurve;
 
-    private static bool CurveTypeDropdown(WidgetId id, ref VfxCurveType curveType)
+    private static bool CurveTypeDropdown(WidgetId id, ref VfxCurveType curveType, ref bool hasCurve)
     {
-        var oldType = curveType;
-        _curveTypeValue = curveType;
-        var typeName = (int)curveType < CurveTypeNames.Length ? CurveTypeNames[(int)curveType] : "Linear";
+        var currentIndex = hasCurve ? (int)curveType + 1 : 0;
+        var currentName = CurveTypeNames[currentIndex];
 
-        void Content()
+        _curveChanged = false;
+        _curveNewType = curveType;
+        _curveNewHasCurve = hasCurve;
+
+        UI.DropDown(id, () =>
         {
-            EditorUI.ControlText(typeName);
-        }
-
-        if (EditorUI.Control(id, Content, selected: EditorUI.IsPopupOpen(id), padding: true))
-            EditorUI.TogglePopup(id);
-
-        if (EditorUI.IsPopupOpen(id))
-        {
-            static void PopupContent()
+            var items = new PopupMenuItem[CurveTypeNames.Length];
+            for (var i = 0; i < CurveTypeNames.Length; i++)
             {
-                for (int i = 0; i < CurveTypeNames.Length; i++)
+                var index = i;
+                items[i] = PopupMenuItem.Item(CurveTypeNames[i], () =>
                 {
-                    var type = (VfxCurveType)i;
-                    if (EditorUI.PopupItem(CurveTypeNames[i], selected: _curveTypeValue == type))
+                    _curveChanged = true;
+                    if (index == 0)
                     {
-                        _curveTypeValue = type;
-                        EditorUI.ClosePopup();
+                        _curveNewHasCurve = false;
+                        _curveNewType = VfxCurveType.Linear;
                     }
-                }
+                    else
+                    {
+                        _curveNewHasCurve = true;
+                        _curveNewType = (VfxCurveType)(index - 1);
+                    }
+                });
             }
-            EditorUI.Popup(id, PopupContent);
-        }
+            return items;
+        }, text: currentName);
 
-        curveType = _curveTypeValue;
-        return curveType != oldType;
+        if (_curveChanged)
+        {
+            curveType = _curveNewType;
+            hasCurve = _curveNewHasCurve;
+            return true;
+        }
+        return false;
     }
 
 }

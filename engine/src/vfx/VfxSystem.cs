@@ -69,7 +69,7 @@ public static class VfxSystem
         public int EmitterCount;
         public bool Loop;
         public uint Version;
-        public Shader? Shader;
+        public Shader Shader;
     }
 
     private static Particle[] _particles = null!;
@@ -121,7 +121,8 @@ public static class VfxSystem
 
     public static VfxHandle Play(Vfx? vfx, Matrix3x2 transform, float depth = 0f, int layer = 0, Shader? shader = null)
     {
-        if (vfx == null || vfx.EmitterDefs.Length == 0)
+        var resolvedShader = shader ?? Shader;
+        if (vfx == null || vfx.EmitterDefs.Length == 0 || resolvedShader == null)
             return VfxHandle.Invalid;
 
         var instanceIndex = AllocInstance();
@@ -135,7 +136,7 @@ public static class VfxSystem
         instance.Layer = (ushort)layer;
         instance.EmitterCount = 0;
         instance.Loop = vfx.Loop;
-        instance.Shader = shader;
+        instance.Shader = resolvedShader;
 
         for (var i = 0; i < vfx.EmitterDefs.Length; i++)
         {
@@ -274,9 +275,6 @@ public static class VfxSystem
 
         using (Graphics.PushState())
         {
-            if (Shader != null)
-                Graphics.SetShader(Shader);
-            Graphics.SetTexture(Graphics.WhiteTexture);
             Graphics.SetBlendMode(BlendMode.Alpha);
 
             for (var i = 0; i < MaxParticles; i++)
@@ -310,22 +308,14 @@ public static class VfxSystem
                 if (!p.WorldSpace)
                     particleTransform *= instance.Transform;
 
-                var particleShader = instance.Shader ?? Shader;
-                if (particleShader != null)
-                    Graphics.SetShader(particleShader);
+                Graphics.SetShader(instance.Shader);
 
                 Graphics.SetLayer(instance.Layer);
                 Graphics.SetColor(col.WithAlpha(opacity));
                 Graphics.SetSortGroup((int)instance.Depth);
-                if (pdef.Sprite != null)
-                {
-                    Graphics.SetTransform(particleTransform);
-                    Graphics.Draw(pdef.Sprite);
-                }
-                else
-                {
-                    Graphics.Draw(-0.5f, -0.5f, 1f, 1f, particleTransform);
-                }
+                if (pdef.Sprite == null) continue;
+                Graphics.SetTransform(particleTransform);
+                Graphics.Draw(pdef.Sprite);
             }
         }
     }

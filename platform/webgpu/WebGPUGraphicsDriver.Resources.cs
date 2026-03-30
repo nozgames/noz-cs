@@ -395,7 +395,7 @@ public unsafe partial class WebGPUGraphicsDriver
         }
     }
 
-    public void BindTexture(nuint handle, int slot, TextureFilter filter = TextureFilter.Point)
+    public void BindTexture(nuint handle, int slot, TextureFilter filter)
     {
         if (slot < 0 || slot >= 8)
         {

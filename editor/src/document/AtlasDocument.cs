@@ -152,7 +152,7 @@ internal class AtlasDocument : Document
             _image.Height,
             _image.AsByteSpan(),
             TextureFormat.RGBA8,
-            TextureFilter.Point,
+            TextureFilter.Linear,
             Name);
 
         base.PostLoad();
@@ -497,7 +497,7 @@ internal class AtlasDocument : Document
         writer.WriteAssetHeader(AssetType.Atlas, Atlas.Version, 0);
 
         var format = TextureFormat.RGBA8;
-        var filter = TextureFilter.Point;
+        var filter = TextureFilter.Linear;
         var clamp = TextureClamp.Clamp;
 
         writer.Write((byte)format);

@@ -34,20 +34,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         set { _sortOrderId = value; ResolveSortOrder(); }
     }
 
-    public bool ShouldAtlas
-    {
-        get
-        {
-            var maxSize = EditorApplication.Config.AtlasMaxSpriteSize;
-            for (ushort i = 0; i < (ushort)TotalTimeSlots; i++)
-            {
-                var size = GetFrameAtlasSize(i);
-                if (size.X > maxSize || size.Y > maxSize)
-                    return false;
-            }
-            return true;
-        }
-    }
+    public bool ShouldAtlas => true;
 
     // Layer-based model
     public SpriteLayer RootLayer { get; } = new() { Name = "Root" };
@@ -383,6 +370,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
         }
 
+        ClampToMaxSpriteSize();
         var ppu = EditorApplication.Config.PixelsPerUnitInv;
         Bounds = new Rect(
             RasterBounds.X * ppu,
@@ -425,25 +413,19 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     private void ClampToMaxSpriteSize()
     {
-        // Only clamp when constrained — unconstrained sprites use their natural size
-        if (!ConstrainedSize.HasValue)
-            return;
-
-        var maxSize = EditorApplication.Config.AtlasMaxSpriteSize;
+        var maxSize = EditorApplication.Config.AtlasSize - EditorApplication.Config.AtlasPadding * 2;
         var width = RasterBounds.Width;
         var height = RasterBounds.Height;
 
         if (width <= maxSize && height <= maxSize)
             return;
 
-        var centerX = RasterBounds.X + width / 2;
-        var centerY = RasterBounds.Y + height / 2;
         var clampedWidth = Math.Min(width, maxSize);
         var clampedHeight = Math.Min(height, maxSize);
 
         RasterBounds = new RectInt(
-            centerX - clampedWidth / 2,
-            centerY - clampedHeight / 2,
+            -clampedWidth / 2,
+            -clampedHeight / 2,
             clampedWidth,
             clampedHeight);
     }
@@ -618,7 +600,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             Graphics.SetTexture(Atlas.Texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
-            Graphics.SetTextureFilter(sprite.TextureFilter);
 
             if (frame < sprite.Frames.Length)
             {
@@ -647,7 +628,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             Graphics.SetTexture(Atlas.Texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetColor(tint ?? Color.White);
-            Graphics.SetTextureFilter(sprite.TextureFilter);
 
             if (frame < sprite.Frames.Length)
             {
@@ -839,13 +819,11 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             name: Name,
             bounds: RasterBounds,
             pixelsPerUnit: EditorApplication.Config.PixelsPerUnit,
-            filter: TextureFilter.Linear,
             boneIndex: -1,
             frames: frames,
             frameRate: 12.0f,
             edges: ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero,
-            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero),
-            texture: Atlas?.Texture);
+            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero));
     }
 
     internal void MarkSpriteDirty()

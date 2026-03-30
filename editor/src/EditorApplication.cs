@@ -309,7 +309,7 @@ public static partial class EditorApplication
         EditorStyle.Init();
         PopupMenu.Init();
         ConfirmDialog.Init();
-        VfxSystem.Shader = EditorAssets.Shaders.Texture;
+        VfxSystem.Shader = EditorAssets.Shaders.Sprite;
         EditorCursor.Init();
         Workspace.Init();
         UserSettings.Load();

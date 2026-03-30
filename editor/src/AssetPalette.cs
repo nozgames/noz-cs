@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 public static partial class AssetPalette
 {
-    private const int MaxFilteredItems = 128;
+    private const int MaxFilteredItems = 1024;
     private const int GridColumns = 5;
     private const float GridCellSize = 60.0f;
     private const float GridLabelHeight = 14.0f;
@@ -212,37 +212,52 @@ public static partial class AssetPalette
         {
             using (UI.BeginFlex())
             using (UI.BeginScrollable(WidgetIds.AssetList))
-            using (UI.BeginColumn())
             {
-                for (var i = 0; i < _filteredCount; i++)
+                var cellHeight = EditorStyle.List.ItemHeight;
+                var scrollRect = UI.GetElementRect(WidgetIds.AssetList);
+                var (startIndex, endIndex) = UI.GetGridCellRange(
+                    WidgetIds.AssetList, 1, cellHeight, 0,
+                    scrollRect.Height, _filteredCount);
+
+                using (UI.BeginGrid(new GridStyle
                 {
-                    var doc = _filteredItems[i];
-                    if (doc == null) continue;
-
-                    var isSelected = i == _selectedIndex;
-
-                    using (UI.BeginRow(
-                        id: WidgetIds.Item + i,
-                        style: isSelected
-                            ? EditorStyle.CommandPalette.SelectedItem
-                            : EditorStyle.CommandPalette.Item))
+                    Columns = 1,
+                    CellWidth = scrollRect.Width,
+                    CellHeight = cellHeight,
+                    VirtualCount = _filteredCount,
+                    StartIndex = startIndex,
+                }))
+                {
+                    for (var i = startIndex; i < endIndex; i++)
                     {
-                        if (!doc.DrawThumbnail())
-                        {
-                            var icon = doc.Def.Icon?.Invoke();
-                            if (icon != null)
-                                UI.Image(icon, EditorStyle.Control.IconSecondary);
-                            else
-                                UI.Spacer(EditorStyle.Control.IconSize);
-                        }
+                        var doc = _filteredItems[i];
+                        if (doc == null) continue;
 
-                        UI.Text(doc.Name, EditorStyle.Control.Text);
+                        var isSelected = i == _selectedIndex;
 
-                        if (UI.WasPressed())
+                        using (UI.BeginRow(
+                            id: WidgetIds.Item + i,
+                            style: isSelected
+                                ? EditorStyle.CommandPalette.SelectedItem
+                                : EditorStyle.CommandPalette.Item))
                         {
-                            _selectedIndex = i;
-                            SelectCurrent();
-                            Close();
+                            if (!doc.DrawThumbnail())
+                            {
+                                var icon = doc.Def.Icon?.Invoke();
+                                if (icon != null)
+                                    UI.Image(icon, EditorStyle.Control.IconSecondary);
+                                else
+                                    UI.Spacer(EditorStyle.Control.IconSize);
+                            }
+
+                            UI.Text(doc.Name, EditorStyle.Control.Text);
+
+                            if (UI.WasPressed())
+                            {
+                                _selectedIndex = i;
+                                SelectCurrent();
+                                Close();
+                            }
                         }
                     }
                 }
@@ -258,71 +273,72 @@ public static partial class AssetPalette
         {
             using (UI.BeginFlex())
             using (UI.BeginScrollable(WidgetIds.AssetList))
-            using (UI.BeginColumn(new ContainerStyle { Spacing = GridCellSpacing, Padding = EdgeInsets.All(GridCellSpacing) }))
             {
-                var rowCount = (_filteredCount + GridColumns - 1) / GridColumns;
+                var cellHeight = GridCellSize + GridLabelHeight;
+                var viewportHeight = UI.GetElementRect(WidgetIds.AssetList).Height;
+                var (startIndex, endIndex) = UI.GetGridCellRange(
+                    WidgetIds.AssetList, GridColumns, cellHeight, GridCellSpacing,
+                    viewportHeight, _filteredCount);
 
-                for (var row = 0; row < rowCount; row++)
+                using (UI.BeginGrid(new GridStyle
                 {
-                    using (UI.BeginRow(new ContainerStyle { Spacing = GridCellSpacing, Height = GridCellSize + GridLabelHeight }))
+                    Columns = GridColumns,
+                    CellWidth = GridCellSize,
+                    CellHeight = cellHeight,
+                    Spacing = GridCellSpacing,
+                    VirtualCount = _filteredCount,
+                    StartIndex = startIndex,
+                }))
+                {
+                    for (var i = startIndex; i < endIndex; i++)
                     {
-                        for (var col = 0; col < GridColumns; col++)
+                        var doc = _filteredItems[i];
+                        if (doc == null) continue;
+
+                        var isSelected = i == _selectedIndex;
+
+                        using (UI.BeginColumn(WidgetIds.Item + i, new ContainerStyle
                         {
-                            var idx = row * GridColumns + col;
-                            if (idx >= _filteredCount)
-                            {
-                                UI.Spacer(GridCellSize);
-                                continue;
-                            }
-
-                            var doc = _filteredItems[idx];
-                            if (doc == null) continue;
-
-                            var isSelected = idx == _selectedIndex;
-
-                            using (UI.BeginColumn(WidgetIds.Item + idx, new ContainerStyle
+                            Width = GridCellSize,
+                            Height = cellHeight,
+                        }))
+                        {
+                            using (UI.BeginContainer(new ContainerStyle
                             {
                                 Width = GridCellSize,
-                                Height = GridCellSize + GridLabelHeight,
+                                Height = GridCellSize,
+                                Background = isSelected ? EditorStyle.Palette.Active : EditorStyle.Palette.Control,
+                                BorderRadius = EditorStyle.Control.BorderRadius,
+                                AlignX = Align.Center,
+                                AlignY = Align.Center,
                             }))
                             {
-                                using (UI.BeginContainer(new ContainerStyle
+                                if (!doc.DrawThumbnail())
                                 {
-                                    Width = GridCellSize,
-                                    Height = GridCellSize,
-                                    Background = isSelected ? EditorStyle.Palette.Active : EditorStyle.Palette.Control,
-                                    BorderRadius = EditorStyle.Control.BorderRadius,
-                                    AlignX = Align.Center,
-                                    AlignY = Align.Center,
-                                }))
-                                {
-                                    if (!doc.DrawThumbnail())
-                                    {
-                                        var icon = doc.Def.Icon?.Invoke();
-                                        if (icon != null)
-                                            UI.Image(icon, new ImageStyle
-                                            {
-                                                Size = 24,
-                                                Color = isSelected ? EditorStyle.Palette.Content : EditorStyle.Palette.SecondaryText,
-                                                Align = Align.Center
-                                            });
-                                    }
+                                    var icon = doc.Def.Icon?.Invoke();
+                                    if (icon != null)
+                                        UI.Image(icon, new ImageStyle
+                                        {
+                                            Size = 24,
+                                            Color = isSelected ? EditorStyle.Palette.Content : EditorStyle.Palette.SecondaryText,
+                                            Align = Align.Center
+                                        });
                                 }
+                            }
 
-                                UI.Text(doc.Name, new TextStyle
-                                {
-                                    FontSize = 7,
-                                    Color = EditorStyle.Palette.SecondaryText,
-                                    AlignX = Align.Center,
-                                    AlignY = Align.Min,
-                                });
+                            UI.Text(doc.Name, new TextStyle
+                            {
+                                FontSize = 7,
+                                Color = EditorStyle.Palette.SecondaryText,
+                                AlignX = Align.Center,
+                                AlignY = Align.Min,
+                            });
 
-                                if (UI.WasPressed())
-                                {
-                                    _selectedIndex = idx;
-                                    SelectCurrent();
-                                    Close();
-                                }
+                            if (UI.WasPressed())
+                            {
+                                _selectedIndex = i;
+                                SelectCurrent();
+                                Close();
                             }
                         }
                     }

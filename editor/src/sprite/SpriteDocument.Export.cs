@@ -181,14 +181,18 @@ public partial class SpriteDocument
         UpdateBounds();
 
         var frameCount = (ushort)TotalTimeSlots;
-        var isStandalone = !ShouldAtlas || Atlas == null;
+
+        if (Atlas == null)
+        {
+            Log.Error($"Sprite '{Name}' has no atlas — cannot export");
+            return;
+        }
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
 
         writer.Write((ushort)EditorApplication.Config.PixelsPerUnit);
-        writer.Write((byte)TextureFilter.Linear);
-        writer.Write(isStandalone ? (ushort)0xFFFF : (ushort)(Atlas?.Index ?? 0));
+        writer.Write((ushort)(Atlas.Index));
         writer.Write((short)RasterBounds.Left);
         writer.Write((short)RasterBounds.Top);
         writer.Write((short)RasterBounds.Right);
@@ -209,55 +213,9 @@ public partial class SpriteDocument
         writer.Write((byte)DefaultFrameRate);
         for (ushort frameIndex = 0; frameIndex < frameCount; frameIndex++)
         {
-            Rect uv;
-            if (isStandalone)
-            {
-                // Standalone sprites pack frames in a vertical strip
-                var frameH = 1.0f / frameCount;
-                uv = new Rect(0, frameIndex * frameH, 1, frameH);
-            }
-            else
-            {
-                uv = GetAtlasUV(frameIndex);
-            }
+            var uv = GetAtlasUV(frameIndex);
             WriteMesh(writer, uv, RasterBounds);
         }
-
-        // Embedded texture for standalone sprites
-        if (isStandalone)
-            ExportEmbeddedTexture(writer);
-    }
-
-    private void ExportEmbeddedTexture(BinaryWriter writer)
-    {
-        var w = RasterBounds.Width;
-        var h = RasterBounds.Height;
-        var totalSlots = (ushort)TotalTimeSlots;
-        if (w <= 0 || h <= 0) return;
-
-        // Pack all frames into a vertical strip
-        var totalH = h * totalSlots;
-        using var image = new PixelData<Color32>(w, totalH);
-
-        for (ushort frameIndex = 0; frameIndex < totalSlots; frameIndex++)
-        {
-            var rect = new AtlasSpriteRect
-            {
-                Name = Name,
-                Source = this,
-                Rect = new RectInt(0, frameIndex * h, w, h),
-                FrameIndex = frameIndex
-            };
-            Rasterize(image, rect, padding: 0);
-        }
-
-        // Write texture header (same format as Atlas/Texture binary)
-        writer.Write((byte)TextureFormat.RGBA8);
-        writer.Write((byte)TextureFilter.Linear);
-        writer.Write((byte)TextureClamp.Clamp);
-        writer.Write((uint)w);
-        writer.Write((uint)totalH);
-        writer.Write(image.AsByteSpan());
     }
 
     private static void WriteMesh(BinaryWriter writer, Rect uv, RectInt bounds)
