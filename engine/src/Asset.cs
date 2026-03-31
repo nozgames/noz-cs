@@ -59,7 +59,7 @@ public class Asset : IDisposable {
 
     public static Asset? Load(AssetType type, string name, bool useRegistry=true, string? libraryPath = null)
     {
-        if (_registry.TryGetValue((type, name), out var cached))
+        if (useRegistry && _registry.TryGetValue((type, name), out var cached))
             return cached;
 
         var def = GetDef(type);

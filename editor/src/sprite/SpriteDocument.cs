@@ -590,62 +590,35 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f, int frame = 0)
     {
-        if (Atlas?.Texture == null) return;
-
         var sprite = Sprite;
         if (sprite == null) return;
 
         using (Graphics.PushState())
         {
-            Graphics.SetTexture(Atlas.Texture);
-            Graphics.SetShader(EditorAssets.Shaders.Texture);
+
+            Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
-
-            if (frame < sprite.Frames.Length)
-            {
-                ref readonly var sf = ref sprite.Frames[frame];
-
-                Rect bounds;
-                if (sf.Size.X > 0 && sf.Size.Y > 0)
-                    bounds = new Rect(sf.Offset.X * Graphics.PixelsPerUnitInv, sf.Offset.Y * Graphics.PixelsPerUnitInv, sf.Size.X * Graphics.PixelsPerUnitInv, sf.Size.Y * Graphics.PixelsPerUnitInv).Translate(offset);
-                else
-                    bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv).Translate(offset);
-
-                Graphics.Draw(bounds, sf.UV, order: SortOrder);
-            }
+            if (offset != default)
+                Graphics.SetTransform(Matrix3x2.CreateTranslation(offset) * Graphics.Transform);
+            Graphics.Draw(sprite, frame: frame);
         }
     }
 
     public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform, int frame = 0, Color? tint = null)
     {
-        if (Atlas?.Texture == null) return;
-
         var sprite = Sprite;
         if (sprite == null) return;
 
         using (Graphics.PushState())
         {
-            Graphics.SetTexture(Atlas.Texture);
-            Graphics.SetShader(EditorAssets.Shaders.Texture);
+
+            Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetColor(tint ?? Color.White);
 
-            if (frame < sprite.Frames.Length)
-            {
-                ref readonly var sf = ref sprite.Frames[frame];
-
-                Rect bounds;
-                if (sf.Size.X > 0 && sf.Size.Y > 0)
-                    bounds = new Rect(sf.Offset.X * Graphics.PixelsPerUnitInv, sf.Offset.Y * Graphics.PixelsPerUnitInv, sf.Size.X * Graphics.PixelsPerUnitInv, sf.Size.Y * Graphics.PixelsPerUnitInv);
-                else
-                    bounds = RasterBounds.ToRect().Scale(Graphics.PixelsPerUnitInv);
-
-                Graphics.SetColor(Color.White);
-
-                var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
-                var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
-                Graphics.SetTransform(transform);
-                Graphics.Draw(bounds, sf.UV, order: SortOrder);
-            }
+            var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
+            var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
+            Graphics.SetTransform(transform);
+            Graphics.Draw(sprite, bone: boneIndex, frame: frame);
         }
     }
 
@@ -823,7 +796,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             frames: frames,
             frameRate: 12.0f,
             edges: ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero,
-            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero));
+            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero),
+            atlasIndex: Atlas?.Index ?? 0,
+            atlas: AtlasManager.TextureArray);
     }
 
     internal void MarkSpriteDirty()
@@ -832,6 +807,22 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         _sprite = null;
         _standaloneTexture?.Dispose();
         _standaloneTexture = null;
+    }
+
+    internal void UpdateSpriteAtlas(Texture? atlas)
+    {
+        if (_sprite == null || Atlas == null) return;
+
+        var totalSlots = TotalTimeSlots;
+        var frames = new NoZ.SpriteFrame[totalSlots];
+        for (int frameIndex = 0; frameIndex < totalSlots; frameIndex++)
+        {
+            var uv = GetAtlasUV(frameIndex);
+            if (uv == Rect.Zero) return;
+            frames[frameIndex] = new NoZ.SpriteFrame(uv, RasterBounds.Position, RasterBounds.Size);
+        }
+
+        _sprite.UpdateAtlas(atlas, Atlas.Index, frames);
     }
 
     public override void OnUndoRedo()

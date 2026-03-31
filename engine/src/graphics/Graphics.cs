@@ -75,7 +75,6 @@ public static unsafe partial class Graphics
     public static GraphicsConfig RenderConfig => Config.Graphics!;
     public static IGraphicsDriver Driver { get; private set; } = null!;
     public static Camera? Camera { get; private set; }
-    public static Texture? SpriteAtlas { get; set; }
     public static Texture WhiteTexture { get; private set; } = null!;
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
     public static Color Color => CurrentState.Color.WithAlpha(CurrentState.Color.A * CurrentState.Opacity);

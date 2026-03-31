@@ -205,12 +205,17 @@ public static class AssetManifest
 
             // Load method
             writer.WriteLine();
-            writer.WriteLine("        public static void Load()");
+            var isSprite = group.Key == AssetType.Sprite;
+            writer.WriteLine(isSprite
+                ? "        public static void Load(Texture atlas)"
+                : "        public static void Load()");
             writer.WriteLine("        {");
             foreach (var doc in orderedDocs)
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"            {fieldName}.Load(Names.{fieldName});");
+                writer.WriteLine(isSprite
+                    ? $"            {fieldName}.Load(Names.{fieldName}, atlas);"
+                    : $"            {fieldName}.Load(Names.{fieldName});");
             }
             writer.WriteLine("        }");
 
@@ -283,22 +288,26 @@ public static class AssetManifest
         writer.WriteLine();
         writer.WriteLine("    public static void LoadAssets()");
         writer.WriteLine("    {");
-        foreach (var group in documentsByType)
-        {
-            var pluralName = Pluralize(GetAssetTypeName(group.Key));
-            writer.WriteLine($"        {pluralName}.Load();");
-        }
 
-        // Create texture array from atlases
+        // Load atlases first and create texture array before sprites
         if (hasAtlases)
         {
             var atlasGroup = documentsByType.First(g => g.Key == AssetType.Atlas);
             var atlasNames = atlasGroup.Docs.OrderBy(d => d.Name).Select(d => $"Atlases.{ToPascalCase(d.Name)}").ToList();
 
+            writer.WriteLine("        Atlases.Load();");
+            writer.WriteLine($"        AtlasArray = Texture.CreateArray(\"SpriteAtlas\", {string.Join(", ", atlasNames)});");
             writer.WriteLine();
-            writer.WriteLine("        // Create texture array from all atlases");
-            writer.WriteLine($"        AtlasArray = Texture.CreateArray(\"SpriteAtlas\",{string.Join(", ", atlasNames)});");
-            writer.WriteLine("        Graphics.SpriteAtlas = AtlasArray;");
+        }
+
+        foreach (var group in documentsByType)
+        {
+            if (hasAtlases && group.Key == AssetType.Atlas) continue; // already loaded above
+            var pluralName = Pluralize(GetAssetTypeName(group.Key));
+            if (hasAtlases && group.Key == AssetType.Sprite)
+                writer.WriteLine($"        {pluralName}.Load(AtlasArray!);");
+            else
+                writer.WriteLine($"        {pluralName}.Load();");
         }
 
         writer.WriteLine("    }");
@@ -318,7 +327,6 @@ public static class AssetManifest
         // Dispose AtlasArray first
         if (hasAtlases)
         {
-            writer.WriteLine("        Graphics.SpriteAtlas = null;");
             writer.WriteLine("        AtlasArray?.Dispose();");
             writer.WriteLine("        AtlasArray = null;");
         }

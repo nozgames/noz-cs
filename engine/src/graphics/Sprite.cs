@@ -35,9 +35,24 @@ public class Sprite : Asset, IImage
     public ushort SortOrder { get; private set; }
     public bool IsSliced => SliceMask != 0;
     public Rect UV => Frames.Length > 0 ? Frames[0].UV : Rect.Zero;
+    public Texture? Atlas { get; set; }
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
     public Sprite() : base(AssetType.Sprite) { }
+
+    public void Load(string name, Texture atlas)
+    {
+        Load(name);
+        Atlas = atlas;
+    }
+
+    public void UpdateAtlas(Texture? atlas, int atlasIndex, SpriteFrame[] frames)
+    {
+        Atlas = atlas;
+        AtlasIndex = atlasIndex;
+        Frames = frames;
+        FrameCount = frames.Length;
+    }
 
     internal static Sprite Create(
         string name,
@@ -47,13 +62,16 @@ public class Sprite : Asset, IImage
         SpriteFrame[] frames,
         float frameRate = 12.0f,
         EdgeInsets edges = default,
-        ushort sliceMask = 0)
+        ushort sliceMask = 0,
+        int atlasIndex = 0,
+        Texture? atlas = null)
     {
         return new Sprite(name)
         {
             Bounds = bounds,
             FrameCount = frames.Length,
-            AtlasIndex = 0,
+            AtlasIndex = (ushort)atlasIndex,
+            Atlas = atlas,
             PixelsPerUnit = pixelsPerUnit,
             PixelsPerUnitInv = 1.0f / pixelsPerUnit,
             FrameRate = frameRate,

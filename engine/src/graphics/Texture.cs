@@ -120,6 +120,28 @@ public class Texture : Asset, IImage
         return texture;
     }
 
+    public static Texture? CreateArray(string name, int width, int height, byte[][] layerData,
+        TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear)
+    {
+        if (layerData.Length == 0)
+            return null;
+
+        var handle = Graphics.Driver.CreateTextureArray(width, height, layerData, format, filter, name);
+
+        var texture = new Texture(name, true)
+        {
+            Width = width,
+            Height = height,
+            Format = format,
+            Filter = filter,
+            Clamp = TextureClamp.Clamp,
+            Handle = handle
+        };
+
+        texture.Register();
+        return texture;
+    }
+
     public void Update(ReadOnlySpan<byte> data)
     {
         if (Handle == nuint.Zero)

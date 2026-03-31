@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Linq;
+
 namespace NoZ.Editor;
 
 internal partial class VfxEditor
@@ -587,7 +589,7 @@ internal partial class VfxEditor
     private static bool RandomToggle(WidgetId id, bool isRandom, ref float min, ref float max)
     {
         var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
-        if (UI.Button(id, EditorAssets.Sprites.IconRandom, style))
+        if (UI.Button(id, EditorAssets.Sprites.IconRandomRange, style))
         {
             if (isRandom)
                 max = min; // collapse
@@ -601,7 +603,7 @@ internal partial class VfxEditor
     private static bool RandomToggleInt(WidgetId id, bool isRandom, ref int min, ref int max)
     {
         var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
-        if (UI.Button(id, EditorAssets.Sprites.IconRandom, style))
+        if (UI.Button(id, EditorAssets.Sprites.IconRandomRange, style))
         {
             if (isRandom)
                 max = min;
@@ -615,7 +617,7 @@ internal partial class VfxEditor
     private static bool ColorRandomToggle(WidgetId id, bool isRandom, ref Color min, ref Color max)
     {
         var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
-        if (UI.Button(id, EditorAssets.Sprites.IconRandom, style))
+        if (UI.Button(id, EditorAssets.Sprites.IconRandomRange, style))
         {
             if (isRandom)
                 max = min;
@@ -673,52 +675,59 @@ internal partial class VfxEditor
 
     // --- Curve Type Dropdown ---
 
-    private static readonly string[] CurveTypeNames =
-        ["None", "Linear", "EaseIn", "EaseOut", "EaseInOut", "Quadratic", "Cubic", "Sine", "Bell"];
+    private static readonly (string Name, VfxCurveType Type)[] CurveTypeOptions =
+        Enum.GetValues<VfxCurveType>()
+            .Where(t => t != VfxCurveType.CubicBezier)
+            .Select(t => (Enum.GetName(t)!, t))
+            .ToArray();
 
     private static bool _curveChanged;
     private static VfxCurveType _curveNewType;
     private static bool _curveNewHasCurve;
+    private static WidgetId _curveChangedId;
 
     private static bool CurveTypeDropdown(WidgetId id, ref VfxCurveType curveType, ref bool hasCurve)
     {
-        var currentIndex = hasCurve ? (int)curveType + 1 : 0;
-        var currentName = CurveTypeNames[currentIndex];
+        // Check first: the popup handler fires AFTER this method during PopupMenu.UpdateUI()
+        if (_curveChanged && _curveChangedId == id)
+        {
+            _curveChanged = false;
+            curveType = _curveNewType;
+            hasCurve = _curveNewHasCurve;
+            return true;
+        }
 
-        _curveChanged = false;
-        _curveNewType = curveType;
-        _curveNewHasCurve = hasCurve;
+        var currentName = "None";
+        if (hasCurve)
+        {
+            foreach (var opt in CurveTypeOptions)
+                if (opt.Type == curveType) { currentName = opt.Name; break; }
+        }
 
         UI.DropDown(id, () =>
         {
-            var items = new PopupMenuItem[CurveTypeNames.Length];
-            for (var i = 0; i < CurveTypeNames.Length; i++)
+            var items = new PopupMenuItem[CurveTypeOptions.Length + 1];
+            items[0] = PopupMenuItem.Item("None", () =>
             {
-                var index = i;
-                items[i] = PopupMenuItem.Item(CurveTypeNames[i], () =>
+                _curveChanged = true;
+                _curveChangedId = id;
+                _curveNewHasCurve = false;
+                _curveNewType = VfxCurveType.Linear;
+            });
+            for (var i = 0; i < CurveTypeOptions.Length; i++)
+            {
+                var opt = CurveTypeOptions[i];
+                items[i + 1] = PopupMenuItem.Item(opt.Name, () =>
                 {
                     _curveChanged = true;
-                    if (index == 0)
-                    {
-                        _curveNewHasCurve = false;
-                        _curveNewType = VfxCurveType.Linear;
-                    }
-                    else
-                    {
-                        _curveNewHasCurve = true;
-                        _curveNewType = (VfxCurveType)(index - 1);
-                    }
+                    _curveChangedId = id;
+                    _curveNewHasCurve = true;
+                    _curveNewType = opt.Type;
                 });
             }
             return items;
         }, text: currentName);
 
-        if (_curveChanged)
-        {
-            curveType = _curveNewType;
-            hasCurve = _curveNewHasCurve;
-            return true;
-        }
         return false;
     }
 

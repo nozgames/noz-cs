@@ -697,22 +697,47 @@ public partial class SpriteEditor : DocumentEditor
         Undo.Record(Document);
         foreach (var path in _selectedPaths)
         {
-            // Flip around the path's own local bounds center so the AABB stays in place
-            var center = path.LocalBounds.Center;
-            var oldCenter = center;
+            var oldCenter = path.LocalBounds.Center;
 
-            foreach (var contour in path.Contours)
+            if (path.HasTransform && Matrix3x2.Invert(path.PathTransform, out var inverse))
             {
-                for (var i = 0; i < contour.Anchors.Count; i++)
+                // Flip in world space so the result matches what the user sees
+                var oldTransform = path.PathTransform;
+                var worldCenter = path.Bounds.Center;
+
+                foreach (var contour in path.Contours)
                 {
-                    var a = contour.Anchors[i];
-                    a.Position = horizontal
-                        ? new Vector2(2 * center.X - a.Position.X, a.Position.Y)
-                        : new Vector2(a.Position.X, 2 * center.Y - a.Position.Y);
-                    a.Curve = -a.Curve;
-                    contour.Anchors[i] = a;
+                    for (var i = 0; i < contour.Anchors.Count; i++)
+                    {
+                        var a = contour.Anchors[i];
+                        var world = Vector2.Transform(a.Position, oldTransform);
+                        world = horizontal
+                            ? new Vector2(2 * worldCenter.X - world.X, world.Y)
+                            : new Vector2(world.X, 2 * worldCenter.Y - world.Y);
+                        a.Position = Vector2.Transform(world, inverse);
+                        a.Curve = -a.Curve;
+                        contour.Anchors[i] = a;
+                    }
                 }
             }
+            else
+            {
+                // No transform: flip in local space (local = world)
+                var center = path.LocalBounds.Center;
+                foreach (var contour in path.Contours)
+                {
+                    for (var i = 0; i < contour.Anchors.Count; i++)
+                    {
+                        var a = contour.Anchors[i];
+                        a.Position = horizontal
+                            ? new Vector2(2 * center.X - a.Position.X, a.Position.Y)
+                            : new Vector2(a.Position.X, 2 * center.Y - a.Position.Y);
+                        a.Curve = -a.Curve;
+                        contour.Anchors[i] = a;
+                    }
+                }
+            }
+
             path.MarkDirty();
             path.UpdateSamples();
             path.UpdateBounds();

@@ -126,7 +126,7 @@ public static partial class Graphics
 
     public static void Draw(Sprite sprite, int bone = -1, int frame = 0)
     {
-        if (sprite == null || SpriteAtlas == null) return;
+        if (sprite == null || sprite.Atlas == null) return;
 
         ref readonly var sf = ref sprite.Frames[frame];
         var atlas = sprite.AtlasIndex;
@@ -146,7 +146,7 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(SpriteAtlas!);
+            SetTexture(sprite.Atlas!);
 
 
             Span<MeshVertex> verts =
@@ -163,7 +163,7 @@ public static partial class Graphics
 
     public static void Draw(Sprite sprite, ushort order, int bone = -1, int frame = 0)
     {
-        if (sprite == null || (SpriteAtlas == null)) return;
+        if (sprite == null || (sprite.Atlas == null)) return;
 
         ref readonly var sf = ref sprite.Frames[frame];
         var atlas = sprite.AtlasIndex;
@@ -176,7 +176,7 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(SpriteAtlas!);
+            SetTexture(sprite.Atlas!);
 
 
             Span<MeshVertex> verts =
@@ -193,7 +193,7 @@ public static partial class Graphics
 
     public static void DrawFlat(Sprite sprite, ushort order = 0, int bone = -1, int frame = 0)
     {
-        if (sprite == null || (SpriteAtlas == null)) return;
+        if (sprite == null || (sprite.Atlas == null)) return;
 
         ref readonly var sf = ref sprite.Frames[frame];
         var atlas = sprite.AtlasIndex;
@@ -212,7 +212,7 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(SpriteAtlas!);
+            SetTexture(sprite.Atlas!);
 
             Span<MeshVertex> verts =
             [
@@ -308,7 +308,7 @@ public static partial class Graphics
 
     public static void DrawSliced(Sprite sprite, in Rect targetRect, ushort order = 0, int bone = -1, int frame = 0)
     {
-        if (sprite == null || (SpriteAtlas == null) || !sprite.IsSliced)
+        if (sprite == null || (sprite.Atlas == null) || !sprite.IsSliced)
         {
             if (sprite != null) Draw(sprite, bone, frame);
             return;
@@ -342,7 +342,7 @@ public static partial class Graphics
 
         using (PushState())
         {
-            SetTexture(SpriteAtlas!);
+            SetTexture(sprite.Atlas!);
 
 
             for (int row = 0; row < 3; row++)

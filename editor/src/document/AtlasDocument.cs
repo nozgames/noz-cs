@@ -30,6 +30,7 @@ internal class AtlasDocument : Document
     public float PixelsPerUnit { get; private set; }
     public int Padding { get; private set; }
     public Texture Texture => _texture;
+    public PixelData<Color32>? Image => _image;
     public int RectCount => _rects.Count;
     public int Index { get; private set;  }
     public ReadOnlySpan<AtlasSpriteRect> Rects => CollectionsMarshal.AsSpan(_rects);

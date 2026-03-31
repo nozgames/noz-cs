@@ -13,6 +13,9 @@ public static class AtlasManager
 {
     private readonly static List<AtlasDocument> _atlases = new(32);
     private readonly static List<SpriteDocument> _sources = new(64);
+    private static Texture? _previousAtlasArray;
+
+    public static Texture? TextureArray { get; private set; }
 
     public static void Init()
     {
@@ -88,7 +91,11 @@ public static class AtlasManager
         }
 
         if (rebuild)
+        {
             Rebuild();
+            if (Graphics.Driver != null)
+                RebuildTextureArray();
+        }
     }
 
     public static void Update()
@@ -214,6 +221,27 @@ public static class AtlasManager
             _atlases[atlasIndex].Update();
 
         DocumentManager.SaveAll();
+    }
+
+    public static void RebuildTextureArray()
+    {
+        // Defer disposal — current frame's render commands may still reference the old array
+        _previousAtlasArray?.Dispose();
+        _previousAtlasArray = TextureArray;
+        TextureArray = null;
+
+        var validAtlases = _atlases.Where(a => a.Image != null).ToList();
+        if (validAtlases.Count > 0)
+        {
+            var width = validAtlases[0].Image!.Width;
+            var height = validAtlases[0].Image!.Height;
+            var layerData = validAtlases.Select(a => a.Image!.AsByteSpan().ToArray()).ToArray();
+            TextureArray = Texture.CreateArray("GameSpriteAtlas", width, height, layerData);
+        }
+
+        // Update all existing sprites in-place with new atlas data
+        for (int i = 0; i < _sources.Count; i++)
+            _sources[i].UpdateSpriteAtlas(TextureArray);
     }
 
     [Conditional("NOZ_ATLAS_DEBUG")]

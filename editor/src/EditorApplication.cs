@@ -306,6 +306,7 @@ public static partial class EditorApplication
             return;
 
         DocumentManager.PostLoad();
+        AtlasManager.RebuildTextureArray();
         EditorStyle.Init();
         PopupMenu.Init();
         ConfirmDialog.Init();

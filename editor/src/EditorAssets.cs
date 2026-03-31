@@ -29,7 +29,6 @@ public static class EditorAssets
         public const string CursorScale = "cursor_scale";
         public const string EditorSprites000 = "editor_sprites000";
         public const string EditorSprites001 = "editor_sprites001";
-        public const string EditorSprites003 = "editor_sprites003";
         public const string GizmoHandle = "gizmo_handle";
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
@@ -71,6 +70,7 @@ public static class EditorAssets
         public const string IconPreview = "icon_preview";
         public const string IconPublish = "icon_publish";
         public const string IconRandom = "icon_random";
+        public const string IconRandomRange = "icon_random_range";
         public const string IconRefresh = "icon_refresh";
         public const string IconRemove = "icon_remove";
         public const string IconRootMotion = "icon_root_motion";
@@ -100,20 +100,17 @@ public static class EditorAssets
     {
         public static readonly Atlas EditorSprites000 = new();
         public static readonly Atlas EditorSprites001 = new();
-        public static readonly Atlas EditorSprites003 = new();
 
         public static void Load()
         {
             EditorSprites000.Load(Names.EditorSprites000);
             EditorSprites001.Load(Names.EditorSprites001);
-            EditorSprites003.Load(Names.EditorSprites003);
         }
 
         public static void Unload()
         {
             EditorSprites000.Dispose();
             EditorSprites001.Dispose();
-            EditorSprites003.Dispose();
         }
     }
 
@@ -216,6 +213,7 @@ public static class EditorAssets
         public static readonly Sprite IconPreview = new();
         public static readonly Sprite IconPublish = new();
         public static readonly Sprite IconRandom = new();
+        public static readonly Sprite IconRandomRange = new();
         public static readonly Sprite IconRefresh = new();
         public static readonly Sprite IconRemove = new();
         public static readonly Sprite IconRootMotion = new();
@@ -235,84 +233,85 @@ public static class EditorAssets
         public static readonly Sprite Square = new();
         public static readonly Sprite Star = new();
 
-        public static void Load()
+        public static void Load(Texture atlas)
         {
-            AssetIconAnimation.Load(Names.AssetIconAnimation);
-            AssetIconAtlas.Load(Names.AssetIconAtlas);
-            AssetIconBin.Load(Names.AssetIconBin);
-            AssetIconEvent.Load(Names.AssetIconEvent);
-            AssetIconFont.Load(Names.AssetIconFont);
-            AssetIconGenstyle.Load(Names.AssetIconGenstyle);
-            AssetIconShader.Load(Names.AssetIconShader);
-            AssetIconSound.Load(Names.AssetIconSound);
-            AssetIconSprite.Load(Names.AssetIconSprite);
-            AssetIconVfx.Load(Names.AssetIconVfx);
-            Circle.Load(Names.Circle);
-            CurorDropper.Load(Names.CurorDropper);
-            CursorArrow.Load(Names.CursorArrow);
-            CursorBeam.Load(Names.CursorBeam);
-            CursorMove.Load(Names.CursorMove);
-            CursorRotate.Load(Names.CursorRotate);
-            CursorScale.Load(Names.CursorScale);
-            GizmoHandle.Load(Names.GizmoHandle);
-            IconAdd.Load(Names.IconAdd);
-            IconAi.Load(Names.IconAi);
-            IconBone.Load(Names.IconBone);
-            IconCheck.Load(Names.IconCheck);
-            IconCircle.Load(Names.IconCircle);
-            IconClip.Load(Names.IconClip);
-            IconClose.Load(Names.IconClose);
-            IconCollection.Load(Names.IconCollection);
-            IconConnected.Load(Names.IconConnected);
-            IconConstraint.Load(Names.IconConstraint);
-            IconDelete.Load(Names.IconDelete);
-            IconDropdown.Load(Names.IconDropdown);
-            IconDuplicate.Load(Names.IconDuplicate);
-            IconEdit.Load(Names.IconEdit);
-            IconEmpty.Load(Names.IconEmpty);
-            IconExpandDown.Load(Names.IconExpandDown);
-            IconExpandUp.Load(Names.IconExpandUp);
-            IconFill.Load(Names.IconFill);
-            IconFoldoutClosed.Load(Names.IconFoldoutClosed);
-            IconFoldoutOpen.Load(Names.IconFoldoutOpen);
-            IconGenerating.Load(Names.IconGenerating);
-            IconHidden.Load(Names.IconHidden);
-            IconKeyframe.Load(Names.IconKeyframe);
-            IconLayer.Load(Names.IconLayer);
-            IconLock.Load(Names.IconLock);
-            IconLoop.Load(Names.IconLoop);
-            IconMenu.Load(Names.IconMenu);
-            IconMirror.Load(Names.IconMirror);
-            IconMove.Load(Names.IconMove);
-            IconNofill.Load(Names.IconNofill);
-            IconOnion.Load(Names.IconOnion);
-            IconOpacity.Load(Names.IconOpacity);
-            IconOpacityOverlay.Load(Names.IconOpacityOverlay);
-            IconPalette.Load(Names.IconPalette);
-            IconPath.Load(Names.IconPath);
-            IconPathLayer.Load(Names.IconPathLayer);
-            IconPlay.Load(Names.IconPlay);
-            IconPreview.Load(Names.IconPreview);
-            IconPublish.Load(Names.IconPublish);
-            IconRandom.Load(Names.IconRandom);
-            IconRefresh.Load(Names.IconRefresh);
-            IconRemove.Load(Names.IconRemove);
-            IconRootMotion.Load(Names.IconRootMotion);
-            IconSearch.Load(Names.IconSearch);
-            IconSeed.Load(Names.IconSeed);
-            IconSort.Load(Names.IconSort);
-            IconStroke.Load(Names.IconStroke);
-            IconStrokeJoinBevel.Load(Names.IconStrokeJoinBevel);
-            IconStrokeJoinMiter.Load(Names.IconStrokeJoinMiter);
-            IconStrokeJoinRound.Load(Names.IconStrokeJoinRound);
-            IconStrokeSize.Load(Names.IconStrokeSize);
-            IconSubmenu.Load(Names.IconSubmenu);
-            IconSubtract.Load(Names.IconSubtract);
-            IconTiling.Load(Names.IconTiling);
-            IconUnlock.Load(Names.IconUnlock);
-            IconXray.Load(Names.IconXray);
-            Square.Load(Names.Square);
-            Star.Load(Names.Star);
+            AssetIconAnimation.Load(Names.AssetIconAnimation, atlas);
+            AssetIconAtlas.Load(Names.AssetIconAtlas, atlas);
+            AssetIconBin.Load(Names.AssetIconBin, atlas);
+            AssetIconEvent.Load(Names.AssetIconEvent, atlas);
+            AssetIconFont.Load(Names.AssetIconFont, atlas);
+            AssetIconGenstyle.Load(Names.AssetIconGenstyle, atlas);
+            AssetIconShader.Load(Names.AssetIconShader, atlas);
+            AssetIconSound.Load(Names.AssetIconSound, atlas);
+            AssetIconSprite.Load(Names.AssetIconSprite, atlas);
+            AssetIconVfx.Load(Names.AssetIconVfx, atlas);
+            Circle.Load(Names.Circle, atlas);
+            CurorDropper.Load(Names.CurorDropper, atlas);
+            CursorArrow.Load(Names.CursorArrow, atlas);
+            CursorBeam.Load(Names.CursorBeam, atlas);
+            CursorMove.Load(Names.CursorMove, atlas);
+            CursorRotate.Load(Names.CursorRotate, atlas);
+            CursorScale.Load(Names.CursorScale, atlas);
+            GizmoHandle.Load(Names.GizmoHandle, atlas);
+            IconAdd.Load(Names.IconAdd, atlas);
+            IconAi.Load(Names.IconAi, atlas);
+            IconBone.Load(Names.IconBone, atlas);
+            IconCheck.Load(Names.IconCheck, atlas);
+            IconCircle.Load(Names.IconCircle, atlas);
+            IconClip.Load(Names.IconClip, atlas);
+            IconClose.Load(Names.IconClose, atlas);
+            IconCollection.Load(Names.IconCollection, atlas);
+            IconConnected.Load(Names.IconConnected, atlas);
+            IconConstraint.Load(Names.IconConstraint, atlas);
+            IconDelete.Load(Names.IconDelete, atlas);
+            IconDropdown.Load(Names.IconDropdown, atlas);
+            IconDuplicate.Load(Names.IconDuplicate, atlas);
+            IconEdit.Load(Names.IconEdit, atlas);
+            IconEmpty.Load(Names.IconEmpty, atlas);
+            IconExpandDown.Load(Names.IconExpandDown, atlas);
+            IconExpandUp.Load(Names.IconExpandUp, atlas);
+            IconFill.Load(Names.IconFill, atlas);
+            IconFoldoutClosed.Load(Names.IconFoldoutClosed, atlas);
+            IconFoldoutOpen.Load(Names.IconFoldoutOpen, atlas);
+            IconGenerating.Load(Names.IconGenerating, atlas);
+            IconHidden.Load(Names.IconHidden, atlas);
+            IconKeyframe.Load(Names.IconKeyframe, atlas);
+            IconLayer.Load(Names.IconLayer, atlas);
+            IconLock.Load(Names.IconLock, atlas);
+            IconLoop.Load(Names.IconLoop, atlas);
+            IconMenu.Load(Names.IconMenu, atlas);
+            IconMirror.Load(Names.IconMirror, atlas);
+            IconMove.Load(Names.IconMove, atlas);
+            IconNofill.Load(Names.IconNofill, atlas);
+            IconOnion.Load(Names.IconOnion, atlas);
+            IconOpacity.Load(Names.IconOpacity, atlas);
+            IconOpacityOverlay.Load(Names.IconOpacityOverlay, atlas);
+            IconPalette.Load(Names.IconPalette, atlas);
+            IconPath.Load(Names.IconPath, atlas);
+            IconPathLayer.Load(Names.IconPathLayer, atlas);
+            IconPlay.Load(Names.IconPlay, atlas);
+            IconPreview.Load(Names.IconPreview, atlas);
+            IconPublish.Load(Names.IconPublish, atlas);
+            IconRandom.Load(Names.IconRandom, atlas);
+            IconRandomRange.Load(Names.IconRandomRange, atlas);
+            IconRefresh.Load(Names.IconRefresh, atlas);
+            IconRemove.Load(Names.IconRemove, atlas);
+            IconRootMotion.Load(Names.IconRootMotion, atlas);
+            IconSearch.Load(Names.IconSearch, atlas);
+            IconSeed.Load(Names.IconSeed, atlas);
+            IconSort.Load(Names.IconSort, atlas);
+            IconStroke.Load(Names.IconStroke, atlas);
+            IconStrokeJoinBevel.Load(Names.IconStrokeJoinBevel, atlas);
+            IconStrokeJoinMiter.Load(Names.IconStrokeJoinMiter, atlas);
+            IconStrokeJoinRound.Load(Names.IconStrokeJoinRound, atlas);
+            IconStrokeSize.Load(Names.IconStrokeSize, atlas);
+            IconSubmenu.Load(Names.IconSubmenu, atlas);
+            IconSubtract.Load(Names.IconSubtract, atlas);
+            IconTiling.Load(Names.IconTiling, atlas);
+            IconUnlock.Load(Names.IconUnlock, atlas);
+            IconXray.Load(Names.IconXray, atlas);
+            Square.Load(Names.Square, atlas);
+            Star.Load(Names.Star, atlas);
         }
 
         public static void Unload()
@@ -375,6 +374,7 @@ public static class EditorAssets
             IconPreview.Dispose();
             IconPublish.Dispose();
             IconRandom.Dispose();
+            IconRandomRange.Dispose();
             IconRefresh.Dispose();
             IconRemove.Dispose();
             IconRootMotion.Dispose();
@@ -401,13 +401,11 @@ public static class EditorAssets
     public static void LoadAssets()
     {
         Atlases.Load();
+        AtlasArray = Texture.CreateArray("SpriteAtlas", Atlases.EditorSprites000, Atlases.EditorSprites001);
+
         Fonts.Load();
         Shaders.Load();
-        Sprites.Load();
-
-        // Create texture array from all atlases
-        AtlasArray = Texture.CreateArray("SpriteAtlas",Atlases.EditorSprites000, Atlases.EditorSprites001, Atlases.EditorSprites003);
-        Graphics.SpriteAtlas = AtlasArray;
+        Sprites.Load(AtlasArray!);
     }
 
     public static void ReloadAssets()
@@ -417,7 +415,6 @@ public static class EditorAssets
 
     public static void UnloadAssets()
     {
-        Graphics.SpriteAtlas = null;
         AtlasArray?.Dispose();
         AtlasArray = null;
         Atlases.Unload();
