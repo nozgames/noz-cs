@@ -185,6 +185,22 @@ public static unsafe partial class ElementTree
 
     public static void EndGrid() => EndElement(ElementType.Grid);
 
+    public static int BeginCollection(float spacing, int columns, float itemWidth, float itemHeight,
+        int virtualCount, int startIndex)
+    {
+        ref var e = ref BeginElement(ElementType.Collection);
+        ref var d = ref e.Data.Collection;
+        d.Spacing = spacing;
+        d.Columns = columns;
+        d.ItemWidth = itemWidth;
+        d.ItemHeight = itemHeight;
+        d.VirtualCount = virtualCount;
+        d.StartIndex = startIndex;
+        return e.Index;
+    }
+
+    public static void EndCollection() => EndElement(ElementType.Collection);
+
     public static int BeginScrollable(ref ScrollState state, in ScrollableStyle style)
     {
         ref var e = ref BeginElement(ElementType.Scroll);

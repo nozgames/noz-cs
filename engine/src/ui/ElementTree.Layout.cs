@@ -83,6 +83,7 @@ public static unsafe partial class ElementTree
                 return e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
 
             case ElementType.Grid:
+            case ElementType.Collection:
                 return 0;
 
             case ElementType.Spacer:
@@ -348,6 +349,23 @@ public static unsafe partial class ElementTree
                 break;
             }
 
+            case ElementType.Collection:
+            {
+                ref var d = ref e.Data.Collection;
+                if (axis == 0)
+                {
+                    size = available;
+                }
+                else
+                {
+                    var cols = Math.Max(1, d.Columns);
+                    var totalItems = d.VirtualCount > 0 ? d.VirtualCount : e.ChildCount;
+                    var rowCount = (totalItems + cols - 1) / cols;
+                    size = rowCount * d.ItemHeight + Math.Max(0, rowCount - 1) * d.Spacing;
+                }
+                break;
+            }
+
             default:
                 size = 0;
                 break;
@@ -434,6 +452,9 @@ public static unsafe partial class ElementTree
             case ElementType.Grid:
                 LayoutGridAxis(ref e, axis);
                 break;
+            case ElementType.Collection:
+                LayoutCollectionAxis(ref e, axis);
+                break;
             case ElementType.Scroll:
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, axis == 1 ? 1 : layoutAxis);
                 break;
@@ -481,6 +502,30 @@ public static unsafe partial class ElementTree
                 ? e.Rect.X + col * (cellWidth + d.Spacing)
                 : e.Rect.Y + row * (cellHeight + d.Spacing);
             var childAvail = axis == 0 ? cellWidth : cellHeight;
+
+            ref var child = ref GetElement(childOffset);
+            LayoutAxis(childOffset, childPos, childAvail, axis, -1);
+            childOffset = child.NextSibling;
+        }
+    }
+
+    private static void LayoutCollectionAxis(ref Element e, int axis)
+    {
+        ref var d = ref e.Data.Collection;
+        var columns = Math.Max(1, d.Columns);
+        var itemWidth = d.ItemWidth > 0 ? d.ItemWidth
+            : (e.Rect.Width - Math.Max(0, columns - 1) * d.Spacing) / columns;
+
+        var childOffset = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            var virtualIndex = d.StartIndex + i;
+            var col = virtualIndex % columns;
+            var row = virtualIndex / columns;
+            var childPos = axis == 0
+                ? e.Rect.X + col * (itemWidth + d.Spacing)
+                : e.Rect.Y + row * (d.ItemHeight + d.Spacing);
+            var childAvail = axis == 0 ? itemWidth : d.ItemHeight;
 
             ref var child = ref GetElement(childOffset);
             LayoutAxis(childOffset, childPos, childAvail, axis, -1);

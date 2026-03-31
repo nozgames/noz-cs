@@ -192,7 +192,7 @@ public class VfxDocument : Document
         if (_playing && _vfx != null)
         {
             VfxSystem.Stop(_handle);
-            _handle = VfxSystem.Play(_vfx, PlayTransform);
+            _handle = VfxSystem.Play(_vfx, PlayTransform, layer: EditorLayer.Document);
         }
     }
 
@@ -203,6 +203,7 @@ public class VfxDocument : Document
         {
             if (p.SpriteRef.HasValue && !p.SpriteRef.IsResolved)
                 p.SpriteRef.Resolve();
+
             p.Def.Sprite = p.SpriteRef.Value?.Sprite;
         }
 
@@ -323,7 +324,7 @@ public class VfxDocument : Document
 
         if (wasPlaying && _vfx != null)
         {
-            _handle = VfxSystem.Play(_vfx, PlayTransform);
+            _handle = VfxSystem.Play(_vfx, PlayTransform, layer: EditorLayer.Document);
             _playing = true;
         }
     }
@@ -348,7 +349,7 @@ public class VfxDocument : Document
         if (!VfxSystem.IsPlaying(_handle) && _vfx != null)
         {
             if (_editorLoop)
-                _handle = VfxSystem.Play(_vfx, PlayTransform);
+                _handle = VfxSystem.Play(_vfx, PlayTransform, layer: EditorLayer.Document);
             else
                 _playing = false;
         }
@@ -361,7 +362,7 @@ public class VfxDocument : Document
     {
         if (_vfx == null) return;
         _playing = true;
-        _handle = VfxSystem.Play(_vfx, PlayTransform);
+        _handle = VfxSystem.Play(_vfx, PlayTransform, layer: EditorLayer.Document);
     }
 
     public override void Stop()
@@ -444,6 +445,9 @@ public class VfxDocument : Document
         var particle = new VfxDocParticle { Name = name };
         ref var p = ref particle.Def;
         p.Duration = VfxRange.One;
+        p.Size = VfxFloatCurve.One;
+        p.Opacity = VfxFloatCurve.One;
+        p.Color = VfxColorCurve.White;
 
         while (!tk.IsEOF)
         {

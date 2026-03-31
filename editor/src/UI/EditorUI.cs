@@ -202,14 +202,17 @@ internal static partial class EditorUI
 
     // --- Color Button ---
 
-    public static bool ColorButton(WidgetId id, ref Color32 color)
+    public static bool ColorButton(WidgetId id, ref Color32 color, bool fillWidth=false)
     {
         ElementTree.BeginTree();
         ElementTree.BeginWidget(id);
 
         var flags = ElementTree.GetWidgetFlags();
 
-        ElementTree.BeginSize(EditorStyle.Control.Height);
+        if (fillWidth)
+            ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
+        else
+            ElementTree.BeginSize(EditorStyle.Control.Height);
 
         if (color.A == 0)
         {

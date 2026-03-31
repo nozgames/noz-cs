@@ -64,6 +64,12 @@ internal partial class VfxEditor
         public static partial WidgetId SpriteDropDown { get; }
     }
 
+    private struct RandomToggleState
+    {
+        public byte Initialized;
+        public byte Expanded;
+    }
+
     public override void InspectorUI()
     {
         switch (Document.SelectedType)
@@ -380,8 +386,8 @@ internal partial class VfxEditor
         using (UI.BeginRow(ValueRowStyle))
         {
             if (FloatInput(baseId, ref value.Min)) changed = true;
-            if (RandomToggle(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max)) changed = true;
-            if (value.Min != value.Max)
+            if (RandomToggle(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max, out var isRandom)) changed = true;
+            if (isRandom)
             {
                 if (FloatInput(baseId + 2, ref value.Max)) changed = true;
             }
@@ -399,8 +405,8 @@ internal partial class VfxEditor
         using (UI.BeginRow(ValueRowStyle))
         {
             if (IntInput(baseId, ref value.Min)) changed = true;
-            if (RandomToggleInt(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max)) changed = true;
-            if (value.Min != value.Max)
+            if (RandomToggleInt(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max, out var isRandom)) changed = true;
+            if (isRandom)
             {
                 if (IntInput(baseId + 2, ref value.Max)) changed = true;
             }
@@ -444,8 +450,8 @@ internal partial class VfxEditor
         using (UI.BeginRow(ValueRowStyle))
         {
             if (FloatInput(baseId, ref curve.Start.Min)) changed = true;
-            if (RandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max)) changed = true;
-            if (curve.Start.Min != curve.Start.Max)
+            if (RandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max, out var startRandom)) changed = true;
+            if (startRandom)
             {
                 if (FloatInput(baseId + 2, ref curve.Start.Max)) changed = true;
             }
@@ -460,8 +466,8 @@ internal partial class VfxEditor
             using (UI.BeginRow(ValueRowStyle))
             {
                 if (FloatInput(baseId + 3, ref curve.End.Min)) changed = true;
-                if (RandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max)) changed = true;
-                if (curve.End.Min != curve.End.Max)
+                if (RandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max, out var endRandom)) changed = true;
+                if (endRandom)
                 {
                     if (FloatInput(baseId + 5, ref curve.End.Max)) changed = true;
                 }
@@ -490,8 +496,8 @@ internal partial class VfxEditor
         {
             using (UI.BeginFlex())
                 if (ColorInput(baseId, ref curve.Start.Min)) changed = true;
-            if (ColorRandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max)) changed = true;
-            if (curve.Start.Min != curve.Start.Max)
+            if (ColorRandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max, out var startRandom)) changed = true;
+            if (startRandom)
             {
                 using (UI.BeginFlex())
                     if (ColorInput(baseId + 2, ref curve.Start.Max)) changed = true;
@@ -508,8 +514,8 @@ internal partial class VfxEditor
             {
                 using (UI.BeginFlex())
                     if (ColorInput(baseId + 3, ref curve.End.Min)) changed = true;
-                if (ColorRandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max)) changed = true;
-                if (curve.End.Min != curve.End.Max)
+                if (ColorRandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max, out var endRandom)) changed = true;
+                if (endRandom)
                 {
                     using (UI.BeginFlex())
                         if (ColorInput(baseId + 5, ref curve.End.Max)) changed = true;
@@ -586,49 +592,93 @@ internal partial class VfxEditor
         ContentColor = EditorStyle.Palette.Content,
     };
 
-    private static bool RandomToggle(WidgetId id, bool isRandom, ref float min, ref float max)
+    private static bool RandomToggle(WidgetId id, bool dataIsRandom, ref float min, ref float max, out bool isExpanded)
     {
-        var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
-        if (UI.Button(id, EditorAssets.Sprites.IconRandomRange, style))
+        isExpanded = RandomToggleButton(id, dataIsRandom, out var pressed);
+        if (pressed)
         {
-            if (isRandom)
+            if (isExpanded)
+            {
                 max = min; // collapse
+                isExpanded = false;
+            }
             else
-                max = min + MathF.Max(MathF.Abs(min) * 0.5f, 0.1f); // expand with reasonable spread
-            return true;
-        }
-        return false;
-    }
-
-    private static bool RandomToggleInt(WidgetId id, bool isRandom, ref int min, ref int max)
-    {
-        var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
-        if (UI.Button(id, EditorAssets.Sprites.IconRandomRange, style))
-        {
-            if (isRandom)
+            {
                 max = min;
-            else
-                max = min + Math.Max(Math.Abs(min) / 2, 1);
+                isExpanded = true;
+            }
             return true;
         }
         return false;
     }
 
-    private static bool ColorRandomToggle(WidgetId id, bool isRandom, ref Color min, ref Color max)
+    private static bool RandomToggleInt(WidgetId id, bool dataIsRandom, ref int min, ref int max, out bool isExpanded)
     {
-        var style = isRandom ? RandomButtonActiveStyle : RandomButtonStyle;
-        if (UI.Button(id, EditorAssets.Sprites.IconRandomRange, style))
+        isExpanded = RandomToggleButton(id, dataIsRandom, out var pressed);
+        if (pressed)
         {
-            if (isRandom)
+            if (isExpanded)
+            {
                 max = min;
+                isExpanded = false;
+            }
             else
-                max = min; // user picks the second color via color picker
+            {
+                max = min;
+                isExpanded = true;
+            }
             return true;
         }
         return false;
     }
 
-    // --- Primitive Input Helpers ---
+    private static bool ColorRandomToggle(WidgetId id, bool dataIsRandom, ref Color min, ref Color max, out bool isExpanded)
+    {
+        isExpanded = RandomToggleButton(id, dataIsRandom, out var pressed);
+        if (pressed)
+        {
+            if (isExpanded)
+            {
+                max = min;
+                isExpanded = false;
+            }
+            else
+            {
+                isExpanded = true;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static bool RandomToggleButton(WidgetId id, bool dataIsRandom, out bool pressed)
+    {
+        ElementTree.BeginTree();
+        ref var state = ref ElementTree.BeginWidget<RandomToggleState>(id);
+
+        // Seed from data only on first render
+        if (state.Initialized == 0)
+        {
+            state.Initialized = 1;
+            state.Expanded = (byte)(dataIsRandom ? 1 : 0);
+        }
+
+        var isExpanded = state.Expanded != 0;
+        var flags = ElementTree.GetWidgetFlags() | (isExpanded ? WidgetFlags.Checked : WidgetFlags.None);
+        var style = EditorStyle.Button.ToggleIcon.Resolve!(EditorStyle.Button.ToggleIcon, flags);
+
+        ElementTree.BeginSize(new Size2(style.Width, style.Height));
+        ElementTree.BeginFill(style.Background, style.BorderRadius);
+        ElementTree.BeginAlign(Align.Center);
+        ElementTree.Image(EditorAssets.Sprites.IconRandomRange, style.IconSize, ImageStretch.Uniform, style.ContentColor);
+        ElementTree.EndTree();
+
+        pressed = flags.HasFlag(WidgetFlags.Pressed);
+        if (pressed)
+            state.Expanded = (byte)(isExpanded ? 0 : 1);
+
+        return isExpanded;
+    }
 
     private static bool FloatInput(WidgetId id, ref float value)
     {
@@ -665,7 +715,7 @@ internal partial class VfxEditor
     private static bool ColorInput(WidgetId id, ref Color color)
     {
         var color32 = color.ToColor32();
-        if (EditorUI.ColorButton(id, ref color32))
+        if (EditorUI.ColorButton(id, ref color32, fillWidth: true))
         {
             color = color32.ToColor();
             return true;

@@ -210,10 +210,10 @@ public partial class SpriteDocument
                 Graphics.Draw(rect);
             }
         }
-        else if (!DrawFromAtlas() && !DrawFromPreviewTexture())
-        {
+        else if (Sprite != null)
+            DrawSprite();
+        else
             DrawBounds();
-        }
 
         if (gen.IsGenerating)
         {

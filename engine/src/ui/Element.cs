@@ -28,6 +28,7 @@ internal enum ElementType : byte
     Cursor,
     Transform,
     Grid,
+    Collection,
     Scene,
     Scroll,
     Track,
@@ -62,6 +63,7 @@ internal struct ElementData
     [FieldOffset(0)] public CursorElement Cursor;
     [FieldOffset(0)] public TransformElement Transform;
     [FieldOffset(0)] public GridElement Grid;
+    [FieldOffset(0)] public CollectionElement Collection;
     [FieldOffset(0)] public ScrollElement Scroll;
     [FieldOffset(0)] public TrackElement Track;
     [FieldOffset(0)] public float Spacing;
@@ -152,6 +154,16 @@ internal struct GridElement
     public float CellHeight;
     public float CellMinWidth;
     public float CellHeightOffset;
+    public int VirtualCount;
+    public int StartIndex;
+}
+
+internal struct CollectionElement
+{
+    public float Spacing;
+    public int Columns;
+    public float ItemWidth;
+    public float ItemHeight;
     public int VirtualCount;
     public int StartIndex;
 }

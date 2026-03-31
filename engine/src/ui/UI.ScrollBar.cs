@@ -66,7 +66,11 @@ public static partial class UI
 
         ref var trackState = ref ElementTree.BeginWidget<TrackState>(id);
         ElementTree.BeginTrack(ref trackState, id, 0, thumbHeight);
-        trackState.Y = t;
+
+        // Only sync scroll offset → track when not being dragged,
+        // otherwise we'd overwrite the value set by HandleTrackInput.
+        if (!ElementTree.HasCaptureById(id))
+            trackState.Y = t;
 
         ElementTree.BeginSize(new Size(s.Width), Size.Percent(1));
 

@@ -19,12 +19,14 @@ public enum ImageStretch : byte
 public static partial class UI
 {
     public struct AutoContainer : IDisposable { readonly void IDisposable.Dispose() => EndContainer(); }
+    public struct AutoCenter : IDisposable { readonly void IDisposable.Dispose() => EndCenter(); }
     public struct AutoColumn : IDisposable { readonly void IDisposable.Dispose() => EndColumn(); }
     public struct AutoRow : IDisposable { readonly void IDisposable.Dispose() => EndRow(); }
     public struct AutoScrollable : IDisposable { readonly void IDisposable.Dispose() => EndScrollable(); }
     public struct AutoFlex : IDisposable { readonly void IDisposable.Dispose() => EndFlex(); }
     public struct AutoPopup : IDisposable { readonly void IDisposable.Dispose() => EndPopup(); }
     public struct AutoGrid : IDisposable { readonly void IDisposable.Dispose() => EndGrid(); }
+    public struct AutoCollection : IDisposable { readonly void IDisposable.Dispose() => EndCollection(); }
     public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
     public struct AutoOpacity : IDisposable { readonly void IDisposable.Dispose() => EndOpacity(); }
     public struct AutoCursor : IDisposable { readonly void IDisposable.Dispose() => EndCursor(); }
@@ -333,9 +335,10 @@ public static partial class UI
 
 
 
-    public static void BeginCenter()
+    public static AutoCenter BeginCenter()
     {
         BeginContainerImpl(WidgetId.None, ContainerStyle.Center, -1);
+        return new AutoCenter();
     }
 
     public static void EndCenter() => EndContainerImpl();
@@ -435,6 +438,36 @@ public static partial class UI
     }
 
     public static void EndGrid() => ElementTree.EndGrid();
+
+    public static AutoCollection BeginCollection(WidgetId scrollId, in CollectionLayout layout,
+        int totalCount, out int start, out int end)
+    {
+        var columns = Math.Max(1, layout.Columns);
+        var rowHeight = layout.ItemHeight + layout.Spacing;
+        var scrollOffset = GetScrollOffset(scrollId);
+        var viewportHeight = GetElementRect(scrollId).Height;
+
+        if (totalCount <= 0 || rowHeight <= 0)
+        {
+            start = 0;
+            end = 0;
+        }
+        else
+        {
+            var totalRows = (totalCount + columns - 1) / columns;
+            var startRow = Math.Max(0, (int)(scrollOffset / rowHeight) - 1);
+            var visibleRows = (int)Math.Ceiling(viewportHeight / rowHeight) + 2;
+            var endRow = Math.Min(totalRows, startRow + visibleRows);
+            start = startRow * columns;
+            end = Math.Min(totalCount, endRow * columns);
+        }
+
+        ElementTree.BeginCollection(layout.Spacing, columns, layout.ItemWidth, layout.ItemHeight,
+            totalCount, start);
+        return new AutoCollection();
+    }
+
+    public static void EndCollection() => ElementTree.EndCollection();
 
     public static void Scene(WidgetId id, Camera camera, Action draw) =>
         Scene(id, camera, draw, new SceneStyle());

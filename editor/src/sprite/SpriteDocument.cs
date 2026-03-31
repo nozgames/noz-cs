@@ -434,12 +434,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         DrawOrigin();
 
-        if (!IsMutable)
-            DrawStaticImage();
-        else if (Generation != null)
-            DrawGeneration();
+        if (Sprite != null)
+            DrawSprite();
         else
-            DrawVector();
+            DrawBounds();
     }
 
     public override bool DrawThumbnail()
@@ -502,92 +500,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         }
     }
 
-    private bool DrawFromAtlas(float alpha = -1f)
-    {
-        if (Atlas?.Texture == null) return false;
-
-        var uv = GetAtlasUV(0);
-        if (uv == Rect.Zero) return false;
-
-        DrawTexturedRect(Atlas.Texture, Bounds,
-            Color.White.WithAlpha(alpha < 0 ? Workspace.XrayAlpha : alpha), uv);
-        return true;
-    }
-
-    private bool DrawFromPreviewTexture()
-    {
-        EnsurePreviewTexture();
-
-        if (_texture == null) return false;
-
-        var uv = new Rect(0, 0, 1, 1);
-        var drawBounds = Bounds;
-
-        if (ConstrainedSize.HasValue && _textureSize.X > 0 && _textureSize.Y > 0)
-        {
-            var cs = ConstrainedSize.Value;
-            if (cs.X < _textureSize.X || cs.Y < _textureSize.Y)
-            {
-                var uW = Math.Min(1f, (float)cs.X / _textureSize.X);
-                var uH = Math.Min(1f, (float)cs.Y / _textureSize.Y);
-                uv = new Rect((1f - uW) * 0.5f, (1f - uH) * 0.5f, uW, uH);
-            }
-            else if (cs.X > _textureSize.X || cs.Y > _textureSize.Y)
-            {
-                var ppu = EditorApplication.Config.PixelsPerUnitInv;
-                var imgW = _textureSize.X * ppu;
-                var imgH = _textureSize.Y * ppu;
-                drawBounds = new Rect(-imgW * 0.5f, -imgH * 0.5f, imgW, imgH);
-            }
-        }
-
-        DrawTexturedRect(_texture, drawBounds,
-            Color.White.WithAlpha(Workspace.XrayAlpha), uv);
-        return true;
-    }
-
-    private void DrawStaticImage()
-    {
-        if (!DrawFromAtlas() && !DrawFromPreviewTexture())
-            DrawBounds();
-    }
-
-    private void DrawVector()
-    {
-        if (Bounds.Width <= 0 || Bounds.Height <= 0)
-            return;
-
-        if (!DrawFromAtlas() && !DrawFromStandaloneTexture())
-            DrawBounds();
-    }
-
-    private bool DrawFromStandaloneTexture()
-    {
-        var w = RasterBounds.Width;
-        var h = RasterBounds.Height;
-        if (w <= 0 || h <= 0) return false;
-
-        if (_standaloneTexture == null || _standaloneTextureVersion != Version)
-        {
-            _standaloneTexture?.Dispose();
-            using var image = new PixelData<Color32>(w, h);
-            var rect = new AtlasSpriteRect
-            {
-                Name = Name,
-                Source = this,
-                Rect = new RectInt(0, 0, w, h),
-                FrameIndex = 0
-            };
-            Rasterize(image, rect, padding: 0);
-            _standaloneTexture = Texture.Create(w, h, image.AsByteSpan(), TextureFormat.RGBA8, TextureFilter.Linear, Name + "_standalone");
-            _standaloneTextureVersion = Version;
-        }
-
-        DrawTexturedRect(_standaloneTexture, Bounds,
-            Color.White.WithAlpha(Workspace.XrayAlpha));
-        return true;
-    }
-
     public void DrawSprite(in Vector2 offset = default, float alpha = 1.0f, int frame = 0)
     {
         var sprite = Sprite;
@@ -607,7 +519,11 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public void DrawSprite(ReadOnlySpan<Matrix3x2> bindPose, ReadOnlySpan<Matrix3x2> animatedPose, in Matrix3x2 baseTransform, int frame = 0, Color? tint = null)
     {
         var sprite = Sprite;
-        if (sprite == null) return;
+        if (sprite == null)
+        {
+            Log.Info($"[SKEL DEBUG] '{Name}': Sprite is null, Atlas={Atlas?.Name ?? "NULL"}");
+            return;
+        }
 
         using (Graphics.PushState())
         {
@@ -618,7 +534,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
             var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
             Graphics.SetTransform(transform);
-            Graphics.Draw(sprite, bone: boneIndex, frame: frame);
+            Graphics.Draw(sprite, frame: frame);
         }
     }
 

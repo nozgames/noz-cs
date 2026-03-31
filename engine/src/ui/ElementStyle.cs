@@ -128,6 +128,14 @@ public struct GridStyle()
     public int StartIndex = 0;
 }
 
+public struct CollectionLayout()
+{
+    public int Columns = 1;
+    public float ItemHeight = 0;
+    public float ItemWidth = 0;
+    public float Spacing = 0;
+}
+
 public struct PopupStyle()
 {
     public Align2 Anchor = Align.Min;

@@ -293,9 +293,10 @@ public static class VfxSystem
                     continue;
 
                 ref var instance = ref _instances[e.InstanceIndex];
+                ref var pdef = ref e.Vfx.EmitterDefs[e.DefIndex].Particle;
+                if (pdef.Sprite == null) continue;
 
                 var t = p.Elapsed / p.Lifetime;
-                ref var pdef = ref e.Vfx.EmitterDefs[e.DefIndex].Particle;
                 var size = MathEx.Mix(p.SizeStart, p.SizeEnd, EvaluateCurve(p.SizeCurve, t, pdef.Size.Bezier));
                 var opacity = MathEx.Mix(p.OpacityStart, p.OpacityEnd, EvaluateCurve(p.OpacityCurve, t, pdef.Opacity.Bezier));
                 var col = Color.Mix(p.ColorStart, p.ColorEnd, EvaluateCurve(p.ColorCurve, t, pdef.Color.Bezier));
@@ -309,11 +310,9 @@ public static class VfxSystem
                     particleTransform *= instance.Transform;
 
                 Graphics.SetShader(instance.Shader);
-
                 Graphics.SetLayer(instance.Layer);
                 Graphics.SetColor(col.WithAlpha(opacity));
                 Graphics.SetSortGroup((int)instance.Depth);
-                if (pdef.Sprite == null) continue;
                 Graphics.SetTransform(particleTransform);
                 Graphics.Draw(pdef.Sprite);
             }

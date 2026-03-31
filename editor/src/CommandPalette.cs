@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 public static partial class CommandPalette
 {
-    private const int MaxFilteredCommands = 32;
+    private const int MaxFilteredCommands = 128;
 
     private static partial class WidgetIds 
     {
@@ -141,53 +141,57 @@ public static partial class CommandPalette
         {
             using (UI.BeginFlex())
             using (UI.BeginScrollable(WidgetIds.CommandList))
-            using (UI.BeginColumn())
             {
-                var selectedIndex = _selectedIndex;
-                for (var i = 0; i < _filteredCount; i++)
+                var layout = new CollectionLayout { ItemHeight = EditorStyle.List.ItemHeight };
+
+                using (UI.BeginCollection(WidgetIds.CommandList, layout, _filteredCount, out var start, out var end))
                 {
-                    var cmd = _filteredCommands[i];
-                    if (cmd == null) continue;
-
-                    var isSelected = i == selectedIndex;
-
-                    using (UI.BeginRow(
-                        id: WidgetIds.Command + i,
-                        style: isSelected
-                            ? EditorStyle.CommandPalette.SelectedItem
-                            : EditorStyle.CommandPalette.Item))
+                    var selectedIndex = _selectedIndex;
+                    for (var i = start; i < end; i++)
                     {
-                        if (cmd.Icon != null)
-                            UI.Image(cmd.Icon, EditorStyle.Control.IconSecondary);
-                        else
-                            UI.Spacer(EditorStyle.Control.IconSize);
+                        var cmd = _filteredCommands[i];
+                        if (cmd == null) continue;
 
-                        UI.Text(cmd.Name, style: EditorStyle.Control.Text);
-                        UI.Flex();
+                        var isSelected = i == selectedIndex;
 
-                        if (cmd.Key != InputCode.None)
+                        using (UI.BeginRow(
+                            id: WidgetIds.Command + i,
+                            style: isSelected
+                                ? EditorStyle.CommandPalette.SelectedItem
+                                : EditorStyle.CommandPalette.Item))
                         {
-                            using (UI.BeginRow(EditorStyle.Shortcut.ListContainer))
+                            if (cmd.Icon != null)
+                                UI.Image(cmd.Icon, EditorStyle.Control.IconSecondary);
+                            else
+                                UI.Spacer(EditorStyle.Control.IconSize);
+
+                            UI.Text(cmd.Name, style: EditorStyle.Control.Text);
+                            UI.Flex();
+
+                            if (cmd.Key != InputCode.None)
                             {
-                                if (cmd.Ctrl) UI.Text(InputCode.KeyLeftCtrl.ToDisplayString(), EditorStyle.Text.Disabled);
-                                if (cmd.Alt) UI.Text(InputCode.KeyLeftAlt.ToDisplayString(), EditorStyle.Text.Disabled);
-                                if (cmd.Shift) UI.Text(InputCode.KeyLeftShift.ToDisplayString(), EditorStyle.Text.Disabled);
-                                UI.Text(cmd.Key.ToDisplayString(), EditorStyle.Text.Disabled);
+                                using (UI.BeginRow(EditorStyle.Shortcut.ListContainer))
+                                {
+                                    if (cmd.Ctrl) UI.Text(InputCode.KeyLeftCtrl.ToDisplayString(), EditorStyle.Text.Disabled);
+                                    if (cmd.Alt) UI.Text(InputCode.KeyLeftAlt.ToDisplayString(), EditorStyle.Text.Disabled);
+                                    if (cmd.Shift) UI.Text(InputCode.KeyLeftShift.ToDisplayString(), EditorStyle.Text.Disabled);
+                                    UI.Text(cmd.Key.ToDisplayString(), EditorStyle.Text.Disabled);
+                                }
+                            }
+
+                            if (UI.WasPressed())
+                            {
+                                selectedIndex = i;
+                                execute = true;
                             }
                         }
-
-                        if (UI.WasPressed())
-                        {
-                            selectedIndex = i;
-                            execute = true;
-                        }
                     }
+
+                    _selectedIndex = selectedIndex;
+
+                    if (execute)
+                        ExecuteSelectedCommand();
                 }
-
-                _selectedIndex = selectedIndex;
-
-                if (execute)
-                    ExecuteSelectedCommand();
             }
 
             UI.ScrollBar(WidgetIds.ScrollBar, WidgetIds.CommandList, EditorStyle.CommandPalette.ScrollBar);
