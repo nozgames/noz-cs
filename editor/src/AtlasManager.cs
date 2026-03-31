@@ -124,11 +124,13 @@ public static class AtlasManager
             source.Atlas.Update(source, pixels);
             source.Reexport();
             source.Atlas.Reexport();
+            SyncTextureArrayLayer(source.Atlas);
             return;
         }
 
         // Source no longer fits in its atlas, need to relocate it
         var oldAtlas = source.Atlas;
+        var oldAtlasCount = _atlases.Count;
         source.Atlas = null;
         Add(source);
 
@@ -140,6 +142,26 @@ public static class AtlasManager
             source.Atlas.Update(source, pixels);
             source.Atlas.Reexport();
         }
+
+        // If Add() created a new atlas, rebuild the entire texture array
+        if (_atlases.Count != oldAtlasCount && Graphics.Driver != null)
+        {
+            RebuildTextureArray();
+        }
+        else
+        {
+            SyncTextureArrayLayer(oldAtlas);
+            if (source.Atlas != null && source.Atlas != oldAtlas)
+                SyncTextureArrayLayer(source.Atlas);
+        }
+    }
+
+    private static void SyncTextureArrayLayer(AtlasDocument atlas)
+    {
+        if (TextureArray == null || atlas.Image == null)
+            return;
+
+        TextureArray.UpdateLayer(atlas.Index, atlas.Image.AsByteSpan());
     }
 
     internal static void AddSource(SpriteDocument source)

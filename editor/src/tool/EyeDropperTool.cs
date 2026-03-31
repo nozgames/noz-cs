@@ -3,27 +3,16 @@
 //
 
 using System.Numerics;
-using System.Threading.Tasks;
 
 namespace NoZ.Editor;
 
-public class EyeDropperTool : Tool
+public class EyeDropperTool(SpriteEditor editor) : Tool
 {
-    private readonly SpriteEditor _editor;
+    private readonly SpriteEditor _editor = editor;
     private Task<byte[]>? _readbackTask;
     private Vector2 _readbackMouseScreen;
     private SceneRenderInfo _readbackSceneInfo;
-    private readonly List<SpritePath> _hitResults = new();
-
-    public EyeDropperTool(SpriteEditor editor)
-    {
-        _editor = editor;
-    }
-
-    public override void Begin()
-    {
-        base.Begin();
-    }
+    private bool _shift;
 
     public override void Update()
     {
@@ -48,30 +37,7 @@ public class EyeDropperTool : Tool
 
         if (Input.WasButtonPressed(InputCode.MouseLeft, Scope))
         {
-            var alt = Input.IsAltDown(InputScope.All);
-
-            // If alt is not held, try path hit test first (existing behavior)
-            if (!alt)
-            {
-                Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
-                var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
-                _hitResults.Clear();
-                _editor.Document.RootLayer.HitTestPath(localMousePos, _hitResults);
-
-                // Find the first path with a visible fill color
-                foreach (var path in _hitResults)
-                {
-                    if (path.FillColor.A > 0)
-                    {
-                        _editor.ApplyEyeDropperColor(path, false);
-                        Input.ConsumeButton(InputCode.MouseLeft);
-                        Workspace.EndTool();
-                        return;
-                    }
-                }
-            }
-
-            // Path miss or alt held: initiate framebuffer readback
+            _shift = Input.IsShiftDown(InputScope.All);
             InitiateReadback();
         }
     }
@@ -107,7 +73,7 @@ public class EyeDropperTool : Tool
         if (idx >= 0 && idx + 3 < pixels.Length)
         {
             var color = new Color32(pixels[idx], pixels[idx + 1], pixels[idx + 2], 255);
-            _editor.ApplyEyeDropperColor(color);
+            _editor.ApplyEyeDropperColor(color, _shift);
         }
 
         Workspace.EndTool();

@@ -442,7 +442,7 @@ public class VfxDocument : Document
         var name = tk.ExpectQuotedString() ?? $"particle{Particles.Count}";
         tk.ExpectDelimiter('{');
 
-        var particle = new VfxDocParticle { Name = name };
+        var particle = new VfxDocParticle { Name = name, SpriteRef = new DocumentRef<SpriteDocument> { Name = "square" } };
         ref var p = ref particle.Def;
         p.Duration = VfxRange.One;
         p.Size = VfxFloatCurve.One;
@@ -537,8 +537,7 @@ public class VfxDocument : Document
                 sw.WriteLine($"  rotation {FormatRange(p.Def.Rotation)}");
             if (p.Def.RotationSpeed != VfxFloatCurve.Zero)
                 sw.WriteLine($"  rotationSpeed {FormatFloatCurve(p.Def.RotationSpeed)}");
-            if (p.SpriteRef.HasValue)
-                sw.WriteLine($"  sprite \"{p.SpriteRef.Name}\"");
+            sw.WriteLine($"  sprite \"{p.SpriteRef.Name}\"");
 
             sw.WriteLine("}");
         }

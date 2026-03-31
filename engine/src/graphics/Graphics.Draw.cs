@@ -320,20 +320,22 @@ public static partial class Graphics
         var edges = sprite.Edges;
         var mask = sprite.SliceMask;
 
-        // Edge sizes in target rect units (same coordinate space as targetRect)
-        var edgeL = edges.L;
-        var edgeR = edges.R;
-        var edgeT = edges.T;
-        var edgeB = edges.B;
-
-        // 4 x-positions and 4 y-positions defining the 3x3 grid
-        Span<float> xs = [targetRect.Left, targetRect.Left + edgeL, targetRect.Right - edgeR, targetRect.Right];
-        Span<float> ys = [targetRect.Top, targetRect.Top + edgeT, targetRect.Bottom - edgeB, targetRect.Bottom];
-
         // UV splits proportional to edge pixel ratios
         var uv = sf.UV;
         var spriteW = (float)sprite.Size.X;
         var spriteH = (float)sprite.Size.Y;
+
+        // Scale edges from sprite pixel space to target rect space
+        var scaleX = targetRect.Width / spriteW;
+        var scaleY = targetRect.Height / spriteH;
+        var edgeL = edges.L * scaleX;
+        var edgeR = edges.R * scaleX;
+        var edgeT = edges.T * scaleY;
+        var edgeB = edges.B * scaleY;
+
+        // 4 x-positions and 4 y-positions defining the 3x3 grid
+        Span<float> xs = [targetRect.Left, targetRect.Left + edgeL, targetRect.Right - edgeR, targetRect.Right];
+        Span<float> ys = [targetRect.Top, targetRect.Top + edgeT, targetRect.Bottom - edgeB, targetRect.Bottom];
 
         Span<float> us = [uv.Left, uv.Left + (edges.L / spriteW) * uv.Width, uv.Right - (edges.R / spriteW) * uv.Width, uv.Right];
         Span<float> vs = [uv.Top, uv.Top + (edges.T / spriteH) * uv.Height, uv.Bottom - (edges.B / spriteH) * uv.Height, uv.Bottom];

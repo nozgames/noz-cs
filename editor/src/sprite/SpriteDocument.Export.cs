@@ -201,7 +201,7 @@ public partial class SpriteDocument
         writer.Write((byte)(BoneIndex == -1 ? 255 : BoneIndex));
 
         // 9-slice edges
-        var activeEdges = ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero;
+        var activeEdges = Edges;
         writer.Write((short)activeEdges.T);
         writer.Write((short)activeEdges.L);
         writer.Write((short)activeEdges.B);

@@ -711,8 +711,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             boneIndex: -1,
             frames: frames,
             frameRate: 12.0f,
-            edges: ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero,
-            sliceMask: Sprite.CalculateSliceMask(RasterBounds, ConstrainedSize.HasValue ? Edges : EdgeInsets.Zero),
+            edges: Edges,
+            sliceMask: Sprite.CalculateSliceMask(RasterBounds, Edges),
             atlasIndex: Atlas?.Index ?? 0,
             atlas: AtlasManager.TextureArray);
     }

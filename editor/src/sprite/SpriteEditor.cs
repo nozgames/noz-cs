@@ -48,6 +48,12 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId AddReference { get; }
         public static partial WidgetId ReferenceItem { get; }
         public static partial WidgetId DeleteReference { get; }
+        public static partial WidgetId AddEdgesButton { get; }
+        public static partial WidgetId RemoveEdgesButton { get; }
+        public static partial WidgetId EdgeTop { get; }
+        public static partial WidgetId EdgeLeft { get; }
+        public static partial WidgetId EdgeBottom { get; }
+        public static partial WidgetId EdgeRight { get; }
         public static partial WidgetId ExportToggle { get; }
         public static partial WidgetId PenToolButton { get; }
         public static partial WidgetId KnifeToolButton { get; }
@@ -270,7 +276,7 @@ public partial class SpriteEditor : DocumentEditor
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
 
-        if (!Document.Edges.IsZero && Document.ConstrainedSize.HasValue)
+        if (!Document.Edges.IsZero)
             DrawEdges();
     }
 
@@ -1563,10 +1569,91 @@ public partial class SpriteEditor : DocumentEditor
 
         if (Document.IsMutable)
         {
+            EdgesInspectorUI();
             PathInspectorUI();
             GenerationInspectorUI();
         }
     }
+
+    #region Edges
+
+    private static bool EdgeIntInput(WidgetId id, float value, out float newValue)
+    {
+        var text = ((int)value).ToString();
+        newValue = value;
+        using (UI.BeginFlex())
+        {
+            var result = UI.TextInput(id, text, EditorStyle.Inspector.TextBox, "0");
+            if (result != text && int.TryParse(result, out var parsed) && parsed >= 0)
+            {
+                newValue = parsed;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void EdgesInspectorUI()
+    {
+        if (Document.Edges.IsZero)
+        {
+            static void EmptySectionContent()
+            {
+                ElementTree.BeginAlign(Align.Min, Align.Center);
+                if (UI.Button(WidgetIds.AddEdgesButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+                {
+                    var doc = (Workspace.ActiveDocument as SpriteDocument)!;
+                    Undo.Record(doc);
+                    doc.Edges = new EdgeInsets(8);
+                    doc.UpdateBounds();
+                }
+                ElementTree.EndAlign();
+            }
+
+            using (Inspector.BeginSection("EDGES", content: EmptySectionContent, empty: true))
+            return;
+        }
+
+        static void EdgesSectionContent()
+        {
+            ElementTree.BeginAlign(Align.Min, Align.Center);
+            if (UI.Button(WidgetIds.RemoveEdgesButton, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
+            {
+                var doc = (Workspace.ActiveDocument as SpriteDocument)!;
+                Undo.Record(doc);
+                doc.Edges = EdgeInsets.Zero;
+            }
+            ElementTree.EndAlign();
+        }
+
+        using (Inspector.BeginSection("EDGES", content: EdgesSectionContent))
+        {
+            if (Inspector.IsSectionCollapsed) return;
+
+            var edges = Document.Edges;
+            var changed = false;
+
+            using (Inspector.BeginProperty("Top"))
+                if (EdgeIntInput(WidgetIds.EdgeTop, edges.T, out var v)) { edges = new EdgeInsets(v, edges.L, edges.B, edges.R); changed = true; }
+
+            using (Inspector.BeginProperty("Left"))
+                if (EdgeIntInput(WidgetIds.EdgeLeft, edges.L, out var v)) { edges = new EdgeInsets(edges.T, v, edges.B, edges.R); changed = true; }
+
+            using (Inspector.BeginProperty("Bottom"))
+                if (EdgeIntInput(WidgetIds.EdgeBottom, edges.B, out var v)) { edges = new EdgeInsets(edges.T, edges.L, v, edges.R); changed = true; }
+
+            using (Inspector.BeginProperty("Right"))
+                if (EdgeIntInput(WidgetIds.EdgeRight, edges.R, out var v)) { edges = new EdgeInsets(edges.T, edges.L, edges.B, v); changed = true; }
+
+            if (changed)
+            {
+                Document.Edges = edges;
+                UI.HandleChange(Document);
+            }
+        }
+    }
+
+    #endregion
 
     #region Generation
 
@@ -1811,32 +1898,21 @@ public partial class SpriteEditor : DocumentEditor
         Workspace.BeginTool(new EyeDropperTool(this));
     }
 
-    internal void ApplyEyeDropperColor(SpritePath path, bool alt)
+    internal void ApplyEyeDropperColor(Color32 color, bool stroke)
     {
         Undo.Record(Document);
-
-        if (alt)
+        if (stroke)
         {
-            Document.CurrentStrokeWidth = path.StrokeWidth;
-            Document.CurrentStrokeJoin = path.StrokeJoin;
-            SetStrokeColor(path.StrokeColor);
+            SetStrokeColor(color);
             if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
-                ColorPicker.Open(WidgetIds.StrokeColor, path.StrokeColor);
+                ColorPicker.Open(WidgetIds.StrokeColor, color);
         }
         else
         {
-            SetFillColor(path.FillColor);
+            SetFillColor(color);
             if (ColorPicker.IsOpen(WidgetIds.FillColor))
-                ColorPicker.Open(WidgetIds.FillColor, path.FillColor);
+                ColorPicker.Open(WidgetIds.FillColor, color);
         }
-    }
-
-    internal void ApplyEyeDropperColor(Color32 color)
-    {
-        Undo.Record(Document);
-        SetFillColor(color);
-        if (ColorPicker.IsOpen(WidgetIds.FillColor))
-            ColorPicker.Open(WidgetIds.FillColor, color);
     }
 
     #endregion

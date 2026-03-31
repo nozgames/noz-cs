@@ -156,6 +156,13 @@ public class Texture : Asset, IImage
         Graphics.Driver.UpdateTextureRegion(Handle, region, data, srcWidth);
     }
 
+    public void UpdateLayer(int layer, ReadOnlySpan<byte> data)
+    {
+        if (Handle == nuint.Zero)
+            return;
+        Graphics.Driver.UpdateTextureLayer(Handle, layer, data);
+    }
+
     internal static void RegisterDef()
     {
         RegisterDef(new AssetDef(AssetType.Texture, "Texture", typeof(Texture), Load, Version));

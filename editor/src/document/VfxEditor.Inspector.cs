@@ -49,7 +49,6 @@ internal partial class VfxEditor
         public static partial WidgetId AddGravity { get; }
         public static partial WidgetId AddDrag { get; }
         public static partial WidgetId AddRotation { get; }
-        public static partial WidgetId AddSprite { get; }
         public static partial WidgetId RemoveAngle { get; }
         public static partial WidgetId RemoveSpawn { get; }
         public static partial WidgetId RemoveDirection { get; }
@@ -60,7 +59,6 @@ internal partial class VfxEditor
         public static partial WidgetId RemoveGravity { get; }
         public static partial WidgetId RemoveDrag { get; }
         public static partial WidgetId RemoveRotation { get; }
-        public static partial WidgetId RemoveSprite { get; }
         public static partial WidgetId SpriteDropDown { get; }
     }
 
@@ -221,6 +219,12 @@ internal partial class VfxEditor
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
+
+            using (Inspector.BeginProperty("Sprite"))
+            {
+                particle.SpriteRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
+                UI.HandleChange(Document);
+            }
         }
 
         // Addable particle groups
@@ -312,17 +316,6 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("SPRITE", particle.SpriteRef.HasValue, FieldId.AddSprite, FieldId.RemoveSprite,
-            () => { }, // just show the section, user picks from asset palette
-            () => { particle.SpriteRef.Clear(); }))
-        {
-            using (Inspector.BeginProperty("Sprite"))
-            {
-                particle.SpriteRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
-                UI.HandleChange(Document);
-            }
-            EndAddableSection();
-        }
     }
 
     // --- Addable Section Helper ---
