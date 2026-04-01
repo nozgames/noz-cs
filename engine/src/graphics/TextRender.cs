@@ -10,8 +10,8 @@ namespace NoZ;
 
 internal static class TextRender
 {
-    private const int MaxVertices = 8192;
-    private const int MaxIndices = 8192 / 4 * 6;
+    private const int MaxVertices = 8192 * 2;
+    private const int MaxIndices = 8192 / 4 * 6 * 2;
 
     private static Shader? _textShader;
     private static RenderMesh _mesh;

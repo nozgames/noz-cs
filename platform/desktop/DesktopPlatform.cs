@@ -388,6 +388,7 @@ public unsafe partial class SDLPlatform : IPlatform
             SDL_Scancode.SDL_SCANCODE_GRAVE => InputCode.KeyTilde,
             SDL_Scancode.SDL_SCANCODE_COMMA => InputCode.KeyComma,
             SDL_Scancode.SDL_SCANCODE_PERIOD => InputCode.KeyPeriod,
+            SDL_Scancode.SDL_SCANCODE_SLASH => InputCode.KeySlash,
 
             SDL_Scancode.SDL_SCANCODE_F1 => InputCode.KeyF1,
             SDL_Scancode.SDL_SCANCODE_F2 => InputCode.KeyF2,

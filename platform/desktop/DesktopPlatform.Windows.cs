@@ -674,6 +674,7 @@ public unsafe partial class SDLPlatform
             0xBC => InputCode.KeyComma,
             0xBD => InputCode.KeyMinus,
             0xBE => InputCode.KeyPeriod,
+            0xBF => InputCode.KeySlash,
             0xC0 => InputCode.KeyTilde,
             0xDB => InputCode.KeyLeftBracket,
             0xDD => InputCode.KeyRightBracket,

@@ -42,6 +42,7 @@ public enum InputCode
     KeyTab,
     KeyComma,
     KeyPeriod,
+    KeySlash,
     KeyBackspace,
     KeyEscape,
 
@@ -165,7 +166,7 @@ public static class InputCodeExtensions
         "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
         ";", "'", "-", "=",
         "~", "[", "]",
-        "Space", "Enter", "Tab", ",", ".", "Backspace", "Escape",
+        "Space", "Enter", "Tab", ",", ".", "/", "Backspace", "Escape",
         "Shift", "Ctrl", "Alt", "Shift", "Ctrl", "Alt",
         "Up", "Down", "Left", "Right", "Delete", "Insert", "Home", "End", "Page Up", "Page Down",
         "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",

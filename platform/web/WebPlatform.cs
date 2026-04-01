@@ -307,6 +307,7 @@ public class WebPlatform : IPlatform
             "`" => InputCode.KeyTilde,
             "," => InputCode.KeyComma,
             "." => InputCode.KeyPeriod,
+            "/" => InputCode.KeySlash,
 
             "f1" => InputCode.KeyF1,
             "f2" => InputCode.KeyF2,

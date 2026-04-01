@@ -66,7 +66,7 @@ public class PenTool : Tool
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseRight, Scope))
+        if (Input.WasButtonReleased(InputCode.MouseRight, Scope) && !Workspace.WasDragging)
         {
             if (_pointCount > 0)
                 _pointCount--;

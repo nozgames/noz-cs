@@ -49,6 +49,7 @@ public static partial class Workspace
     private static bool _showGrid = true;
     private static bool _showNames;
     private static bool _showReferences;
+    private static bool _isolationOverride;
 
     private static Vector2 _mousePosition;
     private static Vector2 _mouseWorldPosition;
@@ -202,6 +203,7 @@ public static partial class Workspace
             new Command { Name = "Browse Sprites", Handler = () => AssetPalette.OpenSprites() },
             new Command { Name = "Toggle Grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Ctrl = true },
             new Command { Name = "Toggle Names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
+            new Command { Name = "Toggle Isolation", Handler = ToggleIsolation, Key = InputCode.KeySlash },
         ]);
 
         var workspaceCommands = new List<Command>
@@ -343,15 +345,16 @@ public static partial class Workspace
 
     private static void DrawScene()
     {
-        var isolation = State == WorkspaceState.Edit && ActiveEditor is { ShowInIsolation: true };
+        var wantsIsolation = ActiveEditor?.ShowInIsolation ?? false;
+        var isolation = State == WorkspaceState.Edit && (wantsIsolation != _isolationOverride);
 
         if (!isolation)
             DrawDocuments();
 
-        if (!isolation && _showReferences)
+        if (_showReferences)
             DrawReferences();
 
-        if (!isolation && _showGrid)
+        if (_showGrid)
             Grid.Draw(_camera);
 
         if (!isolation && ShowNames)
@@ -750,6 +753,11 @@ public static partial class Workspace
         _showNames = !_showNames;
     }
 
+    private static void ToggleIsolation()
+    {
+        _isolationOverride = !_isolationOverride;
+    }
+
     private static void BeginRenameTool()
     {
         if (SelectedCount != 1 || ActiveTool != null || State != WorkspaceState.Default)
@@ -837,7 +845,7 @@ public static partial class Workspace
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.MouseRight))
+        if (Input.WasButtonPressed(InputCode.MouseLeft) || Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
         {
             _dragPosition = _mousePosition;
             DragWorldPosition = _mouseWorldPosition;
@@ -847,7 +855,7 @@ public static partial class Workspace
         {
             BeginDrag(InputCode.MouseLeft);
         }
-        else if (Input.IsButtonDown(InputCode.MouseRight) &&
+        else if (Input.IsButtonDown(InputCode.MouseRight, InputScope.All) &&
                  Vector2.Distance(_mousePosition, _dragPosition) >= DragMinDistance)
         {
             BeginDrag(InputCode.MouseRight);
@@ -856,7 +864,7 @@ public static partial class Workspace
 
     private static void BeginDrag(InputCode button)
     {
-        if (!Input.IsButtonDown(button))
+        if (!Input.IsButtonDown(button, InputScope.All))
         {
             _dragPosition = _mousePosition;
             DragWorldPosition = _mouseWorldPosition;
@@ -880,7 +888,7 @@ public static partial class Workspace
 
     private static void UpdatePan()
     {
-        if (Input.WasButtonPressed(InputCode.MouseRight))
+        if (Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
         {
             _panPositionCamera = _camera.Position;
         }
@@ -1148,12 +1156,14 @@ public static partial class Workspace
     public static void EndEdit()
     {
         _pendingState = WorkspaceState.Default;
+        _isolationOverride = false;
     }
 
     private static void BeginEdit()
     {
         if (SelectedCount != 1) return;
 
+        _isolationOverride = false;
         _pendingState = State == WorkspaceState.Edit
             ? WorkspaceState.Default
             : WorkspaceState.Edit;
