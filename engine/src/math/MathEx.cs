@@ -324,4 +324,7 @@ public static class MathEx
 
     public static float RandomRange(float min, float max) =>
         ((float)Random.Shared.NextDouble()) * (max - min) + min;
+
+    public static float Random01() => (float)Random.Shared.NextDouble();
+    public static float RandomSNorm() => RandomRange(-1f, 1f);
 }

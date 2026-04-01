@@ -515,6 +515,7 @@ public static partial class ElementTree
         var asset = _assets[d.Asset];
         if (asset == null) return;
 
+        using var _oc = Graphics.PushState();
         Graphics.SetOverlayColor(d.OverlayColor);
 
         var srcSize = new Vector2(d.Width, d.Height);

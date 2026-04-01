@@ -39,7 +39,9 @@ internal partial class VfxEditor : DocumentEditor
             new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
             new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
             new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX },
+            new Command { Name = "Duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
             new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
+            new Command { Name = "Frame", Handler = FrameVfxBounds, Key = InputCode.KeyF },
         ];
 
         Document.Play();
@@ -50,8 +52,6 @@ internal partial class VfxEditor : DocumentEditor
         base.Dispose();
         Document.Stop();
     }
-
-    // --- Main UI layout ---
 
     public override void UpdateUI()
     {
@@ -73,7 +73,14 @@ internal partial class VfxEditor : DocumentEditor
         {
             Graphics.SetTransform(Document.Transform);
             Document.DrawOrigin();
-            Document.DrawBounds(selected: false);
+            Gizmos.SetColor(EditorStyle.Workspace.BoundsColor);
+            Gizmos.DrawRect(Document.VfxBounds, EditorStyle.Workspace.DocumentBoundsLineWidth, outside: true);
+
+            if (Document.SelectedType == VfxSelectionType.Emitter &&
+                Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Emitters.Count)
+            {
+                DrawSpawnGizmo(ref Document.Emitters[Document.SelectedIndex].Def.Spawn);
+            }
 
             if (Document.Rotation != 0f && Workspace.ActiveTool == null)
             {
@@ -104,6 +111,51 @@ internal partial class VfxEditor : DocumentEditor
     private void TogglePlayback()
     {
         Document.TogglePlay();
+    }
+
+    private void FrameVfxBounds()
+    {
+        Workspace.FrameRect(Document.VfxBounds.Translate(Document.Position));
+    }
+
+    private static void DrawSpawnGizmo(ref VfxSpawnDef spawn)
+    {
+        const float lineWidth = EditorStyle.Workspace.DocumentBoundsLineWidth;
+        Gizmos.SetColor(EditorStyle.Workspace.SelectionColor);
+
+        switch (spawn.Shape)
+        {
+            case VfxSpawnShape.Point:
+                const float crossSize = 0.05f;
+                Gizmos.DrawLine(spawn.Offset - new Vector2(crossSize, 0), spawn.Offset + new Vector2(crossSize, 0), lineWidth);
+                Gizmos.DrawLine(spawn.Offset - new Vector2(0, crossSize), spawn.Offset + new Vector2(0, crossSize), lineWidth);
+                break;
+
+            case VfxSpawnShape.Circle:
+                Gizmos.DrawArc(spawn.Offset, spawn.Circle.Radius, 0, MathF.Tau, lineWidth);
+                if (spawn.Circle.InnerRadius > 0 && spawn.Circle.InnerRadius < spawn.Circle.Radius)
+                    Gizmos.DrawArc(spawn.Offset, spawn.Circle.InnerRadius, 0, MathF.Tau, lineWidth);
+                break;
+
+            case VfxSpawnShape.Box:
+                var half = spawn.Box.Size * 0.5f;
+                var rect = new Rect(spawn.Offset.X - half.X, spawn.Offset.Y - half.Y, spawn.Box.Size.X, spawn.Box.Size.Y);
+                if (MathF.Abs(spawn.Box.Rotation) > 0.0001f)
+                    Gizmos.DrawRotatedRect(rect, spawn.Offset, MathEx.Radians(spawn.Box.Rotation), lineWidth);
+                else
+                    Gizmos.DrawRect(rect, lineWidth);
+
+                if (spawn.Box.InnerSize.X > 0 || spawn.Box.InnerSize.Y > 0)
+                {
+                    var innerHalf = spawn.Box.InnerSize * 0.5f;
+                    var innerRect = new Rect(spawn.Offset.X - innerHalf.X, spawn.Offset.Y - innerHalf.Y, spawn.Box.InnerSize.X, spawn.Box.InnerSize.Y);
+                    if (MathF.Abs(spawn.Box.Rotation) > 0.0001f)
+                        Gizmos.DrawRotatedRect(innerRect, spawn.Offset, MathEx.Radians(spawn.Box.Rotation), lineWidth);
+                    else
+                        Gizmos.DrawRect(innerRect, lineWidth);
+                }
+                break;
+        }
     }
 
     private void BeginRotateTool()

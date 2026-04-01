@@ -189,4 +189,56 @@ internal partial class VfxEditor
             Document.RemoveParticle(Document.SelectedIndex);
         }
     }
+
+    private void DuplicateSelected()
+    {
+        if (IsRenaming) return;
+
+        if (Document.SelectedType == VfxSelectionType.Emitter &&
+            Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Emitters.Count)
+        {
+            var src = Document.Emitters[Document.SelectedIndex];
+            Undo.Record(Document);
+            var emitter = new VfxDocEmitter
+            {
+                Name = MakeUniqueName(src.Name, Document.Emitters.Select(e => e.Name)),
+                Def = src.Def,
+                ParticleRef = src.ParticleRef,
+            };
+            Document.Emitters.Add(emitter);
+            Document.SelectedIndex = Document.Emitters.Count - 1;
+            Document.ApplyChanges();
+        }
+        else if (Document.SelectedType == VfxSelectionType.Particle &&
+                 Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Particles.Count)
+        {
+            var src = Document.Particles[Document.SelectedIndex];
+            Undo.Record(Document);
+            var particle = new VfxDocParticle
+            {
+                Name = MakeUniqueName(src.Name, Document.Particles.Select(p => p.Name)),
+                Def = src.Def,
+                SpriteRef = src.SpriteRef,
+            };
+            Document.Particles.Add(particle);
+            Document.SelectedIndex = Document.Particles.Count - 1;
+            Document.ApplyChanges();
+        }
+    }
+
+    private static string MakeUniqueName(string baseName, IEnumerable<string> existingNames)
+    {
+        // Strip trailing _N suffix
+        var lastUnderscore = baseName.LastIndexOf('_');
+        if (lastUnderscore > 0 && int.TryParse(baseName[(lastUnderscore + 1)..], out _))
+            baseName = baseName[..lastUnderscore];
+
+        var names = new HashSet<string>(existingNames);
+        for (var i = 2; ; i++)
+        {
+            var candidate = $"{baseName}_{i}";
+            if (!names.Contains(candidate))
+                return candidate;
+        }
+    }
 }

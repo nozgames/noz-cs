@@ -889,8 +889,8 @@ public partial class SpriteEditor : DocumentEditor
 
     private bool HandleAltClickInsert(Vector2 localMousePos)
     {
-        var hit = Document.RootLayer.HitTestSegment(localMousePos);
-        if (!hit.HasValue || !hit.Value.Path.IsSelected) return false;
+        var hit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
+        if (!hit.HasValue) return false;
 
         Undo.Record(Document);
         var path = hit.Value.Path;
@@ -1079,6 +1079,16 @@ public partial class SpriteEditor : DocumentEditor
         }
         else if (CurrentMode == SpriteEditMode.Anchor)
         {
+            if (Input.IsAltDown(InputScope.All))
+            {
+                var segHit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
+                if (segHit.HasValue)
+                {
+                    EditorCursor.SetCrosshair();
+                    return;
+                }
+            }
+
             var hit = Document.RootLayer.HitTestAnchor(localMousePos, onlySelected: true);
             if (hit.HasValue)
             {

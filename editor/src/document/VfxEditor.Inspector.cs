@@ -3,45 +3,44 @@
 //
 
 using System.Linq;
+using System.Numerics;
 
 namespace NoZ.Editor;
 
 internal partial class VfxEditor
 {
-    // Fixed field ID offsets — deterministic regardless of which sections are open
-    // RangeField uses 3 IDs: min, random, max
-    // IntRangeField uses 3 IDs: min, random, max
-    // FloatCurveField uses 7 IDs: startMin, startRandom, startMax, endMin, endRandom, endMax, curveType
-    // ColorCurveField uses 7 IDs: startMin, startRandom, startMax, endMin, endRandom, endMax, curveType
-    // Vec2RangeField uses 4 IDs: minX, minY, maxX, maxY
     private static partial class FieldId
     {
-        public static partial WidgetId VfxDuration { get; }       // +0..+2
+        public static partial WidgetId VfxDuration { get; }
         public static partial WidgetId VfxLoop { get; }
 
-        public static partial WidgetId EmitterRate { get; }       // +0..+2
-        public static partial WidgetId EmitterBurst { get; }      // +0..+2
-        public static partial WidgetId EmitterDuration { get; }   // +0..+2
+        public static partial WidgetId EmitterRate { get; }
+        public static partial WidgetId EmitterBurst { get; }
+        public static partial WidgetId EmitterDuration { get; }
         public static partial WidgetId EmitterWorldSpace { get; }
         public static partial WidgetId EmitterParticle { get; }
-        public static partial WidgetId EmitterAngle { get; }      // +0..+2
-        public static partial WidgetId EmitterSpawn { get; }      // +0..+3
-        public static partial WidgetId EmitterDirection { get; }  // +0..+3
+        public static partial WidgetId EmitterSpawnShape { get; }
+        public static partial WidgetId EmitterSpawnOffset { get; }
+        public static partial WidgetId EmitterSpawnRadius { get; }
+        public static partial WidgetId EmitterSpawnInnerRadius { get; }
+        public static partial WidgetId EmitterSpawnSize { get; }
+        public static partial WidgetId EmitterSpawnInnerSize { get; }
+        public static partial WidgetId EmitterSpawnRotation { get; }
+        public static partial WidgetId EmitterDirection { get; }  // +0..+2
+        public static partial WidgetId EmitterSpread { get; }     // +0..+2
+        public static partial WidgetId EmitterRadial { get; }
 
-        public static partial WidgetId ParticleDuration { get; }      // +0..+2
-        public static partial WidgetId ParticleSize { get; }          // +0..+6
-        public static partial WidgetId ParticleSpeed { get; }         // +0..+6
-        public static partial WidgetId ParticleColor { get; }         // +0..+6
-        public static partial WidgetId ParticleOpacity { get; }       // +0..+6
-        public static partial WidgetId ParticleGravity { get; }       // +0..+3
-        public static partial WidgetId ParticleDrag { get; }          // +0..+2
-        public static partial WidgetId ParticleRotation { get; }      // +0..+2
-        public static partial WidgetId ParticleRotationSpeed { get; } // +0..+6
+        public static partial WidgetId ParticleDuration { get; }
+        public static partial WidgetId ParticleSize { get; }
+        public static partial WidgetId ParticleSpeed { get; }
+        public static partial WidgetId ParticleColor { get; }
+        public static partial WidgetId ParticleOpacity { get; }
+        public static partial WidgetId ParticleGravity { get; }
+        public static partial WidgetId ParticleDrag { get; }
+        public static partial WidgetId ParticleRotation { get; }
+        public static partial WidgetId ParticleRotationSpeed { get; }
 
         // Addable section buttons
-        public static partial WidgetId AddAngle { get; }
-        public static partial WidgetId AddSpawn { get; }
-        public static partial WidgetId AddDirection { get; }
         public static partial WidgetId AddSize { get; }
         public static partial WidgetId AddSpeed { get; }
         public static partial WidgetId AddColor { get; }
@@ -49,9 +48,6 @@ internal partial class VfxEditor
         public static partial WidgetId AddGravity { get; }
         public static partial WidgetId AddDrag { get; }
         public static partial WidgetId AddRotation { get; }
-        public static partial WidgetId RemoveAngle { get; }
-        public static partial WidgetId RemoveSpawn { get; }
-        public static partial WidgetId RemoveDirection { get; }
         public static partial WidgetId RemoveSize { get; }
         public static partial WidgetId RemoveSpeed { get; }
         public static partial WidgetId RemoveColor { get; }
@@ -73,7 +69,7 @@ internal partial class VfxEditor
         switch (Document.SelectedType)
         {
             case VfxSelectionType.Vfx:
-                VfxGlobalUI();
+                VfxInspectorUI();
                 break;
 
             case VfxSelectionType.Emitter:
@@ -88,9 +84,7 @@ internal partial class VfxEditor
         }
     }
 
-    // --- VFX Global ---
-
-    private void VfxGlobalUI()
+    private void VfxInspectorUI()
     {
         using (Inspector.BeginSection("VFX"))
         {
@@ -116,8 +110,6 @@ internal partial class VfxEditor
             }
         }
     }
-
-    // --- Emitter Inspector ---
 
     private void EmitterInspectorUI(VfxDocEmitter emitter)
     {
@@ -168,42 +160,120 @@ internal partial class VfxEditor
             }
         }
 
-        // Addable emitter groups
-        if (AddableSection("ANGLE", emitter.Def.Angle != default, FieldId.AddAngle, FieldId.RemoveAngle,
-            () => { emitter.Def.Angle = new VfxRange(0, 360); },
-            () => { emitter.Def.Angle = default; }))
+        using (Inspector.BeginSection("SPAWN"))
         {
-            if (RangeField(FieldId.EmitterAngle, "Angle", ref emitter.Def.Angle))
+            if (!Inspector.IsSectionCollapsed && SpawnDefFields(emitter))
             {
                 Undo.Record(Document);
                 Document.ApplyChanges();
             }
-            EndAddableSection();
         }
 
-        if (AddableSection("SPAWN", emitter.Def.Spawn != VfxVec2Range.Zero, FieldId.AddSpawn, FieldId.RemoveSpawn,
-            () => { emitter.Def.Spawn = VfxVec2Range.Zero; },
-            () => { emitter.Def.Spawn = VfxVec2Range.Zero; }))
+        using (Inspector.BeginSection("DIRECTION"))
         {
-            if (Vec2RangeField(FieldId.EmitterSpawn, "Spawn", ref emitter.Def.Spawn))
+            if (!Inspector.IsSectionCollapsed)
             {
-                Undo.Record(Document);
-                Document.ApplyChanges();
+                var changed = false;
+                if (RangeField(FieldId.EmitterDirection, "Direction", ref emitter.Def.Direction)) changed = true;
+                if (RangeField(FieldId.EmitterSpread, "Spread", ref emitter.Def.Spread)) changed = true;
+                using (Inspector.BeginProperty("Radial"))
+                    if (FloatInput(FieldId.EmitterRadial, ref emitter.Def.Radial)) changed = true;
+                if (changed)
+                {
+                    Undo.Record(Document);
+                    Document.ApplyChanges();
+                }
             }
-            EndAddableSection();
+        }
+    }
+
+    // --- Spawn Shape Fields ---
+
+    private static readonly (string Name, VfxSpawnShape Shape)[] SpawnShapeOptions =
+    [
+        ("Point", VfxSpawnShape.Point),
+        ("Circle", VfxSpawnShape.Circle),
+        ("Box", VfxSpawnShape.Box),
+    ];
+
+    private static bool _spawnShapeChanged;
+    private static VfxSpawnShape _spawnShapeNewValue;
+    private static WidgetId _spawnShapeChangedId;
+
+    private static bool SpawnDefFields(VfxDocEmitter emitter)
+    {
+        var changed = false;
+        ref var spawn = ref emitter.Def.Spawn;
+
+        // Shape dropdown
+        using (Inspector.BeginProperty("Shape"))
+        {
+            var currentName = spawn.Shape.ToString();
+            if (_spawnShapeChanged && _spawnShapeChangedId == FieldId.EmitterSpawnShape)
+            {
+                _spawnShapeChanged = false;
+                spawn = new VfxSpawnDef { Shape = _spawnShapeNewValue };
+                if (_spawnShapeNewValue == VfxSpawnShape.Circle)
+                    spawn.Circle.Radius = 1f;
+                else if (_spawnShapeNewValue == VfxSpawnShape.Box)
+                    spawn.Box.Size = new Vector2(1f, 1f);
+                changed = true;
+            }
+
+            UI.DropDown(FieldId.EmitterSpawnShape, () =>
+            {
+                var items = new PopupMenuItem[SpawnShapeOptions.Length];
+                for (var i = 0; i < SpawnShapeOptions.Length; i++)
+                {
+                    var opt = SpawnShapeOptions[i];
+                    items[i] = PopupMenuItem.Item(opt.Name, () =>
+                    {
+                        _spawnShapeChanged = true;
+                        _spawnShapeChangedId = FieldId.EmitterSpawnShape;
+                        _spawnShapeNewValue = opt.Shape;
+                    });
+                }
+                return items;
+            }, text: currentName);
         }
 
-        if (AddableSection("DIRECTION", emitter.Def.Direction != VfxVec2Range.Zero, FieldId.AddDirection, FieldId.RemoveDirection,
-            () => { emitter.Def.Direction = new VfxVec2Range(new(0, -1), new(0, -1)); },
-            () => { emitter.Def.Direction = VfxVec2Range.Zero; }))
+        // Offset (all shapes)
+        using (Inspector.BeginProperty("Offset"))
+        using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
         {
-            if (Vec2RangeField(FieldId.EmitterDirection, "Direction", ref emitter.Def.Direction))
-            {
-                Undo.Record(Document);
-                Document.ApplyChanges();
-            }
-            EndAddableSection();
+            if (FloatInput(FieldId.EmitterSpawnOffset, ref spawn.Offset.X)) changed = true;
+            if (FloatInput(FieldId.EmitterSpawnOffset + 1, ref spawn.Offset.Y)) changed = true;
         }
+
+        // Shape-specific fields
+        switch (spawn.Shape)
+        {
+            case VfxSpawnShape.Circle:
+                using (Inspector.BeginProperty("Radius"))
+                    if (FloatInput(FieldId.EmitterSpawnRadius, ref spawn.Circle.Radius)) changed = true;
+                using (Inspector.BeginProperty("Inner Radius"))
+                    if (FloatInput(FieldId.EmitterSpawnInnerRadius, ref spawn.Circle.InnerRadius)) changed = true;
+                break;
+
+            case VfxSpawnShape.Box:
+                using (Inspector.BeginProperty("Size"))
+                using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+                {
+                    if (FloatInput(FieldId.EmitterSpawnSize, ref spawn.Box.Size.X)) changed = true;
+                    if (FloatInput(FieldId.EmitterSpawnSize + 1, ref spawn.Box.Size.Y)) changed = true;
+                }
+                using (Inspector.BeginProperty("Inner Size"))
+                using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
+                {
+                    if (FloatInput(FieldId.EmitterSpawnInnerSize, ref spawn.Box.InnerSize.X)) changed = true;
+                    if (FloatInput(FieldId.EmitterSpawnInnerSize + 1, ref spawn.Box.InnerSize.Y)) changed = true;
+                }
+                using (Inspector.BeginProperty("Rotation"))
+                    if (FloatInput(FieldId.EmitterSpawnRotation, ref spawn.Box.Rotation)) changed = true;
+                break;
+        }
+
+        return changed;
     }
 
     // --- Particle Inspector ---
@@ -468,6 +538,11 @@ internal partial class VfxEditor
                     using (UI.BeginFlex()) { }
             }
         }
+        else if (changed)
+        {
+            // No curve active — keep End synced with Start so editing Start doesn't auto-enable the curve
+            curve.End = curve.Start;
+        }
 
         // Curve type row (always visible)
         if (CurveRow(baseId + 6, hasCurve, ref curve.Type, ref curve.Start, ref curve.End))
@@ -516,6 +591,10 @@ internal partial class VfxEditor
                 else
                     using (UI.BeginFlex()) { }
             }
+        }
+        else if (changed)
+        {
+            curve.End = curve.Start;
         }
 
         // Curve type row

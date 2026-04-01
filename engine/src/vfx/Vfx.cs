@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace NoZ;
@@ -118,6 +119,37 @@ public struct VfxColorCurve
     public override int GetHashCode() => HashCode.Combine(Type, Start, End, Bezier);
 }
 
+public enum VfxSpawnShape : byte
+{
+    Point = 0,
+    Circle = 1,
+    Box = 2,
+}
+
+public struct VfxSpawnCircle
+{
+    public float Radius;
+    public float InnerRadius;
+}
+
+public struct VfxSpawnBox
+{
+    public Vector2 Size;
+    public Vector2 InnerSize;
+    public float Rotation;
+}
+
+[StructLayout(LayoutKind.Explicit)]
+public struct VfxSpawnDef
+{
+    [FieldOffset(0)]  public VfxSpawnShape Shape;
+    [FieldOffset(4)]  public Vector2 Offset;
+    [FieldOffset(12)] public VfxSpawnCircle Circle;
+    [FieldOffset(12)] public VfxSpawnBox Box;
+
+    public static readonly VfxSpawnDef Default = new() { Shape = VfxSpawnShape.Point };
+}
+
 public struct VfxParticleDef
 {
     public VfxVec2Range Gravity;
@@ -137,16 +169,17 @@ public struct VfxEmitterDef
     public VfxIntRange Rate;
     public VfxIntRange Burst;
     public VfxRange Duration;
-    public VfxRange Angle;
-    public VfxVec2Range Spawn;
-    public VfxVec2Range Direction;
+    public VfxSpawnDef Spawn;
+    public VfxRange Direction;
+    public VfxRange Spread;
+    public float Radial;
     public bool WorldSpace;
     public VfxParticleDef Particle;
 }
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 4;
+    internal const ushort Version = 7;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -175,13 +208,10 @@ public class Vfx : Asset
             e.Rate = new VfxIntRange(reader.ReadInt32(), reader.ReadInt32());
             e.Burst = new VfxIntRange(reader.ReadInt32(), reader.ReadInt32());
             e.Duration = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
-            e.Angle = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
-            e.Spawn = new VfxVec2Range(
-                new Vector2(reader.ReadSingle(), reader.ReadSingle()),
-                new Vector2(reader.ReadSingle(), reader.ReadSingle()));
-            e.Direction = new VfxVec2Range(
-                new Vector2(reader.ReadSingle(), reader.ReadSingle()),
-                new Vector2(reader.ReadSingle(), reader.ReadSingle()));
+            e.Spawn = ReadSpawnDef(reader);
+            e.Direction = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
+            e.Spread = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
+            e.Radial = reader.ReadSingle();
             e.WorldSpace = reader.ReadBoolean();
 
             ref var p = ref e.Particle;
@@ -213,6 +243,26 @@ public class Vfx : Asset
         using var reader = new BinaryReader(stream);
         vfx.Load(reader);
         return vfx;
+    }
+
+    private static VfxSpawnDef ReadSpawnDef(BinaryReader reader)
+    {
+        var def = new VfxSpawnDef();
+        def.Shape = (VfxSpawnShape)reader.ReadByte();
+        def.Offset = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+        switch (def.Shape)
+        {
+            case VfxSpawnShape.Circle:
+                def.Circle.Radius = reader.ReadSingle();
+                def.Circle.InnerRadius = reader.ReadSingle();
+                break;
+            case VfxSpawnShape.Box:
+                def.Box.Size = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+                def.Box.InnerSize = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+                def.Box.Rotation = reader.ReadSingle();
+                break;
+        }
+        return def;
     }
 
     private static VfxFloatCurve ReadFloatCurve(BinaryReader reader)

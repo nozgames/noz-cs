@@ -338,14 +338,15 @@ public abstract class SpriteNode
         return Recursive(this, point, results, onlySelected);
     }
 
-    public SegmentHitResult? HitTestSegment(Vector2 point)
+    public SegmentHitResult? HitTestSegment(Vector2 point, bool onlySelected = false)
     {
-        static void Recursive(SpriteNode node, Vector2 point, ref SegmentHitResult? best, ref float bestDistSqr)
+        static void Recursive(SpriteNode node, Vector2 point, bool onlySelected, ref SegmentHitResult? best, ref float bestDistSqr)
         {
             if (!node.Visible) return;
 
             if (node is SpritePath path)
             {
+                if (onlySelected && !path.IsSelected) return;
                 var (contourIndex, segmentIndex, distSqr, pos) = path.HitTestSegment(point);
                 if (segmentIndex >= 0 && distSqr < bestDistSqr)
                 {
@@ -356,12 +357,12 @@ public abstract class SpriteNode
             }
 
             for (var i = 0; i < node.Children.Count; i++)
-                Recursive(node.Children[i], point, ref best, ref bestDistSqr);
+                Recursive(node.Children[i], point, onlySelected, ref best, ref bestDistSqr);
         }
 
         SegmentHitResult? best = null;
         var bestDistSqr = float.MaxValue;
-        Recursive(this, point, ref best, ref bestDistSqr);
+        Recursive(this, point, onlySelected, ref best, ref bestDistSqr);
         return best;
     }
 

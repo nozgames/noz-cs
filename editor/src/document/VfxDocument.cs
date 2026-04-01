@@ -31,6 +31,7 @@ public class VfxDocument : Document
 
     private Vfx? _vfx;
     private VfxHandle _handle = VfxHandle.Invalid;
+    public Rect VfxBounds => _vfx?.Bounds ?? new Rect(-0.5f, -0.5f, 1f, 1f);
     private bool _playing;
     private VfxRange _duration;
     private bool _loop;
@@ -230,33 +231,188 @@ public class VfxDocument : Document
 
     private static Rect CalculateBounds(VfxEmitterDef[] emitterDefs)
     {
-        var bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
+        if (emitterDefs.Length == 0)
+            return new Rect(-0.05f, -0.05f, 0.1f, 0.1f);
+
+        var minX = float.MaxValue;
+        var minY = float.MaxValue;
+        var maxX = float.MinValue;
+        var maxY = float.MinValue;
+
+        Span<Vector2> directions = stackalloc Vector2[16];
+        Span<Vector2> gravities = stackalloc Vector2[4];
 
         for (var i = 0; i < emitterDefs.Length; i++)
         {
             ref var e = ref emitterDefs[i];
             ref var p = ref e.Particle;
 
-            var ssmax = MathF.Max(p.Size.Start.Min, p.Size.Start.Max);
-            var semax = MathF.Max(p.Size.End.Min, p.Size.End.Max);
-            var smax = MathF.Max(ssmax, semax);
+            var halfSize = MathF.Max(
+                MathF.Max(p.Size.Start.Min, p.Size.Start.Max),
+                MathF.Max(p.Size.End.Min, p.Size.End.Max)) * 0.5f;
 
-            var speedMax = MathF.Max(p.Speed.Start.Max, p.Speed.End.Max);
-            var durationMax = p.Duration.Max;
-            var extent = speedMax * durationMax + smax;
+            GetSpawnBounds(ref e.Spawn, out var spawnMin, out var spawnMax);
 
-            var minX = MathF.Min(e.Spawn.Min.X, e.Spawn.Max.X) - extent;
-            var minY = MathF.Min(e.Spawn.Min.Y, e.Spawn.Max.Y) - extent;
-            var maxX = MathF.Max(e.Spawn.Min.X, e.Spawn.Max.X) + extent;
-            var maxY = MathF.Max(e.Spawn.Min.Y, e.Spawn.Max.Y) + extent;
+            // Include spawn area itself
+            minX = MathF.Min(minX, spawnMin.X - halfSize);
+            minY = MathF.Min(minY, spawnMin.Y - halfSize);
+            maxX = MathF.Max(maxX, spawnMax.X + halfSize);
+            maxY = MathF.Max(maxY, spawnMax.Y + halfSize);
 
-            if (i == 0)
-                bounds = new Rect(minX, minY, maxX - minX, maxY - minY);
-            else
-                bounds = Rect.Union(bounds, new Rect(minX, minY, maxX - minX, maxY - minY));
+            var lifetime = p.Duration.Max;
+            if (lifetime < 0.0001f)
+                continue;
+
+            var speedStart = p.Speed.Start.Max;
+            var speedEnd = p.Speed.End.Max;
+            var speedCurve = p.Speed.Type;
+            var speedBezier = p.Speed.Bezier;
+            var drag = p.Drag.Min;
+
+            var dirCount = BuildDirectionSamples(ref e, directions);
+
+            gravities[0] = new Vector2(p.Gravity.Min.X, p.Gravity.Min.Y);
+            gravities[1] = new Vector2(p.Gravity.Min.X, p.Gravity.Max.Y);
+            gravities[2] = new Vector2(p.Gravity.Max.X, p.Gravity.Min.Y);
+            gravities[3] = new Vector2(p.Gravity.Max.X, p.Gravity.Max.Y);
+
+            const float dt = 1f / 60f;
+            var steps = (int)MathF.Ceiling(lifetime / dt);
+
+            for (var d = 0; d < dirCount; d++)
+            {
+                for (var g = 0; g < 4; g++)
+                {
+                    SimulateTrajectory(
+                        directions[d], speedStart, speedEnd, speedCurve, speedBezier,
+                        gravities[g], drag, lifetime, dt, steps, halfSize,
+                        ref spawnMin, ref spawnMax, ref minX, ref minY, ref maxX, ref maxY);
+                }
+            }
         }
 
-        return bounds;
+        // Safety padding (5%) for simulation discretization
+        var w = maxX - minX;
+        var h = maxY - minY;
+        var pad = MathF.Max(w, h) * 0.05f;
+        minX -= pad;
+        minY -= pad;
+        maxX += pad;
+        maxY += pad;
+
+        return new Rect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private static void SimulateTrajectory(
+        Vector2 dir, float speedStart, float speedEnd,
+        VfxCurveType speedCurve, Vector4 speedBezier,
+        Vector2 gravity, float drag, float lifetime,
+        float dt, int steps, float halfSize,
+        ref Vector2 spawnMin, ref Vector2 spawnMax,
+        ref float minX, ref float minY, ref float maxX, ref float maxY)
+    {
+        var pos = Vector2.Zero;
+        var vel = dir * speedStart;
+
+        for (var step = 1; step <= steps; step++)
+        {
+            var elapsed = step * dt;
+            var t = MathF.Min(elapsed / lifetime, 1f);
+
+            var curveT = VfxSystem.EvaluateCurve(speedCurve, t, speedBezier);
+            var currentSpeed = MathEx.Mix(speedStart, speedEnd, curveT);
+
+            var velLen = vel.Length();
+            if (velLen > 0.0001f)
+                vel = Vector2.Normalize(vel) * currentSpeed;
+
+            vel += gravity * dt;
+            vel *= MathF.Max(0f, 1f - drag * dt);
+
+            pos += vel * dt;
+
+            // Track extremes offset by spawn area bounds
+            minX = MathF.Min(minX, spawnMin.X + pos.X - halfSize);
+            minY = MathF.Min(minY, spawnMin.Y + pos.Y - halfSize);
+            maxX = MathF.Max(maxX, spawnMax.X + pos.X + halfSize);
+            maxY = MathF.Max(maxY, spawnMax.Y + pos.Y + halfSize);
+        }
+    }
+
+    private static int BuildDirectionSamples(ref VfxEmitterDef e, Span<Vector2> directions)
+    {
+        // When radial is high, particles can go in any direction from the spawn area
+        if (e.Radial > 0.5f)
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                var a = MathF.Tau * i / 16f;
+                directions[i] = new Vector2(MathF.Cos(a), MathF.Sin(a));
+            }
+            return 16;
+        }
+
+        // Compute the full angle range: direction ± spread, expanded by radial
+        var dirMin = MathEx.Radians(e.Direction.Min);
+        var dirMax = MathEx.Radians(e.Direction.Max);
+        var spreadMax = MathEx.Radians(MathF.Max(e.Spread.Min, e.Spread.Max));
+        var radialExpand = MathEx.Radians(e.Radial * 180f);
+
+        var angleMin = MathF.Min(dirMin, dirMax) - spreadMax - radialExpand;
+        var angleMax = MathF.Max(dirMin, dirMax) + spreadMax + radialExpand;
+        var arcSpan = angleMax - angleMin;
+
+        if (arcSpan < 0.001f)
+        {
+            directions[0] = new Vector2(MathF.Cos(angleMin), MathF.Sin(angleMin));
+            return 1;
+        }
+
+        var numSamples = Math.Clamp((int)MathF.Round(16f * arcSpan / MathF.Tau), 2, 16);
+
+        for (var i = 0; i < numSamples; i++)
+        {
+            var angle = angleMin + arcSpan * i / (numSamples - 1);
+            directions[i] = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+        }
+
+        return numSamples;
+    }
+
+    private static void GetSpawnBounds(ref VfxSpawnDef spawn, out Vector2 min, out Vector2 max)
+    {
+        switch (spawn.Shape)
+        {
+            case VfxSpawnShape.Circle:
+                var r = spawn.Circle.Radius;
+                min = spawn.Offset - new Vector2(r, r);
+                max = spawn.Offset + new Vector2(r, r);
+                break;
+            case VfxSpawnShape.Box:
+                var half = spawn.Box.Size * 0.5f;
+                if (MathF.Abs(spawn.Box.Rotation) > 0.0001f)
+                {
+                    // AABB of rotated box
+                    var rad = MathEx.Radians(spawn.Box.Rotation);
+                    var cos = MathF.Abs(MathF.Cos(rad));
+                    var sin = MathF.Abs(MathF.Sin(rad));
+                    var aabbHalf = new Vector2(
+                        half.X * cos + half.Y * sin,
+                        half.X * sin + half.Y * cos);
+                    min = spawn.Offset - aabbHalf;
+                    max = spawn.Offset + aabbHalf;
+                }
+                else
+                {
+                    min = spawn.Offset - half;
+                    max = spawn.Offset + half;
+                }
+                break;
+            default:
+                min = spawn.Offset;
+                max = spawn.Offset;
+                break;
+        }
     }
 
     // --- Registration ---
@@ -287,7 +443,7 @@ public class VfxDocument : Document
                 writer.WriteLine("  burst 0");
                 writer.WriteLine("  duration 1");
                 writer.WriteLine("  particle \"default.particle\"");
-                writer.WriteLine("  angle [0, 360]");
+                writer.WriteLine("  spread 180");
                 writer.WriteLine("}");
             },
             Icon = () => EditorAssets.Sprites.AssetIconVfx
@@ -484,9 +640,10 @@ public class VfxDocument : Document
             else if (tk.ExpectIdentifier("rate")) { if (tk.ExpectLine(out var v)) e.Rate = ParseInt(v, VfxIntRange.Zero); }
             else if (tk.ExpectIdentifier("burst")) { if (tk.ExpectLine(out var v)) e.Burst = ParseInt(v, VfxIntRange.Zero); }
             else if (tk.ExpectIdentifier("duration")) { if (tk.ExpectLine(out var v)) e.Duration = ParseFloat(v, VfxRange.One); }
-            else if (tk.ExpectIdentifier("angle")) { if (tk.ExpectLine(out var v)) e.Angle = ParseFloat(v, new VfxRange(0, 360)); }
-            else if (tk.ExpectIdentifier("spawn")) { if (tk.ExpectLine(out var v)) e.Spawn = ParseVec2(v, VfxVec2Range.Zero); }
-            else if (tk.ExpectIdentifier("direction")) { if (tk.ExpectLine(out var v)) e.Direction = ParseVec2(v, VfxVec2Range.Zero); }
+            else if (tk.ExpectIdentifier("spread")) { if (tk.ExpectLine(out var v)) e.Spread = ParseFloat(v, VfxRange.Zero); }
+            else if (tk.ExpectIdentifier("radial")) { tk.ExpectFloat(out var v); e.Radial = v; }
+            else if (tk.ExpectIdentifier("spawn")) { e.Spawn = ParseSpawnDef(ref tk); }
+            else if (tk.ExpectIdentifier("direction")) { if (tk.ExpectLine(out var v)) e.Direction = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("worldSpace")) { e.WorldSpace = tk.ExpectBool(); }
             else if (tk.ExpectIdentifier("particle")) { emitter.ParticleRef = tk.ExpectQuotedString() ?? ""; }
             else { tk.ExpectToken(out _); break; }
@@ -552,12 +709,14 @@ public class VfxDocument : Document
             sw.WriteLine($"  duration {FormatRange(e.Def.Duration)}");
             sw.WriteLine($"  particle \"{e.ParticleRef}\"");
 
-            if (e.Def.Angle != default)
-                sw.WriteLine($"  angle {FormatRange(e.Def.Angle)}");
-            if (e.Def.Spawn != VfxVec2Range.Zero)
-                sw.WriteLine($"  spawn {FormatVec2Range(e.Def.Spawn)}");
-            if (e.Def.Direction != VfxVec2Range.Zero)
-                sw.WriteLine($"  direction {FormatVec2Range(e.Def.Direction)}");
+            if (e.Def.Spawn.Shape != VfxSpawnShape.Point || e.Def.Spawn.Offset != Vector2.Zero)
+                FormatSpawnDef(sw, e.Def.Spawn);
+            if (e.Def.Direction != VfxRange.Zero)
+                sw.WriteLine($"  direction {FormatRange(e.Def.Direction)}");
+            if (e.Def.Spread != VfxRange.Zero)
+                sw.WriteLine($"  spread {FormatRange(e.Def.Spread)}");
+            if (e.Def.Radial != 0)
+                sw.WriteLine($"  radial {FormatFloat(e.Def.Radial)}");
             if (!e.Def.WorldSpace)
                 sw.WriteLine("  worldSpace false");
 
@@ -598,16 +757,12 @@ public class VfxDocument : Document
             writer.Write(e.Burst.Max);
             writer.Write(e.Duration.Min);
             writer.Write(e.Duration.Max);
-            writer.Write(e.Angle.Min);
-            writer.Write(e.Angle.Max);
-            writer.Write(e.Spawn.Min.X);
-            writer.Write(e.Spawn.Min.Y);
-            writer.Write(e.Spawn.Max.X);
-            writer.Write(e.Spawn.Max.Y);
-            writer.Write(e.Direction.Min.X);
-            writer.Write(e.Direction.Min.Y);
-            writer.Write(e.Direction.Max.X);
-            writer.Write(e.Direction.Max.Y);
+            WriteSpawnDef(writer, ref e.Spawn);
+            writer.Write(e.Direction.Min);
+            writer.Write(e.Direction.Max);
+            writer.Write(e.Spread.Min);
+            writer.Write(e.Spread.Max);
+            writer.Write(e.Radial);
             writer.Write(e.WorldSpace);
 
             ref var p = ref e.Particle;
@@ -633,6 +788,27 @@ public class VfxDocument : Document
             writer.Write(spriteBytes.Length);
             if (spriteBytes.Length > 0)
                 writer.Write(spriteBytes);
+        }
+    }
+
+    private static void WriteSpawnDef(BinaryWriter writer, ref VfxSpawnDef spawn)
+    {
+        writer.Write((byte)spawn.Shape);
+        writer.Write(spawn.Offset.X);
+        writer.Write(spawn.Offset.Y);
+        switch (spawn.Shape)
+        {
+            case VfxSpawnShape.Circle:
+                writer.Write(spawn.Circle.Radius);
+                writer.Write(spawn.Circle.InnerRadius);
+                break;
+            case VfxSpawnShape.Box:
+                writer.Write(spawn.Box.Size.X);
+                writer.Write(spawn.Box.Size.Y);
+                writer.Write(spawn.Box.InnerSize.X);
+                writer.Write(spawn.Box.InnerSize.Y);
+                writer.Write(spawn.Box.Rotation);
+                break;
         }
     }
 
@@ -742,6 +918,37 @@ public class VfxDocument : Document
             return new VfxVec2Range(value, value);
 
         return defaultValue;
+    }
+
+    private static VfxSpawnDef ParseSpawnDef(ref Tokenizer tk)
+    {
+        var def = new VfxSpawnDef();
+
+        if (tk.ExpectIdentifier("circle"))
+            def.Shape = VfxSpawnShape.Circle;
+        else if (tk.ExpectIdentifier("box"))
+            def.Shape = VfxSpawnShape.Box;
+        else if (tk.ExpectIdentifier("point"))
+            def.Shape = VfxSpawnShape.Point;
+        else
+            return VfxSpawnDef.Default;
+
+        if (!tk.ExpectDelimiter('{'))
+            return def;
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectDelimiter('}')) break;
+            else if (tk.ExpectIdentifier("offset")) { tk.ExpectVec2(out var v); def.Offset = v; }
+            else if (def.Shape == VfxSpawnShape.Circle && tk.ExpectIdentifier("radius")) { tk.ExpectFloat(out var v); def.Circle.Radius = v; }
+            else if (def.Shape == VfxSpawnShape.Circle && tk.ExpectIdentifier("innerRadius")) { tk.ExpectFloat(out var v); def.Circle.InnerRadius = v; }
+            else if (def.Shape == VfxSpawnShape.Box && tk.ExpectIdentifier("size")) { tk.ExpectVec2(out var v); def.Box.Size = v; }
+            else if (def.Shape == VfxSpawnShape.Box && tk.ExpectIdentifier("innerSize")) { tk.ExpectVec2(out var v); def.Box.InnerSize = v; }
+            else if (def.Shape == VfxSpawnShape.Box && tk.ExpectIdentifier("rotation")) { tk.ExpectFloat(out var v); def.Box.Rotation = v; }
+            else { tk.ExpectToken(out _); break; }
+        }
+
+        return def;
     }
 
     private static VfxFloatCurve ParseFloatCurve(string str, VfxFloatCurve defaultValue)
@@ -943,4 +1150,52 @@ public class VfxDocument : Document
         VfxCurveType.Bell => "bell",
         _ => "linear"
     };
+
+    private static string FormatVec2(Vector2 v) => $"({FormatFloat(v.X)}, {FormatFloat(v.Y)})";
+
+    private static void FormatSpawnDef(StreamWriter sw, VfxSpawnDef spawn)
+    {
+        var shapeName = spawn.Shape switch
+        {
+            VfxSpawnShape.Circle => "circle",
+            VfxSpawnShape.Box => "box",
+            _ => "point"
+        };
+
+        // Check if we need a block (any non-default properties)
+        var needsBlock = spawn.Offset != Vector2.Zero;
+        if (spawn.Shape == VfxSpawnShape.Circle)
+            needsBlock = needsBlock || spawn.Circle.Radius != 0 || spawn.Circle.InnerRadius != 0;
+        else if (spawn.Shape == VfxSpawnShape.Box)
+            needsBlock = needsBlock || spawn.Box.Size != Vector2.Zero || spawn.Box.InnerSize != Vector2.Zero || spawn.Box.Rotation != 0;
+
+        if (!needsBlock)
+        {
+            sw.WriteLine($"  spawn {shapeName}");
+            return;
+        }
+
+        sw.WriteLine($"  spawn {shapeName} {{");
+        if (spawn.Offset != Vector2.Zero)
+            sw.WriteLine($"    offset {FormatVec2(spawn.Offset)}");
+
+        if (spawn.Shape == VfxSpawnShape.Circle)
+        {
+            if (spawn.Circle.Radius != 0)
+                sw.WriteLine($"    radius {FormatFloat(spawn.Circle.Radius)}");
+            if (spawn.Circle.InnerRadius != 0)
+                sw.WriteLine($"    innerRadius {FormatFloat(spawn.Circle.InnerRadius)}");
+        }
+        else if (spawn.Shape == VfxSpawnShape.Box)
+        {
+            if (spawn.Box.Size != Vector2.Zero)
+                sw.WriteLine($"    size {FormatVec2(spawn.Box.Size)}");
+            if (spawn.Box.InnerSize != Vector2.Zero)
+                sw.WriteLine($"    innerSize {FormatVec2(spawn.Box.InnerSize)}");
+            if (spawn.Box.Rotation != 0)
+                sw.WriteLine($"    rotation {FormatFloat(spawn.Box.Rotation)}");
+        }
+
+        sw.WriteLine("  }");
+    }
 }

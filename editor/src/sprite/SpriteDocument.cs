@@ -512,7 +512,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
             if (offset != default)
                 Graphics.SetTransform(Matrix3x2.CreateTranslation(offset) * Graphics.Transform);
-            Graphics.Draw(sprite, frame: frame);
+            Graphics.Draw(sprite, SortOrder, frame: frame);
         }
     }
 
@@ -534,7 +534,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
             var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
             Graphics.SetTransform(transform);
-            Graphics.Draw(sprite, frame: frame);
+            Graphics.Draw(sprite, SortOrder, frame: frame);
         }
     }
 

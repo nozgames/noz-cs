@@ -146,8 +146,8 @@ public partial class SpriteEditor
         // Alt: insert anchor on segment edge, then drag it
         if (Input.IsAltDown(InputScope.All))
         {
-            var segHit = Document.RootLayer.HitTestSegment(localMousePos);
-            if (segHit.HasValue && segHit.Value.Path.IsSelected)
+            var segHit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
+            if (segHit.HasValue)
             {
                 Undo.Record(Document);
                 var path = segHit.Value.Path;
@@ -194,8 +194,8 @@ public partial class SpriteEditor
         }
 
         // Drag on segment edge — adjust curve
-        var segDragHit = Document.RootLayer.HitTestSegment(localMousePos);
-        if (segDragHit.HasValue && segDragHit.Value.Path.IsSelected)
+        var segDragHit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
+        if (segDragHit.HasValue)
         {
             var path = segDragHit.Value.Path;
             var segCi = segDragHit.Value.ContourIndex;

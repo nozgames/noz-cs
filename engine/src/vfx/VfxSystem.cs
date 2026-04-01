@@ -70,6 +70,7 @@ public static class VfxSystem
         public bool Loop;
         public uint Version;
         public Shader Shader;
+        public Color OverlayColor;
     }
 
     private static Particle[] _particles = null!;
@@ -239,6 +240,15 @@ public static class VfxSystem
         SetTransform(handle, Matrix3x2.CreateTranslation(position));
     }
 
+    public static void SetOverlayColor(VfxHandle handle, Color color)
+    {
+        var instance = GetInstance(handle);
+        if (instance < 0)
+            return;
+
+        _instances[instance].OverlayColor = color;
+    }
+
     public static void Clear()
     {
         for (var i = 0; i < MaxParticles; i++)
@@ -312,6 +322,7 @@ public static class VfxSystem
                 Graphics.SetShader(instance.Shader);
                 Graphics.SetLayer(instance.Layer);
                 Graphics.SetColor(col.WithAlpha(opacity));
+                Graphics.SetOverlayColor(instance.OverlayColor);
                 Graphics.SetSortGroup((int)instance.Depth);
                 Graphics.SetTransform(particleTransform);
                 Graphics.Draw(pdef.Sprite);
@@ -429,15 +440,26 @@ public static class VfxSystem
 
         ref var inst = ref _instances[e.InstanceIndex];
 
-        var angle = MathEx.Radians(GetRandom(def.Angle));
-        var dir = GetRandom(def.Direction);
-        if (MathF.Abs(dir.X) < 0.0001f && MathF.Abs(dir.Y) < 0.0001f)
-            dir = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+        var spawnOffset = GetSpawnPosition(ref def.Spawn);
+
+        var baseAngle = GetRandom(def.Direction);
+        var spread = GetRandom(def.Spread);
+        var angle = MathEx.Radians(baseAngle + MathEx.Mix(-spread, spread, (float)Random.Shared.NextDouble()));
+        var dir = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+
+        if (def.Radial > 0.0001f)
+        {
+            var spawnLen = spawnOffset.Length();
+            if (spawnLen > 0.0001f)
+            {
+                var radialDir = spawnOffset / spawnLen;
+                dir = Vector2.Normalize(Vector2.Lerp(dir, radialDir, def.Radial));
+            }
+        }
+
         dir = Vector2.TransformNormal(dir, inst.Transform);
 
         ref var p = ref _particles[particleIndex];
-
-        var spawnOffset = GetRandom(def.Spawn);
         p.WorldSpace = def.WorldSpace;
         p.Position = def.WorldSpace
             ? Vector2.Transform(spawnOffset, inst.Transform)
@@ -641,6 +663,72 @@ public static class VfxSystem
         return new Vector2(
             MathEx.Mix(range.Min.X, range.Max.X, (float)Random.Shared.NextDouble()),
             MathEx.Mix(range.Min.Y, range.Max.Y, (float)Random.Shared.NextDouble()));
+    }
+
+    private static Vector2 GetSpawnPosition(ref VfxSpawnDef spawn)
+    {
+        return spawn.Shape switch
+        {
+            VfxSpawnShape.Point => spawn.Offset,
+            VfxSpawnShape.Circle => GetSpawnCircle(ref spawn),
+            VfxSpawnShape.Box => GetSpawnBox(ref spawn),
+            _ => Vector2.Zero
+        };
+    }
+
+    private static Vector2 GetSpawnCircle(ref VfxSpawnDef spawn)
+    {
+        var angle = (float)Random.Shared.NextDouble() * MathF.Tau;
+        float r;
+        if (MathF.Abs(spawn.Circle.InnerRadius - spawn.Circle.Radius) < 0.0001f)
+        {
+            r = spawn.Circle.Radius;
+        }
+        else
+        {
+            // sqrt for uniform area distribution
+            var t = (float)Random.Shared.NextDouble();
+            var inner2 = spawn.Circle.InnerRadius * spawn.Circle.InnerRadius;
+            var outer2 = spawn.Circle.Radius * spawn.Circle.Radius;
+            r = MathF.Sqrt(inner2 + t * (outer2 - inner2));
+        }
+        return spawn.Offset + new Vector2(MathF.Cos(angle) * r, MathF.Sin(angle) * r);
+    }
+
+    private static Vector2 GetSpawnBox(ref VfxSpawnDef spawn)
+    {
+        var halfSize = spawn.Box.Size * 0.5f;
+        var halfInner = spawn.Box.InnerSize * 0.5f;
+
+        Vector2 p;
+        if (halfInner.X <= 0 && halfInner.Y <= 0)
+        {
+            // Filled box
+            p = new Vector2(
+                MathEx.Mix(-halfSize.X, halfSize.X, (float)Random.Shared.NextDouble()),
+                MathEx.Mix(-halfSize.Y, halfSize.Y, (float)Random.Shared.NextDouble()));
+        }
+        else
+        {
+            // Hollow box — sample outer, reject if in inner
+            do
+            {
+                p = new Vector2(
+                    MathEx.Mix(-halfSize.X, halfSize.X, (float)Random.Shared.NextDouble()),
+                    MathEx.Mix(-halfSize.Y, halfSize.Y, (float)Random.Shared.NextDouble()));
+            }
+            while (MathF.Abs(p.X) < halfInner.X && MathF.Abs(p.Y) < halfInner.Y);
+        }
+
+        if (MathF.Abs(spawn.Box.Rotation) > 0.0001f)
+        {
+            var rad = MathEx.Radians(spawn.Box.Rotation);
+            var cos = MathF.Cos(rad);
+            var sin = MathF.Sin(rad);
+            p = new Vector2(p.X * cos - p.Y * sin, p.X * sin + p.Y * cos);
+        }
+
+        return spawn.Offset + p;
     }
 
     private static Color GetRandom(VfxColorRange range)
