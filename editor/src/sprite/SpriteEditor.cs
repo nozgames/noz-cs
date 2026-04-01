@@ -115,6 +115,7 @@ public partial class SpriteEditor : DocumentEditor
                 new Command { Name = "Boolean Union", Handler = BooleanUnion, Key = InputCode.KeyU, Ctrl = true, Shift = true },
                 new Command { Name = "Boolean Subtract", Handler = BooleanSubtract, Key = InputCode.KeyD, Ctrl = true, Shift = true },
                 new Command { Name = "Boolean Intersect", Handler = BooleanIntersect, Key = InputCode.KeyI, Ctrl = true, Shift = true },
+                new Command { Name = "Export to PNG", Handler = ExportToPng, Key = InputCode.KeyE, Ctrl = true, Shift = true },
             ];
         }
         else
@@ -126,6 +127,28 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
+
+    private void ExportToPng()
+    {
+        var pngBytes = Document.RasterizeColorToPng();
+        if (pngBytes.Length == 0)
+        {
+            Log.Warning("Nothing to export: sprite has no content.");
+            return;
+        }
+
+        var defaultName = Document.Name + ".png";
+        var path = NativeFileDialog.ShowSaveFileDialog(
+            Application.Platform.WindowHandle,
+            "PNG Files\0*.png\0All Files\0*.*\0",
+            "png",
+            defaultName);
+
+        if (path == null) return;
+
+        File.WriteAllBytes(path, pngBytes);
+        Log.Info($"Exported PNG to: {path}");
+    }
 
     public override void Dispose()
     {

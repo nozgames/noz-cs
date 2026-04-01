@@ -123,6 +123,11 @@ public static class EditorAssets
             Seguisb.Load(Names.Seguisb);
         }
 
+        public static void Reload()
+        {
+            Seguisb.Reload();
+        }
+
         public static void Unload()
         {
             Seguisb.Dispose();
@@ -142,6 +147,14 @@ public static class EditorAssets
             Text.Load(Names.Text);
             Texture.Load(Names.Texture);
             Ui.Load(Names.Ui);
+        }
+
+        public static void Reload()
+        {
+            Sprite.Reload();
+            Text.Reload();
+            Texture.Reload();
+            Ui.Reload();
         }
 
         public static void Unload()
@@ -410,7 +423,8 @@ public static class EditorAssets
 
     public static void ReloadAssets()
     {
-        // TODO: hot reload
+        Fonts.Reload();
+        Shaders.Reload();
     }
 
     public static void UnloadAssets()

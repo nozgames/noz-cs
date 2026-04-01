@@ -219,6 +219,17 @@ public static class AssetManifest
             }
             writer.WriteLine("        }");
 
+            // Reload method
+            writer.WriteLine();
+            writer.WriteLine("        public static void Reload()");
+            writer.WriteLine("        {");
+            foreach (var doc in orderedDocs)
+            {
+                var fieldName = ToPascalCase(doc.Name);
+                writer.WriteLine($"            {fieldName}.Reload();");
+            }
+            writer.WriteLine("        }");
+
             // Unload method
             writer.WriteLine();
             writer.WriteLine("        public static void Unload()");
@@ -316,7 +327,11 @@ public static class AssetManifest
         writer.WriteLine();
         writer.WriteLine("    public static void ReloadAssets()");
         writer.WriteLine("    {");
-        writer.WriteLine("        // TODO: hot reload");
+        foreach (var group in documentsByType)
+        {
+            var pluralName = Pluralize(GetAssetTypeName(group.Key));
+            writer.WriteLine($"        {pluralName}.Reload();");
+        }
         writer.WriteLine("    }");
 
         // UnloadAssets method

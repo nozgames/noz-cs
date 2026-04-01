@@ -259,7 +259,7 @@ public partial class SpriteDocument
         }
     }
 
-    private byte[] RasterizeColorToPng()
+    internal byte[] RasterizeColorToPng()
     {
         var w = RasterBounds.Width;
         var h = RasterBounds.Height;

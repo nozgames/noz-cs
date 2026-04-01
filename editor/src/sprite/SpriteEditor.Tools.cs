@@ -469,6 +469,12 @@ public partial class SpriteEditor
 
     private void CopySelected()
     {
+        if (HasLayerSelection)
+        {
+            Clipboard.Copy(new NodeClipboardData(_selectedLayers));
+            return;
+        }
+
         if (_selectedPaths.Count == 0) return;
 
         var data = new PathClipboardData(_selectedPaths);
@@ -478,6 +484,22 @@ public partial class SpriteEditor
 
     private void PasteSelected()
     {
+        var nodeData = Clipboard.Get<NodeClipboardData>();
+        if (nodeData != null)
+        {
+            Undo.Record(Document);
+            Document.RootLayer.ClearSelection();
+            Document.RootLayer.ClearLayerSelections();
+
+            var nodes = nodeData.PasteAsNodes();
+            foreach (var node in nodes)
+                Document.RootLayer.Add(node);
+
+            MarkDirty();
+            RebuildSelectedPaths();
+            return;
+        }
+
         var clipboardData = Clipboard.Get<PathClipboardData>();
         if (clipboardData == null) return;
 
@@ -494,7 +516,7 @@ public partial class SpriteEditor
 
     private void CutSelected()
     {
-        if (_selectedPaths.Count == 0) return;
+        if (!HasLayerSelection && _selectedPaths.Count == 0) return;
 
         CopySelected();
         DeleteSelected();

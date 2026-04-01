@@ -233,6 +233,19 @@ public class Asset : IDisposable {
         return asset;
     }
 
+    public virtual void Reload()
+    {
+        if (string.IsNullOrEmpty(Name)) return;
+        Dispose();
+        Load(Name);
+    }
+
+    public static void ReloadByName(AssetType type, string name)
+    {
+        if (_registry.TryGetValue((type, name), out var asset))
+            asset.Reload();
+    }
+
     public virtual void Dispose()
     {
     }

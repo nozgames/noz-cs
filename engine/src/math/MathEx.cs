@@ -322,9 +322,17 @@ public static class MathEx
         return Vector2.Distance(point, projection) - radius;
     }
 
+    public static int RandomRange(int count) =>
+        Random.Shared.Next(count);
+
+    public static int RandomRange(int min, int max) =>
+        min + Random.Shared.Next(max - min + 1);
+
     public static float RandomRange(float min, float max) =>
         ((float)Random.Shared.NextDouble()) * (max - min) + min;
 
     public static float Random01() => (float)Random.Shared.NextDouble();
     public static float RandomSNorm() => RandomRange(-1f, 1f);
+    public static float RandomSign() => ((int)Random01()) * 2 - 1;
+    public static float RandomSNormRange(float min, float max) => RandomRange(min, max) * RandomSign();
 }

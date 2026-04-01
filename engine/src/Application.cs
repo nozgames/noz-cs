@@ -109,6 +109,8 @@ public static class Application
         // Set resize callback after all subsystems are initialized to avoid early resize events
         Platform.SetResizeCallback(RenderFrame);
 
+        AssetWatcher.Init();
+
         _instance.Init();
 
         _running = true;
@@ -155,6 +157,7 @@ public static class Application
         }
 
         Input.Update();
+        AssetWatcher.Update();
 
         var preFrame = PreFrame;
         PreFrame = null;
@@ -192,6 +195,7 @@ public static class Application
         _instance.Shutdown();
         _instance.SaveConfig();
         _instance.UnloadAssets();
+        AssetWatcher.Shutdown();
 
         VfxSystem.Shutdown();
         UI.Shutdown();
