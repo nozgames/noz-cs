@@ -11,9 +11,14 @@ namespace NoZ.Editor;
 
 public static class AtlasManager
 {
+    private const string EditorAtlasPrefix = "editor";
+
     private readonly static List<AtlasDocument> _atlases = new(32);
     private readonly static List<SpriteDocument> _sources = new(64);
     private static Texture? _previousAtlasArray;
+
+    private readonly static List<AtlasDocument> _editorAtlases = new(4);
+    private readonly static List<SpriteDocument> _editorSources = new(16);
 
     public static Texture? TextureArray { get; private set; }
 
@@ -29,50 +34,91 @@ public static class AtlasManager
     {
         _atlases.Clear();
         _sources.Clear();
+        _editorAtlases.Clear();
+        _editorSources.Clear();
     }
 
     private static void HandleDocumentAdded(Document doc)
     {
         if (doc is SpriteDocument { ShouldAtlas: true } sprite)
-            AddSource(sprite);
+        {
+            if (sprite.ShouldExport)
+                AddSource(sprite);
+            else
+                AddEditorSource(sprite);
+        }
     }
 
     private static string GetAtlasName(int index) => $"{EditorApplication.Config.AtlasPrefix}{index:000}.atlas";
+    private static string GetEditorAtlasName(int index) => $"{EditorAtlasPrefix}{index:000}.atlas";
     internal static int GetAtlasIndex(string name)
     {
-        if (!name.StartsWith(EditorApplication.Config.AtlasPrefix))
-            return -1;
-        var indexStr = name.Substring(EditorApplication.Config.AtlasPrefix.Length);
-        if (int.TryParse(indexStr, out var index))
-            return index;
+        if (name.StartsWith(EditorApplication.Config.AtlasPrefix))
+        {
+            var indexStr = name.Substring(EditorApplication.Config.AtlasPrefix.Length);
+            if (int.TryParse(indexStr, out var index))
+                return index;
+        }
+        else if (name.StartsWith(EditorAtlasPrefix))
+        {
+            var indexStr = name.Substring(EditorAtlasPrefix.Length);
+            if (int.TryParse(indexStr, out var index))
+                return index;
+        }
         return -1;
     }
 
     private static void UpdateAssets()
     {
         _atlases.Clear();
+        _editorAtlases.Clear();
 
         var rebuild = false;
+        var editorRebuild = false;
         var minIndex = int.MaxValue;
         var maxIndex = int.MinValue;
+        var editorMinIndex = int.MaxValue;
+        var editorMaxIndex = int.MinValue;
+
         for (int i = 0, c = DocumentManager.Count; i < c; i++ )
         {
             var doc = DocumentManager.Get(i);
             if (doc is AtlasDocument atlas)
             {
-                if (!atlas.Name.StartsWith(EditorApplication.Config.AtlasPrefix)) continue;
-                LogAtlas($"Rebuild: {atlas.Name} Rect Count 0", () => atlas.RectCount == 0);
-                rebuild |= atlas.RectCount == 0;
-                atlas.ResolveSprites();
-                LogAtlas($"Rebuild: {atlas.Name} Atlas Modified", () => atlas.IsModified);
-                rebuild |= atlas.IsModified;
-                minIndex = Math.Min(minIndex, atlas.Index);
-                maxIndex = Math.Max(maxIndex, atlas.Index);
-                atlas.IsVisible = false;
-                _atlases.Add(atlas);
+                if (atlas.Name.StartsWith(EditorAtlasPrefix))
+                {
+                    atlas.IsEditorOnly = true;
+                    atlas.ShouldExport = false;
+                    LogAtlas($"Rebuild: {atlas.Name} Rect Count 0", () => atlas.RectCount == 0);
+                    editorRebuild |= atlas.RectCount == 0;
+                    atlas.ResolveSprites();
+                    LogAtlas($"Rebuild: {atlas.Name} Atlas Modified", () => atlas.IsModified);
+                    editorRebuild |= atlas.IsModified;
+                    editorMinIndex = Math.Min(editorMinIndex, atlas.Index);
+                    editorMaxIndex = Math.Max(editorMaxIndex, atlas.Index);
+                    atlas.IsVisible = false;
+                    _editorAtlases.Add(atlas);
+                }
+                else if (atlas.Name.StartsWith(EditorApplication.Config.AtlasPrefix))
+                {
+                    LogAtlas($"Rebuild: {atlas.Name} Rect Count 0", () => atlas.RectCount == 0);
+                    rebuild |= atlas.RectCount == 0;
+                    atlas.ResolveSprites();
+                    LogAtlas($"Rebuild: {atlas.Name} Atlas Modified", () => atlas.IsModified);
+                    rebuild |= atlas.IsModified;
+                    minIndex = Math.Min(minIndex, atlas.Index);
+                    maxIndex = Math.Max(maxIndex, atlas.Index);
+                    atlas.IsVisible = false;
+                    _atlases.Add(atlas);
+                }
             }
             else if (doc is SpriteDocument { ShouldAtlas: true } sprite)
-                _sources.Add(sprite);
+            {
+                if (sprite.ShouldExport)
+                    _sources.Add(sprite);
+                else
+                    _editorSources.Add(sprite);
+            }
         }
 
         if (!rebuild)
@@ -90,12 +136,28 @@ public static class AtlasManager
             rebuild = true;
         }
 
-        if (rebuild)
+        if (!editorRebuild)
         {
-            Rebuild();
-            if (Graphics.Driver != null)
-                RebuildTextureArray();
+            for (int i = 0, c = _editorSources.Count; !editorRebuild && i < c; i++)
+                editorRebuild = _editorSources[i].Atlas == null;
+
+            LogAtlas($"Rebuild: One or more unatlased editor sprites", () => editorRebuild);
         }
+
+        if (!editorRebuild && _editorAtlases.Count > 0 && (editorMinIndex != 0 || editorMaxIndex != _editorAtlases.Count - 1))
+        {
+            LogAtlas($"Rebuild: Editor atlas index mismatch");
+            editorRebuild = true;
+        }
+
+        if (rebuild)
+            Rebuild();
+
+        if (editorRebuild)
+            RebuildEditorAtlases();
+
+        if ((rebuild || editorRebuild) && Graphics.Driver != null)
+            RebuildTextureArray();
     }
 
     public static void Update()
@@ -110,6 +172,17 @@ public static class AtlasManager
 
         for (int atlasIndex = 0; atlasIndex < _atlases.Count; atlasIndex++)
             _atlases[atlasIndex].Update();
+
+        for (int i = 0; i < _editorSources.Count; i++)
+        {
+            if (_editorSources[i].Atlas != null)
+                continue;
+
+            AddToEditorAtlas(_editorSources[i]);
+        }
+
+        for (int atlasIndex = 0; atlasIndex < _editorAtlases.Count; atlasIndex++)
+            _editorAtlases[atlasIndex].Update();
     }
 
     internal static void UpdateSource(SpriteDocument source) => UpdateSource(source, null);
@@ -117,6 +190,9 @@ public static class AtlasManager
     internal static void UpdateSource(SpriteDocument source, PixelData<Color32>?[]? pixels)
     {
         Debug.Assert(source.Atlas != null);
+
+        var isEditorOnly = source.Atlas.IsEditorOnly;
+        var atlases = isEditorOnly ? _editorAtlases : _atlases;
 
         // See if the source can remain in its current atlas
         if (source.Atlas.TryUpdate(source))
@@ -130,9 +206,13 @@ public static class AtlasManager
 
         // Source no longer fits in its atlas, need to relocate it
         var oldAtlas = source.Atlas;
-        var oldAtlasCount = _atlases.Count;
+        var oldAtlasCount = atlases.Count;
         source.Atlas = null;
-        Add(source);
+
+        if (isEditorOnly)
+            AddToEditorAtlas(source);
+        else
+            Add(source);
 
         // Update both the old atlas (to clear the old rect) and the new one
         oldAtlas.Update();
@@ -144,7 +224,7 @@ public static class AtlasManager
         }
 
         // If Add() created a new atlas, rebuild the entire texture array
-        if (_atlases.Count != oldAtlasCount && Graphics.Driver != null)
+        if (atlases.Count != oldAtlasCount && Graphics.Driver != null)
         {
             RebuildTextureArray();
         }
@@ -176,6 +256,18 @@ public static class AtlasManager
         Update();
     }
 
+    internal static void AddEditorSource(SpriteDocument source)
+    {
+        if (!_editorSources.Contains(source))
+            _editorSources.Add(source);
+
+        if (source.Atlas != null)
+            return;
+
+        AddToEditorAtlas(source);
+        Update();
+    }
+
     internal static void RemoveSource(SpriteDocument source)
     {
         if (source.Atlas != null)
@@ -188,6 +280,7 @@ public static class AtlasManager
         }
 
         _sources.Remove(source);
+        _editorSources.Remove(source);
         source.Reexport();
     }
 
@@ -220,6 +313,36 @@ public static class AtlasManager
             atlas.IncrementVersion();
     }
 
+    private static void AddToEditorAtlas(SpriteDocument source)
+    {
+        Debug.Assert(source.Atlas == null);
+
+        for (int i = 0; i < _editorAtlases.Count; i++)
+        {
+            if (_editorAtlases[i].TryAdd(source))
+            {
+                _editorAtlases[i].IncrementVersion();
+                return;
+            }
+        }
+
+        var atlas = DocumentManager.New(AssetType.Atlas, GetEditorAtlasName(_editorAtlases.Count)) as AtlasDocument;
+        if (atlas == null)
+        {
+            Log.Error($"Failed to create editor atlas for '{source.Name}'");
+            return;
+        }
+        atlas.IsVisible = false;
+        atlas.IsEditorOnly = true;
+        atlas.ShouldExport = false;
+        _editorAtlases.Add(atlas);
+
+        if (!atlas.TryAdd(source))
+            Log.Error($"Sprite '{source.Name}' too large for editor atlas ({source.RasterBounds.Width}x{source.RasterBounds.Height})");
+        else
+            atlas.IncrementVersion();
+    }
+
     public static void Rebuild()
     {
         for (int i = 0; i < _atlases.Count; i++)
@@ -245,6 +368,30 @@ public static class AtlasManager
         DocumentManager.SaveAll();
     }
 
+    private static void RebuildEditorAtlases()
+    {
+        for (int i = 0; i < _editorAtlases.Count; i++)
+            _editorAtlases[i].Clear();
+
+        for (int i = 0; i < _editorSources.Count; i++)
+            _editorSources[i].UpdateBounds();
+
+        for (int i = 0; i < _editorSources.Count; i++)
+        {
+            Debug.Assert(_editorSources[i].Atlas == null);
+            AddToEditorAtlas(_editorSources[i]);
+        }
+
+        for (int atlasIndex = _editorAtlases.Count - 1; atlasIndex > 0; atlasIndex--)
+            if (_editorAtlases[atlasIndex].RectCount == 0)
+                DocumentManager.Delete(_editorAtlases[atlasIndex]);
+
+        for (int atlasIndex = 0; atlasIndex < _editorAtlases.Count; atlasIndex++)
+            _editorAtlases[atlasIndex].Update();
+
+        DocumentManager.SaveAll();
+    }
+
     public static void RebuildTextureArray()
     {
         // Defer disposal — current frame's render commands may still reference the old array
@@ -252,18 +399,25 @@ public static class AtlasManager
         _previousAtlasArray = TextureArray;
         TextureArray = null;
 
-        var validAtlases = _atlases.Where(a => a.Image != null).ToList();
-        if (validAtlases.Count > 0)
+        // Assign editor atlas indices after exported atlases
+        for (int i = 0; i < _editorAtlases.Count; i++)
+            _editorAtlases[i].Index = _atlases.Count + i;
+
+        // Build unified texture array: exported layers first, then editor-only layers
+        var allAtlases = _atlases.Concat(_editorAtlases).Where(a => a.Image != null).ToList();
+        if (allAtlases.Count > 0)
         {
-            var width = validAtlases[0].Image!.Width;
-            var height = validAtlases[0].Image!.Height;
-            var layerData = validAtlases.Select(a => a.Image!.AsByteSpan().ToArray()).ToArray();
+            var width = allAtlases[0].Image!.Width;
+            var height = allAtlases[0].Image!.Height;
+            var layerData = allAtlases.Select(a => a.Image!.AsByteSpan().ToArray()).ToArray();
             TextureArray = Texture.CreateArray("GameSpriteAtlas", width, height, layerData);
         }
 
-        // Update all existing sprites in-place with new atlas data
+        // Update all sprites with the unified texture array
         for (int i = 0; i < _sources.Count; i++)
             _sources[i].UpdateSpriteAtlas(TextureArray);
+        for (int i = 0; i < _editorSources.Count; i++)
+            _editorSources[i].UpdateSpriteAtlas(TextureArray);
     }
 
     [Conditional("NOZ_ATLAS_DEBUG")]

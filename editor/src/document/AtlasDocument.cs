@@ -32,7 +32,8 @@ internal class AtlasDocument : Document
     public Texture Texture => _texture;
     public PixelData<Color32>? Image => _image;
     public int RectCount => _rects.Count;
-    public int Index { get; private set;  }
+    public int Index { get; internal set;  }
+    public bool IsEditorOnly { get; set; }
     public ReadOnlySpan<AtlasSpriteRect> Rects => CollectionsMarshal.AsSpan(_rects);
 
     public AtlasDocument()
@@ -202,6 +203,14 @@ internal class AtlasDocument : Document
 
             if (source == null)
                 continue;
+
+            // Skip sprites that don't belong in this atlas type
+            if (IsEditorOnly != !source.ShouldExport)
+            {
+                rect.Name = "";
+                IncrementVersion();
+                continue;
+            }
 
             // Check that this frame's rect is large enough
             if (rect.FrameIndex < source.AtlasFrameCount)
@@ -494,6 +503,9 @@ internal class AtlasDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {
+        if (IsEditorOnly)
+            return;
+
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.WriteAssetHeader(AssetType.Atlas, Atlas.Version, 0);
 

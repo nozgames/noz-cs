@@ -357,7 +357,13 @@ public static partial class Graphics
                     var cellH = ys[row + 1] - ys[row];
                     if (cellW <= 0 || cellH <= 0) continue;
 
-                    Draw(xs[col], ys[row], cellW, cellH, us[col], vs[row], us[col + 1], vs[row + 1], order: order, bone: drawBone);
+                    var cx = xs[col]; var cy = ys[row];
+                    AddQuad(
+                        new Vector2(cx, cy), new Vector2(cx + cellW, cy),
+                        new Vector2(cx + cellW, cy + cellH), new Vector2(cx, cy + cellH),
+                        new Vector2(us[col], vs[row]), new Vector2(us[col + 1], vs[row]),
+                        new Vector2(us[col + 1], vs[row + 1]), new Vector2(us[col], vs[row + 1]),
+                        order: order, atlasIndex: sprite.AtlasIndex, bone: drawBone);
                 }
             }
         }
