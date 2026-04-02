@@ -471,6 +471,12 @@ public static partial class Workspace
             return items;
         }
 
+        if (UI.Button(WidgetIds.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon, isSelected: XrayMode))
+        {
+            XrayMode = !XrayMode;
+            XrayModeChanged?.Invoke(XrayMode);
+        }
+
         UI.DropDown(
             WidgetIds.ContextMenu,
             text: CollectionManager.VisibleCollection?.Name ?? "None",

@@ -48,7 +48,11 @@ public static class MathEx
     }
 
     public static int FloorToInt(float v) => (int)MathF.Floor(v);
+    public static Vector2Int FloorToInt(Vector2 v) => new(FloorToInt(v.X), FloorToInt(v.Y));
+
     public static int CeilToInt(float v) => (int)MathF.Ceiling(v);
+    public static Vector2Int CeilToInt(Vector2 v) => new(CeilToInt(v.X), CeilToInt(v.Y));
+
     public static int RoundToInt(float v) => (int)(v + 0.5f);
     public static float Mix(float a, float b, float t) => a + (b - a) * t;
     public static double Mix(double a, double b, double t) => a + (b - a) * t;
