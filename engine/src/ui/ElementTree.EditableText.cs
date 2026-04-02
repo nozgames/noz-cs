@@ -294,7 +294,7 @@ public static unsafe partial class ElementTree
         var prevCursor = state.CursorIndex;
         var prevSelection = state.SelectionStart;
         var prevHash = state.TextHash;
-        HandleTextInput(ref state, font, d.FontSize, d.MultiLine, e.Rect.Width, d.Scope, d.CommitOnEnter);
+        HandleTextInput(ref state, font, d.FontSize, d.MultiLine, e.Rect.Width, d.Scope, d.CommitOnEnter, e.Index);
 
         // Reset blink timer when cursor moves or text changes
         if (state.CursorIndex != prevCursor || state.SelectionStart != prevSelection || state.TextHash != prevHash)
@@ -306,6 +306,43 @@ public static unsafe partial class ElementTree
         d.SelectionStart = state.SelectionStart;
         d.BlinkTime = state.BlinkTime;
         d.Focused = state.Focused != 0;
+    }
+
+    private static void RequestTabNavigation(int currentElementIndex, bool reverse)
+    {
+        var count = _elements.Length;
+        var step = reverse ? count - 1 : 1;
+        var i = (currentElementIndex + step) % count;
+        for (int n = 0; n < count - 1; n++, i = (i + step) % count)
+        {
+            if (GetElement(i).Type == ElementType.EditableText)
+            {
+                _tabNavigationTarget = i;
+                return;
+            }
+        }
+    }
+
+    private static void FocusEditableText(int elementIndex)
+    {
+        ref var e = ref GetElement(elementIndex);
+        ref var d = ref e.Data.EditableText;
+        ref var state = ref *d.State;
+        var widgetId = FindParentWidgetId(elementIndex);
+        if (widgetId == WidgetId.None) return;
+
+        _hotId = widgetId;
+        state.Focused = 1;
+        state.JustFocused = 1;
+        state.EditText = AllocString(d.Text.AsReadOnlySpan());
+        state.PrevTextHash = string.GetHashCode(state.EditText.AsReadOnlySpan());
+        state.TextHash = state.PrevTextHash;
+        state.SelectionStart = 0;
+        state.CursorIndex = state.EditText.AsReadOnlySpan().Length;
+        state.BlinkTime = 0;
+        _editableTextHelper.Clear();
+        var initialText = new string(state.EditText.AsReadOnlySpan());
+        _editableTextHelper.Record(initialText, 0, initialText.Length);
     }
 
     private static WidgetId FindParentWidgetId(int elementIndex)
@@ -328,7 +365,8 @@ public static unsafe partial class ElementTree
         bool multiLine,
         float contentWidth,
         InputScope scope,
-        bool commitOnEnter)
+        bool commitOnEnter,
+        int elementIndex)
     {
         var ctrl = Input.IsCtrlDown(scope);
         var shift = Input.IsShiftDown(scope);
@@ -344,12 +382,16 @@ public static unsafe partial class ElementTree
             return;
         }
 
-        // Tab — commit and defocus
+        // Tab / Shift-Tab — commit and navigate to next/prev focusable widget
         if (Input.WasButtonPressed(InputCode.KeyTab, true, scope))
         {
+            var reverse = Input.IsShiftDown(scope);
             state.FocusExited = 1;
             state.Focused = 0;
-            ClearHot();
+            RequestTabNavigation(elementIndex, reverse);
+            if (_tabNavigationTarget < 0)
+                ClearHot();
+            Input.ConsumeButton(InputCode.KeyTab);
             return;
         }
 

@@ -136,9 +136,15 @@ public static unsafe partial class ElementTree
 
         _hoveredWidget = WidgetId.None;
         _cursorOffset = -1;
+        _tabNavigationTarget = -1;
         FindHoveredWidget(0);
         HandlePopupAutoClose();
         HandleInputElement(0);
+
+        // Apply deferred tab navigation
+        if (_tabNavigationTarget >= 0)
+            FocusEditableText(_tabNavigationTarget);
+
         HandleScrollableInput();
 
         if (_cursorOffset >= 0)
