@@ -158,9 +158,18 @@ internal static class SpriteLayerProcessor
 
                 if (hasFill)
                 {
-                    results.Add(new LayerPathResult(contours, path.StrokeColor, true));
                     if (contracted.Count > 0)
+                    {
+                        var ring = Clipper.BooleanOp(ClipType.Difference,
+                            contours, contracted, FillRule.NonZero, precision: ClipperPrecision);
+                        if (ring.Count > 0)
+                            results.Add(new LayerPathResult(ring, path.StrokeColor, true));
                         results.Add(new LayerPathResult(contracted, path.FillColor, false));
+                    }
+                    else
+                    {
+                        results.Add(new LayerPathResult(contours, path.StrokeColor, true));
+                    }
                 }
                 else
                 {
