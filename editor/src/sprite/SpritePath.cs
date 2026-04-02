@@ -396,7 +396,7 @@ public class SpritePath : SpriteNode
         return (bestContour, bestIndex, bestDistSqr, bestPos);
     }
 
-    public new (int ContourIndex, int SegmentIndex, float DistSqr, Vector2 Position) HitTestSegment(Vector2 point)
+    public (int ContourIndex, int SegmentIndex, float DistSqr, Vector2 Position) HitTestSegment(Vector2 point)
     {
         var radius = EditorStyle.SpritePath.SegmentHitRadius;
         TransformPointAndRadius(ref point, ref radius);

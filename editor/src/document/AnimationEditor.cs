@@ -157,13 +157,9 @@ internal partial class AnimationEditor : DocumentEditor
             new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
             new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
             new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
-            new Command { Name = "Move", Handler = BeginMoveTool, Key = InputCode.KeyG },
-            new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
-            new Command { Name = "Reset Rotation", Handler = ResetRotation, Key = InputCode.KeyR, Shift = true },
-            new Command { Name = "Reset Rotation", Handler = ResetRotation, Key = InputCode.KeyR, Alt = true },
-            new Command { Name = "Reset Position", Handler = ResetPosition, Key = InputCode.KeyG, Shift = true },
             new Command { Name = "Reset Position", Handler = ResetPosition, Key = InputCode.KeyG, Alt = true },
-            new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
+            new Command { Name = "Reset Rotation", Handler = ResetRotation, Key = InputCode.KeyR, Alt = true },
+            new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA, Ctrl = true },
             new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI },
             new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO },
             new Command { Name = "Insert Frame Lerp", Handler = InsertFrameAfterLerp, Key = InputCode.KeyO, Alt = true },
@@ -194,12 +190,16 @@ internal partial class AnimationEditor : DocumentEditor
     {
         Document.UpdateBounds();
 
-        if (_state == AnimationEditorState.Default)
-            UpdateDefaultState();
-        else if (_state == AnimationEditorState.Play)
+        if (_state == AnimationEditorState.Play)
             UpdatePlayState();
 
         DrawEditor();
+    }
+
+    public override void LateUpdate()
+    {
+        if (_state == AnimationEditorState.Default)
+            UpdateDefaultState();
     }
 
     private void SkeletonPopupUI()
@@ -373,7 +373,7 @@ internal partial class AnimationEditor : DocumentEditor
     {
         if (Workspace.ActiveTool == null && Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
         {
-            Workspace.BeginTool(new BoxSelectTool(HandleBoxSelect));
+            HandleDragStart();
             return;
         }
 
@@ -390,6 +390,29 @@ internal partial class AnimationEditor : DocumentEditor
 
         if (Input.WasButtonReleased(InputCode.MouseLeft) && _clearSelectionOnUp && !Input.IsShiftDown())
             ClearSelection();
+    }
+
+    private void HandleDragStart()
+    {
+        var hitBone = Document.HitTestBone(GetBaseTransform(), Workspace.DragWorldPosition);
+        if (hitBone >= 0)
+        {
+            // Select the bone if not already selected
+            if (!IsBoneSelected(hitBone))
+            {
+                if (!Input.IsShiftDown())
+                    ClearSelection();
+                SetBoneSelected(hitBone, true);
+            }
+
+            if (Input.IsAltDown(InputScope.All))
+                BeginMoveTool(commitOnRelease: true);
+            else
+                BeginRotateTool(commitOnRelease: true);
+            return;
+        }
+
+        Workspace.BeginTool(new BoxSelectTool(HandleBoxSelect));
     }
 
     private void UpdatePlayState()
@@ -552,7 +575,7 @@ internal partial class AnimationEditor : DocumentEditor
         _state = AnimationEditorState.Default;
     }
 
-    private void BeginMoveTool()
+    private void BeginMoveTool(bool commitOnRelease = false)
     {
         if (Document.SelectedBoneCount <= 0 || _state != AnimationEditorState.Default)
             return;
@@ -575,7 +598,7 @@ internal partial class AnimationEditor : DocumentEditor
                 Undo.Cancel();
                 RevertToSavedState();
             }
-        ));
+        ) { CommitOnRelease = commitOnRelease });
     }
 
     private void UpdateMoveTool(Vector2 delta)
@@ -614,7 +637,7 @@ internal partial class AnimationEditor : DocumentEditor
         Document.UpdateTransforms();
     }
 
-    private void BeginRotateTool()
+    private void BeginRotateTool(bool commitOnRelease = false)
     {
         if (Document.SelectedBoneCount <= 0 || _state != AnimationEditorState.Default)
             return;
@@ -647,7 +670,7 @@ internal partial class AnimationEditor : DocumentEditor
                 Undo.Cancel();
                 RevertToSavedState();
             }
-        ));
+        ) { CommitOnRelease = commitOnRelease });
     }
 
     private void UpdateRotateTool(float angle)
@@ -673,41 +696,37 @@ internal partial class AnimationEditor : DocumentEditor
 
     private void ResetRotation()
     {
-        if (_state != AnimationEditorState.Default)
+        if (_state != AnimationEditorState.Default || Document.SelectedBoneCount <= 0)
             return;
 
         Undo.Record(Document);
         var skeleton = Document.Skeleton;
-        if (skeleton == null)
-            return;
+        if (skeleton == null) return;
 
         for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
         {
             if (!IsBoneSelected(boneIndex))
                 continue;
-
             Document.GetFrameTransform(boneIndex, Document.CurrentFrame).Rotation = 0;
         }
 
-        Document.IncrementVersion();
         Document.UpdateTransforms();
+        Document.IncrementVersion();
     }
 
     private void ResetPosition()
     {
-        if (_state != AnimationEditorState.Default)
+        if (_state != AnimationEditorState.Default || Document.SelectedBoneCount <= 0)
             return;
 
         Undo.Record(Document);
         var skeleton = Document.Skeleton;
-        if (skeleton == null)
-            return;
+        if (skeleton == null) return;
 
         for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
         {
             if (!IsBoneSelected(boneIndex))
                 continue;
-
             Document.GetFrameTransform(boneIndex, Document.CurrentFrame).Position = Vector2.Zero;
         }
 

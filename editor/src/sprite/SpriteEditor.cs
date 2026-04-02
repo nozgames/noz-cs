@@ -117,6 +117,8 @@ public partial class SpriteEditor : DocumentEditor
                 new Command { Name = "Boolean Intersect", Handler = BooleanIntersect, Key = InputCode.KeyI, Ctrl = true, Shift = true },
                 new Command { Name = "Export to PNG", Handler = ExportToPng, Key = InputCode.KeyE, Ctrl = true, Shift = true },
             ];
+
+            ApplyCurrentFrameVisibility();
         }
         else
         {
@@ -430,7 +432,7 @@ public partial class SpriteEditor : DocumentEditor
                     using (UI.BeginRow(WidgetIds.DopeSheet + fi))
                     {
                         if (UI.WasPressed())
-                            _currentTimeSlot = TimeSlotForFrame(fi);
+                            SetCurrentTimeSlot(TimeSlotForFrame(fi));
 
                         // Keyframe cell with dot
                         using (UI.BeginContainer(isCurrentSlot
@@ -505,7 +507,17 @@ public partial class SpriteEditor : DocumentEditor
         var maxSlots = Document.TotalTimeSlots;
         var newSlot = Math.Clamp(timeSlot, 0, maxSlots - 1);
         if (newSlot != _currentTimeSlot)
+        {
             _currentTimeSlot = newSlot;
+            ApplyCurrentFrameVisibility();
+        }
+    }
+
+    private void ApplyCurrentFrameVisibility()
+    {
+        var fi = CurrentFrameIndex;
+        if (fi < Document.AnimFrames.Count)
+            Document.AnimFrames[fi].ApplyVisibility(Document.RootLayer);
     }
 
     private void TogglePlayback()
@@ -521,7 +533,7 @@ public partial class SpriteEditor : DocumentEditor
 
         var fi = CurrentFrameIndex;
         fi = (fi + 1) % Document.AnimFrames.Count;
-        _currentTimeSlot = TimeSlotForFrame(fi);
+        SetCurrentTimeSlot(TimeSlotForFrame(fi));
     }
 
     private void PreviousFrame()
@@ -531,7 +543,7 @@ public partial class SpriteEditor : DocumentEditor
 
         var fi = CurrentFrameIndex;
         fi = fi == 0 ? Document.AnimFrames.Count - 1 : fi - 1;
-        _currentTimeSlot = TimeSlotForFrame(fi);
+        SetCurrentTimeSlot(TimeSlotForFrame(fi));
     }
 
     private int TimeSlotForFrame(int frameIndex)
@@ -548,7 +560,7 @@ public partial class SpriteEditor : DocumentEditor
         var fi = CurrentFrameIndex;
         var newFrame = Document.InsertFrame(fi);
         if (newFrame >= 0)
-            _currentTimeSlot = TimeSlotForFrame(newFrame);
+            SetCurrentTimeSlot(TimeSlotForFrame(newFrame));
         MarkDirty();
     }
 
@@ -558,7 +570,7 @@ public partial class SpriteEditor : DocumentEditor
         var fi = CurrentFrameIndex;
         var newFrame = Document.InsertFrame(fi + 1);
         if (newFrame >= 0)
-            _currentTimeSlot = TimeSlotForFrame(newFrame);
+            SetCurrentTimeSlot(TimeSlotForFrame(newFrame));
         MarkDirty();
     }
 
@@ -567,7 +579,7 @@ public partial class SpriteEditor : DocumentEditor
         if (Document.AnimFrames.Count <= 1) return;
         Undo.Record(Document);
         var fi = Document.DeleteFrame(CurrentFrameIndex);
-        _currentTimeSlot = TimeSlotForFrame(fi);
+        SetCurrentTimeSlot(TimeSlotForFrame(fi));
         MarkDirty();
     }
 
@@ -875,7 +887,8 @@ public partial class SpriteEditor : DocumentEditor
         if (_playTimer >= slotDuration)
         {
             _playTimer = 0;
-            _currentTimeSlot = (_currentTimeSlot + 1) % Document.TotalTimeSlots;
+            var nextSlot = (_currentTimeSlot + 1) % Document.TotalTimeSlots;
+            SetCurrentTimeSlot(nextSlot);
         }
     }
 

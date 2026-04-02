@@ -141,9 +141,4 @@ public abstract class Document : IDisposable, IChangeHandler
                 order: 1);
     }
 
-    public void Reexport()
-    {
-        if (File.Exists(Path))
-            File.SetLastWriteTimeUtc(Path, DateTime.UtcNow);
-    }
 }

@@ -18,6 +18,7 @@ public static class DocumentManager
     private static readonly Queue<Document> _exportDeferred = [];
     private static readonly List<FileSystemWatcher> _watchers = [];
     private static readonly ConcurrentQueue<string> _watcherQueue = [];
+    private static readonly ConcurrentQueue<string> _reloadQueue = [];
     private static bool _watching;
 
     public static IReadOnlyList<Document> Documents => _documents;
@@ -327,10 +328,6 @@ public static class DocumentManager
             doc.PostLoad();
             doc.PostLoaded = true;
             NotifyDocumentAdded(doc);
-        }
-        else
-        {
-            doc.Reload();
         }
     }
 
@@ -745,6 +742,7 @@ public static class DocumentManager
         }
 
         _watcherQueue.Enqueue(path);
+        _reloadQueue.Enqueue(path);
     }
 
     public static async Task GenerateSpritesAsync(CancellationToken ct = default)
@@ -824,6 +822,18 @@ public static class DocumentManager
 
     public static void UpdateExports()
     {
+        while (_reloadQueue.TryDequeue(out var path))
+        {
+            var def = ResolveDef(path);
+            if (def != null)
+            {
+                var name = MakeCanonicalName(path);
+                var doc = Find(def.Type, name);
+                if (doc is { Loaded: true } && !doc.SilentExport)
+                    doc.Reload();
+            }
+        }
+
         while (_watcherQueue.TryDequeue(out var path))
             QueueExport(path);
 

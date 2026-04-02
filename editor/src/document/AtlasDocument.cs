@@ -347,7 +347,7 @@ internal class AtlasDocument : Document
 
         source.Atlas = this;
         source.UpdateAtlasUVs(this, Rects, Padding);
-        source.Reexport();
+        DocumentManager.QueueExport(source, force: true);
         return true;
     }
 

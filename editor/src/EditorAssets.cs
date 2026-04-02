@@ -28,7 +28,6 @@ public static class EditorAssets
         public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
         public const string EditorSprites000 = "editor_sprites000";
-        public const string EditorSprites001 = "editor_sprites001";
         public const string GizmoHandle = "gizmo_handle";
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
@@ -99,18 +98,20 @@ public static class EditorAssets
     public static class Atlases
     {
         public static readonly Atlas EditorSprites000 = new();
-        public static readonly Atlas EditorSprites001 = new();
 
         public static void Load()
         {
             EditorSprites000.Load(Names.EditorSprites000);
-            EditorSprites001.Load(Names.EditorSprites001);
+        }
+
+        public static void Reload()
+        {
+            EditorSprites000.Reload();
         }
 
         public static void Unload()
         {
             EditorSprites000.Dispose();
-            EditorSprites001.Dispose();
         }
     }
 
@@ -327,6 +328,87 @@ public static class EditorAssets
             Star.Load(Names.Star, atlas);
         }
 
+        public static void Reload()
+        {
+            AssetIconAnimation.Reload();
+            AssetIconAtlas.Reload();
+            AssetIconBin.Reload();
+            AssetIconEvent.Reload();
+            AssetIconFont.Reload();
+            AssetIconGenstyle.Reload();
+            AssetIconShader.Reload();
+            AssetIconSound.Reload();
+            AssetIconSprite.Reload();
+            AssetIconVfx.Reload();
+            Circle.Reload();
+            CurorDropper.Reload();
+            CursorArrow.Reload();
+            CursorBeam.Reload();
+            CursorMove.Reload();
+            CursorRotate.Reload();
+            CursorScale.Reload();
+            GizmoHandle.Reload();
+            IconAdd.Reload();
+            IconAi.Reload();
+            IconBone.Reload();
+            IconCheck.Reload();
+            IconCircle.Reload();
+            IconClip.Reload();
+            IconClose.Reload();
+            IconCollection.Reload();
+            IconConnected.Reload();
+            IconConstraint.Reload();
+            IconDelete.Reload();
+            IconDropdown.Reload();
+            IconDuplicate.Reload();
+            IconEdit.Reload();
+            IconEmpty.Reload();
+            IconExpandDown.Reload();
+            IconExpandUp.Reload();
+            IconFill.Reload();
+            IconFoldoutClosed.Reload();
+            IconFoldoutOpen.Reload();
+            IconGenerating.Reload();
+            IconHidden.Reload();
+            IconKeyframe.Reload();
+            IconLayer.Reload();
+            IconLock.Reload();
+            IconLoop.Reload();
+            IconMenu.Reload();
+            IconMirror.Reload();
+            IconMove.Reload();
+            IconNofill.Reload();
+            IconOnion.Reload();
+            IconOpacity.Reload();
+            IconOpacityOverlay.Reload();
+            IconPalette.Reload();
+            IconPath.Reload();
+            IconPathLayer.Reload();
+            IconPlay.Reload();
+            IconPreview.Reload();
+            IconPublish.Reload();
+            IconRandom.Reload();
+            IconRandomRange.Reload();
+            IconRefresh.Reload();
+            IconRemove.Reload();
+            IconRootMotion.Reload();
+            IconSearch.Reload();
+            IconSeed.Reload();
+            IconSort.Reload();
+            IconStroke.Reload();
+            IconStrokeJoinBevel.Reload();
+            IconStrokeJoinMiter.Reload();
+            IconStrokeJoinRound.Reload();
+            IconStrokeSize.Reload();
+            IconSubmenu.Reload();
+            IconSubtract.Reload();
+            IconTiling.Reload();
+            IconUnlock.Reload();
+            IconXray.Reload();
+            Square.Reload();
+            Star.Reload();
+        }
+
         public static void Unload()
         {
             AssetIconAnimation.Dispose();
@@ -414,7 +496,7 @@ public static class EditorAssets
     public static void LoadAssets()
     {
         Atlases.Load();
-        AtlasArray = Texture.CreateArray("SpriteAtlas", Atlases.EditorSprites000, Atlases.EditorSprites001);
+        AtlasArray = Texture.CreateArray("SpriteAtlas", Atlases.EditorSprites000);
 
         Fonts.Load();
         Shaders.Load();
@@ -423,8 +505,10 @@ public static class EditorAssets
 
     public static void ReloadAssets()
     {
+        Atlases.Reload();
         Fonts.Reload();
         Shaders.Reload();
+        Sprites.Reload();
     }
 
     public static void UnloadAssets()

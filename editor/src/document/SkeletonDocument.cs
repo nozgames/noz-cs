@@ -695,7 +695,7 @@ public class SkeletonDocument : Document
     {
         DrawOrigin();
 
-        using (Gizmos.PushState(EditorLayer.Document))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Transform);
 
@@ -705,12 +705,9 @@ public class SkeletonDocument : Document
                 if (b.ParentIndex >= 0 && !b.IsConnected)
                 {
                     ref readonly var p = ref Bones[b.ParentIndex];
-                    if (Vector2.DistanceSquared(b.HeadWorld, p.TailWorld) > 0.1f * 0.1f)
-                    {
-                        Graphics.SetSortGroup(1);
-                        Gizmos.SetColor(EditorStyle.Skeleton.ParentLineColor);
-                        Gizmos.DrawDashedLine(b.HeadWorld, p.TailWorld, order: 1);
-                    }
+                    Graphics.SetSortGroup(1);
+                    Gizmos.SetColor(EditorStyle.Skeleton.ParentLineColor);
+                    Gizmos.DrawDashedLine(b.HeadWorld, p.TailWorld, order: 1);
                 }
 
                 Gizmos.DrawBoneAndJoints(this, boneIndex);

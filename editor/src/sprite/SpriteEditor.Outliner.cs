@@ -141,17 +141,17 @@ public partial class SpriteEditor
 
         _outlinerRows.Add(new OutlinerRowInfo { Node = node, Index = index, Depth = depth });
 
-        // Determine background
-        var bg = (isActive || isPathSelected) ? EditorStyle.Palette.Active : Color.Transparent;
-        var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
-        if (isHovered) bg = EditorStyle.Palette.Active;
-
         if (isDragSource)
             UI.BeginOpacity(0.35f);
 
         ElementTree.BeginTree();
         ElementTree.BeginWidget(rowId);
         ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
+
+        // Determine background (must be after BeginWidget so hover state is available)
+        var bg = (isActive || isPathSelected) ? EditorStyle.Palette.Active : Color.Transparent;
+        var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
+        if (isHovered) bg = EditorStyle.Palette.Active;
 
         // Content area
         if (dropLastChild)
@@ -245,6 +245,11 @@ public partial class SpriteEditor
             {
                 Undo.Record(Document);
                 node.Visible = !node.Visible;
+
+                var fi = CurrentFrameIndex;
+                if (fi < Document.AnimFrames.Count && node is SpriteLayer layer)
+                    Document.AnimFrames[fi].SetLayerVisible(layer, node.Visible);
+
                 MarkDirty();
             }
         }

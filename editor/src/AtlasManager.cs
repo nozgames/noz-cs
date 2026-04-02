@@ -11,7 +11,7 @@ namespace NoZ.Editor;
 
 public static class AtlasManager
 {
-    private const string EditorAtlasPrefix = "editor";
+    private const string EditorAtlasPrefix = "editor_only";
 
     private readonly static List<AtlasDocument> _atlases = new(32);
     private readonly static List<SpriteDocument> _sources = new(64);
@@ -101,6 +101,7 @@ public static class AtlasManager
                 }
                 else if (atlas.Name.StartsWith(EditorApplication.Config.AtlasPrefix))
                 {
+                    atlas.ShouldExport = true;
                     LogAtlas($"Rebuild: {atlas.Name} Rect Count 0", () => atlas.RectCount == 0);
                     rebuild |= atlas.RectCount == 0;
                     atlas.ResolveSprites();
@@ -198,8 +199,8 @@ public static class AtlasManager
         if (source.Atlas.TryUpdate(source))
         {
             source.Atlas.Update(source, pixels);
-            source.Reexport();
-            source.Atlas.Reexport();
+            DocumentManager.QueueExport(source, force: true);
+            DocumentManager.QueueExport(source.Atlas, force: true);
             SyncTextureArrayLayer(source.Atlas);
             return;
         }
@@ -216,11 +217,11 @@ public static class AtlasManager
 
         // Update both the old atlas (to clear the old rect) and the new one
         oldAtlas.Update();
-        oldAtlas.Reexport();
+        DocumentManager.QueueExport(oldAtlas, force: true);
         if (source.Atlas != null && source.Atlas != oldAtlas)
         {
             source.Atlas.Update(source, pixels);
-            source.Atlas.Reexport();
+            DocumentManager.QueueExport(source.Atlas, force: true);
         }
 
         // If Add() created a new atlas, rebuild the entire texture array
@@ -274,14 +275,14 @@ public static class AtlasManager
         {
             source.Atlas.Remove(source);
             source.Atlas.Update();
-            source.Atlas.Reexport();
+            DocumentManager.QueueExport(source.Atlas, force: true);
             source.Atlas = null;
             source.ClearAtlasUVs();
         }
 
         _sources.Remove(source);
         _editorSources.Remove(source);
-        source.Reexport();
+        DocumentManager.QueueExport(source, force: true);
     }
 
     private static void Add(SpriteDocument source)

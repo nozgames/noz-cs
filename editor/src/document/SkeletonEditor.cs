@@ -31,8 +31,6 @@ internal partial class SkeletonEditor : DocumentEditor
     public new SkeletonDocument Document => (SkeletonDocument)base.Document;
 
     private readonly SavedBone[] _savedBones = new SavedBone[Skeleton.MaxBones];
-    private Vector2 _selectionCenter;
-    private Vector2 _selectionCenterWorld;
     //private PopupMenuItem[] _contextMenuItems = null!;
     private bool _clearSelectionOnUp;
     private bool _ignoreUp;
@@ -44,33 +42,17 @@ internal partial class SkeletonEditor : DocumentEditor
     {
         var exitEditCommand = new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab };
         var deleteCommand = new Command { Name = "Delete", Handler = HandleDelete, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete };
-        var moveCommand = new Command { Name = "Move", Handler = OnMoveCommand, Key = InputCode.KeyG, Icon = EditorAssets.Sprites.IconMove };
-        var scaleCommand = new Command { Name = "Scale", Handler = HandleScale, Key = InputCode.KeyS };
         var renameCommand = new Command { Name = "Rename", Handler = HandleRename, Key = InputCode.KeyF2 };
-        var selectAllCommand = new Command { Name = "Select All", Handler = OnSelectAll, Key = InputCode.KeyA };
+        var selectAllCommand = new Command { Name = "Select All", Handler = OnSelectAll, Key = InputCode.KeyA, Ctrl = true };
 
         _commands =
         [
             exitEditCommand,
-            moveCommand,
             deleteCommand,
-            scaleCommand,
             renameCommand,
             selectAllCommand,
             new Command { Name = "Create Bone", Handler = BeginCreateBone, Key = InputCode.KeyV },
-            new Command { Name = "Envelope", Handler = HandleEnvelope, Key = InputCode.KeyE },
         ];
-
-        //bool HasSelection() => Document.SelectedBoneCount > 0;
-        //_contextMenuItems = [
-        //    PopupMenuItem.FromCommand(renameCommand, enabled: () => Document.SelectedBoneCount == 1),
-        //    PopupMenuItem.FromCommand(deleteCommand, enabled: HasSelection),
-        //    PopupMenuItem.Separator(),
-        //    PopupMenuItem.FromCommand(moveCommand, enabled: HasSelection),
-        //    PopupMenuItem.FromCommand(scaleCommand, enabled: HasSelection),
-        //    PopupMenuItem.Separator(),
-        //    PopupMenuItem.FromCommand(exitEditCommand),
-        //];
 
         Commands = _commands;
         ClearSelection();
@@ -252,32 +234,6 @@ internal partial class SkeletonEditor : DocumentEditor
         return false;
     }
 
-    private void UpdateSelectionCenter()
-    {
-        var center = Vector2.Zero;
-        var centerCount = 0f;
-
-        for (var i = 0; i < Document.BoneCount; i++)
-        {
-            var bone = Document.Bones[i];
-
-            if (bone.IsHeadSelected)
-            {
-                center += bone.HeadWorld;
-                centerCount += 1f;
-            }
-
-            if (bone.IsTailSelected)
-            {
-                center += bone.TailWorld;
-                centerCount += 1f;
-            }
-        }
-
-        _selectionCenter = centerCount < float.Epsilon ? center : center / centerCount;
-        _selectionCenterWorld = _selectionCenter + Document.Position;
-    }
-
     private void SaveState()
     {
         for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
@@ -356,7 +312,7 @@ internal partial class SkeletonEditor : DocumentEditor
     {
         if (Workspace.ActiveTool == null && Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
         {
-            Workspace.BeginTool(new BoxSelectTool(HandleBoxSelect));
+            HandleDragStart();
             return;
         }
 
@@ -374,6 +330,49 @@ internal partial class SkeletonEditor : DocumentEditor
 
         if (Input.WasButtonReleased(InputCode.MouseLeft) && _clearSelectionOnUp)
             ClearSelection();
+    }
+
+    private void HandleDragStart()
+    {
+        var hit = Document.HitTestJoints(Workspace.DragWorldPosition, cycle: false);
+        if (hit.BoneIndex >= 0)
+        {
+            var bone = Document.Bones[hit.BoneIndex];
+            var isSelected = hit.HitType switch
+            {
+                BoneHitType.Head => bone.IsHeadSelected,
+                BoneHitType.Tail => bone.IsTailSelected,
+                BoneHitType.Bone => bone.IsFullySelected,
+                _ => false
+            };
+
+            // Select the joint/bone if not already selected
+            if (!isSelected)
+            {
+                if (!Input.IsShiftDown(InputScope.All))
+                    ClearSelection();
+
+                switch (hit.HitType)
+                {
+                    case BoneHitType.Head:
+                        SelectHeadJoint(hit.BoneIndex, true);
+                        break;
+                    case BoneHitType.Tail:
+                        SelectTailJoint(hit.BoneIndex, true);
+                        break;
+                    case BoneHitType.Bone:
+                        SelectBone(hit.BoneIndex, true);
+                        break;
+                }
+
+                UpdateConnectedToggleState();
+            }
+
+            BeginMoveTool(true, commitOnRelease: true);
+            return;
+        }
+
+        Workspace.BeginTool(new BoxSelectTool(HandleBoxSelect));
     }
 
     private void DrawBoneNames()
@@ -419,9 +418,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
     #region Move Tool
 
-    private void OnMoveCommand() => BeginMoveTool(true);
-
-    private void BeginMoveTool(bool recordUndo)
+    private void BeginMoveTool(bool recordUndo, bool commitOnRelease = false)
     {
         if (Document.SelectedBoneCount <= 0)
             return;
@@ -434,7 +431,7 @@ internal partial class SkeletonEditor : DocumentEditor
             update: UpdateMoveTool,
             commit: _ => { Document.IncrementVersion(); Document.NotifyTransformsChanged(); },
             cancel: Undo.Cancel
-        ));
+        ) { CommitOnRelease = commitOnRelease });
     }
 
     private void UpdateMoveTool(Vector2 delta)
@@ -513,97 +510,6 @@ internal partial class SkeletonEditor : DocumentEditor
                 }
             }
         } while (changed);
-    }
-
-    #endregion
-
-    #region Scale Tool
-
-    private void HandleScale()
-    {
-        if (Document.SelectedBoneCount <= 0)
-            return;
-
-        UpdateSelectionCenter();
-        SaveState();
-        Undo.Record(Document);
-
-        var worldOrigin = Vector2.Transform(Vector2.Zero, Document.Transform);
-
-        Workspace.BeginTool(new ScaleTool(
-            _selectionCenterWorld,
-            worldOrigin,
-            update: UpdateScaleTool,
-            commit: _ => { Document.IncrementVersion(); Document.NotifyTransformsChanged(); },
-            cancel: Undo.Cancel
-        ));
-    }
-
-    private void UpdateScaleTool(Vector2 scale)
-    {
-        var pivot = Input.IsShiftDown(InputScope.All) ? Vector2.Zero : _selectionCenter;
-
-        for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
-        {
-            var bone = Document.Bones[boneIndex];
-            if (!bone.IsSelected)
-                continue;
-
-            var sb = _savedBones[boneIndex];
-
-            if (bone.IsHeadSelected)
-            {
-                var offset = sb.HeadWorld - pivot;
-                bone.HeadWorld = pivot + offset * scale;
-            }
-
-            if (bone.IsTailSelected)
-            {
-                var offset = sb.TailWorld - pivot;
-                bone.TailWorld = pivot + offset * scale;
-            }
-        }
-
-        EnforceConnectedConstraints();
-    }
-
-    #endregion
-
-    #region Envelope Tool
-
-    private void HandleEnvelope()
-    {
-        if (Document.SelectedBoneCount <= 0)
-            return;
-
-        SaveState();
-        Undo.Record(Document);
-
-        // Use the first selected bone's axis for distance reference
-        var boneIndex = GetFirstSelectedBoneIndex();
-        var bone = Document.Bones[boneIndex];
-        var boneHead = bone.HeadWorld + Document.Position;
-        var boneTail = bone.TailWorld + Document.Position;
-
-        Workspace.BeginTool(new EnvelopeTool(
-            boneHead,
-            boneTail,
-            update: UpdateEnvelopeTool,
-            commit: () => { Document.IncrementVersion(); },
-            cancel: Undo.Cancel
-        ));
-    }
-
-    private void UpdateEnvelopeTool(float radius)
-    {
-        for (var i = 0; i < Document.BoneCount; i++)
-        {
-            var bone = Document.Bones[i];
-            if (!bone.IsFullySelected)
-                continue;
-
-            bone.Radius = radius;
-        }
     }
 
     #endregion
