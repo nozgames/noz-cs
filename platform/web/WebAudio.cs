@@ -115,6 +115,7 @@ public class WebAudio : IAudioDriver
 
     public float GetVolume(ulong handle) => 1f;
     public float GetPitch(ulong handle) => 1f;
+    public float GetPlaybackPosition(ulong handle) => 0f;
 
     public void PlayMusic(nint sound)
     {

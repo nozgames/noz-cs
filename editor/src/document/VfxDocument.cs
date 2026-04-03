@@ -554,6 +554,23 @@ public class VfxDocument : Document
     {
         var src = (VfxDocument)source;
         _rotation = src._rotation;
+        _duration = src._duration;
+        _loop = src._loop;
+        SelectedType = src.SelectedType;
+        SelectedIndex = src.SelectedIndex;
+
+        Emitters.Clear();
+        foreach (var e in src.Emitters)
+            Emitters.Add(new VfxDocEmitter { Name = e.Name, Def = e.Def, ParticleRef = e.ParticleRef });
+
+        Particles.Clear();
+        foreach (var p in src.Particles)
+            Particles.Add(new VfxDocParticle { Name = p.Name, Def = p.Def, SpriteRef = p.SpriteRef });
+    }
+
+    public override void OnUndoRedo()
+    {
+        ApplyChanges();
     }
 
     // --- Text file parsing ---

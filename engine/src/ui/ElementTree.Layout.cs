@@ -13,6 +13,7 @@ public static unsafe partial class ElementTree
 
     private static float EdgeInset(in EdgeInsets ei, int axis) => axis == 0 ? ei.Horizontal : ei.Vertical;
     private static float EdgeMin(in EdgeInsets ei, int axis) => axis == 0 ? ei.L : ei.T;
+    private static EdgeInsets GetInsets(ref Element e) => e.Type == ElementType.Padding ? e.Data.Padding : e.Data.Margin;
 
     private static float FitMaxChildren(ref Element e, int axis, int layoutAxis)
     {
@@ -50,28 +51,11 @@ public static unsafe partial class ElementTree
             }
 
             case ElementType.Padding:
-            {
-                var child = e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
-                return child + EdgeInset(e.Data.Padding, axis);
-            }
-
             case ElementType.Margin:
             {
                 var child = e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
-                return child + EdgeInset(e.Data.Margin, axis);
+                return child + EdgeInset(GetInsets(ref e), axis);
             }
-
-            case ElementType.Fill:
-            case ElementType.Clip:
-            case ElementType.Opacity:
-            case ElementType.Cursor:
-            case ElementType.Transform:
-            case ElementType.Scroll:
-            case ElementType.Widget:
-            case ElementType.Track:
-            case ElementType.Align:
-            case ElementType.FlexSplitter:
-                return e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
 
             case ElementType.Row:
                 return FitRowColumn(ref e, axis, 0, e.Data.Spacing);
@@ -84,6 +68,7 @@ public static unsafe partial class ElementTree
 
             case ElementType.Grid:
             case ElementType.Collection:
+            case ElementType.Popup:
                 return 0;
 
             case ElementType.Spacer:
@@ -116,11 +101,8 @@ public static unsafe partial class ElementTree
             case ElementType.EditableText:
                 return FitEditableTextAxis(ref e, axis);
 
-            case ElementType.Popup:
-                return 0;
-
             default:
-                return 0;
+                return e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0;
         }
     }
 
@@ -225,42 +207,14 @@ public static unsafe partial class ElementTree
             }
 
             case ElementType.Padding:
-            {
-                var inset = EdgeInset(e.Data.Padding, axis);
-                size = layoutAxis != axis
-                    ? available
-                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0) + inset;
-                break;
-            }
-
             case ElementType.Margin:
             {
-                var inset = EdgeInset(e.Data.Margin, axis);
+                var inset = EdgeInset(GetInsets(ref e), axis);
                 size = layoutAxis != axis
                     ? available
                     : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0) + inset;
                 break;
             }
-
-            case ElementType.Fill:
-            case ElementType.Clip:
-            case ElementType.Opacity:
-            case ElementType.Cursor:
-            case ElementType.Transform:
-            case ElementType.Scroll:
-            case ElementType.Widget:
-            case ElementType.Track:
-            case ElementType.FlexSplitter:
-                size = layoutAxis != axis
-                    ? available
-                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0);
-                break;
-
-            case ElementType.Align:
-                size = layoutAxis != axis
-                    ? available
-                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0);
-                break;
 
             case ElementType.Row:
                 size = layoutAxis != axis
@@ -367,38 +321,14 @@ public static unsafe partial class ElementTree
             }
 
             default:
-                size = 0;
+                size = layoutAxis != axis
+                    ? available
+                    : (e.ChildCount > 0 ? FitMaxChildren(ref e, axis, layoutAxis) : 0);
                 break;
         }
 
         e.Rect[axis] = position;
         e.Rect[axis + 2] = size;
-
-        // Popup: override position and size after content sizing
-        if (e.Type == ElementType.Popup)
-        {
-            ref var pd = ref e.Data.Popup;
-            if (pd.AnchorRect == Rect.Zero)
-            {
-                // No anchor: fill the screen, children handle alignment
-                e.Rect[axis] = 0;
-                e.Rect[axis + 2] = ScreenSize[axis];
-            }
-            else
-            {
-                var anchorPos = pd.AnchorRect[axis] + pd.AnchorRect[axis + 2] * (axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY);
-                var popupAlignFactor = axis == 0 ? pd.PopupAlignFactorX : pd.PopupAlignFactorY;
-                var anchorFactor = axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY;
-                e.Rect[axis] = anchorPos - size * popupAlignFactor;
-                if (anchorFactor != popupAlignFactor)
-                    e.Rect[axis] += pd.Spacing * (1f - 2f * popupAlignFactor);
-                if (pd.ClampToScreen)
-                {
-                    var maxPos = ScreenSize[axis] - size;
-                    e.Rect[axis] = maxPos >= 0 ? Math.Clamp(e.Rect[axis], 0, maxPos) : 0;
-                }
-            }
-        }
 
         // Recurse children
         switch (e.Type)
@@ -419,19 +349,11 @@ public static unsafe partial class ElementTree
                 LayoutAlignAxis(ref e, axis);
                 break;
             case ElementType.Padding:
-            {
-                ref var d = ref e.Data.Padding;
-                var inset = EdgeInset(d, axis);
-                var childPos = e.Rect[axis] + EdgeMin(d, axis);
-                var childAvail = Math.Max(0, size - inset);
-                LayoutChildrenAxis(ref e, childPos, childAvail, axis, layoutAxis);
-                break;
-            }
             case ElementType.Margin:
             {
-                ref var d = ref e.Data.Margin;
-                var inset = EdgeInset(d, axis);
-                var childPos = e.Rect[axis] + EdgeMin(d, axis);
+                var insets = GetInsets(ref e);
+                var inset = EdgeInset(insets, axis);
+                var childPos = e.Rect[axis] + EdgeMin(insets, axis);
                 var childAvail = Math.Max(0, size - inset);
                 LayoutChildrenAxis(ref e, childPos, childAvail, axis, layoutAxis);
                 break;
@@ -455,6 +377,7 @@ public static unsafe partial class ElementTree
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
                 break;
             case ElementType.Popup:
+                AdjustPopupPosition(ref e, axis, size);
                 LayoutChildrenAxis(ref e, e.Rect[axis], e.Rect.GetSize(axis), axis, -1);
                 break;
             case ElementType.Grid:
@@ -465,31 +388,51 @@ public static unsafe partial class ElementTree
                 break;
             case ElementType.Scroll:
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, axis == 1 ? 1 : layoutAxis);
+                AdjustScrollLayout(ref e, axis, size);
                 break;
             default:
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, layoutAxis);
                 break;
         }
 
-        // Scrollable: calculate content height, clamp offset, and shift descendants
-        if (e.Type == ElementType.Scroll && axis == 1)
+    }
+
+    private static void AdjustPopupPosition(ref Element e, int axis, float size)
+    {
+        ref var pd = ref e.Data.Popup;
+        if (pd.AnchorRect == Rect.Zero)
         {
-            ref var sd = ref e.Data.Scroll;
-            if (sd.State != null)
+            e.Rect[axis] = 0;
+            e.Rect[axis + 2] = ScreenSize[axis];
+        }
+        else
+        {
+            var anchorPos = pd.AnchorRect[axis] + pd.AnchorRect[axis + 2] * (axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY);
+            var popupAlignFactor = axis == 0 ? pd.PopupAlignFactorX : pd.PopupAlignFactorY;
+            var anchorFactor = axis == 0 ? pd.AnchorFactorX : pd.AnchorFactorY;
+            e.Rect[axis] = anchorPos - size * popupAlignFactor;
+            if (anchorFactor != popupAlignFactor)
+                e.Rect[axis] += pd.Spacing * (1f - 2f * popupAlignFactor);
+            if (pd.ClampToScreen)
             {
-                ref var state = ref *sd.State;
-                state.ContentHeight = ScrollContentBottom(ref e, e.Rect[axis]);
-
-                var maxScroll = Math.Max(0, state.ContentHeight - size);
-                if (state.Offset > maxScroll)
-                    state.Offset = maxScroll;
-
-                // Apply scroll offset to all descendant absolute Y positions
-                // so UpdateTransforms inherits the shift at every nesting level
-                if (state.Offset != 0)
-                    ApplyScrollOffset(ref e, state.Offset);
+                var maxPos = ScreenSize[axis] - size;
+                e.Rect[axis] = maxPos >= 0 ? Math.Clamp(e.Rect[axis], 0, maxPos) : 0;
             }
         }
+    }
+
+    private static void AdjustScrollLayout(ref Element e, int axis, float size)
+    {
+        if (axis != 1) return;
+        ref var sd = ref e.Data.Scroll;
+        if (sd.State == null) return;
+        ref var state = ref *sd.State;
+        state.ContentHeight = ScrollContentBottom(ref e, e.Rect[axis]);
+        var maxScroll = Math.Max(0, state.ContentHeight - size);
+        if (state.Offset > maxScroll)
+            state.Offset = maxScroll;
+        if (state.Offset != 0)
+            ApplyScrollOffset(ref e, state.Offset);
     }
 
     private static void LayoutGridAxis(ref Element e, int axis)

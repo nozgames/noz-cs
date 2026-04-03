@@ -6,13 +6,17 @@ namespace NoZ;
 
 public class Sound : Asset
 {
-    internal const ushort Version = 1;
+    internal const ushort Version = 2;
 
     internal nint PlatformHandle { get; private set; }
     public int SampleRate { get; private set; }
     public int Channels { get; private set; }
     public int BitsPerSample { get; private set; }
     public int DataSize { get; private set; }
+    public float VolumeMin { get; private set; } = 1f;
+    public float VolumeMax { get; private set; } = 1f;
+    public float PitchMin { get; private set; } = 1f;
+    public float PitchMax { get; private set; } = 1f;
 
     private Sound(string name) : base(AssetType.Sound, name)
     {
@@ -26,6 +30,11 @@ public class Sound : Asset
         Channels = reader.ReadInt32();
         BitsPerSample = reader.ReadInt32();
         DataSize = reader.ReadInt32();
+
+        VolumeMin = reader.ReadSingle();
+        VolumeMax = reader.ReadSingle();
+        PitchMin = reader.ReadSingle();
+        PitchMax = reader.ReadSingle();
 
         var pcmData = reader.ReadBytes(DataSize);
         PlatformHandle = Audio.Driver.CreateSound(pcmData, SampleRate, Channels, BitsPerSample);

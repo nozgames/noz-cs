@@ -40,6 +40,13 @@ public static class Audio
         return new(Driver.Play(sound.PlatformHandle, volume, pitch, loop));
     }
 
+    public static SoundHandle PlaySound(Sound sound, bool loop = false, bool debounce = true)
+    {
+        var volume = MathEx.RandomRange(sound.VolumeMin, sound.VolumeMax);
+        var pitch = MathEx.RandomRange(sound.PitchMin, sound.PitchMax);
+        return Play(sound, volume, pitch, loop, debounce);
+    }
+
     public static SoundHandle PlayRandomPitch(Sound sound, float volume, float minPitch, float maxPitch, bool loop = false, bool debounce = true)
     {
         var pitch = MathEx.RandomRange(minPitch, maxPitch);
@@ -62,6 +69,7 @@ public static class Audio
     public static void SetPitch(SoundHandle handle, float pitch) => Driver.SetPitch(handle.Value, pitch);
     public static float GetVolume(SoundHandle handle) => Driver.GetVolume(handle.Value);
     public static float GetPitch(SoundHandle handle) => Driver.GetPitch(handle.Value);
+    public static float GetPlaybackPosition(SoundHandle handle) => Driver.GetPlaybackPosition(handle.Value);
 
     // Music
     public static void PlayMusic(Sound sound)

@@ -17,6 +17,7 @@ public interface IAudioDriver
     void SetPitch(ulong handle, float pitch);
     float GetVolume(ulong handle);
     float GetPitch(ulong handle);
+    float GetPlaybackPosition(ulong handle);
     void PlayMusic(nint sound);
     void StopMusic();
     bool IsMusicPlaying();

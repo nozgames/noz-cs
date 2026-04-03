@@ -98,6 +98,18 @@ public static class Gizmos
         Graphics.Draw(p0, p1, p2, p3, order);
     }
 
+    public static void DrawTriangle(Vector2 a, Vector2 b, Vector2 c, ushort order = 0)
+    {
+        ReadOnlySpan<MeshVertex> verts =
+        [
+            new MeshVertex { Position = a, UV = Vector2.Zero, Color = Color.White },
+            new MeshVertex { Position = b, UV = Vector2.Zero, Color = Color.White },
+            new MeshVertex { Position = c, UV = Vector2.Zero, Color = Color.White },
+        ];
+        ReadOnlySpan<ushort> indices = [0, 1, 2];
+        Graphics.Draw(verts, indices, order);
+    }
+
     public static void DrawRect(in Vector2 position, float size, ushort order=0)
     {
         var scaledSize = ZoomRefScale * size;

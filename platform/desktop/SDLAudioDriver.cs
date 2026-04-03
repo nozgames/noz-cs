@@ -178,6 +178,28 @@ public unsafe class SDLAudioDriver : IAudioDriver
         }
     }
 
+    public float GetPlaybackPosition(ulong handle)
+    {
+        var (index, generation) = DecodeHandle(handle);
+        lock (_lock)
+        {
+            if (index >= MaxSources || _sources[index].Generation != generation || !_sources[index].Playing)
+                return 0f;
+
+            var sound = _sounds[_sources[index].SoundIndex];
+            if (sound.Data == null || sound.Data.Length == 0)
+                return 0f;
+
+            var bytesPerSample = sound.BitsPerSample / 8;
+            var totalSamples = sound.Data.Length / bytesPerSample;
+            if (totalSamples == 0)
+                return 0f;
+
+            var effectivePosition = (int)(_sources[index].Position * _sources[index].Pitch);
+            return Math.Clamp((float)effectivePosition / totalSamples, 0f, 1f);
+        }
+    }
+
     public void SetPitch(ulong handle, float pitch)
     {
         var (index, generation) = DecodeHandle(handle);
