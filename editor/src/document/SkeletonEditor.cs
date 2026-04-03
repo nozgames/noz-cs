@@ -136,11 +136,11 @@ internal partial class SkeletonEditor : DocumentEditor
 
         using (Inspector.BeginProperty("Color"))
         {
-            var color32 = bone.Color.ToColor32();
-            if (EditorUI.ColorButton(ElementId.BoneColor, ref color32))
+            var color = bone.Color;
+            if (EditorUI.ColorButton(ElementId.BoneColor, ref color))
             {
                 UI.HandleChange(Document);
-                bone.Color = color32.ToColor();
+                bone.Color = color;
             }
         }
     }

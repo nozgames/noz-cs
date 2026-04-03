@@ -1581,22 +1581,22 @@ public partial class SpriteEditor : DocumentEditor
 
             using (Inspector.BeginProperty("Fill"))
             {
-                var fillColor = Document.CurrentFillColor;
+                var fillColor = Document.CurrentFillColor.ToColor();
                 if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor))
                 {
                     UI.HandleChange(Document);
-                    SetFillColor(fillColor);
+                    SetFillColor(fillColor.ToColor32());
                 }
             }
 
             using (Inspector.BeginProperty("Stroke"))
             using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
-                var strokeColor = Document.CurrentStrokeColor;
+                var strokeColor = Document.CurrentStrokeColor.ToColor();
                 if (EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor))
                 {
                     UI.HandleChange(Document);
-                    SetStrokeColor(strokeColor);
+                    SetStrokeColor(strokeColor.ToColor32());
                 }
 
                 if (strokeColor.A > 0)

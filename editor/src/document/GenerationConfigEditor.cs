@@ -147,11 +147,11 @@ public partial class GenerationConfigEditor : DocumentEditor
         using (Inspector.BeginProperty("Outline"))
         using (UI.BeginRow(EditorStyle.Control.Spacing))
         {
-            var outlineColor = Document.OutlineColor;
+            var outlineColor = Document.OutlineColor.ToColor();
             if (EditorUI.ColorButton(WidgetIds.OutlineColor, ref outlineColor))
             {
                 Undo.Record(Document);
-                Document.OutlineColor = outlineColor;
+                Document.OutlineColor = outlineColor.ToColor32();
                 Document.IncrementVersion();
             }
 

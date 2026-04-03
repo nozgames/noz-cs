@@ -202,54 +202,6 @@ internal static partial class EditorUI
 
     // --- Color Button ---
 
-    public static bool ColorButton(WidgetId id, ref Color32 color, bool fillWidth=false)
-    {
-        ElementTree.BeginTree();
-        ElementTree.BeginWidget(id);
-
-        var flags = ElementTree.GetWidgetFlags();
-
-        if (fillWidth)
-            ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
-        else
-            ElementTree.BeginSize(EditorStyle.Control.Height);
-
-        if (color.A == 0)
-        {
-            ElementTree.BeginPadding(4);
-            ElementTree.Image(EditorAssets.Sprites.IconNofill);
-            ElementTree.EndPadding();
-        }
-        else
-        {
-            ElementTree.Fill(color.ToColor().WithAlpha(1.0f), EditorStyle.Control.BorderRadius, 4, EditorStyle.Palette.Control);
-            ElementTree.BeginPadding(3.9f);
-            ElementTree.BeginAlign(Align.Min, Align.Max);
-
-            ElementTree.BeginSize(Size.Default, 4);
-            ElementTree.Fill(Color.Black);
-            ElementTree.EndSize();
-
-            ElementTree.BeginSize(Size.Percent(color.A / 255.0f), 4);
-            ElementTree.Fill(Color.White);
-            ElementTree.EndSize();
-
-            ElementTree.EndAlign();
-            ElementTree.EndPadding();
-        }
-
-        ElementTree.EndTree();
-
-        if (flags.HasFlag(WidgetFlags.Pressed))
-            ColorPicker.Open(id, color);
-
-        var prev = color;
-        ColorPicker.Popup(id, ref color);
-        UI.SetLastElement(id);
-
-        return color != prev;
-    }
-
     public static bool ColorButton(WidgetId id, ref Color color, bool fillWidth=false)
     {
         ElementTree.BeginTree();
