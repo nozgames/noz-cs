@@ -13,7 +13,6 @@ public interface IApplication
     void Shutdown() { }
     void Update();
     void FixedUpdate() { }
-    void UpdateUI() { }
     void LateUpdate() { }
     void LoadConfig(ApplicationConfig config) { }
     void SaveConfig() { }

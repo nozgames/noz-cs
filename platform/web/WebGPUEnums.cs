@@ -56,6 +56,7 @@ public static class WebGPUTextureFormat
     public const string RG8 = "rg8";
     public const string RGBA32F = "rgba32f";
     public const string BGRA8 = "bgra8";
+    public const string RGBA16F = "rgba16float";
 }
 
 /// <summary>

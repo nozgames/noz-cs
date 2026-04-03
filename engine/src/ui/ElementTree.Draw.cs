@@ -41,6 +41,14 @@ public static partial class ElementTree
         Graphics.SetMesh(_mesh);
 
         DrawElement(0);
+
+        // Draw popups last, above everything, with no scissor
+        for (int i = 0; i < _popupCount; i++)
+        {
+            _drawSortGroup++;
+            Graphics.SetSortGroup(_drawSortGroup);
+            DrawElement(_popups[i]);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -102,27 +110,14 @@ public static partial class ElementTree
                 break;
         }
 
-        // Popup: bump sort group so popup content renders on top
-        var prevSortGroup = _drawSortGroup;
-        if (e.Type == ElementType.Popup)
-        {
-            _drawSortGroup++;
-            Graphics.SetSortGroup(_drawSortGroup);
-        }
-
-        // Recurse children
+        // Recurse children (skip popups — drawn deferred after main tree walk)
         var childOffset = (int)e.FirstChild;
         for (int i = 0; i < e.ChildCount; i++)
         {
             ref var child = ref GetElement(childOffset);
-            DrawElement(childOffset);
+            if (child.Type != ElementType.Popup)
+                DrawElement(childOffset);
             childOffset = child.NextSibling;
-        }
-
-        if (e.Type == ElementType.Popup)
-        {
-            _drawSortGroup = prevSortGroup;
-            Graphics.SetSortGroup(_drawSortGroup);
         }
 
         if (setScissor)
@@ -653,6 +648,8 @@ public static partial class ElementTree
             }
         }
 
+        PostProcess.SetSceneRT(rt);
+
         Graphics.BeginPass(rt, d.ClearColor);
         Graphics.SetCamera(camera);
         Graphics.SetTransform(Matrix3x2.Identity);
@@ -660,7 +657,21 @@ public static partial class ElementTree
         UI.SceneViewport = new RectInt(0, 0, rt.Width, rt.Height);
         draw();
         UI.SceneViewport = null;
-        Graphics.EndPass();
+
+        // PostProcess.Shader() calls during draw() end/begin RT passes internally.
+        // If post-processing happened, take the final result; otherwise end normally.
+        RenderTexture blitRT;
+        if (PostProcess.IsActive)
+        {
+            Graphics.EndPass();
+            blitRT = PostProcess.TakeResult();
+        }
+        else
+        {
+            Graphics.EndPass();
+            blitRT = rt;
+        }
+
         Graphics.SetCamera(UI.Camera);
 
         using (Graphics.PushState())
@@ -668,7 +679,7 @@ public static partial class ElementTree
             Graphics.SetShader(_textureShader);
             Graphics.SetColor(ApplyOpacity(Color.White));
             Graphics.SetTextureFilter(TextureFilter.Linear);
-            Graphics.Draw(rt, topLeft, bottomRight);
+            Graphics.Draw(blitRT, topLeft, bottomRight);
         }
     }
 

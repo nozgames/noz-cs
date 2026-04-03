@@ -91,6 +91,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public bool ScissorEnabled;
         public RectInt Scissor;
         public int CurrentPassSampleCount;
+        public WGPUTextureFormat CurrentPassFormat;
     }
 
     private struct MeshInfo
@@ -151,16 +152,18 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public BlendMode BlendMode;
         public int VertexStride;
         public int MsaaSamples;
+        public WGPUTextureFormat ColorFormat;
 
         public bool Equals(PsoKey other) =>
             ShaderHandle == other.ShaderHandle &&
             BlendMode == other.BlendMode &&
             VertexStride == other.VertexStride &&
-            MsaaSamples == other.MsaaSamples;
+            MsaaSamples == other.MsaaSamples &&
+            ColorFormat == other.ColorFormat;
 
         public override bool Equals(object? obj) => obj is PsoKey other && Equals(other);
 
-        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples);
+        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat);
     }
 
     public void Init(GraphicsDriverConfig config)

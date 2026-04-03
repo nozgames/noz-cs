@@ -366,6 +366,8 @@ public static partial class Workspace
             ActiveEditor.Update();
 
         VfxSystem.Render();
+
+        PostProcess.Bloom(threshold: 1.05f, intensity: 0.5f);
     }
 
     private static void UpdateToolAutoStart()

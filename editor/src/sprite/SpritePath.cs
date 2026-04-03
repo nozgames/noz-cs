@@ -863,6 +863,9 @@ public class SpritePath : SpriteNode
         for (var ci = 1; ci < Contours.Count; ci++)
             clone.Contours.Add(Contours[ci].Clone());
 
+        clone.UpdateSamples();
+        clone.UpdateBounds();
+
         return clone;
     }
 

@@ -38,7 +38,7 @@ public static partial class UI
         ElementTree._hotId = WidgetId.None;
     }
 
-    public static bool HasHot() => ElementTree._hotId != 0;
+    public static bool HasHot() => ElementTree._hotId != 0 || _prevHotId != 0;
     internal static WidgetId HotId => ElementTree._hotId;
 
     public static void NotifyChanged(int currentHash)

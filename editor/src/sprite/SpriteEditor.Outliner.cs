@@ -265,6 +265,10 @@ public partial class SpriteEditor
                 MarkDirty();
             }
         }
+        else
+        {
+            UI.Spacer(EditorStyle.Icon.Size);
+        }
 
         if (UI.WasPressed(rowId))
         {

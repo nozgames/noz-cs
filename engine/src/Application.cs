@@ -178,9 +178,8 @@ public static class Application
         Time.DeltaTime = savedDt;
 
         UI.ProcessInput();
-        _instance.Update();
         UI.Begin();
-        _instance.UpdateUI();
+        _instance.Update();
         UI.End();
         _instance.LateUpdate();
         VfxSystem.Update();
@@ -236,8 +235,11 @@ public static class Application
 
     public static void OpenURL(string url) => Platform.OpenURL(url);
 
+    public static bool IsResizing { get; private set; }
+
     private static void RenderFrame()
     {
+        IsResizing = true;
         // Don't call Time.Update() during resize - this is an "extra" render frame
         // that shouldn't increment the frame count or affect frame-gap detection
         // in UI canvas state management.
@@ -248,12 +250,12 @@ public static class Application
             return;
 
         UI.ProcessInput();
-        _instance.Update();
         UI.Begin();
-        _instance.UpdateUI();
+        _instance.Update();
         UI.End();
         VfxSystem.Update();
         Cursor.Update();
         Graphics.EndFrame();
+        IsResizing = false;
     }
 }

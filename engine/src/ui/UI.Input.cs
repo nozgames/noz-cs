@@ -12,14 +12,6 @@ public static partial class UI
 
     private static void HandleInput()
     {
-        // Clear hot when clicking outside the hot element
-        var mousePressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
-        if (mousePressed && ElementTree._hotId != 0)
-        {
-            if (!ElementTree.WasPressed(ElementTree._hotId))
-                ClearHot();
-        }
-
         if (ElementTree.ActivePopupCount > 0)
         {
             Input.ConsumeButton(InputCode.MouseLeft);

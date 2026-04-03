@@ -86,6 +86,9 @@ public static class EditorAssets
         public const string IconTiling = "icon_tiling";
         public const string IconUnlock = "icon_unlock";
         public const string IconXray = "icon_xray";
+        public const string PpComposite = "pp_composite";
+        public const string PpDownsample = "pp_downsample";
+        public const string PpUpsample = "pp_upsample";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
         public const string Square = "square";
@@ -137,6 +140,9 @@ public static class EditorAssets
 
     public static class Shaders
     {
+        public static readonly Shader PpComposite = new();
+        public static readonly Shader PpDownsample = new();
+        public static readonly Shader PpUpsample = new();
         public static readonly Shader Sprite = new();
         public static readonly Shader Text = new();
         public static readonly Shader Texture = new();
@@ -144,6 +150,9 @@ public static class EditorAssets
 
         public static void Load()
         {
+            PpComposite.Load(Names.PpComposite);
+            PpDownsample.Load(Names.PpDownsample);
+            PpUpsample.Load(Names.PpUpsample);
             Sprite.Load(Names.Sprite);
             Text.Load(Names.Text);
             Texture.Load(Names.Texture);
@@ -152,6 +161,9 @@ public static class EditorAssets
 
         public static void Reload()
         {
+            PpComposite.Reload();
+            PpDownsample.Reload();
+            PpUpsample.Reload();
             Sprite.Reload();
             Text.Reload();
             Texture.Reload();
@@ -160,6 +172,9 @@ public static class EditorAssets
 
         public static void Unload()
         {
+            PpComposite.Dispose();
+            PpDownsample.Dispose();
+            PpUpsample.Dispose();
             Sprite.Dispose();
             Text.Dispose();
             Texture.Dispose();

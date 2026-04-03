@@ -353,13 +353,12 @@ public class VfxDocument : Document
         }
 
         // Compute the full angle range: direction ± spread, expanded by radial
-        var dirMin = MathEx.Radians(e.Direction.Min);
-        var dirMax = MathEx.Radians(e.Direction.Max);
-        var spreadMax = MathEx.Radians(MathF.Max(e.Spread.Min, e.Spread.Max));
+        var dir = MathEx.Radians(e.Direction);
+        var spreadMax = MathEx.Radians(e.Spread);
         var radialExpand = MathEx.Radians(e.Radial * 180f);
 
-        var angleMin = MathF.Min(dirMin, dirMax) - spreadMax - radialExpand;
-        var angleMax = MathF.Max(dirMin, dirMax) + spreadMax + radialExpand;
+        var angleMin = dir - spreadMax - radialExpand;
+        var angleMax = dir + spreadMax + radialExpand;
         var arcSpan = angleMax - angleMin;
 
         if (arcSpan < 0.001f)
@@ -618,6 +617,7 @@ public class VfxDocument : Document
             else if (tk.ExpectIdentifier("rotation")) { if (tk.ExpectLine(out var v)) p.Rotation = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("rotationSpeed")) { if (tk.ExpectLine(out var v)) p.RotationSpeed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
             else if (tk.ExpectIdentifier("sprite")) { particle.SpriteRef = new DocumentRef<SpriteDocument> { Name = tk.ExpectQuotedString() ?? "" }; }
+            else if (tk.ExpectIdentifier("sort")) { particle.Def.Sort = (ushort)tk.ExpectInt(); }
             else { tk.ExpectToken(out _); break; }
         }
 
@@ -640,10 +640,10 @@ public class VfxDocument : Document
             else if (tk.ExpectIdentifier("rate")) { if (tk.ExpectLine(out var v)) e.Rate = ParseInt(v, VfxIntRange.Zero); }
             else if (tk.ExpectIdentifier("burst")) { if (tk.ExpectLine(out var v)) e.Burst = ParseInt(v, VfxIntRange.Zero); }
             else if (tk.ExpectIdentifier("duration")) { if (tk.ExpectLine(out var v)) e.Duration = ParseFloat(v, VfxRange.One); }
-            else if (tk.ExpectIdentifier("spread")) { if (tk.ExpectLine(out var v)) e.Spread = ParseFloat(v, VfxRange.Zero); }
+            else if (tk.ExpectIdentifier("spread")) { tk.ExpectFloat(out e.Spread); }
             else if (tk.ExpectIdentifier("radial")) { tk.ExpectFloat(out var v); e.Radial = v; }
             else if (tk.ExpectIdentifier("spawn")) { e.Spawn = ParseSpawnDef(ref tk); }
-            else if (tk.ExpectIdentifier("direction")) { if (tk.ExpectLine(out var v)) e.Direction = ParseFloat(v, VfxRange.Zero); }
+            else if (tk.ExpectIdentifier("direction")) { tk.ExpectFloat(out e.Direction); }
             else if (tk.ExpectIdentifier("worldSpace")) { e.WorldSpace = tk.ExpectBool(); }
             else if (tk.ExpectIdentifier("particle")) { emitter.ParticleRef = tk.ExpectQuotedString() ?? ""; }
             else { tk.ExpectToken(out _); break; }
@@ -695,6 +695,8 @@ public class VfxDocument : Document
             if (p.Def.RotationSpeed != VfxFloatCurve.Zero)
                 sw.WriteLine($"  rotationSpeed {FormatFloatCurve(p.Def.RotationSpeed)}");
             sw.WriteLine($"  sprite \"{p.SpriteRef.Name}\"");
+            if (p.Def.Sort != 0)
+                sw.WriteLine($"  sort {p.Def.Sort}");
 
             sw.WriteLine("}");
         }
@@ -711,10 +713,10 @@ public class VfxDocument : Document
 
             if (e.Def.Spawn.Shape != VfxSpawnShape.Point || e.Def.Spawn.Offset != Vector2.Zero)
                 FormatSpawnDef(sw, e.Def.Spawn);
-            if (e.Def.Direction != VfxRange.Zero)
-                sw.WriteLine($"  direction {FormatRange(e.Def.Direction)}");
-            if (e.Def.Spread != VfxRange.Zero)
-                sw.WriteLine($"  spread {FormatRange(e.Def.Spread)}");
+            if (e.Def.Direction != 0)
+                sw.WriteLine($"  direction {FormatFloat(e.Def.Direction)}");
+            if (e.Def.Spread != 0)
+                sw.WriteLine($"  spread {FormatFloat(e.Def.Spread)}");
             if (e.Def.Radial != 0)
                 sw.WriteLine($"  radial {FormatFloat(e.Def.Radial)}");
             if (!e.Def.WorldSpace)
@@ -758,10 +760,8 @@ public class VfxDocument : Document
             writer.Write(e.Duration.Min);
             writer.Write(e.Duration.Max);
             WriteSpawnDef(writer, ref e.Spawn);
-            writer.Write(e.Direction.Min);
-            writer.Write(e.Direction.Max);
-            writer.Write(e.Spread.Min);
-            writer.Write(e.Spread.Max);
+            writer.Write(e.Direction);
+            writer.Write(e.Spread);
             writer.Write(e.Radial);
             writer.Write(e.WorldSpace);
 
@@ -788,6 +788,7 @@ public class VfxDocument : Document
             writer.Write(spriteBytes.Length);
             if (spriteBytes.Length > 0)
                 writer.Write(spriteBytes);
+            writer.Write(p.Sort);
         }
     }
 
@@ -1128,6 +1129,14 @@ public class VfxDocument : Document
 
     internal static string FormatColor(Color c)
     {
+        // HDR: if any component > 1, use float format
+        if (c.R > 1f || c.G > 1f || c.B > 1f)
+        {
+            return c.A >= 1f
+                ? $"hdr({FormatFloat(c.R)}, {FormatFloat(c.G)}, {FormatFloat(c.B)})"
+                : $"hdra({FormatFloat(c.R)}, {FormatFloat(c.G)}, {FormatFloat(c.B)}, {FormatFloat(c.A)})";
+        }
+
         var r = (byte)(Math.Clamp(c.R, 0, 1) * 255);
         var g = (byte)(Math.Clamp(c.G, 0, 1) * 255);
         var b = (byte)(Math.Clamp(c.B, 0, 1) * 255);

@@ -255,7 +255,6 @@ public static partial class UI
     {
         _prevHotId = ElementTree._hotId;
         ElementTree._prevHotId = ElementTree._hotId;
-        ElementTree._hotId = WidgetId.None;
         _valueChanged = false;
         _disabledDepth = 0;
 
@@ -319,6 +318,10 @@ public static partial class UI
     internal static void End()
     {
         ElementTree.End();
+
+        // Auto-clear hot if the widget wasn't built this frame
+        if (ElementTree._hotId != WidgetId.None && !ElementTree.IsWidgetValid(ElementTree._hotId))
+            ElementTree._hotId = WidgetId.None;
 
         Graphics.SetCamera(Camera);
 

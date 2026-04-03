@@ -7,6 +7,7 @@ using Silk.NET.Core.Native;
 using Silk.NET.WebGPU;
 using NoZ.Platform;
 using WGPUBuffer = Silk.NET.WebGPU.Buffer;
+using WGPUTextureFormat = Silk.NET.WebGPU.TextureFormat;
 using WGPUVertexAttribute = Silk.NET.WebGPU.VertexAttribute;
 
 namespace NoZ.Platform.WebGPU;
@@ -349,7 +350,7 @@ public unsafe partial class WebGPUGraphicsDriver
     private RenderPipeline* GetOrCreatePipeline(nuint shaderHandle, BlendMode blendMode, int vertexStride)
     {
         ref var shaderInfo = ref _shaders[(int)shaderHandle];
-        var key = new PsoKey { ShaderHandle = shaderHandle, BlendMode = blendMode, VertexStride = vertexStride, MsaaSamples = _state.CurrentPassSampleCount };
+        var key = new PsoKey { ShaderHandle = shaderHandle, BlendMode = blendMode, VertexStride = vertexStride, MsaaSamples = _state.CurrentPassSampleCount, ColorFormat = _state.CurrentPassFormat };
 
         if (shaderInfo.PsoCache.TryGetValue(key, out var pipelinePtr))
         {
@@ -366,8 +367,8 @@ public unsafe partial class WebGPUGraphicsDriver
         ref var meshInfo = ref _meshes[(int)_state.BoundMesh];
 
         // Create render pipeline
-        var pipelineName = $"{shaderInfo.Name}_{blendMode}_{meshInfo.Descriptor.Stride}b_{key.MsaaSamples}x";
-        var pipeline = CreateRenderPipeline(shaderInfo, blendMode, meshInfo.Descriptor, key.MsaaSamples, pipelineName);
+        var pipelineName = $"{shaderInfo.Name}_{blendMode}_{meshInfo.Descriptor.Stride}b_{key.MsaaSamples}x_{key.ColorFormat}";
+        var pipeline = CreateRenderPipeline(shaderInfo, blendMode, meshInfo.Descriptor, key.MsaaSamples, key.ColorFormat, pipelineName);
 
         if (pipeline == null)
         {
@@ -380,7 +381,7 @@ public unsafe partial class WebGPUGraphicsDriver
         return pipeline;
     }
 
-    private RenderPipeline* CreateRenderPipeline(ShaderInfo shaderInfo, BlendMode blendMode, VertexFormatDescriptor vertexDescriptor, int sampleCount, string? pipelineName = null)
+    private RenderPipeline* CreateRenderPipeline(ShaderInfo shaderInfo, BlendMode blendMode, VertexFormatDescriptor vertexDescriptor, int sampleCount, WGPUTextureFormat colorFormat = default, string? pipelineName = null)
     {
         using var vsEntryPoint = SilkMarshal.StringToMemory("vs_main");
         using var fsEntryPoint = SilkMarshal.StringToMemory("fs_main");
@@ -416,7 +417,7 @@ public unsafe partial class WebGPUGraphicsDriver
         var blendState = MapBlendMode(blendMode);
         var colorTargetState = new ColorTargetState
         {
-            Format = _surfaceFormat,
+            Format = colorFormat != default ? colorFormat : _surfaceFormat,
             Blend = &blendState,
             WriteMask = ColorWriteMask.All,
         };

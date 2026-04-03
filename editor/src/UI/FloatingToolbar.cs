@@ -6,11 +6,6 @@ namespace NoZ.Editor;
 
 public static partial class FloatingToolbar
 {
-    private static partial class ElementId
-    {
-        public static partial WidgetId Root { get; }
-    }
-
     public struct AutoFloatingToolbar : IDisposable
     {
         readonly void IDisposable.Dispose() => End();
@@ -22,7 +17,7 @@ public static partial class FloatingToolbar
     {
         UI.BeginColumn();
         UI.Flex();
-        UI.BeginColumn(ElementId.Root, EditorStyle.FloatingToolbar.Root);
+        UI.BeginColumn(EditorStyle.FloatingToolbar.Root);
         UI.BeginRow(EditorStyle.FloatingToolbar.Row);
         _rowOpen = true;
         return new AutoFloatingToolbar();

@@ -18,7 +18,7 @@ public enum RenderPass : byte
 
 public static unsafe partial class Graphics
 {
-    private const int MaxRenderPasses = 3;
+    private const int MaxRenderPasses = 16;
     private const int MaxSortGroups = 1526;
     private const int MaxStateStack = 16;
     private const int MaxVertices = 65536;

@@ -162,6 +162,7 @@ public struct VfxParticleDef
     public VfxRange Rotation;
     public VfxFloatCurve RotationSpeed;
     public Sprite? Sprite;
+    public ushort Sort;
 }
 
 public struct VfxEmitterDef
@@ -170,8 +171,8 @@ public struct VfxEmitterDef
     public VfxIntRange Burst;
     public VfxRange Duration;
     public VfxSpawnDef Spawn;
-    public VfxRange Direction;
-    public VfxRange Spread;
+    public float Direction;
+    public float Spread;
     public float Radial;
     public bool WorldSpace;
     public VfxParticleDef Particle;
@@ -179,7 +180,7 @@ public struct VfxEmitterDef
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 7;
+    internal const ushort Version = 8;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -209,8 +210,8 @@ public class Vfx : Asset
             e.Burst = new VfxIntRange(reader.ReadInt32(), reader.ReadInt32());
             e.Duration = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             e.Spawn = ReadSpawnDef(reader);
-            e.Direction = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
-            e.Spread = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
+            e.Direction = reader.ReadSingle();
+            e.Spread = reader.ReadSingle();
             e.Radial = reader.ReadSingle();
             e.WorldSpace = reader.ReadBoolean();
 
@@ -234,6 +235,7 @@ public class Vfx : Asset
                 p.Sprite = Asset.Load(AssetType.Sprite, spriteName) as Sprite;
             }
             p.Sprite ??= Asset.Load(AssetType.Sprite, "square") as Sprite;
+            p.Sort = reader.ReadUInt16();
         }
     }
 

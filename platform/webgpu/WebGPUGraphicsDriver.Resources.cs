@@ -173,6 +173,7 @@ public unsafe partial class WebGPUGraphicsDriver
             TextureFormat.RG8 => WGPUTextureFormat.Rgba8Unorm, // Use RGBA8 as fallback for RG8
             TextureFormat.RGBA32F => WGPUTextureFormat.Rgba32float,
             TextureFormat.BGRA8 => WGPUTextureFormat.Bgra8Unorm,
+            TextureFormat.RGBA16F => WGPUTextureFormat.Rgba16float,
             _ => WGPUTextureFormat.Rgba8Unorm,
         };
     }
@@ -785,6 +786,7 @@ public unsafe partial class WebGPUGraphicsDriver
         // Reset all cached state — new render pass encoder needs everything rebound
         _state = default;
         _state.CurrentPassSampleCount = rt.SampleCount;
+        _state.CurrentPassFormat = rt.Format;
         _state.PipelineDirty = true;
         _state.BindGroupDirty = true;
         _currentGlobalsIndex = -1;

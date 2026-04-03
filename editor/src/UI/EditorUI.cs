@@ -250,6 +250,94 @@ internal static partial class EditorUI
         return color != prev;
     }
 
+    public static bool ColorButton(WidgetId id, ref Color color, bool fillWidth=false)
+    {
+        ElementTree.BeginTree();
+        ElementTree.BeginWidget(id);
+
+        var flags = ElementTree.GetWidgetFlags();
+
+        if (fillWidth)
+            ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
+        else
+            ElementTree.BeginSize(EditorStyle.Control.Height);
+
+        if (color.A == 0)
+        {
+            ElementTree.BeginPadding(4);
+            ElementTree.Image(EditorAssets.Sprites.IconNofill);
+            ElementTree.EndPadding();
+        }
+        else
+        {
+            // HDR color?
+            var maxComponent = MathF.Max(color.R, MathF.Max(color.G, color.B));
+            if (maxComponent > 1f)
+            {
+                // HDR: gradient from base color to full intensity
+                var baseColor = new Color(color.R / maxComponent, color.G / maxComponent, color.B / maxComponent);
+                var brightColor = new Color(
+                    MathF.Min(color.R, 1f),
+                    MathF.Min(color.G, 1f),
+                    MathF.Min(color.B, 1f));
+                
+                ElementTree.BeginRow();
+                ElementTree.BeginFlex();
+                ElementTree.Fill(new BackgroundStyle
+                {
+                    Color = baseColor,
+                    GradientColor = brightColor,
+                    GradientAngle = 0
+                }, BorderRadius.Only(topLeft:EditorStyle.Control.BorderRadius, bottomLeft: EditorStyle.Control.BorderRadius));
+                ElementTree.EndFlex();
+
+                ElementTree.BeginFlex();
+                ElementTree.BeginMargin(EdgeInsets.Left(-1));
+                ElementTree.Fill(new BackgroundStyle
+                {
+                    Color = brightColor,
+                    GradientColor = baseColor,
+                    GradientAngle = 0
+                }, BorderRadius.Only(bottomRight: EditorStyle.Control.BorderRadius, topRight: EditorStyle.Control.BorderRadius));
+                ElementTree.EndMargin();
+                ElementTree.EndFlex();
+                ElementTree.EndRow();
+
+                // Border
+                ElementTree.Fill(Color.Transparent, EditorStyle.Control.BorderRadius, 4, EditorStyle.Palette.Control);
+            }
+            else
+            {
+                ElementTree.Fill(color.WithAlpha(1f), EditorStyle.Control.BorderRadius, 4, EditorStyle.Palette.Control);
+            }
+
+            ElementTree.BeginPadding(3.9f);
+            ElementTree.BeginAlign(Align.Min, Align.Max);
+
+            ElementTree.BeginSize(Size.Default, 4);
+            ElementTree.Fill(Color.Black);
+            ElementTree.EndSize();
+
+            ElementTree.BeginSize(Size.Percent(color.A), 4);
+            ElementTree.Fill(Color.White);
+            ElementTree.EndSize();
+
+            ElementTree.EndAlign();
+            ElementTree.EndPadding();
+        }
+
+        ElementTree.EndTree();
+
+        if (flags.HasFlag(WidgetFlags.Pressed))
+            ColorPicker.Open(id, color);
+
+        var prev = color;
+        ColorPicker.Popup(id, ref color);
+        UI.SetLastElement(id);
+
+        return color != prev;
+    }
+
     // --- Sprite Button ---
 
     private static WidgetId _spritePickerId;
@@ -296,13 +384,11 @@ internal static partial class EditorUI
             });
         }
 
-        // Keep hot while palette is open — clear if palette closed without picking
-        if (_spritePickerId == id && !_spritePickerHasResult)
+        // Clear hot if palette closed without picking
+        if (_spritePickerId == id && !_spritePickerHasResult && !AssetPalette.IsOpen)
         {
-            if (AssetPalette.IsOpen)
-                UI.SetHot(id);
-            else
-                _spritePickerId = WidgetId.None;
+            _spritePickerId = WidgetId.None;
+            UI.ClearHot();
         }
 
         UI.SetLastElement(id);
@@ -313,7 +399,6 @@ internal static partial class EditorUI
             _spritePickerHasResult = false;
             _spritePickerId = WidgetId.None;
             var result = new DocumentRef<SpriteDocument> { Value = _spritePickerResult, Name = _spritePickerResult?.Name };
-            UI.SetHot(id);
             UI.NotifyChanged(result.GetHashCode());
             return result;
         }

@@ -25,6 +25,7 @@ internal static partial class ColorPicker
         public static partial WidgetId ModePalette { get; }
         public static partial WidgetId ColorPickerPaletteScroll { get; }
         public static partial WidgetId ColorPickerPaletteItem { get; }
+        public static partial WidgetId Intensity { get; }
     }
 
     private enum ColorMode
@@ -39,6 +40,7 @@ internal static partial class ColorPicker
     private static float _sat;
     private static float _val;
     private static float _alpha;
+    private static float _intensity; // HDR: pow(2, _intensity) multiplier
     private static Color32 _originalColor;
 
     // Textures
@@ -58,6 +60,24 @@ internal static partial class ColorPicker
     private static bool _trackNeedsInit;
 
     public static bool IsOpen(WidgetId id) => _popupId == id;
+
+    internal static void Open(WidgetId id, Color color)
+    {
+        // Extract HDR intensity from color: factor = max component, intensity = log2(factor)
+        var maxComponent = MathF.Max(color.R, MathF.Max(color.G, color.B));
+        if (maxComponent > 1f)
+        {
+            _intensity = MathF.Log2(maxComponent);
+            var factor = MathF.Pow(2f, _intensity);
+            color = new Color(color.R / factor, color.G / factor, color.B / factor, color.A);
+        }
+        else
+        {
+            _intensity = 0f;
+        }
+
+        Open(id, color.ToColor32());
+    }
 
     internal static void Open(WidgetId id, Color32 color)
     {
@@ -112,10 +132,9 @@ internal static partial class ColorPicker
             if (color != _prevColor)
                 UI.NotifyChanged(color.GetHashCode());
             _popupId = WidgetId.None;
+            UI.ClearHot();
             return;
         }
-
-        UI.SetHot(id);
 
         using var col = UI.BeginColumn(EditorStyle.ColorPicker.Root);
 
@@ -144,6 +163,7 @@ internal static partial class ColorPicker
                 // Cancel: reset hash to original so IsChanged() returns false
                 UI.NotifyChanged(_originalColor.GetHashCode());
                 _popupId = WidgetId.None;
+                UI.ClearHot();
                 return;
             }
         }
@@ -153,6 +173,8 @@ internal static partial class ColorPicker
             SaturationAndValue();
             Hue();
             Alpha();
+            if (Graphics.RenderConfig.HDR)
+                Intensity();
             _trackNeedsInit = false;
             color = HsvToColor32(_hue, _sat, _val, _alpha);
         }
@@ -177,6 +199,31 @@ internal static partial class ColorPicker
     {
         if (_popupId == id)
             PopupInternal(id, ref color);
+    }
+
+    internal static void Popup(WidgetId id, ref Color color)
+    {
+        if (_popupId != id) return;
+
+        // Use _prevColor directly -- don't convert from the ref (which may be HDR-scaled)
+        var prev = _prevColor;
+        var color32 = prev;
+        PopupInternal(id, ref color32);
+
+        // Only update the ref when the picker actually changed
+        if (color32 != prev)
+        {
+            var baseColor = color32.ToColor();
+            if (_intensity > 0f)
+            {
+                var factor = MathF.Pow(2f, _intensity);
+                color = new Color(baseColor.R * factor, baseColor.G * factor, baseColor.B * factor, baseColor.A);
+            }
+            else
+            {
+                color = baseColor;
+            }
+        }
     }
 
     private static void SaturationAndValue()
@@ -264,6 +311,50 @@ internal static partial class ColorPicker
                 _alpha,
                 Color.Mix(Color.Black, Color.White, _alpha),
                 Color.Mix(Color.White, Color.Black, _alpha));
+        }
+
+        ElementTree.EndTrack();
+        ElementTree.EndWidget();
+    }
+
+    private static void Intensity()
+    {
+        ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Intensity);
+        ElementTree.BeginTrack(ref trackState, ElementId.Intensity, ThumbSize);
+
+        // Map intensity 0..10 to track 0..1
+        const float maxIntensity = 10f;
+        if (_trackNeedsInit)
+            trackState.X = _intensity / maxIntensity;
+        else
+            _intensity = trackState.X * maxIntensity;
+
+        var baseColor = HsvToColor(_hue, _sat, _val);
+        var maxFactor = MathF.Pow(2f, maxIntensity);
+        var brightColor = new Color(
+            MathF.Min(baseColor.R * maxFactor, 1f),
+            MathF.Min(baseColor.G * maxFactor, 1f),
+            MathF.Min(baseColor.B * maxFactor, 1f));
+
+        using (UI.BeginContainer(new ContainerStyle
+        {
+            Height = SliderHeight,
+            Background = new BackgroundStyle
+            {
+                Color = baseColor,
+                GradientColor = brightColor,
+                GradientAngle = 0
+            },
+            Clip = true
+        }))
+        {
+            var t = _intensity / maxIntensity;
+            var factor = MathF.Pow(2f, _intensity);
+            var thumbColor = new Color(
+                MathF.Min(baseColor.R * factor, 1f),
+                MathF.Min(baseColor.G * factor, 1f),
+                MathF.Min(baseColor.B * factor, 1f));
+            SliderThumb(t, thumbColor, Color.Black);
         }
 
         ElementTree.EndTrack();

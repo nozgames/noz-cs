@@ -325,7 +325,7 @@ public static class VfxSystem
                 Graphics.SetOverlayColor(instance.OverlayColor);
                 Graphics.SetSortGroup((int)instance.Depth);
                 Graphics.SetTransform(particleTransform);
-                Graphics.Draw(pdef.Sprite);
+                Graphics.Draw(pdef.Sprite, pdef.Sort);
             }
         }
     }
@@ -442,9 +442,7 @@ public static class VfxSystem
 
         var spawnOffset = GetSpawnPosition(ref def.Spawn);
 
-        var baseAngle = GetRandom(def.Direction);
-        var spread = GetRandom(def.Spread);
-        var angle = MathEx.Radians(baseAngle + MathEx.Mix(-spread, spread, (float)Random.Shared.NextDouble()));
+        var angle = MathEx.Radians(def.Direction + MathEx.Mix(-def.Spread, def.Spread, (float)Random.Shared.NextDouble()));
         var dir = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
 
         if (def.Radial > 0.0001f)

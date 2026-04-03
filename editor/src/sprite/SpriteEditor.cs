@@ -65,12 +65,14 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId AModeButton { get; }
         public static partial WidgetId SortOrder { get; }
         public static partial WidgetId ContextMenu { get; }
+        public static partial WidgetId OnionSkinButton { get; }
     }
 
     private static readonly WordGenerator _wordGenerator = new();
 
     private int _currentTimeSlot;
     private bool _isPlaying;
+    private bool _onionSkin;
     private float _playTimer;
     private readonly int _versionOnOpen;
 
@@ -110,6 +112,7 @@ public partial class SpriteEditor : DocumentEditor
                 new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
                 new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
                 new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
+                new Command { Name = "Toggle Onion Skin", Handler = ToggleOnionSkin, Key = InputCode.KeyO, Shift = true },
                 new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
                 new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
                 new Command { Name = "Boolean Union", Handler = BooleanUnion, Key = InputCode.KeyU, Ctrl = true, Shift = true },
@@ -298,6 +301,8 @@ public partial class SpriteEditor : DocumentEditor
             DrawMesh();
         }
 
+        DrawOnionSkin();
+
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
 
@@ -342,7 +347,7 @@ public partial class SpriteEditor : DocumentEditor
             if (Document.AnimFrames.Count > 1)
             {
                 FloatingToolbar.Row();
-                FloatingDopeSheetUI();
+                DopeSheetUI();
             }
         }
     }
@@ -387,11 +392,14 @@ public partial class SpriteEditor : DocumentEditor
         // Toggle group: Tile
         if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
             Document.ShowTiling = !Document.ShowTiling;
+
+        if (FloatingToolbar.Button(WidgetIds.OnionSkinButton, EditorAssets.Sprites.IconOnion, isSelected: _onionSkin))
+            _onionSkin = !_onionSkin;
     }
 
     private int TotalTimeSlots() => Document.TotalTimeSlots;
 
-    private void FloatingDopeSheetUI()
+    private void DopeSheetUI()
     {
         var maxSlots = Sprite.MaxFrames;
         var usedSlots = TotalTimeSlots();
@@ -524,6 +532,11 @@ public partial class SpriteEditor : DocumentEditor
     {
         _isPlaying = !_isPlaying;
         _playTimer = 0;
+    }
+
+    private void ToggleOnionSkin()
+    {
+        _onionSkin = !_onionSkin;
     }
 
     private void NextFrame()

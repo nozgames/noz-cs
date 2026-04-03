@@ -79,7 +79,11 @@ internal partial class VfxEditor : DocumentEditor
             if (Document.SelectedType == VfxSelectionType.Emitter &&
                 Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Emitters.Count)
             {
+                var rotTransform = Matrix3x2.CreateRotation(MathEx.Deg2Rad * Document.Rotation) *
+                                   Matrix3x2.CreateTranslation(Document.Position);
+                Graphics.SetTransform(rotTransform);
                 DrawSpawnGizmo(ref Document.Emitters[Document.SelectedIndex].Def.Spawn);
+                Graphics.SetTransform(Document.Transform);
             }
 
             if (Document.Rotation != 0f && Workspace.ActiveTool == null)

@@ -48,6 +48,7 @@ internal partial class VfxEditor
         public static partial WidgetId AddGravity { get; }
         public static partial WidgetId AddDrag { get; }
         public static partial WidgetId AddRotation { get; }
+        public static partial WidgetId AddRotationSpeed { get; }
         public static partial WidgetId RemoveSize { get; }
         public static partial WidgetId RemoveSpeed { get; }
         public static partial WidgetId RemoveColor { get; }
@@ -55,13 +56,32 @@ internal partial class VfxEditor
         public static partial WidgetId RemoveGravity { get; }
         public static partial WidgetId RemoveDrag { get; }
         public static partial WidgetId RemoveRotation { get; }
+        public static partial WidgetId RemoveRotationSpeed { get; }
         public static partial WidgetId SpriteDropDown { get; }
+        public static partial WidgetId ParticleSort { get; }
     }
 
-    private struct RandomToggleState
+    private struct CurveFieldState
     {
-        public byte Initialized;
-        public byte Expanded;
+        public bool Initialized;
+        public bool HasCurve;
+        public bool HasRandomStart;
+        public bool HasRandomEnd;
+    }
+
+    private static ref CurveFieldState BeginFieldState(WidgetId id, bool dataCurve, bool dataRandomStart, bool dataRandomEnd = false)
+    {
+        ElementTree.BeginTree();
+        ref var state = ref ElementTree.BeginWidget<CurveFieldState>(id, interactive: false);
+        if (!state.Initialized)
+        {
+            state.Initialized = true;
+            state.HasCurve = dataCurve;
+            state.HasRandomStart = dataRandomStart;
+            state.HasRandomEnd = dataRandomEnd;
+        }
+        ElementTree.EndTree();
+        return ref state;
     }
 
     public override void InspectorUI()
@@ -174,8 +194,10 @@ internal partial class VfxEditor
             if (!Inspector.IsSectionCollapsed)
             {
                 var changed = false;
-                if (RangeField(FieldId.EmitterDirection, "Direction", ref emitter.Def.Direction)) changed = true;
-                if (RangeField(FieldId.EmitterSpread, "Spread", ref emitter.Def.Spread)) changed = true;
+                using (Inspector.BeginProperty("Direction"))
+                    if (FloatInput(FieldId.EmitterDirection, ref emitter.Def.Direction)) changed = true;
+                using (Inspector.BeginProperty("Spread"))
+                    if (FloatInput(FieldId.EmitterSpread, ref emitter.Def.Spread)) changed = true;
                 using (Inspector.BeginProperty("Radial"))
                     if (FloatInput(FieldId.EmitterRadial, ref emitter.Def.Radial)) changed = true;
                 if (changed)
@@ -282,18 +304,30 @@ internal partial class VfxEditor
     {
         using (Inspector.BeginSection("PARTICLE"))
         {
-            if (Inspector.IsSectionCollapsed) return;
-
-            if (RangeField(FieldId.ParticleDuration, "Duration", ref particle.Def.Duration))
+            if (!Inspector.IsSectionCollapsed)
             {
-                Undo.Record(Document);
-                Document.ApplyChanges();
-            }
+                if (RangeField(FieldId.ParticleDuration, "Duration", ref particle.Def.Duration))
+                {
+                    Undo.Record(Document);
+                    Document.ApplyChanges();
+                }
 
-            using (Inspector.BeginProperty("Sprite"))
-            {
-                particle.SpriteRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
-                UI.HandleChange(Document);
+                using (Inspector.BeginProperty("Sprite"))
+                {
+                    particle.SpriteRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
+                    UI.HandleChange(Document);
+                }
+
+                using (Inspector.BeginProperty("Sort"))
+                {
+                    var sortVal = (int)particle.Def.Sort;
+                    if (IntInput(FieldId.ParticleSort, ref sortVal))
+                    {
+                        particle.Def.Sort = (ushort)Math.Clamp(sortVal, 0, ushort.MaxValue);
+                        Undo.Record(Document);
+                        Document.ApplyChanges();
+                    }
+                }
             }
         }
 
@@ -370,15 +404,23 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("ROTATION", particle.Def.Rotation != VfxRange.Zero || particle.Def.RotationSpeed != VfxFloatCurve.Zero,
-            FieldId.AddRotation, FieldId.RemoveRotation,
+        if (AddableSection("ROTATION", particle.Def.Rotation != VfxRange.Zero, FieldId.AddRotation, FieldId.RemoveRotation,
             () => { particle.Def.Rotation = new VfxRange(0, 360); },
-            () => { particle.Def.Rotation = VfxRange.Zero; particle.Def.RotationSpeed = VfxFloatCurve.Zero; }))
+            () => { particle.Def.Rotation = VfxRange.Zero; }))
         {
-            var changed = false;
-            if (RangeField(FieldId.ParticleRotation, "Initial", ref particle.Def.Rotation)) changed = true;
-            if (FloatCurveField(FieldId.ParticleRotationSpeed, "Speed", ref particle.Def.RotationSpeed)) changed = true;
-            if (changed)
+            if (RangeField(FieldId.ParticleRotation, "Rotation", ref particle.Def.Rotation))
+            {
+                Undo.Record(Document);
+                Document.ApplyChanges();
+            }
+            EndAddableSection();
+        }
+
+        if (AddableSection("ROTATION SPEED", particle.Def.RotationSpeed != VfxFloatCurve.Zero, FieldId.AddRotationSpeed, FieldId.RemoveRotationSpeed,
+            () => { particle.Def.RotationSpeed = new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(-180, 180), End = new VfxRange(-180, 180) }; },
+            () => { particle.Def.RotationSpeed = VfxFloatCurve.Zero; }))
+        {
+            if (FloatCurveField(FieldId.ParticleRotationSpeed, "Speed", ref particle.Def.RotationSpeed))
             {
                 Undo.Record(Document);
                 Document.ApplyChanges();
@@ -442,15 +484,20 @@ internal partial class VfxEditor
     private static readonly ContainerStyle CurveRowStyle = new() { Spacing = 4, Height = Size.Fit, MinHeight = 22 };
 
     // Range field: [label] [min] [⇄] [max]  — no curve row
+    // baseId+0: min, +1: randomToggle, +2: max, +3: state
     private static bool RangeField(WidgetId baseId, string label, ref VfxRange value)
     {
         var changed = false;
+        ref var state = ref BeginFieldState(baseId + 3,
+            dataCurve: false,
+            dataRandomStart: value.Min != value.Max);
         using (Inspector.BeginProperty(label))
         using (UI.BeginRow(ValueRowStyle))
         {
             if (FloatInput(baseId, ref value.Min)) changed = true;
-            if (RandomToggle(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max, out var isRandom)) changed = true;
-            if (isRandom)
+            if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var pressed)) changed = true;
+            if (pressed && !state.HasRandomStart) value.Max = value.Min;
+            if (state.HasRandomStart)
             {
                 if (FloatInput(baseId + 2, ref value.Max)) changed = true;
             }
@@ -461,15 +508,20 @@ internal partial class VfxEditor
     }
 
     // Int range field: [label] [min] [⇄] [max]  — no curve row
+    // baseId+0: min, +1: randomToggle, +2: max, +3: state
     private static bool IntRangeField(WidgetId baseId, string label, ref VfxIntRange value)
     {
         var changed = false;
+        ref var state = ref BeginFieldState(baseId + 3,
+            dataCurve: false,
+            dataRandomStart: value.Min != value.Max);
         using (Inspector.BeginProperty(label))
         using (UI.BeginRow(ValueRowStyle))
         {
             if (IntInput(baseId, ref value.Min)) changed = true;
-            if (RandomToggleInt(baseId + 1, value.Min != value.Max, ref value.Min, ref value.Max, out var isRandom)) changed = true;
-            if (isRandom)
+            if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var pressed)) changed = true;
+            if (pressed && !state.HasRandomStart) value.Max = value.Min;
+            if (state.HasRandomStart)
             {
                 if (IntInput(baseId + 2, ref value.Max)) changed = true;
             }
@@ -501,20 +553,24 @@ internal partial class VfxEditor
     }
 
     // Float curve field with progressive disclosure
-    // baseId+0: startMin, +1: startRandom, +2: startMax, +3: endMin, +4: endRandom, +5: endMax, +6: curveType
+    // baseId+0: startMin, +1: startRandom, +2: startMax, +3: endMin, +4: endRandom, +5: endMax, +6: curveType, +7: state
     private static bool FloatCurveField(WidgetId baseId, string label, ref VfxFloatCurve curve)
     {
         var changed = false;
-        var hasCurve = curve.Start != curve.End;
-        var startLabel = hasCurve ? "Start" : "Value";
+        ref var state = ref BeginFieldState(baseId + 7,
+            dataCurve: curve.Start != curve.End,
+            dataRandomStart: curve.Start.Min != curve.Start.Max,
+            dataRandomEnd: curve.End.Min != curve.End.Max);
+        var startLabel = state.HasCurve ? "Start" : "Value";
 
         // Start/Value row
         using (Inspector.BeginProperty(startLabel))
         using (UI.BeginRow(ValueRowStyle))
         {
             if (FloatInput(baseId, ref curve.Start.Min)) changed = true;
-            if (RandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max, out var startRandom)) changed = true;
-            if (startRandom)
+            if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var startPressed)) changed = true;
+            if (startPressed && !state.HasRandomStart) curve.Start.Max = curve.Start.Min;
+            if (state.HasRandomStart)
             {
                 if (FloatInput(baseId + 2, ref curve.Start.Max)) changed = true;
             }
@@ -523,14 +579,15 @@ internal partial class VfxEditor
         }
 
         // End row (only when curve active)
-        if (hasCurve)
+        if (state.HasCurve)
         {
             using (Inspector.BeginProperty("End"))
             using (UI.BeginRow(ValueRowStyle))
             {
                 if (FloatInput(baseId + 3, ref curve.End.Min)) changed = true;
-                if (RandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max, out var endRandom)) changed = true;
-                if (endRandom)
+                if (RandomToggleButton(baseId + 4, ref state.HasRandomEnd, out var endPressed)) changed = true;
+                if (endPressed && !state.HasRandomEnd) curve.End.Max = curve.End.Min;
+                if (state.HasRandomEnd)
                 {
                     if (FloatInput(baseId + 5, ref curve.End.Max)) changed = true;
                 }
@@ -545,18 +602,22 @@ internal partial class VfxEditor
         }
 
         // Curve type row (always visible)
-        if (CurveRow(baseId + 6, hasCurve, ref curve.Type, ref curve.Start, ref curve.End))
+        if (CurveRow(baseId + 6, ref state.HasCurve, ref curve.Type, ref curve.Start, ref curve.End))
             changed = true;
 
         return changed;
     }
 
     // Color curve field with progressive disclosure
+    // baseId+0: startMin, +1: startRandom, +2: startMax, +3: endMin, +4: endRandom, +5: endMax, +6: curveType, +7: state
     private static bool ColorCurveField(WidgetId baseId, string label, ref VfxColorCurve curve)
     {
         var changed = false;
-        var hasCurve = curve.Start != curve.End;
-        var startLabel = hasCurve ? "Start" : "Value";
+        ref var state = ref BeginFieldState(baseId + 7,
+            dataCurve: curve.Start != curve.End,
+            dataRandomStart: curve.Start.Min != curve.Start.Max,
+            dataRandomEnd: curve.End.Min != curve.End.Max);
+        var startLabel = state.HasCurve ? "Start" : "Value";
 
         // Start/Value row
         using (Inspector.BeginProperty(startLabel))
@@ -564,8 +625,9 @@ internal partial class VfxEditor
         {
             using (UI.BeginFlex())
                 if (ColorInput(baseId, ref curve.Start.Min)) changed = true;
-            if (ColorRandomToggle(baseId + 1, curve.Start.Min != curve.Start.Max, ref curve.Start.Min, ref curve.Start.Max, out var startRandom)) changed = true;
-            if (startRandom)
+            if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var startPressed)) changed = true;
+            if (startPressed && !state.HasRandomStart) curve.Start.Max = curve.Start.Min;
+            if (state.HasRandomStart)
             {
                 using (UI.BeginFlex())
                     if (ColorInput(baseId + 2, ref curve.Start.Max)) changed = true;
@@ -575,15 +637,16 @@ internal partial class VfxEditor
         }
 
         // End row
-        if (hasCurve)
+        if (state.HasCurve)
         {
             using (Inspector.BeginProperty("End"))
             using (UI.BeginRow(ValueRowStyle))
             {
                 using (UI.BeginFlex())
                     if (ColorInput(baseId + 3, ref curve.End.Min)) changed = true;
-                if (ColorRandomToggle(baseId + 4, curve.End.Min != curve.End.Max, ref curve.End.Min, ref curve.End.Max, out var endRandom)) changed = true;
-                if (endRandom)
+                if (RandomToggleButton(baseId + 4, ref state.HasRandomEnd, out var endPressed)) changed = true;
+                if (endPressed && !state.HasRandomEnd) curve.End.Max = curve.End.Min;
+                if (state.HasRandomEnd)
                 {
                     using (UI.BeginFlex())
                         if (ColorInput(baseId + 5, ref curve.End.Max)) changed = true;
@@ -598,7 +661,7 @@ internal partial class VfxEditor
         }
 
         // Curve type row
-        if (ColorCurveRow(baseId + 6, hasCurve, ref curve.Type, ref curve.Start, ref curve.End))
+        if (ColorCurveRow(baseId + 6, ref state.HasCurve, ref curve.Type, ref curve.Start, ref curve.End))
             changed = true;
 
         return changed;
@@ -608,14 +671,11 @@ internal partial class VfxEditor
 
     // Curve type dropdown row for float curves. Returns true if changed.
     // When "None" selected: copies start to end. When type selected from None: keeps end as-is (user will edit).
-    private static bool CurveRow(WidgetId id, bool hasCurve, ref VfxCurveType type, ref VfxRange start, ref VfxRange end)
+    private static bool CurveRow(WidgetId id, ref bool hasCurve, ref VfxCurveType type, ref VfxRange start, ref VfxRange end)
     {
         using (Inspector.BeginProperty(""))
         using (UI.BeginRow(CurveRowStyle))
         {
-            var oldHasCurve = hasCurve;
-            var oldType = type;
-
             if (CurveTypeDropdown(id, ref type, ref hasCurve))
             {
                 if (!hasCurve)
@@ -626,7 +686,7 @@ internal partial class VfxEditor
         return false;
     }
 
-    private static bool ColorCurveRow(WidgetId id, bool hasCurve, ref VfxCurveType type, ref VfxColorRange start, ref VfxColorRange end)
+    private static bool ColorCurveRow(WidgetId id, ref bool hasCurve, ref VfxCurveType type, ref VfxColorRange start, ref VfxColorRange end)
     {
         using (Inspector.BeginProperty(""))
         using (UI.BeginRow(CurveRowStyle))
@@ -664,79 +724,16 @@ internal partial class VfxEditor
         ContentColor = EditorStyle.Palette.Content,
     };
 
-    private static bool RandomToggle(WidgetId id, bool dataIsRandom, ref float min, ref float max, out bool isExpanded)
+    // Random toggle button that reads/writes expanded state from parent CurveFieldState.
+    // Returns true if pressed (state was toggled).
+    private static bool RandomToggleButton(WidgetId id, ref bool isExpanded, out bool pressed)
     {
-        isExpanded = RandomToggleButton(id, dataIsRandom, out var pressed);
-        if (pressed)
-        {
-            if (isExpanded)
-            {
-                max = min; // collapse
-                isExpanded = false;
-            }
-            else
-            {
-                max = min;
-                isExpanded = true;
-            }
-            return true;
-        }
-        return false;
-    }
+        var flags = WidgetFlags.None | (isExpanded ? WidgetFlags.Checked : WidgetFlags.None);
 
-    private static bool RandomToggleInt(WidgetId id, bool dataIsRandom, ref int min, ref int max, out bool isExpanded)
-    {
-        isExpanded = RandomToggleButton(id, dataIsRandom, out var pressed);
-        if (pressed)
-        {
-            if (isExpanded)
-            {
-                max = min;
-                isExpanded = false;
-            }
-            else
-            {
-                max = min;
-                isExpanded = true;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private static bool ColorRandomToggle(WidgetId id, bool dataIsRandom, ref Color min, ref Color max, out bool isExpanded)
-    {
-        isExpanded = RandomToggleButton(id, dataIsRandom, out var pressed);
-        if (pressed)
-        {
-            if (isExpanded)
-            {
-                max = min;
-                isExpanded = false;
-            }
-            else
-            {
-                isExpanded = true;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private static bool RandomToggleButton(WidgetId id, bool dataIsRandom, out bool pressed)
-    {
         ElementTree.BeginTree();
-        ref var state = ref ElementTree.BeginWidget<RandomToggleState>(id);
-
-        // Seed from data only on first render
-        if (state.Initialized == 0)
-        {
-            state.Initialized = 1;
-            state.Expanded = (byte)(dataIsRandom ? 1 : 0);
-        }
-
-        var isExpanded = state.Expanded != 0;
-        var flags = ElementTree.GetWidgetFlags() | (isExpanded ? WidgetFlags.Checked : WidgetFlags.None);
+        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isExpanded);
+        ElementTree.BeginWidget(id);
+        flags |= ElementTree.GetWidgetFlags();
         var style = EditorStyle.Button.ToggleIcon.Resolve!(EditorStyle.Button.ToggleIcon, flags);
 
         ElementTree.BeginSize(new Size2(style.Width, style.Height));
@@ -747,9 +744,9 @@ internal partial class VfxEditor
 
         pressed = flags.HasFlag(WidgetFlags.Pressed);
         if (pressed)
-            state.Expanded = (byte)(isExpanded ? 0 : 1);
+            isExpanded = !isExpanded;
 
-        return isExpanded;
+        return pressed;
     }
 
     private static bool FloatInput(WidgetId id, ref float value)
@@ -786,13 +783,20 @@ internal partial class VfxEditor
 
     private static bool ColorInput(WidgetId id, ref Color color)
     {
-        var color32 = color.ToColor32();
-        if (EditorUI.ColorButton(id, ref color32, fillWidth: true))
-        {
-            color = color32.ToColor();
-            return true;
-        }
-        return false;
+        return EditorUI.ColorButton(id, ref color, fillWidth: true);
+    }
+
+    private static bool ApproximatelyEqual(VfxColorRange a, VfxColorRange b)
+    {
+        return ApproximatelyEqual(a.Min, b.Min) && ApproximatelyEqual(a.Max, b.Max);
+    }
+
+    private static bool ApproximatelyEqual(Color a, Color b)
+    {
+        return MathEx.Approximately(a.R, b.R) &&
+               MathEx.Approximately(a.G, b.G) &&
+               MathEx.Approximately(a.B, b.B) &&
+               MathEx.Approximately(a.A, b.A);
     }
 
     // --- Curve Type Dropdown ---

@@ -14,13 +14,19 @@ internal partial class VfxEditor
 
     private void OutlinerUI()
     {
-        // Handle rename cancel via Escape
-        if (IsRenaming && Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
-            CancelRename();
-
-        // Handle rename commit via Enter
-        if (IsRenaming && Input.WasButtonPressed(InputCode.KeyEnter, InputScope.All))
-            CommitRename();
+        if (IsRenaming)
+        {
+            if (Input.WasButtonPressed(InputCode.KeyEnter, InputScope.All))
+            {
+                Input.ConsumeButton(InputCode.KeyEnter);
+                CommitRename();
+            }
+            else if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
+            {
+                Input.ConsumeButton(InputCode.KeyEscape);
+                CancelRename();
+            }
+        }
 
         // F2 to begin rename on selected item
         if (!IsRenaming && Document.SelectedType != VfxSelectionType.None &&
@@ -57,6 +63,7 @@ internal partial class VfxEditor
         if (UI.WasPressed(ElementId.VfxRoot))
         {
             if (IsRenaming) CommitRename();
+            UI.ClearHot();
             Document.SelectedType = VfxSelectionType.Vfx;
             Document.SelectedIndex = -1;
         }
@@ -122,23 +129,28 @@ internal partial class VfxEditor
 
         using (UI.BeginRow(rowId, style))
         {
+            ElementTree.BeginFlex();
             if (isRenaming)
             {
-                var newName = UI.TextInput(ElementId.RenameInput, _renameText ?? name, EditorStyle.Inspector.TextBox);
-                if (newName != _renameText)
-                    _renameText = newName;
+                ElementTree.BeginMargin(EdgeInsets.TopLeft(2, -2));
+                _renameText = UI.TextInput(ElementId.RenameInput, _renameText ?? name, EditorStyle.SpriteEditor.OutlinerRename);
+                ElementTree.EndMargin();
+
+                if (UI.HotExit())
+                    CommitRename();
             }
             else
             {
-                using (UI.BeginFlex())
-                    UI.Text(name, EditorStyle.Text.Primary);
+                UI.Text(name, EditorStyle.Text.Primary);
             }
+            ElementTree.EndFlex();
         }
 
         // Click to select
         if (UI.WasPressed(rowId) && !isRenaming)
         {
             if (IsRenaming) CommitRename();
+            UI.ClearHot();
 
             Document.SelectedType = type;
             Document.SelectedIndex = index;

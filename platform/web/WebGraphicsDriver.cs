@@ -466,6 +466,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             TextureFormat.RG8 => WebGPUTextureFormat.RGBA8, // Fallback
             TextureFormat.RGBA32F => WebGPUTextureFormat.RGBA32F,
             TextureFormat.BGRA8 => WebGPUTextureFormat.BGRA8,
+            TextureFormat.RGBA16F => WebGPUTextureFormat.RGBA16F,
             _ => WebGPUTextureFormat.RGBA8
         };
     }
@@ -479,6 +480,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             TextureFormat.R8 => 1,
             TextureFormat.RG8 => 2,
             TextureFormat.RGBA32F => 16,
+            TextureFormat.RGBA16F => 8,
             _ => 4
         };
     }

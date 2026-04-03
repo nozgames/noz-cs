@@ -25,7 +25,6 @@ public class EditorApplicationConfig
 internal class EditorApplicationInstance : IApplication
 {
     public void Update() => EditorApplication.Update();
-    public void UpdateUI() => EditorApplication.UpdateUI();
     public void LateUpdate() => EditorApplication.LateUpdate();
 
     public void LoadConfig(ApplicationConfig config)
@@ -246,7 +245,8 @@ public static partial class EditorApplication
             Graphics = new GraphicsConfig
             {
                 Driver = new WebGPUGraphicsDriver(),
-                PixelsPerUnit = Config.PixelsPerUnit
+                PixelsPerUnit = Config.PixelsPerUnit,
+                HDR = true
             }
         });
 
@@ -356,10 +356,7 @@ public static partial class EditorApplication
         PopupMenu.Update();
         Workspace.Update();
         AppConfig.Update?.Invoke();
-    }
 
-    internal static void UpdateUI()
-    {
         Workspace.UpdateUI();
         PopupMenu.UpdateUI();
         CommandPalette.UpdateUI();

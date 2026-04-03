@@ -145,17 +145,11 @@ public static unsafe partial class ElementTree
             state.WasCancelled = 0;
         }
 
-        // Detect external defocus: state thinks we're focused but we weren't hot last frame
+        // Detect external defocus: focused but no longer hot (ClearHot was called)
         var focused = state.Focused != 0;
-        if (focused && _prevHotId != _currentWidget)
+        if (focused && _hotId != _currentWidget)
         {
-            // Commit immediately to avoid one-frame flash of old value
-            if (state.WasCancelled == 0)
-            {
-                var finalHash = string.GetHashCode(state.EditText.AsReadOnlySpan());
-                if (finalHash != state.PrevTextHash)
-                    value = new string(state.EditText.AsReadOnlySpan());
-            }
+            // External defocus — don't commit. Value was already applied each frame.
             state.Focused = 0;
             state.WasCancelled = 0;
             focused = false;
@@ -200,6 +194,10 @@ public static unsafe partial class ElementTree
         ref var state = ref *d.State;
         var font = (Font)_assets[d.Font]!;
         var focused = state.Focused != 0;
+
+        // Block input when inside an active popup
+        if (_activePopupCount > 0 && !IsInsidePopup(e.Index))
+            return;
 
         // Hit test against parent widget rect (covers padding/border area)
         var widgetId = FindParentWidgetId(e.Index);
@@ -249,6 +247,7 @@ public static unsafe partial class ElementTree
         {
             state.FocusExited = 1;
             state.Focused = 0;
+            ClearHot();
             return;
         }
 

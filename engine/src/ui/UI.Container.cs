@@ -106,7 +106,7 @@ public static partial class UI
     }
 
     public static AutoRow BeginRow(WidgetId id) =>
-        BeginRow(WidgetId.None, ContainerStyle.Default);
+        BeginRow(id, ContainerStyle.Default);
 
     public static AutoRow BeginRow(in ContainerStyle style) =>
         BeginRow(WidgetId.None, style);

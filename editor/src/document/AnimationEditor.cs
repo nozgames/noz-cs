@@ -987,7 +987,7 @@ internal partial class AnimationEditor : DocumentEditor
 
     private void DrawOnionSkin()
     {
-        if (!_onionSkin || Document.FrameCount <= 1)
+        if (!_onionSkin || Document.FrameCount <= 1 || _state == AnimationEditorState.Play)
             return;
 
         var skeleton = Document.Skeleton;
@@ -1011,7 +1011,8 @@ internal partial class AnimationEditor : DocumentEditor
 
         using (Graphics.PushState())
         {
-            Graphics.SetLayer(EditorLayer.Grid);
+            Graphics.SetLayer(EditorLayer.DocumentEditor);
+            Graphics.SetSortGroup(1);
 
             for (var i = 0; i < skeleton.Attachments.Count; i++)
             {

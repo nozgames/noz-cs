@@ -620,6 +620,48 @@ public ref struct Tokenizer
             return true;
         }
 
+        // hdra(r, g, b, a) - HDR color with raw float values
+        if (_position + 4 <= _length && _input.Slice(_position, 4).Equals("hdra", StringComparison.OrdinalIgnoreCase))
+        {
+            BeginToken();
+            for (var i = 0; i < 4; i++) NextChar();
+            SkipWhitespace();
+            ReadVec(false);
+
+            if (_token.Type == TokenType.Vec4)
+            {
+                _token.ColorValue = new Color(
+                    _token.Vec4Value.X,
+                    _token.Vec4Value.Y,
+                    _token.Vec4Value.Z,
+                    _token.Vec4Value.W
+                );
+            }
+            _token.Type = TokenType.Color;
+            return true;
+        }
+
+        // hdr(r, g, b) - HDR color with raw float values, alpha=1
+        if (_position + 3 <= _length && _input.Slice(_position, 3).Equals("hdr", StringComparison.OrdinalIgnoreCase))
+        {
+            BeginToken();
+            for (var i = 0; i < 3; i++) NextChar();
+            SkipWhitespace();
+            ReadVec(false);
+
+            if (_token.Type == TokenType.Vec3)
+            {
+                _token.ColorValue = new Color(
+                    _token.Vec3Value.X,
+                    _token.Vec3Value.Y,
+                    _token.Vec3Value.Z,
+                    1f
+                );
+            }
+            _token.Type = TokenType.Color;
+            return true;
+        }
+
         // rgba(r, g, b, a)
         if (_position + 4 <= _length && _input.Slice(_position, 4).Equals("rgba", StringComparison.OrdinalIgnoreCase))
         {

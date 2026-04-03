@@ -708,6 +708,17 @@ public static class EditorStyle
             Padding = Control.Spacing
         };
 
+        public static readonly ScrollBarStyle ScrollBar = new()
+        {
+            Width = 6f,
+            MinThumbHeight = 20f,
+            TrackColor = Color.Transparent,
+            ThumbColor = Palette.Active,
+            BorderRadius = 3f,
+            Padding = 2f,
+            Visibility = ScrollBarVisibility.Auto
+        };
+
         public static readonly FlexSplitterStyle Splitter = new()
         {
             BarSize = 4,

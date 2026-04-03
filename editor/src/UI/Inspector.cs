@@ -17,6 +17,8 @@ internal static partial class Inspector
     private static partial class ElementId
     {
         public static partial WidgetId Root { get; }
+        public static partial WidgetId Scroll { get; }
+        public static partial WidgetId ScrollBar { get; }
         public static partial WidgetId Section { get; }
         public static partial WidgetId DocumentName { get; }
         public static partial WidgetId DocumentExport { get; }
@@ -37,14 +39,21 @@ internal static partial class Inspector
         _nextSectionId = ElementId.Section;
         _sectionOpen = false;
 
-        using (UI.BeginColumn(ElementId.Root, EditorStyle.Inspector.Root))
+        using (UI.BeginRow(ElementId.Root, EditorStyle.Inspector.Root))
         {
-            if (Workspace.ActiveEditor?.ShowInspector ?? false)
-                Workspace.ActiveEditor.InspectorUI();
-            else if (Workspace.State == WorkspaceState.Default && Workspace.SelectedCount == 1)
-                DocumentInspectorUI(Workspace.GetFirstSelected()!);
+            using (UI.BeginFlex())
+            using (UI.BeginScrollable(ElementId.Scroll))
+            using (UI.BeginColumn(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
+            {
+                if (Workspace.ActiveEditor?.ShowInspector ?? false)
+                    Workspace.ActiveEditor.InspectorUI();
+                else if (Workspace.State == WorkspaceState.Default && Workspace.SelectedCount == 1)
+                    DocumentInspectorUI(Workspace.GetFirstSelected()!);
 
-            Finish();
+                Finish();
+            }
+
+            UI.ScrollBar(ElementId.ScrollBar, ElementId.Scroll, EditorStyle.Inspector.ScrollBar);
         }
     }
 

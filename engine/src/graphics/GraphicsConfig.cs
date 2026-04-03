@@ -13,4 +13,5 @@ public class GraphicsConfig
     public int MaxBatches { get; init; } = 4096;
     public required IGraphicsDriver Driver { get; init; }
     public float PixelsPerUnit { get; init; } = 64.0f;
+    public bool HDR { get; init; } = false;
 }

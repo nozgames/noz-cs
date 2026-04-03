@@ -22,6 +22,7 @@ public unsafe partial class WebGPUGraphicsDriver
         // Reset all cached state — new render pass encoder needs everything rebound
         _state = default;
         _state.CurrentPassSampleCount = 1;
+        _state.CurrentPassFormat = _surfaceFormat;
         _state.PipelineDirty = true;
         _state.BindGroupDirty = true;
         _currentGlobalsIndex = -1;
@@ -94,6 +95,7 @@ public unsafe partial class WebGPUGraphicsDriver
         // Reset all cached state — new render pass encoder needs everything rebound
         _state = default;
         _state.CurrentPassSampleCount = 1;
+        _state.CurrentPassFormat = _surfaceFormat;
         _state.PipelineDirty = true;
         _state.BindGroupDirty = true;
         _currentGlobalsIndex = -1;

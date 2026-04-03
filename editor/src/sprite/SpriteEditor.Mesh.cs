@@ -33,8 +33,13 @@ public partial class SpriteEditor
 
     private int _meshFrame = -1;
 
-
     private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color)
+    {
+        return TessellateClipperTo(paths, ref vertexOffset, ref indexOffset, color, _meshVertices, _meshIndices, _meshSlots);
+    }
+
+    private bool TessellateClipperTo(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color,
+        MeshVertex[] vertices, ushort[] indices, List<MeshSlotData> slots)
     {
         var tess = new Tess();
         foreach (var path in paths)
@@ -47,10 +52,11 @@ public partial class SpriteEditor
         }
 
         tess.Tessellate(WindingRule.NonZero, LibTessDotNet.ElementType.Polygons, 3);
-        return EmitTessellation(tess, ref vertexOffset, ref indexOffset, color);
+        return EmitTessellationTo(tess, ref vertexOffset, ref indexOffset, color, vertices, indices, slots);
     }
 
-    private bool EmitTessellation(Tess tess, ref int vertexOffset, ref int indexOffset, Color color)
+    private bool EmitTessellationTo(Tess tess, ref int vertexOffset, ref int indexOffset, Color color,
+        MeshVertex[] vertices, ushort[] indices, List<MeshSlotData> slots)
     {
         if (tess.ElementCount == 0) return false;
 
@@ -64,18 +70,18 @@ public partial class SpriteEditor
         for (int v = 0; v < vertCount; v++)
         {
             ref var tv = ref tess.Vertices[v];
-            _meshVertices[vertexOffset + v] = new MeshVertex(
+            vertices[vertexOffset + v] = new MeshVertex(
                 tv.Position.X, tv.Position.Y, 0, 0, Color.White);
         }
 
         for (int e = 0; e < tess.ElementCount; e++)
         {
-            _meshIndices[indexOffset + e * 3 + 0] = (ushort)tess.Elements[e * 3 + 0];
-            _meshIndices[indexOffset + e * 3 + 1] = (ushort)tess.Elements[e * 3 + 1];
-            _meshIndices[indexOffset + e * 3 + 2] = (ushort)tess.Elements[e * 3 + 2];
+            indices[indexOffset + e * 3 + 0] = (ushort)tess.Elements[e * 3 + 0];
+            indices[indexOffset + e * 3 + 1] = (ushort)tess.Elements[e * 3 + 1];
+            indices[indexOffset + e * 3 + 2] = (ushort)tess.Elements[e * 3 + 2];
         }
 
-        _meshSlots.Add(new MeshSlotData
+        slots.Add(new MeshSlotData
         {
             VertexOffset = vertexOffset,
             VertexCount = vertCount,

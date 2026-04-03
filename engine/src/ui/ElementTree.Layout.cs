@@ -787,8 +787,11 @@ public static unsafe partial class ElementTree
         for (int i = 0; i < parent.ChildCount; i++)
         {
             ref var child = ref GetElement(childOffset);
-            child.Rect.Y -= offset;
-            ApplyScrollOffset(ref child, offset);
+            if (child.Type != ElementType.Popup)
+            {
+                child.Rect.Y -= offset;
+                ApplyScrollOffset(ref child, offset);
+            }
             childOffset = child.NextSibling;
         }
     }
@@ -800,9 +803,12 @@ public static unsafe partial class ElementTree
         for (int i = 0; i < parent.ChildCount; i++)
         {
             ref var child = ref GetElement(childOffset);
-            var bottom = child.Rect.Y + child.Rect.Height - scrollY;
-            max = Math.Max(max, bottom);
-            max = Math.Max(max, ScrollContentBottom(ref child, scrollY));
+            if (child.Type != ElementType.Popup)
+            {
+                var bottom = child.Rect.Y + child.Rect.Height - scrollY;
+                max = Math.Max(max, bottom);
+                max = Math.Max(max, ScrollContentBottom(ref child, scrollY));
+            }
             childOffset = child.NextSibling;
         }
         return max;
