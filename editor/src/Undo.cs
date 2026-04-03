@@ -4,25 +4,231 @@
 
 namespace NoZ.Editor;
 
-public static class Undo
+internal class UndoStack
 {
-    private const int MaxUndo = 128;
-
-    private class UndoItem
+    private struct UndoItem
     {
-        public Document Doc = null!;
-        public Document Snapshot = null!;
-        public int GroupId = -1;
+        public Document Doc;
+        public Document Snapshot;
+        public int GroupId;
     }
 
-    private static readonly List<UndoItem> _undoStack = new(MaxUndo);
-    private static readonly List<UndoItem> _redoStack = new(MaxUndo);
-    private static readonly List<Document> _pendingCallbacks = new(MaxUndo);
+    private readonly List<UndoItem> _undoItems;
+    private readonly List<UndoItem> _redoItems;
+    private readonly int _maxItems;
+
+    public bool CanUndo => _undoItems.Count > 0;
+    public bool CanRedo => _redoItems.Count > 0;
+
+    public UndoStack(int maxItems)
+    {
+        _maxItems = maxItems;
+        _undoItems = new List<UndoItem>(maxItems);
+        _redoItems = new List<UndoItem>(maxItems);
+    }
+
+    public void Record(Document doc, int groupId)
+    {
+        if (_undoItems.Count >= _maxItems)
+        {
+            _undoItems[0].Snapshot.Dispose();
+            _undoItems.RemoveAt(0);
+        }
+
+        _undoItems.Add(new UndoItem
+        {
+            Doc = doc,
+            Snapshot = Undo.CloneDocument(doc),
+            GroupId = groupId
+        });
+
+        doc.IncrementVersion();
+        ClearRedo();
+    }
+
+    public bool DoUndo(List<Document> pendingCallbacks)
+    {
+        if (_undoItems.Count == 0)
+            return false;
+
+        var lastItem = _undoItems[^1];
+        var groupId = lastItem.GroupId;
+
+        while (_undoItems.Count > 0)
+        {
+            var item = _undoItems[^1];
+            if (groupId != -1 && item.GroupId != groupId)
+                break;
+
+            var currentState = Undo.CloneDocument(item.Doc);
+            Undo.RestoreDocument(item.Doc, item.Snapshot);
+
+            if (_redoItems.Count >= _maxItems)
+            {
+                _redoItems[0].Snapshot.Dispose();
+                _redoItems.RemoveAt(0);
+            }
+
+            _redoItems.Add(new UndoItem
+            {
+                Doc = item.Doc,
+                Snapshot = currentState,
+                GroupId = item.GroupId
+            });
+
+            item.Doc.IncrementVersion();
+            pendingCallbacks.Add(item.Doc);
+
+            var itemGroupId = item.GroupId;
+            item.Snapshot.Dispose();
+            _undoItems.RemoveAt(_undoItems.Count - 1);
+
+            if (itemGroupId == -1)
+                break;
+        }
+
+        return true;
+    }
+
+    public bool DoRedo(List<Document> pendingCallbacks)
+    {
+        if (_redoItems.Count == 0)
+            return false;
+
+        var lastItem = _redoItems[^1];
+        var groupId = lastItem.GroupId;
+
+        while (_redoItems.Count > 0)
+        {
+            var item = _redoItems[^1];
+            if (groupId != -1 && item.GroupId != groupId)
+                break;
+
+            var currentState = Undo.CloneDocument(item.Doc);
+            Undo.RestoreDocument(item.Doc, item.Snapshot);
+
+            if (_undoItems.Count >= _maxItems)
+            {
+                _undoItems[0].Snapshot.Dispose();
+                _undoItems.RemoveAt(0);
+            }
+
+            _undoItems.Add(new UndoItem
+            {
+                Doc = item.Doc,
+                Snapshot = currentState,
+                GroupId = item.GroupId
+            });
+
+            item.Doc.IncrementVersion();
+            pendingCallbacks.Add(item.Doc);
+
+            var itemGroupId = item.GroupId;
+            item.Snapshot.Dispose();
+            _redoItems.RemoveAt(_redoItems.Count - 1);
+
+            if (itemGroupId == -1)
+                break;
+        }
+
+        return true;
+    }
+
+    public void Cancel(List<Document> pendingCallbacks)
+    {
+        if (_undoItems.Count == 0)
+            return;
+
+        var lastItem = _undoItems[^1];
+        var groupId = lastItem.GroupId;
+
+        while (_undoItems.Count > 0)
+        {
+            var item = _undoItems[^1];
+            if (groupId != -1 && item.GroupId != groupId)
+                break;
+
+            Undo.RestoreDocument(item.Doc, item.Snapshot);
+
+            item.Doc.IncrementVersion();
+            pendingCallbacks.Add(item.Doc);
+
+            var itemGroupId = item.GroupId;
+            item.Snapshot.Dispose();
+            _undoItems.RemoveAt(_undoItems.Count - 1);
+
+            if (itemGroupId == -1)
+                break;
+        }
+    }
+
+    public void RemoveDocument(Document doc)
+    {
+        for (var i = _undoItems.Count - 1; i >= 0; i--)
+        {
+            if (_undoItems[i].Doc == doc)
+            {
+                _undoItems[i].Snapshot.Dispose();
+                _undoItems.RemoveAt(i);
+            }
+        }
+
+        for (var i = _redoItems.Count - 1; i >= 0; i--)
+        {
+            if (_redoItems[i].Doc == doc)
+            {
+                _redoItems[i].Snapshot.Dispose();
+                _redoItems.RemoveAt(i);
+            }
+        }
+    }
+
+    public void Clear()
+    {
+        foreach (var item in _undoItems)
+            item.Snapshot.Dispose();
+        _undoItems.Clear();
+        ClearRedo();
+    }
+
+    private void ClearRedo()
+    {
+        foreach (var item in _redoItems)
+            item.Snapshot.Dispose();
+        _redoItems.Clear();
+    }
+}
+
+public static class Undo
+{
+    private const int MaxDocumentUndo = 64;
+    private const int MaxWorkspaceUndo = 128;
+
+    private static readonly UndoStack _workspaceStack = new(MaxWorkspaceUndo);
+    private static readonly List<Document> _pendingCallbacks = new(16);
     private static int _nextGroupId = 1;
     private static int _currentGroupId = -1;
+    private static UndoStack? _lastRecordStack;
 
-    public static bool CanUndo => _undoStack.Count > 0;
-    public static bool CanRedo => _redoStack.Count > 0;
+    public static bool CanUndo
+    {
+        get
+        {
+            if (Workspace.State == WorkspaceState.Edit)
+                return Workspace.ActiveDocument?.UndoHistory?.CanUndo ?? false;
+            return _workspaceStack.CanUndo;
+        }
+    }
+
+    public static bool CanRedo
+    {
+        get
+        {
+            if (Workspace.State == WorkspaceState.Edit)
+                return Workspace.ActiveDocument?.UndoHistory?.CanRedo ?? false;
+            return _workspaceStack.CanRedo;
+        }
+    }
 
     public static void BeginGroup()
     {
@@ -36,192 +242,88 @@ public static class Undo
 
     public static void Record(Document doc)
     {
-        if (_undoStack.Count >= MaxUndo)
+        UndoStack stack;
+        if (_currentGroupId != -1)
         {
-            _undoStack[0].Snapshot.Dispose();
-            _undoStack.RemoveAt(0);
+            // Groups stay together on one stack
+            if (Workspace.State == WorkspaceState.Edit)
+            {
+                var activeDoc = Workspace.ActiveDocument!;
+                activeDoc.UndoHistory ??= new UndoStack(MaxDocumentUndo);
+                stack = activeDoc.UndoHistory;
+            }
+            else
+                stack = _workspaceStack;
         }
-
-        var snapshot = CloneDocument(doc);
-        _undoStack.Add(new UndoItem
+        else if (doc.IsEditing)
         {
-            Doc = doc,
-            Snapshot = snapshot,
-            GroupId = _currentGroupId
-        });
+            doc.UndoHistory ??= new UndoStack(MaxDocumentUndo);
+            stack = doc.UndoHistory;
+        }
+        else
+            stack = _workspaceStack;
 
-        doc.IncrementVersion();
-
-        ClearRedoStack();
+        stack.Record(doc, _currentGroupId);
+        _lastRecordStack = stack;
     }
 
     public static bool DoUndo()
     {
-        if (_undoStack.Count == 0)
+        var stack = GetActiveStack();
+        if (stack == null)
             return false;
 
-        var lastItem = _undoStack[^1];
-        var groupId = lastItem.GroupId;
-
-        while (_undoStack.Count > 0)
-        {
-            var item = _undoStack[^1];
-            if (groupId != -1 && item.GroupId != groupId)
-                break;
-
-            var doc = item.Doc;
-            var currentState = CloneDocument(doc);
-
-            RestoreDocument(doc, item.Snapshot);
-
-            if (_redoStack.Count >= MaxUndo)
-            {
-                _redoStack[0].Snapshot.Dispose();
-                _redoStack.RemoveAt(0);
-            }
-
-            _redoStack.Add(new UndoItem
-            {
-                Doc = doc,
-                Snapshot = currentState,
-                GroupId = item.GroupId
-            });
-
-            doc.IncrementVersion();
-            _pendingCallbacks.Add(doc);
-
-            var itemGroupId = item.GroupId;
-            var snapshot = item.Snapshot;
-            _undoStack.RemoveAt(_undoStack.Count - 1);
-            snapshot.Dispose();
-
-            if (itemGroupId == -1)
-                break;
-        }
-
-        CallPendingCallbacks();
-        return true;
+        var result = stack.DoUndo(_pendingCallbacks);
+        if (result)
+            CallPendingCallbacks();
+        return result;
     }
 
     public static bool DoRedo()
     {
-        if (_redoStack.Count == 0)
+        var stack = GetActiveStack();
+        if (stack == null)
             return false;
 
-        var lastItem = _redoStack[^1];
-        var groupId = lastItem.GroupId;
-
-        while (_redoStack.Count > 0)
-        {
-            var item = _redoStack[^1];
-            if (groupId != -1 && item.GroupId != groupId)
-                break;
-
-            var doc = item.Doc;
-            var currentState = CloneDocument(doc);
-
-            RestoreDocument(doc, item.Snapshot);
-
-            if (_undoStack.Count >= MaxUndo)
-            {
-                _undoStack[0].Snapshot.Dispose();
-                _undoStack.RemoveAt(0);
-            }
-
-            _undoStack.Add(new UndoItem
-            {
-                Doc = doc,
-                Snapshot = currentState,
-                GroupId = item.GroupId
-            });
-
-            doc.IncrementVersion();
-            _pendingCallbacks.Add(doc);
-
-            var itemGroupId = item.GroupId;
-            var snapshot = item.Snapshot;
-            _redoStack.RemoveAt(_redoStack.Count - 1);
-            snapshot.Dispose();
-
-            if (itemGroupId == -1)
-                break;
-        }
-
-        CallPendingCallbacks();
-        return true;
+        var result = stack.DoRedo(_pendingCallbacks);
+        if (result)
+            CallPendingCallbacks();
+        return result;
     }
 
     public static void Cancel()
     {
-        if (_undoStack.Count == 0)
+        // Cancel routes to whichever stack the last Record() went to
+        var stack = _lastRecordStack;
+        if (stack == null)
             return;
 
-        var lastItem = _undoStack[^1];
-        var groupId = lastItem.GroupId;
-
-        while (_undoStack.Count > 0)
-        {
-            var item = _undoStack[^1];
-            if (groupId != -1 && item.GroupId != groupId)
-                break;
-
-            var doc = item.Doc;
-            RestoreDocument(doc, item.Snapshot);
-
-            doc.IncrementVersion();
-            _pendingCallbacks.Add(doc);
-
-            var itemGroupId = item.GroupId;
-            var snapshot = item.Snapshot;
-            _undoStack.RemoveAt(_undoStack.Count - 1);
-            snapshot.Dispose();
-
-            if (itemGroupId == -1)
-                break;
-        }
-
+        stack.Cancel(_pendingCallbacks);
         CallPendingCallbacks();
+        _lastRecordStack = null;
     }
 
     public static void RemoveDocument(Document doc)
     {
-        for (var i = _undoStack.Count - 1; i >= 0; i--)
-        {
-            if (_undoStack[i].Doc == doc)
-            {
-                _undoStack[i].Snapshot.Dispose();
-                _undoStack.RemoveAt(i);
-            }
-        }
-
-        for (var i = _redoStack.Count - 1; i >= 0; i--)
-        {
-            if (_redoStack[i].Doc == doc)
-            {
-                _redoStack[i].Snapshot.Dispose();
-                _redoStack.RemoveAt(i);
-            }
-        }
+        _workspaceStack.RemoveDocument(doc);
+        doc.UndoHistory?.Clear();
+        doc.UndoHistory = null;
     }
 
     public static void Clear()
     {
-        foreach (var item in _undoStack)
-            item.Snapshot.Dispose();
-        _undoStack.Clear();
-
-        ClearRedoStack();
-
+        _workspaceStack.Clear();
         _pendingCallbacks.Clear();
         _currentGroupId = -1;
         _nextGroupId = 1;
+        _lastRecordStack = null;
     }
 
-    private static void ClearRedoStack()
+    private static UndoStack? GetActiveStack()
     {
-        foreach (var item in _redoStack)
-            item.Snapshot.Dispose();
-        _redoStack.Clear();
+        if (Workspace.State == WorkspaceState.Edit)
+            return Workspace.ActiveDocument?.UndoHistory;
+        return _workspaceStack;
     }
 
     private static void CallPendingCallbacks()
@@ -233,7 +335,7 @@ public static class Undo
         _pendingCallbacks.Clear();
     }
 
-    private static Document CloneDocument(Document source)
+    internal static Document CloneDocument(Document source)
     {
         var clone = source.Def.Factory();
         clone.Def = source.Def;
@@ -246,7 +348,7 @@ public static class Undo
         return clone;
     }
 
-    private static void RestoreDocument(Document target, Document snapshot)
+    internal static void RestoreDocument(Document target, Document snapshot)
     {
         var wasEditing = target.IsEditing;
         target.Position = snapshot.Position;

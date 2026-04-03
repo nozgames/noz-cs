@@ -46,6 +46,7 @@ public static partial class Workspace
     private static float _dpi = DefaultDpi;
     private static float _uiScale = 1f;
     private static float _userUIScale = 1f;
+    private static bool _showFps;
     private static bool _showGrid = true;
     private static bool _showNames;
     private static bool _showReferences;
@@ -204,6 +205,7 @@ public static partial class Workspace
             new Command { Name = "Toggle Grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Ctrl = true },
             new Command { Name = "Toggle Names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
             new Command { Name = "Toggle Isolation", Handler = ToggleIsolation, Key = InputCode.KeySlash },
+            new Command { Name = "Toggle FPS", Handler = ToggleFps },
         ]);
 
         var workspaceCommands = new List<Command>
@@ -272,6 +274,7 @@ public static partial class Workspace
 
     public static void LoadUserSettings(PropertySet props)
     {
+        _showFps = props.GetBool("workspace", "show_fps", false);
         _showGrid = props.GetBool("workspace", "show_grid", true);
         _showNames = props.GetBool("workspace", "show_names", false);
         _showReferences = props.GetBool("workspace", "show_references", false);
@@ -299,6 +302,7 @@ public static partial class Workspace
             collection.CameraZoom = _zoom;
         }
 
+        props.SetBool("workspace", "show_fps", _showFps);
         props.SetBool("workspace", "show_grid", _showGrid);
         props.SetBool("workspace", "show_names", _showNames);
         props.SetBool("workspace", "show_references", _showReferences);
@@ -435,28 +439,11 @@ public static partial class Workspace
         if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
             ;
 
-        UI.Flex();
-
-        //UI.Button(WidgetIds.
-
-
-        // Left toolbar
-        //using (UI.BeginRow(new ContainerStyle
-        //{
-        //    Height = Size.Fit,
-        //    Padding = EdgeInsets.Symmetric(4, EditorStyle.Control.Spacing),
-        //    Spacing = EditorStyle.Control.Spacing,
-        //}))
-        //{
-        //    UI.Flex();
-        //    if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon, isSelected: _showReferences))
-        //        _showReferences = !_showReferences;
-        //    if (UI.Button(WidgetIds.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon, isSelected: XrayMode))
-        //    {
-        //        XrayMode = !XrayMode;
-        //        XrayModeChanged?.Invoke(XrayMode);
-        //    }
-        //}
+        if (_showFps)
+        {
+            UI.Text(Strings.Number((int)Time.AvergeFps), EditorStyle.Text.Disabled);
+            UI.Text("fps", EditorStyle.Text.Disabled);
+        }
 
         static PopupMenuItem[] GetCollectionItems()
         {
@@ -749,6 +736,11 @@ public static partial class Workspace
         );
         tool.CommitOnRelease = commitOnRelease;
         BeginTool(tool);
+    }
+
+    private static void ToggleFps()
+    {
+        _showFps = !_showFps;
     }
 
     private static void ToggleGrid()
