@@ -37,7 +37,6 @@ public class SpritePath : SpriteNode
 
     public List<SpriteContour> Contours { get; } = new() { new SpriteContour() };
 
-    // Convenience accessors for primary contour (backward compat)
     public List<SpritePathAnchor> Anchors => Contours[0].Anchors;
     public bool Open { get => Contours[0].Open; set => Contours[0].Open = value; }
 

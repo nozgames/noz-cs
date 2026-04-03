@@ -15,8 +15,6 @@ public class SpriteGeneration : IDisposable
     public string NegativePrompt = "";
     public string Seed = "";
     public DocumentRef<GenerationConfig> Config;
-    public List<DocumentRef<SpriteDocument>> References = [];
-
     public GenerationJob Job { get; private set; } = new();
 
     public bool IsGenerating => Job.IsGenerating;
@@ -59,9 +57,6 @@ public partial class SpriteDocument
 
         LoadGeneratedTexture();
         Generation.Config.Resolve();
-
-        foreach (ref var r in System.Runtime.InteropServices.CollectionsMarshal.AsSpan(Generation.References))
-            r.Resolve();
     }
 
     private void ResolveGeneration()
@@ -85,9 +80,6 @@ public partial class SpriteDocument
         }
 
         Generation.Config.Resolve();
-
-        foreach (ref var r in System.Runtime.InteropServices.CollectionsMarshal.AsSpan(Generation.References))
-            r.Resolve();
     }
 
     private void SaveGeneration(StreamWriter writer)
@@ -105,8 +97,6 @@ public partial class SpriteDocument
             writer.WriteLine($"seed \"{gen.Seed}\"");
         if (!string.IsNullOrEmpty(gen.Config.Name))
             writer.WriteLine($"style \"{gen.Config.Name}\"");
-        foreach (var r in gen.References)
-            if (r.HasValue) writer.WriteLine($"reference \"{r.Name}\"");
         if (gen.Job.HasImageData && ImageFilePath != null)
             File.WriteAllBytes(ImageFilePath, gen.Job.ImageData!);
     }
@@ -158,7 +148,7 @@ public partial class SpriteDocument
             else if (tk.ExpectIdentifier("prompt_hash"))
                 tk.ExpectQuotedString(); // Legacy: skip
             else if (tk.ExpectIdentifier("reference"))
-                gen.References.Add(new DocumentRef<SpriteDocument> { Name = tk.ExpectQuotedString() });
+                tk.ExpectQuotedString(); // Legacy: skip
             else if (tk.ExpectIdentifier("image"))
             {
                 // Legacy migration: extract embedded base64 to companion file
@@ -318,23 +308,6 @@ public partial class SpriteDocument
             {
                 ["data"] = Convert.ToBase64String(imageBytes)
             });
-        }
-
-        for (int i = 0; i < gen.References.Count; i++)
-        {
-            var refDoc = gen.References[i].Value;
-            if (refDoc == null) continue;
-            byte[] refBytes = refDoc.Generation is { HasImageData: true }
-                ? refDoc.Generation.Job.ImageData!
-                : refDoc.RasterizeColorToPng();
-
-            if (refBytes.Length > 0)
-            {
-                references.Add(new Dictionary<string, object>
-                {
-                    ["data"] = Convert.ToBase64String(refBytes)
-                });
-            }
         }
 
         var workflow = "concept"; // references.Count > 0 ? "sprite" : "txt2img";

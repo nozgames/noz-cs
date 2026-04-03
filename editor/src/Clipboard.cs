@@ -158,7 +158,7 @@ public sealed class PathClipboardData
         {
             var path = new SpritePath
             {
-                Name = pathData.Name,
+                Name = pathData.Name ?? "",
                 FillColor = pathData.FillColor,
                 StrokeColor = pathData.StrokeColor,
                 StrokeWidth = pathData.StrokeWidth,

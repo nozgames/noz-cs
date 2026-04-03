@@ -28,6 +28,7 @@ public static partial class AssetPalette
     private static int _selectedIndex;
     private static AssetType _assetTypeFilter;
     private static bool _useGrid;
+    private static bool _isSoundMode;
     private static Action<Document>? _onPicked;
     private static Func<Document, bool>? _filter;
 
@@ -41,6 +42,7 @@ public static partial class AssetPalette
 
         IsOpen = true;
         _assetTypeFilter = assetTypeFilter;
+        _isSoundMode = assetTypeFilter == AssetType.Sound;
         _useGrid = grid || assetTypeFilter == AssetType.Sprite;
         _onPicked = onPicked;
         _filter = filter;
@@ -86,11 +88,18 @@ public static partial class AssetPalette
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyEnter))
+        if (Input.WasButtonPressed(InputCode.KeyEnter) ||
+            (_isSoundMode && Input.WasButtonPressed(InputCode.MouseLeftDoubleClick)))
         {
             SelectCurrent();
             Close();
             return;
+        }
+
+        if (_isSoundMode && Input.WasButtonPressed(InputCode.KeySpace))
+        {
+            Input.ConsumeButton(InputCode.KeySpace);
+            PlayStopSelected();
         }
 
         if (_useGrid)
@@ -258,8 +267,11 @@ public static partial class AssetPalette
                             if (UI.WasPressed())
                             {
                                 _selectedIndex = i;
-                                SelectCurrent();
-                                Close();
+                                if (!_isSoundMode)
+                                {
+                                    SelectCurrent();
+                                    Close();
+                                }
                             }
                         }
                     }
@@ -340,8 +352,11 @@ public static partial class AssetPalette
                             if (UI.WasPressed())
                             {
                                 _selectedIndex = i;
-                                SelectCurrent();
-                                Close();
+                                if (!_isSoundMode)
+                                {
+                                    SelectCurrent();
+                                    Close();
+                                }
                             }
                         }
                     }
@@ -350,6 +365,20 @@ public static partial class AssetPalette
 
             UI.ScrollBar(WidgetIds.ScrollBar, WidgetIds.AssetList, EditorStyle.CommandPalette.ScrollBar);
         }
+    }
+
+    private static void PlayStopSelected()
+    {
+        if (_selectedIndex < 0 || _selectedIndex >= _filteredCount)
+            return;
+
+        if (_filteredItems[_selectedIndex] is not SoundDocument doc)
+            return;
+
+        if (doc.IsPlaying)
+            doc.Stop();
+        else if (doc.CanPlay)
+            doc.Play();
     }
 
     private static void SelectCurrent()

@@ -69,6 +69,14 @@ internal partial class SoundEditor : DocumentEditor
                 WaveformHeight * 0.5f,
                 0.85f,
                 isSelected: true,
+                showBrackets: false);
+        }
+
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
+        {
+            Graphics.SetTransform(Document.Transform);
+            _waveform.DrawOverlay(
+                WaveformHeight * 0.5f,
                 showBrackets: true,
                 playbackPosition: _playing && Document.IsPlaying ? Document.PlaybackPosition : -1f,
                 isPlaying: _playing);

@@ -624,14 +624,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         ResolveBone();
     }
 
-    public override void GetReferences(List<Document> references)
-    {
-        if (Generation != null)
-            foreach (var r in Generation.References)
-                if (r.Value != null)
-                    references.Add(r.Value);
-    }
-
     internal void ClearAtlasUVs()
     {
         _atlasUV.Clear();

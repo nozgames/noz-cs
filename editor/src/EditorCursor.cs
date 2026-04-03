@@ -56,6 +56,12 @@ internal static class EditorCursor
         _systemCursor = SystemCursor.Crosshair;
     }
 
+    public static void SetSystem(SystemCursor cursor)
+    {
+        _cursor = null;
+        _systemCursor = cursor;
+    }
+
     public static void Begin()
     {
         if (_cursor.HasValue)

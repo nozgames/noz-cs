@@ -45,9 +45,6 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId RandomizeSeed { get; }
         public static partial WidgetId AddGenerationButton { get; }
         public static partial WidgetId RemoveGenerationButton { get; }
-        public static partial WidgetId AddReference { get; }
-        public static partial WidgetId ReferenceItem { get; }
-        public static partial WidgetId DeleteReference { get; }
         public static partial WidgetId AddEdgesButton { get; }
         public static partial WidgetId RemoveEdgesButton { get; }
         public static partial WidgetId EdgeTop { get; }
@@ -1036,8 +1033,11 @@ public partial class SpriteEditor : DocumentEditor
                 SpritePath? next = null;
                 for (var i = 1; i < HitPaths.Count; i++)
                 {
-                    next = HitPaths[i];
-                    break;
+                    if (!HitPaths[i].IsSelected)
+                    {
+                        next = HitPaths[i];
+                        break;
+                    }
                 }
 
                 Document.RootLayer.ClearSelection();
@@ -1807,69 +1807,6 @@ public partial class SpriteEditor : DocumentEditor
 
         }
 
-        GenerationReferencesUI();
-    }
-
-    private void GenerationReferencesUI()
-    {
-        void SectionContent()
-        {
-            ElementTree.BeginAlign(Align.Min, Align.Center);
-            if (UI.Button(WidgetIds.AddReference, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
-            {
-                var currentDoc = Document;
-                AssetPalette.OpenSprites(
-                    onPicked: doc =>
-                    {
-                        if (doc is SpriteDocument sprite)
-                            AddReference(sprite);
-                    },
-                    filter: doc => doc is SpriteDocument sprite
-                                   && sprite != currentDoc
-                                   && !currentDoc.Generation!.References.Any(r => r.Value == sprite));
-            }
-            ElementTree.EndAlign();
-        }
-
-        using var _ = Inspector.BeginSection("REFERENCES", content: SectionContent, empty: Document.Generation!.References.Count == 0);
-
-        if (Inspector.IsSectionCollapsed) return;
-
-        for (var i = 0; i < Document.Generation!.References.Count; i++)
-        {
-            var refDoc = Document.Generation.References[i].Value;
-            if (refDoc == null) continue;
-            var itemId = WidgetIds.ReferenceItem + i;
-
-            using (Inspector.BeginRow())
-            using (UI.BeginFlex())
-            {
-                using (UI.BeginRow(itemId, EditorStyle.Inspector.ListItem))
-                {
-                    UI.Image(EditorAssets.Sprites.AssetIconSprite, EditorStyle.Control.IconSecondary);
-                    using (UI.BeginFlex())
-                        UI.Text(refDoc.Name, EditorStyle.Text.Primary);
-
-                    if (UI.IsHovered(itemId))
-                    {
-                        if (UI.Button(WidgetIds.DeleteReference + i, EditorAssets.Sprites.IconDelete, EditorStyle.Button.IconOnly))
-                            RemoveReference(i);
-                    }
-                }
-            }
-        }
-    }
-
-    private void AddReference(SpriteDocument doc)
-    {
-        Undo.Record(Document);
-        Document.Generation!.References.Add(doc);
-    }
-
-    private void RemoveReference(int index)
-    {
-        Undo.Record(Document);
-        Document.Generation!.References.RemoveAt(index);
     }
 
     private void SetStyle(GenerationConfig? style)

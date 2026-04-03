@@ -19,7 +19,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
     }
 
     private const float WaveformHeight = 0.8f;
-    private const float LayerSpacing = 0.15f;
+    private const float LayerSpacing = 0f;
     private const float UnselectedAlpha = 0.4f;
     private const float ActiveAlpha = 0.85f;
 
@@ -74,13 +74,21 @@ internal partial class CompositeSoundEditor : DocumentEditor
         {
             Graphics.SetTransform(Document.Transform);
 
-            // Draw composite bounds
-            var duration = Document.Duration;
-            if (duration > 0f)
+            // Draw composite bounds (visual extent, not just trimmed export)
+            var maxVisualEnd = 0f;
+            foreach (var layer in Document.Layers)
+            {
+                var src = layer.SoundRef.Value;
+                if (src == null) continue;
+                var layerEnd = layer.Offset + src.Duration;
+                if (layerEnd > maxVisualEnd) maxVisualEnd = layerEnd;
+            }
+
+            if (maxVisualEnd > 0f)
             {
                 var layerCount = Document.Layers.Count;
                 var totalHeight = layerCount * (WaveformHeight + LayerSpacing) - LayerSpacing;
-                var width = duration * WaveformEditor.WaveformScale;
+                var width = maxVisualEnd * WaveformEditor.WaveformScale;
 
                 Gizmos.SetColor(EditorStyle.Workspace.BoundsColor.WithAlpha(0.3f));
                 Gizmos.DrawRect(new Rect(0, -WaveformHeight * 0.5f, width, totalHeight),
@@ -134,13 +142,39 @@ internal partial class CompositeSoundEditor : DocumentEditor
                 _layerEditors[activeHandleLayer].UpdateHandles(
                     handleDocPos, WaveformHeight * 0.5f,
                     () => Undo.Record(Document),
-                    () => { Document.ApplyChanges(); RebuildLayerEditors(); });
+                    () => { Document.ApplyChanges(); RebuildLayerCaches(); });
 
                 if (_layerEditors[activeHandleLayer].IsDragging)
                     SelectedLayerIndex = activeHandleLayer;
             }
 
-            // Draw all layers
+            // Click anywhere in a layer's bounds to select it
+            if (Input.WasButtonPressed(InputCode.MouseLeft) && activeHandleLayer < 0)
+            {
+                var mouseWorld = Workspace.MouseWorldPosition;
+                for (var i = 0; i < Document.Layers.Count; i++)
+                {
+                    var layer = Document.Layers[i];
+                    var src = layer.SoundRef.Value;
+                    if (src == null) continue;
+
+                    var top = LayerTopY(i);
+                    var offsetX = layer.Offset * WaveformEditor.WaveformScale;
+                    var halfH = WaveformHeight * 0.5f;
+                    var waveformWidth = src.Duration * WaveformEditor.WaveformScale;
+
+                    var localX = mouseWorld.X - Document.Position.X - offsetX;
+                    var localY = mouseWorld.Y - Document.Position.Y - top;
+
+                    if (localX >= 0 && localX <= waveformWidth && localY >= -halfH && localY <= halfH)
+                    {
+                        SelectedLayerIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Draw all layer waveforms
             for (var i = 0; i < _layerEditors.Count && i < Document.Layers.Count; i++)
             {
                 var layer = Document.Layers[i];
@@ -152,24 +186,66 @@ internal partial class CompositeSoundEditor : DocumentEditor
                 using (Graphics.PushState())
                 {
                     Graphics.SetTransform(Matrix3x2.CreateTranslation(offsetX, top) * Document.Transform);
-
                     editor.Draw(
                         WaveformHeight * 0.5f,
                         isSelected ? ActiveAlpha : UnselectedAlpha,
                         isSelected: isSelected,
-                        showBrackets: isSelected);
+                        showBrackets: false);
+                }
+            }
+        }
 
-                    // Layer label
-                    var labelText = layer.SoundRef.Name ?? "?";
-                    Graphics.SetColor(EditorStyle.Palette.Content.WithAlpha(isSelected ? 1f : 0.6f));
-                    using (Graphics.PushState())
-                    {
-                        Graphics.SetTransform(
-                            Matrix3x2.CreateTranslation(0.02f, -WaveformHeight * 0.5f + 0.02f) *
-                            Matrix3x2.CreateTranslation(offsetX, top) *
-                            Document.Transform);
-                        Graphics.DrawText(labelText, 0.05f);
-                    }
+        // Overlays at higher layer (trim brackets, fade, labels, playback head)
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
+        {
+            Graphics.SetTransform(Document.Transform);
+
+            for (var i = 0; i < _layerEditors.Count && i < Document.Layers.Count; i++)
+            {
+                var layer = Document.Layers[i];
+                var editor = _layerEditors[i];
+                var isSelected = i == SelectedLayerIndex;
+                var top = LayerTopY(i);
+                var offsetX = layer.Offset * WaveformEditor.WaveformScale;
+
+                using (Graphics.PushState())
+                {
+                    Graphics.SetTransform(Matrix3x2.CreateTranslation(offsetX, top) * Document.Transform);
+                    editor.DrawOverlay(
+                        WaveformHeight * 0.5f,
+                        showBrackets: isSelected);
+                }
+
+                // Layer label
+                var labelText = layer.SoundRef.Name ?? "?";
+                Graphics.SetColor(EditorStyle.Palette.Content.WithAlpha(isSelected ? 1f : 0.6f));
+                using (Graphics.PushState())
+                {
+                    Graphics.SetTransform(
+                        Matrix3x2.CreateTranslation(0.02f, -WaveformHeight * 0.5f + 0.02f) *
+                        Matrix3x2.CreateTranslation(offsetX, top) *
+                        Document.Transform);
+                    Graphics.DrawText(labelText, 0.025f);
+                }
+            }
+
+            // Playback head spanning all layers
+            if (_playing && Document.IsPlaying)
+            {
+                var compositeDuration = Document.Duration;
+                if (compositeDuration > 0f)
+                {
+                    var pos = Document.PlaybackPosition;
+                    var headX = pos * compositeDuration * WaveformEditor.WaveformScale;
+                    var layerCount = Document.Layers.Count;
+                    var totalHeight = layerCount * (WaveformHeight + LayerSpacing);
+
+                    Gizmos.SetColor(EditorStyle.Palette.Content);
+                    Gizmos.DrawLine(
+                        new Vector2(headX, -WaveformHeight * 0.5f),
+                        new Vector2(headX, totalHeight - WaveformHeight * 0.5f),
+                        0.015f,
+                        extendEnds: true);
                 }
             }
         }
@@ -217,6 +293,12 @@ internal partial class CompositeSoundEditor : DocumentEditor
             editor.BuildCache();
             _layerEditors.Add(editor);
         }
+    }
+
+    private void RebuildLayerCaches()
+    {
+        for (var i = 0; i < _layerEditors.Count; i++)
+            _layerEditors[i].BuildCache();
     }
 
     private void TogglePlayback()

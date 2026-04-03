@@ -125,7 +125,6 @@ public static class EditorStyle
         public const float GridAlpha = 0.4f;
         public const float GridZeroAlpha = 0.5f;
         public const float Padding = 16f;
-        public static readonly Color ReferenceLineColor = new(0.5f, 0.8f, 1f, 0.5f);
     }
 
     // :control — Global control dimensions

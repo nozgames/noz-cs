@@ -837,18 +837,6 @@ public unsafe partial class WebGPUGraphicsDriver
         }
 
         _currentBindGroup = null;
-
-        // Submit the current command encoder so RTT draws are executed before any readback
-        // Then create a new encoder for subsequent operations
-        var commandBufferDesc = new CommandBufferDescriptor();
-        var commandBuffer = _wgpu.CommandEncoderFinish(_commandEncoder, &commandBufferDesc);
-        _wgpu.QueueSubmit(_queue, 1, &commandBuffer);
-        _wgpu.CommandBufferRelease(commandBuffer);
-        _wgpu.CommandEncoderRelease(_commandEncoder);
-
-        // Create new encoder for any remaining frame operations
-        var encoderDesc = new CommandEncoderDescriptor();
-        _commandEncoder = _wgpu.DeviceCreateCommandEncoder(_device, ref encoderDesc);
     }
 
     public Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture)

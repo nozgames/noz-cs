@@ -83,7 +83,7 @@ public partial class SpriteDocument
             tk.ExpectDelimiter('{');
         }
 
-        var path = new SpritePath { Name = pathName };
+        var path = new SpritePath { Name = pathName ?? "" };
 
         while (!tk.IsEOF)
         {

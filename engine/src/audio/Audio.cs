@@ -29,6 +29,9 @@ public static class Audio
         if (sound == null || volume <= 0f || sound.PlatformHandle == 0)
             return default;
 
+        volume *= MathEx.RandomRange(sound.VolumeMin, sound.VolumeMax);
+        pitch *= MathEx.RandomRange(sound.PitchMin, sound.PitchMax);
+
         if (debounce)
         {
            if (_playFrame.TryGetValue(sound.Id, out var frame) && frame == Time.FrameCount)
@@ -38,13 +41,6 @@ public static class Audio
         }
 
         return new(Driver.Play(sound.PlatformHandle, volume, pitch, loop));
-    }
-
-    public static SoundHandle PlaySound(Sound sound, bool loop = false, bool debounce = true)
-    {
-        var volume = MathEx.RandomRange(sound.VolumeMin, sound.VolumeMax);
-        var pitch = MathEx.RandomRange(sound.PitchMin, sound.PitchMax);
-        return Play(sound, volume, pitch, loop, debounce);
     }
 
     public static SoundHandle PlayRandomPitch(Sound sound, float volume, float minPitch, float maxPitch, bool loop = false, bool debounce = true)

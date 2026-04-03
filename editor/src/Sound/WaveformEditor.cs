@@ -152,12 +152,19 @@ internal class WaveformEditor
             Graphics.Draw(x, -absMax, barWidth, absMax * 2f);
         }
 
-        // Bounding rect
-        Gizmos.SetColor(isSelected ? EditorStyle.Palette.Primary : EditorStyle.Workspace.BoundsColor);
-        Gizmos.DrawRect(new Rect(0, -halfHeight, waveformWidth, halfHeight * 2f),
-            EditorStyle.Workspace.DocumentBoundsLineWidth);
+    }
 
-        // Fade overlays
+    // Draw overlay elements (fade, trim brackets, playback head) — call at a higher layer
+    public void DrawOverlay(float halfHeight, bool showBrackets,
+        float playbackPosition = -1f, bool isPlaying = false)
+    {
+        var duration = Source.Duration;
+        if (duration <= 0f) return;
+
+        var waveformWidth = duration * WaveformScale;
+        var trimStart = Source.TrimStart;
+        var trimEnd = Source.TrimEnd > 0f ? Source.TrimEnd : 1f;
+
         var hoverHandle = _activeDrag != WaveformDragHandle.None ? _activeDrag : HitTest(halfHeight, Workspace.Zoom);
 
         var trimStartX = trimStart * waveformWidth;
@@ -183,7 +190,6 @@ internal class WaveformEditor
                 new Vector2(trimEndX, halfHeight));
         }
 
-        // Trim brackets
         if (showBrackets)
         {
             var tabLength = MinTrimGap * waveformWidth;
@@ -200,8 +206,21 @@ internal class WaveformEditor
             Gizmos.DrawLine(new Vector2(trimEndX, -halfHeight), new Vector2(trimEndX - tabLength, -halfHeight), LineWidth, extendEnds: true);
             Gizmos.DrawLine(new Vector2(trimEndX, halfHeight), new Vector2(trimEndX - tabLength, halfHeight), LineWidth, extendEnds: true);
         }
+        else
+        {
+            // Non-selected: thin black lines at trim positions
+            if (trimStart > 0f)
+            {
+                Gizmos.SetColor(Color.Black.WithAlpha(0.5f));
+                Gizmos.DrawLine(new Vector2(trimStartX, -halfHeight), new Vector2(trimStartX, halfHeight), LineWidth * 0.5f);
+            }
+            if (trimEnd < 1f)
+            {
+                Gizmos.SetColor(Color.Black.WithAlpha(0.5f));
+                Gizmos.DrawLine(new Vector2(trimEndX, -halfHeight), new Vector2(trimEndX, halfHeight), LineWidth * 0.5f);
+            }
+        }
 
-        // Playback head
         if (isPlaying && playbackPosition >= 0f)
         {
             var norm = trimStart + playbackPosition * (trimEnd - trimStart);
@@ -286,17 +305,16 @@ internal class WaveformEditor
         var waveformWidth = duration * WaveformScale;
         var mouseWorld = Workspace.MouseWorldPosition;
 
-        // Compute local mouse position
-        var offsetX = Source.OffsetEnabled ? Source.Offset * WaveformScale : 0f;
-        var localX = mouseWorld.X - docPosition.X - offsetX;
+        // Compute local mouse position (docPosition already includes offset if applicable)
+        var localX = mouseWorld.X - docPosition.X;
         var localY = mouseWorld.Y - docPosition.Y;
 
         if (_activeDrag != WaveformDragHandle.None)
         {
             if (_activeDrag == WaveformDragHandle.Offset)
-                Cursor.Set(SystemCursor.Move);
+                EditorCursor.SetSystem(SystemCursor.Move);
             else
-                Cursor.Set(SystemCursor.ResizeEW);
+                EditorCursor.SetSystem(SystemCursor.ResizeEW);
 
             if (Input.IsButtonDown(InputCode.MouseLeft))
             {
@@ -370,9 +388,9 @@ internal class WaveformEditor
             if (hover != WaveformDragHandle.None)
             {
                 if (hover == WaveformDragHandle.Offset)
-                    Cursor.Set(SystemCursor.Move);
+                    EditorCursor.SetSystem(SystemCursor.Move);
                 else
-                    Cursor.Set(SystemCursor.ResizeEW);
+                    EditorCursor.SetSystem(SystemCursor.ResizeEW);
 
                 if (Input.WasButtonPressed(InputCode.MouseLeft))
                 {
