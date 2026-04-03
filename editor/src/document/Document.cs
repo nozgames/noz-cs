@@ -8,6 +8,8 @@ namespace NoZ.Editor;
 
 public abstract class Document : IDisposable, IChangeHandler
 {
+    private UndoStack? _undoHistory;
+
     public DocumentDef Def { get; internal set; } = null!;
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
@@ -37,6 +39,8 @@ public abstract class Document : IDisposable, IChangeHandler
     public bool PostLoaded { get; set; }
     public bool ShouldExport { get; set; } = true;
     public bool SilentExport { get; set; }
+
+    internal UndoStack UndoHistory => _undoHistory ??= new UndoStack(64);
 
     public virtual void Load() { }
     public virtual void Save(StreamWriter sw) { }

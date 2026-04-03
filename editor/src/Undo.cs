@@ -210,25 +210,8 @@ public static class Undo
     private static int _currentGroupId = -1;
     private static UndoStack? _lastRecordStack;
 
-    public static bool CanUndo
-    {
-        get
-        {
-            if (Workspace.State == WorkspaceState.Edit)
-                return Workspace.ActiveDocument?.UndoHistory?.CanUndo ?? false;
-            return _workspaceStack.CanUndo;
-        }
-    }
-
-    public static bool CanRedo
-    {
-        get
-        {
-            if (Workspace.State == WorkspaceState.Edit)
-                return Workspace.ActiveDocument?.UndoHistory?.CanRedo ?? false;
-            return _workspaceStack.CanRedo;
-        }
-    }
+    public static bool CanUndo => ActiveStack?.CanUndo ?? false;
+    public static bool CanRedo => ActiveStack?.CanRedo ?? false;
 
     public static void BeginGroup()
     {
@@ -247,19 +230,12 @@ public static class Undo
         {
             // Groups stay together on one stack
             if (Workspace.State == WorkspaceState.Edit)
-            {
-                var activeDoc = Workspace.ActiveDocument!;
-                activeDoc.UndoHistory ??= new UndoStack(MaxDocumentUndo);
-                stack = activeDoc.UndoHistory;
-            }
+                stack = Workspace.ActiveDocument!.UndoHistory;
             else
                 stack = _workspaceStack;
         }
         else if (doc.IsEditing)
-        {
-            doc.UndoHistory ??= new UndoStack(MaxDocumentUndo);
             stack = doc.UndoHistory;
-        }
         else
             stack = _workspaceStack;
 
@@ -269,7 +245,7 @@ public static class Undo
 
     public static bool DoUndo()
     {
-        var stack = GetActiveStack();
+        var stack = ActiveStack;
         if (stack == null)
             return false;
 
@@ -281,7 +257,7 @@ public static class Undo
 
     public static bool DoRedo()
     {
-        var stack = GetActiveStack();
+        var stack = ActiveStack;
         if (stack == null)
             return false;
 
@@ -306,8 +282,7 @@ public static class Undo
     public static void RemoveDocument(Document doc)
     {
         _workspaceStack.RemoveDocument(doc);
-        doc.UndoHistory?.Clear();
-        doc.UndoHistory = null;
+        doc.UndoHistory.Clear();
     }
 
     public static void Clear()
@@ -319,12 +294,10 @@ public static class Undo
         _lastRecordStack = null;
     }
 
-    private static UndoStack? GetActiveStack()
-    {
-        if (Workspace.State == WorkspaceState.Edit)
-            return Workspace.ActiveDocument?.UndoHistory;
-        return _workspaceStack;
-    }
+    private static UndoStack? ActiveStack =>
+        Workspace.State == WorkspaceState.Edit
+            ? Workspace.ActiveDocument?.UndoHistory
+            : _workspaceStack;
 
     private static void CallPendingCallbacks()
     {

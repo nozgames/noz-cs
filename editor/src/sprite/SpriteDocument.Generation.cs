@@ -265,6 +265,9 @@ public partial class SpriteDocument
         var h = RasterBounds.Height;
         if (w <= 0 || h <= 0) return [];
 
+        if (RootLayer.Children.Count == 0)
+            return [];
+
         // Scale DPI so paths render at RasterizeSize regardless of actual constraint size
         var dpi = EditorApplication.Config.PixelsPerUnit;
         var scale = (float)RasterizeSize / MathF.Max(w, h);
@@ -334,7 +337,7 @@ public partial class SpriteDocument
             }
         }
 
-        var workflow = references.Count > 0 ? "sprite" : "txt2img";
+        var workflow = "concept"; // references.Count > 0 ? "sprite" : "txt2img";
         var genArgs = new Dictionary<string, object> { ["prompt"] = prompt, ["workflow"] = workflow };
         if (!string.IsNullOrEmpty(negPrompt))
             genArgs["negative"] = negPrompt;

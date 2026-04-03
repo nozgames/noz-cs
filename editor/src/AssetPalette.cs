@@ -56,6 +56,9 @@ public static partial class AssetPalette
     public static void OpenSprites(Action<Document>? onPicked = null, Func<Document, bool>? filter = null) =>
         Open(AssetType.Sprite, grid: true, onPicked: onPicked, filter: filter);
 
+    public static void OpenSounds(Action<Document>? onPicked = null, Func<Document, bool>? filter = null) =>
+        Open(AssetType.Sound, onPicked: onPicked, filter: filter);
+
     public static void Close()
     {
         if (!IsOpen) return;
