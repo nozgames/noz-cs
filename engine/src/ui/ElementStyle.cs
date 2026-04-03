@@ -203,6 +203,7 @@ public struct SceneRenderInfo
     public int Width;
     public int Height;
     public Rect ScreenRect;
+    public TextureFormat Format;
 }
 
 public static class ElementStyle

@@ -89,4 +89,5 @@ public interface IGraphicsDriver
     void BeginRenderTexturePass(nuint renderTexture, Color clearColor);
     void EndRenderTexturePass();
     Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture);
+    Task<Color> ReadPixelAsync(nuint renderTexture, int x, int y);
 }

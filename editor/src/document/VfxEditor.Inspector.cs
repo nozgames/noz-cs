@@ -314,8 +314,13 @@ internal partial class VfxEditor
 
                 using (Inspector.BeginProperty("Sprite"))
                 {
-                    particle.SpriteRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
-                    UI.HandleChange(Document);
+                    var newRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
+                    if (newRef.Value != particle.SpriteRef.Value)
+                    {
+                        Undo.Record(Document);
+                        particle.SpriteRef = newRef;
+                        Document.ApplyChanges();
+                    }
                 }
 
                 using (Inspector.BeginProperty("Sort"))

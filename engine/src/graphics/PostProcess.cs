@@ -60,7 +60,7 @@ public static class PostProcess
         var dest = RenderTexturePool.Acquire(width, height);
 
         Graphics.BeginPass(dest, Color.Transparent);
-        SetFullscreenCamera(width, height);
+        UpdateCamera(width, height);
         Graphics.SetShader(shader);
         Graphics.SetBlendMode(BlendMode.None);
         Graphics.SetTexture(source.Handle, slot: 0);
@@ -136,7 +136,7 @@ public static class PostProcess
         EndBlit();
     }
 
-    private static void SetFullscreenCamera(int width, int height)
+    private static void UpdateCamera(int width, int height)
     {
         _camera.SetExtents(new Rect(0, 0, width, height));
         _camera.Position = Vector2.Zero;

@@ -493,7 +493,7 @@ public partial class SpriteEditor
 
             var nodes = nodeData.PasteAsNodes();
             foreach (var node in nodes)
-                Document.RootLayer.Add(node);
+                Document.RootLayer.Insert(0, node);
 
             MarkDirty();
             RebuildSelectedPaths();
@@ -508,7 +508,7 @@ public partial class SpriteEditor
 
         var newPaths = clipboardData.PasteAsPaths();
         foreach (var path in newPaths)
-            Document.RootLayer.Add(path);
+            Document.RootLayer.Insert(0, path);
 
         MarkDirty();
         RebuildSelectedPaths();

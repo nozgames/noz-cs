@@ -102,8 +102,8 @@ public partial class SpriteEditor : DocumentEditor
                 new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true },
                 new Command { Name = "Flip Horizontal", Handler = () => FlipAxis(true) },
                 new Command { Name = "Flip Vertical", Handler = () => FlipAxis(false) },
-                new Command { Name = "Bring Forward", Handler = () => MovePathInOrder(-1), Key = InputCode.KeyLeftBracket },
-                new Command { Name = "Send Backward", Handler = () => MovePathInOrder(1), Key = InputCode.KeyRightBracket },
+                new Command { Name = "Bring Forward", Handler = () => MovePathInOrder(-1), Key = InputCode.KeyRightBracket },
+                new Command { Name = "Send Backward", Handler = () => MovePathInOrder(1), Key = InputCode.KeyLeftBracket },
                 new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
                 new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
                 new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
@@ -211,9 +211,9 @@ public partial class SpriteEditor : DocumentEditor
                 enabled: () => hasPath && vMode),
 
             PopupMenuItem.Separator(),
-            PopupMenuItem.Item("Bring Forward", () => MovePathInOrder(-1), InputCode.KeyLeftBracket,
+            PopupMenuItem.Item("Bring Forward", () => MovePathInOrder(-1), InputCode.KeyRightBracket,
                 enabled: () => hasPath && vMode),
-            PopupMenuItem.Item("Send Backward", () => MovePathInOrder(1), InputCode.KeyRightBracket,
+            PopupMenuItem.Item("Send Backward", () => MovePathInOrder(1), InputCode.KeyLeftBracket,
                 enabled: () => hasPath && vMode),
 
             PopupMenuItem.Separator(),

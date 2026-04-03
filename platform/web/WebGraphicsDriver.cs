@@ -1364,4 +1364,10 @@ public class WebGraphicsDriver : IGraphicsDriver
         return result;
     }
 
+    public Task<Color> ReadPixelAsync(nuint renderTexture, int x, int y)
+    {
+        // TODO: implement single-pixel readback for web
+        return Task.FromResult(Color.Transparent);
+    }
+
 }

@@ -66,4 +66,5 @@ public class NullGraphicsDriver : IGraphicsDriver
     public void BeginRenderTexturePass(nuint renderTexture, Color clearColor) { }
     public void EndRenderTexturePass() { }
     public Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture) => Task.FromResult(Array.Empty<byte>());
+    public Task<Color> ReadPixelAsync(nuint renderTexture, int x, int y) => Task.FromResult(Color.Transparent);
 }

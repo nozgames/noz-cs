@@ -30,6 +30,7 @@ public static partial class ElementTree
     {
         if (_elements.Length < 2) return;
 
+        _sceneRenderInfos.Clear();
         _drawOpacity = 1.0f;
         _drawSortGroup = 0;
         using var _ = Graphics.PushState();
@@ -642,6 +643,7 @@ public static partial class ElementTree
                     Handle = rt.Handle,
                     Width = rt.Width,
                     Height = rt.Height,
+                    Format = rt.Format,
                     ScreenRect = new Rect(screenTopLeft.X, screenTopLeft.Y,
                         screenBottomRight.X - screenTopLeft.X, screenBottomRight.Y - screenTopLeft.Y),
                 };

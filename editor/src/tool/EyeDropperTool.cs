@@ -9,9 +9,7 @@ namespace NoZ.Editor;
 public class EyeDropperTool(SpriteEditor editor) : Tool
 {
     private readonly SpriteEditor _editor = editor;
-    private Task<byte[]>? _readbackTask;
-    private Vector2 _readbackMouseScreen;
-    private SceneRenderInfo _readbackSceneInfo;
+    private Task<Color>? _readbackTask;
     private bool _shift;
 
     public override void Update()
@@ -24,7 +22,10 @@ public class EyeDropperTool(SpriteEditor editor) : Tool
             if (!_readbackTask.IsCompleted)
                 return;
 
-            ApplyReadbackResult();
+            var color = _readbackTask.Result;
+            _readbackTask = null;
+            _editor.ApplyEyeDropperColor(color.ToColor32(), _shift);
+            Workspace.EndTool();
             return;
         }
 
@@ -47,35 +48,13 @@ public class EyeDropperTool(SpriteEditor editor) : Tool
         if (!UI.TryGetSceneRenderInfo(Workspace.SceneWidgetId, out var info) || info.Handle == 0)
             return;
 
-        _readbackTask = Graphics.Driver.ReadRenderTexturePixelsAsync(info.Handle);
-        _readbackMouseScreen = Workspace.MousePosition;
-        _readbackSceneInfo = info;
+        var mouseScreen = Workspace.MousePosition;
+        var relX = (mouseScreen.X - info.ScreenRect.X) / info.ScreenRect.Width;
+        var relY = (mouseScreen.Y - info.ScreenRect.Y) / info.ScreenRect.Height;
+        var px = Math.Clamp((int)(relX * info.Width), 0, info.Width - 1);
+        var py = Math.Clamp((int)(relY * info.Height), 0, info.Height - 1);
+
+        _readbackTask = Graphics.Driver.ReadPixelAsync(info.Handle, px, py);
         Input.ConsumeButton(InputCode.MouseLeft);
-    }
-
-    private void ApplyReadbackResult()
-    {
-        var pixels = _readbackTask!.Result;
-        _readbackTask = null;
-
-        if (pixels.Length == 0)
-        {
-            Workspace.EndTool();
-            return;
-        }
-
-        var relX = (_readbackMouseScreen.X - _readbackSceneInfo.ScreenRect.X) / _readbackSceneInfo.ScreenRect.Width;
-        var relY = (_readbackMouseScreen.Y - _readbackSceneInfo.ScreenRect.Y) / _readbackSceneInfo.ScreenRect.Height;
-        var px = Math.Clamp((int)(relX * _readbackSceneInfo.Width), 0, _readbackSceneInfo.Width - 1);
-        var py = Math.Clamp((int)(relY * _readbackSceneInfo.Height), 0, _readbackSceneInfo.Height - 1);
-        var idx = (py * _readbackSceneInfo.Width + px) * 4;
-
-        if (idx >= 0 && idx + 3 < pixels.Length)
-        {
-            var color = new Color32(pixels[idx], pixels[idx + 1], pixels[idx + 2], 255);
-            _editor.ApplyEyeDropperColor(color, _shift);
-        }
-
-        Workspace.EndTool();
     }
 }

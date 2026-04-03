@@ -41,7 +41,7 @@ public static partial class UI
             ? style.Resolve(style, flags)
             : style;
 
-        ElementTree.BeginSize(new Size2(s.Width, s.Height));
+        ElementTree.BeginSize(new Size2(s.Width, s.Height), minWidth: s.MinWidth);
 
         ElementTree.BeginFill(s.Background, s.BorderRadius, s.BorderWidth, s.BorderColor);
 
@@ -91,7 +91,7 @@ public static partial class UI
             ? style.Resolve(style, flags)
             : style;
 
-        ElementTree.BeginSize(new Size2(s.Width, s.Height));
+        ElementTree.BeginSize(new Size2(s.Width, s.Height), minWidth: s.MinWidth);
 
         ElementTree.BeginFill(s.Background, s.BorderRadius, s.BorderWidth, s.BorderColor);
 

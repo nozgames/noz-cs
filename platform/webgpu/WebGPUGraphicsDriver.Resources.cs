@@ -856,7 +856,7 @@ public unsafe partial class WebGPUGraphicsDriver
         var rtSlot = _rtHandleToSlot[(int)renderTexture];
         ref var rt = ref _renderTextures[rtSlot];
 
-        int bytesPerPixel = 4; // RGBA8
+        int bytesPerPixel = rt.Format == WGPUTextureFormat.Rgba16float ? 8 : 4;
         int bytesPerRow = rt.Width * bytesPerPixel;
         // WebGPU requires bytesPerRow to be aligned to 256 bytes
         int alignedBytesPerRow = (bytesPerRow + 255) & ~255;
@@ -927,17 +927,18 @@ public unsafe partial class WebGPUGraphicsDriver
 
             // Read the mapped data
             var mappedPtr = wgpu.BufferGetMappedRange(stagingBuffer, 0, (nuint)bufferSize);
-            var result = new byte[width * height * 4];
+            var rowBytes = width * bytesPerPixel;
+            var result = new byte[rowBytes * height];
 
             // Copy row by row to handle alignment padding
             for (int y = 0; y < height; y++)
             {
                 var srcOffset = y * alignedBytesPerRow;
-                var dstOffset = y * width * 4;
-                System.Runtime.InteropServices.Marshal.Copy((IntPtr)((byte*)mappedPtr + srcOffset), result, dstOffset, width * 4);
+                var dstOffset = y * rowBytes;
+                System.Runtime.InteropServices.Marshal.Copy((IntPtr)((byte*)mappedPtr + srcOffset), result, dstOffset, rowBytes);
             }
 
-            // Swizzle BGRA to RGBA if needed
+            // Swizzle BGRA to RGBA if needed (only for 8-bit formats)
             if (isBgra)
             {
                 for (int i = 0; i < result.Length; i += 4)
@@ -950,6 +951,99 @@ public unsafe partial class WebGPUGraphicsDriver
             wgpu.BufferRelease(stagingBuffer);
 
             tcs.SetResult(result);
+        });
+
+        _wgpu.BufferMapAsync(stagingBuffer, MapMode.Read, 0, (nuint)bufferSize, callback, null);
+
+        return tcs.Task;
+    }
+
+    public Task<Color> ReadPixelAsync(nuint renderTexture, int x, int y)
+    {
+        var rtSlot = _rtHandleToSlot[(int)renderTexture];
+        ref var rt = ref _renderTextures[rtSlot];
+
+        int bytesPerPixel = rt.Format == WGPUTextureFormat.Rgba16float ? 8 : 4;
+        // WebGPU requires bytesPerRow aligned to 256, minimum one pixel row
+        int alignedBytesPerRow = (bytesPerPixel + 255) & ~255;
+        int bufferSize = alignedBytesPerRow;
+
+        var bufferDesc = new BufferDescriptor
+        {
+            Label = (byte*)System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi("readpixel_staging"),
+            Size = (ulong)bufferSize,
+            Usage = WGPUBufferUsage.MapRead | WGPUBufferUsage.CopyDst,
+            MappedAtCreation = false,
+        };
+        var stagingBuffer = _wgpu.DeviceCreateBuffer(_device, &bufferDesc);
+
+        var encoder = _wgpu.DeviceCreateCommandEncoder(_device, null);
+
+        var src = new ImageCopyTexture
+        {
+            Texture = rt.Texture,
+            MipLevel = 0,
+            Origin = new Origin3D { X = (uint)x, Y = (uint)y, Z = 0 },
+            Aspect = TextureAspect.All,
+        };
+
+        var dst = new ImageCopyBuffer
+        {
+            Buffer = stagingBuffer,
+            Layout = new TextureDataLayout
+            {
+                Offset = 0,
+                BytesPerRow = (uint)alignedBytesPerRow,
+                RowsPerImage = 1,
+            }
+        };
+
+        var copySize = new Extent3D { Width = 1, Height = 1, DepthOrArrayLayers = 1 };
+        _wgpu.CommandEncoderCopyTextureToBuffer(encoder, &src, &dst, &copySize);
+
+        var cmdBufferDesc = new CommandBufferDescriptor();
+        var cmdBuffer = _wgpu.CommandEncoderFinish(encoder, &cmdBufferDesc);
+        _wgpu.QueueSubmit(_queue, 1, &cmdBuffer);
+        _wgpu.CommandBufferRelease(cmdBuffer);
+        _wgpu.CommandEncoderRelease(encoder);
+
+        var tcs = new TaskCompletionSource<Color>();
+        var isBgra = rt.Format == WGPUTextureFormat.Bgra8Unorm;
+        var isHalf = rt.Format == WGPUTextureFormat.Rgba16float;
+        var wgpu = _wgpu;
+
+        PfnBufferMapCallback callback = new((status, userdata) =>
+        {
+            if (status != BufferMapAsyncStatus.Success)
+            {
+                tcs.SetException(new Exception($"ReadPixel map failed: {status}"));
+                return;
+            }
+
+            var mappedPtr = (byte*)wgpu.BufferGetMappedRange(stagingBuffer, 0, (nuint)bufferSize);
+
+            Color color;
+            if (isHalf)
+            {
+                var r = *(Half*)(mappedPtr + 0);
+                var g = *(Half*)(mappedPtr + 2);
+                var b = *(Half*)(mappedPtr + 4);
+                var a = *(Half*)(mappedPtr + 6);
+                color = new Color((float)r, (float)g, (float)b, (float)a);
+            }
+            else
+            {
+                float r = mappedPtr[isBgra ? 2 : 0] / 255f;
+                float g = mappedPtr[1] / 255f;
+                float b = mappedPtr[isBgra ? 0 : 2] / 255f;
+                float a = mappedPtr[3] / 255f;
+                color = new Color(r, g, b, a);
+            }
+
+            wgpu.BufferUnmap(stagingBuffer);
+            wgpu.BufferRelease(stagingBuffer);
+
+            tcs.SetResult(color);
         });
 
         _wgpu.BufferMapAsync(stagingBuffer, MapMode.Read, 0, (nuint)bufferSize, callback, null);
