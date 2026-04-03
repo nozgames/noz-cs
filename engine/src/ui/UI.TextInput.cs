@@ -21,7 +21,7 @@ public static partial class UI
         ref var state = ref ElementTree.BeginWidget<EditableTextState>(id);
 
         // Auto-focus when SetHot was called externally (e.g. RenameTool.Begin)
-        if (ElementTree._prevHotId == id && state.Focused == 0 && state.FocusExited == 0)
+        if (ElementTree._hotId == id && state.Focused == 0 && state.FocusExited == 0)
         {
             state.Focused = 1;
             state.JustFocused = 1;
@@ -92,10 +92,6 @@ public static partial class UI
 
         if (hasIcon)
             ElementTree.EndRow();
-
-        // Set hot AFTER EditableText's defocus check runs
-        if (state.Focused != 0)
-            SetHot(id);
 
         SetLastElement(id);
         ElementTree.EndTree();
