@@ -13,7 +13,6 @@ internal partial class CompositeSoundEditor : DocumentEditor
         public static partial WidgetId PlayButton { get; }
         public static partial WidgetId LoopButton { get; }
         public static partial WidgetId OutlinerPanel { get; }
-        public static partial WidgetId OutlinerSplitter { get; }
         public static partial WidgetId AddLayerButton { get; }
         public static partial WidgetId LayerRow { get; }
     }
@@ -23,7 +22,6 @@ internal partial class CompositeSoundEditor : DocumentEditor
     private const float UnselectedAlpha = 0.4f;
     private const float ActiveAlpha = 0.85f;
 
-    private float _outlinerSize = 180f;
     private bool _loop;
     private bool _playing;
     internal int SelectedLayerIndex = -1;
@@ -31,6 +29,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
     private readonly List<WaveformEditor> _layerEditors = [];
 
     public override bool ShowInspector => true;
+    public override bool ShowOutliner => true;
     public override bool RunInBackground => _playing;
 
     public new SoundDocument Document => (SoundDocument)base.Document;
@@ -257,19 +256,8 @@ internal partial class CompositeSoundEditor : DocumentEditor
         }
     }
 
-    public override void UpdateUI()
-    {
-        using (UI.BeginRow())
-        {
-            using (UI.BeginFlex())
-                OutlinerUI();
+    public override void UpdateUI() { }
 
-            UI.FlexSplitter(ElementId.OutlinerSplitter, ref _outlinerSize,
-                EditorStyle.Inspector.Splitter, fixedPane: 1);
-
-            using (UI.BeginFlex()) { }
-        }
-    }
 
     public override void UpdateOverlayUI()
     {

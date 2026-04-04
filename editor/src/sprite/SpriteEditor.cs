@@ -81,6 +81,7 @@ public partial class SpriteEditor : DocumentEditor
     public static List<SpritePath> HitPaths => _hitPaths;
 
     public override bool ShowInspector => true;
+    public override bool ShowOutliner => true;
 
     private int CurrentFrameIndex =>
         Document.GetFrameAtTimeSlot(_currentTimeSlot);
@@ -317,21 +318,8 @@ public partial class SpriteEditor : DocumentEditor
             HandleLeftClick();
     }
 
-    public override void UpdateUI()
-    {
-        if (!Document.IsMutable) return;
+    public override void UpdateUI() { }
 
-        using (UI.BeginRow())
-        {
-            using (UI.BeginFlex())
-                OutlinerUI();
-
-            UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
-                EditorStyle.Inspector.Splitter, fixedPane: 1);
-
-            using (UI.BeginFlex()) { }
-        }
-    }
 
     public override void UpdateOverlayUI()
     {

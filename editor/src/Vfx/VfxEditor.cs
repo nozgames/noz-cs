@@ -15,7 +15,6 @@ internal partial class VfxEditor : DocumentEditor
         public static partial WidgetId PlayButton { get; }
         public static partial WidgetId LoopButton { get; }
         public static partial WidgetId OutlinerPanel { get; }
-        public static partial WidgetId OutlinerSplitter { get; }
         public static partial WidgetId EmitterRow { get; }
         public static partial WidgetId ParticleRow { get; }
         public static partial WidgetId AddEmitterButton { get; }
@@ -24,9 +23,8 @@ internal partial class VfxEditor : DocumentEditor
         public static partial WidgetId VfxRoot { get; }
     }
 
-    private float _outlinerSize = 180f;
-
     public override bool ShowInspector => true;
+    public override bool ShowOutliner => true;
     public override bool RunInBackground => Document.IsPlaying;
 
     public new VfxDocument Document => (VfxDocument)base.Document;
@@ -55,19 +53,8 @@ internal partial class VfxEditor : DocumentEditor
         Document.Stop();
     }
 
-    public override void UpdateUI()
-    {
-        using (UI.BeginRow())
-        {
-            using (UI.BeginFlex())
-                OutlinerUI();
+    public override void UpdateUI() { }
 
-            UI.FlexSplitter(ElementId.OutlinerSplitter, ref _outlinerSize,
-                EditorStyle.Inspector.Splitter, fixedPane: 1);
-
-            using (UI.BeginFlex()) { }
-        }
-    }
 
     public override void Update()
     {

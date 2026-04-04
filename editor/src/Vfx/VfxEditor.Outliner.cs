@@ -14,7 +14,7 @@ internal partial class VfxEditor
 
     private bool IsRenaming => _renameIndex >= 0;
 
-    private void OutlinerUI()
+    public override void OutlinerUI()
     {
         if (IsRenaming)
         {
@@ -84,9 +84,9 @@ internal partial class VfxEditor
             ElementTree.EndAlign();
         }
 
-        using (Inspector.BeginSection("EMITTERS", content: AddButton))
+        using (Outliner.BeginSection("EMITTERS", content: AddButton))
         {
-            if (Inspector.IsSectionCollapsed) return;
+            if (Outliner.IsSectionCollapsed) return;
 
             for (var i = 0; i < Document.Emitters.Count; i++)
             {
@@ -110,9 +110,9 @@ internal partial class VfxEditor
             ElementTree.EndAlign();
         }
 
-        using (Inspector.BeginSection("PARTICLES", content: AddButton))
+        using (Outliner.BeginSection("PARTICLES", content: AddButton))
         {
-            if (Inspector.IsSectionCollapsed) return;
+            if (Outliner.IsSectionCollapsed) return;
 
             for (var i = 0; i < Document.Particles.Count; i++)
             {

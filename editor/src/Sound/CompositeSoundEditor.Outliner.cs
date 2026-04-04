@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 internal partial class CompositeSoundEditor
 {
-    private void OutlinerUI()
+    public override void OutlinerUI()
     {
         using (UI.BeginColumn(ElementId.OutlinerPanel, EditorStyle.Inspector.Root))
         {
@@ -40,9 +40,9 @@ internal partial class CompositeSoundEditor
             ElementTree.EndAlign();
         }
 
-        using (Inspector.BeginSection("LAYERS", content: AddButton))
+        using (Outliner.BeginSection("LAYERS", content: AddButton))
         {
-            if (Inspector.IsSectionCollapsed) return;
+            if (Outliner.IsSectionCollapsed) return;
 
             for (var i = 0; i < Document.Layers.Count; i++)
             {

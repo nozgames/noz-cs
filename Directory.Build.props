@@ -9,5 +9,6 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <GenerateMSBuildEditorConfigFile>false</GenerateMSBuildEditorConfigFile>
   </PropertyGroup>
 </Project>

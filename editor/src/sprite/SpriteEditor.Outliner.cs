@@ -22,7 +22,6 @@ public partial class SpriteEditor
     private static partial class WidgetIds
     {
         public static partial WidgetId OutlinerPanel { get; }
-        public static partial WidgetId OutlinerSplitter { get; }
         public static partial WidgetId OutlinerLayer { get; }
         public static partial WidgetId OutlinerVisibility { get; }
         public static partial WidgetId OutlinerLock { get; }
@@ -31,7 +30,6 @@ public partial class SpriteEditor
         public static partial WidgetId OutlinerRename { get; }
     }
 
-    private float _outlinerSize = 180;
     private int _outlinerIndex;
     private SpriteNode? _renameNode;
     private string _renameText = "";
@@ -82,8 +80,10 @@ public partial class SpriteEditor
         ContentColor = EditorStyle.Palette.SecondaryText,
     };
 
-    private void OutlinerUI()
+    public override void OutlinerUI()
     {
+        if (!Document.IsMutable) return;
+
         _outlinerIndex = 0;
 
         // Handle rename input before anything else
