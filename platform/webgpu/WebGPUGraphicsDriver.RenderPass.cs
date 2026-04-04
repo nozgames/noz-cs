@@ -8,6 +8,8 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver
 {
+    private static readonly ProfilerCounter s_counterEndScenePass = new("WebGPU.EndScenePass");    
+
     public void BeginScenePass(Color clearColor)
     {
         if (_currentRenderPass != null)
@@ -63,20 +65,15 @@ public unsafe partial class WebGPUGraphicsDriver
 
     public void EndScenePass()
     {
+        s_counterEndScenePass.Increment(1);
+
         if (_currentRenderPass == null)
             throw new InvalidOperationException("EndScenePass called without matching BeginScenePass");
 
         _wgpu.RenderPassEncoderPopDebugGroup(_currentRenderPass);
         _wgpu.RenderPassEncoderEnd(_currentRenderPass);
         _wgpu.RenderPassEncoderRelease(_currentRenderPass);
-        _currentRenderPass = null;
-
-        if (_bindGroupsToRelease.Count > 0)
-        {
-            foreach (var bindGroup in _bindGroupsToRelease)
-                _wgpu.BindGroupRelease((BindGroup*)bindGroup);
-            _bindGroupsToRelease.Clear();
-        }
+        _currentRenderPass = null;        
 
         _currentBindGroup = null;
     }

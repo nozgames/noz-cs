@@ -14,6 +14,20 @@ namespace NoZ;
 
 public static unsafe partial class ElementTree
 {
+    private static readonly ProfilerMarker s_markerLayout = new("UI.Layout");
+    private static readonly ProfilerMarker s_markerTransforms = new("UI.Transforms");
+    private static readonly ProfilerMarker s_markerDraw = new("UI.Draw");
+    private static readonly ProfilerMarker s_markerInput = new("UI.Input");
+    private static readonly ProfilerCounter s_counterElements = new("UI.Elements");
+    private static readonly ProfilerCounter s_counterWidgets = new("UI.Widgets");
+    private static readonly ProfilerCounter s_counterPopups = new("UI.Popups");
+    private static readonly ProfilerCounter s_counterFills = new("UI.Fills");
+    private static readonly ProfilerCounter s_counterLabels = new("UI.Labels");
+    private static readonly ProfilerCounter s_counterImages = new("UI.Images");
+    private static readonly ProfilerCounter s_counterScenes = new("UI.Scenes");
+    private static readonly ProfilerCounter s_counterVertices = new("UI.Vertices");
+    private static readonly ProfilerCounter s_counterIndices = new("UI.Indices");
+
     private const int MaxElements = 4096;
     private const int MaxDataSize = 8192 * 4;
     private const int MaxWidgets = 1024;
@@ -134,9 +148,18 @@ public static unsafe partial class ElementTree
 
         if (_elements.Length < 2) return;
 
-        LayoutAxis(0, 0, ScreenSize.X, 0, -1);
-        LayoutAxis(0, 0, ScreenSize.Y, 1, -1);
-        UpdateTransforms(0, Matrix3x2.Identity, Matrix3x2.Identity, Vector2.Zero);
+        using (s_markerLayout.Begin())
+        {
+            LayoutAxis(0, 0, ScreenSize.X, 0, -1);
+            LayoutAxis(0, 0, ScreenSize.Y, 1, -1);
+        }
+
+        using (s_markerTransforms.Begin())
+            UpdateTransforms(0, Matrix3x2.Identity, Matrix3x2.Identity, Vector2.Zero);
+
+        s_counterElements.Value = _elements.Length;
+        s_counterWidgets.Value = _widgets.Count;
+        s_counterPopups.Value = _popupCount;
     }
 
     public static void BeginTree()

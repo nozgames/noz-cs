@@ -13,6 +13,8 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver
 {
+    private static readonly ProfilerCounter s_counterEndTexturePass = new("WebGPU.EndRenderTexturePass");    
+
     // Mesh Management
     public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex
     {
@@ -821,6 +823,8 @@ public unsafe partial class WebGPUGraphicsDriver
 
     public void EndRenderTexturePass()
     {
+        s_counterEndTexturePass.Increment(1);
+
         if (_currentRenderPass == null)
             throw new InvalidOperationException("Not in a render pass");
 
@@ -828,13 +832,6 @@ public unsafe partial class WebGPUGraphicsDriver
         _wgpu.RenderPassEncoderRelease(_currentRenderPass);
         _currentRenderPass = null;
         _activeRenderTexture = 0;
-
-        if (_bindGroupsToRelease.Count > 0)
-        {
-            foreach (var bindGroup in _bindGroupsToRelease)
-                _wgpu.BindGroupRelease((BindGroup*)bindGroup);
-            _bindGroupsToRelease.Clear();
-        }
 
         _currentBindGroup = null;
     }

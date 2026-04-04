@@ -22,6 +22,8 @@ public static class DocumentManager
     private static bool _watching;
 
     public static IReadOnlyList<Document> Documents => _documents;
+    public static int Count => _documents.Count;
+    public static Document GetAt(int index) => _documents[index];
     public static IReadOnlyList<string> SourcePaths => _sourcePaths;
     public static string OutputPath => _outputPath;
 
@@ -37,8 +39,6 @@ public static class DocumentManager
 
     private static readonly Dictionary<AssetType, DocumentDef> _defsByType = new();
     private static readonly Dictionary<string, List<DocumentDef>> _defsByExtension = new();
-
-    public static int Count => _documents.Count;
 
     public static void Init(string[] sourcePaths, string outputPath)
     {

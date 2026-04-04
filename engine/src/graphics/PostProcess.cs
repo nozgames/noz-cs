@@ -7,7 +7,7 @@ using System.Numerics;
 namespace NoZ;
 
 public static class PostProcess
-{
+{    
     private static RenderTexture _sceneRT;
     private static RenderTexture _currentRT;
     private static bool _active;
@@ -129,11 +129,11 @@ public static class PostProcess
         }
 
         // Composite onto original
-        Graphics.SetUniform("composite_params", intensity);
-        BeginBlit(_compositeShader);
-        Graphics.SetTexture(original.Handle, slot: 2);
-        Graphics.SetTextureFilter(TextureFilter.Linear, slot: 2);
-        EndBlit();
+            Graphics.SetUniform("composite_params", intensity);
+            BeginBlit(_compositeShader);
+            Graphics.SetTexture(original.Handle, slot: 2);
+            Graphics.SetTextureFilter(TextureFilter.Linear, slot: 2);
+            EndBlit();
     }
 
     private static void UpdateCamera(int width, int height)

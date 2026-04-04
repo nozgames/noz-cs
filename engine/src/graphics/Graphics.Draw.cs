@@ -144,21 +144,17 @@ public static partial class Graphics
         var p3 = new Vector2(bounds.Left, bounds.Bottom);
         var uv = sf.UV;
 
-        using (PushState())
-        {
-            SetTexture(sprite.Atlas!);
+        SetTexture(sprite.Atlas!);
 
-
-            Span<MeshVertex> verts =
-            [
-                new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-            ];
-            ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
-            AddTriangles(verts, indices, order: sprite.SortOrder, bone: drawBone);
-        }
+        Span<MeshVertex> verts =
+        [
+            new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+        ];
+        ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+        AddTriangles(verts, indices, order: sprite.SortOrder, bone: drawBone);
     }
 
     public static void Draw(Sprite sprite, ushort order, int bone = -1, int frame = 0)
@@ -174,21 +170,17 @@ public static partial class Graphics
         var p2 = new Vector2(meshBounds.Right, meshBounds.Bottom);
         var p3 = new Vector2(meshBounds.Left, meshBounds.Bottom);
 
-        using (PushState())
-        {
-            SetTexture(sprite.Atlas!);
+        SetTexture(sprite.Atlas!);
 
-
-            Span<MeshVertex> verts =
-            [
-                new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-            ];
-            ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
-            AddTriangles(verts, indices, order: order, bone: bone);
-        }
+        Span<MeshVertex> verts =
+        [
+            new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+        ];
+        ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+        AddTriangles(verts, indices, order: order, bone: bone);
     }
 
     public static void DrawFlat(Sprite sprite, ushort order = 0, int bone = -1, int frame = 0)
@@ -210,20 +202,17 @@ public static partial class Graphics
         var p3 = new Vector2(bounds.Left, bounds.Bottom);
         var uv = sf.UV;
 
-        using (PushState())
-        {
-            SetTexture(sprite.Atlas!);
+        SetTexture(sprite.Atlas!);
 
-            Span<MeshVertex> verts =
-            [
-                new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-                new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
-            ];
-            ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
-            AddTriangles(verts, indices, order: order, bone: bone);
-        }
+        Span<MeshVertex> verts =
+        [
+            new MeshVertex { Position = p0, UV = uv.TopLeft, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p1, UV = new Vector2(uv.Right, uv.Top), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p2, UV = uv.BottomRight, Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+            new MeshVertex { Position = p3, UV = new Vector2(uv.Left, uv.Bottom), Normal = Vector2.Zero, Atlas = atlas, FrameCount = 1, Color = Color.White },
+        ];
+        ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+        AddTriangles(verts, indices, order: order, bone: bone);
     }
 
     public static void DrawRaw(Sprite sprite, ushort order = 0, int bone = -1, int frame = 0)

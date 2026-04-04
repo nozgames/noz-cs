@@ -16,6 +16,9 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 {
+    private static readonly ProfilerCounter s_counterBindGroupRelease = new("WebGPU.BindGroupRelease");    
+    private static readonly ProfilerCounter s_counterGlobalBuffers = new("WebGPU.GlobalBuffers");
+
     private GraphicsDriverConfig _config = null!;
     private Silk.NET.WebGPU.WebGPU _wgpu = null!;
 
@@ -59,7 +62,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     // Bind group management
     private BindGroup* _currentBindGroup;
-    private List<nint> _bindGroupsToRelease = new();
+    private readonly Dictionary<int, nint> _bindGroupCache = new();
 
     // Global samplers for per-draw-call filtering
     private Sampler* _linearSampler;
@@ -592,18 +595,13 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _wgpu.CommandEncoderRelease(_commandEncoder);
         _commandEncoder = null;
 
-        if (_bindGroupsToRelease.Count > 0)
-        {
-            foreach (var bindGroup in _bindGroupsToRelease)
-                _wgpu.BindGroupRelease((BindGroup*)bindGroup);
-            _bindGroupsToRelease.Clear();
-        }
+        s_counterBindGroupRelease.Increment(_bindGroupCache.Count);
+        s_counterGlobalBuffers.Increment(_globalsBufferCount);
 
-        if (_currentBindGroup != null)
-        {
-            _wgpu.BindGroupRelease(_currentBindGroup);
-            _currentBindGroup = null;
-        }
+        foreach (var bg in _bindGroupCache.Values)
+            _wgpu.BindGroupRelease((BindGroup*)bg);
+        _bindGroupCache.Clear();
+        _currentBindGroup = null;
 
         if (_currentSurfaceTextureView != null)
         {

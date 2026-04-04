@@ -11,6 +11,8 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver
 {
+    private static readonly ProfilerCounter s_counterBindGroupCreations = new("WebGPU.BindGroupCreations");            
+
     public void SetBlendMode(BlendMode mode)
     {
         if (_state.BlendMode == mode)
@@ -146,6 +148,19 @@ public unsafe partial class WebGPUGraphicsDriver
         );
     }
 
+    private int ComputeBindGroupCacheKey()
+    {
+        var hash = new HashCode();
+        hash.Add(_state.BoundShader);
+        hash.Add(_currentGlobalsIndex);
+        for (int i = 0; i < 8; i++)
+        {
+            hash.Add(_state.BoundTextures[i]);
+            hash.Add(_state.TextureFilters[i]);
+        }
+        return hash.ToHashCode();
+    }
+
     private void UpdateBindGroupIfNeeded()
     {
         if (!_state.BindGroupDirty)
@@ -161,6 +176,47 @@ public unsafe partial class WebGPUGraphicsDriver
             return;
         }
 
+        // Write uniform data before cache check — data changes don't affect cache key
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            var binding = bindings[i];
+            if (binding.Type != ShaderBindingType.UniformBuffer || binding.Name == "globals")
+                continue;
+
+            if (!_uniformData.TryGetValue(binding.Name, out var uniformData))
+                continue;
+
+            if (!shader.UniformBuffers.TryGetValue(binding.Name, out var bufferPtr) || bufferPtr == 0)
+            {
+                var bufferDesc = new BufferDescriptor
+                {
+                    Size = (ulong)uniformData.Length,
+                    Usage = WGPUBufferUsage.Uniform | WGPUBufferUsage.CopyDst,
+                    MappedAtCreation = false,
+                };
+                var buffer = _wgpu.DeviceCreateBuffer(_device, &bufferDesc);
+                shader.UniformBuffers[binding.Name] = (nint)buffer;
+                bufferPtr = (nint)buffer;
+            }
+
+            fixed (byte* dataPtr = uniformData)
+            {
+                _wgpu.QueueWriteBuffer(_queue, (WGPUBuffer*)bufferPtr, 0, dataPtr, (nuint)uniformData.Length);
+            }
+        }
+
+        // Cache check — keyed on resource references, not buffer contents
+        var cacheKey = ComputeBindGroupCacheKey();
+        if (_bindGroupCache.TryGetValue(cacheKey, out var cached))
+        {
+            _currentBindGroup = (BindGroup*)cached;
+            if (_currentRenderPass != null)
+                _wgpu.RenderPassEncoderSetBindGroup(_currentRenderPass, 0, _currentBindGroup, 0, null);
+            _state.BindGroupDirty = false;
+            return;
+        }
+
+        // Cache miss — create bind group
         var entries = stackalloc BindGroupEntry[bindings.Count];
         int validEntryCount = 0;
 
@@ -175,7 +231,6 @@ public unsafe partial class WebGPUGraphicsDriver
                     WGPUBuffer* buffer;
                     ulong bufferSize;
 
-                    // Use indexed globals buffer for "globals" uniform
                     if (binding.Name == "globals")
                     {
                         if (_currentGlobalsIndex < 0 || _currentGlobalsIndex >= _globalsBufferCount)
@@ -189,37 +244,14 @@ public unsafe partial class WebGPUGraphicsDriver
                     }
                     else
                     {
-                        // Get uniform data by name for non-globals uniforms
-                        if (!_uniformData.TryGetValue(binding.Name, out var uniformData))
+                        if (!shader.UniformBuffers.TryGetValue(binding.Name, out var bufferPtr) || bufferPtr == 0)
                         {
-                            Log.Error($"Uniform '{binding.Name}' not set!");
+                            Log.Error($"Uniform buffer for '{binding.Name}' not created!");
                             _state.BindGroupDirty = false;
                             return;
                         }
-
-                        // Get or create per-shader buffer for this uniform
-                        if (!shader.UniformBuffers.TryGetValue(binding.Name, out var bufferPtr) || bufferPtr == 0)
-                        {
-                            var bufferDesc = new BufferDescriptor
-                            {
-                                Size = (ulong)uniformData.Length,
-                                Usage = WGPUBufferUsage.Uniform | WGPUBufferUsage.CopyDst,
-                                MappedAtCreation = false,
-                            };
-                            buffer = _wgpu.DeviceCreateBuffer(_device, &bufferDesc);
-                            shader.UniformBuffers[binding.Name] = (nint)buffer;
-                        }
-                        else
-                        {
-                            buffer = (WGPUBuffer*)bufferPtr;
-                        }
-
-                        // Write current uniform data to the shader's buffer
-                        fixed (byte* dataPtr = uniformData)
-                        {
-                            _wgpu.QueueWriteBuffer(_queue, buffer, 0, dataPtr, (nuint)uniformData.Length);
-                        }
-                        bufferSize = (ulong)uniformData.Length;
+                        buffer = (WGPUBuffer*)bufferPtr;
+                        bufferSize = (ulong)_uniformData[binding.Name].Length;
                     }
 
                     entries[validEntryCount++] = new BindGroupEntry
@@ -272,12 +304,6 @@ public unsafe partial class WebGPUGraphicsDriver
             }
         }
 
-        if (_currentBindGroup != null)
-        {
-            _bindGroupsToRelease.Add((nint)_currentBindGroup);
-            _currentBindGroup = null;
-        }
-
         var desc = new BindGroupDescriptor
         {
             Layout = shader.BindGroupLayout0,
@@ -286,11 +312,15 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         _currentBindGroup = _wgpu.DeviceCreateBindGroup(_device, &desc);
 
+        s_counterBindGroupCreations.Increment(1);
+
         if (_currentBindGroup == null)
         {
             Log.Error("Failed to create bind group!");
             return;
         }
+
+        _bindGroupCache[cacheKey] = (nint)_currentBindGroup;
 
         if (_currentRenderPass != null)
             _wgpu.RenderPassEncoderSetBindGroup(_currentRenderPass, 0, _currentBindGroup, 0, null);

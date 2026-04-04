@@ -77,6 +77,7 @@ public static partial class EditorApplication
         AppConfig = config;
         var initProject = false;
         var exportOnly = false;
+        var profilerMode = false;
         string? initProjectName = null;
         var clean = false;
         string? projectArg = null;
@@ -92,6 +93,8 @@ public static partial class EditorApplication
             }
             else if (args[i] == "--export" || args[i] == "--import")
                 exportOnly = true;
+            else if (args[i] == "--profiler")
+                profilerMode = true;
             else if (args[i] == "--project" && i + 1 < args.Length)
                 projectArg = args[++i];
             else if (args[i] == "--editor-path" && i + 1 < args.Length)
@@ -214,6 +217,13 @@ public static partial class EditorApplication
         Log.Info($"Editor Path: {editorPath}");
         Log.Info($"Project Path: {projectPath}");
 
+        // Profiler mode: skip editor init, launch profiler viewer directly
+        if (profilerMode)
+        {
+            ProfilerApplication.Run(editorPath);
+            return;
+        }
+
         Init(editorPath, projectPath, clean, config);
 
         // Export-only mode: export assets and exit without launching GUI
@@ -225,6 +235,10 @@ public static partial class EditorApplication
             DocumentManager.Shutdown();
             return;
         }
+
+//#if DEBUG
+        Profiler.Enabled = true;
+//#endif
 
         Application.Init(new ApplicationConfig
         {
@@ -246,7 +260,7 @@ public static partial class EditorApplication
             {
                 Driver = new WebGPUGraphicsDriver(),
                 PixelsPerUnit = Config.PixelsPerUnit,
-                Vsync = false,
+                Vsync = true,
                 HDR = true
             }
         });

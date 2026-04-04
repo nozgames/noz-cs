@@ -18,6 +18,20 @@ public enum RenderPass : byte
 
 public static unsafe partial class Graphics
 {
+    private static readonly ProfilerMarker s_markerEndFrame = new("Graphics.EndFrame");
+    private static readonly ProfilerMarker s_markerExecuteCommands = new("Graphics.ExecuteCommands");
+    private static readonly ProfilerMarker s_markerFlush = new("Graphics.Flush");
+    private static readonly ProfilerMarker s_markerUploadBones  = new("Graphics.UploadBones");
+    private static readonly ProfilerMarker s_markerCreateBatches = new("Graphics.CreateBatches");
+    private static readonly ProfilerMarker s_markerUploadGlobals = new("Graphics.UploadGlobals");
+    private static readonly ProfilerMarker s_markerDrawElements = new("Graphics.DrawElements");
+    private static readonly ProfilerMarker s_markerEndPass = new("Graphics.EndPass");
+    private static readonly ProfilerMarker s_markerEndRenderTexturePass = new("Graphics.EndRenderTexturePass");
+    private static readonly ProfilerCounter s_counterDrawCalls = new("Graphics.DrawCalls");
+    private static readonly ProfilerCounter s_counterVertices = new("Graphics.Vertices");
+    private static readonly ProfilerCounter s_counterIndices = new("Graphics.Indices");
+    private static readonly ProfilerCounter s_counterCommands = new("Graphics.Commands");
+
     private const int MaxRenderPasses = 16;
     private const int MaxSortGroups = 1526;
     private const int MaxStateStack = 16;
@@ -198,7 +212,9 @@ public static unsafe partial class Graphics
         return true;
     }
 
-    public static void BeginPass(RenderTexture rt, Color? clearColor = null)
+    public static void BeginPass(RenderTexture rt) => BeginPass(rt, Color.Transparent);
+
+    public static void BeginPass(RenderTexture rt, Color clearColor)
     {
         if (!rt.IsValid)
             throw new InvalidOperationException("Cannot begin pass with invalid render texture");
@@ -208,7 +224,7 @@ public static unsafe partial class Graphics
 
         PushState();
 
-        CurrentState.ClearColor = clearColor ?? Color.Transparent;
+        CurrentState.ClearColor = clearColor;
         _currentPass = RenderPass.RenderTexture;
         _rtPassIndex++;
         _activeRenderTexture = rt;
@@ -232,12 +248,14 @@ public static unsafe partial class Graphics
 
     internal static void EndFrame()
     {
-        ExecuteCommands();
+        using (s_markerExecuteCommands.Begin())
+            ExecuteCommands();
 
         AfterEndFrame?.Invoke();
         AfterEndFrame = null;
 
-        Driver.EndFrame();
+        using (s_markerEndFrame.Begin())
+            Driver.EndFrame();
     }
 
     internal static void ResolveAssets()
@@ -354,6 +372,8 @@ public static unsafe partial class Graphics
         int atlasIndex = 0,
         int bone = -1)
     {
+
+        s_markerTemp.Begin();
         Span<MeshVertex> verts =
         [
             new MeshVertex { Position = p0, UV = uv0, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Color = Color.White },
@@ -362,8 +382,11 @@ public static unsafe partial class Graphics
             new MeshVertex { Position = p3, UV = uv3, Normal = Vector2.Zero, Atlas = atlasIndex, FrameCount = 1, Color = Color.White },
         ];
         ReadOnlySpan<ushort> indices = [0, 1, 2, 2, 3, 0];
+        s_markerTemp.End();
         AddTriangles(verts, indices, order: order, bone: bone);
     }
+
+private static readonly ProfilerMarker s_markerTemp = new("temp");
 
     private static void AddTriangles(
         ReadOnlySpan<MeshVertex> vertices,
@@ -372,7 +395,7 @@ public static unsafe partial class Graphics
         int bone)
     {
         if (CurrentState.Shader == null)
-            return;
+            return;            
 
         SetMesh(_mesh);
 
@@ -399,8 +422,9 @@ public static unsafe partial class Graphics
 
         if (bone == -1)
         {
-            foreach (var v in vertices)
+            for (var i = 0; i < vertices.Length; i++)
             {
+                ref readonly var v = ref vertices[i];
                 _vertices.Add(v with
                 {
                     Position = Vector2.Transform(v.Position, CurrentState.Transform),
@@ -424,8 +448,8 @@ public static unsafe partial class Graphics
             }
         }
 
-        foreach (var idx in indices)
-            _indices.Add((ushort)(baseVertex + idx));
+        for (var i = 0; i < indices.Length; i++)
+            _indices.Add((ushort)(baseVertex + indices[i]));
     }
 
     private static void AddBatch(ushort batchState, int indexOffset, int indexCount)
@@ -530,6 +554,20 @@ public static unsafe partial class Graphics
         }
     }
     
+    private static void EndRenderPass(nuint currentRT)
+    {
+        if (currentRT == 0)
+        {
+            using (s_markerEndPass.Begin())
+                Driver.EndScenePass();
+        }
+        else if (currentRT != nuint.MaxValue)
+        {
+            using (s_markerEndRenderTexturePass.Begin())
+                Driver.EndRenderTexturePass();                    
+        }
+    }
+
     private static void ExecuteCommands()
     {
         // If no commands, just clear the screen and return early
@@ -540,13 +578,17 @@ public static unsafe partial class Graphics
             return;
         }
 
-        TextRender.Flush();
-        UI.Flush();
-        ElementTree.Flush();
+        using (s_markerFlush.Begin())
+        {
+            TextRender.Flush();
+            UI.Flush();
+            ElementTree.Flush();            
+        }
 
         _commands.AsSpan().Sort();
 
-        CreateBatches();
+        using (s_markerCreateBatches.Begin())
+            CreateBatches();
 
         if (_vertices.Length > 0 || _indices.Length > 0)
         {
@@ -558,11 +600,14 @@ public static unsafe partial class Graphics
             Driver.UpdateMesh(_mesh.Handle, _vertices.AsByteSpan(), _sortedIndices.AsSpan());
         }
 
-        UploadBones();
+        using (s_markerUploadBones.Begin())
+            UploadBones();
+
         Driver.BindTexture(_boneTexture, BoneTextureSlot);
 
         // Upload all globals snapshots to driver
-        UploadGlobals();
+        using (s_markerUploadGlobals.Begin())
+            UploadGlobals();
 
         // Track current render target for pass switching (0 = scene pass, non-zero = RT pass)
         nuint currentRT = nuint.MaxValue;  // Invalid value to force first pass begin
@@ -577,12 +622,7 @@ public static unsafe partial class Graphics
             // Handle pass switching based on render target
             if (currentRT != batchState.RenderTextureHandle)
             {
-                // End previous pass (if any)
-                if (currentRT == 0)
-                    Driver.EndScenePass();
-                else if (currentRT != nuint.MaxValue)
-                    Driver.EndRenderTexturePass();
-
+                EndRenderPass(currentRT);
                 currentRT = batchState.RenderTextureHandle;
 
                 // Begin new pass
@@ -635,17 +675,15 @@ public static unsafe partial class Graphics
             Driver.SetBlendMode(batchState.BlendMode);
             Driver.BindMesh(batchState.Mesh);
 
-            Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
+            using (s_markerDrawElements.Begin())
+                Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
         }
 
         // Clear scissor before ending the final pass
         Driver.ClearScissor();
 
         // End the final pass
-        if (currentRT == 0)
-            Driver.EndScenePass();
-        else if (currentRT != nuint.MaxValue)
-            Driver.EndRenderTexturePass();
+        EndRenderPass(currentRT);
 
         // Clear any RT passes that had no draw commands (e.g. empty workspace with grid hidden)
         for (int r = 0; r < _rtPassCount; r++)
@@ -656,6 +694,11 @@ public static unsafe partial class Graphics
                 Driver.EndRenderTexturePass();
             }
         }
+
+        s_counterDrawCalls.Increment(_batches.Length);
+        s_counterCommands.Increment(_commands.Length);
+        s_counterVertices.Increment(_vertices.Length);
+        s_counterIndices.Increment(_indices.Length);
 
         _commands.Clear();
         _vertices.Clear();

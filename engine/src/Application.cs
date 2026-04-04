@@ -111,6 +111,9 @@ public static class Application
 
         AssetWatcher.Init();
 
+        if (config.Profiler)
+            Profiler.Init();
+
         _instance.Init();
 
         _running = true;
@@ -148,6 +151,7 @@ public static class Application
             return false;
 
         Time.Update();
+        Profiler.BeginFrame();
         Input.BeginFrame();
 
         if (!Platform.PollEvents())
@@ -185,6 +189,7 @@ public static class Application
         VfxSystem.Update();
         Cursor.Update();
         Graphics.EndFrame();
+        Profiler.EndFrame();
 
         return _running;
     }
@@ -203,6 +208,7 @@ public static class Application
         Audio.Shutdown();
         Input.Shutdown();
         Time.Shutdown();
+        Profiler.Shutdown();
 
         Platform.OnEvent -= Input.ProcessEvent;
         Platform.OnEvent -= OnPlatformEvent;

@@ -29,6 +29,7 @@ public static partial class ElementTree
     internal static void Draw()
     {
         if (_elements.Length < 2) return;
+        using var _m = s_markerDraw.Begin();
 
         _sceneRenderInfos.Clear();
         _drawOpacity = 1.0f;
@@ -50,6 +51,9 @@ public static partial class ElementTree
             Graphics.SetSortGroup(_drawSortGroup);
             DrawElement(_popups[i]);
         }
+
+        s_counterVertices.Value = _vertices.Length;
+        s_counterIndices.Value = _indices.Length;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -66,6 +70,7 @@ public static partial class ElementTree
         {
             case ElementType.Fill:
             {
+                s_counterFills.Increment();
                 ref var d = ref e.Data.Fill;
                 if (d.HasGradient)
                 {
@@ -85,14 +90,17 @@ public static partial class ElementTree
             }
 
             case ElementType.Text:
+                s_counterLabels.Increment();
                 DrawLabel(ref e);
                 break;
 
             case ElementType.Image:
+                s_counterImages.Increment();
                 DrawImage(ref e);
                 break;
 
             case ElementType.Scene:
+                s_counterScenes.Increment();
                 DrawScene(ref e);
                 break;
 

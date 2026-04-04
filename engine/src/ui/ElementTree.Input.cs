@@ -124,6 +124,7 @@ public static unsafe partial class ElementTree
     internal static void HandleInput()
     {
         if (_elements.Length < 2) return;
+        using var _m = s_markerInput.Begin();
 
         _inputMousePressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
         _inputMouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft);

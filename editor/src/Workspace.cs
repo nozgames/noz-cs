@@ -445,6 +445,8 @@ public static partial class Workspace
         if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
             ;
 
+            UI.Button(WidgetIds.Toolbar, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly);
+
         using (UI.BeginFlex())
             if (_showFps)
             {
@@ -562,8 +564,9 @@ public static partial class Workspace
         Graphics.PushState();
         Graphics.SetLayer(EditorLayer.Document);
 
-        foreach (var doc in DocumentManager.Documents)
+        for (int i = 0, c = DocumentManager.Count; i < c; i++)
         {
+            var doc = DocumentManager.GetAt(i);
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
             if (doc.IsEditing || doc.IsClipped)
@@ -620,8 +623,9 @@ public static partial class Workspace
         Graphics.SetLayer(EditorLayer.Names);
         TextRender.SetOutline(EditorStyle.Workspace.NameOutlineColor, EditorStyle.Workspace.NameOutline, 0.5f); 
 
-        foreach (var doc in DocumentManager.Documents)
+        for (int i = 0, c = DocumentManager.Count; i < c; i++)
         {
+            var doc = DocumentManager.GetAt(i);
             if (!doc.Loaded || !doc.PostLoaded) continue;
             if (!ShowHidden && !doc.IsVisible) continue;
             if (doc.IsClipped) continue;

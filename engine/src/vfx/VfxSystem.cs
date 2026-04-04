@@ -16,6 +16,7 @@ public struct VfxHandle
 
 public static class VfxSystem
 {
+    private static readonly ProfilerMarker s_markerUpdate = new("VfxSystem.Update");
     private const int MaxParticles = 4096;
     private const int MaxEmitters = 2024;
     private const int MaxInstances = 256;
@@ -276,6 +277,7 @@ public static class VfxSystem
 
     public static void Update()
     {
+        using var _ = s_markerUpdate.Begin();
         UpdateEmitters();
         SimulateParticles();
     }

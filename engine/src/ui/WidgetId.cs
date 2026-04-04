@@ -4,7 +4,7 @@
 
 namespace NoZ;
 
-public readonly struct WidgetId(ulong value)
+public readonly struct WidgetId(ulong value) : IEquatable<WidgetId>
 {
     public static readonly WidgetId None = default;
 
@@ -17,5 +17,8 @@ public readonly struct WidgetId(ulong value)
 
     public bool IsNone => Value == 0;
 
+    public bool Equals(WidgetId other) => Value == other.Value;
+    public override bool Equals(object? obj) => obj is WidgetId other && Equals(other);
+    public override int GetHashCode() => Value.GetHashCode();
     public override string ToString() => Value.ToString();
 }
