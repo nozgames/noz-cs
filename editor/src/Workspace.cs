@@ -22,6 +22,7 @@ public static partial class Workspace
         public static partial WidgetId CollectionButton { get; }
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId Scene { get; }
+        public static partial WidgetId ReferencesButton { get; }
         public static partial WidgetId InspectorSplitter { get; }
     }
 
@@ -48,7 +49,11 @@ public static partial class Workspace
     private static bool _showFps;
     private static bool _showGrid = true;
     private static bool _showNames;
+    private static bool _showReferences;
     private static bool _isolationOverride;
+    private static Vector2 _savedCameraPosition;
+    private static float _savedCameraZoom;
+    private static bool _hasSavedCamera;
 
     private static Vector2 _mousePosition;
     private static Vector2 _mouseWorldPosition;
@@ -83,6 +88,10 @@ public static partial class Workspace
     public static Vector2 DragWorldDelta { get; private set; }
     public static Vector2 DragWorldPosition { get; private set; }
     public static WorkspaceState State { get; private set; } = WorkspaceState.Default;
+
+    private static bool IsIsolationActive =>
+        State == WorkspaceState.Edit &&
+        ((ActiveEditor?.ShowInIsolation ?? false) != _isolationOverride);
     public static int SelectedCount { get; private set; }
     public static Tool? ActiveTool { get; private set; }
 
@@ -183,27 +192,27 @@ public static partial class Workspace
 
     private static void InitCommands()
     {
-        var renameCommand = new Command { Name = "Rename", Handler = BeginRenameTool, Key = InputCode.KeyF2 };
-        var deleteCommand = new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete };
-        var duplicateCommand = new Command { Name = "Duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true, Icon = EditorAssets.Sprites.IconDuplicate };
-        var editCommand = new Command { Name = "Edit", Handler = BeginEdit, Key = InputCode.KeyTab, Icon = EditorAssets.Sprites.IconEdit };
-        var hideCommand = new Command { Name = "Hide", Handler = HandleHide, Key = InputCode.KeyH, Icon = EditorAssets.Sprites.IconPreview };
-        var unhideAllCommand = new Command { Name = "Unhide All", Handler = HandleUnhideAll, Key = InputCode.KeyH, Ctrl = true, Icon = EditorAssets.Sprites.IconPreview };
+        var renameCommand = new Command("Rename", BeginRenameTool, [InputCode.KeyF2]);
+        var deleteCommand = new Command("Delete", DeleteSelected, [InputCode.KeyX, InputCode.KeyDelete], EditorAssets.Sprites.IconDelete);
+        var duplicateCommand = new Command("Duplicate", DuplicateSelected, [new KeyBinding(InputCode.KeyD, ctrl: true)], EditorAssets.Sprites.IconDuplicate);
+        var editCommand = new Command("Edit", BeginEdit, [InputCode.KeyTab], EditorAssets.Sprites.IconEdit);
+        var hideCommand = new Command("Hide", HandleHide, [InputCode.KeyH], EditorAssets.Sprites.IconPreview);
+        var unhideAllCommand = new Command("Unhide All", HandleUnhideAll, [new KeyBinding(InputCode.KeyH, ctrl: true)], EditorAssets.Sprites.IconPreview);
 
         CommandManager.RegisterCommon([
-            new Command { Name = "Save All", Handler = DocumentManager.SaveAll, Key = InputCode.KeyS, Ctrl = true },
-            new Command { Name = "Undo", Handler = () => Undo.DoUndo(), Key = InputCode.KeyZ, Ctrl = true },
-            new Command { Name = "Redo", Handler = () => Undo.DoRedo(), Key = InputCode.KeyY, Ctrl = true },
-            new Command { Name = "Increase UI Scale", Handler = IncreaseUIScale, Key = InputCode.KeyEquals, Ctrl = true },
-            new Command { Name = "Decrease UI Scale", Handler = DecreaseUIScale, Key = InputCode.KeyMinus, Ctrl = true },
-            new Command { Name = "Reset UI Scale", Handler = ResetUIScale, Key = InputCode.Key0, Ctrl = true },
-            new Command { Name = "Command Palette", Handler = CommandPalette.Open, Key = InputCode.KeyP, Ctrl = true, Shift = true },
-            new Command { Name = "Asset Browser", Handler = () => AssetPalette.Open(), Key = InputCode.KeyP, Ctrl = true, Icon = EditorAssets.Sprites.IconSearch },
-            new Command { Name = "Browse Sprites", Handler = () => AssetPalette.OpenSprites() },
-            new Command { Name = "Toggle Grid", Handler = ToggleGrid, Key = InputCode.KeyQuote, Ctrl = true },
-            new Command { Name = "Toggle Names", Handler = ToggleNames, Key = InputCode.KeyN, Alt = true },
-            new Command { Name = "Toggle Isolation", Handler = ToggleIsolation, Key = InputCode.KeySlash },
-            new Command { Name = "Toggle FPS", Handler = ToggleFps },
+            new Command("Save All", DocumentManager.SaveAll, [new KeyBinding(InputCode.KeyS, ctrl:true)]),
+            new Command("Undo", () => Undo.DoUndo(), [new KeyBinding(InputCode.KeyZ, ctrl:true)]),
+            new Command("Redo", () => Undo.DoRedo(), [new KeyBinding(InputCode.KeyY, ctrl:true)]),
+            new Command("Increase UI Scale", IncreaseUIScale, [new KeyBinding(InputCode.KeyEquals, ctrl:true)]),
+            new Command("Decrease UI Scale", DecreaseUIScale, [new KeyBinding(InputCode.KeyMinus, ctrl:true)]),
+            new Command("Reset UI Scale", ResetUIScale, [new KeyBinding(InputCode.Key0, ctrl:true)]),
+            new Command("Command Palette", CommandPalette.Open, [new KeyBinding(InputCode.KeyP, ctrl:true, shift:true)]),
+            new Command("Asset Browser", () => AssetPalette.Open(), [new KeyBinding(InputCode.KeyP, ctrl:true)], EditorAssets.Sprites.IconSearch),
+            new Command("Browse Sprites", () => AssetPalette.OpenSprites()),
+            new Command("Toggle Grid", ToggleGrid, [new KeyBinding(InputCode.KeyQuote, ctrl:true)]),
+            new Command("Toggle Names", ToggleNames, [new KeyBinding(InputCode.KeyN, alt:true)]),
+            new Command("Toggle Isolation", ToggleIsolation, [new KeyBinding(InputCode.KeySlash)]),
+            new Command("Toggle FPS", ToggleFps),
         ]);
 
         var workspaceCommands = new List<Command>
@@ -214,14 +223,14 @@ public static partial class Workspace
             duplicateCommand,
             hideCommand,
             unhideAllCommand,
-            new() { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA },
-            new() { Name = "Frame", Handler = FrameSelected, Key = InputCode.KeyF },
-            new() { Name = "Generate Selected", Handler = GenerateSelected, Key = InputCode.KeyG, Ctrl = true },
-            new() { Name = "Export All", Handler = ExportAll },
-            new() { Name = "Generate Manifest", Handler = GenerateManifest },
-            new() { Name = "Play/Stop", Handler = Play, Key = InputCode.KeySpace },
-            new() { Name = "Show/Hide Hidden Assets", Handler = ToggleShowHidden },
-            new() { Name = "Rebuild Atlas", Handler = RebuildAtlas },
+            new("Select All", SelectAll, [new KeyBinding(InputCode.KeyA)]),
+            new("Frame", FrameSelected, [new KeyBinding(InputCode.KeyF)]),
+            new("Generate Selected", GenerateSelected, [new KeyBinding(InputCode.KeyG, ctrl:true)]),
+            new("Export All", ExportAll),
+            new("Generate Manifest", GenerateManifest),
+            new("Play/Stop", Play, [new KeyBinding(InputCode.KeySpace)]),
+            new("Show/Hide Hidden Assets", ToggleShowHidden),
+            new("Rebuild Atlas", RebuildAtlas),
         };
 
         EditorApplication.AppConfig.RegisterCommands?.Invoke(workspaceCommands);
@@ -229,8 +238,8 @@ public static partial class Workspace
         for (var i = 1; i <= 9; i++)
         {
             var index = i;
-            workspaceCommands.Add(new Command { Name = $"Collection {i}", Handler = () => SetCollection(index), Key = InputCode.Key0 + i });
-            workspaceCommands.Add(new Command { Name = $"Move to Collection {i}", Handler = () => MoveSelectedToCollection(index), Key = InputCode.Key0 + i, Ctrl = true });
+            workspaceCommands.Add(new Command($"Collection {i}", () => SetCollection(index), [InputCode.Key0 + i]));
+            workspaceCommands.Add(new Command($"Move to Collection {i}", () => MoveSelectedToCollection(index), [new KeyBinding(InputCode.Key0 + i, ctrl:true)]));
         }
 
         CommandManager.RegisterWorkspace([.. workspaceCommands]);
@@ -295,8 +304,8 @@ public static partial class Workspace
         var collection = CollectionManager.VisibleCollection;
         if (collection != null)
         {
-            collection.CameraPosition = _camera.Position;
-            collection.CameraZoom = _zoom;
+            collection.CameraPosition = _hasSavedCamera ? _savedCameraPosition : _camera.Position;
+            collection.CameraZoom = _hasSavedCamera ? _savedCameraZoom : _zoom;
         }
 
         props.SetBool("workspace", "show_fps", _showFps);
@@ -345,8 +354,7 @@ public static partial class Workspace
 
     private static void DrawScene()
     {
-        var wantsIsolation = ActiveEditor?.ShowInIsolation ?? false;
-        var isolation = State == WorkspaceState.Edit && (wantsIsolation != _isolationOverride);
+        var isolation = IsIsolationActive;
 
         if (!isolation)
             DrawDocuments();
@@ -356,6 +364,9 @@ public static partial class Workspace
 
         if (!isolation && ShowNames)
             DrawNames();
+
+        if (!isolation && _showReferences)
+            DrawReferences();
 
         ActiveTool?.Draw();
 
@@ -456,6 +467,9 @@ public static partial class Workspace
 
             return items;
         }
+
+        if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon, isSelected: _showReferences))
+            _showReferences = !_showReferences;
 
         if (UI.Button(WidgetIds.XrayButton, EditorAssets.Sprites.IconXray, EditorStyle.Button.ToggleIcon, isSelected: XrayMode))
         {
@@ -558,9 +572,33 @@ public static partial class Workspace
             doc.Draw();
         }
 
-        ActiveEditor?.Document.DrawBounds();
+        if (ActiveEditor != null && !ActiveEditor.ShowInIsolation)
+            ActiveEditor.Document.DrawBounds();
 
         Graphics.PopState();
+    }
+
+    private static readonly List<Document> _refBuffer = [];
+
+    private static void DrawReferences()
+    {
+        using var _ = Gizmos.PushState(EditorLayer.Names);
+        Graphics.SetColor(EditorStyle.Workspace.SelectionColor);
+
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.Loaded || !doc.PostLoaded || doc.IsClipped) continue;
+            if (!CollectionManager.IsDocumentVisible(doc)) continue;
+
+            _refBuffer.Clear();
+            doc.GetReferences(_refBuffer);
+
+            foreach (var refDoc in _refBuffer)
+            {
+                if (refDoc.IsClipped) continue;
+                Gizmos.DrawLine(doc.Position, refDoc.Position, EditorStyle.Workspace.DocumentBoundsLineWidth);
+            }
+        }
     }
 
     private static void DrawNames()
@@ -583,6 +621,7 @@ public static partial class Workspace
             if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
             if (doc == renamingDoc) continue;
+            if (doc.IsEditing) continue;
 
             var bounds = doc.Bounds.Translate(doc.Position);
             var textSize = TextRender.Measure(doc.Name, font, fontSize);
@@ -660,6 +699,17 @@ public static partial class Workspace
     private static void ToggleIsolation()
     {
         _isolationOverride = !_isolationOverride;
+
+        if (IsIsolationActive)
+        {
+            _savedCameraPosition = _camera.Position;
+            _savedCameraZoom = _zoom;
+            _hasSavedCamera = true;
+        }
+        else
+        {
+            _hasSavedCamera = false;
+        }
     }
 
     private static void BeginRenameTool()
@@ -1085,6 +1135,14 @@ public static partial class Workspace
             if (_activeDocument == null)
                 return;
 
+            if (_hasSavedCamera)
+            {
+                _camera.Position = _savedCameraPosition;
+                _zoom = _savedCameraZoom;
+                _hasSavedCamera = false;
+                UpdateCamera();
+            }
+
             CancelTool();
             CommandManager.RegisterEditor(null);
 
@@ -1111,12 +1169,22 @@ public static partial class Workspace
         if (!(doc.Def.CanEdit?.Invoke(doc) ?? true))
             return;
 
+        var savedPosition = _camera.Position;
+        var savedZoom = _zoom;
+
         _activeDocument = doc;
         _activeEditor = doc.Def.EditorFactory!(doc);
         doc.IsEditing = true;
         State = WorkspaceState.Edit;
 
         CommandManager.RegisterEditor(_activeEditor.Commands);
+
+        if (IsIsolationActive)
+        {
+            _savedCameraPosition = savedPosition;
+            _savedCameraZoom = savedZoom;
+            _hasSavedCamera = true;
+        }
     }
 
     public static void BeginTool(Tool tool)

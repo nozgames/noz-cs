@@ -29,6 +29,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     private int _surfaceWidth;
     private int _surfaceHeight;
     private PresentMode _presentMode;
+    private PresentMode _noVsyncPresentMode;
     private bool _surfaceDirty;
 
     // Command recording
@@ -437,7 +438,11 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
                 break;
             }
         }
-        _presentMode = _config.VSync ? PresentMode.Fifo : PresentMode.Immediate;
+        _noVsyncPresentMode = ResolvePresentMode(
+            caps.PresentModes, (int)caps.PresentModeCount,
+            [PresentMode.Immediate, PresentMode.Mailbox, PresentMode.FifoRelaxed]);
+
+        _presentMode = _config.VSync ? PresentMode.Fifo : _noVsyncPresentMode;
 
         // Configure surface (replaces swap chain in modern WebGPU)
         var surfaceConfig = new SurfaceConfiguration
@@ -609,10 +614,19 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void SetVSync(bool vsync)
     {
-        var newMode = vsync ? PresentMode.Fifo : PresentMode.Immediate;
+        var newMode = vsync ? PresentMode.Fifo : _noVsyncPresentMode;
         if (newMode == _presentMode) return;
         _presentMode = newMode;
         _surfaceDirty = true;
+    }
+
+    private static PresentMode ResolvePresentMode(PresentMode* supported, int count, ReadOnlySpan<PresentMode> preferred)
+    {
+        foreach (var mode in preferred)
+            for (int i = 0; i < count; i++)
+                if (supported[i] == mode)
+                    return mode;
+        return PresentMode.Fifo;
     }
 
     public void SetViewport(in RectInt viewport)

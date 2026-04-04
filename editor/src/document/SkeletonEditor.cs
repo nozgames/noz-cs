@@ -40,10 +40,10 @@ internal partial class SkeletonEditor : DocumentEditor
 
     public SkeletonEditor(SkeletonDocument document) : base(document)
     {
-        var exitEditCommand = new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab };
-        var deleteCommand = new Command { Name = "Delete", Handler = HandleDelete, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete };
-        var renameCommand = new Command { Name = "Rename", Handler = HandleRename, Key = InputCode.KeyF2 };
-        var selectAllCommand = new Command { Name = "Select All", Handler = OnSelectAll, Key = InputCode.KeyA, Ctrl = true };
+        var exitEditCommand     = new Command("Exit Edit Mode",    Workspace.EndEdit,    [InputCode.KeyTab]);
+        var deleteCommand       = new Command("Delete",            HandleDelete,         [InputCode.KeyDelete, InputCode.KeyX], icon:EditorAssets.Sprites.IconDelete);
+        var renameCommand       = new Command("Rename",            HandleRename,         [InputCode.KeyF2]);
+        var selectAllCommand    = new Command("Select All",        OnSelectAll,          [new(InputCode.KeyA, ctrl:true)]);
 
         _commands =
         [
@@ -51,7 +51,7 @@ internal partial class SkeletonEditor : DocumentEditor
             deleteCommand,
             renameCommand,
             selectAllCommand,
-            new Command { Name = "Create Bone", Handler = BeginCreateBone, Key = InputCode.KeyV },
+            new Command("Create Bone", BeginCreateBone, [InputCode.KeyV])
         ];
 
         Commands = _commands;

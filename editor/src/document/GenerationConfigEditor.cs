@@ -26,7 +26,7 @@ public partial class GenerationConfigEditor : DocumentEditor
     {
         Commands =
         [
-            new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
+            new Command("Exit Edit Mode", Workspace.EndEdit, [InputCode.KeyTab])
         ];
     }
 

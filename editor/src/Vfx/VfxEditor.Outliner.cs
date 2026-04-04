@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Linq;
+
 namespace NoZ.Editor;
 
 internal partial class VfxEditor
@@ -28,14 +30,15 @@ internal partial class VfxEditor
             }
         }
 
-        // F2 to begin rename on selected item
-        if (!IsRenaming && Document.SelectedType != VfxSelectionType.None &&
+        // F2 to begin rename on selected item (single selection only)
+        if (!IsRenaming && !Document.HasMultiSelection &&
+            Document.SingleSelectedType is VfxSelectionType.Emitter or VfxSelectionType.Particle &&
             Input.WasButtonPressed(InputCode.KeyF2, InputScope.All))
         {
-            var name = Document.SelectedType == VfxSelectionType.Emitter
-                ? Document.Emitters[Document.SelectedIndex].Name
-                : Document.Particles[Document.SelectedIndex].Name;
-            BeginRename(Document.SelectedType, Document.SelectedIndex, name);
+            var name = Document.SingleSelectedType == VfxSelectionType.Emitter
+                ? Document.Emitters[Document.SingleSelectedIndex].Name
+                : Document.Particles[Document.SingleSelectedIndex].Name;
+            BeginRename(Document.SingleSelectedType, Document.SingleSelectedIndex, name);
         }
 
         using (UI.BeginColumn(ElementId.OutlinerPanel, EditorStyle.Inspector.Root))
@@ -48,7 +51,7 @@ internal partial class VfxEditor
 
     private void VfxRootUI()
     {
-        var isSelected = Document.SelectedType == VfxSelectionType.Vfx;
+        var isSelected = Document.VfxRootSelected;
         var style = EditorStyle.Inspector.ListItem;
         if (isSelected)
             style = style with { Background = EditorStyle.Palette.Active };
@@ -64,8 +67,7 @@ internal partial class VfxEditor
         {
             if (IsRenaming) CommitRename();
             UI.ClearHot();
-            Document.SelectedType = VfxSelectionType.Vfx;
-            Document.SelectedIndex = -1;
+            Document.SelectVfxRoot();
         }
     }
 
@@ -88,7 +90,7 @@ internal partial class VfxEditor
 
             for (var i = 0; i < Document.Emitters.Count; i++)
             {
-                var isSelected = Document.SelectedType == VfxSelectionType.Emitter && Document.SelectedIndex == i;
+                var isSelected = Document.SelectedEmitters.Contains(i);
                 var isRenaming = _renameType == VfxSelectionType.Emitter && _renameIndex == i;
                 OutlinerRowUI(ElementId.EmitterRow + i, Document.Emitters[i].Name, isSelected, isRenaming, VfxSelectionType.Emitter, i);
             }
@@ -114,7 +116,7 @@ internal partial class VfxEditor
 
             for (var i = 0; i < Document.Particles.Count; i++)
             {
-                var isSelected = Document.SelectedType == VfxSelectionType.Particle && Document.SelectedIndex == i;
+                var isSelected = Document.SelectedParticles.Contains(i);
                 var isRenaming = _renameType == VfxSelectionType.Particle && _renameIndex == i;
                 OutlinerRowUI(ElementId.ParticleRow + i, Document.Particles[i].Name, isSelected, isRenaming, VfxSelectionType.Particle, i);
             }
@@ -146,14 +148,26 @@ internal partial class VfxEditor
             ElementTree.EndFlex();
         }
 
-        // Click to select
+        // Click to select (Ctrl+click to toggle multi-select)
         if (UI.WasPressed(rowId) && !isRenaming)
         {
             if (IsRenaming) CommitRename();
             UI.ClearHot();
 
-            Document.SelectedType = type;
-            Document.SelectedIndex = index;
+            if (Input.IsCtrlDown(InputScope.All))
+            {
+                if (type == VfxSelectionType.Emitter)
+                    Document.ToggleEmitter(index);
+                else
+                    Document.ToggleParticle(index);
+            }
+            else
+            {
+                if (type == VfxSelectionType.Emitter)
+                    Document.SelectEmitter(index);
+                else
+                    Document.SelectParticle(index);
+            }
         }
 
     }
@@ -190,52 +204,139 @@ internal partial class VfxEditor
     private void DeleteSelected()
     {
         if (IsRenaming) return;
-        if (Document.SelectedType == VfxSelectionType.Emitter)
-        {
-            Undo.Record(Document);
-            Document.RemoveEmitter(Document.SelectedIndex);
-        }
-        else if (Document.SelectedType == VfxSelectionType.Particle)
-        {
-            Undo.Record(Document);
-            Document.RemoveParticle(Document.SelectedIndex);
-        }
+        if (!Document.HasSelection || Document.VfxRootSelected) return;
+
+        Undo.Record(Document);
+
+        // Delete in reverse index order to avoid index shifting issues
+        var emitterIndices = Document.SelectedEmitters.OrderDescending().ToList();
+        var particleIndices = Document.SelectedParticles.OrderDescending().ToList();
+
+        foreach (var i in emitterIndices)
+            Document.RemoveEmitter(i);
+        foreach (var i in particleIndices)
+            Document.RemoveParticle(i);
     }
 
     private void DuplicateSelected()
     {
         if (IsRenaming) return;
+        if (!Document.HasSelection || Document.VfxRootSelected) return;
 
-        if (Document.SelectedType == VfxSelectionType.Emitter &&
-            Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Emitters.Count)
+        Undo.Record(Document);
+
+        // Collect sources before modifying lists
+        var emitterSources = Document.SelectedEmitters.OrderBy(i => i)
+            .Where(i => i >= 0 && i < Document.Emitters.Count)
+            .Select(i => Document.Emitters[i]).ToList();
+        var particleSources = Document.SelectedParticles.OrderBy(i => i)
+            .Where(i => i >= 0 && i < Document.Particles.Count)
+            .Select(i => Document.Particles[i]).ToList();
+
+        Document.ClearSelection();
+
+        // Duplicate particles first, build name mapping for reference fixup
+        var particleNameMap = new Dictionary<string, string>();
+        foreach (var src in particleSources)
         {
-            var src = Document.Emitters[Document.SelectedIndex];
-            Undo.Record(Document);
-            var emitter = new VfxDocEmitter
+            var newName = MakeUniqueName(src.Name, Document.Particles.Select(p => p.Name));
+            particleNameMap[src.Name] = newName;
+            Document.Particles.Add(new VfxDocParticle
+            {
+                Name = newName,
+                Def = src.Def,
+                SpriteRef = src.SpriteRef,
+            });
+            Document.ToggleParticle(Document.Particles.Count - 1);
+        }
+
+        // Duplicate emitters, remapping particle refs if the particle was also duplicated
+        var copiedParticleNames = new HashSet<string>(particleSources.Select(p => p.Name));
+        foreach (var src in emitterSources)
+        {
+            var particleRef = src.ParticleRef;
+            if (copiedParticleNames.Contains(particleRef))
+                particleRef = particleNameMap.GetValueOrDefault(particleRef, particleRef);
+
+            Document.Emitters.Add(new VfxDocEmitter
             {
                 Name = MakeUniqueName(src.Name, Document.Emitters.Select(e => e.Name)),
                 Def = src.Def,
-                ParticleRef = src.ParticleRef,
-            };
-            Document.Emitters.Add(emitter);
-            Document.SelectedIndex = Document.Emitters.Count - 1;
-            Document.ApplyChanges();
+                ParticleRef = particleRef,
+            });
+            Document.ToggleEmitter(Document.Emitters.Count - 1);
         }
-        else if (Document.SelectedType == VfxSelectionType.Particle &&
-                 Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Particles.Count)
+
+        Document.ApplyChanges();
+    }
+
+    private void CopySelected()
+    {
+        if (IsRenaming) return;
+        if (!Document.HasSelection || Document.VfxRootSelected) return;
+
+        var emitters = Document.SelectedEmitters.OrderBy(i => i)
+            .Where(i => i >= 0 && i < Document.Emitters.Count)
+            .Select(i => Document.Emitters[i]).ToList();
+        var particles = Document.SelectedParticles.OrderBy(i => i)
+            .Where(i => i >= 0 && i < Document.Particles.Count)
+            .Select(i => Document.Particles[i]).ToList();
+
+        if (emitters.Count == 0 && particles.Count == 0) return;
+        Clipboard.Copy(new VfxClipboardData(emitters, particles));
+    }
+
+    private void PasteFromClipboard()
+    {
+        var data = Clipboard.Get<VfxClipboardData>();
+        if (data == null) return;
+
+        Undo.Record(Document);
+        Document.ClearSelection();
+
+        // Paste particles first, building name mapping for reference fixup
+        var particleNameMap = new Dictionary<string, string>();
+        var copiedParticleNames = new HashSet<string>(data.Particles.Select(p => p.Name));
+        foreach (var pData in data.Particles)
         {
-            var src = Document.Particles[Document.SelectedIndex];
-            Undo.Record(Document);
-            var particle = new VfxDocParticle
+            if (Document.Particles.Count >= 32) break; // MaxParticles
+            var newName = MakeUniqueName(pData.Name, Document.Particles.Select(p => p.Name));
+            particleNameMap[pData.Name] = newName;
+            Document.Particles.Add(new VfxDocParticle
             {
-                Name = MakeUniqueName(src.Name, Document.Particles.Select(p => p.Name)),
-                Def = src.Def,
-                SpriteRef = src.SpriteRef,
-            };
-            Document.Particles.Add(particle);
-            Document.SelectedIndex = Document.Particles.Count - 1;
-            Document.ApplyChanges();
+                Name = newName,
+                Def = pData.Def,
+                SpriteRef = pData.SpriteRef,
+            });
+            Document.ToggleParticle(Document.Particles.Count - 1);
         }
+
+        // Paste emitters, remapping ParticleRef
+        foreach (var eData in data.Emitters)
+        {
+            if (Document.Emitters.Count >= 32) break; // MaxEmitters
+            var particleRef = eData.ParticleRef;
+            if (copiedParticleNames.Contains(particleRef))
+                particleRef = particleNameMap.GetValueOrDefault(particleRef, "");
+            else if (Document.FindParticle(particleRef) == null)
+                particleRef = "";
+
+            Document.Emitters.Add(new VfxDocEmitter
+            {
+                Name = MakeUniqueName(eData.Name, Document.Emitters.Select(e => e.Name)),
+                Def = eData.Def,
+                ParticleRef = particleRef,
+            });
+            Document.ToggleEmitter(Document.Emitters.Count - 1);
+        }
+
+        Document.ApplyChanges();
+    }
+
+    private void CutSelected()
+    {
+        CopySelected();
+        DeleteSelected();
     }
 
     private static string MakeUniqueName(string baseName, IEnumerable<string> existingNames)

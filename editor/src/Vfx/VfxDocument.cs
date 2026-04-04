@@ -41,8 +41,88 @@ public class VfxDocument : Document
     public readonly List<VfxDocEmitter> Emitters = [];
     public readonly List<VfxDocParticle> Particles = [];
 
-    public VfxSelectionType SelectedType { get; set; }
-    public int SelectedIndex { get; set; } = -1;
+    // --- Selection ---
+
+    private readonly HashSet<int> _selectedEmitters = [];
+    private readonly HashSet<int> _selectedParticles = [];
+
+    public IReadOnlySet<int> SelectedEmitters => _selectedEmitters;
+    public IReadOnlySet<int> SelectedParticles => _selectedParticles;
+    public bool VfxRootSelected { get; private set; }
+    public int SelectionCount => _selectedEmitters.Count + _selectedParticles.Count;
+    public bool HasSelection => VfxRootSelected || _selectedEmitters.Count > 0 || _selectedParticles.Count > 0;
+    public bool HasMultiSelection => SelectionCount > 1;
+
+    public VfxSelectionType SingleSelectedType
+    {
+        get
+        {
+            if (VfxRootSelected) return VfxSelectionType.Vfx;
+            if (_selectedEmitters.Count == 1 && _selectedParticles.Count == 0) return VfxSelectionType.Emitter;
+            if (_selectedParticles.Count == 1 && _selectedEmitters.Count == 0) return VfxSelectionType.Particle;
+            return VfxSelectionType.None;
+        }
+    }
+
+    public int SingleSelectedIndex
+    {
+        get
+        {
+            if (_selectedEmitters.Count == 1 && _selectedParticles.Count == 0)
+            {
+                foreach (var i in _selectedEmitters) return i;
+            }
+            if (_selectedParticles.Count == 1 && _selectedEmitters.Count == 0)
+            {
+                foreach (var i in _selectedParticles) return i;
+            }
+            return -1;
+        }
+    }
+
+    public void ClearSelection()
+    {
+        _selectedEmitters.Clear();
+        _selectedParticles.Clear();
+        VfxRootSelected = false;
+    }
+
+    public void SelectVfxRoot()
+    {
+        _selectedEmitters.Clear();
+        _selectedParticles.Clear();
+        VfxRootSelected = true;
+    }
+
+    public void SelectEmitter(int index)
+    {
+        _selectedEmitters.Clear();
+        _selectedParticles.Clear();
+        VfxRootSelected = false;
+        _selectedEmitters.Add(index);
+    }
+
+    public void SelectParticle(int index)
+    {
+        _selectedEmitters.Clear();
+        _selectedParticles.Clear();
+        VfxRootSelected = false;
+        _selectedParticles.Add(index);
+    }
+
+    public void ToggleEmitter(int index)
+    {
+        VfxRootSelected = false;
+        if (!_selectedEmitters.Remove(index))
+            _selectedEmitters.Add(index);
+    }
+
+    public void ToggleParticle(int index)
+    {
+        VfxRootSelected = false;
+        if (!_selectedParticles.Remove(index))
+            _selectedParticles.Add(index);
+    }
 
     public ref VfxRange Duration => ref _duration;
     public ref bool Loop => ref _loop;
@@ -73,15 +153,14 @@ public class VfxDocument : Document
             Name = name,
             Def = new VfxEmitterDef
             {
-                Rate = new VfxIntRange(10, 10),
+                Rate = new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(10, 10), End = new VfxRange(10, 10) },
                 Duration = VfxRange.One,
             },
             ParticleRef = Particles.Count > 0 ? Particles[0].Name : ""
         };
 
         Emitters.Add(emitter);
-        SelectedType = VfxSelectionType.Emitter;
-        SelectedIndex = Emitters.Count - 1;
+        SelectEmitter(Emitters.Count - 1);
         ApplyChanges();
     }
 
@@ -90,15 +169,7 @@ public class VfxDocument : Document
         if (index < 0 || index >= Emitters.Count) return;
 
         Emitters.RemoveAt(index);
-
-        if (SelectedType == VfxSelectionType.Emitter)
-        {
-            if (SelectedIndex >= Emitters.Count)
-                SelectedIndex = Emitters.Count - 1;
-            if (SelectedIndex < 0)
-                SelectedType = VfxSelectionType.None;
-        }
-
+        FixUpSelectionAfterRemoval(_selectedEmitters, index);
         ApplyChanges();
     }
 
@@ -125,8 +196,7 @@ public class VfxDocument : Document
         };
 
         Particles.Add(particle);
-        SelectedType = VfxSelectionType.Particle;
-        SelectedIndex = Particles.Count - 1;
+        SelectParticle(Particles.Count - 1);
         ApplyChanges();
     }
 
@@ -138,21 +208,13 @@ public class VfxDocument : Document
         Particles.RemoveAt(index);
 
         // Update emitter references
-        var fallback = Particles.Count > 0 ? Particles[0].Name : "";
         foreach (var e in Emitters)
         {
             if (e.ParticleRef == removedName)
-                e.ParticleRef = fallback;
+                e.ParticleRef = "";
         }
 
-        if (SelectedType == VfxSelectionType.Particle)
-        {
-            if (SelectedIndex >= Particles.Count)
-                SelectedIndex = Particles.Count - 1;
-            if (SelectedIndex < 0)
-                SelectedType = VfxSelectionType.None;
-        }
-
+        FixUpSelectionAfterRemoval(_selectedParticles, index);
         ApplyChanges();
     }
 
@@ -171,6 +233,18 @@ public class VfxDocument : Document
         }
 
         ApplyChanges();
+    }
+
+    private static void FixUpSelectionAfterRemoval(HashSet<int> selection, int removedIndex)
+    {
+        selection.Remove(removedIndex);
+        // Decrement indices above the removed one
+        var updated = new List<int>();
+        foreach (var idx in selection)
+            updated.Add(idx > removedIndex ? idx - 1 : idx);
+        selection.Clear();
+        foreach (var idx in updated)
+            selection.Add(idx);
     }
 
     public VfxDocParticle? FindParticle(string name)
@@ -463,6 +537,36 @@ public class VfxDocument : Document
         BuildVfx();
     }
 
+    public override void GetReferences(List<Document> references)
+    {
+        foreach (var p in Particles)
+            if (p.SpriteRef.IsResolved)
+                references.Add(p.SpriteRef.Value!);
+    }
+
+    public override void GetDependencies(List<(AssetType Type, string Name)> dependencies)
+    {
+        foreach (var p in Particles)
+            if (p.SpriteRef.HasValue)
+                dependencies.Add((AssetType.Sprite, p.SpriteRef.Name!));
+    }
+
+    public override void OnRenamed(Document doc, string oldName, string newName)
+    {
+        if (doc is not SpriteDocument) return;
+        var changed = false;
+        foreach (var p in Particles)
+        {
+            if (p.SpriteRef.TryRename(oldName, newName))
+            {
+                p.Def.Sprite = p.SpriteRef.Value?.Sprite;
+                changed = true;
+            }
+        }
+        if (changed)
+            IncrementVersion();
+    }
+
     public override void Export(string outputPath, PropertySet meta)
     {
         ParseVfxFile();
@@ -556,8 +660,10 @@ public class VfxDocument : Document
         _rotation = src._rotation;
         _duration = src._duration;
         _loop = src._loop;
-        SelectedType = src.SelectedType;
-        SelectedIndex = src.SelectedIndex;
+        ClearSelection();
+        VfxRootSelected = src.VfxRootSelected;
+        foreach (var i in src.SelectedEmitters) _selectedEmitters.Add(i);
+        foreach (var i in src.SelectedParticles) _selectedParticles.Add(i);
 
         Emitters.Clear();
         foreach (var e in src.Emitters)
@@ -654,7 +760,7 @@ public class VfxDocument : Document
         while (!tk.IsEOF)
         {
             if (tk.ExpectDelimiter('}')) break;
-            else if (tk.ExpectIdentifier("rate")) { if (tk.ExpectLine(out var v)) e.Rate = ParseInt(v, VfxIntRange.Zero); }
+            else if (tk.ExpectIdentifier("rate")) { if (tk.ExpectLine(out var v)) e.Rate = ParseFloatCurve(v, new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(10, 10), End = new VfxRange(10, 10) }); }
             else if (tk.ExpectIdentifier("burst")) { if (tk.ExpectLine(out var v)) e.Burst = ParseInt(v, VfxIntRange.Zero); }
             else if (tk.ExpectIdentifier("duration")) { if (tk.ExpectLine(out var v)) e.Duration = ParseFloat(v, VfxRange.One); }
             else if (tk.ExpectIdentifier("spread")) { tk.ExpectFloat(out e.Spread); }
@@ -723,7 +829,7 @@ public class VfxDocument : Document
         {
             sw.WriteLine();
             sw.WriteLine($"emitter \"{e.Name}\" {{");
-            sw.WriteLine($"  rate {FormatIntRange(e.Def.Rate)}");
+            sw.WriteLine($"  rate {FormatFloatCurve(e.Def.Rate)}");
             sw.WriteLine($"  burst {FormatIntRange(e.Def.Burst)}");
             sw.WriteLine($"  duration {FormatRange(e.Def.Duration)}");
             sw.WriteLine($"  particle \"{e.ParticleRef}\"");
@@ -770,8 +876,7 @@ public class VfxDocument : Document
         {
             ref var e = ref emitterDefs[i];
 
-            writer.Write(e.Rate.Min);
-            writer.Write(e.Rate.Max);
+            WriteFloatCurve(writer, e.Rate);
             writer.Write(e.Burst.Min);
             writer.Write(e.Burst.Max);
             writer.Write(e.Duration.Min);

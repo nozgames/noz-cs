@@ -28,7 +28,6 @@ public static partial class AssetPalette
     private static int _selectedIndex;
     private static AssetType _assetTypeFilter;
     private static bool _useGrid;
-    private static bool _isSoundMode;
     private static Action<Document>? _onPicked;
     private static Func<Document, bool>? _filter;
 
@@ -42,7 +41,6 @@ public static partial class AssetPalette
 
         IsOpen = true;
         _assetTypeFilter = assetTypeFilter;
-        _isSoundMode = assetTypeFilter == AssetType.Sound;
         _useGrid = grid || assetTypeFilter == AssetType.Sprite;
         _onPicked = onPicked;
         _filter = filter;
@@ -89,14 +87,14 @@ public static partial class AssetPalette
         }
 
         if (Input.WasButtonPressed(InputCode.KeyEnter) ||
-            (_isSoundMode && Input.WasButtonPressed(InputCode.MouseLeftDoubleClick)))
+            Input.WasButtonPressed(InputCode.MouseLeftDoubleClick))
         {
             SelectCurrent();
             Close();
             return;
         }
 
-        if (_isSoundMode && Input.WasButtonPressed(InputCode.KeySpace))
+        if (_assetTypeFilter == AssetType.Sound && Input.WasButtonPressed(InputCode.KeySpace))
         {
             Input.ConsumeButton(InputCode.KeySpace);
             PlayStopSelected();
@@ -265,14 +263,7 @@ public static partial class AssetPalette
                             UI.Text(doc.Name, EditorStyle.Control.Text);
 
                             if (UI.WasPressed())
-                            {
                                 _selectedIndex = i;
-                                if (!_isSoundMode)
-                                {
-                                    SelectCurrent();
-                                    Close();
-                                }
-                            }
                         }
                     }
                 }
@@ -350,14 +341,7 @@ public static partial class AssetPalette
                             });
 
                             if (UI.WasPressed())
-                            {
                                 _selectedIndex = i;
-                                if (!_isSoundMode)
-                                {
-                                    SelectCurrent();
-                                    Close();
-                                }
-                            }
                         }
                     }
                 }

@@ -53,7 +53,6 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId EdgeRight { get; }
         public static partial WidgetId ExportToggle { get; }
         public static partial WidgetId PenToolButton { get; }
-        public static partial WidgetId KnifeToolButton { get; }
         public static partial WidgetId RectToolButton { get; }
         public static partial WidgetId CircleToolButton { get; }
         public static partial WidgetId GenImageToggle { get; }
@@ -95,27 +94,27 @@ public partial class SpriteEditor : DocumentEditor
             Commands =
             [
                 ..GetShapeCommands(),
-                new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
-                new Command { Name = "Origin to Center", Handler = CenterShape, Key = InputCode.KeyC, Shift = true },
-                new Command { Name = "Flip Horizontal", Handler = () => FlipAxis(true) },
-                new Command { Name = "Flip Vertical", Handler = () => FlipAxis(false) },
-                new Command { Name = "Bring Forward", Handler = () => MovePathInOrder(-1), Key = InputCode.KeyRightBracket },
-                new Command { Name = "Send Backward", Handler = () => MovePathInOrder(1), Key = InputCode.KeyLeftBracket },
-                new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
-                new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
-                new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
-                new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI, Ctrl = true },
-                new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO, Ctrl = true },
-                new Command { Name = "Delete Frame", Handler = DeleteCurrentFrame, Key = InputCode.KeyX, Shift = true },
-                new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
-                new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
-                new Command { Name = "Toggle Onion Skin", Handler = ToggleOnionSkin, Key = InputCode.KeyO, Shift = true },
-                new Command { Name = "Generate", Handler = () => Document.GenerateAsync(), Key = InputCode.KeyG, Ctrl = true },
-                new Command { Name = "Eye Dropper", Handler = BeginEyeDropper, Key = InputCode.KeyI },
-                new Command { Name = "Boolean Union", Handler = BooleanUnion, Key = InputCode.KeyU, Ctrl = true, Shift = true },
-                new Command { Name = "Boolean Subtract", Handler = BooleanSubtract, Key = InputCode.KeyD, Ctrl = true, Shift = true },
-                new Command { Name = "Boolean Intersect", Handler = BooleanIntersect, Key = InputCode.KeyI, Ctrl = true, Shift = true },
-                new Command { Name = "Export to PNG", Handler = ExportToPng, Key = InputCode.KeyE, Ctrl = true, Shift = true },
+                new Command("Exit Edit Mode",       Workspace.EndEdit,          [InputCode.KeyTab]),
+                new Command("Origin to Center",     CenterShape,                [new KeyBinding(InputCode.KeyC, shift:true)]),
+                new Command("Flip Horizontal",      () => FlipAxis(true)),
+                new Command("Flip Vertical",        () => FlipAxis(false)),
+                new Command("Bring Forward",        () => MovePathInOrder(-1),  [InputCode.KeyRightBracket]),
+                new Command("Send Backward",        () => MovePathInOrder(1),   [InputCode.KeyLeftBracket]),
+                new Command("Toggle Playback",      TogglePlayback,             [InputCode.KeySpace]),
+                new Command("Previous Frame",       PreviousFrame,              [InputCode.KeyQ]),
+                new Command("Next Frame",           NextFrame,                  [InputCode.KeyE]),
+                new Command("Insert Frame Before",  InsertFrameBefore,          [new KeyBinding(InputCode.KeyI, ctrl:true)]),
+                new Command("Insert Frame After",   InsertFrameAfter,           [new KeyBinding(InputCode.KeyO, ctrl:true)]),
+                new Command("Delete Frame",         DeleteCurrentFrame,         [new KeyBinding(InputCode.KeyX, shift:true)]),
+                new Command("Add Hold",             AddHoldFrame,               [new KeyBinding(InputCode.KeyH)]),
+                new Command("Remove Hold",          RemoveHoldFrame,            [new KeyBinding(InputCode.KeyH, ctrl:true)]),
+                new Command("Toggle Onion Skin",    ToggleOnionSkin,            [new KeyBinding(InputCode.KeyO, shift:true)]),
+                new Command("Generate",             Document.GenerateAsync,     [new KeyBinding(InputCode.KeyG, ctrl:true)]),
+                new Command("Eye Dropper",          BeginEyeDropper,            [new KeyBinding(InputCode.KeyI)]),
+                new Command("Boolean Union",        BooleanUnion,               [new KeyBinding(InputCode.KeyU, ctrl:true, shift:true)]),
+                new Command("Boolean Subtract",     BooleanSubtract,            [new KeyBinding(InputCode.KeyD, ctrl:true, shift:true)]),
+                new Command("Boolean Intersect",    BooleanIntersect,           [new KeyBinding(InputCode.KeyI, ctrl:true, shift:true)]),
+                new Command("Export to PNG",        ExportToPng,                [new KeyBinding(InputCode.KeyE, ctrl:true, shift:true)]),
             ];
 
             ApplyCurrentFrameVisibility();
@@ -124,7 +123,7 @@ public partial class SpriteEditor : DocumentEditor
         {
             Commands =
             [
-                new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
+                new Command("Exit Edit Mode",       Workspace.EndEdit,          [InputCode.KeyTab]),
             ];
         }
     }
@@ -181,19 +180,19 @@ public partial class SpriteEditor : DocumentEditor
 
         var items = new List<PopupMenuItem>
         {
-            PopupMenuItem.Item("Cut", CutSelected, InputCode.KeyX, ctrl: true,
+            PopupMenuItem.Item("Cut", CutSelected, new KeyBinding(InputCode.KeyX, ctrl: true),
                 enabled: () => hasPath && vMode),
-            PopupMenuItem.Item("Copy", CopySelected, InputCode.KeyC, ctrl: true,
+            PopupMenuItem.Item("Copy", CopySelected, new KeyBinding(InputCode.KeyC, ctrl: true),
                 enabled: () => hasPath && vMode),
-            PopupMenuItem.Item("Paste", PasteSelected, InputCode.KeyV, ctrl: true,
+            PopupMenuItem.Item("Paste", PasteSelected, new KeyBinding(InputCode.KeyV, ctrl: true),
                 enabled: () => Clipboard.Get<PathClipboardData>() != null),
-            PopupMenuItem.Item("Duplicate", DuplicateSelected, InputCode.KeyD, ctrl: true,
+            PopupMenuItem.Item("Duplicate", DuplicateSelected, new KeyBinding(InputCode.KeyD, ctrl: true),
                 enabled: () => hasPath && vMode),
             PopupMenuItem.Item("Delete", DeleteSelected, InputCode.KeyX,
                 enabled: () => canDelete),
 
             PopupMenuItem.Separator(),
-            PopupMenuItem.Item("Select All", SelectAll, InputCode.KeyA, ctrl: true),
+            PopupMenuItem.Item("Select All", SelectAll, new KeyBinding(InputCode.KeyA, ctrl: true)),
 
             PopupMenuItem.Separator(),
             PopupMenuItem.Item("Rename", BeginRename, InputCode.KeyF2,
@@ -204,7 +203,7 @@ public partial class SpriteEditor : DocumentEditor
                 enabled: () => hasPath && vMode),
             PopupMenuItem.Item("Flip Vertical", () => FlipAxis(false),
                 enabled: () => hasPath && vMode),
-            PopupMenuItem.Item("Origin to Center", CenterShape, InputCode.KeyC, shift: true,
+            PopupMenuItem.Item("Origin to Center", CenterShape, new KeyBinding(InputCode.KeyC, shift: true),
                 enabled: () => hasPath && vMode),
 
             PopupMenuItem.Separator(),
@@ -219,11 +218,11 @@ public partial class SpriteEditor : DocumentEditor
 
             PopupMenuItem.Separator(),
             PopupMenuItem.Submenu("Boolean", showIcons: false),
-            PopupMenuItem.Item("Union", BooleanUnion, InputCode.KeyU, ctrl: true, shift: true,
+            PopupMenuItem.Item("Union", BooleanUnion, new KeyBinding(InputCode.KeyU, ctrl: true, shift: true),
                 level: 1, enabled: () => multiPath),
-            PopupMenuItem.Item("Subtract", BooleanSubtract, InputCode.KeyD, ctrl: true, shift: true,
+            PopupMenuItem.Item("Subtract", BooleanSubtract, new KeyBinding(InputCode.KeyD, ctrl: true, shift: true),
                 level: 1, enabled: () => multiPath),
-            PopupMenuItem.Item("Intersect", BooleanIntersect, InputCode.KeyI, ctrl: true, shift: true,
+            PopupMenuItem.Item("Intersect", BooleanIntersect, new KeyBinding(InputCode.KeyI, ctrl: true, shift: true),
                 level: 1, enabled: () => multiPath),
         };
 
@@ -272,7 +271,6 @@ public partial class SpriteEditor : DocumentEditor
 
         UpdateHandleCursor();
         UpdateAnimation();
-        HandleDeleteKey();
 
         var hasGen = Document.Generation is { } gen && gen.Job.Texture != null;
 
@@ -360,16 +358,13 @@ public partial class SpriteEditor : DocumentEditor
 
         FloatingToolbar.Divider();
 
-        // Tool group: Pen, Knife, Rect, Circle (A mode only)
+        // Tool group: Pen, Rect, Circle (A mode only)
         if (CurrentMode == SpriteEditMode.Anchor)
         {
             var activeTool = Workspace.ActiveTool;
 
             if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, isSelected: activeTool is PenTool))
                 BeginPenTool();
-
-            if (FloatingToolbar.Button(WidgetIds.KnifeToolButton, EditorAssets.Sprites.IconClose, isSelected: activeTool is KnifeTool))
-                BeginKnifeTool();
 
             if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Rectangle }))
                 BeginRectangleTool();

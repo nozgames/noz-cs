@@ -167,7 +167,7 @@ public struct VfxParticleDef
 
 public struct VfxEmitterDef
 {
-    public VfxIntRange Rate;
+    public VfxFloatCurve Rate;
     public VfxIntRange Burst;
     public VfxRange Duration;
     public VfxSpawnDef Spawn;
@@ -180,7 +180,7 @@ public struct VfxEmitterDef
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 8;
+    internal const ushort Version = 9;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -206,7 +206,7 @@ public class Vfx : Asset
         {
             ref var e = ref EmitterDefs[i];
 
-            e.Rate = new VfxIntRange(reader.ReadInt32(), reader.ReadInt32());
+            e.Rate = ReadFloatCurve(reader);
             e.Burst = new VfxIntRange(reader.ReadInt32(), reader.ReadInt32());
             e.Duration = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             e.Spawn = ReadSpawnDef(reader);

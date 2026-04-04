@@ -127,6 +127,35 @@ public class SoundDocument : Document, IWaveformSource
             layer.SoundRef.Resolve();
     }
 
+    public override void GetReferences(List<Document> references)
+    {
+        if (!IsComposite) return;
+        foreach (var layer in Layers)
+            if (layer.SoundRef.IsResolved)
+                references.Add(layer.SoundRef.Value!);
+    }
+
+    public override void GetDependencies(List<(AssetType Type, string Name)> dependencies)
+    {
+        if (!IsComposite) return;
+        foreach (var layer in Layers)
+            if (layer.SoundRef.HasValue)
+                dependencies.Add((AssetType.Sound, layer.SoundRef.Name!));
+    }
+
+    public override void OnRenamed(Document doc, string oldName, string newName)
+    {
+        if (doc is not SoundDocument || !IsComposite) return;
+        var changed = false;
+        foreach (var layer in Layers)
+        {
+            if (layer.SoundRef.TryRename(oldName, newName))
+                changed = true;
+        }
+        if (changed)
+            IncrementVersion();
+    }
+
     public override void Reload() { }
 
     public override void Dispose()

@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Numerics;
+
 namespace NoZ.Editor;
 
 internal partial class SoundEditor : DocumentEditor
@@ -24,6 +26,11 @@ internal partial class SoundEditor : DocumentEditor
 
     public new SoundDocument Document => (SoundDocument)base.Document;
 
+    private Matrix3x2 BoundsTransform =>
+        Matrix3x2.CreateTranslation(Document.Bounds.Position) * Document.Transform;
+
+    private Vector2 BoundsOrigin => Document.Position + Document.Bounds.Position;
+
     public SoundEditor(SoundDocument document) : base(document)
     {
         _waveform = new WaveformEditor(document);
@@ -31,9 +38,9 @@ internal partial class SoundEditor : DocumentEditor
 
         Commands =
         [
-            new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
-            new Command { Name = "Frame", Handler = FrameWaveform, Key = InputCode.KeyF },
-            new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
+            new Command ("Toggle Playback", TogglePlayback,     [InputCode.KeySpace]),
+            new Command ("Frame",           FrameWaveform,      [InputCode.KeyF]),
+            new Command ("Exit Edit Mode",  Workspace.EndEdit,  [InputCode.KeyTab])
         ];
 
         FrameWaveform();
@@ -58,10 +65,10 @@ internal partial class SoundEditor : DocumentEditor
 
         using (Gizmos.PushState(EditorLayer.Document))
         {
-            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTransform(BoundsTransform);
 
             _waveform.UpdateHandles(
-                Document.Position, WaveformHeight * 0.5f,
+                BoundsOrigin, WaveformHeight * 0.5f,
                 () => Undo.Record(Document),
                 () => { Document.ApplyChanges(); _waveform.BuildCache(); });
 
@@ -74,7 +81,7 @@ internal partial class SoundEditor : DocumentEditor
 
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
-            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTransform(BoundsTransform);
             _waveform.DrawOverlay(
                 WaveformHeight * 0.5f,
                 showBrackets: true,
@@ -118,9 +125,10 @@ internal partial class SoundEditor : DocumentEditor
     {
         var width = Document.Duration * WaveformEditor.WaveformScale;
         if (width <= 0f) width = 1f;
+        var origin = BoundsOrigin;
         var bounds = new Rect(
-            Document.Position.X,
-            Document.Position.Y - WaveformHeight * 0.5f,
+            origin.X,
+            origin.Y - WaveformHeight * 0.5f,
             width,
             WaveformHeight);
         Workspace.FrameRect(bounds);

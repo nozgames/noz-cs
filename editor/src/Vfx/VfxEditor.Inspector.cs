@@ -59,6 +59,22 @@ internal partial class VfxEditor
         public static partial WidgetId RemoveRotationSpeed { get; }
         public static partial WidgetId SpriteDropDown { get; }
         public static partial WidgetId ParticleSort { get; }
+
+        // Addable section persistent state
+        public static partial WidgetId SectionSize { get; }
+        public static partial WidgetId SectionSpeed { get; }
+        public static partial WidgetId SectionColor { get; }
+        public static partial WidgetId SectionOpacity { get; }
+        public static partial WidgetId SectionGravity { get; }
+        public static partial WidgetId SectionDrag { get; }
+        public static partial WidgetId SectionRotation { get; }
+        public static partial WidgetId SectionRotationSpeed { get; }
+    }
+
+    private struct AddableSectionState
+    {
+        public bool Initialized;
+        public bool IsActive;
     }
 
     private struct CurveFieldState
@@ -86,20 +102,29 @@ internal partial class VfxEditor
 
     public override void InspectorUI()
     {
-        switch (Document.SelectedType)
+        if (Document.HasMultiSelection)
+        {
+            UI.Text("Multiple items selected", EditorStyle.Text.Secondary);
+            return;
+        }
+
+        var selectedType = Document.SingleSelectedType;
+        var selectedIndex = Document.SingleSelectedIndex;
+
+        switch (selectedType)
         {
             case VfxSelectionType.Vfx:
                 VfxInspectorUI();
                 break;
 
             case VfxSelectionType.Emitter:
-                if (Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Emitters.Count)
-                    EmitterInspectorUI(Document.Emitters[Document.SelectedIndex]);
+                if (selectedIndex >= 0 && selectedIndex < Document.Emitters.Count)
+                    EmitterInspectorUI(Document.Emitters[selectedIndex]);
                 break;
 
             case VfxSelectionType.Particle:
-                if (Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Particles.Count)
-                    ParticleInspectorUI(Document.Particles[Document.SelectedIndex]);
+                if (selectedIndex >= 0 && selectedIndex < Document.Particles.Count)
+                    ParticleInspectorUI(Document.Particles[selectedIndex]);
                 break;
         }
     }
@@ -143,7 +168,7 @@ internal partial class VfxEditor
             var duration = emitter.Def.Duration;
             var worldSpace = emitter.Def.WorldSpace;
 
-            if (IntRangeField(FieldId.EmitterRate, "Rate", ref rate)) changed = true;
+            if (FloatCurveField(FieldId.EmitterRate, "Rate", ref rate)) changed = true;
             if (IntRangeField(FieldId.EmitterBurst, "Burst", ref burst)) changed = true;
             if (RangeField(FieldId.EmitterDuration, "Duration", ref duration)) changed = true;
 
@@ -356,7 +381,7 @@ internal partial class VfxEditor
         }
 
         // Addable particle groups
-        if (AddableSection("SIZE", particle.Def.Size != VfxFloatCurve.One, FieldId.AddSize, FieldId.RemoveSize,
+        if (AddableSection("SIZE", particle.Def.Size != VfxFloatCurve.One, FieldId.SectionSize, FieldId.AddSize, FieldId.RemoveSize,
             () => { particle.Def.Size = new VfxFloatCurve { Type = VfxCurveType.EaseOut, Start = new VfxRange(0.5f, 0.5f), End = new VfxRange(0f, 0.1f) }; },
             () => { particle.Def.Size = VfxFloatCurve.One; }))
         {
@@ -370,7 +395,7 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("SPEED", particle.Def.Speed != VfxFloatCurve.Zero, FieldId.AddSpeed, FieldId.RemoveSpeed,
+        if (AddableSection("SPEED", particle.Def.Speed != VfxFloatCurve.Zero, FieldId.SectionSpeed, FieldId.AddSpeed, FieldId.RemoveSpeed,
             () => { particle.Def.Speed = new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(10, 20), End = new VfxRange(0, 5) }; },
             () => { particle.Def.Speed = VfxFloatCurve.Zero; }))
         {
@@ -384,7 +409,7 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("COLOR", particle.Def.Color != VfxColorCurve.White, FieldId.AddColor, FieldId.RemoveColor,
+        if (AddableSection("COLOR", particle.Def.Color != VfxColorCurve.White, FieldId.SectionColor, FieldId.AddColor, FieldId.RemoveColor,
             () => { particle.Def.Color = new VfxColorCurve { Type = VfxCurveType.Linear, Start = new VfxColorRange(Color.White, Color.White), End = new VfxColorRange(Color.Yellow, Color.Yellow) }; },
             () => { particle.Def.Color = VfxColorCurve.White; }))
         {
@@ -398,7 +423,7 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("OPACITY", particle.Def.Opacity != VfxFloatCurve.One, FieldId.AddOpacity, FieldId.RemoveOpacity,
+        if (AddableSection("OPACITY", particle.Def.Opacity != VfxFloatCurve.One, FieldId.SectionOpacity, FieldId.AddOpacity, FieldId.RemoveOpacity,
             () => { particle.Def.Opacity = new VfxFloatCurve { Type = VfxCurveType.EaseOut, Start = VfxRange.One, End = VfxRange.Zero }; },
             () => { particle.Def.Opacity = VfxFloatCurve.One; }))
         {
@@ -412,7 +437,7 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("GRAVITY", particle.Def.Gravity != VfxVec2Range.Zero, FieldId.AddGravity, FieldId.RemoveGravity,
+        if (AddableSection("GRAVITY", particle.Def.Gravity != VfxVec2Range.Zero, FieldId.SectionGravity, FieldId.AddGravity, FieldId.RemoveGravity,
             () => { particle.Def.Gravity = new VfxVec2Range(new(0, 10), new(0, 10)); },
             () => { particle.Def.Gravity = VfxVec2Range.Zero; }))
         {
@@ -426,7 +451,7 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("DRAG", particle.Def.Drag != VfxRange.Zero, FieldId.AddDrag, FieldId.RemoveDrag,
+        if (AddableSection("DRAG", particle.Def.Drag != VfxRange.Zero, FieldId.SectionDrag, FieldId.AddDrag, FieldId.RemoveDrag,
             () => { particle.Def.Drag = new VfxRange(1, 1); },
             () => { particle.Def.Drag = VfxRange.Zero; }))
         {
@@ -440,7 +465,7 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("ROTATION", particle.Def.Rotation != VfxRange.Zero, FieldId.AddRotation, FieldId.RemoveRotation,
+        if (AddableSection("ROTATION", particle.Def.Rotation != VfxRange.Zero, FieldId.SectionRotation, FieldId.AddRotation, FieldId.RemoveRotation,
             () => { particle.Def.Rotation = new VfxRange(0, 360); },
             () => { particle.Def.Rotation = VfxRange.Zero; }))
         {
@@ -454,7 +479,7 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("ROTATION SPEED", particle.Def.RotationSpeed != VfxFloatCurve.Zero, FieldId.AddRotationSpeed, FieldId.RemoveRotationSpeed,
+        if (AddableSection("ROTATION SPEED", particle.Def.RotationSpeed != VfxFloatCurve.Zero, FieldId.SectionRotationSpeed, FieldId.AddRotationSpeed, FieldId.RemoveRotationSpeed,
             () => { particle.Def.RotationSpeed = new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(-180, 180), End = new VfxRange(-180, 180) }; },
             () => { particle.Def.RotationSpeed = VfxFloatCurve.Zero; }))
         {
@@ -474,9 +499,29 @@ internal partial class VfxEditor
 
     private Inspector.AutoSection _addableSectionHandle;
 
-    private bool AddableSection(string name, bool isActive, WidgetId addId, WidgetId removeId, Action onAdd, Action onRemove)
+    private static bool _sectionToggled;
+    private static WidgetId _sectionToggledId;
+    private static bool _sectionToggledValue;
+
+    private bool AddableSection(string name, bool dataIsActive, WidgetId stateId, WidgetId addId, WidgetId removeId, Action onAdd, Action onRemove)
     {
-        if (!isActive)
+        // Persistent state: initialized from data once, then only changed by explicit button clicks
+        ElementTree.BeginTree();
+        ref var state = ref ElementTree.BeginWidget<AddableSectionState>(stateId, interactive: false);
+        if (!state.Initialized)
+        {
+            state.Initialized = true;
+            state.IsActive = dataIsActive;
+        }
+        // Apply deferred toggle from previous frame's button press
+        if (_sectionToggled && _sectionToggledId == stateId)
+        {
+            _sectionToggled = false;
+            state.IsActive = _sectionToggledValue;
+        }
+        ElementTree.EndTree();
+
+        if (!state.IsActive)
         {
             using (Inspector.BeginSection(name, content: () =>
             {
@@ -485,6 +530,9 @@ internal partial class VfxEditor
                 {
                     Undo.Record(Document);
                     onAdd();
+                    _sectionToggled = true;
+                    _sectionToggledId = stateId;
+                    _sectionToggledValue = true;
                     Document.ApplyChanges();
                 }
                 ElementTree.EndAlign();
@@ -499,6 +547,9 @@ internal partial class VfxEditor
             {
                 Undo.Record(Document);
                 onRemove();
+                _sectionToggled = true;
+                _sectionToggledId = stateId;
+                _sectionToggledValue = false;
                 Document.ApplyChanges();
             }
             ElementTree.EndAlign();
@@ -534,7 +585,7 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty(label))
         using (UI.BeginRow(ValueRowStyle))
         {
-            if (FloatInput(baseId, ref value.Min)) changed = true;
+            if (FloatInput(baseId, ref value.Min)) { changed = true; if (!state.HasRandomStart) value.Max = value.Min; }
             if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var pressed)) changed = true;
             if (pressed && !state.HasRandomStart) value.Max = value.Min;
             if (state.HasRandomStart)
@@ -558,7 +609,7 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty(label))
         using (UI.BeginRow(ValueRowStyle))
         {
-            if (IntInput(baseId, ref value.Min)) changed = true;
+            if (IntInput(baseId, ref value.Min)) { changed = true; if (!state.HasRandomStart) value.Max = value.Min; }
             if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var pressed)) changed = true;
             if (pressed && !state.HasRandomStart) value.Max = value.Min;
             if (state.HasRandomStart)
@@ -607,7 +658,7 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty(startLabel))
         using (UI.BeginRow(ValueRowStyle))
         {
-            if (FloatInput(baseId, ref curve.Start.Min)) changed = true;
+            if (FloatInput(baseId, ref curve.Start.Min)) { changed = true; if (!state.HasRandomStart) curve.Start.Max = curve.Start.Min; }
             if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var startPressed)) changed = true;
             if (startPressed && !state.HasRandomStart) curve.Start.Max = curve.Start.Min;
             if (state.HasRandomStart)
@@ -624,7 +675,7 @@ internal partial class VfxEditor
             using (Inspector.BeginProperty("End"))
             using (UI.BeginRow(ValueRowStyle))
             {
-                if (FloatInput(baseId + 3, ref curve.End.Min)) changed = true;
+                if (FloatInput(baseId + 3, ref curve.End.Min)) { changed = true; if (!state.HasRandomEnd) curve.End.Max = curve.End.Min; }
                 if (RandomToggleButton(baseId + 4, ref state.HasRandomEnd, out var endPressed)) changed = true;
                 if (endPressed && !state.HasRandomEnd) curve.End.Max = curve.End.Min;
                 if (state.HasRandomEnd)
@@ -664,7 +715,7 @@ internal partial class VfxEditor
         using (UI.BeginRow(ValueRowStyle))
         {
             using (UI.BeginFlex())
-                if (ColorInput(baseId, ref curve.Start.Min)) changed = true;
+                if (ColorInput(baseId, ref curve.Start.Min)) { changed = true; if (!state.HasRandomStart) curve.Start.Max = curve.Start.Min; }
             if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var startPressed)) changed = true;
             if (startPressed && !state.HasRandomStart) curve.Start.Max = curve.Start.Min;
             if (state.HasRandomStart)
@@ -683,7 +734,7 @@ internal partial class VfxEditor
             using (UI.BeginRow(ValueRowStyle))
             {
                 using (UI.BeginFlex())
-                    if (ColorInput(baseId + 3, ref curve.End.Min)) changed = true;
+                    if (ColorInput(baseId + 3, ref curve.End.Min)) { changed = true; if (!state.HasRandomEnd) curve.End.Max = curve.End.Min; }
                 if (RandomToggleButton(baseId + 4, ref state.HasRandomEnd, out var endPressed)) changed = true;
                 if (endPressed && !state.HasRandomEnd) curve.End.Max = curve.End.Min;
                 if (state.HasRandomEnd)

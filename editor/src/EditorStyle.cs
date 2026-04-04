@@ -1271,15 +1271,6 @@ public static class EditorStyle
         public const float PointSize = SpritePath.AnchorSize * 1.5f;
     }
 
-    // :knifetool
-    public static class KnifeTool
-    {
-        public static readonly Color AnchorColor = Color.FromRgb(0x000000);
-        public static readonly Color IntersectionColor = Color.FromRgb(0x4ea64e);
-        public static readonly Color InvalidSegmentColor = Color.FromRgb(0x953d49);
-        public const float IntersectionAnchorScale = 1.2f;
-    }
-
     // :renametool
     public static class RenameTool
     {

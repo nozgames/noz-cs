@@ -52,20 +52,19 @@ public partial class SpriteEditor
     {
         return
         [
-            new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX, Icon = EditorAssets.Sprites.IconDelete },
-            new Command { Name = "V Mode", Handler = () => SetMode(SpriteEditMode.Transform), Key = InputCode.KeyV },
-            new Command { Name = "A Mode", Handler = () => SetMode(SpriteEditMode.Anchor), Key = InputCode.KeyA },
-            new Command { Name = "Curve", Handler = BeginCurveTool, Key = InputCode.KeyC },
-            new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA, Ctrl = true },
-            new Command { Name = "Pen Tool", Handler = BeginPenTool, Key = InputCode.KeyP },
-            new Command { Name = "Knife Tool", Handler = BeginKnifeTool, Key = InputCode.KeyK },
-            new Command { Name = "Rectangle Tool", Handler = BeginRectangleTool, Key = InputCode.KeyR, Ctrl = true },
-            new Command { Name = "Circle Tool", Handler = BeginCircleTool, Key = InputCode.KeyO, Ctrl = true },
-            new Command { Name = "Duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
-            new Command { Name = "Copy", Handler = CopySelected, Key = InputCode.KeyC, Ctrl = true },
-            new Command { Name = "Paste", Handler = PasteSelected, Key = InputCode.KeyV, Ctrl = true },
-            new Command { Name = "Cut", Handler = CutSelected, Key = InputCode.KeyX, Ctrl = true },
-            new Command { Name = "Rename", Handler = BeginRename, Key = InputCode.KeyF2 },
+            new Command("Delete", DeleteSelected, [InputCode.KeyX, InputCode.KeyDelete], icon:EditorAssets.Sprites.IconDelete),
+            new Command("V Mode", () => SetMode(SpriteEditMode.Transform), [InputCode.KeyV]),
+            new Command("A Mode", () => SetMode(SpriteEditMode.Anchor), [InputCode.KeyA]),
+            new Command("Curve", BeginCurveTool, [InputCode.KeyC]),
+            new Command("Select All", SelectAll, [new KeyBinding(InputCode.KeyA, ctrl: true)]),
+            new Command("Pen Tool", BeginPenTool, [InputCode.KeyP]),
+            new Command("Rectangle Tool", BeginRectangleTool, [new KeyBinding(InputCode.KeyR, ctrl: true)]),
+            new Command("Circle Tool", BeginCircleTool, [new KeyBinding(InputCode.KeyO, ctrl: true)]),
+            new Command("Duplicate", DuplicateSelected, [new KeyBinding(InputCode.KeyD, ctrl: true)]),
+            new Command("Copy", CopySelected, [new KeyBinding(InputCode.KeyC, ctrl: true)]),
+            new Command("Paste", PasteSelected, [new KeyBinding(InputCode.KeyV, ctrl: true)]),
+            new Command("Cut", CutSelected, [new KeyBinding(InputCode.KeyX, ctrl:true)]),
+            new Command("Rename", BeginRename, [InputCode.KeyF2]),
         ];
     }
 
@@ -73,11 +72,6 @@ public partial class SpriteEditor
 
     #region Input
 
-    private void HandleDeleteKey()
-    {
-        if (Input.WasButtonPressed(InputCode.KeyDelete))
-            DeleteSelected();
-    }
 
     private void HandleDragStart()
     {
@@ -532,11 +526,6 @@ public partial class SpriteEditor
             Document.CurrentFillColor, Document.CurrentOperation));
     }
 
-    public void BeginKnifeTool()
-    {
-        if (_selectedPaths.Count == 0) return;
-        Workspace.BeginTool(new KnifeTool(this, _selectedPaths));
-    }
 
     public void BeginRectangleTool()
     {

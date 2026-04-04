@@ -25,6 +25,15 @@ public struct DocumentRef<T> where T : Document
         Value = string.IsNullOrEmpty(Name) ? null : DocumentManager.Find<T>(Name);
     }
 
+    public bool TryRename(string oldName, string newName)
+    {
+        if (!string.Equals(Name, oldName, StringComparison.OrdinalIgnoreCase))
+            return false;
+        Name = newName;
+        Resolve();
+        return true;
+    }
+
     public void Clear()
     {
         Value = null;

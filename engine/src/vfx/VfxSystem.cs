@@ -52,7 +52,9 @@ public static class VfxSystem
     {
         public int DefIndex;
         public Vfx Vfx;
-        public float Rate;
+        public float RateStart;
+        public float RateEnd;
+        public float InvDuration;
         public float Elapsed;
         public float Duration;
         public float Accumulator;
@@ -156,8 +158,7 @@ public static class VfxSystem
             emitter.InstanceIndex = (ushort)instanceIndex;
             emitter.ParticleCount = 0;
 
-            var rate = Random.Shared.Next(def.Rate.Min, Math.Max(def.Rate.Min, def.Rate.Max) + 1);
-            emitter.Rate = rate > 0 ? 1f / rate : 0f;
+            InitEmitterRate(ref emitter, ref def);
 
             instance.EmitterCount++;
 
@@ -191,7 +192,10 @@ public static class VfxSystem
                 continue;
 
             if (_emitters[i].InstanceIndex == instance)
-                _emitters[i].Rate = 0f;
+            {
+                _emitters[i].RateStart = 0f;
+                _emitters[i].RateEnd = 0f;
+            }
         }
     }
 
@@ -346,7 +350,7 @@ public static class VfxSystem
 
             e.Elapsed += dt;
 
-            if (e.Rate <= 0.0000001f || e.Elapsed >= e.Duration)
+            if (e.Elapsed >= e.Duration)
             {
                 if (_instanceValid[e.InstanceIndex] && _instances[e.InstanceIndex].Loop)
                 {
@@ -354,6 +358,7 @@ public static class VfxSystem
                     e.Elapsed = 0f;
                     e.Accumulator = 0f;
                     e.Duration = GetRandom(def.Duration);
+                    InitEmitterRate(ref e, ref def);
 
                     var burstCount = Random.Shared.Next(def.Burst.Min, Math.Max(def.Burst.Min, def.Burst.Max) + 1);
                     for (var b = 0; b < burstCount; b++)
@@ -367,12 +372,18 @@ public static class VfxSystem
                 continue;
             }
 
-            e.Accumulator += dt;
+            var t = e.Elapsed * e.InvDuration;
+            ref var rateDef = ref e.Vfx.EmitterDefs[e.DefIndex].Rate;
+            var timePerParticle = MathEx.Mix(e.RateStart, e.RateEnd, EvaluateCurve(rateDef.Type, t, rateDef.Bezier));
 
-            while (e.Accumulator >= e.Rate)
+            if (timePerParticle > 0.0000001f)
             {
-                EmitParticle(i);
-                e.Accumulator -= e.Rate;
+                e.Accumulator += dt;
+                while (e.Accumulator >= timePerParticle)
+                {
+                    EmitParticle(i);
+                    e.Accumulator -= timePerParticle;
+                }
             }
         }
     }
@@ -607,6 +618,16 @@ public static class VfxSystem
         _instances[index].Version++;
         _instanceValid[index] = false;
         _instanceCount--;
+    }
+
+    private static void InitEmitterRate(ref Emitter emitter, ref VfxEmitterDef def)
+    {
+        // Store as time-per-particle (inverse) so the hot loop avoids division
+        var rateStart = GetRandom(def.Rate.Start);
+        var rateEnd = GetRandom(def.Rate.End);
+        emitter.RateStart = rateStart > 0.0001f ? 1f / rateStart : 0f;
+        emitter.RateEnd = rateEnd > 0.0001f ? 1f / rateEnd : 0f;
+        emitter.InvDuration = emitter.Duration > 0f ? 1f / emitter.Duration : 0f;
     }
 
     // --- Curve evaluation ---

@@ -246,6 +246,7 @@ public static partial class EditorApplication
             {
                 Driver = new WebGPUGraphicsDriver(),
                 PixelsPerUnit = Config.PixelsPerUnit,
+                Vsync = false,
                 HDR = true
             }
         });

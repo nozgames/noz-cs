@@ -11,10 +11,7 @@ public struct PopupMenuItem
     public string? Label;
     public Action? Handler;
     public int Level;
-    public InputCode Key;
-    public bool Ctrl;
-    public bool Alt;
-    public bool Shift;
+    public KeyBinding? Shortcut;
     public Sprite? Icon;
     public Func<bool>? GetEnabled;
     public Func<bool>? GetChecked;
@@ -27,14 +24,11 @@ public struct PopupMenuItem
     public static PopupMenuItem Item(
         string label,
         Action handler,
-        InputCode key = InputCode.None,
-        bool ctrl = false,
-        bool alt = false,
-        bool shift = false,
+        KeyBinding? shortcut = null,
         int level = 0,
         Func<bool>? enabled = null, Func<bool>? isChecked = null,
         Sprite? icon = null) =>
-        new() { Label = label, Handler = handler, Level = level, Key = key, Ctrl = ctrl, Alt = alt, Shift = shift, GetEnabled = enabled, GetChecked = isChecked, Icon = icon, ShowChecked = true };
+        new() { Label = label, Handler = handler, Level = level, Shortcut = shortcut, GetEnabled = enabled, GetChecked = isChecked, Icon = icon, ShowChecked = true };
 
     public static PopupMenuItem Submenu(string label, int level = 0, bool showChecked = false, bool showIcons = true, Func<bool>? isChecked = null) =>
         new() { Label = label, Handler = null, Level = level, ShowChecked = showChecked, ShowIcons = showIcons, GetChecked = isChecked };
@@ -291,10 +285,10 @@ public static partial class UI
             ElementTree.Text(item.Label!, font, _menuStyle.FontSize, textColor, new Align2(Align.Min, Align.Center));
 
             // Shortcut
-            if (item.Key != InputCode.None)
+            if (item.Shortcut.HasValue)
             {
                 ElementTree.Flex();
-                var shortcut = FormatShortcut(item.Key, item.Ctrl, item.Alt, item.Shift);
+                var shortcut = FormatShortcut(item.Shortcut.Value);
                 ElementTree.Text(shortcut, font, _menuStyle.FontSize, hovered ? textColor : _menuStyle.ShortcutColor, new Align2(Align.Max, Align.Center));
             }
 
@@ -303,13 +297,13 @@ public static partial class UI
             return pressed;
         }
 
-        private static string FormatShortcut(InputCode key, bool ctrl, bool alt, bool shift)
+        private static string FormatShortcut(KeyBinding shortcut)
         {
             var parts = new System.Text.StringBuilder();
-            if (ctrl) parts.Append("Ctrl+");
-            if (alt) parts.Append("Alt+");
-            if (shift) parts.Append("Shift+");
-            parts.Append(key.ToDisplayString());
+            if (shortcut.Ctrl) parts.Append("Ctrl+");
+            if (shortcut.Alt) parts.Append("Alt+");
+            if (shortcut.Shift) parts.Append("Shift+");
+            parts.Append(shortcut.Key.ToDisplayString());
             return parts.ToString();
         }
 

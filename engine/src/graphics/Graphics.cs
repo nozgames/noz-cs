@@ -131,7 +131,7 @@ public static unsafe partial class Graphics
         Driver.Init(new GraphicsDriverConfig
         {
             Platform = config.Platform!,
-            VSync = config.VSync,
+            VSync = graphicsConfig.Vsync,
         });
 
         _vertices = new NativeArray<MeshVertex>(MaxVertices);

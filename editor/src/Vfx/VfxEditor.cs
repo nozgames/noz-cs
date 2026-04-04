@@ -36,12 +36,15 @@ internal partial class VfxEditor : DocumentEditor
     {
         Commands =
         [
-            new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
-            new Command { Name = "Rotate", Handler = BeginRotateTool, Key = InputCode.KeyR },
-            new Command { Name = "Delete", Handler = DeleteSelected, Key = InputCode.KeyX },
-            new Command { Name = "Duplicate", Handler = DuplicateSelected, Key = InputCode.KeyD, Ctrl = true },
-            new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
-            new Command { Name = "Frame", Handler = FrameVfxBounds, Key = InputCode.KeyF },
+            new Command ("Toggle Playback", TogglePlayback,         [InputCode.KeySpace]),
+            new Command ("Rotate",          BeginRotateTool,        [InputCode.KeyR]),
+            new Command ("Delete",          DeleteSelected,         [InputCode.KeyX, InputCode.KeyDelete]),
+            new Command ("Duplicate",       DuplicateSelected,      [new KeyBinding(InputCode.KeyD, ctrl:true)]),
+            new Command ("Copy",            CopySelected,           [new KeyBinding(InputCode.KeyC, ctrl:true)]),
+            new Command ("Paste",           PasteFromClipboard,     [new KeyBinding(InputCode.KeyV, ctrl:true)]),
+            new Command ("Cut",             CutSelected,            [new KeyBinding(InputCode.KeyX, ctrl:true)]),
+            new Command ("Exit Edit Mode",  Workspace.EndEdit,      [InputCode.KeyTab]),
+            new Command ("Frame",           FrameVfxBounds,         [InputCode.KeyF]),
         ];
 
         Document.Play();
@@ -76,13 +79,18 @@ internal partial class VfxEditor : DocumentEditor
             Gizmos.SetColor(EditorStyle.Workspace.BoundsColor);
             Gizmos.DrawRect(Document.VfxBounds, EditorStyle.Workspace.DocumentBoundsLineWidth, outside: true);
 
-            if (Document.SelectedType == VfxSelectionType.Emitter &&
-                Document.SelectedIndex >= 0 && Document.SelectedIndex < Document.Emitters.Count)
+            if (Document.SelectedEmitters.Count > 0)
             {
                 var rotTransform = Matrix3x2.CreateRotation(MathEx.Deg2Rad * Document.Rotation) *
                                    Matrix3x2.CreateTranslation(Document.Position);
-                Graphics.SetTransform(rotTransform);
-                DrawSpawnGizmo(ref Document.Emitters[Document.SelectedIndex].Def.Spawn);
+                foreach (var emitterIndex in Document.SelectedEmitters)
+                {
+                    if (emitterIndex >= 0 && emitterIndex < Document.Emitters.Count)
+                    {
+                        Graphics.SetTransform(rotTransform);
+                        DrawSpawnGizmo(ref Document.Emitters[emitterIndex].Def.Spawn);
+                    }
+                }
                 Graphics.SetTransform(Document.Transform);
             }
 

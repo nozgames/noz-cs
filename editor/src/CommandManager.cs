@@ -6,8 +6,8 @@ namespace NoZ.Editor;
 
 public static class CommandManager
 {
-    private static readonly List<Command> _common = [];
-    private static readonly List<Command> _workspace = [];
+    private static Command[] _common = [];
+    private static Command[] _workspace = [];
     private static Command[]? _editor;
 
     public static void Init()
@@ -16,30 +16,48 @@ public static class CommandManager
 
     public static void Shutdown()
     {
-        _common.Clear();
-        _workspace.Clear();
+        _common = [];
+        _workspace = [];
         _editor = null;
     }
 
-    public static void RegisterCommon(Command[] commands) => _common.AddRange(commands);
-    public static void RegisterWorkspace(Command[] commands) => _workspace.AddRange(commands);
+    public static void RegisterCommon(Command[] commands) => _common = commands;
+    public static void RegisterWorkspace(Command[] commands) => _workspace = commands;
     public static void RegisterEditor(Command[]? commands) => _editor = commands;
 
-    public static IEnumerable<Command> GetActiveCommands()
+    private static bool CheckFilter(Command cmd, string filter) =>
+        string.IsNullOrEmpty(filter) || cmd.Name.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+    public static IEnumerable<Command> Filtered(string filter)
     {
         foreach (var cmd in _common)
-            yield return cmd;
+            if (CheckFilter(cmd, filter))
+                yield return cmd;
 
-        if (_editor != null)
-        {
-            foreach (var cmd in _editor)
+        var commands = _editor ?? _workspace;
+        foreach (var cmd in commands)
+            if (CheckFilter(cmd, filter))
                 yield return cmd;
-        }
-        else
+    }
+
+    private static bool ProcessShortcuts(Command cmd, bool shift, bool ctrl, bool alt)
+    {
+        if (cmd.Shortcuts == null)
+            return false;
+
+        foreach (var shortcut in cmd.Shortcuts)
         {
-            foreach (var cmd in _workspace)
-                yield return cmd;
+            if (shift != shortcut.Shift) continue;
+            if (alt != shortcut.Alt) continue;
+            if (ctrl != shortcut.Ctrl) continue;
+            if (!Input.WasButtonPressed(shortcut.Key)) continue;
+
+            Input.ConsumeButton(shortcut.Key);
+            cmd.Handler();
+            return true;
         }
+
+        return false;
     }
 
     public static bool ProcessShortcuts()
@@ -48,22 +66,14 @@ public static class CommandManager
         var ctrl = Input.IsCtrlDown();
         var alt = Input.IsAltDown();
 
-        foreach (var cmd in GetActiveCommands())
-        {
-            if (cmd.Key == InputCode.None)
-                continue;
+        foreach (var cmd in _common)
+            if (ProcessShortcuts(cmd, shift, ctrl, alt))
+                return true;
 
-            if (!Input.WasButtonPressed(cmd.Key))
-                continue;
-
-            if (cmd.Ctrl != ctrl || cmd.Alt != alt || cmd.Shift != shift)
-                continue;
-
-            Input.ConsumeButton(cmd.Key);
-
-            cmd.Handler();
-            return true;
-        }
+        var commands = _editor ?? _workspace;
+        foreach (var cmd in commands)
+            if (ProcessShortcuts(cmd, shift, ctrl, alt))
+                return true;
 
         return false;
     }

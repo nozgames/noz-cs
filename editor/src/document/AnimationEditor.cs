@@ -145,32 +145,32 @@ internal partial class AnimationEditor : DocumentEditor
 
     public AnimationEditor(AnimationDocument document) : base(document)
     {
-        var exitEditCommand = new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab };
-        var copyCommand = new Command { Name = "Copy", Handler = CopyKeys, Key = InputCode.KeyC, Ctrl = true };
-        var pasteCommand = new Command { Name = "Paste", Handler = PasteKeys, Key = InputCode.KeyV, Ctrl = true };
+        var exitEditCommand = new Command("Exit Edit Mode", Workspace.EndEdit, [InputCode.KeyTab]);
+        var copyCommand     = new Command("Copy",           CopyKeys,          [new KeyBinding(InputCode.KeyC, ctrl:true)]);
+        var pasteCommand    = new Command("Paste",          PasteKeys,         [new KeyBinding(InputCode.KeyV, ctrl:true)]);
 
         Commands =
         [
             exitEditCommand,
             copyCommand,
             pasteCommand,
-            new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
-            new Command { Name = "Previous Frame", Handler = PreviousFrame, Key = InputCode.KeyQ },
-            new Command { Name = "Next Frame", Handler = NextFrame, Key = InputCode.KeyE },
-            new Command { Name = "Reset Position", Handler = ResetPosition, Key = InputCode.KeyG, Alt = true },
-            new Command { Name = "Reset Rotation", Handler = ResetRotation, Key = InputCode.KeyR, Alt = true },
-            new Command { Name = "Select All", Handler = SelectAll, Key = InputCode.KeyA, Ctrl = true },
-            new Command { Name = "Insert Frame Before", Handler = InsertFrameBefore, Key = InputCode.KeyI },
-            new Command { Name = "Insert Frame After", Handler = InsertFrameAfter, Key = InputCode.KeyO },
-            new Command { Name = "Insert Frame Lerp", Handler = InsertFrameAfterLerp, Key = InputCode.KeyO, Alt = true },
-            new Command { Name = "Delete Frame", Handler = DeleteFrame, Key = InputCode.KeyX },
-            new Command { Name = "Add Hold", Handler = AddHoldFrame, Key = InputCode.KeyH },
-            new Command { Name = "Remove Hold", Handler = RemoveHoldFrame, Key = InputCode.KeyH, Ctrl = true },
-            new Command { Name = "Toggle Onion Skin", Handler = ToggleOnionSkin, Key = InputCode.KeyO, Shift = true },
-            new Command { Name = "Toggle Loop", Handler = ToggleLoop, Key = InputCode.KeyL },
-            new Command { Name = "Increase Play Speed", Handler = IncreasePlaySpeed, Key = InputCode.KeyRight },
-            new Command { Name = "Decrease Play Speed", Handler = DecreasePlaySpeed, Key = InputCode.KeyLeft },
-            new Command { Name = "Mirror Pose", Handler = MirrorPose, Key = InputCode.KeyM },
+            new Command("Toggle Playback",      TogglePlayback,         [new KeyBinding(InputCode.KeySpace)]),
+            new Command("Previous Frame",       PreviousFrame,          [InputCode.KeyQ]),
+            new Command("Next Frame",           NextFrame,              [InputCode.KeyE]),
+            new Command("Reset Position",       ResetPosition,          [new KeyBinding(InputCode.KeyG, alt:true)]),
+            new Command("Reset Rotation",       ResetRotation,          [new KeyBinding(InputCode.KeyR, alt:true)]),
+            new Command("Select All",           SelectAll,              [new KeyBinding(InputCode.KeyA, ctrl:true)]),
+            new Command("Insert Frame Before",  InsertFrameBefore,      [InputCode.KeyI]),
+            new Command("Insert Frame After",   InsertFrameAfter,       [InputCode.KeyO]),
+            new Command("Insert Frame Lerp",    InsertFrameAfterLerp,   [new KeyBinding(InputCode.KeyO, alt:true)]),
+            new Command("Delete Frame",         DeleteFrame,            [InputCode.KeyX, InputCode.KeyDelete]),
+            new Command("Add Hold",             AddHoldFrame,           [InputCode.KeyH]),
+            new Command("Remove Hold",          RemoveHoldFrame,        [new KeyBinding(InputCode.KeyH, ctrl:true)]),
+            new Command("Toggle Onion Skin",    ToggleOnionSkin,        [new KeyBinding(InputCode.KeyO, shift:true)]),
+            new Command("Toggle Loop",          ToggleLoop,             [InputCode.KeyL]),
+            new Command("Increase Play Speed",  IncreasePlaySpeed,      [InputCode.KeyRight]),
+            new Command("Decrease Play Speed",  DecreasePlaySpeed,      [InputCode.KeyLeft]),
+            new Command("Mirror Pose",          MirrorPose,             [InputCode.KeyM]),
         ];
 
         //bool HasSelection() => Document.SelectedBoneCount > 0;

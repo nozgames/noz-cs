@@ -54,8 +54,10 @@ public abstract class Document : IDisposable, IChangeHandler
     public virtual void Draw() { }
     public virtual bool DrawThumbnail() => false;
     public virtual void Clone(Document source) { }
-    public virtual void OnUndoRedo() { }
     public virtual void InspectorUI() { }
+
+    public virtual void OnRenamed(Document doc, string oldName, string newName) { }
+    public virtual void OnUndoRedo() { }
 
     public virtual void Play() { }
     public virtual void Stop() { }

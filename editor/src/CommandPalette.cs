@@ -168,14 +168,15 @@ public static partial class CommandPalette
                             UI.Text(cmd.Name, style: EditorStyle.Control.Text);
                             UI.Flex();
 
-                            if (cmd.Key != InputCode.None)
+                            if (cmd.Shortcuts != null)
                             {
                                 using (UI.BeginRow(EditorStyle.Shortcut.ListContainer))
                                 {
-                                    if (cmd.Ctrl) UI.Text(InputCode.KeyLeftCtrl.ToDisplayString(), EditorStyle.Text.Disabled);
-                                    if (cmd.Alt) UI.Text(InputCode.KeyLeftAlt.ToDisplayString(), EditorStyle.Text.Disabled);
-                                    if (cmd.Shift) UI.Text(InputCode.KeyLeftShift.ToDisplayString(), EditorStyle.Text.Disabled);
-                                    UI.Text(cmd.Key.ToDisplayString(), EditorStyle.Text.Disabled);
+                                    var shortcut = cmd.Shortcuts[0]!;
+                                    if (shortcut.Ctrl) UI.Text(InputCode.KeyLeftCtrl.ToDisplayString(), EditorStyle.Text.Disabled);
+                                    if (shortcut.Alt) UI.Text(InputCode.KeyLeftAlt.ToDisplayString(), EditorStyle.Text.Disabled);
+                                    if (shortcut.Shift) UI.Text(InputCode.KeyLeftShift.ToDisplayString(), EditorStyle.Text.Disabled);
+                                    UI.Text(shortcut.Key.ToDisplayString(), EditorStyle.Text.Disabled);
                                 }
                             }
 
@@ -214,15 +215,11 @@ public static partial class CommandPalette
 
         var filter = _text.Trim().ToLowerInvariant();
 
-        foreach (var cmd in CommandManager.GetActiveCommands())
+        foreach (var cmd in CommandManager.Filtered(filter))
         {
-            if (cmd == null) continue;
-
+            _filteredCommands[_filteredCount++] = cmd;
             if (_filteredCount >= MaxFilteredCommands)
                 break;
-
-            if (string.IsNullOrEmpty(filter) || cmd.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
-                _filteredCommands[_filteredCount++] = cmd;
         }
         
         _filteredCommands.AsSpan(0, _filteredCount).Sort((a, b) => StringComparer.OrdinalIgnoreCase.Compare(a!.Name, b!.Name));

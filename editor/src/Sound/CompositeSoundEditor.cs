@@ -36,16 +36,21 @@ internal partial class CompositeSoundEditor : DocumentEditor
 
     public new SoundDocument Document => (SoundDocument)base.Document;
 
+    private Matrix3x2 BoundsTransform =>
+        Matrix3x2.CreateTranslation(Document.Bounds.Position) * Document.Transform;
+
+    private Vector2 BoundsOrigin => Document.Position + Document.Bounds.Position;
+
     public CompositeSoundEditor(SoundDocument document) : base(document)
     {
         RebuildLayerEditors();
 
         Commands =
         [
-            new Command { Name = "Toggle Playback", Handler = TogglePlayback, Key = InputCode.KeySpace },
-            new Command { Name = "Frame", Handler = FrameWaveform, Key = InputCode.KeyF },
-            new Command { Name = "Exit Edit Mode", Handler = Workspace.EndEdit, Key = InputCode.KeyTab },
-            new Command { Name = "Delete Layer", Handler = DeleteSelectedLayer, Key = InputCode.KeyDelete },
+            new Command("Toggle Playback",  TogglePlayback,         [InputCode.KeySpace]),
+            new Command("Frame",            FrameWaveform,          [InputCode.KeyF]),
+            new Command("Exit Edit Mode",   Workspace.EndEdit,      [InputCode.KeyTab]),
+            new Command("Delete Layer",     DeleteSelectedLayer,    [InputCode.KeyX, InputCode.KeyDelete]),
         ];
 
         FrameWaveform();
@@ -72,7 +77,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
 
         using (Gizmos.PushState(EditorLayer.Document))
         {
-            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTransform(BoundsTransform);
 
             // Draw composite bounds (visual extent, not just trimmed export)
             var maxVisualEnd = 0f;
@@ -106,6 +111,8 @@ internal partial class CompositeSoundEditor : DocumentEditor
                 }
             }
 
+            var boundsOrigin = BoundsOrigin;
+
             if (activeHandleLayer < 0)
             {
                 // Find first layer with a hit
@@ -115,8 +122,8 @@ internal partial class CompositeSoundEditor : DocumentEditor
                     var top = LayerTopY(i);
                     var offsetX = layer.Offset * WaveformEditor.WaveformScale;
                     var handleDocPos = new Vector2(
-                        Document.Position.X + offsetX,
-                        Document.Position.Y + top);
+                        boundsOrigin.X + offsetX,
+                        boundsOrigin.Y + top);
 
                     var mouseWorld = Workspace.MouseWorldPosition;
                     var localX = mouseWorld.X - handleDocPos.X;
@@ -136,8 +143,8 @@ internal partial class CompositeSoundEditor : DocumentEditor
                 var top = LayerTopY(activeHandleLayer);
                 var offsetX = layer.Offset * WaveformEditor.WaveformScale;
                 var handleDocPos = new Vector2(
-                    Document.Position.X + offsetX,
-                    Document.Position.Y + top);
+                    boundsOrigin.X + offsetX,
+                    boundsOrigin.Y + top);
 
                 _layerEditors[activeHandleLayer].UpdateHandles(
                     handleDocPos, WaveformHeight * 0.5f,
@@ -163,8 +170,8 @@ internal partial class CompositeSoundEditor : DocumentEditor
                     var halfH = WaveformHeight * 0.5f;
                     var waveformWidth = src.Duration * WaveformEditor.WaveformScale;
 
-                    var localX = mouseWorld.X - Document.Position.X - offsetX;
-                    var localY = mouseWorld.Y - Document.Position.Y - top;
+                    var localX = mouseWorld.X - boundsOrigin.X - offsetX;
+                    var localY = mouseWorld.Y - boundsOrigin.Y - top;
 
                     if (localX >= 0 && localX <= waveformWidth && localY >= -halfH && localY <= halfH)
                     {
@@ -185,7 +192,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
 
                 using (Graphics.PushState())
                 {
-                    Graphics.SetTransform(Matrix3x2.CreateTranslation(offsetX, top) * Document.Transform);
+                    Graphics.SetTransform(Matrix3x2.CreateTranslation(offsetX, top) * BoundsTransform);
                     editor.Draw(
                         WaveformHeight * 0.5f,
                         isSelected ? ActiveAlpha : UnselectedAlpha,
@@ -198,7 +205,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
         // Overlays at higher layer (trim brackets, fade, labels, playback head)
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
-            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTransform(BoundsTransform);
 
             for (var i = 0; i < _layerEditors.Count && i < Document.Layers.Count; i++)
             {
@@ -210,7 +217,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
 
                 using (Graphics.PushState())
                 {
-                    Graphics.SetTransform(Matrix3x2.CreateTranslation(offsetX, top) * Document.Transform);
+                    Graphics.SetTransform(Matrix3x2.CreateTranslation(offsetX, top) * BoundsTransform);
                     editor.DrawOverlay(
                         WaveformHeight * 0.5f,
                         showBrackets: isSelected);
@@ -224,7 +231,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
                     Graphics.SetTransform(
                         Matrix3x2.CreateTranslation(0.02f, -WaveformHeight * 0.5f + 0.02f) *
                         Matrix3x2.CreateTranslation(offsetX, top) *
-                        Document.Transform);
+                        BoundsTransform);
                     Graphics.DrawText(labelText, 0.025f);
                 }
             }
@@ -338,9 +345,10 @@ internal partial class CompositeSoundEditor : DocumentEditor
         var totalHeight = layerCount * (WaveformHeight + LayerSpacing);
         var width = duration * WaveformEditor.WaveformScale;
 
+        var origin = BoundsOrigin;
         var bounds = new Rect(
-            Document.Position.X,
-            Document.Position.Y - WaveformHeight * 0.5f,
+            origin.X,
+            origin.Y - WaveformHeight * 0.5f,
             width,
             totalHeight);
         Workspace.FrameRect(bounds);

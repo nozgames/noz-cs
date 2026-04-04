@@ -406,9 +406,17 @@ public static class DocumentManager
         if (File.Exists(oldMetaPath))
             File.Move(oldMetaPath, newMetaPath);
 
+        var oldName = doc.Name;
+
         doc.Path = Path.GetFullPath(newPath).ToLowerInvariant();
         doc.Name = canonicalName;
         doc.IncrementVersion();
+
+        foreach (var other in _documents)
+        {
+            if (other == doc || !other.Loaded) continue;
+            other.OnRenamed(doc, oldName, canonicalName);
+        }
 
         AssetManifest.IsModified = true;
 
