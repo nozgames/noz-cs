@@ -89,9 +89,7 @@ public static partial class Workspace
     public static Vector2 DragWorldPosition { get; private set; }
     public static WorkspaceState State { get; private set; } = WorkspaceState.Default;
 
-    private static bool IsIsolationActive =>
-        State == WorkspaceState.Edit &&
-        ((ActiveEditor?.ShowInIsolation ?? false) != _isolationOverride);
+    private static bool IsIsolationActive => State == WorkspaceState.Edit && !_isolationOverride;
     public static int SelectedCount { get; private set; }
     public static Tool? ActiveTool { get; private set; }
 
@@ -571,9 +569,6 @@ public static partial class Workspace
             Graphics.SetTransform(doc.Transform);
             doc.Draw();
         }
-
-        if (ActiveEditor != null && !ActiveEditor.ShowInIsolation)
-            ActiveEditor.Document.DrawBounds();
 
         Graphics.PopState();
     }

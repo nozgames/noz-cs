@@ -95,6 +95,16 @@ public class GenerationJobResponse
 }
 
 
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    WriteIndented = false)]
+[JsonSerializable(typeof(PipelineRequest))]
+[JsonSerializable(typeof(GenerationSubmitResponse))]
+[JsonSerializable(typeof(GenerationJobResponse))]
+[JsonSerializable(typeof(List<ModelInfo>))]
+internal partial class GenerationJsonContext : JsonSerializerContext;
+
 public static class GenerationClient
 {
     private static readonly HttpClient _http = new()
@@ -102,12 +112,12 @@ public static class GenerationClient
         Timeout = TimeSpan.FromSeconds(30)
     };
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    private static readonly GenerationJsonContext _jsonContext = new(new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false,
-    };
+    });
 
     public static void Generate(PipelineRequest request, Action<GenerationStatus> callback,
         CancellationToken cancellationToken = default)
@@ -117,7 +127,7 @@ public static class GenerationClient
             try
             {
                 // Phase 1: Submit job
-                var json = JsonSerializer.Serialize(request, _jsonOptions);
+                var json = JsonSerializer.Serialize(request, _jsonContext.PipelineRequest);
                 Log.Info($"Generation request JSON: {json}");
 
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -136,7 +146,7 @@ public static class GenerationClient
                 }
 
                 var submitJson = await response.Content.ReadAsStringAsync();
-                var submitResult = JsonSerializer.Deserialize<GenerationSubmitResponse>(submitJson, _jsonOptions);
+                var submitResult = JsonSerializer.Deserialize(submitJson, _jsonContext.GenerationSubmitResponse);
                 if (submitResult == null || string.IsNullOrEmpty(submitResult.JobId))
                 {
                     Log.Error("Generation submit returned no job_id");
@@ -179,7 +189,7 @@ public static class GenerationClient
                     }
 
                     var pollJson = await pollResponse.Content.ReadAsStringAsync();
-                    var job = JsonSerializer.Deserialize<GenerationJobResponse>(pollJson, _jsonOptions);
+                    var job = JsonSerializer.Deserialize(pollJson, _jsonContext.GenerationJobResponse);
                     if (job == null)
                     {
                         Log.Error("Poll returned invalid response");
@@ -221,7 +231,7 @@ public static class GenerationClient
     {
         try
         {
-            var json = JsonSerializer.Serialize(request, _jsonOptions);
+            var json = JsonSerializer.Serialize(request, _jsonContext.PipelineRequest);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _http.PostAsync($"{request.Server}/api/image/pipeline", content, cancellationToken);
 
@@ -233,7 +243,7 @@ public static class GenerationClient
             }
 
             var submitJson = await response.Content.ReadAsStringAsync();
-            var submitResult = JsonSerializer.Deserialize<GenerationSubmitResponse>(submitJson, _jsonOptions);
+            var submitResult = JsonSerializer.Deserialize(submitJson, _jsonContext.GenerationSubmitResponse);
             if (submitResult == null || string.IsNullOrEmpty(submitResult.JobId))
             {
                 Log.Error("Generation submit returned no job_id");
@@ -264,7 +274,7 @@ public static class GenerationClient
                 }
 
                 var pollJson = await pollResponse.Content.ReadAsStringAsync();
-                var job = JsonSerializer.Deserialize<GenerationJobResponse>(pollJson, _jsonOptions);
+                var job = JsonSerializer.Deserialize(pollJson, _jsonContext.GenerationJobResponse);
                 if (job == null)
                 {
                     Log.Error("Poll returned invalid response");
@@ -341,7 +351,7 @@ public static class GenerationClient
                 }
 
                 var json = await response.Content.ReadAsStringAsync();
-                var models = JsonSerializer.Deserialize<List<ModelInfo>>(json, _jsonOptions);
+                var models = JsonSerializer.Deserialize(json, _jsonContext.ListModelInfo);
                 EditorApplication.RunOnMainThread(() =>
                 {
                     _cachedModels = models ?? [];

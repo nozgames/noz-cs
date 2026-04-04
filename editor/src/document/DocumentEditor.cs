@@ -11,7 +11,6 @@ public abstract class DocumentEditor(Document document) : IDisposable
     public Command[]? Commands { get; protected set; }
 
     public virtual bool ShowInspector => false;
-    public virtual bool ShowInIsolation => false;
     public virtual bool RunInBackground => false;
 
     public virtual void Update() { }

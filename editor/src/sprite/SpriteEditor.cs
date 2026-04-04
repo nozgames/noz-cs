@@ -303,6 +303,8 @@ public partial class SpriteEditor : DocumentEditor
 
         if (!Document.Edges.IsZero)
             DrawEdges();
+
+        Document.DrawBounds();
     }
 
     public override void LateUpdate()

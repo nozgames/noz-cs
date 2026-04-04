@@ -27,7 +27,6 @@ internal partial class VfxEditor : DocumentEditor
     private float _outlinerSize = 180f;
 
     public override bool ShowInspector => true;
-    public override bool ShowInIsolation => true;
     public override bool RunInBackground => Document.IsPlaying;
 
     public new VfxDocument Document => (VfxDocument)base.Document;

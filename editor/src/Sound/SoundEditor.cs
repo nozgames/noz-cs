@@ -21,7 +21,6 @@ internal partial class SoundEditor : DocumentEditor
     private readonly WaveformEditor _waveform;
 
     public override bool ShowInspector => true;
-    public override bool ShowInIsolation => true;
     public override bool RunInBackground => _playing;
 
     public new SoundDocument Document => (SoundDocument)base.Document;

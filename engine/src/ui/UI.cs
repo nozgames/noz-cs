@@ -139,7 +139,9 @@ public static partial class UI
         return ElementTree.GetWidgetWorldRect(id);
     }
 
+#if DEBUG
     public static string DumpElementTree() => ElementTree.DebugDumpTree();
+#endif
 
     public static bool TryGetSceneRenderInfo(WidgetId id, out SceneRenderInfo info) =>
         ElementTree.TryGetSceneRenderInfo(id, out info);

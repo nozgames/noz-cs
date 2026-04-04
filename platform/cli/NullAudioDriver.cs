@@ -21,5 +21,6 @@ public class NullAudioDriver : IAudioDriver
     public float GetPitch(ulong handle) => 0;
     public void PlayMusic(nint sound) { }
     public void StopMusic() { }
+    public float GetPlaybackPosition(ulong handle) => 0;
     public bool IsMusicPlaying() => false;
 }
