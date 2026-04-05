@@ -56,6 +56,7 @@ public partial class SpriteEditor
             new Command("V Mode", () => SetMode(SpriteEditMode.Transform), [InputCode.KeyV]),
             new Command("A Mode", () => SetMode(SpriteEditMode.Anchor), [InputCode.KeyA]),
             new Command("Curve", BeginCurveTool, [InputCode.KeyC]),
+            new Command("Bevel", BeginBevelTool, [InputCode.KeyB]),
             new Command("Select All", SelectAll, [new KeyBinding(InputCode.KeyA, ctrl: true)]),
             new Command("Pen Tool", BeginPenTool, [InputCode.KeyP]),
             new Command("Rectangle Tool", BeginRectangleTool, [new KeyBinding(InputCode.KeyR, ctrl: true)]),
@@ -572,6 +573,29 @@ public partial class SpriteEditor
 
         Undo.Record(Document);
         Workspace.BeginTool(new CurveTool(this, path, Document.Transform, path.SnapshotAnchors(foundContour), contourIndex: foundContour));
+    }
+
+    private void BeginBevelTool()
+    {
+        var path = GetPathWithSelection();
+        if (path == null) return;
+
+        for (var ci = 0; ci < path.Contours.Count; ci++)
+        {
+            var contour = path.Contours[ci];
+            if (contour.Anchors.Count < 3) continue;
+
+            for (var i = 0; i < contour.Anchors.Count; i++)
+            {
+                if (!contour.Anchors[i].IsSelected) continue;
+                if (contour.Open && (i == 0 || i == contour.Anchors.Count - 1)) continue;
+
+                Undo.Record(Document);
+                Workspace.BeginTool(new BevelTool(this, path, Document.Transform,
+                    path.SnapshotAnchors(ci), i, ci));
+                return;
+            }
+        }
     }
 
     private void InsertAnchorAtHover()

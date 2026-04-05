@@ -612,6 +612,13 @@ public static class DocumentManager
             DocumentAdded?.Invoke(doc);
         }
 
+        // Re-export now that the document is loaded and atlas-assigned
+        if (doc.ShouldExport)
+        {
+            QueueExport(doc, force: true);
+            UpdateExports();
+        }
+
         doc.Position = source.Position;
 
         return doc;

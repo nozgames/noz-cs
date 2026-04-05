@@ -550,7 +550,7 @@ public class SpritePath : SpriteNode
 
     private static float Cross(Vector2 a, Vector2 b) => a.X * b.Y - a.Y * b.X;
 
-    private static float ProjectCurve(Vector2 p0, Vector2 p1, Vector2 control)
+    internal static float ProjectCurve(Vector2 p0, Vector2 p1, Vector2 control)
     {
         var mid = (p0 + p1) * 0.5f;
         var dir = p1 - p0;

@@ -445,8 +445,6 @@ public static partial class Workspace
         if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
             ;
 
-            UI.Button(WidgetIds.Toolbar, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly);
-
         using (UI.BeginFlex())
             if (_showFps)
             {
