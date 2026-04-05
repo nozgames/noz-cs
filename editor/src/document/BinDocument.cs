@@ -20,8 +20,8 @@ public class BinDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {
-        var data = File.ReadAllBytes(Path);
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        var data = EditorApplication.Store.ReadAllBytes(Path);
+        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Bin, Bin.Version);
         writer.Write(data.Length);
         writer.Write(data);

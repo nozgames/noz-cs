@@ -51,11 +51,11 @@ public class ShaderDocument : Document
 
     private void ImportWgsl(string outputPath, ShaderFlags flags)
     {
-        var wgslSource = File.ReadAllText(Path);
+        var wgslSource = EditorApplication.Store.ReadAllText(Path);
         var bindings = ParseWgslBindings(wgslSource);
         var vertexHash = ComputeVertexInputHash(wgslSource);
 
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Shader, Shader.Version);
 
         var sourceBytes = Encoding.UTF8.GetBytes(wgslSource);
@@ -203,9 +203,10 @@ public class ShaderDocument : Document
                     var filename = trimmed.Substring(quote1 + 1, quote2 - quote1 - 1);
                     var includePath = System.IO.Path.Combine(baseDir, filename);
 
-                    if (File.Exists(includePath))
+                    var store = EditorApplication.Store;
+                    if (store.FileExists(includePath))
                     {
-                        var includeContent = File.ReadAllText(includePath);
+                        var includeContent = store.ReadAllText(includePath);
                         var includeDir = System.IO.Path.GetDirectoryName(includePath) ?? baseDir;
                         result.AppendLine(ProcessIncludes(includeContent, includeDir));
                     }

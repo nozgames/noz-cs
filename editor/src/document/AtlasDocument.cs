@@ -131,7 +131,7 @@ internal class AtlasDocument : Document
 
     public override void Load()
     {
-        var contents = File.ReadAllText(Path);
+        var contents = EditorApplication.Store.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
     }
@@ -506,7 +506,7 @@ internal class AtlasDocument : Document
         if (IsEditorOnly)
             return;
 
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Atlas, Atlas.Version, 0);
 
         var format = TextureFormat.RGBA8;

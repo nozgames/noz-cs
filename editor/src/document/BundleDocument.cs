@@ -29,7 +29,7 @@ public class BundleDocument : Document
         IsRemote = false;
         Entries.Clear();
 
-        var contents = File.ReadAllText(Path);
+        var contents = EditorApplication.Store.ReadAllText(Path);
         var tk = new Tokenizer(contents);
 
         while (!tk.IsEOF)
@@ -99,7 +99,7 @@ public class BundleDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Bundle, AssetBundle.Version);
         writer.Write(Entries.Count);
 
@@ -120,13 +120,13 @@ public class BundleDocument : Document
             try
             {
                 doc.Export(tempPath, new PropertySet());
-                var data = File.ReadAllBytes(tempPath);
+                var data = EditorApplication.Store.ReadAllBytes(tempPath);
                 writer.Write(data.Length);
                 writer.Write(data);
             }
             finally
             {
-                File.Delete(tempPath);
+                EditorApplication.Store.DeleteFile(tempPath);
             }
         }
     }

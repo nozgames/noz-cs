@@ -132,6 +132,24 @@ public partial class SpriteDocument
                         path.StrokeJoin = SpriteStrokeJoin.Bevel;
                 }
             }
+            else if (tk.ExpectIdentifier("gradient"))
+            {
+                if (tk.ExpectIdentifier("linear"))
+                {
+                    tk.ExpectColor(out var c1);
+                    var x1 = tk.ExpectFloat();
+                    var y1 = tk.ExpectFloat();
+                    tk.ExpectColor(out var c2);
+                    var x2 = tk.ExpectFloat();
+                    var y2 = tk.ExpectFloat();
+                    path.FillType = SpriteFillType.Linear;
+                    path.FillGradient = new SpriteFillGradient
+                    {
+                        StartColor = c1.ToColor32(), Start = new Vector2(x1, y1),
+                        EndColor = c2.ToColor32(), End = new Vector2(x2, y2),
+                    };
+                }
+            }
             else if (tk.ExpectIdentifier("open"))
             {
                 path.Open = tk.ExpectBool();
@@ -292,6 +310,15 @@ public partial class SpriteDocument
         if (path.Open)
             writer.WriteLine($"{propIndent}open true");
         writer.WriteLine($"{propIndent}fill {FormatColor(path.FillColor)}");
+
+        if (path.FillType == SpriteFillType.Linear)
+        {
+            var g = path.FillGradient;
+            writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "{0}gradient linear {1} {2} {3} {4} {5} {6}",
+                propIndent, FormatColor(g.StartColor), g.Start.X, g.Start.Y,
+                FormatColor(g.EndColor), g.End.X, g.End.Y));
+        }
 
         if (path.StrokeColor.A > 0)
         {

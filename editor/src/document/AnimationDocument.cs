@@ -473,7 +473,7 @@ internal class AnimationDocument : Document
     public override void Load()
     {
         FrameCount = 0;
-        var contents = File.ReadAllText(Path);
+        var contents = EditorApplication.Store.ReadAllText(Path);
         var tk = new Tokenizer(contents);
 
         var boneMap = new int[NoZ.Skeleton.MaxBones];
@@ -908,7 +908,7 @@ internal class AnimationDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {           
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
 
         writer.WriteAssetHeader(AssetType.Animation, 1);
 
@@ -995,7 +995,7 @@ internal class AnimationDocument : Document
             fullPath += ".anim";
 
         var contents = $"s \"{skeleton.Name}\"\n";
-        File.WriteAllText(fullPath, contents);
+        EditorApplication.Store.WriteAllText(fullPath, contents);
 
         var doc = DocumentManager.Create(fullPath) as AnimationDocument;
         doc?.Load();

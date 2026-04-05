@@ -79,6 +79,14 @@ public partial class SpriteEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.DragWorldPosition, invTransform);
 
+        if (IsGradientOverlayVisible())
+        {
+            if (HandleGradientDrag(localMousePos))
+                return;
+            // Clicked outside gradient handles — close the picker
+            ColorPicker.Close();
+        }
+
         if (CurrentMode == SpriteEditMode.Transform && _selectedPaths.Count > 0 && HandleVModeDrag(localMousePos))
             return;
 
@@ -365,9 +373,20 @@ public partial class SpriteEditor
     private void OnSelectionChanged(bool hasSelection)
     {
         var path = GetFirstSelectedPath();
+
+        // Close gradient picker when selection no longer has a gradient path
+        if (ColorPicker.IsOpen(WidgetIds.FillColor) &&
+            ColorPicker.ResultFillType == SpriteFillType.Linear &&
+            (path == null || path.FillType != SpriteFillType.Linear))
+        {
+            ColorPicker.Close();
+        }
+
         if (path != null)
         {
             Document.CurrentFillColor = path.FillColor;
+            Document.CurrentFillType = path.FillType;
+            Document.CurrentFillGradient = path.FillGradient;
             Document.CurrentStrokeColor = path.StrokeColor;
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
             Document.CurrentStrokeJoin = path.StrokeJoin;

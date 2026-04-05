@@ -16,7 +16,7 @@ public partial class SpriteDocument
     internal void Rasterize(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
         // Static image or companion image: blit from file
-        if (ImageFilePath != null && File.Exists(ImageFilePath) && (!IsMutable || Generation is { HasImageData: true }))
+        if (ImageFilePath != null && EditorApplication.Store.FileExists(ImageFilePath) && (!IsMutable || Generation is { HasImageData: true }))
         {
             RasterizeImageFile(image, rect, padding);
             return;
@@ -99,7 +99,7 @@ public partial class SpriteDocument
     {
         if (ImageFilePath == null) return;
 
-        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ImageFilePath);
+        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(EditorApplication.Store.OpenRead(ImageFilePath));
         var srcW = srcImage.Width;
         var srcH = srcImage.Height;
         var dstW = RasterBounds.Width;
@@ -170,7 +170,12 @@ public partial class SpriteDocument
                     contours, clipPaths, FillRule.NonZero, precision: 6);
                 if (contours.Count == 0) continue;
             }
-            Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
+
+            if (result.FillType == SpriteFillType.Linear)
+                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi,
+                    result.FillType, result.Color, result.Gradient, result.GradientTransform);
+            else
+                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
         }
     }
 
@@ -188,7 +193,7 @@ public partial class SpriteDocument
             return;
         }
 
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
 
         writer.Write((ushort)EditorApplication.Config.PixelsPerUnit);

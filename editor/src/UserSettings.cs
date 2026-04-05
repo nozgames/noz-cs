@@ -6,11 +6,12 @@ namespace NoZ.Editor;
 
 public static class UserSettings
 {
-    private static string UserConfigPath => Path.Combine(EditorApplication.ProjectPath, ".noz", "user.cfg");
+    private const string UserConfigPath = ".noz/user.cfg";
 
     public static void Load()
     {
-        var props = PropertySet.LoadFile(UserConfigPath);
+        var store = EditorApplication.Store;
+        var props = PropertySetExtensions.LoadFile(store, UserConfigPath);
         if (props == null)
             return;
 
@@ -21,14 +22,15 @@ public static class UserSettings
 
     public static void Save()
     {
-        var dir = System.IO.Path.GetDirectoryName(UserConfigPath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            Directory.CreateDirectory(dir);
+        var store = EditorApplication.Store;
+        var dir = Path.GetDirectoryName(UserConfigPath);
+        if (!string.IsNullOrEmpty(dir) && !store.DirectoryExists(dir))
+            store.CreateDirectory(dir);
 
         var props = new PropertySet();
         Workspace.SaveUserSettings(props);
         CollectionManager.SaveUserSettings(props);
         EditorApplication.AppConfig.SaveUserSettings?.Invoke(props);
-        props.Save(UserConfigPath);
+        props.Save(UserConfigPath, store);
     }
 }

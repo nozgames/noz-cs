@@ -98,7 +98,7 @@ public partial class SpriteDocument
         if (!string.IsNullOrEmpty(gen.Config.Name))
             writer.WriteLine($"style \"{gen.Config.Name}\"");
         if (gen.Job.HasImageData && ImageFilePath != null)
-            File.WriteAllBytes(ImageFilePath, gen.Job.ImageData!);
+            EditorApplication.Store.WriteAllBytes(ImageFilePath, gen.Job.ImageData!);
     }
 
     private void CloneGeneration(SpriteDocument src)
@@ -164,16 +164,16 @@ public partial class SpriteDocument
                         ImageFilePath = System.IO.Path.Combine(dir, stem + ".png");
                     }
 
-                    if (!File.Exists(ImageFilePath))
-                        File.WriteAllBytes(ImageFilePath, gen.Job.ImageData);
+                    if (!EditorApplication.Store.FileExists(ImageFilePath))
+                        EditorApplication.Store.WriteAllBytes(ImageFilePath, gen.Job.ImageData);
                 }
             }
             else
                 break;
         }
 
-        if (!gen.Job.HasImageData && ImageFilePath != null && File.Exists(ImageFilePath))
-            gen.Job.ImageData = File.ReadAllBytes(ImageFilePath);
+        if (!gen.Job.HasImageData && ImageFilePath != null && EditorApplication.Store.FileExists(ImageFilePath))
+            gen.Job.ImageData = EditorApplication.Store.ReadAllBytes(ImageFilePath);
     }
 
     private void DrawGeneration()
@@ -390,8 +390,8 @@ public partial class SpriteDocument
             try
             {
                 var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
-                Directory.CreateDirectory(tmpDir);
-                File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), gen.Job.ImageData);
+                EditorApplication.Store.CreateDirectory(tmpDir);
+                EditorApplication.Store.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), gen.Job.ImageData);
             }
             catch { }
 

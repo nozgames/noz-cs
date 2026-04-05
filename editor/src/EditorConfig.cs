@@ -161,20 +161,23 @@ public class EditorConfig
         return false;
     }
 
-    private string ResolvePath(string path)
+    private static string ResolvePath(string path)
     {
-        if (Path.IsPathRooted(path))
-            return path;
-        return Path.GetFullPath(Path.Combine(EditorApplication.ProjectPath, path));
+        // Normalize relative paths: strip leading ./ and normalize separators
+        path = path.Replace('\\', '/');
+        if (path.StartsWith("./"))
+            path = path[2..];
+        return path;
     }
 
     public static EditorConfig? Load(string path)
     {
-        if (!File.Exists(path)) return null;
+        var store = EditorApplication.Store;
+        if (!store.FileExists(path)) return null;
 
         Log.Info($"Loading Config: {path}");
 
-        var props = PropertySet.LoadFile(path);
+        var props = PropertySetExtensions.LoadFile(store, path);
         if (props == null)
             return null;
 

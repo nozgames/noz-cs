@@ -285,6 +285,8 @@ public partial class SpriteEditor : DocumentEditor
             DrawWireframe();
         }
 
+        DrawGradientOverlay();
+
         UpdateMeshFromLayers();
 
         if (hasGen)
@@ -602,10 +604,32 @@ public partial class SpriteEditor : DocumentEditor
     private void SetFillColor(Color32 color)
     {
         Document.CurrentFillColor = color;
+        Document.CurrentFillType = SpriteFillType.Solid;
 
         if (_selectedPaths.Count == 0) return;
         foreach (var path in _selectedPaths)
+        {
             path.FillColor = color;
+            path.FillType = SpriteFillType.Solid;
+        }
+        _meshDirty = true;
+    }
+
+    private void SetFillGradient(SpriteFillType fillType, Color32 fallbackColor, SpriteFillGradient gradient)
+    {
+        Document.CurrentFillColor = fallbackColor;
+        Document.CurrentFillType = fillType;
+        Document.CurrentFillGradient = gradient;
+
+        if (_selectedPaths.Count == 0) return;
+        foreach (var path in _selectedPaths)
+        {
+            path.FillColor = fallbackColor;
+            path.FillType = fillType;
+            path.FillGradient = gradient;
+            if (fillType == SpriteFillType.Linear && path.FillGradient.Start == Vector2.Zero && path.FillGradient.End == Vector2.Zero)
+                path.InitializeDefaultGradient();
+        }
         _meshDirty = true;
     }
 
@@ -1067,6 +1091,9 @@ public partial class SpriteEditor : DocumentEditor
     {
         if (_selectedPaths.Count == 0) return;
 
+        // When gradient handles are active, hide normal wireframe controls
+        if (IsGradientOverlayVisible()) return;
+
         var transform = Document.Transform;
 
         if (CurrentMode == SpriteEditMode.Anchor)
@@ -1098,7 +1125,7 @@ public partial class SpriteEditor : DocumentEditor
         _hoverAnchorIndex = -1;
         _hoverHandle = SpritePathHandle.None;
 
-        if (_selectedPaths.Count == 0)
+        if (_selectedPaths.Count == 0 || IsGradientOverlayVisible())
         {
             SetCursor(SpritePathHandle.None);
             return;
@@ -1567,11 +1594,50 @@ public partial class SpriteEditor : DocumentEditor
 
             using (Inspector.BeginProperty("Fill"))
             {
+                var wasPickerOpen = ColorPicker.IsOpen(WidgetIds.FillColor);
                 var fillColor = Document.CurrentFillColor.ToColor();
                 if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor))
                 {
                     UI.HandleChange(Document);
-                    SetFillColor(fillColor.ToColor32());
+                    var newFillType = ColorPicker.ResultFillType;
+                    if (newFillType == SpriteFillType.Linear)
+                    {
+                        var newGradient = ColorPicker.ResultGradient;
+                        SetFillGradient(newFillType, fillColor.ToColor32(), newGradient);
+                    }
+                    else
+                    {
+                        SetFillColor(fillColor.ToColor32());
+                    }
+                }
+
+                // Re-open with gradient state when the picker just opened on a gradient path
+                if (!wasPickerOpen && ColorPicker.IsOpen(WidgetIds.FillColor) && Document.CurrentFillType == SpriteFillType.Linear)
+                {
+                    ColorPicker.Open(WidgetIds.FillColor, Document.CurrentFillType,
+                        Document.CurrentFillColor, Document.CurrentFillGradient);
+                }
+
+                // Continuously sync gradient to paths while picker is open in Linear mode.
+                // EditorUI.ColorButton only detects StartColor changes — this catches EndColor edits too.
+                if (ColorPicker.IsOpen(WidgetIds.FillColor) && ColorPicker.ResultFillType == SpriteFillType.Linear)
+                {
+                    var pickerGrad = ColorPicker.ResultGradient;
+                    Document.CurrentFillType = SpriteFillType.Linear;
+                    Document.CurrentFillColor = pickerGrad.StartColor;
+                    foreach (var path in _selectedPaths)
+                    {
+                        path.FillType = SpriteFillType.Linear;
+                        path.FillColor = pickerGrad.StartColor;
+                        // Sync colors from picker, preserve positions from path
+                        var g = path.FillGradient;
+                        g.StartColor = pickerGrad.StartColor;
+                        g.EndColor = pickerGrad.EndColor;
+                        path.FillGradient = g;
+                        if (g.Start == Vector2.Zero && g.End == Vector2.Zero)
+                            path.InitializeDefaultGradient();
+                    }
+                    _meshDirty = true;
                 }
             }
 

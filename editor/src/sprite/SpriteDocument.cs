@@ -48,6 +48,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public EdgeInsets Edges { get; set; } = EdgeInsets.Zero;
 
     public Color32 CurrentFillColor = Color32.White;
+    public SpriteFillType CurrentFillType;
+    public SpriteFillGradient CurrentFillGradient;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
     public SpriteStrokeJoin CurrentStrokeJoin;
@@ -162,7 +164,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         if (IsMutable)
         {
-            var contents = File.ReadAllText(Path);
+            var contents = EditorApplication.Store.ReadAllText(Path);
             var tk = new Tokenizer(contents);
             Load(ref tk);
         }
@@ -181,13 +183,14 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         var dir = System.IO.Path.GetDirectoryName(Path) ?? "";
         var stem = System.IO.Path.GetFileNameWithoutExtension(Path);
 
+        var store = EditorApplication.Store;
         if (ext == ".sprite")
         {
             // Created from .sprite — look for companion image
             foreach (var imgExt in ImageExtensions)
             {
                 var imgPath = System.IO.Path.Combine(dir, stem + imgExt);
-                if (File.Exists(imgPath))
+                if (store.FileExists(imgPath))
                 {
                     ImageFilePath = imgPath;
                     break;
@@ -198,11 +201,11 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         {
             // Created from an image file — check if .sprite exists
             var spritePath = System.IO.Path.Combine(dir, stem + ".sprite");
-            if (File.Exists(spritePath))
+            if (store.FileExists(spritePath))
             {
                 // .sprite is the primary file, image is companion
                 ImageFilePath = Path;
-                Path = System.IO.Path.GetFullPath(spritePath).ToLowerInvariant();
+                Path = spritePath.Replace('\\', '/').ToLowerInvariant();
             }
             else
             {
@@ -222,10 +225,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     private void LoadStaticImage()
     {
-        if (ImageFilePath == null || !File.Exists(ImageFilePath))
+        if (ImageFilePath == null || !EditorApplication.Store.FileExists(ImageFilePath))
             return;
 
-        var info = Image.Identify(ImageFilePath);
+        var info = Image.Identify(EditorApplication.Store.OpenRead(ImageFilePath));
         if (info == null)
             return;
 
@@ -251,7 +254,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         ReloadGeneration();
         RootLayer.Clear();
         AnimFrames.Clear();
-        var contents = File.ReadAllText(Path);
+        var contents = EditorApplication.Store.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
 
@@ -462,12 +465,12 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     private void EnsurePreviewTexture()
     {
-        if (_texture != null || ImageFilePath == null || !File.Exists(ImageFilePath))
+        if (_texture != null || ImageFilePath == null || !EditorApplication.Store.FileExists(ImageFilePath))
             return;
 
         try
         {
-            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ImageFilePath);
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(EditorApplication.Store.OpenRead(ImageFilePath));
             _textureSize = new Vector2Int(srcImage.Width, srcImage.Height);
             _texture = CreateTextureFromImage(srcImage, Name + "_preview");
         }
@@ -546,6 +549,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         Depth = src.Depth;
         Bounds = src.Bounds;
         CurrentFillColor = src.CurrentFillColor;
+        CurrentFillType = src.CurrentFillType;
+        CurrentFillGradient = src.CurrentFillGradient;
         CurrentStrokeColor = src.CurrentStrokeColor;
         CurrentStrokeWidth = src.CurrentStrokeWidth;
         CurrentStrokeJoin = src.CurrentStrokeJoin;

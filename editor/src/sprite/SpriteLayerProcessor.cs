@@ -9,15 +9,23 @@
 //  beziers natively — preserving curve fidelity during self-union.
 //
 
+using System.Numerics;
 using Clipper2Lib;
 
 namespace NoZ.Editor;
 
-internal readonly struct LayerPathResult(PathsD Contours, Color32 Color, bool IsStroke)
+internal readonly struct LayerPathResult(
+    PathsD Contours, Color32 Color, bool IsStroke,
+    SpriteFillType FillType = SpriteFillType.Solid,
+    SpriteFillGradient Gradient = default,
+    Matrix3x2 GradientTransform = default)
 {
     public readonly PathsD Contours = Contours;
     public readonly Color32 Color = Color;
     public readonly bool IsStroke = IsStroke;
+    public readonly SpriteFillType FillType = FillType;
+    public readonly SpriteFillGradient Gradient = Gradient;
+    public readonly Matrix3x2 GradientTransform = GradientTransform;
 }
 
 internal static class SpriteLayerProcessor
@@ -50,7 +58,7 @@ internal static class SpriteLayerProcessor
                 var trimmed = Clipper.BooleanOp(ClipType.Difference,
                     r.Contours, above, FillRule.NonZero, precision: ClipperPrecision);
                 if (trimmed.Count > 0)
-                    results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke);
+                    results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke, r.FillType, r.Gradient, r.GradientTransform);
             }
 
             if (isOpaque && r.Contours.Count > 0)
@@ -95,10 +103,11 @@ internal static class SpriteLayerProcessor
                 {
                     for (int i = results.Count - 1; i >= 0; i--)
                     {
+                        var ri = results[i];
                         var diff = Clipper.BooleanOp(ClipType.Difference,
-                            results[i].Contours, subContours, FillRule.NonZero, precision: ClipperPrecision);
+                            ri.Contours, subContours, FillRule.NonZero, precision: ClipperPrecision);
                         if (diff.Count > 0)
-                            results[i] = new LayerPathResult(diff, results[i].Color, results[i].IsStroke);
+                            results[i] = new LayerPathResult(diff, ri.Color, ri.IsStroke, ri.FillType, ri.Gradient, ri.GradientTransform);
                         else
                             results.RemoveAt(i);
                     }
@@ -148,7 +157,8 @@ internal static class SpriteLayerProcessor
             }
 
             var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
-            var hasFill = path.FillColor.A > 0;
+            var hasFill = path.FillColor.A > 0 || path.FillType == SpriteFillType.Linear;
+            var gradTransform = path.PathTransform;
 
             if (hasStroke)
             {
@@ -164,7 +174,7 @@ internal static class SpriteLayerProcessor
                             contours, contracted, FillRule.NonZero, precision: ClipperPrecision);
                         if (ring.Count > 0)
                             results.Add(new LayerPathResult(ring, path.StrokeColor, true));
-                        results.Add(new LayerPathResult(contracted, path.FillColor, false));
+                        results.Add(new LayerPathResult(contracted, path.FillColor, false, path.FillType, path.FillGradient, gradTransform));
                     }
                     else
                     {
@@ -188,7 +198,7 @@ internal static class SpriteLayerProcessor
             }
             else if (hasFill)
             {
-                results.Add(new LayerPathResult(contours, path.FillColor, false));
+                results.Add(new LayerPathResult(contours, path.FillColor, false, path.FillType, path.FillGradient, gradTransform));
             }
         }
 

@@ -22,6 +22,7 @@ public class EditorApplicationConfig
     public Action<PropertySet>? SaveUserSettings { get; init; }
     public Action<List<Command>>? RegisterCommands { get; init; }
     public Assembly? ResourceAssembly { get; init; }
+    public IEditorStore? Store { get; init; }
 }
 
 internal class EditorApplicationInstance : IApplication
@@ -31,8 +32,7 @@ internal class EditorApplicationInstance : IApplication
 
     public void LoadConfig(ApplicationConfig config)
     {
-        var path = Path.Combine(EditorApplication.ProjectPath, ".noz", "user.cfg");
-        var props = PropertySet.LoadFile(path);
+        var props = PropertySetExtensions.LoadFile(EditorApplication.Store, ".noz/user.cfg");
         if (props == null) return;
 
         var w = props.GetInt("window", "width", 0);
@@ -69,10 +69,12 @@ public static partial class EditorApplication
 
     internal static EditorApplicationConfig AppConfig { get; private set; } = null!;
 
+    public static IEditorStore Store { get; private set; } = null!;
     public static EditorConfig Config { get; private set; } = null!;
     public static string OutputPath { get; private set; } = null!;
     public static string EditorPath { get; private set; } = null!;
     public static string ProjectPath { get; private set; } = null!;
+    private static bool _projectInitialized;
 
     public static void Run(EditorApplicationConfig config, string[] args)
     {
@@ -107,7 +109,7 @@ public static partial class EditorApplication
 
         // For CLI modes on Windows, attach to parent console so Console.WriteLine output is visible
         // (WinExe has no console by default; Linux/Mac don't need this)
-        if ((exportOnly || initProject) && OperatingSystem.IsWindows())
+        if ((exportOnly || initProject || config.Store != null) && OperatingSystem.IsWindows())
             AttachConsole(-1);
 
         // Resolve editor path: use --editor-path if provided, otherwise walk up from app base directory
@@ -196,23 +198,28 @@ public static partial class EditorApplication
             }
         }
 
-        if (!File.Exists(Path.Combine(projectPath, "editor.cfg")))
+        // When a store is provided (e.g. GitStore), skip the directory walk —
+        // the store already has the files at the project path.
+        if (config.Store == null)
         {
-            Log.Info("Searching for project path...");
-            projectPath = Path.GetDirectoryName(projectPath)!;
-            while (projectPath != null)
+            if (!File.Exists(Path.Combine(projectPath, "editor.cfg")))
             {
-                Log.Info($"Trying {projectPath}");
-                if (File.Exists(Path.Combine(projectPath, "editor.cfg")))
-                    break;
-
+                Log.Info("Searching for project path...");
                 projectPath = Path.GetDirectoryName(projectPath)!;
-            }
+                while (projectPath != null)
+                {
+                    Log.Info($"Trying {projectPath}");
+                    if (File.Exists(Path.Combine(projectPath, "editor.cfg")))
+                        break;
 
-            if (projectPath == null)
-            {
-                Log.Error("Could not find project path (no 'editor.cfg' found)");
-                return;
+                    projectPath = Path.GetDirectoryName(projectPath)!;
+                }
+
+                if (projectPath == null)
+                {
+                    Log.Error("Could not find project path (no 'editor.cfg' found)");
+                    return;
+                }
             }
         }
 
@@ -262,7 +269,7 @@ public static partial class EditorApplication
             Graphics = new GraphicsConfig
             {
                 Driver = new WebGPUGraphicsDriver(),
-                PixelsPerUnit = Config.PixelsPerUnit,
+                PixelsPerUnit = Config?.PixelsPerUnit ?? 256,
                 Vsync = true,
                 HDR = true
             }
@@ -274,18 +281,19 @@ public static partial class EditorApplication
         Application.Shutdown();
     }
 
+    private static bool _clean;
+
     private static void Init(string editorPath, string projectPath, bool clean, EditorApplicationConfig config)
     {
         EditorPath = editorPath;
         ProjectPath = projectPath;
+        _clean = clean;
+        _projectInitialized = false;
 
-        Config = EditorConfig.Load(Path.Combine(ProjectPath, "editor.cfg"))!;
-        if (Config == null)
-        {
-            Log.Warning("editor.cfg not found");
-            return;
-        }
+        Store = AppConfig.Store ?? new LocalStore();
+        Store.Init(projectPath);
 
+        // Register asset/document types (static registrations, no files needed)
         Application.RegisterAssetTypes();
         config.RegisterAssetTypes?.Invoke();
 
@@ -304,8 +312,21 @@ public static partial class EditorApplication
 
         config.RegisterDocumentTypes?.Invoke();
 
-        OutputPath = System.IO.Path.Combine(ProjectPath, Config.OutputPath);
+        // If store is ready, initialize the project now
+        if (Store.IsReady)
+            InitProject();
+    }
 
+    private static void InitProject()
+    {
+        Config = EditorConfig.Load("editor.cfg")!;
+        if (Config == null)
+        {
+            Log.Warning("editor.cfg not found");
+            return;
+        }
+
+        OutputPath = Config.OutputPath;
         Log.Info($"OutputPath: {OutputPath}");
 
         CollectionManager.Init(Config);
@@ -314,22 +335,26 @@ public static partial class EditorApplication
         DocumentManager.LoadAll();
         PaletteManager.DiscoverPalettes();
         AtlasManager.Init();
-        DocumentManager.InitExports(clean);
+        DocumentManager.InitExports(_clean);
         AssetManifest.Generate();
+
+        _projectInitialized = true;
     }
 
     internal static void PostLoad()
     {
+        // UI infrastructure — always init so the store can draw its setup UI
+        EditorStyle.Init();
+        PopupMenu.Init();
+        ConfirmDialog.Init();
+        EditorCursor.Init();
+
         if (Config == null)
             return;
 
         DocumentManager.PostLoad();
         AtlasManager.RebuildTextureArray();
-        EditorStyle.Init();
-        PopupMenu.Init();
-        ConfirmDialog.Init();
         VfxSystem.Shader = EditorAssets.Shaders.Sprite;
-        EditorCursor.Init();
         Workspace.Init();
         UserSettings.Load();
 
@@ -339,16 +364,22 @@ public static partial class EditorApplication
 
     private static void Shutdown()
     {
-        UserSettings.Save();
-        DocumentManager.SaveAll();
+        if (_projectInitialized)
+        {
+            UserSettings.Save();
+            DocumentManager.SaveAll();
 
-        Workspace.Shutdown();
-        ConfirmDialog.Shutdown();
-        PopupMenu.Shutdown();
-        EditorStyle.Shutdown();
-        CollectionManager.Shutdown();
-        PaletteManager.Shutdown();
-        DocumentManager.Shutdown();
+            Workspace.Shutdown();
+            ConfirmDialog.Shutdown();
+            PopupMenu.Shutdown();
+            EditorStyle.Shutdown();
+            CollectionManager.Shutdown();
+            PaletteManager.Shutdown();
+            DocumentManager.Shutdown();
+        }
+
+        Store.Dispose();
+        Store = null!;
         Config = null!;
     }
 
@@ -363,6 +394,36 @@ public static partial class EditorApplication
         lock (_mainThreadQueue)
             while (_mainThreadQueue.Count > 0)
                 _mainThreadQueue.Dequeue().Invoke();
+
+        // If store isn't ready, show its setup UI and wait
+        if (!Store.IsReady)
+        {
+            Store.UpdateUI();
+            return;
+        }
+
+        // First frame after store becomes ready — initialize the project
+        if (!_projectInitialized)
+        {
+            InitProject();
+            if (Config != null)
+            {
+                DocumentManager.UpdateExports();
+                EditorAssets.ReloadAssets();
+
+                // Project-specific PostLoad (UI infra already initialized)
+                DocumentManager.PostLoad();
+                AtlasManager.RebuildTextureArray();
+                VfxSystem.Shader = EditorAssets.Shaders.Sprite;
+                Workspace.Init();
+                UserSettings.Load();
+                DocumentManager.SaveAll();
+                DocumentManager.QueueGenerations();
+            }
+        }
+
+        if (Config == null)
+            return;
 
         if (!Application.HasFocus && !(Workspace.ActiveEditor is { RunInBackground: true}))
             Thread.Sleep(1000 / 30);

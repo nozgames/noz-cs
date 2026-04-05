@@ -75,7 +75,7 @@ public class FontDocument : Document
 
         RenderGlyphs(glyphs, atlas);
 
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath) ?? "");
+        EditorApplication.Store.CreateDirectory(System.IO.Path.GetDirectoryName(outputPath) ?? "");
         WriteFontData(outputPath, ttf, glyphs, atlas, atlasSize);
 
         sw.Stop();
@@ -325,7 +325,7 @@ public class FontDocument : Document
     {
         var fontSizeInv = 1.0f / FontSize;
 
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
 
         writer.WriteAssetHeader(AssetType.Font, Font.Version);
         writer.Write((uint)FontSize);

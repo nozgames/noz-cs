@@ -16,7 +16,6 @@ public static class DocumentManager
 
     private static readonly Queue<Document> _exportQueue = [];
     private static readonly Queue<Document> _exportDeferred = [];
-    private static readonly List<FileSystemWatcher> _watchers = [];
     private static readonly ConcurrentQueue<string> _watcherQueue = [];
     private static readonly ConcurrentQueue<string> _reloadQueue = [];
     private static bool _watching;
@@ -46,11 +45,11 @@ public static class DocumentManager
         _sourcePaths.AddRange(sourcePaths);
         _outputPath = outputPath;
 
-        Log.Info($"DocumentOutputPath: {Path.GetFullPath(outputPath)}");
+        Log.Info($"DocumentOutputPath: {outputPath}");
         foreach (var path in sourcePaths)
-            Log.Info($"DocumentSourcePath: {Path.GetFullPath(path)}");
+            Log.Info($"DocumentSourcePath: {path}");
 
-        Directory.CreateDirectory(outputPath);
+        EditorApplication.Store.CreateDirectory(outputPath);
 
         InitDocuments();
     }
@@ -65,18 +64,20 @@ public static class DocumentManager
 
         UpdateExports();
 
+        var store = EditorApplication.Store;
+        store.FileChanged += HandleFileChange;
         foreach (var sourcePath in _sourcePaths)
-            if (Directory.Exists(sourcePath))
-                StartWatching(sourcePath);
+            if (store.DirectoryExists(sourcePath))
+                store.StartWatching(sourcePath);
 
         _watching = true;
     }
 
     public static void Shutdown()
     {
-        foreach (var watcher in _watchers)
-            watcher.Dispose();
-        _watchers.Clear();
+        var store = EditorApplication.Store;
+        store.FileChanged -= HandleFileChange;
+        store.StopWatching();
 
         _initialized = false;
         _documents.Clear();
@@ -144,7 +145,7 @@ public static class DocumentManager
                 foreach (var primaryExt in def.Extensions)
                 {
                     var candidate = Path.Combine(dir, stem + primaryExt);
-                    if (File.Exists(candidate))
+                    if (EditorApplication.Store.FileExists(candidate))
                         return candidate;
                 }
             }
@@ -162,9 +163,10 @@ public static class DocumentManager
             return defs[0];
 
         var metaPath = path + ".meta";
-        if (File.Exists(metaPath))
+        var store = EditorApplication.Store;
+        if (store.FileExists(metaPath))
         {
-            var meta = PropertySet.LoadFile(metaPath);
+            var meta = PropertySetExtensions.LoadFile(store, metaPath);
             var docType = meta?.GetString("editor", "document_type", "");
             if (!string.IsNullOrEmpty(docType))
             {
@@ -194,7 +196,7 @@ public static class DocumentManager
 
         var doc = def.Factory();
         doc.Def = def;
-        doc.Path = Path.GetFullPath(path).ToLowerInvariant();
+        doc.Path = path.Replace('\\', '/').ToLowerInvariant();
         doc.Name = MakeCanonicalName(path);
         doc.Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
         _documents.Add(doc);
@@ -230,17 +232,22 @@ public static class DocumentManager
         if (Find(assetType, canonicalName) != null)
             return null;
         var path = Path.Combine(_sourcePaths[0], typeName, canonicalName + def.Extensions[0]);
-        if (File.Exists(path))
+        var store = EditorApplication.Store;
+        if (store.FileExists(path))
             return null;
 
         var directory = Path.GetDirectoryName(path);
         if (directory != null)
-            Directory.CreateDirectory(directory);
+            store.CreateDirectory(directory);
 
         var doc = Create(path);
 
-        using (var writer = new StreamWriter(path))
-            def.NewFile(writer);
+        using (var ms = new MemoryStream())
+        {
+            using (var writer = new StreamWriter(ms))
+                def.NewFile(writer);
+            store.WriteAllBytes(path, ms.ToArray());
+        }
 
         if (doc == null) return null;
 
@@ -356,12 +363,13 @@ public static class DocumentManager
 
     private static IEnumerable<string> GetCompanionFiles(Document doc)
     {
+        var store = EditorApplication.Store;
         var directory = Path.GetDirectoryName(doc.Path) ?? "";
         var stem = Path.GetFileNameWithoutExtension(doc.Path);
         foreach (var ext in doc.Def.Extensions)
         {
             var path = Path.Combine(directory, stem + ext);
-            if (File.Exists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
+            if (store.FileExists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
                 yield return path;
         }
 
@@ -370,7 +378,7 @@ public static class DocumentManager
             foreach (var auxExt in doc.Def.AuxiliaryExtensions)
             {
                 var path = Path.Combine(directory, stem + auxExt);
-                if (File.Exists(path))
+                if (store.FileExists(path))
                     yield return path;
             }
         }
@@ -387,7 +395,8 @@ public static class DocumentManager
             return false;
 
         var newPath = Path.Combine(directory, canonicalName + doc.Def.Extensions[0]);
-        if (File.Exists(newPath))
+        var store = EditorApplication.Store;
+        if (store.FileExists(newPath))
             return false;
 
         // Rename companion files (e.g., .png alongside .sprite)
@@ -395,20 +404,20 @@ public static class DocumentManager
         {
             var companionExt = Path.GetExtension(companionPath);
             var newCompanionPath = Path.Combine(directory, canonicalName + companionExt);
-            File.Move(companionPath, newCompanionPath);
+            store.MoveFile(companionPath, newCompanionPath);
         }
 
         var oldMetaPath = doc.Path + ".meta";
         var newMetaPath = newPath + ".meta";
 
-        File.Move(doc.Path, newPath);
+        store.MoveFile(doc.Path, newPath);
 
-        if (File.Exists(oldMetaPath))
-            File.Move(oldMetaPath, newMetaPath);
+        if (store.FileExists(oldMetaPath))
+            store.MoveFile(oldMetaPath, newMetaPath);
 
         var oldName = doc.Name;
 
-        doc.Path = Path.GetFullPath(newPath).ToLowerInvariant();
+        doc.Path = newPath.Replace('\\', '/').ToLowerInvariant();
         doc.Name = canonicalName;
         doc.IncrementVersion();
 
@@ -436,9 +445,10 @@ public static class DocumentManager
 
         // Update the meta file with the new document type
         var metaPath = path + ".meta";
-        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
+        var store = EditorApplication.Store;
+        var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
         meta.SetString("editor", "document_type", newDef.Name);
-        meta.Save(metaPath);
+        meta.Save(metaPath, store);
 
         // Remove old document
         Workspace.ClearSelection();
@@ -477,16 +487,18 @@ public static class DocumentManager
     {
         Undo.RemoveDocument(doc);
 
+        var store = EditorApplication.Store;
+
         // Delete companion files
         foreach (var companionPath in GetCompanionFiles(doc).ToList())
-            File.Delete(companionPath);
+            store.DeleteFile(companionPath);
 
-        if (File.Exists(doc.Path))
-            File.Delete(doc.Path);
+        if (store.FileExists(doc.Path))
+            store.DeleteFile(doc.Path);
 
         var metaPath = doc.Path + ".meta";
-        if (File.Exists(metaPath))
-            File.Delete(metaPath);
+        if (store.FileExists(metaPath))
+            store.DeleteFile(metaPath);
 
         AssetManifest.IsModified = true;
 
@@ -496,12 +508,13 @@ public static class DocumentManager
 
     private static void InitDocuments()
     {
+        var store = EditorApplication.Store;
         foreach (var sourcePath in _sourcePaths)
         {
-            if (!Directory.Exists(sourcePath))
+            if (!store.DirectoryExists(sourcePath))
                 continue;
 
-            foreach (var filePath in Directory.EnumerateFiles(sourcePath, "*.*", SearchOption.AllDirectories))
+            foreach (var filePath in store.EnumerateFiles(sourcePath, "*.*", SearchOption.AllDirectories))
             {
                 var ext = Path.GetExtension(filePath);
                 if (ext == ".meta") continue;
@@ -559,7 +572,7 @@ public static class DocumentManager
         {
             var candidate = Path.Combine(parentPath, $"{canonicalBase}_{i}{ext}");
 
-            if (File.Exists(candidate))
+            if (EditorApplication.Store.FileExists(candidate))
                 continue;
 
             var canonicalName = MakeCanonicalName(candidate);
@@ -576,11 +589,12 @@ public static class DocumentManager
         if (newPath == null) return null;
         var newName = Path.GetFileNameWithoutExtension(newPath);
 
+        var store = EditorApplication.Store;
         var directory = Path.GetDirectoryName(newPath);
         if (directory != null)
-            Directory.CreateDirectory(directory);
+            store.CreateDirectory(directory);
 
-        File.Copy(source.Path, newPath);
+        store.CopyFile(source.Path, newPath);
 
         // Copy companion files
         var newStem = Path.GetFileNameWithoutExtension(newPath);
@@ -588,12 +602,12 @@ public static class DocumentManager
         foreach (var companionPath in GetCompanionFiles(source))
         {
             var companionExt = Path.GetExtension(companionPath);
-            File.Copy(companionPath, Path.Combine(newDir, newStem + companionExt));
+            store.CopyFile(companionPath, Path.Combine(newDir, newStem + companionExt));
         }
 
         var metaPath = source.Path + ".meta";
-        if (File.Exists(metaPath))
-            File.Copy(metaPath, newPath + ".meta");
+        if (store.FileExists(metaPath))
+            store.CopyFile(metaPath, newPath + ".meta");
 
         QueueExport(newPath);
         UpdateExports();
@@ -631,26 +645,28 @@ public static class DocumentManager
         if (doc == null) return;
         if (!doc.ShouldExport) return;
         if (doc.IsQueuedForExport) return;
-        if (!File.Exists(doc.Path)) return;
+
+        var store = EditorApplication.Store;
+        if (!store.FileExists(doc.Path)) return;
 
         var targetPath = GetTargetPath(doc);
         var metaPath = doc.Path + ".meta";
 
         if (!force)
         {
-            bool targetExists = File.Exists(targetPath);
+            bool targetExists = store.FileExists(targetPath);
             if (targetExists)
             {
                 // Force export if the binary's version doesn't match the engine's expected version
                 var assetDef = Asset.GetDef(doc.Def.Type);
-                if (assetDef is { Version: > 0 } && Asset.ReadAssetVersion(targetPath) != assetDef.Version)
+                if (assetDef is { Version: > 0 } && ReadAssetVersion(store, targetPath) != assetDef.Version)
                     force = true;
 
                 if (!force)
                 {
-                    var targetTime = File.GetLastWriteTimeUtc(targetPath);
-                    var sourceTime = File.GetLastWriteTimeUtc(doc.Path);
-                    var metaTime = File.Exists(metaPath) ? File.GetLastWriteTimeUtc(metaPath) : DateTime.MinValue;
+                    var targetTime = store.GetLastWriteTimeUtc(targetPath);
+                    var sourceTime = store.GetLastWriteTimeUtc(doc.Path);
+                    var metaTime = store.FileExists(metaPath) ? store.GetLastWriteTimeUtc(metaPath) : DateTime.MinValue;
 
                     if (sourceTime <= targetTime && metaTime <= targetTime)
                         return;
@@ -672,11 +688,28 @@ public static class DocumentManager
         QueueExport(Find(def.Type, name) ?? Create(path));
     }
 
+    private static ushort ReadAssetVersion(IEditorStore store, string path)
+    {
+        try
+        {
+            using var stream = store.OpenRead(path);
+            using var reader = new BinaryReader(stream);
+            if (stream.Length < 12) return 0;
+            reader.ReadUInt32(); // signature
+            reader.ReadUInt32(); // type FourCC
+            return reader.ReadUInt16();
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     private static bool IsFileReady(string path)
     {
         try
         {
-            using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None);
+            using var stream = EditorApplication.Store.OpenRead(path);
             return stream.Length > 0;
         }
         catch
@@ -689,7 +722,8 @@ public static class DocumentManager
     {
         try
         {
-            if (!File.Exists(doc.Path))
+            var store = EditorApplication.Store;
+            if (!store.FileExists(doc.Path))
                 return;
 
             if (_watching && !IsFileReady(doc.Path))
@@ -699,10 +733,10 @@ public static class DocumentManager
             }
 
             var metaPath = doc.Path + ".meta";
-            var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
+            var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
             var targetDir = GetTargetPath(doc);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(targetDir) ?? "");
+            store.CreateDirectory(Path.GetDirectoryName(targetDir) ?? "");
 
             doc.Export(targetDir, meta);
 
@@ -717,28 +751,6 @@ public static class DocumentManager
             Log.Error($"Failed to export '{doc.Name}': {ex.Message}");
         }
     }
-
-    private static void StartWatching(string path)
-    {
-        var watcher = new FileSystemWatcher(path)
-        {
-            IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime
-        };
-
-        watcher.Changed += OnFileChanged;
-        watcher.Created += OnFileChanged;
-        watcher.Renamed += OnFileRenamed;
-
-        watcher.EnableRaisingEvents = true;
-        _watchers.Add(watcher);
-    }
-
-    private static void OnFileChanged(object sender, FileSystemEventArgs e) =>
-        HandleFileChange(e.FullPath);
-
-    private static void OnFileRenamed(object sender, RenamedEventArgs e) =>
-        HandleFileChange(e.FullPath);
 
     private static void HandleFileChange(string path)
     {

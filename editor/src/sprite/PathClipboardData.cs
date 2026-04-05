@@ -19,6 +19,8 @@ public sealed class PathClipboardData
     {
         public string? Name;
         public Color32 FillColor;
+        public SpriteFillType FillType;
+        public SpriteFillGradient FillGradient;
         public Color32 StrokeColor;
         public byte StrokeWidth;
         public SpritePathOperation Operation;
@@ -66,6 +68,8 @@ public sealed class PathClipboardData
             {
                 Name = path.Name,
                 FillColor = path.FillColor,
+                FillType = path.FillType,
+                FillGradient = path.FillGradient,
                 StrokeColor = path.StrokeColor,
                 StrokeWidth = path.StrokeWidth,
                 Operation = path.Operation,
@@ -87,6 +91,8 @@ public sealed class PathClipboardData
             {
                 Name = pathData.Name ?? "",
                 FillColor = pathData.FillColor,
+                FillType = pathData.FillType,
+                FillGradient = pathData.FillGradient,
                 StrokeColor = pathData.StrokeColor,
                 StrokeWidth = pathData.StrokeWidth,
                 Operation = pathData.Operation,

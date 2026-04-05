@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Numerics;
+
 namespace NoZ.Editor;
 
 internal static partial class ColorPicker
@@ -23,6 +25,9 @@ internal static partial class ColorPicker
         public static partial WidgetId ModeNone { get; }
         public static partial WidgetId ModeColor { get; }
         public static partial WidgetId ModePalette { get; }
+        public static partial WidgetId ModeLinear { get; }
+        public static partial WidgetId GradientStop0 { get; }
+        public static partial WidgetId GradientStop1 { get; }
         public static partial WidgetId ColorPickerPaletteScroll { get; }
         public static partial WidgetId ColorPickerPaletteItem { get; }
         public static partial WidgetId Intensity { get; }
@@ -32,7 +37,8 @@ internal static partial class ColorPicker
     {
         None,
         Color,
-        Palette
+        Palette,
+        Linear,
     }
 
     private static WidgetId _popupId;
@@ -59,7 +65,30 @@ internal static partial class ColorPicker
     private static ColorMode _paletteMode = ColorMode.None;
     private static bool _trackNeedsInit;
 
+    // Gradient state
+    private static int _gradientActiveStop;  // 0 or 1
+    private static SpriteFillGradient _gradient;
+
+    // Public API for sprite editor to read gradient state
+    internal static SpriteFillType ResultFillType => _paletteMode == ColorMode.Linear ? SpriteFillType.Linear : SpriteFillType.Solid;
+    internal static SpriteFillGradient ResultGradient => _gradient;
+    internal static int ActiveGradientStop => _gradientActiveStop;
+
+
     public static bool IsOpen(WidgetId id) => _popupId == id;
+
+    internal static void Close()
+    {
+        _popupId = WidgetId.None;
+        FloatingPanel.Close();
+        UI.ClearHot();
+    }
+
+    private static void OpenPanel(WidgetId id)
+    {
+        var anchorRect = UI.GetElementWorldRect(id);
+        FloatingPanel.Open(id, new Vector2(anchorRect.Left - EditorStyle.ColorPicker.SVSize - 10, anchorRect.Top));
+    }
 
     internal static void Open(WidgetId id, Color color)
     {
@@ -103,40 +132,48 @@ internal static partial class ColorPicker
                     if (paletteColor.ToColor32() == color)
                     {
                         _paletteMode = ColorMode.Palette;
-                        return;
+                        break;
                     }
                 }
+                if (_paletteMode == ColorMode.Palette) break;
             }
+        }
+
+        OpenPanel(id);
+    }
+
+    internal static void Open(WidgetId id, SpriteFillType fillType, Color32 solidColor, SpriteFillGradient gradient)
+    {
+        if (fillType == SpriteFillType.Linear)
+        {
+            _popupId = id;
+            _originalColor = solidColor;
+            _prevColor = solidColor;
+            _trackNeedsInit = true;
+            _paletteMode = ColorMode.Linear;
+            _gradient = gradient;
+            _gradientActiveStop = 0;
+            UI.SetHot<Color32>(id, solidColor);
+
+            var activeColor = gradient.StartColor;
+            RgbToHsv(activeColor, out _hue, out _sat, out _val);
+            _alpha = activeColor.A / 255f;
+
+            OpenPanel(id);
+        }
+        else
+        {
+            Open(id, solidColor);
         }
     }
 
-    private static void PopupInternal(WidgetId id, ref Color32 color)
+    /// Draw the floating color picker panel. Call from overlay UI.
+    internal static void Draw()
     {
-        var anchorRect = UI.GetElementWorldRect(id);
-        using var popup = UI.BeginPopup(
-            ElementId.Popup,
-            new PopupStyle
-            {
-                AnchorX = Align.Min,
-                AnchorY = Align.Min,
-                PopupAlignX = Align.Max,
-                PopupAlignY = Align.Min,
-                Spacing = 2,
-                ClampToScreen = true,
-                AnchorRect = anchorRect,
-            });
+        if (_popupId == WidgetId.None) return;
+        if (!FloatingPanel.IsOpen(_popupId)) return;
 
-        if (UI.IsClosed())
-        {
-            color = _paletteMode != ColorMode.None ? HsvToColor32(_hue, _sat, _val, _alpha) : Color.Transparent;
-            if (color != _prevColor)
-                UI.NotifyChanged(color.GetHashCode());
-            _popupId = WidgetId.None;
-            UI.ClearHot();
-            return;
-        }
-
-        using var col = UI.BeginColumn(EditorStyle.ColorPicker.Root);
+        using var panel = FloatingPanel.Begin(_popupId, EditorStyle.ColorPicker.Root);
 
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
         {
@@ -150,6 +187,19 @@ internal static partial class ColorPicker
                     _alpha = 1;
             }
 
+            if (UI.Button(ElementId.ModeLinear, "Grad", EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Linear))
+            {
+                _paletteMode = ColorMode.Linear;
+                if (_alpha == 0)
+                    _alpha = 1;
+                if (_gradient.StartColor.A == 0 && _gradient.EndColor.A == 0)
+                {
+                    var c = HsvToColor32(_hue, _sat, _val, _alpha);
+                    _gradient.StartColor = c;
+                    _gradient.EndColor = Color32.White;
+                }
+            }
+
             if (PaletteManager.Palettes.Count > 0)
             {
                 if (UI.Button(ElementId.ModePalette, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Palette))
@@ -160,13 +210,13 @@ internal static partial class ColorPicker
 
             if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
             {
-                // Cancel: reset hash to original so IsChanged() returns false
                 UI.NotifyChanged(_originalColor.GetHashCode());
-                _popupId = WidgetId.None;
-                UI.ClearHot();
+                Close();
                 return;
             }
         }
+
+        Color32 color;
 
         if (_paletteMode == ColorMode.Color)
         {
@@ -177,6 +227,22 @@ internal static partial class ColorPicker
                 Intensity();
             _trackNeedsInit = false;
             color = HsvToColor32(_hue, _sat, _val, _alpha);
+        }
+        else if (_paletteMode == ColorMode.Linear)
+        {
+            GradientStopsUI();
+            SaturationAndValue();
+            Hue();
+            Alpha();
+            _trackNeedsInit = false;
+
+            var editedColor = HsvToColor32(_hue, _sat, _val, _alpha);
+            if (_gradientActiveStop == 0)
+                _gradient.StartColor = editedColor;
+            else
+                _gradient.EndColor = editedColor;
+
+            color = _gradient.StartColor;
         }
         else if (_paletteMode == ColorMode.None)
         {
@@ -193,25 +259,22 @@ internal static partial class ColorPicker
             UI.NotifyChanged(color.GetHashCode());
             _prevColor = color;
         }
+
     }
 
+    /// Read the current color. Call from where the color button is drawn.
     internal static void Popup(WidgetId id, ref Color32 color)
     {
-        if (_popupId == id)
-            PopupInternal(id, ref color);
+        if (_popupId != id) return;
+        color = _prevColor;
     }
 
     internal static void Popup(WidgetId id, ref Color color)
     {
         if (_popupId != id) return;
 
-        // Use _prevColor directly -- don't convert from the ref (which may be HDR-scaled)
-        var prev = _prevColor;
-        var color32 = prev;
-        PopupInternal(id, ref color32);
-
-        // Only update the ref when the picker actually changed
-        if (color32 != prev)
+        var color32 = _prevColor;
+        if (color32 != _originalColor)
         {
             var baseColor = color32.ToColor();
             if (_intensity > 0f)
@@ -392,6 +455,54 @@ internal static partial class ColorPicker
             });
 
         return container;
+    }
+
+    private static void GradientStopsUI()
+    {
+        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
+        {
+            // Stop 0 swatch
+            using (BeginColorContainer(ElementId.GradientStop0, _gradientActiveStop == 0))
+            {
+                UI.Container(new ContainerStyle
+                {
+                    Background = _gradient.StartColor.ToColor(),
+                    BorderRadius = EditorStyle.Control.BorderRadius - 2,
+                    Width = SwatchCellSize,
+                    Height = SwatchCellSize,
+                });
+
+                if (UI.WasPressed())
+                {
+                    _gradientActiveStop = 0;
+                    _trackNeedsInit = true;
+                    RgbToHsv(_gradient.StartColor, out _hue, out _sat, out _val);
+                    _alpha = _gradient.StartColor.A / 255f;
+                    InvalidateSVTexture();
+                }
+            }
+
+            // Stop 1 swatch
+            using (BeginColorContainer(ElementId.GradientStop1, _gradientActiveStop == 1))
+            {
+                UI.Container(new ContainerStyle
+                {
+                    Background = _gradient.EndColor.ToColor(),
+                    BorderRadius = EditorStyle.Control.BorderRadius - 2,
+                    Width = SwatchCellSize,
+                    Height = SwatchCellSize,
+                });
+
+                if (UI.WasPressed())
+                {
+                    _gradientActiveStop = 1;
+                    _trackNeedsInit = true;
+                    RgbToHsv(_gradient.EndColor, out _hue, out _sat, out _val);
+                    _alpha = _gradient.EndColor.A / 255f;
+                    InvalidateSVTexture();
+                }
+            }
+        }
     }
 
     private static void PaletteUI()

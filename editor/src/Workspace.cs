@@ -23,6 +23,7 @@ public static partial class Workspace
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId Scene { get; }
         public static partial WidgetId ReferencesButton { get; }
+        public static partial WidgetId SyncButton { get; }
         public static partial WidgetId InspectorSplitter { get; }
         public static partial WidgetId OutlinerSplitter { get; }
     }
@@ -502,6 +503,26 @@ public static partial class Workspace
             XrayModeChanged?.Invoke(XrayMode);
         }
 
+        // Sync button — only visible for remote stores
+        var store = EditorApplication.Store;
+        if (store.CanSync)
+        {
+            if (store.IsSyncing)
+            {
+                UI.Text("Syncing...", EditorStyle.Text.Disabled);
+            }
+            else if (!store.IsAuthenticated && store.RequiresAuth)
+            {
+                if (UI.Button(WidgetIds.SyncButton, "Connect", EditorStyle.Button.IconOnly))
+                    Task.Run(() => store.LoginAsync());
+            }
+            else
+            {
+                if (UI.Button(WidgetIds.SyncButton, "Sync", EditorStyle.Button.IconOnly))
+                    Task.Run(() => store.SyncAsync());
+            }
+        }
+
         UI.DropDown(
             WidgetIds.ContextMenu,
             text: CollectionManager.VisibleCollection?.Name ?? "None",
@@ -537,20 +558,26 @@ public static partial class Workspace
                 UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
                     EditorStyle.Inspector.Splitter, fixedPane: 1);
 
-                // content (center, flexible)
+                // center + inspector nested in their own row so splitters don't interfere
                 using (UI.BeginFlex())
-                    ActiveEditor?.UpdateUI();
+                using (UI.BeginRow())
+                {
+                    // content (center, flexible)
+                    using (UI.BeginFlex())
+                        ActiveEditor?.UpdateUI();
 
-                // inspector (right, fixed width)
-                UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
-                    EditorStyle.Inspector.Splitter, fixedPane: 2);
+                    // inspector (right, fixed width)
+                    UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
+                        EditorStyle.Inspector.Splitter, fixedPane: 2);
 
-                using (UI.BeginFlex())
-                    Inspector.UpdateUI();
+                    using (UI.BeginFlex())
+                        Inspector.UpdateUI();
+                }
             }
         }
 
         ActiveEditor?.UpdateOverlayUI();
+        ColorPicker.Draw();
         ActiveTool?.UpdateUI();
     }
 
@@ -1338,11 +1365,13 @@ public static partial class Workspace
         var dir = System.IO.Path.GetDirectoryName(doc.Path) ?? "";
         var stem = System.IO.Path.GetFileNameWithoutExtension(doc.Path);
 
+        var store = EditorApplication.Store;
+
         // Delete old companion file (the type-specific file, not the image)
         var oldExt = doc.Def.Extensions[0];
         var oldCompanion = System.IO.Path.Combine(dir, stem + oldExt);
-        if (File.Exists(oldCompanion))
-            File.Delete(oldCompanion);
+        if (store.FileExists(oldCompanion))
+            store.DeleteFile(oldCompanion);
 
         // Find the image file
         string? imagePath = null;
@@ -1350,7 +1379,7 @@ public static partial class Workspace
         foreach (var imgExt in imageExts)
         {
             var imgPath = System.IO.Path.Combine(dir, stem + imgExt);
-            if (File.Exists(imgPath))
+            if (store.FileExists(imgPath))
             {
                 imagePath = imgPath;
                 break;
@@ -1360,9 +1389,9 @@ public static partial class Workspace
 
         // Write document_type to meta on the image file
         var metaPath = imagePath + ".meta";
-        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
+        var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
         meta.SetString("editor", "document_type", newDef.Name);
-        meta.Save(metaPath);
+        meta.Save(metaPath, store);
 
         // Remove old document from list (don't delete files)
         var position = doc.Position;

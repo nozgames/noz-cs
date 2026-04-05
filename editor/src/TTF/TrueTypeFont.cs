@@ -54,7 +54,7 @@ namespace NoZ.Editor
 
         public static TrueTypeFont Load(string path, int requestedSize, string? filter)
         {
-            using var stream = File.OpenRead(path);
+            using var stream = EditorApplication.Store.OpenRead(path);
             return Load(stream, requestedSize, filter);
         }
 
