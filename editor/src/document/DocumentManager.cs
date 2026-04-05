@@ -133,7 +133,7 @@ public static class DocumentManager
 
     private static string? GetAuxiliaryParentPath(string path)
     {
-        var dir = Path.GetDirectoryName(path) ?? "";
+        var dir = GetDirectory(path);
         var filename = Path.GetFileName(path);
         foreach (var def in _defsByType.Values)
         {
@@ -144,7 +144,7 @@ public static class DocumentManager
                 var stem = filename[..^auxExt.Length];
                 foreach (var primaryExt in def.Extensions)
                 {
-                    var candidate = Path.Combine(dir, stem + primaryExt);
+                    var candidate = CombinePath(dir, stem + primaryExt);
                     if (EditorApplication.Store.FileExists(candidate))
                         return candidate;
                 }
@@ -231,13 +231,13 @@ public static class DocumentManager
         var canonicalName = MakeCanonicalName(name);
         if (Find(assetType, canonicalName) != null)
             return null;
-        var path = Path.Combine(_sourcePaths[0], typeName, canonicalName + def.Extensions[0]);
+        var path = CombinePath(CombinePath(_sourcePaths[0], typeName), canonicalName + def.Extensions[0]);
         var store = EditorApplication.Store;
         if (store.FileExists(path))
             return null;
 
-        var directory = Path.GetDirectoryName(path);
-        if (directory != null)
+        var directory = GetDirectory(path);
+        if (!string.IsNullOrEmpty(directory))
             store.CreateDirectory(directory);
 
         var doc = Create(path);
@@ -364,11 +364,11 @@ public static class DocumentManager
     private static IEnumerable<string> GetCompanionFiles(Document doc)
     {
         var store = EditorApplication.Store;
-        var directory = Path.GetDirectoryName(doc.Path) ?? "";
+        var directory = GetDirectory(doc.Path);
         var stem = Path.GetFileNameWithoutExtension(doc.Path);
         foreach (var ext in doc.Def.Extensions)
         {
-            var path = Path.Combine(directory, stem + ext);
+            var path = CombinePath(directory, stem + ext);
             if (store.FileExists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
                 yield return path;
         }
@@ -377,7 +377,7 @@ public static class DocumentManager
         {
             foreach (var auxExt in doc.Def.AuxiliaryExtensions)
             {
-                var path = Path.Combine(directory, stem + auxExt);
+                var path = CombinePath(directory, stem + auxExt);
                 if (store.FileExists(path))
                     yield return path;
             }
@@ -390,11 +390,11 @@ public static class DocumentManager
         if (Find(doc.Def.Type, canonicalName) != null)
             return false;
 
-        var directory = Path.GetDirectoryName(doc.Path);
-        if (directory == null)
+        var directory = GetDirectory(doc.Path);
+        if (string.IsNullOrEmpty(directory))
             return false;
 
-        var newPath = Path.Combine(directory, canonicalName + doc.Def.Extensions[0]);
+        var newPath = CombinePath(directory, canonicalName + doc.Def.Extensions[0]);
         var store = EditorApplication.Store;
         if (store.FileExists(newPath))
             return false;
@@ -403,7 +403,7 @@ public static class DocumentManager
         foreach (var companionPath in GetCompanionFiles(doc).ToList())
         {
             var companionExt = Path.GetExtension(companionPath);
-            var newCompanionPath = Path.Combine(directory, canonicalName + companionExt);
+            var newCompanionPath = CombinePath(directory, canonicalName + companionExt);
             store.MoveFile(companionPath, newCompanionPath);
         }
 
@@ -536,8 +536,14 @@ public static class DocumentManager
         var typeName = (Asset.GetDef(doc.Def.Type)?.Name ?? doc.Def.Name).ToLowerInvariant();
         var filename = Path.GetFileNameWithoutExtension(doc.Path);
         var safeName = MakeCanonicalName(filename);
-        return Path.Combine(_outputPath, typeName, safeName);
+        return CombinePath(CombinePath(_outputPath, typeName), safeName);
     }
+
+    private static string CombinePath(string a, string b) =>
+        Path.Combine(a, b).Replace('\\', '/');
+
+    private static string GetDirectory(string path) =>
+        (Path.GetDirectoryName(path) ?? "").Replace('\\', '/');
 
     public static string MakeCanonicalName(string path)
     {
@@ -553,7 +559,7 @@ public static class DocumentManager
 
     public static string? GetUniquePath(string sourcePath)
     {
-        var parentPath = Path.GetDirectoryName(sourcePath) ?? "";
+        var parentPath = GetDirectory(sourcePath);
         var fileName = Path.GetFileNameWithoutExtension(sourcePath);
         var ext = Path.GetExtension(sourcePath);
         var def = GetDef(ext);
@@ -570,7 +576,7 @@ public static class DocumentManager
 
         for (var i = startIndex; ; i++)
         {
-            var candidate = Path.Combine(parentPath, $"{canonicalBase}_{i}{ext}");
+            var candidate = CombinePath(parentPath, $"{canonicalBase}_{i}{ext}");
 
             if (EditorApplication.Store.FileExists(candidate))
                 continue;
@@ -590,19 +596,19 @@ public static class DocumentManager
         var newName = Path.GetFileNameWithoutExtension(newPath);
 
         var store = EditorApplication.Store;
-        var directory = Path.GetDirectoryName(newPath);
-        if (directory != null)
+        var directory = GetDirectory(newPath);
+        if (!string.IsNullOrEmpty(directory))
             store.CreateDirectory(directory);
 
         store.CopyFile(source.Path, newPath);
 
         // Copy companion files
         var newStem = Path.GetFileNameWithoutExtension(newPath);
-        var newDir = Path.GetDirectoryName(newPath) ?? "";
+        var newDir = GetDirectory(newPath);
         foreach (var companionPath in GetCompanionFiles(source))
         {
             var companionExt = Path.GetExtension(companionPath);
-            store.CopyFile(companionPath, Path.Combine(newDir, newStem + companionExt));
+            store.CopyFile(companionPath, CombinePath(newDir, newStem + companionExt));
         }
 
         var metaPath = source.Path + ".meta";
@@ -632,6 +638,10 @@ public static class DocumentManager
             QueueExport(doc, force: true);
             UpdateExports();
         }
+
+        // Ensure the atlas is rebuilt with the duplicate's rasterized pixels
+        if (doc is SpriteDocument { Atlas: not null } sprite)
+            AtlasManager.UpdateSource(sprite);
 
         doc.Position = source.Position;
 
@@ -736,7 +746,7 @@ public static class DocumentManager
             var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
             var targetDir = GetTargetPath(doc);
 
-            store.CreateDirectory(Path.GetDirectoryName(targetDir) ?? "");
+            store.CreateDirectory(GetDirectory(targetDir));
 
             doc.Export(targetDir, meta);
 

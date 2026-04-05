@@ -202,8 +202,6 @@ internal static class SpriteLayerProcessor
             }
         }
 
-        // Flush remaining results (paths above all child layers = top of outliner)
-        TrimOverlaps(results);
         output.AddRange(results);
     }
 

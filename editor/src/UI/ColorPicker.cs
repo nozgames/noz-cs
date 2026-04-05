@@ -13,14 +13,12 @@ internal static partial class ColorPicker
     private const float ThumbSize = SliderHeight - 2;
     private const float ThumbRadius = ThumbSize / 2;
     private const float SwatchCellSize = 28;
-    private const float SwatchColumns = 8;
 
     private static partial class ElementId
     {
         public static partial WidgetId Hue { get; }
         public static partial WidgetId Alpha { get; }
         public static partial WidgetId Close { get; }
-        public static partial WidgetId Popup { get; }
         public static partial WidgetId SaturationAndValue { get; }
         public static partial WidgetId ModeNone { get; }
         public static partial WidgetId ModeColor { get; }
@@ -72,14 +70,29 @@ internal static partial class ColorPicker
     // Public API for sprite editor to read gradient state
     internal static SpriteFillType ResultFillType => _paletteMode == ColorMode.Linear ? SpriteFillType.Linear : SpriteFillType.Solid;
     internal static SpriteFillGradient ResultGradient => _gradient;
-    internal static int ActiveGradientStop => _gradientActiveStop;
+    internal static int ActiveGradientStop
+    {
+        get => _gradientActiveStop;
+        set
+        {
+            if (_gradientActiveStop == value) return;
+            _gradientActiveStop = value;
+            var color = value == 0 ? _gradient.StartColor : _gradient.EndColor;
+            RgbToHsv(color, out _hue, out _sat, out _val);
+            _alpha = color.A / 255f;
+            _trackNeedsInit = true;
+            InvalidateSVTexture();
+        }
+    }
 
+    internal static Func<bool>? OnBackdropClick;
 
     public static bool IsOpen(WidgetId id) => _popupId == id;
 
     internal static void Close()
     {
         _popupId = WidgetId.None;
+        OnBackdropClick = null;
         FloatingPanel.Close();
         UI.ClearHot();
     }
@@ -87,7 +100,8 @@ internal static partial class ColorPicker
     private static void OpenPanel(WidgetId id)
     {
         var anchorRect = UI.GetElementWorldRect(id);
-        FloatingPanel.Open(id, new Vector2(anchorRect.Left - EditorStyle.ColorPicker.SVSize - 10, anchorRect.Top));
+        var panelWidth = EditorStyle.ColorPicker.SVSize + 60 + 10; // SV + padding/chrome + gap
+        FloatingPanel.Open(id, new Vector2(anchorRect.Left - panelWidth, anchorRect.Top));
     }
 
     internal static void Open(WidgetId id, Color color)
@@ -173,7 +187,23 @@ internal static partial class ColorPicker
         if (_popupId == WidgetId.None) return;
         if (!FloatingPanel.IsOpen(_popupId)) return;
 
+        if (Input.WasButtonPressed(InputCode.KeyEscape))
+        {
+            Input.ConsumeButton(InputCode.KeyEscape);
+            Close();
+            return;
+        }
+
         using var panel = FloatingPanel.Begin(_popupId, EditorStyle.ColorPicker.Root);
+
+        if (FloatingPanel.WasBackdropPressed)
+        {
+            if (_paletteMode != ColorMode.Linear || OnBackdropClick == null || !OnBackdropClick())
+            {
+                Close();
+                return;
+            }
+        }
 
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
         {
@@ -259,7 +289,6 @@ internal static partial class ColorPicker
             UI.NotifyChanged(color.GetHashCode());
             _prevColor = color;
         }
-
     }
 
     /// Read the current color. Call from where the color button is drawn.
@@ -273,19 +302,15 @@ internal static partial class ColorPicker
     {
         if (_popupId != id) return;
 
-        var color32 = _prevColor;
-        if (color32 != _originalColor)
+        var baseColor = _prevColor.ToColor();
+        if (_intensity > 0f)
         {
-            var baseColor = color32.ToColor();
-            if (_intensity > 0f)
-            {
-                var factor = MathF.Pow(2f, _intensity);
-                color = new Color(baseColor.R * factor, baseColor.G * factor, baseColor.B * factor, baseColor.A);
-            }
-            else
-            {
-                color = baseColor;
-            }
+            var factor = MathF.Pow(2f, _intensity);
+            color = new Color(baseColor.R * factor, baseColor.G * factor, baseColor.B * factor, baseColor.A);
+        }
+        else
+        {
+            color = baseColor;
         }
     }
 
@@ -461,7 +486,6 @@ internal static partial class ColorPicker
     {
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
         {
-            // Stop 0 swatch
             using (BeginColorContainer(ElementId.GradientStop0, _gradientActiveStop == 0))
             {
                 UI.Container(new ContainerStyle
@@ -473,16 +497,9 @@ internal static partial class ColorPicker
                 });
 
                 if (UI.WasPressed())
-                {
-                    _gradientActiveStop = 0;
-                    _trackNeedsInit = true;
-                    RgbToHsv(_gradient.StartColor, out _hue, out _sat, out _val);
-                    _alpha = _gradient.StartColor.A / 255f;
-                    InvalidateSVTexture();
-                }
+                    ActiveGradientStop = 0;
             }
 
-            // Stop 1 swatch
             using (BeginColorContainer(ElementId.GradientStop1, _gradientActiveStop == 1))
             {
                 UI.Container(new ContainerStyle
@@ -494,13 +511,7 @@ internal static partial class ColorPicker
                 });
 
                 if (UI.WasPressed())
-                {
-                    _gradientActiveStop = 1;
-                    _trackNeedsInit = true;
-                    RgbToHsv(_gradient.EndColor, out _hue, out _sat, out _val);
-                    _alpha = _gradient.EndColor.A / 255f;
-                    InvalidateSVTexture();
-                }
+                    ActiveGradientStop = 1;
             }
         }
     }

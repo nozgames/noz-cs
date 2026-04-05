@@ -24,6 +24,7 @@ public static class EditorAssets
         public const string CurorDropper = "curor_dropper";
         public const string CursorArrow = "cursor_arrow";
         public const string CursorBeam = "cursor_beam";
+        public const string CursorCurve = "cursor_curve";
         public const string CursorMove = "cursor_move";
         public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
@@ -50,6 +51,7 @@ public static class EditorAssets
         public const string IconFoldoutClosed = "icon_foldout_closed";
         public const string IconFoldoutOpen = "icon_foldout_open";
         public const string IconGenerating = "icon_generating";
+        public const string IconGradientLinear = "icon_gradient_linear";
         public const string IconHidden = "icon_hidden";
         public const string IconKeyframe = "icon_keyframe";
         public const string IconLayer = "icon_layer";
@@ -86,6 +88,7 @@ public static class EditorAssets
         public const string IconTiling = "icon_tiling";
         public const string IconUnlock = "icon_unlock";
         public const string IconXray = "icon_xray";
+        public const string NewSprite = "new_sprite";
         public const string PpComposite = "pp_composite";
         public const string PpDownsample = "pp_downsample";
         public const string PpUpsample = "pp_upsample";
@@ -198,6 +201,7 @@ public static class EditorAssets
         public static readonly Sprite CurorDropper = new();
         public static readonly Sprite CursorArrow = new();
         public static readonly Sprite CursorBeam = new();
+        public static readonly Sprite CursorCurve = new();
         public static readonly Sprite CursorMove = new();
         public static readonly Sprite CursorRotate = new();
         public static readonly Sprite CursorScale = new();
@@ -223,6 +227,7 @@ public static class EditorAssets
         public static readonly Sprite IconFoldoutClosed = new();
         public static readonly Sprite IconFoldoutOpen = new();
         public static readonly Sprite IconGenerating = new();
+        public static readonly Sprite IconGradientLinear = new();
         public static readonly Sprite IconHidden = new();
         public static readonly Sprite IconKeyframe = new();
         public static readonly Sprite IconLayer = new();
@@ -259,6 +264,7 @@ public static class EditorAssets
         public static readonly Sprite IconTiling = new();
         public static readonly Sprite IconUnlock = new();
         public static readonly Sprite IconXray = new();
+        public static readonly Sprite NewSprite = new();
         public static readonly Sprite Square = new();
         public static readonly Sprite Star = new();
 
@@ -278,6 +284,7 @@ public static class EditorAssets
             CurorDropper.Load(Names.CurorDropper, atlas);
             CursorArrow.Load(Names.CursorArrow, atlas);
             CursorBeam.Load(Names.CursorBeam, atlas);
+            CursorCurve.Load(Names.CursorCurve, atlas);
             CursorMove.Load(Names.CursorMove, atlas);
             CursorRotate.Load(Names.CursorRotate, atlas);
             CursorScale.Load(Names.CursorScale, atlas);
@@ -303,6 +310,7 @@ public static class EditorAssets
             IconFoldoutClosed.Load(Names.IconFoldoutClosed, atlas);
             IconFoldoutOpen.Load(Names.IconFoldoutOpen, atlas);
             IconGenerating.Load(Names.IconGenerating, atlas);
+            IconGradientLinear.Load(Names.IconGradientLinear, atlas);
             IconHidden.Load(Names.IconHidden, atlas);
             IconKeyframe.Load(Names.IconKeyframe, atlas);
             IconLayer.Load(Names.IconLayer, atlas);
@@ -339,6 +347,7 @@ public static class EditorAssets
             IconTiling.Load(Names.IconTiling, atlas);
             IconUnlock.Load(Names.IconUnlock, atlas);
             IconXray.Load(Names.IconXray, atlas);
+            NewSprite.Load(Names.NewSprite, atlas);
             Square.Load(Names.Square, atlas);
             Star.Load(Names.Star, atlas);
         }
@@ -359,6 +368,7 @@ public static class EditorAssets
             CurorDropper.Reload();
             CursorArrow.Reload();
             CursorBeam.Reload();
+            CursorCurve.Reload();
             CursorMove.Reload();
             CursorRotate.Reload();
             CursorScale.Reload();
@@ -384,6 +394,7 @@ public static class EditorAssets
             IconFoldoutClosed.Reload();
             IconFoldoutOpen.Reload();
             IconGenerating.Reload();
+            IconGradientLinear.Reload();
             IconHidden.Reload();
             IconKeyframe.Reload();
             IconLayer.Reload();
@@ -420,6 +431,7 @@ public static class EditorAssets
             IconTiling.Reload();
             IconUnlock.Reload();
             IconXray.Reload();
+            NewSprite.Reload();
             Square.Reload();
             Star.Reload();
         }
@@ -440,6 +452,7 @@ public static class EditorAssets
             CurorDropper.Dispose();
             CursorArrow.Dispose();
             CursorBeam.Dispose();
+            CursorCurve.Dispose();
             CursorMove.Dispose();
             CursorRotate.Dispose();
             CursorScale.Dispose();
@@ -465,6 +478,7 @@ public static class EditorAssets
             IconFoldoutClosed.Dispose();
             IconFoldoutOpen.Dispose();
             IconGenerating.Dispose();
+            IconGradientLinear.Dispose();
             IconHidden.Dispose();
             IconKeyframe.Dispose();
             IconLayer.Dispose();
@@ -501,6 +515,7 @@ public static class EditorAssets
             IconTiling.Dispose();
             IconUnlock.Dispose();
             IconXray.Dispose();
+            NewSprite.Dispose();
             Square.Dispose();
             Star.Dispose();
         }

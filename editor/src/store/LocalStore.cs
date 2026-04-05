@@ -44,7 +44,7 @@ public class LocalStore : IEditorStore
     public void WriteAllBytes(string path, byte[] data) => File.WriteAllBytes(Resolve(path), data);
     public void DeleteFile(string path) => File.Delete(Resolve(path));
     public void MoveFile(string src, string dst) => File.Move(Resolve(src), Resolve(dst));
-    public void CopyFile(string src, string dst) => File.Copy(Resolve(src), Resolve(dst));
+    public void CopyFile(string src, string dst) => File.Copy(Resolve(src), Resolve(dst), overwrite: true);
     public DateTime GetLastWriteTimeUtc(string path) => File.GetLastWriteTimeUtc(Resolve(path));
     public Stream OpenRead(string path) => File.OpenRead(Resolve(path));
     public Stream OpenWrite(string path) => File.Create(Resolve(path));

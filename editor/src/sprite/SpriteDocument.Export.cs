@@ -4,7 +4,6 @@
 //  Sprite document rasterization and binary export.
 //
 
-using Clipper2Lib;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -148,35 +147,9 @@ public partial class SpriteDocument
     {
         var results = new List<LayerPathResult>();
         SpriteLayerProcessor.ProcessLayer(layer, results);
+        if (results.Count == 0) return;
 
-        PathsD? clipPaths = null;
-        if (clipRect.HasValue)
-        {
-            var cr = clipRect.Value;
-            clipPaths = new PathsD { new PathD {
-                new PointD(cr.Left, cr.Top),
-                new PointD(cr.Right, cr.Top),
-                new PointD(cr.Right, cr.Bottom),
-                new PointD(cr.Left, cr.Bottom)
-            }};
-        }
-
-        foreach (var result in results)
-        {
-            var contours = result.Contours;
-            if (clipPaths != null && contours.Count > 0)
-            {
-                contours = Clipper.BooleanOp(ClipType.Intersection,
-                    contours, clipPaths, FillRule.NonZero, precision: 6);
-                if (contours.Count == 0) continue;
-            }
-
-            if (result.FillType == SpriteFillType.Linear)
-                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi,
-                    result.FillType, result.Color, result.Gradient, result.GradientTransform);
-            else
-                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
-        }
+        SpriteSkiaRenderer.FillPixelData(results, image, targetRect, sourceOffset, dpi, clipRect);
     }
 
     public override void Export(string outputPath, PropertySet meta)

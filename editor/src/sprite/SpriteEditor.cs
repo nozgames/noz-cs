@@ -161,6 +161,9 @@ public partial class SpriteEditor : DocumentEditor
         if (Document.Version != _versionOnOpen && Document.Atlas != null)
             AtlasManager.UpdateSource(Document);
 
+        DisposeMeshTexture();
+        DisposeOnionTexture();
+
         base.Dispose();
     }
 
@@ -1596,20 +1599,7 @@ public partial class SpriteEditor : DocumentEditor
             {
                 var wasPickerOpen = ColorPicker.IsOpen(WidgetIds.FillColor);
                 var fillColor = Document.CurrentFillColor.ToColor();
-                if (EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor))
-                {
-                    UI.HandleChange(Document);
-                    var newFillType = ColorPicker.ResultFillType;
-                    if (newFillType == SpriteFillType.Linear)
-                    {
-                        var newGradient = ColorPicker.ResultGradient;
-                        SetFillGradient(newFillType, fillColor.ToColor32(), newGradient);
-                    }
-                    else
-                    {
-                        SetFillColor(fillColor.ToColor32());
-                    }
-                }
+                EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor);
 
                 // Re-open with gradient state when the picker just opened on a gradient path
                 if (!wasPickerOpen && ColorPicker.IsOpen(WidgetIds.FillColor) && Document.CurrentFillType == SpriteFillType.Linear)
@@ -1618,38 +1608,66 @@ public partial class SpriteEditor : DocumentEditor
                         Document.CurrentFillColor, Document.CurrentFillGradient);
                 }
 
-                // Continuously sync gradient to paths while picker is open in Linear mode.
-                // EditorUI.ColorButton only detects StartColor changes — this catches EndColor edits too.
-                if (ColorPicker.IsOpen(WidgetIds.FillColor) && ColorPicker.ResultFillType == SpriteFillType.Linear)
+                // Set gradient handle passthrough while picker is in gradient mode
+                ColorPicker.OnBackdropClick = IsGradientOverlayVisible() ? OnGradientBackdropClick : null;
+
+                // Sync color/gradient to paths while picker is open
+                if (ColorPicker.IsOpen(WidgetIds.FillColor))
                 {
-                    var pickerGrad = ColorPicker.ResultGradient;
-                    Document.CurrentFillType = SpriteFillType.Linear;
-                    Document.CurrentFillColor = pickerGrad.StartColor;
-                    foreach (var path in _selectedPaths)
+                    var changed = false;
+                    if (ColorPicker.ResultFillType == SpriteFillType.Linear)
                     {
-                        path.FillType = SpriteFillType.Linear;
-                        path.FillColor = pickerGrad.StartColor;
-                        // Sync colors from picker, preserve positions from path
-                        var g = path.FillGradient;
-                        g.StartColor = pickerGrad.StartColor;
-                        g.EndColor = pickerGrad.EndColor;
-                        path.FillGradient = g;
-                        if (g.Start == Vector2.Zero && g.End == Vector2.Zero)
-                            path.InitializeDefaultGradient();
+                        var pickerGrad = ColorPicker.ResultGradient;
+                        if (_selectedPaths.Count > 0)
+                        {
+                            var cur = _selectedPaths[0].FillGradient;
+                            changed = cur.StartColor != pickerGrad.StartColor || cur.EndColor != pickerGrad.EndColor;
+                        }
+                        Document.CurrentFillType = SpriteFillType.Linear;
+                        Document.CurrentFillColor = pickerGrad.StartColor;
+                        foreach (var path in _selectedPaths)
+                        {
+                            path.FillType = SpriteFillType.Linear;
+                            path.FillColor = pickerGrad.StartColor;
+                            var g = path.FillGradient;
+                            g.StartColor = pickerGrad.StartColor;
+                            g.EndColor = pickerGrad.EndColor;
+                            path.FillGradient = g;
+                            if (g.Start == Vector2.Zero && g.End == Vector2.Zero)
+                                path.InitializeDefaultGradient();
+                        }
                     }
+                    else
+                    {
+                        var newColor = fillColor.ToColor32();
+                        changed = newColor != Document.CurrentFillColor;
+                        SetFillColor(newColor);
+                    }
+
+                    if (changed)
+                        UI.NotifyChanged(fillColor.GetHashCode());
                     _meshDirty = true;
                 }
+
+                // Handle undo — must be after NotifyChanged so WasChanged() sees it
+                UI.HandleChange(Document);
             }
 
             using (Inspector.BeginProperty("Stroke"))
             using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
                 var strokeColor = Document.CurrentStrokeColor.ToColor();
-                if (EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor))
+                EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor);
+
+                if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
                 {
-                    UI.HandleChange(Document);
-                    SetStrokeColor(strokeColor.ToColor32());
+                    var newColor = strokeColor.ToColor32();
+                    if (newColor != Document.CurrentStrokeColor)
+                        UI.NotifyChanged(strokeColor.GetHashCode());
+                    SetStrokeColor(newColor);
                 }
+
+                UI.HandleChange(Document);
 
                 if (strokeColor.A > 0)
                     StrokeWidthButtonUI();

@@ -10,6 +10,7 @@ internal static partial class FloatingPanel
 {
     private static partial class ElementId
     {
+        public static partial WidgetId Backdrop { get; }
         public static partial WidgetId Header { get; }
     }
 
@@ -18,8 +19,10 @@ internal static partial class FloatingPanel
     private static Vector2 _dragStart;
     private static Vector2 _dragPositionStart;
     private static bool _dragging;
+    private static bool _backdropPressed;
 
     public static bool IsOpen(WidgetId id) => _ownerId == id;
+    public static bool WasBackdropPressed => _backdropPressed;
 
     public static void Open(WidgetId id, Vector2 position)
     {
@@ -41,9 +44,13 @@ internal static partial class FloatingPanel
 
     public static Auto Begin(WidgetId id, ContainerStyle style)
     {
-        UI.BeginColumn();
+        UI.BeginContainer(ElementId.Backdrop);
+        _backdropPressed = UI.WasPressed();
+
         ElementTree.BeginMargin(EdgeInsets.TopLeft(_position.Y, _position.X));
 
+        style.AlignX = Align.Min;
+        style.AlignY = Align.Min;
         style.Width = Size.Fit;
         style.Height = Size.Fit;
         UI.BeginColumn(style);
@@ -55,7 +62,7 @@ internal static partial class FloatingPanel
     {
         UI.EndColumn();
         ElementTree.EndMargin();
-        UI.EndColumn();
+        UI.EndContainer();
     }
 
     private static void DrawHeader(Size width)

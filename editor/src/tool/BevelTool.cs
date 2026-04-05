@@ -8,215 +8,267 @@ namespace NoZ.Editor;
 
 public class BevelTool : Tool
 {
+    private struct BevelTarget
+    {
+        public int AnchorIndex;
+        public int PrevIdx, NextIdx;
+        public Vector2 OriginalPos, PrevPos, NextPos;
+        public float PrevCurve, OrigCurve;
+        public float MaxDist;
+
+        // Current frame state
+        public Vector2 P1, P2;
+        public float LeftCurve, RightCurve, BevelCurve;
+    }
+
     private readonly SpriteEditor _editor;
-    private readonly SpritePath _path;
-    private readonly int _contourIndex;
-    private readonly int _anchorIndex;
-    private readonly SpritePathAnchor[] _saved;
-    private readonly Matrix3x2 _transform;
-    private readonly Matrix3x2 _invTransform;
 
-    private readonly Vector2 _savedBoundsCenter;
-    private readonly Vector2 _savedTranslation;
+    // Active drag state (only valid when _dragging)
+    private bool _dragging;
+    private SpritePath? _dragPath;
+    private int _dragContourIndex;
+    private SpritePathAnchor[]? _saved;
+    private Matrix3x2 _transform;
+    private Matrix3x2 _invTransform;
+    private Vector2 _savedBoundsCenter;
+    private Vector2 _savedTranslation;
+    private BevelTarget[]? _targets;
+    private int _primaryIndex;
+    private Dictionary<int, int> _targetByAnchor = new();
+    private Dictionary<int, int> _prevOfTarget = new();
 
-    // Original corner geometry
-    private readonly Vector2 _originalPos;
-    private readonly Vector2 _prevPos;
-    private readonly Vector2 _nextPos;
-    private readonly float _prevCurve; // curve on prev anchor's outgoing segment (prevIdx -> anchorIndex)
-    private readonly float _origCurve; // curve on original anchor's outgoing segment (anchorIndex -> nextIdx)
-    private readonly int _prevIdx;
-    private readonly int _nextIdx;
-    private readonly float _maxDist;
+    // Hover state (idle)
+    private bool _hoveringAnchor;
+    private Vector2 _hoverAnchorPos;
 
-    private Vector2 _startMouseLocal;
-
-    // Current bevel state for drawing
-    private Vector2 _p1, _p2;
-    private int _p1Idx, _p2Idx;
-
-    public bool CommitOnRelease { get; set; }
-
-    public BevelTool(SpriteEditor editor, SpritePath path, Matrix3x2 transform,
-        SpritePathAnchor[] saved, int anchorIndex, int contourIndex = 0)
+    public BevelTool(SpriteEditor editor)
     {
         _editor = editor;
-        _path = path;
-        _contourIndex = contourIndex;
-        _anchorIndex = anchorIndex;
-        _saved = saved;
-        _transform = path.HasTransform ? path.PathTransform * transform : transform;
-        _savedBoundsCenter = path.LocalBounds.Center;
-        _savedTranslation = path.PathTranslation;
-
-        Matrix3x2.Invert(_transform, out _invTransform);
-
-        var anchors = saved;
-        var count = anchors.Length;
-        _originalPos = anchors[anchorIndex].Position;
-        _prevIdx = (anchorIndex - 1 + count) % count;
-        _nextIdx = (anchorIndex + 1) % count;
-        _prevPos = anchors[_prevIdx].Position;
-        _nextPos = anchors[_nextIdx].Position;
-        _prevCurve = anchors[_prevIdx].Curve;
-        _origCurve = anchors[anchorIndex].Curve;
-
-        var distPrev = Vector2.Distance(_originalPos, _prevPos);
-        var distNext = Vector2.Distance(_originalPos, _nextPos);
-        _maxDist = MathF.Min(distPrev, distNext);
-
-        _p1 = _originalPos;
-        _p2 = _originalPos;
     }
 
     public override void Begin()
     {
         base.Begin();
-        _startMouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, _invTransform);
     }
 
     public override void Update()
     {
         if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) || Input.WasButtonPressed(InputCode.MouseRight, Scope))
         {
+            if (_dragging)
+            {
+                CancelDrag();
+                return;
+            }
             Workspace.CancelTool();
             return;
         }
 
-        var commitInput = CommitOnRelease
-            ? Input.WasButtonReleased(InputCode.MouseLeft, Scope)
-            : Input.WasButtonPressed(InputCode.MouseLeft, Scope) || Input.WasButtonPressed(InputCode.KeyEnter, Scope);
+        if (_dragging)
+            UpdateDrag();
+        else
+            UpdateIdle();
+    }
 
-        if (commitInput)
+    private void UpdateIdle()
+    {
+        EditorCursor.SetCrosshair();
+
+        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
+        var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+
+        // Update hover
+        _hoveringAnchor = false;
+        var path = _editor.Document.RootLayer.GetPathWithSelection();
+        if (path == null)
         {
-            _path.UpdateSamples();
-            _path.UpdateBounds();
-            _path.PathTranslation = _savedTranslation;
-            _path.CompensateTranslation(_savedBoundsCenter);
-            _editor.MarkDirty();
-            Input.ConsumeButton(InputCode.MouseLeft);
-            Workspace.EndTool();
+            // Try to find any path with an anchor under the cursor
+            var hit = _editor.Document.RootLayer.HitTestAnchor(mouseLocal);
+            if (hit.HasValue)
+            {
+                _hoveringAnchor = true;
+                _hoverAnchorPos = hit.Value.Position;
+            }
+            return;
+        }
+
+        var anchorHit = path.HitTestAnchor(mouseLocal);
+        if (anchorHit.AnchorIndex >= 0)
+        {
+            _hoveringAnchor = true;
+            _hoverAnchorPos = anchorHit.Position;
+        }
+
+        if (!Input.WasButtonPressed(InputCode.MouseLeft, Scope))
+            return;
+
+        // Start a drag
+        if (anchorHit.AnchorIndex < 0)
+            return;
+
+        var ci = anchorHit.ContourIndex;
+        var contour = path.Contours[ci];
+        if (contour.Anchors.Count < 3) return;
+
+        var hitIdx = anchorHit.AnchorIndex;
+        if (contour.Open && (hitIdx == 0 || hitIdx == contour.Anchors.Count - 1)) return;
+
+        var hitIsSelected = contour.Anchors[hitIdx].IsSelected;
+        if (!hitIsSelected)
+        {
+            path.ClearAnchorSelection();
+            path.SetAnchorSelected(ci, hitIdx, true);
+        }
+
+        // Collect all selected valid anchors
+        var anchorIndices = new List<int>();
+        for (var i = 0; i < contour.Anchors.Count; i++)
+        {
+            if (!contour.Anchors[i].IsSelected) continue;
+            if (contour.Open && (i == 0 || i == contour.Anchors.Count - 1)) continue;
+            anchorIndices.Add(i);
+        }
+
+        if (anchorIndices.Count == 0) return;
+
+        BeginDrag(path, ci, anchorIndices.ToArray(), hitIdx);
+    }
+
+    private void BeginDrag(SpritePath path, int contourIndex, int[] anchorIndices, int primaryAnchorIndex)
+    {
+        Undo.Record(_editor.Document);
+
+        _dragging = true;
+        _dragPath = path;
+        _dragContourIndex = contourIndex;
+        _saved = path.SnapshotAnchors(contourIndex);
+        _transform = path.HasTransform ? path.PathTransform * _editor.Document.Transform : _editor.Document.Transform;
+        _savedBoundsCenter = path.LocalBounds.Center;
+        _savedTranslation = path.PathTranslation;
+
+        Matrix3x2.Invert(_transform, out _invTransform);
+
+        var count = _saved.Length;
+        _targets = new BevelTarget[anchorIndices.Length];
+        _primaryIndex = 0;
+        _targetByAnchor.Clear();
+        _prevOfTarget.Clear();
+
+        for (var ti = 0; ti < anchorIndices.Length; ti++)
+        {
+            var ai = anchorIndices[ti];
+            if (ai == primaryAnchorIndex)
+                _primaryIndex = ti;
+
+            var prevIdx = (ai - 1 + count) % count;
+            var nextIdx = (ai + 1) % count;
+
+            _targets[ti] = new BevelTarget
+            {
+                AnchorIndex = ai,
+                PrevIdx = prevIdx,
+                NextIdx = nextIdx,
+                OriginalPos = _saved[ai].Position,
+                PrevPos = _saved[prevIdx].Position,
+                NextPos = _saved[nextIdx].Position,
+                PrevCurve = _saved[prevIdx].Curve,
+                OrigCurve = _saved[ai].Curve,
+                MaxDist = MathF.Min(
+                    Vector2.Distance(_saved[ai].Position, _saved[prevIdx].Position),
+                    Vector2.Distance(_saved[ai].Position, _saved[nextIdx].Position)),
+                P1 = _saved[ai].Position,
+                P2 = _saved[ai].Position,
+            };
+
+            _targetByAnchor[ai] = ti;
+            _prevOfTarget[prevIdx] = ti;
+        }
+    }
+
+    private void UpdateDrag()
+    {
+        if (Input.WasButtonReleased(InputCode.MouseLeft, Scope))
+        {
+            CommitDrag();
             return;
         }
 
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, _invTransform);
-        var dragDist = Vector2.Distance(mouseLocal, _startMouseLocal);
 
-        if (_maxDist < 0.001f)
+        ref var primary = ref _targets![_primaryIndex];
+        if (primary.MaxDist < 0.001f)
             return;
 
-        var t = Math.Clamp(dragDist / _maxDist, 0f, 0.95f);
+        var d1 = Vector2.Normalize(primary.PrevPos - primary.OriginalPos);
+        var d2 = Vector2.Normalize(primary.NextPos - primary.OriginalPos);
+        var dc = mouseLocal - primary.OriginalPos;
+        var dcLen = dc.Length();
+
+        float t;
+        if (dcLen < 0.0001f)
+        {
+            t = 0f;
+        }
+        else
+        {
+            var cross_d1_d2 = d1.X * d2.Y - d1.Y * d2.X;
+            var cross_d1_dc = d1.X * dc.Y - d1.Y * dc.X;
+            var cross_d2_dc = d2.X * dc.Y - d2.Y * dc.X;
+
+            var inside = (cross_d1_dc * cross_d1_d2 >= 0f) && (cross_d2_dc * -cross_d1_d2 >= 0f);
+            t = inside ? Math.Clamp(dcLen / primary.MaxDist, 0f, 0.95f) : 0f;
+        }
 
         // Restore anchors from snapshot
-        var contour = _path.Contours[_contourIndex];
+        var contour = _dragPath!.Contours[_dragContourIndex];
         contour.Anchors.Clear();
-        for (var i = 0; i < _saved.Length; i++)
+        for (var i = 0; i < _saved!.Length; i++)
             contour.Anchors.Add(_saved[i]);
 
         if (t < 0.001f)
         {
-            _p1 = _originalPos;
-            _p2 = _originalPos;
-            _path.MarkDirty();
-            _path.UpdateSamples();
-            _path.UpdateBounds();
-            _path.PathTranslation = _savedTranslation;
-            _path.CompensateTranslation(_savedBoundsCenter);
-            _editor.MarkDirty();
+            for (var ti = 0; ti < _targets.Length; ti++)
+            {
+                _targets[ti].P1 = _targets[ti].OriginalPos;
+                _targets[ti].P2 = _targets[ti].OriginalPos;
+            }
+            FinishPathUpdate();
             return;
         }
 
-        // Compute P1: point on segment prev->original, at fraction t from original toward prev
-        float leftCurve;
-        if (MathF.Abs(_prevCurve) < SpritePath.MinCurve)
-        {
-            _p1 = Vector2.Lerp(_originalPos, _prevPos, t);
-            leftCurve = 0f;
-        }
-        else
-        {
-            // Evaluate quadratic bezier on prev segment at (1 - t) from prev end
-            // Segment goes from prevPos to originalPos with curve = _prevCurve
-            var splitT = 1f - t;
-            var mid = (_prevPos + _originalPos) * 0.5f;
-            var dir = _originalPos - _prevPos;
-            var perp = new Vector2(-dir.Y, dir.X);
-            var len = perp.Length();
-            if (len > 0) perp /= len;
-            var control = mid + perp * _prevCurve;
+        var ctrlDown = Input.IsCtrlDown(Scope);
 
-            var u = 1f - splitT;
-            _p1 = u * u * _prevPos + 2 * u * splitT * control + splitT * splitT * _originalPos;
-
-            // De Casteljau split: compute left sub-curve (prevPos -> P1)
-            var cLeft = Vector2.Lerp(_prevPos, control, splitT);
-            leftCurve = SpritePath.ProjectCurve(_prevPos, _p1, cLeft);
+        for (var ti = 0; ti < _targets.Length; ti++)
+        {
+            var clampedT = Math.Clamp(t * primary.MaxDist / MathF.Max(_targets[ti].MaxDist, 0.001f), 0f, 0.95f);
+            ComputeBevel(ref _targets[ti], clampedT, ctrlDown);
         }
 
-        // Compute P2: point on segment original->next, at fraction t from original toward next
-        float rightCurve;
-        if (MathF.Abs(_origCurve) < SpritePath.MinCurve)
-        {
-            _p2 = Vector2.Lerp(_originalPos, _nextPos, t);
-            rightCurve = 0f;
-        }
-        else
-        {
-            // Evaluate quadratic bezier on orig segment at t from original end
-            // Segment goes from originalPos to nextPos with curve = _origCurve
-            var mid = (_originalPos + _nextPos) * 0.5f;
-            var dir = _nextPos - _originalPos;
-            var perp = new Vector2(-dir.Y, dir.X);
-            var len = perp.Length();
-            if (len > 0) perp /= len;
-            var control = mid + perp * _origCurve;
-
-            var u = 1f - t;
-            _p2 = u * u * _originalPos + 2 * u * t * control + t * t * _nextPos;
-
-            // De Casteljau split: compute right sub-curve (P2 -> nextPos)
-            var cRight = Vector2.Lerp(control, _nextPos, t);
-            rightCurve = SpritePath.ProjectCurve(_p2, _nextPos, cRight);
-        }
-
-        // Compute bevel segment curve
-        float bevelCurve;
-        if (Input.IsCtrlDown(Scope))
-        {
-            // Smooth bevel: project original position onto bevel chord for optimal arc
-            bevelCurve = SpritePath.ProjectCurve(_p1, _p2, _originalPos);
-        }
-        else
-        {
-            bevelCurve = 0f;
-        }
-
-        // Rebuild the anchor list with the bevel applied
+        // Rebuild anchor list with all bevels applied
         contour.Anchors.Clear();
         for (var i = 0; i < _saved.Length; i++)
         {
-            if (i == _prevIdx)
+            if (_targetByAnchor.TryGetValue(i, out var ti))
             {
-                // Previous anchor: update its curve to leftCurve (truncated segment)
-                var a = _saved[i];
-                a.Curve = SpritePath.ClampCurve(leftCurve);
-                contour.Anchors.Add(a);
+                ref var target = ref _targets[ti];
+                contour.Anchors.Add(new SpritePathAnchor
+                {
+                    Position = target.P1,
+                    Curve = SpritePath.ClampCurve(target.BevelCurve),
+                    Flags = SpritePathAnchorFlags.Selected,
+                });
+                contour.Anchors.Add(new SpritePathAnchor
+                {
+                    Position = target.P2,
+                    Curve = SpritePath.ClampCurve(target.RightCurve),
+                    Flags = SpritePathAnchorFlags.Selected,
+                });
             }
-            else if (i == _anchorIndex)
+            else if (_prevOfTarget.TryGetValue(i, out var prevTi) && !_targetByAnchor.ContainsKey(i))
             {
-                // Replace original anchor with two new anchors
-                contour.Anchors.Add(new SpritePathAnchor
-                {
-                    Position = _p1,
-                    Curve = SpritePath.ClampCurve(bevelCurve),
-                    Flags = SpritePathAnchorFlags.Selected,
-                });
-                contour.Anchors.Add(new SpritePathAnchor
-                {
-                    Position = _p2,
-                    Curve = SpritePath.ClampCurve(rightCurve),
-                    Flags = SpritePathAnchorFlags.Selected,
-                });
+                var a = _saved[i];
+                a.Curve = SpritePath.ClampCurve(_targets[prevTi].LeftCurve);
+                contour.Anchors.Add(a);
             }
             else
             {
@@ -224,48 +276,152 @@ public class BevelTool : Tool
             }
         }
 
-        // Track indices for drawing
-        _p1Idx = _anchorIndex;
-        _p2Idx = _anchorIndex + 1;
+        FinishPathUpdate();
+    }
 
-        _path.MarkDirty();
-        _path.UpdateSamples();
-        _path.UpdateBounds();
-        _path.PathTranslation = _savedTranslation;
-        _path.CompensateTranslation(_savedBoundsCenter);
+    private void FinishPathUpdate()
+    {
+        _dragPath!.MarkDirty();
+        _dragPath.UpdateSamples();
+        _dragPath.UpdateBounds();
+        _dragPath.PathTranslation = _savedTranslation;
+        _dragPath.CompensateTranslation(_savedBoundsCenter);
         _editor.MarkDirty();
+    }
+
+    private void CommitDrag()
+    {
+        FinishPathUpdate();
+        Input.ConsumeButton(InputCode.MouseLeft);
+        _dragging = false;
+        _dragPath = null;
+        _saved = null;
+        _targets = null;
+        _targetByAnchor.Clear();
+        _prevOfTarget.Clear();
+    }
+
+    private void CancelDrag()
+    {
+        // Restore original anchors
+        var contour = _dragPath!.Contours[_dragContourIndex];
+        contour.Anchors.Clear();
+        for (var i = 0; i < _saved!.Length; i++)
+            contour.Anchors.Add(_saved[i]);
+
+        FinishPathUpdate();
+        Undo.Cancel();
+
+        _dragging = false;
+        _dragPath = null;
+        _saved = null;
+        _targets = null;
+        _targetByAnchor.Clear();
+        _prevOfTarget.Clear();
+    }
+
+    private static void ComputeBevel(ref BevelTarget target, float t, bool ctrlDown)
+    {
+        if (MathF.Abs(target.PrevCurve) < SpritePath.MinCurve)
+        {
+            target.P1 = Vector2.Lerp(target.OriginalPos, target.PrevPos, t);
+            target.LeftCurve = 0f;
+        }
+        else
+        {
+            var splitT = 1f - t;
+            var mid = (target.PrevPos + target.OriginalPos) * 0.5f;
+            var dir = target.OriginalPos - target.PrevPos;
+            var perp = new Vector2(-dir.Y, dir.X);
+            var len = perp.Length();
+            if (len > 0) perp /= len;
+            var control = mid + perp * target.PrevCurve;
+
+            var u = 1f - splitT;
+            target.P1 = u * u * target.PrevPos + 2 * u * splitT * control + splitT * splitT * target.OriginalPos;
+
+            var cLeft = Vector2.Lerp(target.PrevPos, control, splitT);
+            target.LeftCurve = SpritePath.ProjectCurve(target.PrevPos, target.P1, cLeft);
+        }
+
+        if (MathF.Abs(target.OrigCurve) < SpritePath.MinCurve)
+        {
+            target.P2 = Vector2.Lerp(target.OriginalPos, target.NextPos, t);
+            target.RightCurve = 0f;
+        }
+        else
+        {
+            var mid = (target.OriginalPos + target.NextPos) * 0.5f;
+            var dir = target.NextPos - target.OriginalPos;
+            var perp = new Vector2(-dir.Y, dir.X);
+            var len = perp.Length();
+            if (len > 0) perp /= len;
+            var control = mid + perp * target.OrigCurve;
+
+            var u = 1f - t;
+            target.P2 = u * u * target.OriginalPos + 2 * u * t * control + t * t * target.NextPos;
+
+            var cRight = Vector2.Lerp(control, target.NextPos, t);
+            target.RightCurve = SpritePath.ProjectCurve(target.P2, target.NextPos, cRight);
+        }
+
+        if (ctrlDown)
+            target.BevelCurve = SpritePath.ProjectCurve(target.P1, target.P2, target.OriginalPos);
+        else
+            target.BevelCurve = 0f;
     }
 
     public override void Draw()
     {
-        using var _ = Gizmos.PushState(EditorLayer.Tool);
+        if (!_dragging || _dragPath == null || _targets == null)
+        {
+            // Idle: draw hover indicator
+            if (_hoveringAnchor)
+            {
+                using var _ = Gizmos.PushState(EditorLayer.Tool);
+                Graphics.SetTransform(_editor.Document.Transform);
+                Gizmos.SetColor(EditorStyle.Palette.Primary);
+                Gizmos.DrawRect(_hoverAnchorPos, Gizmos.GetVertexSize() * 1.3f);
+            }
+            return;
+        }
 
+        using var __ = Gizmos.PushState(EditorLayer.Tool);
         Graphics.SetTransform(_transform);
 
-        var contour = _path.Contours[_contourIndex];
+        var contour = _dragPath.Contours[_dragContourIndex];
         var anchors = contour.Anchors;
 
-        if (anchors.Count <= _anchorIndex)
-            return;
+        for (var ti = 0; ti < _targets.Length; ti++)
+        {
+            ref var target = ref _targets[ti];
 
-        // Draw the bevel segment highlighted
-        Gizmos.SetColor(EditorStyle.Palette.Primary);
+            var p1Idx = target.AnchorIndex + CountTargetsBefore(target.AnchorIndex);
+            var p2Idx = p1Idx + 1;
+            var prevIdx = target.PrevIdx + CountTargetsBefore(target.PrevIdx);
 
-        // Draw segment from prev -> P1
-        DrawSegment(contour, _prevIdx < anchors.Count ? _prevIdx : 0);
+            Gizmos.SetColor(EditorStyle.Palette.Primary);
 
-        // Draw bevel segment P1 -> P2
-        if (_p1Idx < anchors.Count)
-            DrawSegment(contour, _p1Idx);
+            if (prevIdx < anchors.Count)
+                DrawSegment(contour, prevIdx);
+            if (p1Idx < anchors.Count)
+                DrawSegment(contour, p1Idx);
+            if (p2Idx < anchors.Count)
+                DrawSegment(contour, p2Idx);
 
-        // Draw segment P2 -> next
-        if (_p2Idx < anchors.Count)
-            DrawSegment(contour, _p2Idx);
+            Gizmos.SetColor(EditorStyle.Workspace.SelectionColor.WithAlpha(0.5f));
+            Gizmos.DrawDashedLine(target.P1, target.OriginalPos);
+            Gizmos.DrawDashedLine(target.OriginalPos, target.P2);
+        }
+    }
 
-        // Draw dashed lines showing original corner
-        Gizmos.SetColor(EditorStyle.Workspace.SelectionColor.WithAlpha(0.5f));
-        Gizmos.DrawDashedLine(_p1, _originalPos);
-        Gizmos.DrawDashedLine(_originalPos, _p2);
+    private int CountTargetsBefore(int savedIndex)
+    {
+        var count = 0;
+        for (var ti = 0; ti < _targets!.Length; ti++)
+            if (_targets[ti].AnchorIndex < savedIndex)
+                count++;
+        return count;
     }
 
     private void DrawSegment(SpriteContour contour, int segIdx)
@@ -285,6 +441,7 @@ public class BevelTool : Tool
 
     public override void Cancel()
     {
-        Undo.Cancel();
+        if (_dragging)
+            CancelDrag();
     }
 }

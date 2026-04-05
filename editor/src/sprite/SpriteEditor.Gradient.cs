@@ -98,18 +98,27 @@ public partial class SpriteEditor
         var handle = HitTestGradientHandle(localMousePos);
         if (handle < 0) return false;
 
+        ColorPicker.ActiveGradientStop = handle;
         Undo.Record(Document);
         Workspace.BeginTool(new GradientHandleDragTool(this, _selectedPaths[0], handle));
         return true;
     }
+
+    private bool OnGradientBackdropClick()
+    {
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
+        return HandleGradientDrag(localMousePos);
+    }
 }
 
-internal class GradientHandleDragTool : MoveTool
+internal class GradientHandleDragTool : Tool
 {
     private readonly SpriteEditor _editor;
     private readonly SpritePath _path;
-    private readonly int _handle; // 0 = start, 1 = end
+    private readonly int _handle;
     private readonly SpriteFillGradient _initialGradient;
+    private Vector2 _startWorld;
 
     public GradientHandleDragTool(SpriteEditor editor, SpritePath path, int handle)
     {
@@ -117,16 +126,27 @@ internal class GradientHandleDragTool : MoveTool
         _path = path;
         _handle = handle;
         _initialGradient = path.FillGradient;
-        CommitOnRelease = true;
     }
 
-    protected override void OnUpdate(Vector2 worldDelta)
+    public override void Begin()
     {
-        // Convert world delta to document-local delta
+        base.Begin();
+        _startWorld = Workspace.MouseWorldPosition;
+    }
+
+    public override void Update()
+    {
+        if (Input.WasButtonReleasedRaw(InputCode.MouseLeft))
+        {
+            Workspace.EndTool();
+            return;
+        }
+
+        var worldDelta = Workspace.MouseWorldPosition - _startWorld;
+
         Matrix3x2.Invert(_editor.Document.Transform, out var invDoc);
         var docDelta = Vector2.TransformNormal(worldDelta, invDoc);
 
-        // Transform to path-local space
         var localDelta = docDelta;
         if (_path.HasTransform)
         {
@@ -134,7 +154,6 @@ internal class GradientHandleDragTool : MoveTool
             localDelta = Vector2.TransformNormal(docDelta, invPath);
         }
 
-        // Reset to initial and apply full delta
         var g = _initialGradient;
         if (_handle == 0)
             g.Start += localDelta;
@@ -145,9 +164,10 @@ internal class GradientHandleDragTool : MoveTool
         _editor.MarkDirty();
     }
 
-    protected override void OnCancel()
+    public override void Cancel()
     {
         _path.FillGradient = _initialGradient;
         _editor.MarkDirty();
+        base.Cancel();
     }
 }

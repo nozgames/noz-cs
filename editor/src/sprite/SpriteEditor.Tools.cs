@@ -79,13 +79,8 @@ public partial class SpriteEditor
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var localMousePos = Vector2.Transform(Workspace.DragWorldPosition, invTransform);
 
-        if (IsGradientOverlayVisible())
-        {
-            if (HandleGradientDrag(localMousePos))
-                return;
-            // Clicked outside gradient handles — close the picker
-            ColorPicker.Close();
-        }
+        if (IsGradientOverlayVisible() && HandleGradientDrag(localMousePos))
+            return;
 
         if (CurrentMode == SpriteEditMode.Transform && _selectedPaths.Count > 0 && HandleVModeDrag(localMousePos))
             return;
@@ -374,13 +369,6 @@ public partial class SpriteEditor
     {
         var path = GetFirstSelectedPath();
 
-        // Close gradient picker when selection no longer has a gradient path
-        if (ColorPicker.IsOpen(WidgetIds.FillColor) &&
-            ColorPicker.ResultFillType == SpriteFillType.Linear &&
-            (path == null || path.FillType != SpriteFillType.Linear))
-        {
-            ColorPicker.Close();
-        }
 
         if (path != null)
         {
@@ -596,25 +584,7 @@ public partial class SpriteEditor
 
     private void BeginBevelTool()
     {
-        var path = GetPathWithSelection();
-        if (path == null) return;
-
-        for (var ci = 0; ci < path.Contours.Count; ci++)
-        {
-            var contour = path.Contours[ci];
-            if (contour.Anchors.Count < 3) continue;
-
-            for (var i = 0; i < contour.Anchors.Count; i++)
-            {
-                if (!contour.Anchors[i].IsSelected) continue;
-                if (contour.Open && (i == 0 || i == contour.Anchors.Count - 1)) continue;
-
-                Undo.Record(Document);
-                Workspace.BeginTool(new BevelTool(this, path, Document.Transform,
-                    path.SnapshotAnchors(ci), i, ci));
-                return;
-            }
-        }
+        Workspace.BeginTool(new BevelTool(this));
     }
 
     private void InsertAnchorAtHover()

@@ -258,19 +258,15 @@ public partial class SpriteDocument
         if (RootLayer.Children.Count == 0)
             return [];
 
-        // Scale DPI so paths render at RasterizeSize regardless of actual constraint size
         var dpi = EditorApplication.Config.PixelsPerUnit;
         var scale = (float)RasterizeSize / MathF.Max(w, h);
         var scaledDpi = (int)MathF.Round(dpi * scale);
         var outW = (int)MathF.Round(w * scale);
         var outH = (int)MathF.Round(h * scale);
 
-        using var pixels = new PixelData<Color32>(outW, outH);
-
-        var targetRect = new RectInt(0, 0, outW, outH);
-        var sourceOffset = new Vector2Int(
-            (int)MathF.Round(-RasterBounds.X * scale),
-            (int)MathF.Round(-RasterBounds.Y * scale));
+        var results = new List<LayerPathResult>();
+        SpriteLayerProcessor.ProcessLayer(RootLayer, results);
+        if (results.Count == 0) return [];
 
         Rect? clipRect = null;
         if (ConstrainedSize.HasValue)
@@ -283,12 +279,14 @@ public partial class SpriteDocument
                 RasterBounds.Height * invDpi);
         }
 
-        RasterizeLayer(RootLayer, pixels, targetRect, sourceOffset, scaledDpi, clipRect);
+        var sourceOffset = new Vector2Int(
+            (int)MathF.Round(-RasterBounds.X * scale),
+            (int)MathF.Round(-RasterBounds.Y * scale));
 
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
-        using var ms = new MemoryStream();
-        image.SaveAsPng(ms);
-        return ms.ToArray();
+        return SpriteSkiaRenderer.RenderToPng(results, outW, outH,
+            scaledDpi, scaledDpi,
+            sourceOffset.X, sourceOffset.Y,
+            clipRect);
     }
 
     public PipelineRequest BuildGenerationRequest()
