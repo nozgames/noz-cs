@@ -434,7 +434,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         DrawOrigin();
 
-        if (Sprite != null)
+        if (Generation != null)
+            DrawGeneration();
+        else if (Sprite != null)
             DrawSprite();
         else
             DrawBounds();

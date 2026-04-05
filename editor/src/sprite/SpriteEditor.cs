@@ -111,6 +111,7 @@ public partial class SpriteEditor : DocumentEditor
                 new Command("Remove Hold",          RemoveHoldFrame,            [new KeyBinding(InputCode.KeyH, ctrl:true)]),
                 new Command("Toggle Onion Skin",    ToggleOnionSkin,            [new KeyBinding(InputCode.KeyO, shift:true)]),
                 new Command("Generate",             Document.GenerateAsync,     [new KeyBinding(InputCode.KeyG, ctrl:true)]),
+                new Command("Generate (Random Seed)", GenerateWithRandomSeed, [new KeyBinding(InputCode.KeyG, ctrl:true, shift:true)]),
                 new Command("Eye Dropper",          BeginEyeDropper,            [new KeyBinding(InputCode.KeyI)]),
                 new Command("Boolean Union",        BooleanUnion,               [new KeyBinding(InputCode.KeyU, ctrl:true, shift:true)]),
                 new Command("Boolean Subtract",     BooleanSubtract,            [new KeyBinding(InputCode.KeyD, ctrl:true, shift:true)]),
@@ -1867,11 +1868,18 @@ public partial class SpriteEditor : DocumentEditor
         Document.Generation = null;
     }
 
-    private static string GenerateRandomSeed()
+    internal static string GenerateRandomSeed()
     {
         var adj = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.adj);
         var noun = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.noun);
         return $"{adj}-{noun}";
+    }
+
+    private void GenerateWithRandomSeed()
+    {
+        if (Document.Generation == null) return;
+        Document.Generation.Seed = GenerateRandomSeed();
+        Document.GenerateAsync();
     }
 
     private void BeginEyeDropper()

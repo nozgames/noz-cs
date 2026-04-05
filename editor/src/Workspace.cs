@@ -157,6 +157,28 @@ public static partial class Workspace
             Log.Warning("No selected sprites have generation config");
     }
 
+    private static void GenerateSelectedRandomSeed()
+    {
+        if (SelectedCount == 0)
+            return;
+
+        var count = 0;
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected)
+                continue;
+            if (doc is SpriteDocument sprite && sprite.Generation != null)
+            {
+                sprite.Generation.Seed = SpriteEditor.GenerateRandomSeed();
+                sprite.GenerateAsync();
+                count++;
+            }
+        }
+
+        if (count == 0)
+            Log.Warning("No selected sprites have generation config");
+    }
+
     private static void GenerateManifest()
     {
         AssetManifest.Generate(force: true);
@@ -226,6 +248,7 @@ public static partial class Workspace
             new("Select All", SelectAll, [new KeyBinding(InputCode.KeyA)]),
             new("Frame", FrameSelected, [new KeyBinding(InputCode.KeyF)]),
             new("Generate Selected", GenerateSelected, [new KeyBinding(InputCode.KeyG, ctrl:true)]),
+            new("Generate Selected (Random Seed)", GenerateSelectedRandomSeed, [new KeyBinding(InputCode.KeyG, ctrl:true, shift:true)]),
             new("Export All", ExportAll),
             new("Generate Manifest", GenerateManifest),
             new("Play/Stop", Play, [new KeyBinding(InputCode.KeySpace)]),

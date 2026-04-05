@@ -201,7 +201,7 @@ public partial class SpriteDocument
             }
         }
         else if (Sprite != null)
-            DrawSprite();
+            DrawSprite(alpha: gen.IsGenerating ? 0.3f : 1.0f);
         else
             DrawBounds();
 
