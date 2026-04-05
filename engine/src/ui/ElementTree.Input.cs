@@ -316,7 +316,7 @@ public static unsafe partial class ElementTree
             else if (IsInsideNonInteractivePopup(e.Index))
                 skipHover = true;
 
-            if (!skipHover)
+            if (!skipHover && (_captureId == 0 || _captureId == e.Data.Widget.Id))
             {
                 Matrix3x2.Invert(e.Transform, out var inv);
                 var localMouse = Vector2.Transform(MouseWorldPosition, inv);
@@ -361,7 +361,7 @@ public static unsafe partial class ElementTree
         var isHovered = e.Rect.Contains(localMouse);
         var isDeepHovered = _hoveredWidget == d.Id;
 
-        if (isHovered)
+        if (isHovered && (_captureId == 0 || _captureId == d.Id))
             state.Flags |= WidgetFlags.Hovered;
 
         var isCaptured = _captureId != 0 && _captureId == d.Id;

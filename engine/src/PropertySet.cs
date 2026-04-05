@@ -239,10 +239,21 @@ public class PropertySet
     public static PropertySet? LoadFile(string path) =>
         File.Exists(path) ? Load(File.ReadAllText(path)) : null;
 
+    public string SaveToString()
+    {
+        using var writer = new StringWriter();
+        SaveTo(writer);
+        return writer.ToString();
+    }
+
     public void Save(string path)
     {
         using var writer = new StreamWriter(path);
+        SaveTo(writer);
+    }
 
+    private void SaveTo(TextWriter writer)
+    {
         foreach (var groupName in GetGroups())
         {
             writer.WriteLine($"[{groupName}]");

@@ -540,6 +540,7 @@ public static unsafe partial class ElementTree
         var spacing = e.Data.Spacing;
         var fixedTotal = 0f;
         var flexTotal = 0f;
+        var fixedFlexTotal = 0f;
         var childCount = 0;
 
         // Pass 1: measure totals + resolve FlexSplitter overrides in-place.
@@ -559,17 +560,20 @@ public static unsafe partial class ElementTree
 
             if (child.Type == ElementType.Flex)
             {
-                if (pendingOverride >= 0)
+                if (pendingOverride != -1f)
                 {
                     child.Data.Flex = pendingOverride;
                     pendingOverride = -1f;
                 }
-                flexTotal += child.Data.Flex;
+                if (child.Data.Flex < 0)
+                    fixedFlexTotal += -child.Data.Flex;
+                else
+                    flexTotal += child.Data.Flex;
                 prevFlexOffset = childOffset;
             }
             else
             {
-                ResolveFlexSplitterOverrides(ref child, prevFlexOffset, containerAxis, ref flexTotal, ref pendingOverride);
+                ResolveFlexSplitterOverrides(ref child, prevFlexOffset, containerAxis, ref flexTotal, ref fixedFlexTotal, ref pendingOverride);
                 fixedTotal += FitAxis(childOffset, axis, containerAxis);
             }
 
@@ -582,7 +586,7 @@ public static unsafe partial class ElementTree
         // Pass 2: layout children. Data.Flex already has resolved weights.
         var offset = 0f;
         var isFirst = true;
-        var remaining = e.Rect.GetSize(axis) - fixedTotal;
+        var remaining = e.Rect.GetSize(axis) - fixedTotal - fixedFlexTotal;
         childOffset = (int)e.FirstChild;
         for (int i = 0; i < e.ChildCount; i++)
         {
@@ -602,7 +606,9 @@ public static unsafe partial class ElementTree
 
             if (child.Type == ElementType.Flex)
             {
-                var flexSize = flexTotal > 0 ? (child.Data.Flex / flexTotal) * remaining : 0;
+                var flexSize = child.Data.Flex < 0
+                    ? -child.Data.Flex
+                    : flexTotal > 0 ? (child.Data.Flex / flexTotal) * remaining : 0;
                 LayoutAxis(childOffset, childPos, flexSize, axis, containerAxis);
                 offset += flexSize;
             }
@@ -637,7 +643,7 @@ public static unsafe partial class ElementTree
         return false;
     }
 
-    private static void ResolveFlexSplitterOverrides(ref Element child, int prevFlexOffset, int containerAxis, ref float flexTotal, ref float pendingOverride)
+    private static void ResolveFlexSplitterOverrides(ref Element child, int prevFlexOffset, int containerAxis, ref float flexTotal, ref float fixedFlexTotal, ref float pendingOverride)
     {
         if (!FindFlexSplitterElement(ref child, out var splitterOffset))
             return;
@@ -647,21 +653,23 @@ public static unsafe partial class ElementTree
             return;
 
         ref var state = ref *sd.State;
-        var ratio = Math.Clamp(state.Ratio, 0.001f, 0.999f);
-        var prevWeight = state.FixedPane == 1 ? ratio : 1f - ratio;
-        var nextWeight = state.FixedPane == 1 ? 1f - ratio : ratio;
-
         sd.Axis = (byte)containerAxis;
         sd.PrevFlex = (ushort)Math.Max(prevFlexOffset, 0);
 
-        if (prevFlexOffset >= 0)
+        // Encode the fixed pane as a negative flex value (exact pixel size).
+        // The non-fixed pane keeps its default flex weight and gets remaining space.
+        var fixedSize = -Math.Max(state.FixedSize, 1f);
+        if (state.FixedPane == 1 && prevFlexOffset >= 0)
         {
             ref var prev = ref GetElement(prevFlexOffset);
-            flexTotal += prevWeight - prev.Data.Flex;
-            prev.Data.Flex = prevWeight;
+            flexTotal -= prev.Data.Flex;
+            fixedFlexTotal += -fixedSize;
+            prev.Data.Flex = fixedSize;
         }
-
-        pendingOverride = nextWeight;
+        else if (state.FixedPane == 2)
+        {
+            pendingOverride = fixedSize;
+        }
         sd.NextFlex = 0;
         var nextOffset = (int)child.NextSibling;
         while (nextOffset != 0)

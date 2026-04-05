@@ -38,6 +38,16 @@ public struct Color32(byte r, byte g, byte b, byte a=255)
         );
     }
 
+    public static Color32 Mix(in Color32 a, in Color32 b, float t)
+    {
+        return new Color32(
+            (byte)(a.R + (b.R - a.R) * t),
+            (byte)(a.G + (b.G - a.G) * t),
+            (byte)(a.B + (b.B - a.B) * t),
+            (byte)(a.A + (b.A - a.A) * t)
+        );
+    }
+
     public bool Equals(Color32 other) => R == other.R && G == other.G && B == other.B && A == other.A;
     public override bool Equals(object? obj) => obj is Color32 other && Equals(other);
     public override int GetHashCode() => HashCode.Combine(R, G, B, A);
