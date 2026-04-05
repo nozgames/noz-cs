@@ -14,9 +14,17 @@
     <ProjectReference Include="..\webgpu\NoZ.WebGPU.csproj" />
   </ItemGroup>
 
-  <!-- wgpu-native static library for iOS (prebuilt from GitHub releases) -->
-  <ItemGroup>
-    <NativeReference Include="libs\libwgpu_native.a">
+  <!-- wgpu-native static library — device build -->
+  <ItemGroup Condition="!$(RuntimeIdentifier.Contains('simulator'))">
+    <NativeReference Include="libs\device\libwgpu_native.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+  <!-- wgpu-native static library — simulator build -->
+  <ItemGroup Condition="$(RuntimeIdentifier.Contains('simulator'))">
+    <NativeReference Include="libs\simulator\libwgpu_native.a">
       <Kind>Static</Kind>
       <ForceLoad>true</ForceLoad>
     </NativeReference>

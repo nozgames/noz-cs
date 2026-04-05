@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using NoZ.Platform;
@@ -20,6 +21,7 @@ public class EditorApplicationConfig
     public Action<PropertySet>? LoadUserSettings { get; init; }
     public Action<PropertySet>? SaveUserSettings { get; init; }
     public Action<List<Command>>? RegisterCommands { get; init; }
+    public Assembly? ResourceAssembly { get; init; }
 }
 
 internal class EditorApplicationInstance : IApplication
@@ -250,6 +252,7 @@ public static partial class EditorApplication
             AudioBackend = new SDLAudioDriver(),
             Vtable = new EditorApplicationInstance(),
             AssetPath = Path.Combine(EditorPath, "library"),
+            ResourceAssembly = config.ResourceAssembly,
 
             UI = new UIConfig()
             {

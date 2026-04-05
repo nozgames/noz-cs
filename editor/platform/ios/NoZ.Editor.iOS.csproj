@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>noz</RootNamespace>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <ApplicationId>com.nozgames.editor</ApplicationId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\NoZ.Editor.csproj" />
+    <ProjectReference Include="..\..\..\platform\ios\NoZ.iOS.csproj" />
+  </ItemGroup>
+
+  <!-- Embed editor library assets so they are available via EmbeddedResource on iOS -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\library\**\*" LinkBase="assets.library" Visible="false" />
+  </ItemGroup>
+
+  <!-- wgpu-native static library — device build -->
+  <ItemGroup Condition="!$(RuntimeIdentifier.Contains('simulator'))">
+    <NativeReference Include="..\..\..\platform\ios\libs\device\libwgpu_native.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+  <!-- wgpu-native static library — simulator build -->
+  <ItemGroup Condition="$(RuntimeIdentifier.Contains('simulator'))">
+    <NativeReference Include="..\..\..\platform\ios\libs\simulator\libwgpu_native.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+</Project>

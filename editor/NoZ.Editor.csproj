@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefaultItemExcludes>$(DefaultItemExcludes);library\**;program\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);library\**;program\**;platform\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
