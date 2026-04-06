@@ -80,7 +80,7 @@ internal partial class VfxEditor : DocumentEditor
                 Graphics.SetTransform(Document.Transform);
             }
 
-            if (Document.Rotation != 0f && Workspace.ActiveTool == null)
+            if (Document.Rotation != 0f && !_isRotating)
             {
                 var rotTransform = Matrix3x2.CreateRotation(MathEx.Deg2Rad * Document.Rotation) *
                                    Matrix3x2.CreateTranslation(Document.Position);
@@ -156,25 +156,41 @@ internal partial class VfxEditor : DocumentEditor
         }
     }
 
+    public override void LateUpdate()
+    {
+        if (_isRotating)
+            UpdateRotateDrag();
+    }
+
+    private bool _isRotating;
+    private float _savedRotation;
+
     private void BeginRotateTool()
     {
-        var pivotWorld = Vector2.Transform(Vector2.Zero, Document.Transform);
-        var invTransform = Matrix3x2.Identity;
-        Matrix3x2.Invert(Document.Transform, out invTransform);
-        var savedRotation = Document.Rotation;
-
+        _savedRotation = Document.Rotation;
         Undo.Record(Document);
+        _isRotating = true;
+    }
 
-        Workspace.BeginTool(new RotateTool(
-            pivotWorld,
-            Vector2.Zero,
-            pivotWorld,
-            Vector2.Zero,
-            invTransform,
-            update: _ => { Document.Rotation = GetMouseAngle(); },
-            commit: _ => { Document.Rotation = GetMouseAngle(); },
-            cancel: () => { Undo.Cancel(); }
-        ));
+    private void UpdateRotateDrag()
+    {
+        if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
+            Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
+        {
+            Document.Rotation = _savedRotation;
+            Undo.Cancel();
+            _isRotating = false;
+            return;
+        }
+
+        Document.Rotation = GetMouseAngle();
+
+        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All) ||
+            Input.WasButtonPressed(InputCode.KeyEnter, InputScope.All))
+        {
+            _isRotating = false;
+            return;
+        }
     }
 
     private float GetMouseAngle()

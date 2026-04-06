@@ -131,8 +131,8 @@ public static class Grid
         var bounds = camera.WorldBounds;
         var left = bounds.Min.X;
         var right = bounds.Max.X;
-        var bottom = bounds.Max.Y;
-        var top = bounds.Min.Y;
+        var bottom = bounds.Min.Y;
+        var top = bounds.Max.Y;
 
         var screenSize = camera.ScreenSize;
         var worldHeight = top - bottom;

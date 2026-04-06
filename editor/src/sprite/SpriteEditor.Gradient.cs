@@ -11,7 +11,7 @@ namespace NoZ.Editor;
 
 public partial class SpriteEditor
 {
-    private bool IsGradientOverlayVisible()
+    internal bool IsGradientOverlayVisible()
     {
         if (_selectedPaths.Count != 1) return false;
         if (_selectedPaths[0].FillType != SpriteFillType.Linear) return false;
@@ -93,15 +93,68 @@ public partial class SpriteEditor
         return -1;
     }
 
-    private bool HandleGradientDrag(Vector2 localMousePos)
+    internal bool HandleGradientDrag(Vector2 localMousePos)
     {
         var handle = HitTestGradientHandle(localMousePos);
         if (handle < 0) return false;
 
         ColorPicker.ActiveGradientStop = handle;
         Undo.Record(Document);
-        Workspace.BeginTool(new GradientHandleDragTool(this, _selectedPaths[0], handle));
+        _gradientDragPath = _selectedPaths[0];
+        _gradientDragHandle = handle;
+        _gradientDragInitial = _gradientDragPath.FillGradient;
+        _gradientDragStartWorld = Workspace.MouseWorldPosition;
+        _isGradientDragging = true;
         return true;
+    }
+
+    // Gradient drag state — updated by editor modes
+    internal bool _isGradientDragging;
+    internal SpritePath? _gradientDragPath;
+    internal int _gradientDragHandle;
+    internal SpriteFillGradient _gradientDragInitial;
+    internal Vector2 _gradientDragStartWorld;
+
+    internal void UpdateGradientDrag()
+    {
+        if (!_isGradientDragging || _gradientDragPath == null) return;
+
+        var worldDelta = Workspace.MouseWorldPosition - _gradientDragStartWorld;
+        Matrix3x2.Invert(Document.Transform, out var invDoc);
+        var docDelta = Vector2.TransformNormal(worldDelta, invDoc);
+
+        var localDelta = docDelta;
+        if (_gradientDragPath.HasTransform)
+        {
+            Matrix3x2.Invert(_gradientDragPath.PathTransform, out var invPath);
+            localDelta = Vector2.TransformNormal(docDelta, invPath);
+        }
+
+        var g = _gradientDragInitial;
+        if (_gradientDragHandle == 0)
+            g.Start += localDelta;
+        else
+            g.End += localDelta;
+        _gradientDragPath.FillGradient = g;
+        MarkDirty();
+    }
+
+    internal void CommitGradientDrag()
+    {
+        _isGradientDragging = false;
+        _gradientDragPath = null;
+    }
+
+    internal void CancelGradientDrag()
+    {
+        if (_gradientDragPath != null)
+        {
+            _gradientDragPath.FillGradient = _gradientDragInitial;
+            MarkDirty();
+        }
+        Undo.Cancel();
+        _isGradientDragging = false;
+        _gradientDragPath = null;
     }
 
     private bool OnGradientBackdropClick()
@@ -112,62 +165,3 @@ public partial class SpriteEditor
     }
 }
 
-internal class GradientHandleDragTool : Tool
-{
-    private readonly SpriteEditor _editor;
-    private readonly SpritePath _path;
-    private readonly int _handle;
-    private readonly SpriteFillGradient _initialGradient;
-    private Vector2 _startWorld;
-
-    public GradientHandleDragTool(SpriteEditor editor, SpritePath path, int handle)
-    {
-        _editor = editor;
-        _path = path;
-        _handle = handle;
-        _initialGradient = path.FillGradient;
-    }
-
-    public override void Begin()
-    {
-        base.Begin();
-        _startWorld = Workspace.MouseWorldPosition;
-    }
-
-    public override void Update()
-    {
-        if (Input.WasButtonReleasedRaw(InputCode.MouseLeft))
-        {
-            Workspace.EndTool();
-            return;
-        }
-
-        var worldDelta = Workspace.MouseWorldPosition - _startWorld;
-
-        Matrix3x2.Invert(_editor.Document.Transform, out var invDoc);
-        var docDelta = Vector2.TransformNormal(worldDelta, invDoc);
-
-        var localDelta = docDelta;
-        if (_path.HasTransform)
-        {
-            Matrix3x2.Invert(_path.PathTransform, out var invPath);
-            localDelta = Vector2.TransformNormal(docDelta, invPath);
-        }
-
-        var g = _initialGradient;
-        if (_handle == 0)
-            g.Start += localDelta;
-        else
-            g.End += localDelta;
-        _path.FillGradient = g;
-
-        _editor.MarkDirty();
-    }
-
-    public override void Cancel()
-    {
-        _path.FillGradient = _initialGradient;
-        _editor.MarkDirty();
-        base.Cancel();
-    }
-}

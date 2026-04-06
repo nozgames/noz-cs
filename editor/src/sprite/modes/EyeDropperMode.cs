@@ -2,21 +2,23 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Numerics;
-
 namespace NoZ.Editor;
 
-public class EyeDropperTool(SpriteEditor editor) : Tool
+public class EyeDropperMode : EditorMode<SpriteEditor>
 {
-    private readonly SpriteEditor _editor = editor;
     private Task<Color>? _readbackTask;
     private bool _shift;
+    private SpriteEditMode _previousMode;
+
+    public override void OnEnter()
+    {
+        _previousMode = Editor.CurrentMode;
+    }
 
     public override void Update()
     {
         EditorCursor.SetDropper();
 
-        // Check for pending framebuffer readback result
         if (_readbackTask != null)
         {
             if (!_readbackTask.IsCompleted)
@@ -24,19 +26,19 @@ public class EyeDropperTool(SpriteEditor editor) : Tool
 
             var color = _readbackTask.Result;
             _readbackTask = null;
-            _editor.ApplyEyeDropperColor(color.ToColor32(), _shift);
-            Workspace.EndTool();
+            Editor.ApplyEyeDropperColor(color.ToColor32(), _shift);
+            ReturnToPreviousMode();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope) ||
-            Input.WasButtonPressed(InputCode.MouseRight, Scope))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
+            Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
         {
-            Workspace.EndTool();
+            ReturnToPreviousMode();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope))
+        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
             _shift = Input.IsShiftDown(InputScope.All);
             InitiateReadback();
@@ -56,5 +58,18 @@ public class EyeDropperTool(SpriteEditor editor) : Tool
 
         _readbackTask = Graphics.Driver.ReadPixelAsync(info.Handle, px, py);
         Input.ConsumeButton(InputCode.MouseLeft);
+    }
+
+    private void ReturnToPreviousMode()
+    {
+        // Go back to whichever mode was active before eyedropper
+        EditorMode mode = _previousMode switch
+        {
+            SpriteEditMode.Transform => new TransformMode(),
+            SpriteEditMode.Anchor => new AnchorMode(),
+            SpriteEditMode.Bevel => new BevelMode(),
+            _ => new TransformMode(),
+        };
+        Editor.SetMode(mode);
     }
 }

@@ -29,6 +29,7 @@ internal static partial class ColorPicker
         public static partial WidgetId ColorPickerPaletteScroll { get; }
         public static partial WidgetId ColorPickerPaletteItem { get; }
         public static partial WidgetId Intensity { get; }
+        public static partial WidgetId EyeDropper { get; }
     }
 
     private enum ColorMode
@@ -63,6 +64,10 @@ internal static partial class ColorPicker
     private static ColorMode _paletteMode = ColorMode.None;
     private static bool _trackNeedsInit;
 
+    // Eyedropper state
+    private static bool _eyeDropperActive;
+    private static Task<Color>? _eyeDropperTask;
+
     // Gradient state
     private static int _gradientActiveStop;  // 0 or 1
     private static SpriteFillGradient _gradient;
@@ -93,8 +98,25 @@ internal static partial class ColorPicker
     {
         _popupId = WidgetId.None;
         OnBackdropClick = null;
+        _eyeDropperActive = false;
+        _eyeDropperTask = null;
         FloatingPanel.Close();
         UI.ClearHot();
+    }
+
+    private static void InitiateEyeDropperReadback()
+    {
+        if (!UI.TryGetSceneRenderInfo(Workspace.SceneWidgetId, out var info) || info.Handle == 0)
+            return;
+
+        var mouseScreen = Workspace.MousePosition;
+        var relX = (mouseScreen.X - info.ScreenRect.X) / info.ScreenRect.Width;
+        var relY = (mouseScreen.Y - info.ScreenRect.Y) / info.ScreenRect.Height;
+        var px = Math.Clamp((int)(relX * info.Width), 0, info.Width - 1);
+        var py = Math.Clamp((int)(relY * info.Height), 0, info.Height - 1);
+
+        _eyeDropperTask = Graphics.Driver.ReadPixelAsync(info.Handle, px, py);
+        Input.ConsumeButton(InputCode.MouseLeft);
     }
 
     private static void OpenPanel(WidgetId id)
@@ -187,18 +209,67 @@ internal static partial class ColorPicker
         if (_popupId == WidgetId.None) return;
         if (!FloatingPanel.IsOpen(_popupId)) return;
 
+        if (_eyeDropperActive)
+            EditorCursor.SetDropper();
+
+        if (_eyeDropperTask != null)
+        {
+            if (_eyeDropperTask.IsCompleted)
+            {
+                var sampledColor = _eyeDropperTask.Result.ToColor32();
+                _eyeDropperTask = null;
+                _eyeDropperActive = false;
+
+                RgbToHsv(sampledColor, out _hue, out _sat, out _val);
+                _alpha = sampledColor.A / 255f;
+                InvalidateSVTexture();
+                _trackNeedsInit = true;
+
+                if (_paletteMode == ColorMode.Linear)
+                {
+                    if (_gradientActiveStop == 0)
+                        _gradient.StartColor = sampledColor;
+                    else
+                        _gradient.EndColor = sampledColor;
+                }
+                else if (_paletteMode == ColorMode.None)
+                {
+                    _paletteMode = ColorMode.Color;
+                }
+            }
+        }
+
         if (Input.WasButtonPressed(InputCode.KeyEscape))
         {
             Input.ConsumeButton(InputCode.KeyEscape);
-            Close();
-            return;
+            if (_eyeDropperActive)
+            {
+                _eyeDropperActive = false;
+                _eyeDropperTask = null;
+            }
+            else
+            {
+                Close();
+                return;
+            }
+        }
+
+        if (_eyeDropperActive && Input.WasButtonPressed(InputCode.MouseRight))
+        {
+            Input.ConsumeButton(InputCode.MouseRight);
+            _eyeDropperActive = false;
+            _eyeDropperTask = null;
         }
 
         using var panel = FloatingPanel.Begin(_popupId, EditorStyle.ColorPicker.Root);
 
         if (FloatingPanel.WasBackdropPressed)
         {
-            if (_paletteMode != ColorMode.Linear || OnBackdropClick == null || !OnBackdropClick())
+            if (_eyeDropperActive)
+            {
+                InitiateEyeDropperReadback();
+            }
+            else if (_paletteMode != ColorMode.Linear || OnBackdropClick == null || !OnBackdropClick())
             {
                 Close();
                 return;
@@ -235,6 +306,9 @@ internal static partial class ColorPicker
                 if (UI.Button(ElementId.ModePalette, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Palette))
                     _paletteMode = ColorMode.Palette;
             }
+
+            if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CurorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
+                _eyeDropperActive = !_eyeDropperActive;
 
             UI.Flex();
 

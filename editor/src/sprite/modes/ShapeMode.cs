@@ -12,44 +12,36 @@ public enum ShapeType
     Circle
 }
 
-public class ShapeTool : Tool
+public class ShapeMode : EditorMode<SpriteEditor>
 {
-    private readonly SpriteEditor _editor;
-    private readonly SpriteLayer _activeLayer;
-    private readonly Color32 _fillColor;
-    public readonly ShapeType ShapeType;
-    private readonly SpritePathOperation _operation;
+    private readonly ShapeType _shapeType;
 
     private Vector2 _startLocal;
     private Vector2 _currentLocal;
     private bool _isDragging;
 
-    public ShapeTool(SpriteEditor editor, SpriteLayer activeLayer,
-        Color32 fillColor, ShapeType shapeType, SpritePathOperation operation = SpritePathOperation.Normal)
+    public ShapeMode(ShapeType shapeType)
     {
-        _editor = editor;
-        _activeLayer = activeLayer;
-        _fillColor = fillColor;
-        ShapeType = shapeType;
-        _operation = operation;
+        _shapeType = shapeType;
     }
 
     public override void Update()
     {
         EditorCursor.SetCrosshair();
-        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope))
+
+        if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {
-            Cancel();
+            Editor.SetMode(new AnchorMode());
             return;
         }
 
-        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
+        Matrix3x2.Invert(Editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
 
-        if (Input.IsCtrlDown(Scope))
+        if (Input.IsCtrlDown(InputScope.All))
             mouseLocal = Grid.SnapToPixelGrid(mouseLocal);
 
-        if (!_isDragging && Input.WasButtonPressed(InputCode.MouseLeft, Scope))
+        if (!_isDragging && Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
             _startLocal = mouseLocal;
             _currentLocal = mouseLocal;
@@ -61,10 +53,10 @@ public class ShapeTool : Tool
         {
             _currentLocal = mouseLocal;
 
-            if (Input.IsShiftDown(Scope))
+            if (Input.IsShiftDown(InputScope.All))
                 _currentLocal = ConstrainToUniform(_startLocal, _currentLocal);
 
-            if (Input.WasButtonReleased(InputCode.MouseLeft, Scope))
+            if (Input.WasButtonReleased(InputCode.MouseLeft, InputScope.All))
             {
                 Commit();
                 return;
@@ -83,23 +75,19 @@ public class ShapeTool : Tool
 
     public override void Draw()
     {
-        if (!_isDragging)
-            return;
+        if (!_isDragging) return;
 
         var min = Vector2.Min(_startLocal, _currentLocal);
         var max = Vector2.Max(_startLocal, _currentLocal);
-
-        if (max.X - min.X < 0.001f || max.Y - min.Y < 0.001f)
-            return;
+        if (max.X - min.X < 0.001f || max.Y - min.Y < 0.001f) return;
 
         using (Gizmos.PushState(EditorLayer.Tool))
         {
-            Graphics.SetTransform(_editor.Document.Transform);
-
+            Graphics.SetTransform(Editor.Document.Transform);
             var lineWidth = Gizmos.GetLineWidth();
             Gizmos.SetColor(EditorStyle.Tool.LineColor);
 
-            if (ShapeType == ShapeType.Rectangle)
+            if (_shapeType == ShapeType.Rectangle)
                 DrawRectanglePreview(min, max, lineWidth);
             else
                 DrawCirclePreview(min, max, lineWidth);
@@ -124,7 +112,7 @@ public class ShapeTool : Tool
         var textY = max.Y + Gizmos.ZoomRefScale * 0.1f;
 
         Graphics.SetColor(EditorStyle.Tool.LineColor);
-        Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY) * _editor.Document.Transform);
+        Graphics.SetTransform(Matrix3x2.CreateTranslation(textX, textY) * Editor.Document.Transform);
         TextRender.Draw(text, font, fontSize);
     }
 
@@ -162,21 +150,24 @@ public class ShapeTool : Tool
     {
         var min = Vector2.Min(_startLocal, _currentLocal);
         var max = Vector2.Max(_startLocal, _currentLocal);
+        var activeLayer = Editor.Document.RootLayer;
 
-        if (max.X - min.X < 0.01f || max.Y - min.Y < 0.01f || _activeLayer.Locked)
+        if (max.X - min.X < 0.01f || max.Y - min.Y < 0.01f || activeLayer.Locked)
         {
-            Finish();
+            _isDragging = false;
             return;
         }
 
-        Undo.Record(_editor.Document);
+        Undo.Record(Editor.Document);
+        activeLayer.ForEachEditablePath(p => p.ClearSelection());
 
-        // Clear selections on all existing paths in the layer
-        _activeLayer.ForEachEditablePath(p => p.ClearSelection());
+        var path = new SpritePath
+        {
+            FillColor = Editor.Document.CurrentFillColor,
+            Operation = Editor.Document.CurrentOperation
+        };
 
-        var path = new SpritePath { FillColor = _fillColor, Operation = _operation };
-
-        if (ShapeType == ShapeType.Rectangle)
+        if (_shapeType == ShapeType.Rectangle)
             AddRectangleAnchors(path, min, max);
         else
             AddCircleAnchors(path, min, max);
@@ -184,10 +175,11 @@ public class ShapeTool : Tool
         path.SelectAll();
         path.UpdateSamples();
         path.UpdateBounds();
-        _activeLayer.Insert(0, path);
+        activeLayer.Insert(0, path);
 
-        _editor.MarkDirty();
-        Finish();
+        Editor.MarkDirty();
+        _isDragging = false;
+        Input.ConsumeButton(InputCode.MouseLeft);
     }
 
     private static void AddRectangleAnchors(SpritePath path, Vector2 min, Vector2 max)
@@ -238,13 +230,4 @@ public class ShapeTool : Tool
         var perp = new Vector2(-dir.Y, dir.X) / len;
         return 2f * Vector2.Dot(arcMidpoint - chordMid, perp);
     }
-
-    private void Finish()
-    {
-        _isDragging = false;
-        Workspace.EndTool();
-        Input.ConsumeButton(InputCode.MouseLeft);
-    }
-
-    public override void Cancel() => Finish();
 }

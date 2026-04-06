@@ -39,30 +39,24 @@ public partial class SpriteEditor
         int h = rb.Height;
         if (w <= 0 || h <= 0) return;
 
-        unsafe
+        // Use the same FillPixelData path as export so preview matches rasterized output exactly
+        using var pixels = new PixelData<Color32>(w, h);
+        var targetRect = new RectInt(0, 0, w, h);
+        var sourceOffset = new Vector2Int(-rb.X, -rb.Y);
+        SpriteSkiaRenderer.FillPixelData(_tessellateResults, pixels, targetRect, sourceOffset, dpi, premul: true);
+
+        var byteSpan = pixels.AsByteSpan();
+
+        if (_meshTexture != null && _meshTextureW == w && _meshTextureH == h)
         {
-            var pixels = stackalloc Color32[w * h];
-            for (int i = 0; i < w * h; i++)
-                pixels[i] = default;
-
-            SpriteSkiaRenderer.RenderToPixelsPremul(
-                _tessellateResults, w, h, pixels,
-                dpi, dpi,
-                -rb.X, -rb.Y);
-
-            var byteSpan = new ReadOnlySpan<byte>(pixels, w * h * 4);
-
-            if (_meshTexture != null && _meshTextureW == w && _meshTextureH == h)
-            {
-                _meshTexture.Update(byteSpan);
-            }
-            else
-            {
-                DisposeMeshTexture();
-                _meshTexture = Texture.Create(w, h, byteSpan, name: "sprite_preview");
-                _meshTextureW = w;
-                _meshTextureH = h;
-            }
+            _meshTexture.Update(byteSpan);
+        }
+        else
+        {
+            DisposeMeshTexture();
+            _meshTexture = Texture.Create(w, h, byteSpan, name: "sprite_preview");
+            _meshTextureW = w;
+            _meshTextureH = h;
         }
     }
 

@@ -55,10 +55,18 @@ internal static class SpriteLayerProcessor
 
             if (above != null && r.Contours.Count > 0)
             {
-                var trimmed = Clipper.BooleanOp(ClipType.Difference,
-                    r.Contours, above, FillRule.NonZero, precision: ClipperPrecision);
-                if (trimmed.Count > 0)
-                    results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke, r.FillType, r.Gradient, r.GradientTransform);
+                // Contract the subtraction shape by ~0.5px so the lower path
+                // extends slightly under the upper path's edge, preventing
+                // dark seams from tiny gaps in Clipper2's boolean output.
+                var contracted = Clipper.InflatePaths(above, -0.5 / EditorApplication.Config.PixelsPerUnit,
+                    JoinType.Miter, EndType.Polygon, precision: ClipperPrecision);
+                if (contracted.Count > 0)
+                {
+                    var trimmed = Clipper.BooleanOp(ClipType.Difference,
+                        r.Contours, contracted, FillRule.NonZero, precision: ClipperPrecision);
+                    if (trimmed.Count > 0)
+                        results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke, r.FillType, r.Gradient, r.GradientTransform);
+                }
             }
 
             if (isOpaque && r.Contours.Count > 0)

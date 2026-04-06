@@ -79,7 +79,7 @@ r "icon_subtract" 292 389 68 68 0
 r "icon_tiling" 205 392 68 68 0
 r "icon_unlock" 963 217 36 36 0
 r "icon_xray" 137 432 68 68 0
-r "new_sprite" 851 321 104 116 0
-r "circle" 432 341 132 132 0
-r "square" 273 457 132 132 0
-r "star" 69 500 126 120 0
+r "new_sprite" 432 341 219 174 0
+r "circle" 273 457 132 132 0
+r "square" 851 321 132 132 0
+r "star" 651 395 126 120 0

@@ -59,6 +59,7 @@ public partial class SpriteEditor : DocumentEditor
         public static partial WidgetId DopeSheetToggle { get; }
         public static partial WidgetId VModeButton { get; }
         public static partial WidgetId AModeButton { get; }
+        public static partial WidgetId BevelModeButton { get; }
         public static partial WidgetId SortOrder { get; }
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId OnionSkinButton { get; }
@@ -112,7 +113,7 @@ public partial class SpriteEditor : DocumentEditor
                 new Command("Toggle Onion Skin",    ToggleOnionSkin,            [new KeyBinding(InputCode.KeyO, shift:true)]),
                 new Command("Generate",             Document.GenerateAsync,     [new KeyBinding(InputCode.KeyG, ctrl:true)]),
                 new Command("Generate (Random Seed)", GenerateWithRandomSeed, [new KeyBinding(InputCode.KeyG, ctrl:true, shift:true)]),
-                new Command("Eye Dropper",          BeginEyeDropper,            [new KeyBinding(InputCode.KeyI)]),
+                new Command("Eye Dropper",          () => SetMode(SpriteEditMode.EyeDropper), [new KeyBinding(InputCode.KeyI)]),
                 new Command("Boolean Union",        BooleanUnion,               [new KeyBinding(InputCode.KeyU, ctrl:true, shift:true)]),
                 new Command("Boolean Subtract",     BooleanSubtract,            [new KeyBinding(InputCode.KeyD, ctrl:true, shift:true)]),
                 new Command("Boolean Intersect",    BooleanIntersect,           [new KeyBinding(InputCode.KeyI, ctrl:true, shift:true)]),
@@ -120,6 +121,7 @@ public partial class SpriteEditor : DocumentEditor
             ];
 
             ApplyCurrentFrameVisibility();
+            SetMode(new TransformMode());
         }
         else
         {
@@ -181,7 +183,7 @@ public partial class SpriteEditor : DocumentEditor
         var multiPath = _selectedPaths.Count >= 2 && vMode;
         var singleNode = (HasLayerSelection && _selectedLayers.Count == 1) ||
                          (!HasLayerSelection && _selectedPaths.Count == 1);
-        var canDelete = hasPath || HasLayerSelection || (CurrentMode == SpriteEditMode.Anchor && GetPathWithSelection() != null);
+        var canDelete = hasPath || HasLayerSelection || (CurrentMode != SpriteEditMode.Transform && GetPathWithSelection() != null);
 
         var items = new List<PopupMenuItem>
         {
@@ -312,16 +314,14 @@ public partial class SpriteEditor : DocumentEditor
             DrawEdges();
 
         Document.DrawBounds();
+
+        Mode?.Draw();
     }
 
     public override void LateUpdate()
     {
         if (!Document.IsMutable) return;
-
-        if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
-            HandleDragStart();
-        else if (Input.WasButtonReleased(InputCode.MouseLeft))
-            HandleLeftClick();
+        Mode?.Update();
     }
 
     public override void UpdateUI() { }
@@ -352,24 +352,22 @@ public partial class SpriteEditor : DocumentEditor
         if (FloatingToolbar.Button(WidgetIds.AModeButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.Anchor))
             SetMode(SpriteEditMode.Anchor);
 
+        if (FloatingToolbar.Button(WidgetIds.BevelModeButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.Bevel))
+            SetMode(SpriteEditMode.Bevel);
+
         FloatingToolbar.Divider();
 
-        // Tool group: Pen, Rect, Circle (A mode only)
-        if (CurrentMode == SpriteEditMode.Anchor)
-        {
-            var activeTool = Workspace.ActiveTool;
+        // Creation modes: Pen, Rect, Circle
+        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.Pen))
+            SetMode(SpriteEditMode.Pen);
 
-            if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, isSelected: activeTool is PenTool))
-                BeginPenTool();
+        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, isSelected: CurrentMode == SpriteEditMode.Rectangle))
+            SetMode(SpriteEditMode.Rectangle);
 
-            if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Rectangle }))
-                BeginRectangleTool();
+        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, isSelected: CurrentMode == SpriteEditMode.Circle))
+            SetMode(SpriteEditMode.Circle);
 
-            if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, isSelected: activeTool is ShapeTool { ShapeType: ShapeType.Circle }))
-                BeginCircleTool();
-
-            FloatingToolbar.Divider();
-        }
+        FloatingToolbar.Divider();
 
         // Add frame
         if (FloatingToolbar.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
@@ -915,113 +913,10 @@ public partial class SpriteEditor : DocumentEditor
         }
     }
 
-    private static readonly List<SpriteNode.AnchorHitResult> _anchorHitResults = [];
     private static readonly List<SpritePath> _pathHitResults = [];
     private static readonly List<SpritePath> _hitPaths = [];
 
-    private void HandleLeftClick()
-    {
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var localMousePos = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
-        var shift = Input.IsShiftDown(InputScope.All);
-        var alt = Input.IsAltDown(InputScope.All);
-
-        // Alt+click on segment in A mode: insert anchor
-        if (alt && CurrentMode == SpriteEditMode.Anchor && HandleAltClickInsert(localMousePos))
-            return;
-
-        // A mode: try anchor selection on selected paths first
-        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0)
-        {
-            if (HandleAnchorClick(localMousePos, shift))
-                return;
-        }
-
-        // Path selection fallback (works in both V and A modes)
-        if (HandlePathClick(localMousePos, shift))
-            return;
-
-        // Nothing hit — clear everything
-        if (!shift)
-            ClearSelection();
-    }
-
-    private bool HandleAltClickInsert(Vector2 localMousePos)
-    {
-        var hit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
-        if (!hit.HasValue) return false;
-
-        Undo.Record(Document);
-        var path = hit.Value.Path;
-        var hitCi = hit.Value.ContourIndex;
-        path.ClearAnchorSelection();
-        path.SplitSegmentAtPoint(hitCi, hit.Value.SegmentIndex, hit.Value.Position);
-
-        var newIdx = hit.Value.SegmentIndex + 1;
-        if (newIdx < path.Contours[hitCi].Anchors.Count)
-            path.SetAnchorSelected(hitCi, newIdx, true);
-
-        path.UpdateSamples();
-        path.UpdateBounds();
-        MarkDirty();
-        return true;
-    }
-
-    private bool HandleAnchorClick(Vector2 localMousePos, bool shift)
-    {
-        _anchorHitResults.Clear();
-        Document.RootLayer.HitTestAnchor(localMousePos, _anchorHitResults, onlySelected: true);
-
-        foreach (var h in _anchorHitResults)
-        {
-            if (h.Path.Contours[h.ContourIndex].Anchors[h.AnchorIndex].IsSelected && !shift)
-            {
-                if (CycleAnchorSelection(h))
-                    return true;
-            }
-
-            if (!shift) Document.RootLayer.ClearAnchorSelections();
-            h.Path.SetAnchorSelected(h.ContourIndex, h.AnchorIndex, true);
-            RebuildSelectedPaths();
-            return true;
-        }
-        return false;
-    }
-
-    private bool CycleAnchorSelection(SpriteNode.AnchorHitResult currentHit)
-    {
-        var foundCurrent = false;
-        foreach (var h in _anchorHitResults)
-        {
-            if (!h.Path.IsSelected) continue;
-
-            if (!foundCurrent)
-            {
-                if (h.Path == currentHit.Path && h.AnchorIndex == currentHit.AnchorIndex)
-                    foundCurrent = true;
-                continue;
-            }
-
-            Document.RootLayer.ClearAnchorSelections();
-            h.Path.SetAnchorSelected(h.AnchorIndex, true);
-            RebuildSelectedPaths();
-            return true;
-        }
-
-        // Wrap around
-        foreach (var h in _anchorHitResults)
-        {
-            if (!h.Path.IsSelected) continue;
-            Document.RootLayer.ClearAnchorSelections();
-            h.Path.SetAnchorSelected(h.AnchorIndex, true);
-            RebuildSelectedPaths();
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool HandlePathClick(Vector2 localMousePos, bool shift)
+    internal bool HandlePathClick(Vector2 localMousePos, bool shift)
     {
         _pathHitResults.Clear();
         Document.RootLayer.HitTestPath(localMousePos, _pathHitResults);
@@ -1099,9 +994,9 @@ public partial class SpriteEditor : DocumentEditor
 
         var transform = Document.Transform;
 
-        if (CurrentMode == SpriteEditMode.Anchor)
+        if (CurrentMode != SpriteEditMode.Transform)
         {
-            // A mode: draw anchors and edges for selected paths only
+            // Anchor-based modes: draw anchors and edges for selected paths
             foreach (var path in _selectedPaths)
             {
                 if (path.TotalAnchorCount < 2) continue;
@@ -1121,9 +1016,6 @@ public partial class SpriteEditor : DocumentEditor
 
     private void UpdateHandleCursor()
     {
-        if (Workspace.ActiveTool != null)
-            return;
-
         _hoverPath = null;
         _hoverAnchorIndex = -1;
         _hoverHandle = SpritePathHandle.None;
@@ -1142,7 +1034,7 @@ public partial class SpriteEditor : DocumentEditor
             _hoverHandle = HitTestHandles(localMousePos);
             SetCursor(_hoverHandle);
         }
-        else if (CurrentMode == SpriteEditMode.Anchor)
+        else if (CurrentMode == SpriteEditMode.Anchor || CurrentMode == SpriteEditMode.Bevel)
         {
             if (Input.IsAltDown(InputScope.All))
             {
@@ -1249,11 +1141,11 @@ public partial class SpriteEditor : DocumentEditor
         return corner + dir * offset;
     }
 
-    private static bool IsScaleHandle(SpritePathHandle hit) => hit >= SpritePathHandle.ScaleTopLeft && hit <= SpritePathHandle.ScaleLeft;
-    private static bool IsRotateHandle(SpritePathHandle hit) => hit >= SpritePathHandle.RotateTopLeft && hit <= SpritePathHandle.RotateBottomLeft;
+    internal static bool IsScaleHandle(SpritePathHandle hit) => hit >= SpritePathHandle.ScaleTopLeft && hit <= SpritePathHandle.ScaleLeft;
+    internal static bool IsRotateHandle(SpritePathHandle hit) => hit >= SpritePathHandle.RotateTopLeft && hit <= SpritePathHandle.RotateBottomLeft;
 
     // Hit test handles in selection-rotated space
-    private SpritePathHandle HitTestHandles(Vector2 docLocalPos)
+    internal SpritePathHandle HitTestHandles(Vector2 docLocalPos)
     {
         var bounds = _selectionLocalBounds;
         if (bounds.Width <= 0 && bounds.Height <= 0) return SpritePathHandle.None;
@@ -1353,7 +1245,7 @@ public partial class SpriteEditor : DocumentEditor
     }
 
     // Get the pivot (opposite handle) in selection-local space
-    private Vector2 GetOppositePivotInSelSpace(SpritePathHandle hit)
+    internal Vector2 GetOppositePivotInSelSpace(SpritePathHandle hit)
     {
         var b = _selectionLocalBounds;
         var midX = b.X + b.Width * 0.5f;
@@ -1604,6 +1496,7 @@ public partial class SpriteEditor : DocumentEditor
                 // Re-open with gradient state when the picker just opened on a gradient path
                 if (!wasPickerOpen && ColorPicker.IsOpen(WidgetIds.FillColor) && Document.CurrentFillType == SpriteFillType.Linear)
                 {
+                    Log.Info($"[Gradient] Re-opening picker: start={Document.CurrentFillGradient.StartColor} end={Document.CurrentFillGradient.EndColor}");
                     ColorPicker.Open(WidgetIds.FillColor, Document.CurrentFillType,
                         Document.CurrentFillColor, Document.CurrentFillGradient);
                 }
@@ -1624,11 +1517,13 @@ public partial class SpriteEditor : DocumentEditor
                             changed = cur.StartColor != pickerGrad.StartColor || cur.EndColor != pickerGrad.EndColor;
                         }
                         Document.CurrentFillType = SpriteFillType.Linear;
-                        Document.CurrentFillColor = pickerGrad.StartColor;
+                        var fallback = pickerGrad.StartColor.A > 0 ? pickerGrad.StartColor : pickerGrad.EndColor;
+                        if (fallback.A == 0) fallback = new Color32(fallback.R, fallback.G, fallback.B, 255);
+                        Document.CurrentFillColor = fallback;
                         foreach (var path in _selectedPaths)
                         {
                             path.FillType = SpriteFillType.Linear;
-                            path.FillColor = pickerGrad.StartColor;
+                            path.FillColor = fallback;
                             var g = path.FillGradient;
                             g.StartColor = pickerGrad.StartColor;
                             g.EndColor = pickerGrad.EndColor;
@@ -1636,6 +1531,8 @@ public partial class SpriteEditor : DocumentEditor
                             if (g.Start == Vector2.Zero && g.End == Vector2.Zero)
                                 path.InitializeDefaultGradient();
                         }
+                        if (_selectedPaths.Count > 0)
+                            Document.CurrentFillGradient = _selectedPaths[0].FillGradient;
                     }
                     else
                     {
@@ -1964,11 +1861,6 @@ public partial class SpriteEditor : DocumentEditor
         if (Document.Generation == null) return;
         Document.Generation.Seed = GenerateRandomSeed();
         Document.GenerateAsync();
-    }
-
-    private void BeginEyeDropper()
-    {
-        Workspace.BeginTool(new EyeDropperTool(this));
     }
 
     internal void ApplyEyeDropperColor(Color32 color, bool stroke)

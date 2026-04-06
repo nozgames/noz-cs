@@ -132,10 +132,10 @@ internal partial class AnimationEditor : DocumentEditor
 
     private AnimationEditorState _state = AnimationEditorState.Default;
     private bool _showSkeleton = true;
-    private bool _clearSelectionOnUp;
-    private bool _ignoreUp;
     //private PopupMenuItem[] _contextMenuItems;
+    internal Vector2 SelectionCenter => _selectionCenter;
     private Vector2 _selectionCenter;
+    internal Vector2 SelectionCenterWorld => _selectionCenterWorld;
     private Vector2 _selectionCenterWorld;
     private bool _onionSkin;
     private float _playSpeed = 1f;
@@ -184,6 +184,7 @@ internal partial class AnimationEditor : DocumentEditor
 
         ClearSelection();
         Document.UpdateTransforms();
+        SetMode(new KeyframeMode());
     }
 
     public override void Update()
@@ -194,12 +195,13 @@ internal partial class AnimationEditor : DocumentEditor
             UpdatePlayState();
 
         DrawEditor();
+        Mode?.Draw();
     }
 
     public override void LateUpdate()
     {
         if (_state == AnimationEditorState.Default)
-            UpdateDefaultState();
+            Mode?.Update();
     }
 
     private void SkeletonPopupUI()
@@ -369,51 +371,6 @@ internal partial class AnimationEditor : DocumentEditor
         }
     }
 
-    private void UpdateDefaultState()
-    {
-        if (Workspace.ActiveTool == null && Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
-        {
-            HandleDragStart();
-            return;
-        }
-
-        if (!_ignoreUp && !Workspace.IsDragging && Input.WasButtonReleased(InputCode.MouseLeft))
-        {
-            _clearSelectionOnUp = false;
-            if (TrySelectBone())
-                return;
-
-            _clearSelectionOnUp = true;
-        }
-
-        _ignoreUp &= !Input.WasButtonReleased(InputCode.MouseLeft);
-
-        if (Input.WasButtonReleased(InputCode.MouseLeft) && _clearSelectionOnUp && !Input.IsShiftDown())
-            ClearSelection();
-    }
-
-    private void HandleDragStart()
-    {
-        var hitBone = Document.HitTestBone(GetBaseTransform(), Workspace.DragWorldPosition);
-        if (hitBone >= 0)
-        {
-            // Select the bone if not already selected
-            if (!IsBoneSelected(hitBone))
-            {
-                if (!Input.IsShiftDown())
-                    ClearSelection();
-                SetBoneSelected(hitBone, true);
-            }
-
-            if (Input.IsAltDown(InputScope.All))
-                BeginMoveTool(commitOnRelease: true);
-            else
-                BeginRotateTool(commitOnRelease: true);
-            return;
-        }
-
-        Workspace.BeginTool(new BoxSelectTool(HandleBoxSelect));
-    }
 
     private void UpdatePlayState()
     {
@@ -425,7 +382,7 @@ internal partial class AnimationEditor : DocumentEditor
         }
     }
 
-    private void HandleBoxSelect(Rect bounds)
+    internal void HandleBoxSelect(Rect bounds)
     {
         if (!Input.IsShiftDown())
             ClearSelection();
@@ -447,12 +404,12 @@ internal partial class AnimationEditor : DocumentEditor
         }
     }
 
-    private Matrix3x2 GetBaseTransform()
+    internal Matrix3x2 GetBaseTransform()
     {
         return Matrix3x2.CreateTranslation(Document.Position);
     }
 
-    private bool TrySelectBone()
+    internal bool TrySelectBone()
     {
         Span<int> bones = stackalloc int[Skeleton.MaxBones];
         var hitCount = Document.HitTestBones(GetBaseTransform(), Workspace.MouseWorldPosition, bones);
@@ -483,7 +440,7 @@ internal partial class AnimationEditor : DocumentEditor
         return true;
     }
 
-    private bool IsBoneSelected(int boneIndex) => Document.Bones[boneIndex].IsSelected;
+    internal bool IsBoneSelected(int boneIndex) => Document.Bones[boneIndex].IsSelected;
 
     private bool IsAncestorSelected(int boneIndex)
     {
@@ -501,7 +458,7 @@ internal partial class AnimationEditor : DocumentEditor
         return false;
     }
 
-    private void SetBoneSelected(int boneIndex, bool selected)
+    internal void SetBoneSelected(int boneIndex, bool selected)
     {
         if (IsBoneSelected(boneIndex) == selected)
             return;
@@ -510,7 +467,7 @@ internal partial class AnimationEditor : DocumentEditor
         Document.SelectedBoneCount += selected ? 1 : -1;
     }
 
-    private void ClearSelection()
+    internal void ClearSelection()
     {
         var skeleton = Document.Skeleton;
         if (skeleton == null)
@@ -520,7 +477,7 @@ internal partial class AnimationEditor : DocumentEditor
             SetBoneSelected(boneIndex, false);
     }
 
-    private void UpdateSelectionCenter()
+    internal void UpdateSelectionCenter()
     {
         var skeleton = Document.Skeleton;
         if (skeleton == null)
@@ -540,7 +497,7 @@ internal partial class AnimationEditor : DocumentEditor
         _selectionCenterWorld = Vector2.Transform(_selectionCenter, GetBaseTransform());
     }
 
-    private void SaveState()
+    internal void SaveState()
     {
         var skeleton = Document.Skeleton;
         if (skeleton == null)
@@ -552,7 +509,7 @@ internal partial class AnimationEditor : DocumentEditor
         UpdateSelectionCenter();
     }
 
-    private void RevertToSavedState()
+    internal void RevertToSavedState()
     {
         var skeleton = Document.Skeleton;
         if (skeleton == null)
@@ -575,33 +532,7 @@ internal partial class AnimationEditor : DocumentEditor
         _state = AnimationEditorState.Default;
     }
 
-    private void BeginMoveTool(bool commitOnRelease = false)
-    {
-        if (Document.SelectedBoneCount <= 0 || _state != AnimationEditorState.Default)
-            return;
-
-        SaveState();
-        Undo.Record(Document);
-
-        Workspace.BeginTool(new MoveTool(
-            update: delta =>
-            {
-                UpdateMoveTool(delta);
-            },
-            commit: _ =>
-            {
-                Document.UpdateTransforms();
-                Document.IncrementVersion();
-            },
-            cancel: () =>
-            {
-                Undo.Cancel();
-                RevertToSavedState();
-            }
-        ) { CommitOnRelease = commitOnRelease });
-    }
-
-    private void UpdateMoveTool(Vector2 delta)
+    internal void ApplyMoveDelta(Vector2 delta)
     {
         var skeleton = Document.Skeleton;
         if (skeleton == null)
@@ -637,43 +568,7 @@ internal partial class AnimationEditor : DocumentEditor
         Document.UpdateTransforms();
     }
 
-    private void BeginRotateTool(bool commitOnRelease = false)
-    {
-        if (Document.SelectedBoneCount <= 0 || _state != AnimationEditorState.Default)
-            return;
-
-        SaveState();
-        UpdateSelectionCenter();
-        Undo.Record(Document);
-
-        var invTransform = Matrix3x2.Identity;
-        Matrix3x2.Invert(GetBaseTransform(), out invTransform);
-        var worldOrigin = Vector2.Transform(Vector2.Zero, GetBaseTransform());
-
-        Workspace.BeginTool(new RotateTool(
-            _selectionCenterWorld,
-            _selectionCenter,
-            worldOrigin,
-            Vector2.Zero,
-            invTransform,
-            update: angle =>
-            {
-                UpdateRotateTool(angle * 180f / MathF.PI);
-            },
-            commit: _ =>
-            {
-                Document.UpdateTransforms();
-                Document.IncrementVersion();
-            },
-            cancel: () =>
-            {
-                Undo.Cancel();
-                RevertToSavedState();
-            }
-        ) { CommitOnRelease = commitOnRelease });
-    }
-
-    private void UpdateRotateTool(float angle)
+    internal void ApplyRotateDelta(float angle)
     {
         if (MathF.Abs(angle) < 0.0001f)
             return;

@@ -10,6 +10,11 @@ public enum SpriteEditMode
 {
     Transform,
     Anchor,
+    Bevel,
+    Pen,
+    Rectangle,
+    Circle,
+    EyeDropper,
 }
 
 public partial class SpriteEditor
@@ -17,9 +22,11 @@ public partial class SpriteEditor
     public bool HasPathSelection { get; private set; }
     public bool HasLayerSelection { get; private set; }
     public SpriteEditMode CurrentMode { get; private set; } = SpriteEditMode.Transform;
+    internal IReadOnlyList<SpritePath> SelectedPaths => _selectedPaths;
 
-    private readonly List<SpritePath> _selectedPaths = new();
+    internal readonly List<SpritePath> _selectedPaths = new();
     private readonly List<SpriteLayer> _selectedLayers = new();
+    internal float SelectionRotation => _selectionRotation;
     private float _selectionRotation;
     private Rect _selectionLocalBounds;
     private Vector2 _selectionCenter;
@@ -40,10 +47,21 @@ public partial class SpriteEditor
     private void SetMode(SpriteEditMode mode)
     {
         if (CurrentMode == mode) return;
+
         CurrentMode = mode;
 
-        if (mode == SpriteEditMode.Transform)
-            Document.RootLayer.ClearAnchorSelections();
+        EditorMode newMode = mode switch
+        {
+            SpriteEditMode.Transform => new TransformMode(),
+            SpriteEditMode.Anchor => new AnchorMode(),
+            SpriteEditMode.Bevel => new BevelMode(),
+            SpriteEditMode.Pen => new PenMode(),
+            SpriteEditMode.Rectangle => new ShapeMode(ShapeType.Rectangle),
+            SpriteEditMode.Circle => new ShapeMode(ShapeType.Circle),
+            SpriteEditMode.EyeDropper => new EyeDropperMode(),
+            _ => new TransformMode(),
+        };
+        SetMode(newMode);
     }
 
     #region Commands
@@ -55,12 +73,11 @@ public partial class SpriteEditor
             new Command("Delete", DeleteSelected, [InputCode.KeyX, InputCode.KeyDelete], icon:EditorAssets.Sprites.IconDelete),
             new Command("V Mode", () => SetMode(SpriteEditMode.Transform), [InputCode.KeyV]),
             new Command("A Mode", () => SetMode(SpriteEditMode.Anchor), [InputCode.KeyA]),
-            new Command("Curve", BeginCurveTool, [InputCode.KeyC]),
-            new Command("Bevel", BeginBevelTool, [InputCode.KeyB]),
+            new Command("Bevel", () => SetMode(SpriteEditMode.Bevel), [InputCode.KeyB]),
             new Command("Select All", SelectAll, [new KeyBinding(InputCode.KeyA, ctrl: true)]),
-            new Command("Pen Tool", BeginPenTool, [InputCode.KeyP]),
-            new Command("Rectangle Tool", BeginRectangleTool, [new KeyBinding(InputCode.KeyR, ctrl: true)]),
-            new Command("Circle Tool", BeginCircleTool, [new KeyBinding(InputCode.KeyO, ctrl: true)]),
+            new Command("Pen Tool", () => SetMode(SpriteEditMode.Pen), [InputCode.KeyP]),
+            new Command("Rectangle Tool", () => SetMode(SpriteEditMode.Rectangle), [new KeyBinding(InputCode.KeyR, ctrl: true)]),
+            new Command("Circle Tool", () => SetMode(SpriteEditMode.Circle), [new KeyBinding(InputCode.KeyO, ctrl: true)]),
             new Command("Duplicate", DuplicateSelected, [new KeyBinding(InputCode.KeyD, ctrl: true)]),
             new Command("Copy", CopySelected, [new KeyBinding(InputCode.KeyC, ctrl: true)]),
             new Command("Paste", PasteSelected, [new KeyBinding(InputCode.KeyV, ctrl: true)]),
@@ -73,145 +90,13 @@ public partial class SpriteEditor
 
     #region Input
 
-
-    private void HandleDragStart()
-    {
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var localMousePos = Vector2.Transform(Workspace.DragWorldPosition, invTransform);
-
-        if (IsGradientOverlayVisible() && HandleGradientDrag(localMousePos))
-            return;
-
-        if (CurrentMode == SpriteEditMode.Transform && _selectedPaths.Count > 0 && HandleVModeDrag(localMousePos))
-            return;
-
-        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0 && HandleAModeDrag(localMousePos))
-            return;
-
-        Workspace.BeginTool(new BoxSelectTool(CommitBoxSelect));
-    }
-
-    private bool HandleVModeDrag(Vector2 localMousePos)
-    {
-        var handleHit = HitTestHandles(localMousePos);
-
-        if (IsRotateHandle(handleHit))
-        {
-            var tool = RotatePathTransformTool.Create(Document, this, _selectedPaths);
-            if (tool != null)
-            {
-                tool.CommitOnRelease = true;
-                Undo.Record(Document);
-                Workspace.BeginTool(tool);
-                return true;
-            }
-        }
-
-        if (IsScaleHandle(handleHit))
-        {
-            var selToDoc = Matrix3x2.CreateRotation(_selectionRotation);
-            var pivotSel = GetOppositePivotInSelSpace(handleHit);
-            var pivotDoc = Vector2.Transform(pivotSel, selToDoc);
-
-            var tool = HandleScalePathTransformTool.Create(
-                Document, this, _selectedPaths,
-                pivotDoc, _selectionRotation, handleHit);
-            if (tool != null)
-            {
-                Undo.Record(Document);
-                Workspace.BeginTool(tool);
-                return true;
-            }
-        }
-
-        if (handleHit == SpritePathHandle.Move)
-        {
-            var tool = MovePathTransformTool.Create(Document, this, _selectedPaths);
-            if (tool != null)
-            {
-                tool.CommitOnRelease = true;
-                Undo.Record(Document);
-                Workspace.BeginTool(tool);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool HandleAModeDrag(Vector2 localMousePos)
-    {
-        // Alt: insert anchor on segment edge, then drag it
-        if (Input.IsAltDown(InputScope.All))
-        {
-            var segHit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
-            if (segHit.HasValue)
-            {
-                Undo.Record(Document);
-                var path = segHit.Value.Path;
-                var ci = segHit.Value.ContourIndex;
-                path.ClearAnchorSelection();
-                path.SplitSegmentAtPoint(ci, segHit.Value.SegmentIndex, segHit.Value.Position);
-
-                var newIdx = segHit.Value.SegmentIndex + 1;
-                if (newIdx < path.Contours[ci].Anchors.Count)
-                    path.SetAnchorSelected(ci, newIdx, true);
-
-                var oldCenter = path.LocalBounds.Center;
-                path.UpdateSamples();
-                path.UpdateBounds();
-                path.CompensateTranslation(oldCenter);
-                MarkDirty();
-
-                var moveTool = AnchorMoveTool.Create(Document, this);
-                if (moveTool != null)
-                {
-                    Workspace.BeginTool(moveTool);
-                    return true;
-                }
-            }
-        }
-
-        // Check for anchor hit — start move
-        var anchorHit = Document.RootLayer.HitTestAnchor(localMousePos, onlySelected: true);
-        if (anchorHit.HasValue)
-        {
-            if (!anchorHit.Value.Path.Contours[anchorHit.Value.ContourIndex].Anchors[anchorHit.Value.AnchorIndex].IsSelected)
-            {
-                Document.RootLayer.ClearAnchorSelections();
-                anchorHit.Value.Path.SetAnchorSelected(anchorHit.Value.ContourIndex, anchorHit.Value.AnchorIndex, true);
-            }
-
-            var tool = AnchorMoveTool.Create(Document, this);
-            if (tool != null)
-            {
-                Undo.Record(Document);
-                Workspace.BeginTool(tool);
-                return true;
-            }
-        }
-
-        // Drag on segment edge — adjust curve
-        var segDragHit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
-        if (segDragHit.HasValue)
-        {
-            var path = segDragHit.Value.Path;
-            var segCi = segDragHit.Value.ContourIndex;
-            Undo.Record(Document);
-            Workspace.BeginTool(new CurveTool(this, path, Document.Transform, path.SnapshotAnchors(segCi), segDragHit.Value.SegmentIndex, contourIndex: segCi) { CommitOnRelease = true });
-            return true;
-        }
-
-        return false;
-    }
-
     #endregion
 
     #region Selection
 
     private void SelectAll()
     {
-        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0)
+        if (CurrentMode != SpriteEditMode.Transform && _selectedPaths.Count > 0)
         {
             foreach (var path in _selectedPaths)
                 path.SelectAll();
@@ -223,14 +108,14 @@ public partial class SpriteEditor
         }
     }
 
-    private void ClearSelection()
+    internal void ClearSelection()
     {
         Document.RootLayer.ClearSelection();
         Document.RootLayer.ClearLayerSelections();
         RebuildSelectedPaths();
     }
 
-    private void RebuildSelectedPaths()
+    internal void RebuildSelectedPaths()
     {
         _selectedPaths.Clear();
         _selectedLayers.Clear();
@@ -334,7 +219,7 @@ public partial class SpriteEditor
         }
     }
 
-    private void CommitBoxSelect(Rect bounds)
+    internal void CommitBoxSelect(Rect bounds)
     {
         var shift = Input.IsShiftDown(InputScope.All);
 
@@ -343,9 +228,9 @@ public partial class SpriteEditor
         var maxLocal = Vector2.Transform(bounds.Max, invTransform);
         var localRect = Rect.FromMinMax(minLocal, maxLocal);
 
-        if (CurrentMode == SpriteEditMode.Anchor && _selectedPaths.Count > 0)
+        if (CurrentMode != SpriteEditMode.Transform && _selectedPaths.Count > 0)
         {
-            // A mode with selected paths: box select anchors within selected paths
+            // Anchor-based modes with selected paths: box select anchors within selected paths
             if (!shift)
             {
                 foreach (var p in _selectedPaths)
@@ -372,7 +257,14 @@ public partial class SpriteEditor
 
         if (path != null)
         {
-            Document.CurrentFillColor = path.FillColor;
+            var fillColor = path.FillColor;
+            if (path.FillType == SpriteFillType.Linear && fillColor.A == 0)
+            {
+                fillColor = path.FillGradient.StartColor.A > 0 ? path.FillGradient.StartColor
+                    : path.FillGradient.EndColor.A > 0 ? path.FillGradient.EndColor
+                    : new Color32(fillColor.R, fillColor.G, fillColor.B, 255);
+            }
+            Document.CurrentFillColor = fillColor;
             Document.CurrentFillType = path.FillType;
             Document.CurrentFillGradient = path.FillGradient;
             Document.CurrentStrokeColor = path.StrokeColor;
@@ -528,90 +420,6 @@ public partial class SpriteEditor
 
     #region Tools
 
-    public void BeginPenTool()
-    {
-        Workspace.BeginTool(new PenTool(this, Document.RootLayer, Document.RootLayer,
-            Document.CurrentFillColor, Document.CurrentOperation));
-    }
-
-
-    public void BeginRectangleTool()
-    {
-        Workspace.BeginTool(new ShapeTool(this, Document.RootLayer,
-            Document.CurrentFillColor, ShapeType.Rectangle, Document.CurrentOperation));
-    }
-
-    public void BeginCircleTool()
-    {
-        Workspace.BeginTool(new ShapeTool(this, Document.RootLayer,
-            Document.CurrentFillColor, ShapeType.Circle, Document.CurrentOperation));
-    }
-
-    private void BeginAnchorMoveTool()
-    {
-        var tool = AnchorMoveTool.Create(Document, this);
-        if (tool == null) return;
-        Undo.Record(Document);
-        Workspace.BeginTool(tool);
-    }
-
-    private void BeginCurveTool()
-    {
-        var path = GetPathWithSelection();
-        if (path == null) return;
-
-        // Find first contour with a selected segment
-        var foundContour = -1;
-        for (var ci = 0; ci < path.Contours.Count; ci++)
-        {
-            var contour = path.Contours[ci];
-            for (var i = 0; i < contour.Anchors.Count; i++)
-            {
-                if (path.IsSegmentSelected(ci, i))
-                {
-                    foundContour = ci;
-                    break;
-                }
-            }
-            if (foundContour >= 0) break;
-        }
-
-        if (foundContour < 0) return;
-
-        Undo.Record(Document);
-        Workspace.BeginTool(new CurveTool(this, path, Document.Transform, path.SnapshotAnchors(foundContour), contourIndex: foundContour));
-    }
-
-    private void BeginBevelTool()
-    {
-        Workspace.BeginTool(new BevelTool(this));
-    }
-
-    private void InsertAnchorAtHover()
-    {
-        Matrix3x2.Invert(Document.Transform, out var invTransform);
-        var mouseLocal = Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
-
-        var hit = Document.RootLayer.HitTestSegment(mouseLocal);
-        if (!hit.HasValue) return;
-
-        Undo.Record(Document);
-
-        var path = hit.Value.Path;
-        var ci = hit.Value.ContourIndex;
-        path.ClearAnchorSelection();
-        path.SplitSegmentAtPoint(ci, hit.Value.SegmentIndex, hit.Value.Position);
-
-        var newIdx = hit.Value.SegmentIndex + 1;
-        if (newIdx < path.Contours[ci].Anchors.Count)
-            path.SetAnchorSelected(ci, newIdx, true);
-
-        path.UpdateSamples();
-        path.UpdateBounds();
-        MarkDirty();
-
-        BeginAnchorMoveTool();
-    }
 
     #endregion
 

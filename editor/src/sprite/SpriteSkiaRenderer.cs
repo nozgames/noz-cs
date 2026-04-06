@@ -63,78 +63,69 @@ internal static class SpriteSkiaRenderer
         }
     }
 
-    // Export path: renders to PixelData with straight (unpremultiplied) alpha.
-    // Skia renders internally in premul; we unpremultiply on readback, discarding
-    // subpixel noise (alpha <= 2) that would amplify into bright artifacts.
+    // Renders all paths to a single Skia surface and copies pixels to target.
+    // premul=true: copies premul pixels directly (for editor preview with BlendMode.Premultiplied)
+    // premul=false: unpremultiplies for straight alpha (for atlas export with BlendMode.Alpha)
     public static unsafe void FillPixelData(
         List<LayerPathResult> results,
         PixelData<Color32> target,
         RectInt targetRect,
         Vector2Int sourceOffset,
         int dpi,
-        Rect? clipRect = null)
+        Rect? clipRect = null,
+        bool premul = false)
     {
         int w = targetRect.Width;
         int h = targetRect.Height;
         if (w <= 0 || h <= 0 || results.Count == 0) return;
 
-        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // F32 for export (unpremul needs float precision), 8-bit for preview (stays premul)
+        var colorType = premul ? SKColorType.Rgba8888 : SKColorType.RgbaF32;
+        var info = new SKImageInfo(w, h, colorType, SKAlphaType.Premul);
         using var surface = SKSurface.Create(info);
         if (surface == null) return;
 
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
 
-        canvas.Translate(sourceOffset.X, sourceOffset.Y);
-        canvas.Scale(dpi, dpi);
-
+        // Clip in pixel space before applying transform so it lands on exact pixel boundaries
         if (clipRect.HasValue)
         {
             var cr = clipRect.Value;
-            canvas.ClipRect(new SKRect(cr.Left, cr.Top, cr.Right, cr.Bottom));
+            canvas.ClipRect(new SKRect(
+                cr.Left * dpi + sourceOffset.X,
+                cr.Top * dpi + sourceOffset.Y,
+                cr.Right * dpi + sourceOffset.X,
+                cr.Bottom * dpi + sourceOffset.Y), antialias: false);
         }
+
+        canvas.Translate(sourceOffset.X, sourceOffset.Y);
+        canvas.Scale(dpi, dpi);
 
         RenderResults(canvas, results);
 
-        using var pixmap = surface.PeekPixels();
-        var srcSpan = new ReadOnlySpan<Color32>((void*)pixmap.GetPixels(), w * h);
-
-        for (int y = 0; y < h; y++)
+        var readAlpha = premul ? SKAlphaType.Premul : SKAlphaType.Unpremul;
+        var readInfo = new SKImageInfo(w, h, SKColorType.Rgba8888, readAlpha);
+        var stride = w * 4;
+        var buf = new byte[stride * h];
+        fixed (byte* ptr = buf)
         {
-            for (int x = 0; x < w; x++)
-            {
-                var pm = srcSpan[y * w + x];
-                if (pm.A <= 2) continue;
+            surface.ReadPixels(readInfo, (nint)ptr, stride, 0, 0);
+            var srcSpan = new ReadOnlySpan<Color32>(ptr, w * h);
 
-                var src = Unpremultiply(pm);
-
-                int tx = targetRect.X + x;
-                int ty = targetRect.Y + y;
-                var dst = target[tx, ty];
-
-                if (dst.A == 0)
-                    target[tx, ty] = src;
-                else
-                    target[tx, ty] = Color32.Blend(dst, src);
-            }
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    var src = srcSpan[y * w + x];
+                    if (src.A == 0) continue;
+                    target[targetRect.X + x, targetRect.Y + y] = src;
+                }
         }
     }
 
-    private static Color32 Unpremultiply(Color32 pm)
-    {
-        if (pm.A == 255) return pm;
-        if (pm.A == 0) return default;
-        int a = pm.A;
-        return new Color32(
-            (byte)Math.Min(pm.R * 255 / a, 255),
-            (byte)Math.Min(pm.G * 255 / a, 255),
-            (byte)Math.Min(pm.B * 255 / a, 255),
-            pm.A);
-    }
-
-    // Preview path: renders to raw pixels in premultiplied alpha format.
-    // The caller should draw the resulting texture with BlendMode.Premultiplied
-    // to avoid black halo artifacts at anti-aliased edges.
+    // Preview path: renders each path individually to a clean surface,
+    // then composites into the output buffer in premultiplied alpha with
+    // additive alpha for opaque paths (matches the export path logic).
     public static unsafe void RenderToPixelsPremul(
         List<LayerPathResult> results,
         int width, int height,
@@ -149,16 +140,74 @@ internal static class SpriteSkiaRenderer
         if (surface == null) return;
 
         var canvas = surface.Canvas;
-        canvas.Clear(SKColors.Transparent);
-        canvas.Translate(translateX, translateY);
-        canvas.Scale(scaleX, scaleY);
-
-        RenderResults(canvas, results);
-
-        using var pixmap = surface.PeekPixels();
-        var src = (Color32*)pixmap.GetPixels();
         var count = width * height;
-        Buffer.MemoryCopy(src, outPixels, count * 4, count * 4);
+
+        foreach (var result in results)
+        {
+            if (result.Contours.Count == 0) continue;
+
+            canvas.Clear(SKColors.Transparent);
+            canvas.Save();
+            canvas.Translate(translateX, translateY);
+            canvas.Scale(scaleX, scaleY);
+
+            using var skPath = PathsDToSKPath(result.Contours);
+            using var paint = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill,
+            };
+
+            if (result.FillType == SpriteFillType.Linear)
+            {
+                var gs = Vector2.Transform(result.Gradient.Start, result.GradientTransform);
+                var ge = Vector2.Transform(result.Gradient.End, result.GradientTransform);
+                paint.Shader = SKShader.CreateLinearGradient(
+                    new SKPoint(gs.X, gs.Y),
+                    new SKPoint(ge.X, ge.Y),
+                    [ToSKColor(result.Gradient.StartColor), ToSKColor(result.Gradient.EndColor)],
+                    [0f, 1f],
+                    SKShaderTileMode.Clamp);
+            }
+            else
+            {
+                paint.Color = ToSKColor(result.Color);
+            }
+
+            canvas.DrawPath(skPath, paint);
+            canvas.Restore();
+
+            bool isOpaque = result.Color.A == 255 && result.FillType == SpriteFillType.Solid;
+
+            using var pixmap = surface.PeekPixels();
+            var src = (Color32*)pixmap.GetPixels();
+
+            for (int i = 0; i < count; i++)
+            {
+                var s = src[i];
+                if (s.A == 0) continue;
+
+                if (outPixels[i].A == 0)
+                {
+                    outPixels[i] = s;
+                }
+                else
+                {
+                    // Premul blend: out = src + dst * (1 - srcA)
+                    var d = outPixels[i];
+                    float invA = (255 - s.A) / 255f;
+                    var blended = new Color32(
+                        (byte)Math.Min(s.R + (int)(d.R * invA + 0.5f), 255),
+                        (byte)Math.Min(s.G + (int)(d.G * invA + 0.5f), 255),
+                        (byte)Math.Min(s.B + (int)(d.B * invA + 0.5f), 255),
+                        (byte)Math.Min(s.A + (int)(d.A * invA + 0.5f), 255));
+                    // Additive alpha for opaque paths: complementary coverages sum to full
+                    if (isOpaque)
+                        blended.A = (byte)Math.Min(s.A + d.A, 255);
+                    outPixels[i] = blended;
+                }
+            }
+        }
     }
 
     public static unsafe void RenderToPixelsTintedPremul(
@@ -246,7 +295,7 @@ internal static class SpriteSkiaRenderer
         if (clipRect.HasValue)
         {
             var cr = clipRect.Value;
-            canvas.ClipRect(new SKRect(cr.Left, cr.Top, cr.Right, cr.Bottom));
+            canvas.ClipRect(new SKRect(cr.Left, cr.Top, cr.Right, cr.Bottom), antialias: false);
         }
 
         RenderResults(canvas, results);

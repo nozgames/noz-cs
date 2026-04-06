@@ -66,23 +66,15 @@ public partial class SpriteDocument
             AnimFrames[fi].ApplyVisibility(RootLayer);
         }
 
+        // Render into exactly RasterBounds size — the Skia surface boundary
+        // acts as a hard pixel clip, matching the editor preview behavior.
+        // Pixels are written at the padded position in the atlas.
         var targetRect = new RectInt(
-            rect.Rect.Position,
-            new Vector2Int(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2));
-        var sourceOffset = -RasterBounds.Position + new Vector2Int(padding, padding);
+            rect.Rect.Position + new Vector2Int(padding, padding),
+            RasterBounds.Size);
+        var sourceOffset = -RasterBounds.Position;
 
-        Rect? clipRect = null;
-        if (ConstrainedSize.HasValue)
-        {
-            float invDpi = 1f / dpi;
-            clipRect = new Rect(
-                RasterBounds.X * invDpi,
-                RasterBounds.Y * invDpi,
-                RasterBounds.Width * invDpi,
-                RasterBounds.Height * invDpi);
-        }
-
-        RasterizeLayer(RootLayer, image, targetRect, sourceOffset, dpi, clipRect);
+        RasterizeLayer(RootLayer, image, targetRect, sourceOffset, dpi);
 
         // Restore original visibility
         if (savedVisibility != null)
@@ -91,7 +83,10 @@ public partial class SpriteDocument
                 layer.Visible = visible;
         }
 
-        image.BleedColors(targetRect);
+        var bleedRect = new RectInt(
+            rect.Rect.Position,
+            new Vector2Int(RasterBounds.Size.X + padding * 2, RasterBounds.Size.Y + padding * 2));
+        image.BleedColors(bleedRect);
     }
 
     private void RasterizeImageFile(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)

@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PenTool : Tool
+public class PenMode : EditorMode<SpriteEditor>
 {
     private const int MaxPoints = 64;
 
@@ -16,11 +16,6 @@ public class PenTool : Tool
         public bool IsExistingAnchor;
     }
 
-    private readonly SpriteEditor _editor;
-    private readonly SpriteLayer _rootLayer;
-    private readonly SpriteLayer _activeLayer;
-    private readonly Color32 _fillColor;
-    private readonly SpritePathOperation _operation;
     private readonly PenPoint[] _points = new PenPoint[MaxPoints];
     private int _pointCount;
 
@@ -31,42 +26,27 @@ public class PenTool : Tool
     private bool _snappingToGrid;
     private Vector2 _gridSnapPosition;
 
-    public PenTool(SpriteEditor editor, SpriteLayer rootLayer, SpriteLayer activeLayer,
-        Color32 fillColor, SpritePathOperation operation = SpritePathOperation.Normal)
-    {
-        _editor = editor;
-        _rootLayer = rootLayer;
-        _activeLayer = activeLayer;
-        _fillColor = fillColor;
-        _operation = operation;
-    }
-
-    public override void Begin()
-    {
-        base.Begin();
-    }
-
     public override void Update()
     {
         EditorCursor.SetCrosshair();
         var mouseWorld = Workspace.MouseWorldPosition;
-        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
+        Matrix3x2.Invert(Editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(mouseWorld, invTransform);
 
-        if (Input.WasButtonPressed(InputCode.KeyEscape, Scope))
+        if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {
             Cancel();
             return;
         }
 
-        if (Input.WasButtonPressed(InputCode.KeyEnter, Scope))
+        if (Input.WasButtonPressed(InputCode.KeyEnter, InputScope.All))
         {
             if (_pointCount >= 3)
                 Commit();
             return;
         }
 
-        if (Input.WasButtonReleased(InputCode.MouseRight, Scope) && !Workspace.WasDragging)
+        if (Input.WasButtonReleased(InputCode.MouseRight, InputScope.All) && !Workspace.WasDragging)
         {
             if (_pointCount > 0)
                 _pointCount--;
@@ -75,7 +55,7 @@ public class PenTool : Tool
 
         UpdateHover(mouseLocal);
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, Scope))
+        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
             HandleLeftClick(mouseLocal);
     }
 
@@ -92,7 +72,7 @@ public class PenTool : Tool
         _hoveringSegment = false;
         if (!_hoveringFirstPoint)
         {
-            var anchorHit = _rootLayer.HitTestAnchor(mouseLocal);
+            var anchorHit = Editor.Document.RootLayer.HitTestAnchor(mouseLocal);
             if (anchorHit.HasValue)
             {
                 _hoveringExistingAnchor = true;
@@ -103,7 +83,7 @@ public class PenTool : Tool
             }
             else
             {
-                var segHit = _rootLayer.HitTestSegment(mouseLocal);
+                var segHit = Editor.Document.RootLayer.HitTestSegment(mouseLocal);
                 if (segHit.HasValue)
                 {
                     _hoveringSegment = true;
@@ -116,7 +96,7 @@ public class PenTool : Tool
         }
 
         _snappingToGrid = false;
-        if (!_hoveringFirstPoint && !_hoveringExistingAnchor && !_hoveringSegment && Input.IsCtrlDown(Scope))
+        if (!_hoveringFirstPoint && !_hoveringExistingAnchor && !_hoveringSegment && Input.IsCtrlDown(InputScope.All))
         {
             _snappingToGrid = true;
             _gridSnapPosition = Grid.SnapToPixelGrid(mouseLocal);
@@ -159,7 +139,7 @@ public class PenTool : Tool
     {
         using (Gizmos.PushState(EditorLayer.Tool))
         {
-            Graphics.SetTransform(_editor.Document.Transform);
+            Graphics.SetTransform(Editor.Document.Transform);
 
             var lineWidth = Gizmos.GetLineWidth();
             var vertexSize = Gizmos.GetVertexSize();
@@ -205,21 +185,21 @@ public class PenTool : Tool
         if (_hoveringExistingAnchor || _hoveringSegment) return _hoverSnapPosition;
         if (_snappingToGrid) return _gridSnapPosition;
 
-        Matrix3x2.Invert(_editor.Document.Transform, out var invTransform);
+        Matrix3x2.Invert(Editor.Document.Transform, out var invTransform);
         return Vector2.Transform(Workspace.MouseWorldPosition, invTransform);
     }
 
     private void Commit()
     {
-        if (_pointCount < 3 || _activeLayer.Locked)
+        var activeLayer = Editor.Document.RootLayer;
+        if (_pointCount < 3 || activeLayer.Locked)
         {
-            Finish();
+            _pointCount = 0;
             return;
         }
 
-        Undo.Record(_editor.Document);
+        Undo.Record(Editor.Document);
 
-        // Ensure consistent winding
         var signedArea = 0f;
         for (var i = 0; i < _pointCount; i++)
         {
@@ -228,7 +208,11 @@ public class PenTool : Tool
             signedArea += (v1.X - v0.X) * (v1.Y + v0.Y);
         }
 
-        var path = new SpritePath { FillColor = _fillColor, Operation = _operation };
+        var path = new SpritePath
+        {
+            FillColor = Editor.Document.CurrentFillColor,
+            Operation = Editor.Document.CurrentOperation
+        };
 
         if (signedArea > 0)
             for (var i = _pointCount - 1; i >= 0; i--)
@@ -239,17 +223,16 @@ public class PenTool : Tool
 
         path.UpdateSamples();
         path.UpdateBounds();
-        _activeLayer.Insert(0, path);
+        activeLayer.Insert(0, path);
 
-        _editor.MarkDirty();
-        Finish();
-    }
-
-    private void Finish()
-    {
-        Workspace.EndTool();
+        Editor.MarkDirty();
+        _pointCount = 0;
         Input.ConsumeButton(InputCode.MouseLeft);
     }
 
-    public override void Cancel() => Finish();
+    private void Cancel()
+    {
+        _pointCount = 0;
+        Editor.SetMode(new AnchorMode());
+    }
 }

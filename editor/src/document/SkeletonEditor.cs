@@ -32,8 +32,6 @@ internal partial class SkeletonEditor : DocumentEditor
 
     private readonly SavedBone[] _savedBones = new SavedBone[Skeleton.MaxBones];
     //private PopupMenuItem[] _contextMenuItems = null!;
-    private bool _clearSelectionOnUp;
-    private bool _ignoreUp;
     private bool _showPreview = true;
 
     private readonly Command[] _commands;
@@ -56,6 +54,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
         Commands = _commands;
         ClearSelection();
+        SetMode(new BoneMode());
     }
 
     public override void Dispose()
@@ -80,11 +79,12 @@ internal partial class SkeletonEditor : DocumentEditor
             }
 
         DrawBoneNames();
+        Mode?.Draw();
     }
 
     public override void LateUpdate()
     {
-        UpdateDefaultState();
+        Mode?.Update();
     }
 
 
@@ -147,6 +147,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
     public override void UpdateUI()
     {
+        Mode?.DrawUI();
     }
 
     public override void UpdateOverlayUI()
@@ -165,7 +166,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
     private bool IsBoneSelected(int boneIndex) => Document.Bones[boneIndex].IsSelected;
 
-    private void SelectHeadJoint(int boneIndex, bool selected)
+    internal void SelectHeadJoint(int boneIndex, bool selected)
     {
         var bone = Document.Bones[boneIndex];
         if (bone.IsHeadSelected == selected)
@@ -175,7 +176,7 @@ internal partial class SkeletonEditor : DocumentEditor
         Document.SelectedHeadCount += selected ? 1 : -1;
     }
 
-    private void SelectTailJoint(int boneIndex, bool selected)
+    internal void SelectTailJoint(int boneIndex, bool selected)
     {
         var bone = Document.Bones[boneIndex];
         if (bone.IsTailSelected == selected)
@@ -185,7 +186,7 @@ internal partial class SkeletonEditor : DocumentEditor
         Document.SelectedTailCount += selected ? 1 : -1;
     }
 
-    private void SelectBone(int boneIndex, bool selected)
+    internal void SelectBone(int boneIndex, bool selected)
     {
         SelectHeadJoint(boneIndex, selected);
         SelectTailJoint(boneIndex, selected);
@@ -199,7 +200,7 @@ internal partial class SkeletonEditor : DocumentEditor
         return -1;
     }
 
-    private void ClearSelection()
+    internal void ClearSelection()
     {
         for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
         {
@@ -210,7 +211,7 @@ internal partial class SkeletonEditor : DocumentEditor
         Document.SelectedTailCount = 0;
     }
 
-    private void UpdateConnectedToggleState()
+    internal void UpdateConnectedToggleState()
     {
         for (var i = Document.BoneCount - 1; i >= 0; i--)
         {
@@ -234,7 +235,7 @@ internal partial class SkeletonEditor : DocumentEditor
         return false;
     }
 
-    private void SaveState()
+    internal void SaveState()
     {
         for (var boneIndex = 0; boneIndex < Document.BoneCount; boneIndex++)
         {
@@ -247,47 +248,8 @@ internal partial class SkeletonEditor : DocumentEditor
         }
     }
 
-    private bool TrySelect()
-    {
-        var shiftDown = Input.IsShiftDown(InputScope.All);
-        var hit = Document.HitTestJoints(Workspace.MouseWorldPosition, cycle: !shiftDown);
-        if (hit.BoneIndex == -1)
-            return false;
 
-        if (!shiftDown)
-            ClearSelection();
-
-        var bone = Document.Bones[hit.BoneIndex];
-
-        switch (hit.HitType)
-        {
-            case BoneHitType.Head:
-                if (shiftDown)
-                    SelectHeadJoint(hit.BoneIndex, !bone.IsHeadSelected);
-                else
-                    SelectHeadJoint(hit.BoneIndex, true);
-                break;
-
-            case BoneHitType.Tail:
-                if (shiftDown)
-                    SelectTailJoint(hit.BoneIndex, !bone.IsTailSelected);
-                else
-                    SelectTailJoint(hit.BoneIndex, true);
-                break;
-
-            case BoneHitType.Bone:
-                if (shiftDown)
-                    SelectBone(hit.BoneIndex, !bone.IsFullySelected);
-                else
-                    SelectBone(hit.BoneIndex, true);
-                break;
-        }
-
-        UpdateConnectedToggleState();
-        return true;
-    }
-
-    private void HandleBoxSelect(Rect bounds)
+    internal void HandleBoxSelect(Rect bounds)
     {
         if (!Input.IsShiftDown(InputScope.All))
             ClearSelection();
@@ -308,81 +270,13 @@ internal partial class SkeletonEditor : DocumentEditor
         UpdateConnectedToggleState();
     }
 
-    private void UpdateDefaultState()
-    {
-        if (Workspace.ActiveTool == null && Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
-        {
-            HandleDragStart();
-            return;
-        }
-
-        if (!_ignoreUp && !Workspace.WasDragging && Input.WasButtonReleased(InputCode.MouseLeft))
-        {
-            _clearSelectionOnUp = false;
-
-            if (TrySelect())
-                return;
-
-            _clearSelectionOnUp = true;
-        }
-
-        _ignoreUp = _ignoreUp && !Input.WasButtonReleased(InputCode.MouseLeft);
-
-        if (Input.WasButtonReleased(InputCode.MouseLeft) && _clearSelectionOnUp)
-            ClearSelection();
-    }
-
-    private void HandleDragStart()
-    {
-        var hit = Document.HitTestJoints(Workspace.DragWorldPosition, cycle: false);
-        if (hit.BoneIndex >= 0)
-        {
-            var bone = Document.Bones[hit.BoneIndex];
-            var isSelected = hit.HitType switch
-            {
-                BoneHitType.Head => bone.IsHeadSelected,
-                BoneHitType.Tail => bone.IsTailSelected,
-                BoneHitType.Bone => bone.IsFullySelected,
-                _ => false
-            };
-
-            // Select the joint/bone if not already selected
-            if (!isSelected)
-            {
-                if (!Input.IsShiftDown(InputScope.All))
-                    ClearSelection();
-
-                switch (hit.HitType)
-                {
-                    case BoneHitType.Head:
-                        SelectHeadJoint(hit.BoneIndex, true);
-                        break;
-                    case BoneHitType.Tail:
-                        SelectTailJoint(hit.BoneIndex, true);
-                        break;
-                    case BoneHitType.Bone:
-                        SelectBone(hit.BoneIndex, true);
-                        break;
-                }
-
-                UpdateConnectedToggleState();
-            }
-
-            BeginMoveTool(true, commitOnRelease: true);
-            return;
-        }
-
-        Workspace.BeginTool(new BoxSelectTool(HandleBoxSelect));
-    }
 
     private void DrawBoneNames()
     {
         if (!Workspace.ShowNames)
             return;
 
-        var renamingBoneIndex = -1;
-        if (Workspace.ActiveTool is RenameTool && Document.SelectedBoneCount == 1)
-            renamingBoneIndex = GetFirstSelectedBoneIndex();
+        var renamingBoneIndex = (Mode is BoneMode bm) ? bm.RenamingBoneIndex : -1;
 
         TextRender.SetOutline(EditorStyle.Workspace.NameOutlineColor, EditorStyle.Workspace.NameOutline, 0.2f);
 
@@ -416,25 +310,9 @@ internal partial class SkeletonEditor : DocumentEditor
             SelectBone(i, true);
     }
 
-    #region Move Tool
+    #region Move
 
-    private void BeginMoveTool(bool recordUndo, bool commitOnRelease = false)
-    {
-        if (Document.SelectedBoneCount <= 0)
-            return;
-
-        SaveState();
-        if (recordUndo)
-            Undo.Record(Document);
-
-        Workspace.BeginTool(new MoveTool(
-            update: UpdateMoveTool,
-            commit: _ => { Document.IncrementVersion(); Document.NotifyTransformsChanged(); },
-            cancel: Undo.Cancel
-        ) { CommitOnRelease = commitOnRelease });
-    }
-
-    private void UpdateMoveTool(Vector2 delta)
+    internal void ApplyMoveDelta(Vector2 delta)
     {
         for (var i = 0; i < Document.BoneCount; i++)
         {
@@ -553,8 +431,11 @@ internal partial class SkeletonEditor : DocumentEditor
         ClearSelection();
         SelectBone(Document.BoneCount - 1, true);
 
-        _ignoreUp = true;
-        BeginMoveTool(false);
+        if (Mode is BoneMode boneMode)
+        {
+            boneMode.SetIgnoreUp();
+            boneMode.BeginMoveDrag(recordUndo: false);
+        }
     }
 
     #endregion
@@ -608,23 +489,8 @@ internal partial class SkeletonEditor : DocumentEditor
         if (boneIndex == -1 || Document.SelectedBoneCount != 1)
             return;
 
-        var bone = Document.Bones[boneIndex];
-        var oldName = bone.Name;
-
-        Workspace.BeginTool(new RenameTool(
-            bone.Name,
-            () => Document.Bones[boneIndex].NamePosition,
-            newName =>
-            {
-                if (newName == oldName)
-                    return;
-
-                Undo.Record(Document);
-                bone.Name = newName;
-                Document.NotifyBoneRenamed(boneIndex, oldName, newName);
-                Document.IncrementVersion();
-            }
-        ));
+        if (Mode is BoneMode boneMode)
+            boneMode.BeginRename(boneIndex, Document.Bones[boneIndex].Name);
     }
 
     #endregion

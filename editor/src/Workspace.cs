@@ -26,6 +26,7 @@ public static partial class Workspace
         public static partial WidgetId SyncButton { get; }
         public static partial WidgetId InspectorSplitter { get; }
         public static partial WidgetId OutlinerSplitter { get; }
+        public static partial WidgetId RenameTextBox { get; }
     }
 
     private const float ZoomMin = 0.2f;
@@ -94,7 +95,18 @@ public static partial class Workspace
 
     private static bool IsIsolationActive => State == WorkspaceState.Edit && !_isolationOverride;
     public static int SelectedCount { get; private set; }
-    public static Tool? ActiveTool { get; private set; }
+
+    // Workspace inline drag state (replacing Tool pattern)
+    private enum WorkspaceDragMode { None, BoxSelect, MoveDocuments }
+    private static WorkspaceDragMode _workspaceDragMode;
+    private static bool _wsMoveCommitOnRelease;
+    private static Vector2 _wsMoveStartWorld;
+
+    // Inline rename state
+    private static bool _isRenaming;
+    private static Document? _renameTarget;
+    private static string _renameOriginalName = "";
+    private static string _renameCurrentText = "";
 
     public static event Action<bool>? XrayModeChanged;
 
@@ -364,15 +376,22 @@ public static partial class Workspace
 
             if (State == WorkspaceState.Default)
             {
-                UpdateDefaultState();
-                UpdateToolAutoStart();
-                UpdateCursor();
+                if (_isRenaming)
+                    UpdateRenameInput();
+                else
+                {
+                    UpdateDefaultState();
+                    if (_workspaceDragMode != WorkspaceDragMode.None)
+                        UpdateWorkspaceDrag();
+                    else
+                        UpdateToolAutoStart();
+                    UpdateCursor();
+                }
             }
 
             if (Input.WasButtonReleased(InputCode.MouseRight) && !_wasDragging)
                 OpenPopupMenu();
 
-            ActiveTool?.Update();
         }
 
         UpdateCulling();
@@ -394,7 +413,7 @@ public static partial class Workspace
         if (!isolation && _showReferences)
             DrawReferences();
 
-        ActiveTool?.Draw();
+        DrawWorkspaceDrag();
 
         if (State == WorkspaceState.Edit && ActiveEditor != null)
             ActiveEditor.Update();
@@ -406,7 +425,7 @@ public static partial class Workspace
 
     private static void UpdateToolAutoStart()
     {
-        if (ActiveTool != null)
+        if (_workspaceDragMode != WorkspaceDragMode.None)
             return;
 
         if (_dragStarted && _dragButton == InputCode.MouseLeft)
@@ -414,18 +433,108 @@ public static partial class Workspace
             if (HitTestSelected(DragWorldPosition))
             {
                 _clearSelectionOnRelease = false;
-                BeginDragMove();
+                BeginInlineDragMove(commitOnRelease: true);
             }
             else
             {
-                BeginTool(new BoxSelectTool(CommitBoxSelect));
+                _workspaceDragMode = WorkspaceDragMode.BoxSelect;
             }
+        }
+    }
+
+    private static void UpdateWorkspaceDrag()
+    {
+        switch (_workspaceDragMode)
+        {
+            case WorkspaceDragMode.BoxSelect:
+                if (!_isDragging || Input.WasButtonReleased(InputCode.MouseLeft, InputScope.All))
+                {
+                    var p0 = DragWorldPosition;
+                    var p1 = _mouseWorldPosition;
+                    var bounds = Rect.FromMinMax(Vector2.Min(p0, p1), Vector2.Max(p0, p1));
+                    Input.ConsumeButton(InputCode.MouseLeft);
+                    CommitBoxSelect(bounds);
+                    _workspaceDragMode = WorkspaceDragMode.None;
+                }
+                break;
+
+            case WorkspaceDragMode.MoveDocuments:
+                if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
+                    Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
+                {
+                    // Cancel: restore saved positions
+                    foreach (var doc in DocumentManager.Documents)
+                        if (doc.IsSelected)
+                            doc.Position = doc.SavedPosition;
+                    Undo.Cancel();
+                    _workspaceDragMode = WorkspaceDragMode.None;
+                }
+                else if (_wsMoveCommitOnRelease
+                    ? Input.WasButtonReleased(InputCode.MouseLeft, InputScope.All)
+                    : Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
+                {
+                    // Commit
+                    UpdateInlineMoveDocuments();
+                    Input.ConsumeButton(InputCode.MouseLeft);
+                    _workspaceDragMode = WorkspaceDragMode.None;
+                }
+                else
+                {
+                    UpdateInlineMoveDocuments();
+                }
+                break;
+        }
+    }
+
+    private static void BeginInlineDragMove(bool commitOnRelease = true)
+    {
+        _wsMoveCommitOnRelease = commitOnRelease;
+        _wsMoveStartWorld = _mouseWorldPosition;
+        Undo.BeginGroup();
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (doc.IsSelected)
+            {
+                Undo.Record(doc);
+                doc.SavedPosition = doc.Position;
+            }
+        }
+        Undo.EndGroup();
+        _workspaceDragMode = WorkspaceDragMode.MoveDocuments;
+    }
+
+    private static void UpdateInlineMoveDocuments()
+    {
+        var delta = _mouseWorldPosition - _wsMoveStartWorld;
+        foreach (var doc in DocumentManager.Documents)
+        {
+            if (!doc.IsSelected) continue;
+            var newPos = doc.SavedPosition + delta;
+            if (Input.IsCtrlDown(InputScope.All))
+                newPos = Grid.SnapToGrid(newPos);
+            doc.Position = Grid.SnapToPixelGrid(newPos);
+        }
+    }
+
+    private static void DrawWorkspaceDrag()
+    {
+        if (_workspaceDragMode == WorkspaceDragMode.BoxSelect)
+        {
+            var p0 = DragWorldPosition;
+            var p1 = _mouseWorldPosition;
+            var rect = Rect.FromMinMax(Vector2.Min(p0, p1), Vector2.Max(p0, p1));
+
+            using var _ = Gizmos.PushState(EditorLayer.Tool);
+            Graphics.SetColor(EditorStyle.BoxSelect.FillColor);
+            Graphics.Draw(rect);
+            Graphics.SetColor(EditorStyle.BoxSelect.LineColor);
+            Gizmos.DrawRect(rect, EditorStyle.BoxSelect.LineWidth);
         }
     }
 
     private static void UpdateCursor()
     {
-        if (ActiveTool != null || _isDragging)
+        if (_isDragging || _workspaceDragMode != WorkspaceDragMode.None)
             return;
 
         if (HitTestSelected(_mouseWorldPosition))
@@ -578,7 +687,7 @@ public static partial class Workspace
 
         ActiveEditor?.UpdateOverlayUI();
         ColorPicker.Draw();
-        ActiveTool?.UpdateUI();
+        DrawRenameUI();
     }
 
     public static void LateUpdate()
@@ -666,7 +775,7 @@ public static partial class Workspace
         var font = EditorAssets.Fonts.Seguisb;
         var fontSize = EditorStyle.Workspace.NameSize * Gizmos.ZoomRefScale;
         var padding = EditorStyle.Workspace.NamePadding * Gizmos.ZoomRefScale;
-        var renamingDoc = (ActiveTool as RenameTool)?.Target as Document;
+        var renamingDoc = _isRenaming ? _renameTarget : null;
 
         Graphics.SetLayer(EditorLayer.Names);
         TextRender.SetOutline(EditorStyle.Workspace.NameOutlineColor, EditorStyle.Workspace.NameOutline, 0.5f); 
@@ -696,49 +805,6 @@ public static partial class Workspace
         TextRender.ClearOutline();
     }
 
-    private static void BeginDragMove() => BeginMoveTool(commitOnRelease: true);
-
-    private static void BeginMoveTool(bool commitOnRelease = false)
-    {
-        Undo.BeginGroup();
-        foreach (var doc in DocumentManager.Documents)
-        {
-            if (doc.IsSelected)
-            {
-                Undo.Record(doc);
-                doc.SavedPosition = doc.Position;
-            }
-        }
-        Undo.EndGroup();
-
-        var tool = new MoveTool(
-            update: delta =>
-            {
-                foreach (var doc in DocumentManager.Documents)
-                {
-                    if (!doc.IsSelected)
-                        continue;
-                    var newPos = doc.SavedPosition + delta;
-                    if (Input.IsCtrlDown(InputScope.All))
-                        newPos = Grid.SnapToGrid(newPos);
-                    doc.Position = newPos;
-                }
-            },
-            commit: _ =>
-            {
-            },
-            cancel: () =>
-            {
-                foreach (var doc in DocumentManager.Documents)
-                {
-                    if (doc.IsSelected)
-                        doc.Position = doc.SavedPosition;
-                }
-            }
-        );
-        tool.CommitOnRelease = commitOnRelease;
-        BeginTool(tool);
-    }
 
     private static void ToggleFps()
     {
@@ -773,32 +839,84 @@ public static partial class Workspace
 
     private static void BeginRenameTool()
     {
-        if (SelectedCount != 1 || ActiveTool != null || State != WorkspaceState.Default)
+        if (SelectedCount != 1 || _isRenaming || State != WorkspaceState.Default)
             return;
 
         var doc = GetFirstSelected();
         if (doc == null)
             return;
 
-        BeginTool(CreateRenameToolForDocument(doc));
+        _isRenaming = true;
+        _renameTarget = doc;
+        _renameOriginalName = doc.Name;
+        _renameCurrentText = doc.Name;
+        UI.SetHot(WidgetIds.RenameTextBox);
     }
 
-    private static RenameTool CreateRenameToolForDocument(Document doc)
+    private static void CommitRename()
     {
-        return new RenameTool(
-            doc.Name,
-            () =>
-            {
-                var padding = EditorStyle.Workspace.NamePadding / Zoom;
-                var bounds = doc.Bounds.Translate(doc.Position);
-                return new Vector2(bounds.Center.X, bounds.Bottom + padding);
-            },
-            newName =>
-            {
-                if (!DocumentManager.Rename(doc, newName))
-                    Log.Warning("rename failed");
-            }
-        ) { Target = doc };
+        if (_renameTarget != null && !string.IsNullOrWhiteSpace(_renameCurrentText) && _renameCurrentText != _renameOriginalName)
+        {
+            if (!DocumentManager.Rename(_renameTarget, _renameCurrentText))
+                Log.Warning("rename failed");
+        }
+        EndRename();
+    }
+
+    private static void EndRename()
+    {
+        _isRenaming = false;
+        _renameTarget = null;
+        UI.ClearHot();
+    }
+
+    private static void UpdateRenameInput()
+    {
+        if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
+        {
+            Input.ConsumeButton(InputCode.KeyEscape);
+            EndRename();
+            return;
+        }
+
+        if (Input.WasButtonPressed(InputCode.KeyEnter, InputScope.All))
+        {
+            Input.ConsumeButton(InputCode.KeyEnter);
+            CommitRename();
+        }
+    }
+
+    private static void DrawRenameUI()
+    {
+        if (!_isRenaming || _renameTarget == null)
+            return;
+
+        var padding = EditorStyle.Workspace.NamePadding / Zoom;
+        var bounds = _renameTarget.Bounds.Translate(_renameTarget.Position);
+        var worldPos = new Vector2(bounds.Center.X, bounds.Bottom + padding);
+
+        var textStyle = EditorStyle.RenameTool.Text;
+        var font = textStyle.Font ?? UI.DefaultFont;
+        var textSize = TextRender.Measure(_renameCurrentText.AsSpan(), font, textStyle.FontSize);
+        var contentPadding = EditorStyle.RenameTool.Content.Padding;
+        var textInputHeight = textStyle.Height.IsFixed ? textStyle.Height.Value : textStyle.FontSize * 1.8f;
+
+        var screenPos = Camera.WorldToScreen(worldPos);
+        var uiPos = UI.ScreenToUI(screenPos);
+        var border = EditorStyle.RenameTool.Content.BorderWidth;
+        uiPos.X -= textSize.X * 0.5f + contentPadding.L + border;
+        uiPos.Y -= textInputHeight * 0.5f + contentPadding.T + border;
+
+        using (UI.BeginContainer(EditorStyle.RenameTool.Content with { AlignX = Align.Min, AlignY = Align.Min, Margin = EdgeInsets.TopLeft(uiPos.Y, uiPos.X) }))
+        {
+            _renameCurrentText = UI.TextInput(WidgetIds.RenameTextBox, _renameCurrentText, textStyle);
+
+            if (UI.HotEnter())
+                UI.SetWidgetText(WidgetIds.RenameTextBox, _renameOriginalName, selectAll: true);
+
+            if (UI.HotExit())
+                CommitRename();
+        }
     }
 
     private static void UpdateCamera()
@@ -984,7 +1102,7 @@ public static partial class Workspace
 
         Input.ConsumeButton(InputCode.KeyLeftCtrl);
         Input.ConsumeButton(InputCode.KeyRightCtrl);
-        BeginMoveTool();
+        BeginInlineDragMove(commitOnRelease: false);
     }
 
     private static void DeleteSelected()
@@ -1202,7 +1320,6 @@ public static partial class Workspace
                 UpdateCamera();
             }
 
-            CancelTool();
             CommandManager.RegisterEditor(null);
 
             _activeEditor?.Dispose();
@@ -1244,34 +1361,6 @@ public static partial class Workspace
             _savedCameraZoom = savedZoom;
             _hasSavedCamera = true;
         }
-    }
-
-    public static void BeginTool(Tool tool)
-    {
-        if (ActiveTool != null)
-            return;
-
-        ActiveTool = tool;
-        ActiveTool.Begin();
-    }
-
-    public static void EndTool()
-    {
-        if (ActiveTool == null)
-            return;
-
-        ActiveTool.Dispose();
-        ActiveTool = null;
-    }
-
-    public static void CancelTool()
-    {
-        if (ActiveTool == null)
-            return;
-
-        ActiveTool.Cancel();
-        ActiveTool.Dispose();
-        ActiveTool = null;
     }
 
     public static void UpdateDefaultState()
@@ -1407,7 +1496,7 @@ public static partial class Workspace
             newDoc.Load();
             newDoc.PostLoad();
             newDoc.PostLoaded = true;
-            newDoc.Position = position;
+            newDoc.Position = Grid.SnapToPixelGrid(position);
             DocumentManager.NotifyDocumentAdded(newDoc);
             AssetManifest.IsModified = true;
         }

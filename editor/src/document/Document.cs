@@ -91,7 +91,7 @@ public abstract class Document : IDisposable, IChangeHandler
         var store = EditorApplication.Store;
         var props = PropertySetExtensions.LoadFile(store, Path + ".meta") ?? new PropertySet();
 
-        Position = props.GetVector2("editor", "position", default);
+        Position = Grid.SnapToPixelGrid(props.GetVector2("editor", "position", default));
         var collectionId = props.GetString("editor", "collection", "");
         CollectionId = CollectionManager.GetIdOrDefault(collectionId);
         ShouldExport = props.GetBool("editor", "export", true);
