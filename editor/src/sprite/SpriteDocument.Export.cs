@@ -15,6 +15,13 @@ public partial class SpriteDocument
 {
     internal void Rasterize(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
+        // Raster sprites: composite layers directly
+        if (SpriteMode == SpriteType.Raster)
+        {
+            RasterizePixelLayers(image, rect, padding);
+            return;
+        }
+
         // Static image or companion image: blit from file
         if (ImageFilePath != null && EditorApplication.Store.FileExists(ImageFilePath) && (!IsMutable || Generation is { HasImageData: true }))
         {
@@ -196,7 +203,7 @@ public partial class SpriteDocument
         using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
 
-        writer.Write((ushort)EditorApplication.Config.PixelsPerUnit);
+        writer.Write((ushort)(SpriteMode == SpriteType.Raster ? 32 : EditorApplication.Config.PixelsPerUnit));
         writer.Write((ushort)(Atlas.Index));
         writer.Write((short)RasterBounds.Left);
         writer.Write((short)RasterBounds.Top);
@@ -233,5 +240,64 @@ public partial class SpriteDocument
         writer.Write((short)bounds.Y);
         writer.Write((short)bounds.Width);
         writer.Write((short)bounds.Height);
+    }
+
+    private void RasterizePixelLayers(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
+    {
+        var w = CanvasSize.X;
+        var h = CanvasSize.Y;
+        var padding2 = padding * 2;
+
+        var rasterRect = new RectInt(
+            rect.Rect.Position + new Vector2Int(padding, padding),
+            new Vector2Int(w, h));
+
+        foreach (var child in RootLayer.Children)
+        {
+            if (child is not SpriteLayer layer || !layer.Visible || layer.Pixels == null)
+                continue;
+
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    var src = layer.Pixels[x, y];
+                    if (src.A == 0) continue;
+
+                    var dx = rasterRect.X + x;
+                    var dy = rasterRect.Y + y;
+                    ref var dst = ref image[dx, dy];
+
+                    if (dst.A == 0)
+                    {
+                        dst = src;
+                    }
+                    else
+                    {
+                        var sa = src.A / 255f;
+                        var da = dst.A / 255f;
+                        var outA = sa + da * (1f - sa);
+                        if (outA > 0f)
+                        {
+                            var invOutA = 1f / outA;
+                            dst = new Color32(
+                                (byte)((src.R * sa + dst.R * da * (1f - sa)) * invOutA),
+                                (byte)((src.G * sa + dst.G * da * (1f - sa)) * invOutA),
+                                (byte)((src.B * sa + dst.B * da * (1f - sa)) * invOutA),
+                                (byte)(outA * 255f));
+                        }
+                    }
+                }
+            }
+        }
+
+        image.BleedColors(rasterRect);
+        for (var p = padding - 1; p >= 0; p--)
+        {
+            var padRect = new RectInt(
+                rect.Rect.Position + new Vector2Int(p, p),
+                new Vector2Int(w + padding2, h + padding2) - new Vector2Int(p * 2, p * 2));
+            image.ExtrudeEdges(padRect);
+        }
     }
 }

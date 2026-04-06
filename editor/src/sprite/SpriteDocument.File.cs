@@ -35,6 +35,17 @@ public partial class SpriteDocument
                 BoneName = tk.ExpectQuotedString();
             else if (tk.ExpectIdentifier("sort"))
                 SortOrderId = tk.ExpectQuotedString();
+            else if (tk.ExpectIdentifier("type"))
+            {
+                var typeName = tk.ExpectIdentifier();
+                SpriteMode = typeName == "raster" ? SpriteType.Raster : SpriteType.Vector;
+            }
+            else if (tk.ExpectIdentifier("canvas"))
+            {
+                var w = tk.ExpectInt();
+                var h = tk.ExpectInt();
+                CanvasSize = new Vector2Int(w, h);
+            }
             else if (tk.ExpectIdentifier("generate"))
                 ParseGeneration(ref tk);
             else
@@ -62,6 +73,20 @@ public partial class SpriteDocument
                 ParseLayer(ref tk, layer);
             else if (tk.ExpectIdentifier("path"))
                 ParsePath(ref tk, layer);
+            else if (tk.ExpectIdentifier("pixels"))
+            {
+                var base64 = tk.ExpectQuotedString();
+                if (base64 != null)
+                {
+                    var bytes = Convert.FromBase64String(base64);
+                    var pixels = new PixelData<Color32>(CanvasSize.X, CanvasSize.Y);
+                    var colors = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Color32>(bytes);
+                    var count = Math.Min(colors.Length, CanvasSize.X * CanvasSize.Y);
+                    for (var i = 0; i < count; i++)
+                        pixels[i] = colors[i];
+                    layer.Pixels = pixels;
+                }
+            }
             else
             {
                 tk.ExpectToken(out var badToken);
@@ -230,6 +255,12 @@ public partial class SpriteDocument
 
     public override void Save(StreamWriter writer)
     {
+        if (SpriteMode == SpriteType.Raster)
+        {
+            writer.WriteLine("type raster");
+            writer.WriteLine($"canvas {CanvasSize.X} {CanvasSize.Y}");
+        }
+
         if (!Edges.IsZero)
             writer.WriteLine($"edges ({Edges.T},{Edges.L},{Edges.B},{Edges.R})");
 
@@ -348,7 +379,15 @@ public partial class SpriteDocument
     private void SaveLayer(StreamWriter writer, SpriteLayer layer, int depth)
     {
         var indent = new string(' ', depth * 2);
+        var propIndent = new string(' ', (depth + 1) * 2);
         writer.WriteLine($"{indent}layer \"{layer.Name}\" {{");
+
+        if (layer.Pixels != null)
+        {
+            var bytes = layer.Pixels.AsByteSpan();
+            var base64 = Convert.ToBase64String(bytes);
+            writer.WriteLine($"{propIndent}pixels \"{base64}\"");
+        }
 
         foreach (var child in layer.Children)
         {

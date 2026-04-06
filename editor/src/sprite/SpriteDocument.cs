@@ -8,6 +8,8 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace NoZ.Editor;
 
+public enum SpriteType { Vector, Raster }
+
 public partial class SpriteDocument : Document, ISkeletonAttachment
 {
     private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
@@ -35,6 +37,12 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     }
 
     public bool ShouldAtlas => true;
+
+    public SpriteType SpriteMode { get; set; } = SpriteType.Vector;
+    public Vector2Int CanvasSize { get; set; } = new(64, 64);
+
+    // Pixel selection mask (raster sprites only): null = no selection
+    public PixelData<byte>? SelectionMask { get; set; }
 
     // Layer-based model
     public SpriteLayer RootLayer { get; } = new() { Name = "Root" };
@@ -86,6 +94,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public bool ShowTiling { get; set; }
     public bool ShowSkeletonOverlay { get; set; }
     public Vector2Int? ConstrainedSize { get; set; }
+    public int PixelBrushSize { get; set; } = 1;
+    public Color32 PixelBrushColor { get; set; } = Color32.Black;
 
     public ushort AtlasFrameCount => (ushort)TotalTimeSlots;
     internal AtlasDocument? Atlas { get; set; }
@@ -148,7 +158,13 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             Name = "Sprite",
             Extensions = [".sprite", ".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"],
             Factory = () => new SpriteDocument(),
-            EditorFactory = doc => new SpriteEditor((SpriteDocument)doc),
+            EditorFactory = doc =>
+            {
+                var sd = (SpriteDocument)doc;
+                return sd.SpriteMode == SpriteType.Raster
+                    ? new PixelSpriteEditor(sd)
+                    : new SpriteEditor(sd);
+            },
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
@@ -156,6 +172,34 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     private static void NewFile(StreamWriter writer)
     {
+    }
+
+    public static void NewPixelFile(StreamWriter writer)
+    {
+        writer.WriteLine("type raster");
+        writer.WriteLine("canvas 64 64");
+        writer.WriteLine();
+        writer.WriteLine("layer \"Layer 1\" {");
+        writer.WriteLine("}");
+    }
+
+    public static Document? CreateNewPixelSprite(Vector2? position = null)
+    {
+        var doc = DocumentManager.New(AssetType.Sprite, null, position);
+        if (doc == null) return null;
+
+        // Overwrite the file with pixel sprite content
+        var store = EditorApplication.Store;
+        using (var ms = new MemoryStream())
+        {
+            using (var writer = new StreamWriter(ms))
+                NewPixelFile(writer);
+            store.WriteAllBytes(doc.Path, ms.ToArray());
+        }
+
+        // Reload so it picks up the raster type
+        doc.Reload();
+        return doc;
     }
 
     public override void Load()
@@ -171,6 +215,16 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         else
         {
             LoadStaticImage();
+        }
+
+        // Ensure raster layers have pixel data allocated
+        if (SpriteMode == SpriteType.Raster)
+        {
+            RootLayer.ForEach((SpriteLayer layer) =>
+            {
+                if (layer != RootLayer && layer.Pixels == null)
+                    layer.Pixels = new PixelData<Color32>(CanvasSize.X, CanvasSize.Y);
+            });
         }
 
         UpdateBounds();
@@ -258,6 +312,16 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         var tk = new Tokenizer(contents);
         Load(ref tk);
 
+        // Ensure raster layers have pixel data allocated
+        if (SpriteMode == SpriteType.Raster)
+        {
+            RootLayer.ForEach((SpriteLayer layer) =>
+            {
+                if (layer != RootLayer && layer.Pixels == null)
+                    layer.Pixels = new PixelData<Color32>(CanvasSize.X, CanvasSize.Y);
+            });
+        }
+
         Skeleton.Resolve();
         ResolveGeneration();
         ResolveSortOrder();
@@ -284,6 +348,18 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         if (!IsMutable)
         {
             UpdateImmutableBounds();
+            return;
+        }
+
+        if (SpriteMode == SpriteType.Raster)
+        {
+            const int ppu = 32;
+            var w = CanvasSize.X;
+            var h = CanvasSize.Y;
+            RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
+            var fw = w / (float)ppu;
+            var fh = h / (float)ppu;
+            Bounds = new Rect(-fw / 2, -fh / 2, fw, fh);
             return;
         }
 
@@ -496,7 +572,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             Graphics.SetTransform(Transform);
             Graphics.SetTexture(texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetTextureFilter(TextureFilter.Linear);
+            Graphics.SetTextureFilter(SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
             Graphics.SetColor(color);
             if (uv.HasValue)
                 Graphics.Draw(bounds, uv.Value, order: SortOrder);
@@ -512,7 +588,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         using (Graphics.PushState())
         {
-
+            Graphics.SetTextureFilter(SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
             Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
             if (offset != default)
@@ -538,6 +614,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
             var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
             var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
+            Graphics.SetTextureFilter(SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
             Graphics.SetTransform(transform);
             Graphics.Draw(sprite, SortOrder, frame: frame);
         }
@@ -558,6 +635,20 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         Edges = src.Edges;
         Skeleton = src.Skeleton;
         BoneName = src.BoneName;
+
+        // Clone selection mask
+        SelectionMask?.Dispose();
+        if (src.SelectionMask != null)
+        {
+            var total = src.CanvasSize.X * src.CanvasSize.Y;
+            SelectionMask = new PixelData<byte>(src.CanvasSize.X, src.CanvasSize.Y);
+            for (var i = 0; i < total; i++)
+                SelectionMask[i] = src.SelectionMask[i];
+        }
+        else
+        {
+            SelectionMask = null;
+        }
 
         // Clone layer model
         RootLayer.Clear();
@@ -585,6 +676,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             if (!string.IsNullOrEmpty(style))
                 Generation.Config.Name = style;
         }
+
+        PixelBrushSize = Math.Clamp(meta.GetInt("sprite", "pixel_brush_size", 1), 1, 16);
+        var brushColor = meta.GetColor("sprite", "pixel_brush_color", Color.Black);
+        PixelBrushColor = (Color32)brushColor;
 
         // Recompute bounds now that ConstrainedSize is available
         // (Load() calls UpdateBounds() before metadata is loaded)
@@ -618,6 +713,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             meta.RemoveKey("sprite", "constrained_size");
 
         meta.RemoveKey("sprite", "prompt_hash");
+
+        meta.SetInt("sprite", "pixel_brush_size", PixelBrushSize);
+        meta.SetColor("sprite", "pixel_brush_color", (Color)PixelBrushColor);
 
         // Clean up legacy style from metadata (now stored in file)
         meta.RemoveKey("sprite", "style");
@@ -706,7 +804,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         _sprite = Sprite.Create(
             name: Name,
             bounds: RasterBounds,
-            pixelsPerUnit: EditorApplication.Config.PixelsPerUnit,
+            pixelsPerUnit: SpriteMode == SpriteType.Raster ? 32 : EditorApplication.Config.PixelsPerUnit,
             boneIndex: -1,
             frames: frames,
             frameRate: 12.0f,

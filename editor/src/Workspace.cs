@@ -219,6 +219,19 @@ public static partial class Workspace
         }
     }
 
+    private static void CreateNewPixelSprite()
+    {
+        var position = PopupMenu.WorldPosition;
+        var doc = SpriteDocument.CreateNewPixelSprite(position);
+        if (doc != null)
+        {
+            doc.CollectionId = CollectionManager.GetVisibleId();
+            doc.IncrementVersion();
+            ClearSelection();
+            SetSelected(doc, true);
+        }
+    }
+
     private static void RebuildAtlas()
     {
         AtlasManager.Rebuild();
@@ -294,6 +307,13 @@ public static partial class Workspace
                     level: 1,
                     icon: def.Icon?.Invoke()));
             }
+            // Pixel Sprite (raster)
+            items.Add(PopupMenuItem.Item(
+                "Pixel Sprite",
+                CreateNewPixelSprite,
+                level: 1,
+                icon: EditorAssets.Sprites.AssetIconSprite));
+
             items.Add(PopupMenuItem.Separator());
         }
 
