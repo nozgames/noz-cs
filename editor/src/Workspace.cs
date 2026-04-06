@@ -686,7 +686,7 @@ public static partial class Workspace
         }
 
         ActiveEditor?.UpdateOverlayUI();
-        ColorPicker.Draw();
+        ColorPicker.Update();
         DrawRenameUI();
     }
 

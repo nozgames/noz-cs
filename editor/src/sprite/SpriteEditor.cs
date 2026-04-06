@@ -163,9 +163,6 @@ public partial class SpriteEditor : DocumentEditor
         if (Document.Version != _versionOnOpen && Document.Atlas != null)
             AtlasManager.UpdateSource(Document);
 
-        DisposeMeshTexture();
-        DisposeOnionTexture();
-
         base.Dispose();
     }
 

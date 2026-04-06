@@ -6,9 +6,9 @@ namespace NoZ.Editor;
 
 public partial class SpriteEditor
 {
-    private Texture? _onionTexture;
-    private int _onionTextureW;
-    private int _onionTextureH;
+    private readonly MeshVertex[] _onionVertices = new MeshVertex[MaxMeshVertices];
+    private readonly ushort[] _onionIndices = new ushort[MaxMeshIndices];
+    private readonly List<MeshSlotData> _onionSlots = new();
     private readonly List<(SpriteLayer layer, bool visible)> _savedVisibility = new();
     private int _onionFrame = -1;
 
@@ -20,71 +20,39 @@ public partial class SpriteEditor
         var currentFi = CurrentFrameIndex;
         if (_onionFrame != currentFi || _meshDirty)
         {
+            var frameCount = Document.AnimFrames.Count;
+            var prevFi = (currentFi - 1 + frameCount) % frameCount;
+            var nextFi = (currentFi + 1) % frameCount;
+
+            var prevColor = new Color(1f, 0.3f, 0.3f, 0.1f);
+            var nextColor = new Color(0.3f, 1f, 0.3f, 0.1f);
+
+            _onionSlots.Clear();
             _onionFrame = currentFi;
-            UpdateOnionTexture(currentFi);
-        }
 
-        if (_onionTexture != null)
-            DrawPreviewTexture(_onionTexture, sortGroup: 4, alpha: 1f);
-    }
+            // Save layer visibility before mutating
+            _savedVisibility.Clear();
+            Document.RootLayer.ForEach((SpriteLayer layer) =>
+            {
+                if (layer != Document.RootLayer)
+                    _savedVisibility.Add((layer, layer.Visible));
+            });
 
-    private void UpdateOnionTexture(int currentFi)
-    {
-        var frameCount = Document.AnimFrames.Count;
-        var prevFi = (currentFi - 1 + frameCount) % frameCount;
-        var nextFi = (currentFi + 1) % frameCount;
+            var vertexOffset = 0;
+            var indexOffset = 0;
 
-        var prevColor = new Color(1f, 0.3f, 0.3f, 0.1f);
-        var nextColor = new Color(0.3f, 1f, 0.3f, 0.1f);
-
-        var dpi = EditorApplication.Config.PixelsPerUnit;
-        var rb = Document.RasterBounds;
-        int w = rb.Width;
-        int h = rb.Height;
-        if (w <= 0 || h <= 0)
-        {
-            DisposeOnionTexture();
-            return;
-        }
-
-        // Save layer visibility before mutating
-        _savedVisibility.Clear();
-        Document.RootLayer.ForEach((SpriteLayer layer) =>
-        {
-            if (layer != Document.RootLayer)
-                _savedVisibility.Add((layer, layer.Visible));
-        });
-
-        unsafe
-        {
-            var pixels = stackalloc Color32[w * h];
-            for (int i = 0; i < w * h; i++)
-                pixels[i] = default;
-
-            RenderOnionFrame(prevFi, prevColor, w, h, dpi, rb, pixels);
-            RenderOnionFrame(nextFi, nextColor, w, h, dpi, rb, pixels);
+            TessellateOnionFrame(prevFi, prevColor, ref vertexOffset, ref indexOffset);
+            TessellateOnionFrame(nextFi, nextColor, ref vertexOffset, ref indexOffset);
 
             // Restore original visibility
             foreach (var (layer, visible) in _savedVisibility)
                 layer.Visible = visible;
-
-            var byteSpan = new ReadOnlySpan<byte>(pixels, w * h * 4);
-
-            if (_onionTexture != null && _onionTextureW == w && _onionTextureH == h)
-            {
-                _onionTexture.Update(byteSpan);
-            }
-            else
-            {
-                DisposeOnionTexture();
-                _onionTexture = Texture.Create(w, h, byteSpan, name: "onion_skin");
-                _onionTextureW = w;
-                _onionTextureH = h;
-            }
         }
+
+        DrawOnionMesh();
     }
 
-    private unsafe void RenderOnionFrame(int frameIndex, Color tint, int w, int h, int dpi, RectInt rb, Color32* pixels)
+    private void TessellateOnionFrame(int frameIndex, Color tint, ref int vertexOffset, ref int indexOffset)
     {
         if (frameIndex < 0 || frameIndex >= Document.AnimFrames.Count)
             return;
@@ -93,19 +61,29 @@ public partial class SpriteEditor
 
         _tessellateResults.Clear();
         SpriteLayerProcessor.ProcessLayer(Document.RootLayer, _tessellateResults);
-        if (_tessellateResults.Count == 0) return;
-
-        SpriteSkiaRenderer.RenderToPixelsTintedPremul(
-            _tessellateResults, w, h, pixels, tint,
-            dpi, dpi,
-            -rb.X, -rb.Y);
+        foreach (var result in _tessellateResults)
+            TessellateClipperTo(result.Contours, ref vertexOffset, ref indexOffset, tint, _onionVertices, _onionIndices, _onionSlots);
     }
 
-    private void DisposeOnionTexture()
+    private void DrawOnionMesh()
     {
-        _onionTexture?.Dispose();
-        _onionTexture = null;
-        _onionTextureW = 0;
-        _onionTextureH = 0;
+        if (_onionSlots.Count == 0) return;
+
+        using (Graphics.PushState())
+        {
+            Graphics.SetSortGroup(4);
+            Graphics.SetLayer(EditorLayer.DocumentEditor);
+            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTexture(Graphics.WhiteTexture);
+            Graphics.SetShader(EditorAssets.Shaders.Texture);
+
+            foreach (var slot in _onionSlots)
+            {
+                Graphics.SetColor(slot.FillColor);
+                Graphics.Draw(
+                    _onionVertices.AsSpan(slot.VertexOffset, slot.VertexCount),
+                    _onionIndices.AsSpan(slot.IndexOffset, slot.IndexCount));
+            }
+        }
     }
 }

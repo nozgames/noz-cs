@@ -40,9 +40,9 @@ public static class Log
     {
         if (Muted) return;
 
-        // Console.WriteLine for web browser console
-        Console.WriteLine(message);
-        // Debug.WriteLine for Windows debug output (VS, debugger)
+        if (OperatingSystem.IsBrowser())
+            Console.WriteLine(message);
+
         System.Diagnostics.Debug.WriteLine(message);
 
         if (Path != null)
@@ -56,7 +56,6 @@ public static class Log
     public static void Warning(string message) => Write($"[WARNING] {message}");
 
     public static void Error(string message) => Write($"[ERROR] {message}");
-
 
     public static string Params((string name, object? value, bool condition)[]? values)
     {

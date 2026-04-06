@@ -226,6 +226,24 @@ public class AnchorMode : AnchorBasedMode
         var desiredControlPoint = mouseLocal + _curveOffset;
         var newCurve = Vector2.Dot(desiredControlPoint - mid, perp);
 
+        if (Input.IsCtrlDown(InputScope.All))
+        {
+            var snapThreshold = len * 0.05f;
+
+            // Snap to 0 (straight line)
+            if (MathF.Abs(newCurve) < snapThreshold)
+            {
+                newCurve = 0f;
+            }
+            else
+            {
+                // Snap to natural arc (original curve value)
+                var naturalCurve = _curveSaved![_curveSegmentIndex].Curve;
+                if (MathF.Abs(newCurve - naturalCurve) < snapThreshold)
+                    newCurve = naturalCurve;
+            }
+        }
+
         _curvePath.SetAnchorCurve(_curveContourIndex, _curveSegmentIndex, newCurve);
         _curvePath.UpdateSamples();
         _curvePath.UpdateBounds();

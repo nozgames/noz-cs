@@ -48,7 +48,7 @@ internal static class EditorCursor
         SetRotate(rotation);
     }
 
-    public static void SetDropper() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CurorDropper));
+    public static void SetDropper() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorDropper));
 
     public static void SetCrosshair()
     {

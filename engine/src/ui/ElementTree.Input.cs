@@ -11,6 +11,7 @@ public static unsafe partial class ElementTree
     private static bool _inputMousePressed;
     private static bool _inputMouseDown;
     private static WidgetId _hoveredWidget;
+    private static int _cursorOffset;
 
     private static void HandlePopupAutoClose()
     {
@@ -119,8 +120,6 @@ public static unsafe partial class ElementTree
         return false;
     }
 
-    private static int _cursorOffset;
-
     internal static void HandleInput()
     {
         if (_elements.Length < 2) return;
@@ -151,12 +150,14 @@ public static unsafe partial class ElementTree
         if (_cursorOffset >= 0)
         {
             ref var ce = ref GetElement(_cursorOffset);
-            ref var cd = ref ce.Data.Cursor;
+            ref var cd = ref ce.Data.Cursor;            
             if (cd.IsSprite)
+            {
                 Cursor.Set(new SpriteCursor(
                     (Sprite)_assets[cd.AssetIndex]!,
                     cd.Rotation,
                     new Vector2(cd.HotspotX, cd.HotspotY)));
+            }
             else
                 Cursor.Set(cd.SystemCursor);
         }

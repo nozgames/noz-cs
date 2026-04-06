@@ -264,9 +264,12 @@ public partial class SpriteDocument
         var outW = (int)MathF.Round(w * scale);
         var outH = (int)MathF.Round(h * scale);
 
-        var results = new List<LayerPathResult>();
-        SpriteLayerProcessor.ProcessLayer(RootLayer, results);
-        if (results.Count == 0) return [];
+        using var pixels = new PixelData<Color32>(outW, outH);
+
+        var targetRect = new RectInt(0, 0, outW, outH);
+        var sourceOffset = new Vector2Int(
+            (int)MathF.Round(-RasterBounds.X * scale),
+            (int)MathF.Round(-RasterBounds.Y * scale));
 
         Rect? clipRect = null;
         if (ConstrainedSize.HasValue)
@@ -279,14 +282,12 @@ public partial class SpriteDocument
                 RasterBounds.Height * invDpi);
         }
 
-        var sourceOffset = new Vector2Int(
-            (int)MathF.Round(-RasterBounds.X * scale),
-            (int)MathF.Round(-RasterBounds.Y * scale));
+        RasterizeLayer(RootLayer, pixels, targetRect, sourceOffset, scaledDpi, clipRect);
 
-        return SpriteSkiaRenderer.RenderToPng(results, outW, outH,
-            scaledDpi, scaledDpi,
-            sourceOffset.X, sourceOffset.Y,
-            clipRect);
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
+        using var ms = new MemoryStream();
+        image.SaveAsPng(ms);
+        return ms.ToArray();
     }
 
     public PipelineRequest BuildGenerationRequest()

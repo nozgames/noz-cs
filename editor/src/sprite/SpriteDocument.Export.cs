@@ -4,6 +4,7 @@
 //  Sprite document rasterization and binary export.
 //
 
+using Clipper2Lib;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -66,15 +67,23 @@ public partial class SpriteDocument
             AnimFrames[fi].ApplyVisibility(RootLayer);
         }
 
-        // Render into exactly RasterBounds size — the Skia surface boundary
-        // acts as a hard pixel clip, matching the editor preview behavior.
-        // Pixels are written at the padded position in the atlas.
         var targetRect = new RectInt(
-            rect.Rect.Position + new Vector2Int(padding, padding),
-            RasterBounds.Size);
-        var sourceOffset = -RasterBounds.Position;
+            rect.Rect.Position,
+            new Vector2Int(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2));
+        var sourceOffset = -RasterBounds.Position + new Vector2Int(padding, padding);
 
-        RasterizeLayer(RootLayer, image, targetRect, sourceOffset, dpi);
+        Rect? clipRect = null;
+        if (ConstrainedSize.HasValue)
+        {
+            float invDpi = 1f / dpi;
+            clipRect = new Rect(
+                RasterBounds.X * invDpi,
+                RasterBounds.Y * invDpi,
+                RasterBounds.Width * invDpi,
+                RasterBounds.Height * invDpi);
+        }
+
+        RasterizeLayer(RootLayer, image, targetRect, sourceOffset, dpi, clipRect);
 
         // Restore original visibility
         if (savedVisibility != null)
@@ -83,10 +92,7 @@ public partial class SpriteDocument
                 layer.Visible = visible;
         }
 
-        var bleedRect = new RectInt(
-            rect.Rect.Position,
-            new Vector2Int(RasterBounds.Size.X + padding * 2, RasterBounds.Size.Y + padding * 2));
-        image.BleedColors(bleedRect);
+        image.BleedColors(targetRect);
     }
 
     private void RasterizeImageFile(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
@@ -142,9 +148,35 @@ public partial class SpriteDocument
     {
         var results = new List<LayerPathResult>();
         SpriteLayerProcessor.ProcessLayer(layer, results);
-        if (results.Count == 0) return;
 
-        SpriteSkiaRenderer.FillPixelData(results, image, targetRect, sourceOffset, dpi, clipRect);
+        PathsD? clipPaths = null;
+        if (clipRect.HasValue)
+        {
+            var cr = clipRect.Value;
+            clipPaths = new PathsD { new PathD {
+                new PointD(cr.Left, cr.Top),
+                new PointD(cr.Right, cr.Top),
+                new PointD(cr.Right, cr.Bottom),
+                new PointD(cr.Left, cr.Bottom)
+            }};
+        }
+
+        foreach (var result in results)
+        {
+            var contours = result.Contours;
+            if (clipPaths != null && contours.Count > 0)
+            {
+                contours = Clipper.BooleanOp(ClipType.Intersection,
+                    contours, clipPaths, FillRule.NonZero, precision: 6);
+                if (contours.Count == 0) continue;
+            }
+
+            if (result.FillType == SpriteFillType.Linear)
+                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi,
+                    result.FillType, result.Color, result.Gradient, result.GradientTransform);
+            else
+                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
+        }
     }
 
     public override void Export(string outputPath, PropertySet meta)

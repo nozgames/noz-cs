@@ -13,10 +13,10 @@ r "asset_icon_shader" 362 1 116 116 0
 r "asset_icon_sound" 478 1 92 122 0
 r "asset_icon_sprite" 362 117 68 68 0
 r "asset_icon_vfx" 235 134 122 122 0
-r "curor_dropper" 430 117 45 44 0
 r "cursor_arrow" 1 69 42 47 0
 r "cursor_beam" 43 69 20 39 0
 r "cursor_curve" 121 236 51 57 0
+r "cursor_dropper" 430 117 45 44 0
 r "cursor_move" 172 236 56 56 0
 r "cursor_rotate" 1 239 49 49 0
 r "cursor_scale" 50 239 56 24 0
@@ -79,7 +79,6 @@ r "icon_subtract" 292 389 68 68 0
 r "icon_tiling" 205 392 68 68 0
 r "icon_unlock" 963 217 36 36 0
 r "icon_xray" 137 432 68 68 0
-r "new_sprite" 432 341 219 174 0
-r "circle" 273 457 132 132 0
-r "square" 851 321 132 132 0
-r "star" 651 395 126 120 0
+r "circle" 851 321 132 132 0
+r "square" 432 341 132 132 0
+r "star" 273 457 126 120 0

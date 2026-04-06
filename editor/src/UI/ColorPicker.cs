@@ -204,10 +204,12 @@ internal static partial class ColorPicker
     }
 
     /// Draw the floating color picker panel. Call from overlay UI.
-    internal static void Draw()
+    internal static void Update()
     {
         if (_popupId == WidgetId.None) return;
         if (!FloatingPanel.IsOpen(_popupId)) return;
+
+        var close = false;
 
         if (_eyeDropperActive)
             EditorCursor.SetDropper();
@@ -249,8 +251,7 @@ internal static partial class ColorPicker
             }
             else
             {
-                Close();
-                return;
+                close = true;
             }
         }
 
@@ -261,7 +262,11 @@ internal static partial class ColorPicker
             _eyeDropperTask = null;
         }
 
-        using var panel = FloatingPanel.Begin(_popupId, EditorStyle.ColorPicker.Root);
+        var wasEyeDropperActive = _eyeDropperActive;
+        if (wasEyeDropperActive)
+            ElementTree.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorDropper));
+
+        FloatingPanel.Begin(_popupId, EditorStyle.ColorPicker.Root);
 
         if (FloatingPanel.WasBackdropPressed)
         {
@@ -271,8 +276,7 @@ internal static partial class ColorPicker
             }
             else if (_paletteMode != ColorMode.Linear || OnBackdropClick == null || !OnBackdropClick())
             {
-                Close();
-                return;
+                close = true;
             }
         }
 
@@ -307,7 +311,7 @@ internal static partial class ColorPicker
                     _paletteMode = ColorMode.Palette;
             }
 
-            if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CurorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
+            if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
                 _eyeDropperActive = !_eyeDropperActive;
 
             UI.Flex();
@@ -315,8 +319,7 @@ internal static partial class ColorPicker
             if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
             {
                 UI.NotifyChanged(_originalColor.GetHashCode());
-                Close();
-                return;
+                close = true;
             }
         }
 
@@ -363,6 +366,14 @@ internal static partial class ColorPicker
             UI.NotifyChanged(color.GetHashCode());
             _prevColor = color;
         }
+
+        FloatingPanel.End();
+
+        if (wasEyeDropperActive)
+            ElementTree.EndCursor();
+
+        if (close)
+            Close();
     }
 
     /// Read the current color. Call from where the color button is drawn.
