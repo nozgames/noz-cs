@@ -9,7 +9,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public partial class SpriteEditor
+public partial class VectorSpriteEditor
 {
     internal bool IsGradientOverlayVisible()
     {

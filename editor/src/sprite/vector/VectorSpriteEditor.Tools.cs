@@ -17,7 +17,7 @@ public enum SpriteEditMode
     EyeDropper,
 }
 
-public partial class SpriteEditor
+public partial class VectorSpriteEditor
 {
     public bool HasPathSelection { get; private set; }
     public bool HasLayerSelection { get; private set; }

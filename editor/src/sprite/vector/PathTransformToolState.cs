@@ -63,6 +63,6 @@ internal struct PathTransformToolState
             path.UpdateSamples();
             path.UpdateBounds();
         }
-        Editor.MarkDirty();
+        ((VectorSpriteEditor)Editor).MarkDirty();
     }
 }

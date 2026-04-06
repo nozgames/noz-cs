@@ -163,7 +163,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
                 var sd = (SpriteDocument)doc;
                 return sd.SpriteMode == SpriteType.Raster
                     ? new PixelSpriteEditor(sd)
-                    : new SpriteEditor(sd);
+                    : new VectorSpriteEditor(sd);
             },
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconSprite

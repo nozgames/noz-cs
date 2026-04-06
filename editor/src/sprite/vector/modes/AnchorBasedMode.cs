@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public abstract class AnchorBasedMode : EditorMode<SpriteEditor>
+public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
 {
     private static readonly List<SpriteNode.AnchorHitResult> _anchorHitResults = [];
 

@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PenMode : EditorMode<SpriteEditor>
+public class PenMode : EditorMode<VectorSpriteEditor>
 {
     private const int MaxPoints = 64;
 

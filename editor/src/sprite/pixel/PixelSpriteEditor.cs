@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 public enum SelectionOp { Replace, Add, Subtract }
 
-public partial class PixelSpriteEditor : DocumentEditor
+public partial class PixelSpriteEditor : SpriteEditor
 {
     private static partial class WidgetIds
     {
@@ -20,8 +20,6 @@ public partial class PixelSpriteEditor : DocumentEditor
         public static partial WidgetId RectSelectButton { get; }
         public static partial WidgetId MoveButton { get; }
     }
-
-    public new SpriteDocument Document => (SpriteDocument)base.Document;
 
     public Color32 BrushColor { get; set; } = Color32.Black;
     public int BrushSize { get; set; } = 1;

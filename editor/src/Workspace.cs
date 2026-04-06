@@ -182,7 +182,7 @@ public static partial class Workspace
                 continue;
             if (doc is SpriteDocument sprite && sprite.Generation != null)
             {
-                sprite.Generation.Seed = SpriteEditor.GenerateRandomSeed();
+                sprite.Generation.Seed = VectorSpriteEditor.GenerateRandomSeed();
                 sprite.GenerateAsync();
                 count++;
             }

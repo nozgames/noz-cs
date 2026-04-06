@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class TransformMode : EditorMode<SpriteEditor>
+public class TransformMode : EditorMode<VectorSpriteEditor>
 {
     private enum DragType { None, BoxSelect, Move, Rotate, Scale }
 
@@ -123,7 +123,7 @@ public class TransformMode : EditorMode<SpriteEditor>
     {
         var handleHit = Editor.HitTestHandles(localMousePos);
 
-        if (SpriteEditor.IsRotateHandle(handleHit))
+        if (VectorSpriteEditor.IsRotateHandle(handleHit))
         {
             var state = PathTransformToolState.Create(Editor.Document, Editor, Editor._selectedPaths);
             if (state == null) return false;
@@ -143,7 +143,7 @@ public class TransformMode : EditorMode<SpriteEditor>
             return true;
         }
 
-        if (SpriteEditor.IsScaleHandle(handleHit))
+        if (VectorSpriteEditor.IsScaleHandle(handleHit))
         {
             var state = PathTransformToolState.Create(Editor.Document, Editor, Editor._selectedPaths);
             if (state == null) return false;

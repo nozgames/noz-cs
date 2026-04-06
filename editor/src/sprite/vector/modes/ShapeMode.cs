@@ -12,7 +12,7 @@ public enum ShapeType
     Circle
 }
 
-public class ShapeMode : EditorMode<SpriteEditor>
+public class ShapeMode : EditorMode<VectorSpriteEditor>
 {
     private readonly ShapeType _shapeType;
 

@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public class EyeDropperMode : EditorMode<SpriteEditor>
+public class EyeDropperMode : EditorMode<VectorSpriteEditor>
 {
     private Task<Color>? _readbackTask;
     private bool _shift;

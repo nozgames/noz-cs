@@ -8,7 +8,7 @@ using LibTessDotNet;
 
 namespace NoZ.Editor;
 
-public partial class SpriteEditor
+public partial class VectorSpriteEditor
 {
     private const int MaxMeshVertices = 1024 * 16;
     private const int MaxMeshIndices = MaxMeshVertices * 3;

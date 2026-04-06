@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public partial class SpriteEditor
+public partial class VectorSpriteEditor
 {
     private readonly MeshVertex[] _onionVertices = new MeshVertex[MaxMeshVertices];
     private readonly ushort[] _onionIndices = new ushort[MaxMeshIndices];

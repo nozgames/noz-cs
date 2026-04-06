@@ -6,9 +6,10 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public partial class SpriteEditor
+public abstract partial class SpriteEditor
 {
     private const float DragThreshold = 4f;
+    private const float DropLineHeight = 2;
 
     private struct OutlinerRowInfo
     {
@@ -26,11 +27,10 @@ public partial class SpriteEditor
         public static partial WidgetId OutlinerVisibility { get; }
         public static partial WidgetId OutlinerLock { get; }
         public static partial WidgetId OutlinerExpand { get; }
-        public static partial WidgetId AddLayerButton { get; }
         public static partial WidgetId OutlinerRename { get; }
     }
 
-    private int _outlinerIndex;
+    protected int _outlinerIndex;
     private SpriteNode? _renameNode;
     private string _renameText = "";
     private readonly List<OutlinerRowInfo> _outlinerRows = [];
@@ -41,7 +41,7 @@ public partial class SpriteEditor
     private int _dropTargetIndex = -1;
     private DropZone _dropZone;
 
-    private static readonly ContainerStyle OutlinerPanelStyle = EditorStyle.Panel with
+    protected static readonly ContainerStyle OutlinerPanelStyle = EditorStyle.Panel with
     {
         Width = Size.Percent(1),
         Height = Size.Percent(1),
@@ -49,19 +49,7 @@ public partial class SpriteEditor
         Spacing = 0,
     };
 
-    private static readonly TextStyle OutlinerLayerNameStyle = new()
-    {
-        FontSize = 10,
-        Color = EditorStyle.Palette.Content,
-        AlignY = Align.Center,
-    };
-
-    private static readonly TextStyle OutlinerLayerNameDimStyle = OutlinerLayerNameStyle with
-    {
-        Color = EditorStyle.Palette.SecondaryText,
-    };
-
-    private static readonly ButtonStyle OutlinerIconButtonStyle = new()
+    protected static readonly ButtonStyle OutlinerIconButtonStyle = new()
     {
         Width = EditorStyle.Icon.Size,
         Height = EditorStyle.Control.Height,
@@ -75,18 +63,13 @@ public partial class SpriteEditor
         },
     };
 
-    private static readonly ButtonStyle OutlinerIconDimButtonStyle = OutlinerIconButtonStyle with
+    protected static readonly ButtonStyle OutlinerIconDimButtonStyle = OutlinerIconButtonStyle with
     {
         ContentColor = EditorStyle.Palette.SecondaryText,
     };
 
-    public override void OutlinerUI()
+    protected void HandleRenameInput()
     {
-        if (!Document.IsMutable) return;
-
-        _outlinerIndex = 0;
-
-        // Handle rename input before anything else
         if (_renameNode != null)
         {
             if (Input.WasButtonPressed(InputCode.KeyEnter, InputScope.All))
@@ -100,256 +83,9 @@ public partial class SpriteEditor
                 CancelRename();
             }
         }
-
-        // Update drag state (uses previous frame's row data for hit-testing)
-        UpdateOutlinerDrag();
-
-        _outlinerRows.Clear();
-
-        using (UI.BeginColumn(WidgetIds.OutlinerPanel, OutlinerPanelStyle))
-        {
-            // Header
-            using (UI.BeginRow(new ContainerStyle { Height = 22, Spacing = 4, AlignY = Align.Center }))
-            {
-                UI.Text("Layers",  EditorStyle.Text.Secondary);
-                using (UI.BeginFlex()) { }
-                if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, OutlinerIconButtonStyle))
-                    AddLayer();
-            }
-
-            // Node tree
-            foreach (var child in Document.RootLayer.Children)
-                OutlinerNodeUI(child, 0);
-        }
     }
 
-    private const float DropLineHeight = 2;
-
-    private void OutlinerNodeUI(SpriteNode node, int depth)
-    {
-        var index = _outlinerIndex++;
-        var rowId = WidgetIds.OutlinerLayer + index;
-        var isLayer = node is SpriteLayer;
-        var isPath = node is SpritePath;
-        var isActive = isLayer && node.IsSelected;
-        var isPathSelected = isPath && ((SpritePath)node).IsSelected;
-        var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
-        var isDragSource = _outlinerDragging && _dragNodes.Contains(node);
-        var dropBefore = isDragTarget && _dropZone == DropZone.Before;
-        var dropAfter = isDragTarget && (_dropZone == DropZone.After || _dropZone == DropZone.FirstChild);
-        var dropLastChild = isDragTarget && _dropZone == DropZone.LastChild;
-
-        _outlinerRows.Add(new OutlinerRowInfo { Node = node, Index = index, Depth = depth });
-
-        if (isDragSource)
-            UI.BeginOpacity(0.35f);
-
-        ElementTree.BeginTree();
-        ElementTree.BeginWidget(rowId);
-        ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
-
-        // Determine background (must be after BeginWidget so hover state is available)
-        var bg = (isActive || isPathSelected) ? EditorStyle.Palette.Active : Color.Transparent;
-        var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
-        if (isHovered) bg = EditorStyle.Palette.Active;
-
-        // Content area
-        if (dropLastChild)
-            ElementTree.BeginFill(bg, borderWidth: 1, borderColor: EditorStyle.Palette.Primary);
-        else
-            ElementTree.BeginFill(bg);
-
-        // drag indicators
-        if (!dropLastChild && (dropBefore || dropAfter))
-        {
-            ElementTree.BeginAlign(Align.Min, dropAfter ? Align.Max : Align.Min);
-            ElementTree.BeginSize(Size.Default, new Size(DropLineHeight));
-            ElementTree.BeginFill(EditorStyle.Palette.Primary);
-            ElementTree.EndFill();
-            ElementTree.EndSize();
-            ElementTree.EndAlign();
-        }
-
-        ElementTree.BeginPadding(EditorStyle.Item.Padding);
-        ElementTree.BeginRow(EditorStyle.Control.Spacing);
-
-        // indent
-        if (depth > 0)
-            ElementTree.Spacer(depth * (EditorStyle.Icon.SmallSize + EditorStyle.Control.Spacing) - EditorStyle.Control.Spacing);
-
-        // expand
-        if (isLayer && node.Children.Count > 0)
-        {
-            ElementTree.BeginTree();
-            ElementTree.BeginWidget(WidgetIds.OutlinerExpand + index);
-            ElementTree.BeginSize(EditorStyle.Icon.SmallSize, Size.Default);
-            ElementTree.Image(
-                image: node.Expanded
-                    ? EditorAssets.Sprites.IconFoldoutClosed
-                    : EditorAssets.Sprites.IconFoldoutOpen,
-                size: new Size2(EditorStyle.Icon.SmallSize, Size.Default),
-                align: Align.Center,
-                color: EditorStyle.Palette.SecondaryText);
-
-            if (ElementTree.WasPressed())
-                node.Expanded = !node.Expanded;
-
-            ElementTree.EndTree();
-        }
-        else
-        {
-            UI.Spacer(EditorStyle.Icon.SmallSize);
-        }
-
-        // icon
-        ElementTree.Image(
-            image: isLayer
-                ? EditorAssets.Sprites.IconPathLayer
-                : EditorAssets.Sprites.IconPath,
-            size: new Size2(EditorStyle.Icon.Size, Size.Default),
-            align: Align.Center,
-            color: EditorStyle.Palette.SecondaryText);
-
-        // name (inline rename or static text)
-        ElementTree.BeginFlex();
-        if (node == _renameNode)
-        {
-            ElementTree.BeginMargin(EdgeInsets.TopLeft(2, -2));
-            _renameText = UI.TextInput(WidgetIds.OutlinerRename, _renameText, EditorStyle.SpriteEditor.OutlinerRename);
-            ElementTree.EndMargin();
-
-            if (UI.HotExit())
-                CommitRename();
-        }
-        else
-        {
-            ElementTree.Text(
-                value: !string.IsNullOrEmpty(node.Name) ? node.Name : (isLayer ? "Group" : "Path"),
-                font: UI.DefaultFont,
-                fontSize: EditorStyle.Text.Size,
-                color: EditorStyle.Palette.SecondaryText,
-                align: new Align2(Align.Min, Align.Center)
-            );
-        }
-        ElementTree.EndFlex();
-
-        // Visibility + Lock
-        var showVisibility = isHovered || !node.Visible;
-        var showLock = isHovered || node.Locked;
-
-        if (showVisibility)
-        {
-            var visIcon = node.Visible ? EditorAssets.Sprites.IconPreview : EditorAssets.Sprites.IconHidden;
-            var visStyle = node.Visible ? OutlinerIconDimButtonStyle : OutlinerIconButtonStyle;
-            if (UI.Button(WidgetIds.OutlinerVisibility + index, visIcon, visStyle))
-            {
-                Undo.Record(Document);
-                node.Visible = !node.Visible;
-
-                var fi = CurrentFrameIndex;
-                if (fi < Document.AnimFrames.Count && node is SpriteLayer layer)
-                    Document.AnimFrames[fi].SetLayerVisible(layer, node.Visible);
-
-                MarkDirty();
-            }
-        }
-
-        if (showLock)
-        {
-            var lockIcon = node.Locked ? EditorAssets.Sprites.IconLock : EditorAssets.Sprites.IconUnlock;
-            var lockStyle = node.Locked ? OutlinerIconButtonStyle : OutlinerIconDimButtonStyle;
-            if (UI.Button(WidgetIds.OutlinerLock + index, lockIcon, lockStyle))
-            {
-                Undo.Record(Document);
-                node.Locked = !node.Locked;
-                MarkDirty();
-            }
-        }
-        else
-        {
-            UI.Spacer(EditorStyle.Icon.Size);
-        }
-
-        if (UI.WasPressed(rowId))
-        {
-            var nodeIsSelected = (node is SpriteLayer && node.IsSelected) ||
-                                 (node is SpritePath sp && sp.IsSelected);
-            var shift = Input.IsShiftDown(InputScope.All);
-            var ctrl = Input.IsCtrlDown(InputScope.All);
-
-            if (nodeIsSelected && !shift && !ctrl)
-            {
-                // Defer selection change so we can drag the multi-selection
-                _deferredClickNode = node;
-            }
-            else
-            {
-                HandleOutlinerClick(node);
-                _deferredClickNode = null;
-            }
-
-            // Populate drag candidates from current selection
-            _dragNodes.Clear();
-            if (HasLayerSelection)
-            {
-                foreach (var l in _selectedLayers)
-                    _dragNodes.Add(l);
-            }
-            else
-            {
-                foreach (var p in _selectedPaths)
-                    _dragNodes.Add(p);
-            }
-
-            // Ensure the clicked node is always included
-            if (!_dragNodes.Contains(node))
-            {
-                _dragNodes.Clear();
-                _dragNodes.Add(node);
-            }
-
-            _dragStartPos = Input.MousePosition;
-        }
-
-        // Right-click context menu
-        if (isHovered && Input.WasButtonReleased(InputCode.MouseRight))
-        {
-            var nodeIsAlreadySelected = (node is SpriteLayer sl && sl.IsSelected) ||
-                                        (node is SpritePath sp2 && sp2.IsSelected);
-            if (!nodeIsAlreadySelected)
-            {
-                Document.RootLayer.ClearSelection();
-                Document.RootLayer.ClearLayerSelections();
-                if (node is SpritePath p)
-                    p.SelectPath();
-                else if (node is SpriteLayer l)
-                    l.IsSelected = true;
-                RebuildSelectedPaths();
-            }
-
-            OpenContextMenu(WidgetIds.ContextMenu);
-        }
-
-        // End Row + Padding + Fill + Flex
-        ElementTree.EndRow();
-        ElementTree.EndPadding();
-        ElementTree.EndFill();
-
-        // EndTree closes Column + Size + Widget
-        ElementTree.EndTree();
-
-        if (isDragSource)
-            UI.EndOpacity();
-
-        // Draw children if expanded (layers only)
-        if (isLayer && node.Expanded)
-        {
-            foreach (var child in node.Children)
-                OutlinerNodeUI(child, depth + 1);
-        }
-    }
-
-    private void UpdateOutlinerDrag()
+    protected void UpdateOutlinerDrag()
     {
         if (_dragNodes.Count == 0)
         {
@@ -378,6 +114,214 @@ public partial class SpriteEditor
         }
     }
 
+    protected void DrawNodeTree(SpriteNode root)
+    {
+        _outlinerRows.Clear();
+
+        if (ReverseChildren)
+        {
+            for (var i = root.Children.Count - 1; i >= 0; i--)
+                OutlinerNodeUI(root.Children[i], 0);
+        }
+        else
+        {
+            foreach (var child in root.Children)
+                OutlinerNodeUI(child, 0);
+        }
+    }
+
+    private void OutlinerNodeUI(SpriteNode node, int depth)
+    {
+        var index = _outlinerIndex++;
+        var rowId = WidgetIds.OutlinerLayer + index;
+        var isExpandable = IsNodeExpandable(node);
+        var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
+        var isDragSource = _outlinerDragging && _dragNodes.Contains(node);
+        var dropBefore = isDragTarget && _dropZone == DropZone.Before;
+        var dropAfter = isDragTarget && (_dropZone == DropZone.After || _dropZone == DropZone.FirstChild);
+        var dropLastChild = isDragTarget && _dropZone == DropZone.LastChild;
+
+        _outlinerRows.Add(new OutlinerRowInfo { Node = node, Index = index, Depth = depth });
+
+        if (isDragSource)
+            UI.BeginOpacity(0.35f);
+
+        ElementTree.BeginTree();
+        ElementTree.BeginWidget(rowId);
+        ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
+
+        // Must be after BeginWidget so hover state is available
+        var isSelected = IsNodeSelected(node);
+        var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
+        var bg = isSelected ? EditorStyle.Palette.Active : Color.Transparent;
+        if (isHovered) bg = EditorStyle.Palette.Active;
+
+        if (dropLastChild)
+            ElementTree.BeginFill(bg, borderWidth: 1, borderColor: EditorStyle.Palette.Primary);
+        else
+            ElementTree.BeginFill(bg);
+
+        // Drag indicators
+        if (!dropLastChild && (dropBefore || dropAfter))
+        {
+            ElementTree.BeginAlign(Align.Min, dropAfter ? Align.Max : Align.Min);
+            ElementTree.BeginSize(Size.Default, new Size(DropLineHeight));
+            ElementTree.BeginFill(EditorStyle.Palette.Primary);
+            ElementTree.EndFill();
+            ElementTree.EndSize();
+            ElementTree.EndAlign();
+        }
+
+        ElementTree.BeginPadding(EditorStyle.Item.Padding);
+        ElementTree.BeginRow(EditorStyle.Control.Spacing);
+
+        // Indentation
+        if (depth > 0)
+            ElementTree.Spacer(depth * (EditorStyle.Icon.SmallSize + EditorStyle.Control.Spacing) - EditorStyle.Control.Spacing);
+
+        // Expand/collapse chevron
+        if (isExpandable && node.Children.Count > 0)
+        {
+            ElementTree.BeginTree();
+            ElementTree.BeginWidget(WidgetIds.OutlinerExpand + index);
+            ElementTree.BeginSize(EditorStyle.Icon.SmallSize, Size.Default);
+            ElementTree.Image(
+                image: node.Expanded
+                    ? EditorAssets.Sprites.IconFoldoutClosed
+                    : EditorAssets.Sprites.IconFoldoutOpen,
+                size: new Size2(EditorStyle.Icon.SmallSize, Size.Default),
+                align: Align.Center,
+                color: EditorStyle.Palette.SecondaryText);
+
+            if (ElementTree.WasPressed())
+                node.Expanded = !node.Expanded;
+
+            ElementTree.EndTree();
+        }
+        else
+        {
+            UI.Spacer(EditorStyle.Icon.SmallSize);
+        }
+
+        // Icon
+        ElementTree.Image(
+            image: GetNodeIcon(node),
+            size: new Size2(EditorStyle.Icon.Size, Size.Default),
+            align: Align.Center,
+            color: EditorStyle.Palette.SecondaryText);
+
+        // Name (inline rename or static text)
+        ElementTree.BeginFlex();
+        if (node == _renameNode)
+        {
+            ElementTree.BeginMargin(EdgeInsets.TopLeft(2, -2));
+            _renameText = UI.TextInput(WidgetIds.OutlinerRename, _renameText, EditorStyle.SpriteEditor.OutlinerRename);
+            ElementTree.EndMargin();
+
+            if (UI.HotExit())
+                CommitRename();
+        }
+        else
+        {
+            var displayName = !string.IsNullOrEmpty(node.Name) ? node.Name : GetNodeFallbackName(node);
+            ElementTree.Text(
+                value: displayName,
+                font: UI.DefaultFont,
+                fontSize: EditorStyle.Text.Size,
+                color: EditorStyle.Palette.SecondaryText,
+                align: new Align2(Align.Min, Align.Center)
+            );
+        }
+        ElementTree.EndFlex();
+
+        // Visibility toggle (show on hover or when hidden)
+        var showVisibility = isHovered || !node.Visible;
+        if (showVisibility)
+        {
+            var visIcon = node.Visible ? EditorAssets.Sprites.IconPreview : EditorAssets.Sprites.IconHidden;
+            var visStyle = node.Visible ? OutlinerIconDimButtonStyle : OutlinerIconButtonStyle;
+            if (UI.Button(WidgetIds.OutlinerVisibility + index, visIcon, visStyle))
+            {
+                Undo.Record(Document);
+                node.Visible = !node.Visible;
+                OnVisibilityChanged(node);
+                OnOutlinerChanged();
+            }
+        }
+
+        // Lock toggle (show on hover or when locked)
+        var showLock = isHovered || node.Locked;
+        if (showLock)
+        {
+            var lockIcon = node.Locked ? EditorAssets.Sprites.IconLock : EditorAssets.Sprites.IconUnlock;
+            var lockStyle = node.Locked ? OutlinerIconButtonStyle : OutlinerIconDimButtonStyle;
+            if (UI.Button(WidgetIds.OutlinerLock + index, lockIcon, lockStyle))
+            {
+                Undo.Record(Document);
+                node.Locked = !node.Locked;
+                OnOutlinerChanged();
+            }
+        }
+        else
+        {
+            UI.Spacer(EditorStyle.Icon.Size);
+        }
+
+        // Click handling
+        if (UI.WasPressed(rowId))
+        {
+            if (IsNodeSelected(node))
+            {
+                _deferredClickNode = node;
+            }
+            else
+            {
+                OnNodeClicked(node);
+                _deferredClickNode = null;
+            }
+
+            PopulateDragNodes(node, _dragNodes);
+
+            if (!_dragNodes.Contains(node))
+            {
+                _dragNodes.Clear();
+                _dragNodes.Add(node);
+            }
+
+            _dragStartPos = Input.MousePosition;
+        }
+
+        // Right-click
+        if (isHovered && Input.WasButtonReleased(InputCode.MouseRight))
+            OnNodeRightClicked(node, isHovered);
+
+        // End Row + Padding + Fill + Tree
+        ElementTree.EndRow();
+        ElementTree.EndPadding();
+        ElementTree.EndFill();
+        ElementTree.EndTree();
+
+        if (isDragSource)
+            UI.EndOpacity();
+
+        // Draw children if expanded
+        if (isExpandable && node.Expanded)
+        {
+            if (ReverseChildren)
+            {
+                for (var i = node.Children.Count - 1; i >= 0; i--)
+                    OutlinerNodeUI(node.Children[i], depth + 1);
+            }
+            else
+            {
+                foreach (var child in node.Children)
+                    OutlinerNodeUI(child, depth + 1);
+            }
+        }
+    }
+
+    #region Drag-Drop
+
     private bool CheckDragThreshold()
     {
         if (_outlinerDragging)
@@ -385,17 +329,16 @@ public partial class SpriteEditor
 
         if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
         {
-            // Mouse released before drag threshold — apply deferred click
             if (_deferredClickNode != null)
             {
-                HandleOutlinerClick(_deferredClickNode);
+                OnNodeClicked(_deferredClickNode);
                 _deferredClickNode = null;
             }
             _dragNodes.Clear();
             return false;
         }
 
-        var dist = System.Numerics.Vector2.Distance(Input.MousePosition, _dragStartPos);
+        var dist = Vector2.Distance(Input.MousePosition, _dragStartPos);
         if (dist < DragThreshold)
             return false;
 
@@ -441,7 +384,7 @@ public partial class SpriteEditor
                 _dropTargetIndex = row.Index;
                 var relY = (mouseWorld.Y - rect.Y) / rect.Height;
 
-                if (row.Node is SpriteLayer)
+                if (IsNodeExpandable(row.Node))
                 {
                     if (relY < 0.33f) _dropZone = DropZone.Before;
                     else if (relY > 0.67f) _dropZone = DropZone.FirstChild;
@@ -484,7 +427,7 @@ public partial class SpriteEditor
             _dropTargetIndex = prevRow.Index;
             _dropZone = DropZone.After;
         }
-        else if (prevRow.Depth == row.Depth - 1 && prevRow.Node is SpriteLayer parentLayer && parentLayer.Expanded)
+        else if (prevRow.Depth == row.Depth - 1 && IsNodeExpandable(prevRow.Node) && prevRow.Node.Expanded)
         {
             _dropTargetIndex = prevRow.Index;
             _dropZone = DropZone.FirstChild;
@@ -519,7 +462,6 @@ public partial class SpriteEditor
     {
         if (_dragNodes.Count == 0) return;
 
-        // Find the target node
         SpriteNode? targetNode = null;
         foreach (var row in _outlinerRows)
         {
@@ -531,14 +473,12 @@ public partial class SpriteEditor
         }
         if (targetNode == null) return;
 
-        // Validate all drag nodes
         foreach (var dragNode in _dragNodes)
         {
             if (dragNode == targetNode) return;
             if (IsDescendant(dragNode, targetNode)) return;
         }
 
-        // Sort drag nodes by outliner order to preserve relative ordering
         var ordered = new List<SpriteNode>(_dragNodes.Count);
         foreach (var row in _outlinerRows)
         {
@@ -548,11 +488,9 @@ public partial class SpriteEditor
 
         Undo.Record(Document);
 
-        // Remove all from parents first
         foreach (var node in ordered)
             node.RemoveFromParent();
 
-        // Insert all at the drop location
         switch (_dropZone)
         {
             case DropZone.LastChild when targetNode is SpriteLayer layer:
@@ -580,7 +518,7 @@ public partial class SpriteEditor
             }
         }
 
-        MarkDirty();
+        OnOutlinerChanged();
     }
 
     private static bool IsDescendant(SpriteNode parent, SpriteNode candidate)
@@ -593,105 +531,12 @@ public partial class SpriteEditor
         return false;
     }
 
-    private void HandleOutlinerClick(SpriteNode node)
-    {
-        var shift = Input.IsShiftDown(InputScope.All);
-        var ctrl = Input.IsCtrlDown(InputScope.All);
-
-        if (node is SpriteLayer layer)
-        {
-            // Layer selection is mutually exclusive with path selection
-            if (ctrl)
-            {
-                // Ctrl+click: toggle this layer (but keep at least one selected)
-                if (layer.IsSelected)
-                {
-                    if (_selectedLayers.Count > 1)
-                        layer.IsSelected = false;
-                }
-                else
-                {
-                    Document.RootLayer.ClearSelection();
-                    layer.IsSelected = true;
-                }
-            }
-            else if (shift)
-            {
-                // Shift+click: add layer, deselect all paths
-                Document.RootLayer.ClearSelection();
-                layer.IsSelected = true;
-            }
-            else
-            {
-                // Plain click: clear everything, select this layer
-                Document.RootLayer.ClearSelection();
-                Document.RootLayer.ClearLayerSelections();
-                layer.IsSelected = true;
-            }
-
-            RebuildSelectedPaths();
-            return;
-        }
-
-        if (node is SpritePath path)
-        {
-            // Path selection is mutually exclusive with layer selection
-            Document.RootLayer.ClearLayerSelections();
-
-            if (ctrl)
-            {
-                // Ctrl+click: toggle this path's selection (but keep at least one selected)
-                if (path.IsSelected)
-                {
-                    if (_selectedPaths.Count > 1)
-                        path.DeselectPath();
-                }
-                else
-                    path.SelectPath();
-            }
-            else if (shift)
-            {
-                // Shift+click: add to selection
-                path.SelectPath();
-            }
-            else
-            {
-                // Plain click: clear all, select this path
-                Document.RootLayer.ClearSelection();
-                path.SelectPath();
-            }
-
-            RebuildSelectedPaths();
-        }
-    }
-
-    private void AddLayer()
-    {
-        Undo.Record(Document);
-        var name = $"Layer {Document.RootLayer.Children.Count + 1}";
-        var layer = new SpriteLayer { Name = name };
-        Document.RootLayer.Add(layer);
-        MarkDirty();
-    }
+    #endregion
 
     #region Rename
 
-    private void BeginRename()
+    protected void BeginRename(SpriteNode node)
     {
-        // Layer and path selection are mutually exclusive; when a layer is selected,
-        // _selectedPaths contains its child paths for bounds, so check them separately.
-        SpriteNode node;
-        if (HasLayerSelection)
-        {
-            if (_selectedLayers.Count != 1) return;
-            node = _selectedLayers[0];
-        }
-        else
-        {
-            if (_selectedPaths.Count != 1) return;
-            node = _selectedPaths[0];
-        }
-
         _renameNode = node;
         _renameText = node.Name ?? "";
         UI.SetHot(WidgetIds.OutlinerRename);
@@ -703,7 +548,7 @@ public partial class SpriteEditor
         {
             Undo.Record(Document);
             _renameNode.Name = _renameText;
-            MarkDirty();
+            OnOutlinerChanged();
         }
         _renameNode = null;
     }
