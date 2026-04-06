@@ -151,6 +151,17 @@ public partial class PixelSpriteEditor
     {
         Undo.Record(Document);
         Document.ConstrainedSize = size;
+
+        if (size.HasValue)
+        {
+            var newCanvas = new Vector2Int(
+                Math.Max(Document.CanvasSize.X, size.Value.X),
+                Math.Max(Document.CanvasSize.Y, size.Value.Y));
+            ResizeCanvas(newCanvas);
+        }
+
+        Document.UpdateBounds();
+        InvalidateComposite();
         EditorUI.ClosePopup();
     }
 

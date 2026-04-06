@@ -18,7 +18,7 @@ public class Sprite : Asset, IImage
     float IImage.ImageWidth => Bounds.Width;
     float IImage.ImageHeight => Bounds.Height;
 
-    public const ushort Version = 11;
+    public const ushort Version = 12;
     public const int MaxFrames = 64;
 
     public RectInt Bounds { get; private set; }
@@ -33,6 +33,7 @@ public class Sprite : Asset, IImage
     public EdgeInsets Edges { get; private set; } = EdgeInsets.Zero;
     public ushort SliceMask { get; private set; }
     public ushort SortOrder { get; private set; }
+    public TextureFilter Filter { get; private set; } = TextureFilter.Linear;
     public bool IsSliced => SliceMask != 0;
     public Rect UV => Frames.Length > 0 ? Frames[0].UV : Rect.Zero;
     public Texture? Atlas { get; set; }
@@ -64,7 +65,8 @@ public class Sprite : Asset, IImage
         EdgeInsets edges = default,
         ushort sliceMask = 0,
         int atlasIndex = 0,
-        Texture? atlas = null)
+        Texture? atlas = null,
+        TextureFilter filter = TextureFilter.Linear)
     {
         return new Sprite(name)
         {
@@ -79,6 +81,7 @@ public class Sprite : Asset, IImage
             Frames = frames,
             Edges = edges,
             SliceMask = sliceMask,
+            Filter = filter,
         };
     }
 
@@ -122,6 +125,11 @@ public class Sprite : Asset, IImage
                 new Vector2Int(sizeX, sizeY));
         }
 
+        // Filter (added in v12)
+        var filter = TextureFilter.Linear;
+        if (reader.BaseStream.Position < reader.BaseStream.Length)
+            filter = (TextureFilter)reader.ReadByte();
+
         Bounds = RectInt.FromMinMax(l, t, r, b);
         FrameCount = frameCount;
         AtlasIndex = atlasIndex;
@@ -133,7 +141,7 @@ public class Sprite : Asset, IImage
         Edges = edges;
         SliceMask = sliceMask;
         SortOrder = sortOrder;
-
+        Filter = filter;
     }
 
     private static Asset Load(Stream stream, string name)

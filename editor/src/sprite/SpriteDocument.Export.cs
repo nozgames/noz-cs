@@ -228,6 +228,9 @@ public partial class SpriteDocument
             var uv = GetAtlasUV(frameIndex);
             WriteMesh(writer, uv, RasterBounds);
         }
+
+        // Texture filter (v12)
+        writer.Write((byte)(SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear));
     }
 
     private static void WriteMesh(BinaryWriter writer, Rect uv, RectInt bounds)
@@ -244,8 +247,11 @@ public partial class SpriteDocument
 
     private void RasterizePixelLayers(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
-        var w = CanvasSize.X;
-        var h = CanvasSize.Y;
+        // Use trimmed RasterBounds for atlas packing
+        var srcX = RasterBounds.X + CanvasSize.X / 2;
+        var srcY = RasterBounds.Y + CanvasSize.Y / 2;
+        var w = RasterBounds.Width;
+        var h = RasterBounds.Height;
         var padding2 = padding * 2;
 
         var rasterRect = new RectInt(
@@ -261,7 +267,7 @@ public partial class SpriteDocument
             {
                 for (var x = 0; x < w; x++)
                 {
-                    var src = layer.Pixels[x, y];
+                    var src = layer.Pixels[srcX + x, srcY + y];
                     if (src.A == 0) continue;
 
                     var dx = rasterRect.X + x;

@@ -53,7 +53,7 @@ public class PixelEyeDropperMode : EditorMode<PixelSpriteEditor>
         var pixel = Editor.WorldToPixel(Workspace.MouseWorldPosition);
         if (!Editor.IsPixelInBounds(pixel)) return;
 
-        var bounds = Editor.Document.Bounds;
+        var bounds = Editor.CanvasRect;
         var cellW = bounds.Width / Editor.Document.CanvasSize.X;
         var cellH = bounds.Height / Editor.Document.CanvasSize.Y;
         var pixelRect = new Rect(

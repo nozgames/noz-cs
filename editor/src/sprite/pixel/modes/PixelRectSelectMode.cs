@@ -89,7 +89,7 @@ public class PixelRectSelectMode : EditorMode<PixelSpriteEditor>
         var x1 = Math.Max(start.X, end.X) + 1;
         var y1 = Math.Max(start.Y, end.Y) + 1;
 
-        var bounds = Editor.Document.Bounds;
+        var bounds = Editor.CanvasRect;
         var cellW = bounds.Width / Editor.Document.CanvasSize.X;
         var cellH = bounds.Height / Editor.Document.CanvasSize.Y;
 

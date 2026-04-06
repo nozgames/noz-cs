@@ -343,6 +343,39 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             SortOrder = def.SortOrder;
     }
 
+    public RectInt? ComputeContentBounds()
+    {
+        if (SpriteMode != SpriteType.Raster) return null;
+
+        var w = CanvasSize.X;
+        var h = CanvasSize.Y;
+        var minX = w;
+        var minY = h;
+        var maxX = 0;
+        var maxY = 0;
+
+        foreach (var child in RootLayer.Children)
+        {
+            if (child is not SpriteLayer layer || !layer.Visible || layer.Pixels == null)
+                continue;
+
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    if (layer.Pixels[x, y].A == 0) continue;
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x >= maxX) maxX = x + 1;
+                    if (y >= maxY) maxY = y + 1;
+                }
+            }
+        }
+
+        if (minX >= maxX) return null;
+        return new RectInt(minX, minY, maxX - minX, maxY - minY);
+    }
+
     public void UpdateBounds()
     {
         if (!IsMutable)
@@ -356,10 +389,41 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             const int ppu = 32;
             var w = CanvasSize.X;
             var h = CanvasSize.Y;
-            RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
-            var fw = w / (float)ppu;
-            var fh = h / (float)ppu;
-            Bounds = new Rect(-fw / 2, -fh / 2, fw, fh);
+
+            var contentBounds = ComputeContentBounds();
+            if (contentBounds.HasValue)
+            {
+                var cb = contentBounds.Value;
+                RasterBounds = new RectInt(
+                    cb.X - w / 2,
+                    cb.Y - h / 2,
+                    cb.Width,
+                    cb.Height);
+            }
+            else
+            {
+                RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
+            }
+
+            if (ConstrainedSize.HasValue)
+            {
+                var cs = ConstrainedSize.Value;
+                var fw = cs.X / (float)ppu;
+                var fh = cs.Y / (float)ppu;
+                Bounds = new Rect(-fw / 2, -fh / 2, fw, fh);
+            }
+            else
+            {
+                // Auto: bounds match the trimmed content (or full canvas if empty)
+                var fw = RasterBounds.Width / (float)ppu;
+                var fh = RasterBounds.Height / (float)ppu;
+                Bounds = new Rect(
+                    RasterBounds.X / (float)ppu,
+                    RasterBounds.Y / (float)ppu,
+                    fw, fh);
+            }
+
+            MarkSpriteDirty();
             return;
         }
 
@@ -811,7 +875,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             edges: Edges,
             sliceMask: Sprite.CalculateSliceMask(RasterBounds, Edges),
             atlasIndex: Atlas?.Index ?? 0,
-            atlas: AtlasManager.TextureArray);
+            atlas: AtlasManager.TextureArray,
+            filter: SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
     }
 
     internal void MarkSpriteDirty()

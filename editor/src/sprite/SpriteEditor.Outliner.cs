@@ -603,10 +603,11 @@ public partial class SpriteEditor
             // Layer selection is mutually exclusive with path selection
             if (ctrl)
             {
-                // Ctrl+click: toggle this layer
+                // Ctrl+click: toggle this layer (but keep at least one selected)
                 if (layer.IsSelected)
                 {
-                    layer.IsSelected = false;
+                    if (_selectedLayers.Count > 1)
+                        layer.IsSelected = false;
                 }
                 else
                 {
@@ -639,9 +640,12 @@ public partial class SpriteEditor
 
             if (ctrl)
             {
-                // Ctrl+click: toggle this path's selection
+                // Ctrl+click: toggle this path's selection (but keep at least one selected)
                 if (path.IsSelected)
-                    path.DeselectPath();
+                {
+                    if (_selectedPaths.Count > 1)
+                        path.DeselectPath();
+                }
                 else
                     path.SelectPath();
             }

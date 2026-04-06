@@ -10,7 +10,6 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
 {
     private Vector2Int _lastPixel = new(-1, -1);
     private bool _isDrawing;
-    private bool _isErasing;
 
     public override void Update()
     {
@@ -19,19 +18,13 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
         var mouseWorld = Workspace.MouseWorldPosition;
         var pixel = Editor.WorldToPixel(mouseWorld);
 
-        // Left mouse = draw, Right mouse = erase
         if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
-            BeginStroke(pixel, erase: false);
+            BeginStroke(pixel);
         }
-        else if (Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
+        else if (_isDrawing)
         {
-            BeginStroke(pixel, erase: true);
-        }
-        else if (_isDrawing || _isErasing)
-        {
-            if ((_isDrawing && Input.IsButtonDown(InputCode.MouseLeft, InputScope.All)) ||
-                (_isErasing && Input.IsButtonDown(InputCode.MouseRight, InputScope.All)))
+            if (Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
             {
                 ContinueStroke(pixel);
             }
@@ -42,14 +35,13 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
         }
     }
 
-    private void BeginStroke(Vector2Int pixel, bool erase)
+    private void BeginStroke(Vector2Int pixel)
     {
         var layer = Editor.ActiveLayer;
         if (layer == null || layer.Pixels == null || layer.Locked) return;
 
         Undo.Record(Editor.Document);
-        _isDrawing = !erase;
-        _isErasing = erase;
+        _isDrawing = true;
         _lastPixel = pixel;
         PaintPixel(pixel);
     }
@@ -66,15 +58,13 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
     private void EndStroke()
     {
         _isDrawing = false;
-        _isErasing = false;
         _lastPixel = new Vector2Int(-1, -1);
     }
 
     private void PaintPixel(Vector2Int pixel)
     {
         if (!Editor.IsPixelInBounds(pixel)) return;
-        var color = _isErasing ? default(Color32) : Editor.BrushColor;
-        Editor.PaintBrush(pixel, color);
+        Editor.PaintBrush(pixel, Editor.BrushColor);
     }
 
     private void DrawLine(Vector2Int from, Vector2Int to)

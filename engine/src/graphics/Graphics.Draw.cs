@@ -144,6 +144,7 @@ public static partial class Graphics
         var p3 = new Vector2(bounds.Left, bounds.Bottom);
         var uv = sf.UV;
 
+        SetTextureFilter(sprite.Filter);
         SetTexture(sprite.Atlas!);
 
         Span<MeshVertex> verts =
@@ -170,6 +171,7 @@ public static partial class Graphics
         var p2 = new Vector2(meshBounds.Right, meshBounds.Bottom);
         var p3 = new Vector2(meshBounds.Left, meshBounds.Bottom);
 
+        SetTextureFilter(sprite.Filter);
         SetTexture(sprite.Atlas!);
 
         Span<MeshVertex> verts =
@@ -202,6 +204,7 @@ public static partial class Graphics
         var p3 = new Vector2(bounds.Left, bounds.Bottom);
         var uv = sf.UV;
 
+        SetTextureFilter(sprite.Filter);
         SetTexture(sprite.Atlas!);
 
         Span<MeshVertex> verts =
@@ -333,8 +336,8 @@ public static partial class Graphics
 
         using (PushState())
         {
+            SetTextureFilter(sprite.Filter);
             SetTexture(sprite.Atlas!);
-
 
             for (int row = 0; row < 3; row++)
             {

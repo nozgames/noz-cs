@@ -157,7 +157,7 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
     {
         if (_floating == null) return;
 
-        var bounds = Editor.Document.Bounds;
+        var bounds = Editor.CanvasRect;
         var cellW = bounds.Width / Editor.Document.CanvasSize.X;
         var cellH = bounds.Height / Editor.Document.CanvasSize.Y;
 

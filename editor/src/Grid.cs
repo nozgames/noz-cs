@@ -10,10 +10,11 @@ public static class Grid
 {
     public static float SnapSpacing { get; private set; }
     public static bool IsPixelGridVisible { get; private set; }
-    
+    public static float? PixelsPerUnitOverride { get; set; }
+
     public static void Draw(Camera camera)
     {
-        var dpi = (float)EditorApplication.Config!.PixelsPerUnit;
+        var dpi = PixelsPerUnitOverride ?? (float)EditorApplication.Config!.PixelsPerUnit;
         var pixelSize = 1.0f / dpi;
         var bounds = camera.WorldBounds;
         var worldWidth = bounds.Width;
@@ -184,7 +185,7 @@ public static class Grid
 
     public static Vector2 SnapToPixelGrid(Vector2 position)
     {
-        var ppu = (float)EditorApplication.Config!.PixelsPerUnit;
+        var ppu = PixelsPerUnitOverride ?? (float)EditorApplication.Config!.PixelsPerUnit;
         return new Vector2(
             MathF.Round(position.X * ppu) / ppu,
             MathF.Round(position.Y * ppu) / ppu

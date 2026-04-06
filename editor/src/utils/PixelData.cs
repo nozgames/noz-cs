@@ -123,6 +123,32 @@ public sealed unsafe class PixelData<T> : IDisposable where T : unmanaged
     }
 }
 
+public static class PixelDataResize
+{
+    public static PixelData<T> Resized<T>(PixelData<T> source, Vector2Int newSize, Vector2Int offset) where T : unmanaged
+    {
+        var dst = new PixelData<T>(newSize);
+        var srcW = source.Width;
+        var srcH = source.Height;
+        var dstW = newSize.X;
+        var dstH = newSize.Y;
+
+        // Compute the overlapping region in source and destination coords
+        var srcX0 = Math.Max(0, -offset.X);
+        var srcY0 = Math.Max(0, -offset.Y);
+        var dstX0 = Math.Max(0, offset.X);
+        var dstY0 = Math.Max(0, offset.Y);
+        var copyW = Math.Min(srcW - srcX0, dstW - dstX0);
+        var copyH = Math.Min(srcH - srcY0, dstH - dstY0);
+
+        for (var y = 0; y < copyH; y++)
+            for (var x = 0; x < copyW; x++)
+                dst[dstX0 + x, dstY0 + y] = source[srcX0 + x, srcY0 + y];
+
+        return dst;
+    }
+}
+
 public static class PixelDataExtensions
 {
     /// <summary>
