@@ -32,6 +32,7 @@ public unsafe partial class SDLPlatform : IPlatform
     private bool _isMouseInWindow = true;
     private bool _isMouseCaptured;
     private Action? _beforeQuit;
+    private int _activeTouchFingers;
 
     public bool IsMouseInWindow => _isMouseInWindow;
     public bool IsMouseCaptured => _isMouseCaptured;
@@ -350,6 +351,101 @@ public unsafe partial class SDLPlatform : IPlatform
 
                 if (code != InputCode.None)
                     OnEvent?.Invoke(PlatformEvent.GamepadAxisMove(code, value));
+                break;
+            }
+
+            // Touch (finger) events — SDL3 gives normalized 0..1 coordinates
+            case SDL_EventType.SDL_EVENT_FINGER_DOWN:
+            {
+                _activeTouchFingers++;
+                var pos = new Vector2(evt.tfinger.x * WindowSize.X, evt.tfinger.y * WindowSize.Y);
+                OnEvent?.Invoke(PlatformEvent.TouchDown((long)evt.tfinger.fingerID, pos, evt.tfinger.pressure));
+
+                // First finger also drives mouse for UI button taps
+                if (_activeTouchFingers == 1)
+                {
+                    OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
+                    OnEvent?.Invoke(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                }
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_FINGER_UP:
+            {
+                var pos = new Vector2(evt.tfinger.x * WindowSize.X, evt.tfinger.y * WindowSize.Y);
+                // Emit mouse up before touch up so UI sees the click complete
+                if (_activeTouchFingers == 1)
+                {
+                    OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
+                    OnEvent?.Invoke(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                }
+                OnEvent?.Invoke(PlatformEvent.TouchUp((long)evt.tfinger.fingerID, pos));
+                _activeTouchFingers = Math.Max(0, _activeTouchFingers - 1);
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_FINGER_MOTION:
+            {
+                var pos = new Vector2(evt.tfinger.x * WindowSize.X, evt.tfinger.y * WindowSize.Y);
+                var delta = new Vector2(evt.tfinger.dx * WindowSize.X, evt.tfinger.dy * WindowSize.Y);
+                OnEvent?.Invoke(PlatformEvent.TouchMoveEvent((long)evt.tfinger.fingerID, pos, delta, evt.tfinger.pressure));
+
+                // Single finger drag also moves mouse position
+                if (_activeTouchFingers == 1)
+                    OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_FINGER_CANCELED:
+            {
+                _activeTouchFingers = Math.Max(0, _activeTouchFingers - 1);
+                OnEvent?.Invoke(PlatformEvent.TouchCancelEvent((long)evt.tfinger.fingerID));
+                break;
+            }
+
+            // Pinch gesture — SDL3 provides this natively
+            case SDL_EventType.SDL_EVENT_PINCH_BEGIN:
+            {
+                OnEvent?.Invoke(PlatformEvent.PinchBeginEvent());
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_PINCH_UPDATE:
+            {
+                OnEvent?.Invoke(PlatformEvent.PinchUpdateEvent(evt.pinch.scale));
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_PINCH_END:
+            {
+                OnEvent?.Invoke(PlatformEvent.PinchEndEvent());
+                break;
+            }
+
+            // Pen (Apple Pencil / stylus) events — pen acts as a precise mouse
+            case SDL_EventType.SDL_EVENT_PEN_DOWN:
+            {
+                var pos = new Vector2(evt.ptouch.x, evt.ptouch.y);
+                OnEvent?.Invoke(PlatformEvent.PenDownEvent(pos, 0f, evt.ptouch.eraser));
+                OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
+                OnEvent?.Invoke(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_PEN_UP:
+            {
+                var pos = new Vector2(evt.ptouch.x, evt.ptouch.y);
+                OnEvent?.Invoke(PlatformEvent.PenUpEvent(pos));
+                OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
+                OnEvent?.Invoke(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                break;
+            }
+
+            case SDL_EventType.SDL_EVENT_PEN_MOTION:
+            {
+                var pos = new Vector2(evt.pmotion.x, evt.pmotion.y);
+                OnEvent?.Invoke(PlatformEvent.PenMoveEvent(pos, 0f));
+                OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
                 break;
             }
 

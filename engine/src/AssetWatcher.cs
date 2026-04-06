@@ -15,6 +15,9 @@ internal static class AssetWatcher
 
     internal static void Init()
     {
+        if (OperatingSystem.IsIOS())
+            return;
+
         var path = Application.AssetPath;
         if (!Directory.Exists(path))
             return;

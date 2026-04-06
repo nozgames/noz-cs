@@ -89,6 +89,7 @@ public static class Application
 
         // Subscribe to platform events
         Platform.OnEvent += Input.ProcessEvent;
+        Platform.OnEvent += Touch.ProcessEvent;
         Platform.OnEvent += OnPlatformEvent;
 
         // Initialize subsystems
@@ -156,6 +157,7 @@ public static class Application
         Time.Update();
         Profiler.BeginFrame();
         Input.BeginFrame();
+        Touch.BeginFrame();
 
         if (!Platform.PollEvents())
         {
@@ -214,6 +216,7 @@ public static class Application
         Profiler.Shutdown();
 
         Platform.OnEvent -= Input.ProcessEvent;
+        Platform.OnEvent -= Touch.ProcessEvent;
         Platform.OnEvent -= OnPlatformEvent;
         Platform.SetResizeCallback(null);
         Platform.Shutdown();
@@ -253,6 +256,7 @@ public static class Application
         // that shouldn't increment the frame count or affect frame-gap detection
         // in UI canvas state management.
         Input.BeginFrame();
+        Touch.BeginFrame();
         Input.Update();
 
         if (!Graphics.BeginFrame())
