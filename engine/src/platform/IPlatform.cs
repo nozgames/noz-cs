@@ -30,6 +30,11 @@ public interface IPlatform
 
     void SwapBuffers();
 
+    void RunLoop(Func<bool> frameCallback)
+    {
+        while (frameCallback()) { }
+    }
+
     Vector2Int WindowSize { get; }
     Vector2Int WindowPosition { get; }
 

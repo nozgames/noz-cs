@@ -139,10 +139,13 @@ public static class Application
 
     public static void Run()
     {
-        while (RunFrame())
+        Platform.RunLoop(static () =>
         {
+            if (!RunFrame())
+                return false;
             Platform.SwapBuffers();
-        }
+            return true;
+        });
     }
 
     public static bool RunFrame()

@@ -21,6 +21,11 @@
     <EmbeddedResource Include="..\..\library\**\*" LinkBase="assets.library" Visible="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Microsoft.iOS" />
+    <TrimmerRootAssembly Include="Clipper2Lib" />
+  </ItemGroup>
+
   <!-- wgpu-native static library — device build -->
   <ItemGroup Condition="!$(RuntimeIdentifier.Contains('simulator'))">
     <NativeReference Include="..\..\..\platform\ios\libs\device\libwgpu_native.a">

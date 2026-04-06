@@ -11,7 +11,18 @@ namespace NoZ.Platform;
 
 public unsafe partial class SDLPlatform : IPlatform
 {
+    [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    private static extern nint objc_msgSend_retIntPtr(nint receiver, nint selector);
+
+    [DllImport("/usr/lib/libobjc.A.dylib", EntryPoint = "objc_msgSend")]
+    private static extern void objc_msgSend_void(nint receiver, nint selector);
+
+    [DllImport("/usr/lib/libobjc.A.dylib")]
+    private static extern nint sel_registerName(string name);
+
     private SDL_Window* _window;
+    private nint _metalView;
+    private nint _metalLayer;
     private Action? _resizeCallback;
     private static SDLPlatform? _instance;
 
@@ -83,6 +94,11 @@ public unsafe partial class SDLPlatform : IPlatform
             windowFlags |= SDL_WindowFlags.SDL_WINDOW_METAL;
         }
 
+        if (OperatingSystem.IsIOS())
+        {
+            windowFlags |= SDL_WindowFlags.SDL_WINDOW_FULLSCREEN | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY;
+        }
+
         _window = SDL_CreateWindow(config.Title, config.Width, config.Height, windowFlags);
         if (_window == null)
         {
@@ -102,7 +118,17 @@ public unsafe partial class SDLPlatform : IPlatform
         SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
         SDL_SetHint(SDL_HINT_MOUSE_DOUBLE_CLICK_RADIUS, "4");  // Windows default ~4px
 
-        WindowSize = new Vector2Int(config.Width, config.Height);
+        // On iOS the window is always fullscreen — query the actual size
+        if (OperatingSystem.IsIOS())
+        {
+            int w, h;
+            SDL_GetWindowSizeInPixels(_window, &w, &h);
+            WindowSize = new Vector2Int(w, h);
+        }
+        else
+        {
+            WindowSize = new Vector2Int(config.Width, config.Height);
+        }
 
         _instance = this;
         SDL_AddEventWatch(&ResizeEventWatch, nint.Zero);
@@ -115,7 +141,8 @@ public unsafe partial class SDLPlatform : IPlatform
         if (joysticks != null && count > 0)
             _gamepad = SDL_OpenGamepad(joysticks[0]);
         SDL_free(joysticks);
-        SDL_StartTextInput(_window);
+        if (!OperatingSystem.IsIOS())
+            SDL_StartTextInput(_window);
 
         _beforeQuit = config.BeforeQuit;
     }
@@ -135,8 +162,10 @@ public unsafe partial class SDLPlatform : IPlatform
         {
             if (evt->Type == SDL_EventType.SDL_EVENT_WINDOW_RESIZED)
             {
-                _instance.WindowSize = new Vector2Int(evt->window.data1, evt->window.data2);
-                _instance.OnEvent?.Invoke(PlatformEvent.Resize(evt->window.data1, evt->window.data2));
+                int w, h;
+                SDL_GetWindowSizeInPixels(_instance._window, &w, &h);
+                _instance.WindowSize = new Vector2Int(w, h);
+                _instance.OnEvent?.Invoke(PlatformEvent.Resize(w, h));
             }
 
             _instance._resizeCallback?.Invoke();
@@ -197,6 +226,25 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public void SwapBuffers()
     {
+    }
+
+    private static Func<bool>? _frameCallback;
+
+    /// Set by iOSPlatformSetup to wire up a CADisplayLink for the frame loop.
+    public static Action<Action>? SetupDisplayLink { get; set; }
+
+    public void RunLoop(Func<bool> frameCallback)
+    {
+        if (OperatingSystem.IsIOS() && SetupDisplayLink != null)
+        {
+            _frameCallback = frameCallback;
+            SetupDisplayLink(() => _frameCallback?.Invoke());
+            // UIApplication.Main owns the run loop on iOS — just return.
+        }
+        else
+        {
+            while (frameCallback()) { }
+        }
     }
 
     private void ProcessEvent(SDL_Event evt)
@@ -306,9 +354,15 @@ public unsafe partial class SDLPlatform : IPlatform
             }
 
             case SDL_EventType.SDL_EVENT_WINDOW_RESIZED:
-                WindowSize = new Vector2Int(evt.window.data1, evt.window.data2);                
-                OnEvent?.Invoke(PlatformEvent.Resize(evt.window.data1, evt.window.data2));
+            {
+                // On iOS, evt.window.data1/data2 are in points — we need pixels for the surface.
+                int rw = evt.window.data1, rh = evt.window.data2;
+                if (OperatingSystem.IsIOS())
+                    SDL_GetWindowSizeInPixels(_window, &rw, &rh);
+                WindowSize = new Vector2Int(rw, rh);
+                OnEvent?.Invoke(PlatformEvent.Resize(rw, rh));
                 break;
+            }
 
             case SDL_EventType.SDL_EVENT_WINDOW_MOUSE_ENTER:
                 _isMouseInWindow = true;
@@ -548,7 +602,17 @@ public unsafe partial class SDLPlatform : IPlatform
                 return (nint)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nint.Zero);
 
             if (OperatingSystem.IsIOS())
-                return (nint)SDL_GetPointerProperty(props, "SDL.window.uikit.metal_view_layer"u8, nint.Zero);
+            {
+                if (_metalLayer == nint.Zero)
+                {
+                    _metalView = (nint)SDL_Metal_CreateView(_window);
+                    _metalLayer = SDL_Metal_GetLayer(_metalView);
+
+                    var sdlWin = (nint)SDL_GetPointerProperty(props, "SDL.window.uikit.window"u8, nint.Zero);
+                    objc_msgSend_void(sdlWin, sel_registerName("makeKeyAndVisible"));
+                }
+                return _metalLayer;
+            }
 
             if (OperatingSystem.IsMacOS())
                 return (nint)SDL_GetPointerProperty(props, "SDL.window.cocoa.metal_view_layer"u8, nint.Zero);

@@ -112,6 +112,43 @@ public static partial class EditorApplication
         if ((exportOnly || initProject || config.Store != null) && OperatingSystem.IsWindows())
             AttachConsole(-1);
 
+        // On iOS, skip filesystem walk — assets are embedded resources and
+        // the store (GitStore) provides all project files.
+        if (OperatingSystem.IsIOS())
+        {
+            var iosPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "NoZEditor");
+            Directory.CreateDirectory(iosPath);
+            Init(iosPath, projectArg ?? iosPath, clean, config);
+            Application.Init(new ApplicationConfig
+            {
+                Title = config.Title,
+                Width = 1920,
+                Height = 1080,
+                Platform = new SDLPlatform(),
+                AudioBackend = new SDLAudioDriver(),
+                Vtable = new EditorApplicationInstance(),
+                AssetPath = Path.Combine(iosPath, "library"),
+                ResourceAssembly = config.ResourceAssembly,
+                UI = new UIConfig()
+                {
+                    DefaultFont = EditorAssets.Names.Seguisb,
+                    ScaleMode = UIScaleMode.ScaleWithScreenSize,
+                    ReferenceResolution = new(1920, 1080),
+                    ScreenMatchMode = ScreenMatchMode.MatchWidthOrHeight,
+                    MatchWidthOrHeight = 0.5f
+                },
+                Graphics = new GraphicsConfig
+                {
+                    Driver = new WebGPUGraphicsDriver(),
+                    PixelsPerUnit = Config?.PixelsPerUnit ?? 256,
+                    Vsync = true,
+                    HDR = true
+                }
+            });
+            Application.Run();
+            return;
+        }
+
         // Resolve editor path: use --editor-path if provided, otherwise walk up from app base directory
         string? editorPath = null;
         if (editorPathArg != null)
@@ -276,6 +313,11 @@ public static partial class EditorApplication
         });
 
         Application.Run();
+
+        // On iOS, Run() returns immediately — CADisplayLink drives frames.
+        // Shutdown will be called when the app terminates.
+        if (OperatingSystem.IsIOS())
+            return;
 
         Shutdown();
         Application.Shutdown();
