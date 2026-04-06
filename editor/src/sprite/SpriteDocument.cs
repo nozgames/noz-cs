@@ -45,7 +45,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public PixelData<byte>? SelectionMask { get; set; }
 
     // Layer-based model
-    public SpriteLayer RootLayer { get; } = new() { Name = "Root" };
+    public SpriteGroup Root { get; } = new() { Name = "Root" };
     public List<SpriteAnimFrame> AnimFrames { get; } = new();
 
     private readonly List<Rect> _atlasUV = new();
@@ -217,16 +217,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             LoadStaticImage();
         }
 
-        // Ensure raster layers have pixel data allocated
-        if (SpriteMode == SpriteType.Raster)
-        {
-            RootLayer.ForEach((SpriteLayer layer) =>
-            {
-                if (layer != RootLayer && layer.Pixels == null)
-                    layer.Pixels = new PixelData<Color32>(CanvasSize.X, CanvasSize.Y);
-            });
-        }
-
         UpdateBounds();
         Loaded = true;
     }
@@ -306,21 +296,11 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         Skeleton.Clear();
         BoneName = null;
         ReloadGeneration();
-        RootLayer.Clear();
+        Root.Clear();
         AnimFrames.Clear();
         var contents = EditorApplication.Store.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
-
-        // Ensure raster layers have pixel data allocated
-        if (SpriteMode == SpriteType.Raster)
-        {
-            RootLayer.ForEach((SpriteLayer layer) =>
-            {
-                if (layer != RootLayer && layer.Pixels == null)
-                    layer.Pixels = new PixelData<Color32>(CanvasSize.X, CanvasSize.Y);
-            });
-        }
 
         Skeleton.Resolve();
         ResolveGeneration();
@@ -354,9 +334,9 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         var maxX = 0;
         var maxY = 0;
 
-        foreach (var child in RootLayer.Children)
+        foreach (var child in Root.Children)
         {
-            if (child is not SpriteLayer layer || !layer.Visible || layer.Pixels == null)
+            if (child is not PixelLayer layer || !layer.Visible || layer.Pixels == null)
                 continue;
 
             for (var y = 0; y < h; y++)
@@ -428,7 +408,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         }
 
         _visiblePathsCache.Clear();
-        RootLayer.CollectVisiblePaths(_visiblePathsCache);
+        Root.CollectVisiblePaths(_visiblePathsCache);
 
         if (_visiblePathsCache.Count == 0)
         {
@@ -715,13 +695,13 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         }
 
         // Clone layer model
-        RootLayer.Clear();
-        foreach (var child in src.RootLayer.Children)
-            RootLayer.Add(child.Clone());
+        Root.Clear();
+        foreach (var child in src.Root.Children)
+            Root.Add(child.Clone());
 
         AnimFrames.Clear();
         foreach (var frame in src.AnimFrames)
-            AnimFrames.Add(frame.Clone(src.RootLayer, RootLayer));
+            AnimFrames.Add(frame.Clone(src.Root, Root));
 
         CloneGeneration(src);
     }

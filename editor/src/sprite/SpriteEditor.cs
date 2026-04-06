@@ -13,9 +13,8 @@ public abstract partial class SpriteEditor(SpriteDocument document) : DocumentEd
     protected abstract void OnNodeClicked(SpriteNode node);
     protected abstract void OnOutlinerChanged();
     protected virtual void OnVisibilityChanged(SpriteNode node) { }
-    protected virtual bool IsNodeExpandable(SpriteNode node) => node is SpriteLayer && node.Children.Count > 0;
-    protected virtual string GetNodeFallbackName(SpriteNode node) => node is SpriteLayer ? "Group" : "Path";
-    protected virtual Sprite GetNodeIcon(SpriteNode node) => node is SpriteLayer
+protected virtual string GetNodeFallbackName(SpriteNode node) => node is SpriteGroup ? "Group" : "Path";
+    protected virtual Sprite GetNodeIcon(SpriteNode node) => node is SpriteGroup
         ? EditorAssets.Sprites.IconPathLayer
         : EditorAssets.Sprites.IconPath;
     protected virtual bool ReverseChildren => false;

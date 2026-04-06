@@ -13,15 +13,15 @@ public partial class SpriteDocument
 {
     private void Load(ref Tokenizer tk)
     {
-        RootLayer.Clear();
+        Root.Clear();
         AnimFrames.Clear();
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectIdentifier("layer"))
-                ParseLayer(ref tk, RootLayer);
+                ParseLayer(ref tk, Root);
             else if (tk.ExpectIdentifier("path"))
-                ParsePath(ref tk, RootLayer);
+                ParsePath(ref tk, Root);
             else if (tk.ExpectIdentifier("frame"))
                 ParseAnimFrame(ref tk);
             else if (tk.ExpectIdentifier("edges"))
@@ -58,33 +58,34 @@ public partial class SpriteDocument
 
     }
 
-    private void ParseLayer(ref Tokenizer tk, SpriteLayer parent)
+    private void ParseLayer(ref Tokenizer tk, SpriteGroup parent)
     {
         var name = tk.ExpectQuotedString() ?? "";
         tk.ExpectDelimiter('{');
 
-        var layer = new SpriteLayer { Name = name };
+        // Parse into a temporary group; if we find pixels, we'll create a PixelLayer instead
+        var group = new SpriteGroup { Name = name };
+        PixelData<Color32>? pixels = null;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectDelimiter('}'))
                 break;
             else if (tk.ExpectIdentifier("layer"))
-                ParseLayer(ref tk, layer);
+                ParseLayer(ref tk, group);
             else if (tk.ExpectIdentifier("path"))
-                ParsePath(ref tk, layer);
+                ParsePath(ref tk, group);
             else if (tk.ExpectIdentifier("pixels"))
             {
                 var base64 = tk.ExpectQuotedString();
                 if (base64 != null)
                 {
                     var bytes = Convert.FromBase64String(base64);
-                    var pixels = new PixelData<Color32>(CanvasSize.X, CanvasSize.Y);
+                    pixels = new PixelData<Color32>(CanvasSize.X, CanvasSize.Y);
                     var colors = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Color32>(bytes);
                     var count = Math.Min(colors.Length, CanvasSize.X * CanvasSize.Y);
                     for (var i = 0; i < count; i++)
                         pixels[i] = colors[i];
-                    layer.Pixels = pixels;
                 }
             }
             else
@@ -95,10 +96,22 @@ public partial class SpriteDocument
             }
         }
 
-        parent.Add(layer);
+        if (pixels != null)
+        {
+            // This is a pixel layer — create PixelLayer and migrate any children
+            var pixelLayer = new PixelLayer { Name = name, Pixels = pixels };
+            foreach (var child in group.Children)
+                pixelLayer.Add(child);
+            group.Clear();
+            parent.Add(pixelLayer);
+        }
+        else
+        {
+            parent.Add(group);
+        }
     }
 
-    private static void ParsePath(ref Tokenizer tk, SpriteLayer layer)
+    private static void ParsePath(ref Tokenizer tk, SpriteNode layer)
     {
         // Optional path name: path "name" { ... } or path { ... }
         string? pathName = null;
@@ -235,7 +248,7 @@ public partial class SpriteDocument
                     var name = tk.ExpectQuotedString();
                     if (name == null)
                         break;
-                    var layer = RootLayer.FindLayer(name);
+                    var layer = Root.FindGroup(name);
                     if (layer != null)
                         frame.VisibleLayers.Add(layer);
                     else
@@ -281,12 +294,14 @@ public partial class SpriteDocument
     {
         writer.WriteLine();
 
-        foreach (var child in RootLayer.Children)
+        foreach (var child in Root.Children)
         {
             if (child is SpritePath path)
                 SavePath(writer, path, 0);
-            else if (child is SpriteLayer layer)
-                SaveLayer(writer, layer, 0);
+            else if (child is PixelLayer pixelLayer)
+                SavePixelLayer(writer, pixelLayer, 0);
+            else if (child is SpriteGroup group)
+                SaveGroup(writer, group, 0);
         }
 
         if (AnimFrames.Count > 0)
@@ -376,7 +391,26 @@ public partial class SpriteDocument
         writer.WriteLine();
     }
 
-    private void SaveLayer(StreamWriter writer, SpriteLayer layer, int depth)
+    private void SaveGroup(StreamWriter writer, SpriteGroup group, int depth)
+    {
+        var indent = new string(' ', depth * 2);
+        writer.WriteLine($"{indent}layer \"{group.Name}\" {{");
+
+        foreach (var child in group.Children)
+        {
+            if (child is SpritePath path)
+                SavePath(writer, path, depth + 1);
+            else if (child is PixelLayer pixelLayer)
+                SavePixelLayer(writer, pixelLayer, depth + 1);
+            else if (child is SpriteGroup childGroup)
+                SaveGroup(writer, childGroup, depth + 1);
+        }
+
+        writer.WriteLine($"{indent}}}");
+        writer.WriteLine();
+    }
+
+    private static void SavePixelLayer(StreamWriter writer, PixelLayer layer, int depth)
     {
         var indent = new string(' ', depth * 2);
         var propIndent = new string(' ', (depth + 1) * 2);
@@ -387,14 +421,6 @@ public partial class SpriteDocument
             var bytes = layer.Pixels.AsByteSpan();
             var base64 = Convert.ToBase64String(bytes);
             writer.WriteLine($"{propIndent}pixels \"{base64}\"");
-        }
-
-        foreach (var child in layer.Children)
-        {
-            if (child is SpritePath path)
-                SavePath(writer, path, depth + 1);
-            else if (child is SpriteLayer childLayer)
-                SaveLayer(writer, childLayer, depth + 1);
         }
 
         writer.WriteLine($"{indent}}}");

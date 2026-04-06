@@ -89,7 +89,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
                     return;
 
                 // Drag anchor
-                var anchorHit = Editor.Document.RootLayer.HitTestAnchor(dragLocal, onlySelected: true);
+                var anchorHit = Editor.Document.Root.HitTestAnchor(dragLocal, onlySelected: true);
                 if (anchorHit.HasValue)
                 {
                     var hitPath = anchorHit.Value.Path;
@@ -98,7 +98,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
 
                     if (!hitPath.Contours[hitCi].Anchors[hitAi].IsSelected)
                     {
-                        Editor.Document.RootLayer.ClearAnchorSelections();
+                        Editor.Document.Root.ClearSelection();
                         hitPath.SetAnchorSelected(hitCi, hitAi, true);
                     }
 
@@ -110,7 +110,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
                 }
 
                 // Drag segment
-                var segHit = Editor.Document.RootLayer.HitTestSegment(dragLocal, onlySelected: true);
+                var segHit = Editor.Document.Root.HitTestSegment(dragLocal, onlySelected: true);
                 if (segHit.HasValue)
                 {
                     if (OnSegmentDragStart(segHit.Value.Path, segHit.Value.ContourIndex, segHit.Value.SegmentIndex, segHit.Value.Position))
@@ -150,7 +150,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
     private bool HandleAnchorClick(Vector2 localMousePos, bool shift)
     {
         _anchorHitResults.Clear();
-        Editor.Document.RootLayer.HitTestAnchor(localMousePos, _anchorHitResults, onlySelected: true);
+        Editor.Document.Root.HitTestAnchor(localMousePos, _anchorHitResults, onlySelected: true);
 
         foreach (var h in _anchorHitResults)
         {
@@ -160,7 +160,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
                     return true;
             }
 
-            if (!shift) Editor.Document.RootLayer.ClearAnchorSelections();
+            if (!shift) Editor.Document.Root.ClearSelection();
             h.Path.SetAnchorSelected(h.ContourIndex, h.AnchorIndex, true);
             Editor.RebuildSelectedPaths();
             return true;
@@ -182,7 +182,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
                 continue;
             }
 
-            Editor.Document.RootLayer.ClearAnchorSelections();
+            Editor.Document.Root.ClearSelection();
             h.Path.SetAnchorSelected(h.AnchorIndex, true);
             Editor.RebuildSelectedPaths();
             return true;
@@ -192,7 +192,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
         foreach (var h in _anchorHitResults)
         {
             if (!h.Path.IsSelected) continue;
-            Editor.Document.RootLayer.ClearAnchorSelections();
+            Editor.Document.Root.ClearSelection();
             h.Path.SetAnchorSelected(h.AnchorIndex, true);
             Editor.RebuildSelectedPaths();
             return true;
@@ -203,7 +203,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
 
     private bool HandleAltClickInsert(Vector2 localMousePos)
     {
-        var hit = Editor.Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
+        var hit = Editor.Document.Root.HitTestSegment(localMousePos, onlySelected: true);
         if (!hit.HasValue) return false;
 
         Undo.Record(Editor.Document);
@@ -224,7 +224,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
 
     private bool HandleAltDragInsert(Vector2 dragLocal)
     {
-        var segHit = Editor.Document.RootLayer.HitTestSegment(dragLocal, onlySelected: true);
+        var segHit = Editor.Document.Root.HitTestSegment(dragLocal, onlySelected: true);
         if (!segHit.HasValue) return false;
 
         Undo.Record(Editor.Document);

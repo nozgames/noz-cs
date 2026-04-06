@@ -24,11 +24,11 @@ public partial class PixelSpriteEditor : SpriteEditor
     public Color32 BrushColor { get; set; } = Color32.Black;
     public int BrushSize { get; set; } = 1;
 
-    private SpriteLayer? _activeLayer;
-    public SpriteLayer? ActiveLayer
+    private PixelLayer? _activeLayer;
+    public PixelLayer? ActiveLayer
     {
         get => _activeLayer;
-        set => _activeLayer = value?.Pixels != null ? value : _activeLayer;
+        set => _activeLayer = value is { Pixels: not null } ? value : _activeLayer;
     }
 
     public bool HasSelection => Document.SelectionMask != null;
@@ -39,6 +39,13 @@ public partial class PixelSpriteEditor : SpriteEditor
     private readonly int _versionOnOpen;
 
     private const float CanvasPPU = 32f;
+
+    private int GetMaxWorkingSize()
+    {
+        if (Document.ConstrainedSize.HasValue)
+            return Math.Max(Document.ConstrainedSize.Value.X, Document.ConstrainedSize.Value.Y);
+        return EditorApplication.Config.AtlasMaxSpriteSize;
+    }
 
     public Rect CanvasRect
     {
@@ -68,18 +75,21 @@ public partial class PixelSpriteEditor : SpriteEditor
             new Command("Select All", SelectAll, [new KeyBinding(InputCode.KeyA, ctrl: true)]),
             new Command("Deselect", ClearSelection, [new KeyBinding(InputCode.KeyD, ctrl: true)]),
             new Command("Invert Selection", InvertSelection, [new KeyBinding(InputCode.KeyI, ctrl: true, shift: true)]),
-            new Command("Delete", Delete, [InputCode.KeyX, InputCode.KeyDelete]),
+            new Command("Toggle Brush/Eraser", ToggleBrushEraser, [new KeyBinding(InputCode.KeyX)]),
+            new Command("Delete", Delete, [InputCode.KeyDelete]),
             new Command("Increase Brush", () => BrushSize = Math.Min(BrushSize + 1, 16), [InputCode.KeyRightBracket]),
             new Command("Decrease Brush", () => BrushSize = Math.Max(BrushSize - 1, 1), [InputCode.KeyLeftBracket]),
             new Command("Rename", BeginRename, [InputCode.KeyF2]),
         ];
 
         // Ensure at least one layer exists
-        if (Document.RootLayer.Children.Count == 0)
+        if (Document.Root.Children.Count == 0)
             AddLayer();
 
-        // Ensure all leaf layers have pixel data allocated
-        InitializeLayerPixels(Document.RootLayer);
+        // Expand canvas to max working size so the painter never hits a wall
+        var maxWork = GetMaxWorkingSize();
+        if (Document.CanvasSize.X < maxWork || Document.CanvasSize.Y < maxWork)
+            ResizeCanvas(new Vector2Int(maxWork, maxWork));
 
         ActiveLayer = FindFirstLayer();
         BrushSize = Document.PixelBrushSize;
@@ -88,43 +98,24 @@ public partial class PixelSpriteEditor : SpriteEditor
         SetMode(new PencilMode());
     }
 
-    private void InitializeLayerPixels(SpriteNode parent)
+    private PixelLayer? FindFirstLayer()
+    {
+        return FindFirstLeafLayer(Document.Root);
+    }
+
+    private static PixelLayer? FindFirstLeafLayer(SpriteNode parent)
     {
         foreach (var child in parent.Children)
         {
-            if (child is not SpriteLayer layer)
-                continue;
+            if (child is PixelLayer pixel)
+                return pixel;
 
-            if (layer.Children.Count > 0)
+            if (child is SpriteGroup group)
             {
-                // Group — recurse but don't allocate pixels
-                InitializeLayerPixels(layer);
+                var found = FindFirstLeafLayer(group);
+                if (found != null)
+                    return found;
             }
-            else if (layer.Pixels == null)
-            {
-                layer.Pixels = new PixelData<Color32>(Document.CanvasSize.X, Document.CanvasSize.Y);
-            }
-        }
-    }
-
-    private SpriteLayer? FindFirstLayer()
-    {
-        return FindFirstLeafLayer(Document.RootLayer);
-    }
-
-    private static SpriteLayer? FindFirstLeafLayer(SpriteNode parent)
-    {
-        foreach (var child in parent.Children)
-        {
-            if (child is not SpriteLayer layer)
-                continue;
-
-            if (layer.Pixels != null)
-                return layer;
-
-            var found = FindFirstLeafLayer(layer);
-            if (found != null)
-                return found;
         }
         return null;
     }
@@ -132,23 +123,23 @@ public partial class PixelSpriteEditor : SpriteEditor
     public void AddLayer()
     {
         Undo.Record(Document);
-        var layer = new SpriteLayer
+        var layer = new PixelLayer
         {
-            Name = $"Layer {Document.RootLayer.Children.Count + 1}",
+            Name = $"Layer {Document.Root.Children.Count + 1}",
             Pixels = new PixelData<Color32>(Document.CanvasSize.X, Document.CanvasSize.Y)
         };
-        Document.RootLayer.Add(layer);
+        Document.Root.Add(layer);
         ActiveLayer = layer;
     }
 
     public void AddGroup()
     {
         Undo.Record(Document);
-        var group = new SpriteLayer
+        var group = new SpriteGroup
         {
-            Name = $"Group {Document.RootLayer.Children.Count + 1}",
+            Name = $"Group {Document.Root.Children.Count + 1}",
         };
-        Document.RootLayer.Add(group);
+        Document.Root.Add(group);
     }
 
     public void DeleteActiveLayer()
@@ -156,39 +147,40 @@ public partial class PixelSpriteEditor : SpriteEditor
         if (_activeLayer == null) return;
 
         // Don't delete the last leaf layer
-        if (FindFirstLeafLayer(Document.RootLayer) == _activeLayer)
+        if (FindFirstLeafLayer(Document.Root) == _activeLayer)
         {
-            var other = FindNextLeafLayer(Document.RootLayer, _activeLayer);
+            var other = FindNextLeafLayer(Document.Root, _activeLayer);
             if (other == null) return;
         }
 
         Undo.Record(Document);
         var deleted = _activeLayer;
-        _activeLayer = FindNextLeafLayer(Document.RootLayer, deleted) ?? FindFirstLeafLayer(Document.RootLayer);
+        _activeLayer = FindNextLeafLayer(Document.Root, deleted) ?? FindFirstLeafLayer(Document.Root);
         deleted.RemoveFromParent();
         InvalidateComposite();
     }
 
-    private static SpriteLayer? FindNextLeafLayer(SpriteNode root, SpriteLayer skip)
+    private static PixelLayer? FindNextLeafLayer(SpriteNode root, PixelLayer skip)
     {
-        SpriteLayer? result = null;
+        PixelLayer? result = null;
         FindNextLeafLayerRecursive(root, skip, ref result);
         return result;
     }
 
-    private static void FindNextLeafLayerRecursive(SpriteNode parent, SpriteLayer skip, ref SpriteLayer? result)
+    private static void FindNextLeafLayerRecursive(SpriteNode parent, PixelLayer skip, ref PixelLayer? result)
     {
         foreach (var child in parent.Children)
         {
-            if (child is not SpriteLayer layer)
-                continue;
-            if (layer.Pixels != null && layer != skip)
+            if (child is PixelLayer pixel && pixel != skip)
             {
-                result = layer;
+                result = pixel;
                 return;
             }
-            FindNextLeafLayerRecursive(layer, skip, ref result);
-            if (result != null) return;
+            if (child is SpriteGroup group)
+            {
+                FindNextLeafLayerRecursive(group, skip, ref result);
+                if (result != null) return;
+            }
         }
     }
 
@@ -225,7 +217,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             if (FloatingToolbar.Button(WidgetIds.PencilButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is PencilMode))
                 SetMode(new PencilMode());
 
-            if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconDelete, isSelected: Mode is PixelEraserMode))
+            if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, isSelected: Mode is PixelEraserMode))
                 SetMode(new PixelEraserMode());
 
             FloatingToolbar.Divider();
@@ -257,7 +249,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         _compositePixels ??= new PixelData<Color32>(w, h);
         _compositePixels.Clear();
 
-        CompositeChildren(Document.RootLayer, w, h);
+        CompositeChildren(Document.Root, w, h);
 
         // Upload to GPU
         var data = _compositePixels.AsByteSpan();
@@ -271,14 +263,16 @@ public partial class PixelSpriteEditor : SpriteEditor
     {
         foreach (var child in parent.Children)
         {
-            if (child is not SpriteLayer layer || !layer.Visible)
-                continue;
+            if (!child.Visible) continue;
 
-            if (layer.Pixels == null)
+            if (child is SpriteGroup group)
             {
-                CompositeChildren(layer, w, h);
+                CompositeChildren(group, w, h);
                 continue;
             }
+
+            if (child is not PixelLayer layer)
+                continue;
 
             for (var y = 0; y < h; y++)
             {
@@ -323,6 +317,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetTextureFilter(TextureFilter.Point);
             Graphics.SetColor(Color.White);
+            Graphics.SetLayer(EditorLayer.DocumentEditor);
             Graphics.Draw(CanvasRect, order: Document.SortOrder);
         }
     }
@@ -392,6 +387,14 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     public bool IsPixelSelected(int x, int y) =>
         Document.SelectionMask == null || Document.SelectionMask[x, y] > 0;
+
+    private void ToggleBrushEraser()
+    {
+        if (Mode is PencilMode)
+            SetMode(new PixelEraserMode());
+        else
+            SetMode(new PencilMode());
+    }
 
     private void Delete()
     {
@@ -542,7 +545,7 @@ public partial class PixelSpriteEditor : SpriteEditor
 
         var offset = (newSize - Document.CanvasSize) / 2;
 
-        Document.RootLayer.ForEach((SpriteLayer layer) =>
+        Document.Root.ForEach((PixelLayer layer) =>
         {
             if (layer.Pixels != null)
             {
@@ -580,131 +583,6 @@ public partial class PixelSpriteEditor : SpriteEditor
         if (_activeLayer == null || _activeLayer.Pixels == null)
             _activeLayer = FindFirstLayer();
         base.OnUndoRedo();
-    }
-
-    public static bool IsInBrush(int dx, int dy, int brushSize)
-    {
-        if (brushSize <= 2) return true;
-        var center = (brushSize - 1) / 2.0f;
-        var distX = dx - center;
-        var distY = dy - center;
-        var radius = brushSize / 2.0f;
-        return distX * distX + distY * distY <= radius * radius;
-    }
-
-    public void PaintBrush(Vector2Int pixel, Color32 color)
-    {
-        var layer = ActiveLayer;
-        if (layer?.Pixels == null) return;
-
-        var offset = (BrushSize - 1) / 2;
-        for (var dy = 0; dy < BrushSize; dy++)
-            for (var dx = 0; dx < BrushSize; dx++)
-            {
-                if (!IsInBrush(dx, dy, BrushSize)) continue;
-                var px = pixel.X - offset + dx;
-                var py = pixel.Y - offset + dy;
-                if (!IsPixelInBounds(new Vector2Int(px, py))) continue;
-                if (!IsPixelSelected(px, py)) continue;
-                layer.Pixels.Set(px, py, color);
-            }
-        InvalidateComposite();
-    }
-
-    private struct BrushEdge
-    {
-        public Vector2 Start;
-        public Vector2 End;
-    }
-
-    private const int MaxBrushSize = 16;
-    private static readonly BrushEdge[]?[] _brushEdgeCache = new BrushEdge[MaxBrushSize + 1][];
-
-    private static BrushEdge[] GetBrushEdges(int brushSize)
-    {
-        var edges = _brushEdgeCache[brushSize];
-        if (edges != null) return edges;
-        edges = BuildBrushEdges(brushSize);
-        _brushEdgeCache[brushSize] = edges;
-        return edges;
-    }
-
-    private static BrushEdge[] BuildBrushEdges(int brushSize)
-    {
-        var list = new List<BrushEdge>();
-        for (var dy = 0; dy < brushSize; dy++)
-            for (var dx = 0; dx < brushSize; dx++)
-            {
-                if (!IsInBrush(dx, dy, brushSize)) continue;
-                float x0 = dx, y0 = dy, x1 = dx + 1, y1 = dy + 1;
-                if (!IsInBrushSafe(dx, dy - 1, brushSize))
-                    list.Add(new BrushEdge { Start = new Vector2(x0, y0), End = new Vector2(x1, y0) });
-                if (!IsInBrushSafe(dx, dy + 1, brushSize))
-                    list.Add(new BrushEdge { Start = new Vector2(x0, y1), End = new Vector2(x1, y1) });
-                if (!IsInBrushSafe(dx - 1, dy, brushSize))
-                    list.Add(new BrushEdge { Start = new Vector2(x0, y0), End = new Vector2(x0, y1) });
-                if (!IsInBrushSafe(dx + 1, dy, brushSize))
-                    list.Add(new BrushEdge { Start = new Vector2(x1, y0), End = new Vector2(x1, y1) });
-            }
-        return list.ToArray();
-
-        static bool IsInBrushSafe(int dx, int dy, int size) =>
-            dx >= 0 && dx < size && dy >= 0 && dy < size && IsInBrush(dx, dy, size);
-    }
-
-    public void DrawBrushOutline(Vector2Int pixel, Color color)
-    {
-        var edges = GetBrushEdges(BrushSize);
-        if (edges.Length == 0) return;
-
-        var canvas = CanvasRect;
-        var cellW = canvas.Width / Document.CanvasSize.X;
-        var cellH = canvas.Height / Document.CanvasSize.Y;
-        var brushOffset = (BrushSize - 1) / 2;
-        var originX = canvas.X + (pixel.X - brushOffset) * cellW;
-        var originY = canvas.Y + (pixel.Y - brushOffset) * cellH;
-        var halfWidth = EditorStyle.Workspace.DocumentBoundsLineWidth * Gizmos.ZoomRefScale;
-
-        var vertCount = edges.Length * 4;
-        var idxCount = edges.Length * 6;
-        Span<MeshVertex> verts = stackalloc MeshVertex[vertCount];
-        Span<ushort> indices = stackalloc ushort[idxCount];
-
-        for (var i = 0; i < edges.Length; i++)
-        {
-            ref var edge = ref edges[i];
-            var v0 = new Vector2(originX + edge.Start.X * cellW, originY + edge.Start.Y * cellH);
-            var v1 = new Vector2(originX + edge.End.X * cellW, originY + edge.End.Y * cellH);
-
-            var delta = v1 - v0;
-            var length = delta.Length();
-            var dir = delta / length;
-            var perp = new Vector2(-dir.Y, dir.X);
-            var start = v0 - dir * halfWidth;
-            var end = v1 + dir * halfWidth;
-
-            var vi = i * 4;
-            verts[vi + 0] = new MeshVertex(start.X - perp.X * halfWidth, start.Y - perp.Y * halfWidth, 0, 0, Color.White);
-            verts[vi + 1] = new MeshVertex(start.X + perp.X * halfWidth, start.Y + perp.Y * halfWidth, 1, 0, Color.White);
-            verts[vi + 2] = new MeshVertex(end.X + perp.X * halfWidth, end.Y + perp.Y * halfWidth, 1, 1, Color.White);
-            verts[vi + 3] = new MeshVertex(end.X - perp.X * halfWidth, end.Y - perp.Y * halfWidth, 0, 1, Color.White);
-
-            var ii = i * 6;
-            indices[ii + 0] = (ushort)(vi + 0);
-            indices[ii + 1] = (ushort)(vi + 1);
-            indices[ii + 2] = (ushort)(vi + 2);
-            indices[ii + 3] = (ushort)(vi + 2);
-            indices[ii + 4] = (ushort)(vi + 3);
-            indices[ii + 5] = (ushort)(vi + 0);
-        }
-
-        using (Gizmos.PushState(EditorLayer.Tool))
-        {
-            Graphics.SetTransform(Document.Transform);
-            Graphics.SetSortGroup(6);
-            Graphics.SetColor(color);
-            Graphics.Draw(verts, indices);
-        }
     }
 
     public override void Dispose()

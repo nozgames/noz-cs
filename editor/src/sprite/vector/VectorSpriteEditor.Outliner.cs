@@ -15,7 +15,7 @@ public partial class VectorSpriteEditor
     protected override bool ReverseChildren => false;
 
     protected override bool IsNodeSelected(SpriteNode node) =>
-        (node is SpriteLayer && node.IsSelected) ||
+        (node is SpriteGroup && node.IsSelected) ||
         (node is SpritePath sp && sp.IsSelected);
 
     protected override void OnNodeClicked(SpriteNode node) =>
@@ -26,24 +26,24 @@ public partial class VectorSpriteEditor
     protected override void OnVisibilityChanged(SpriteNode node)
     {
         var fi = CurrentFrameIndex;
-        if (fi < Document.AnimFrames.Count && node is SpriteLayer layer)
+        if (fi < Document.AnimFrames.Count && node is SpriteGroup layer)
             Document.AnimFrames[fi].SetLayerVisible(layer, node.Visible);
     }
 
     protected override string GetNodeFallbackName(SpriteNode node) =>
-        node is SpriteLayer ? "Group" : "Path";
+        node is SpriteGroup ? "Group" : "Path";
 
     protected override void OnNodeRightClicked(SpriteNode node, bool isHovered)
     {
-        var nodeIsAlreadySelected = (node is SpriteLayer sl && sl.IsSelected) ||
+        var nodeIsAlreadySelected = (node is SpriteGroup sl && sl.IsSelected) ||
                                     (node is SpritePath sp && sp.IsSelected);
         if (!nodeIsAlreadySelected)
         {
-            Document.RootLayer.ClearSelection();
-            Document.RootLayer.ClearLayerSelections();
+            Document.Root.ClearSelection();
+            Document.Root.ClearSelection();
             if (node is SpritePath p)
                 p.SelectPath();
-            else if (node is SpriteLayer l)
+            else if (node is SpriteGroup l)
                 l.IsSelected = true;
             RebuildSelectedPaths();
         }
@@ -92,7 +92,7 @@ public partial class VectorSpriteEditor
                     AddLayer();
             }
 
-            DrawNodeTree(Document.RootLayer);
+            DrawNodeTree(Document.Root);
         }
     }
 
@@ -101,31 +101,33 @@ public partial class VectorSpriteEditor
         var shift = Input.IsShiftDown(InputScope.All);
         var ctrl = Input.IsCtrlDown(InputScope.All);
 
-        if (node is SpriteLayer layer)
+        if (node is SpriteGroup group)
         {
+            // Group selection is mutually exclusive with path selection
             if (ctrl)
             {
-                if (layer.IsSelected)
+                if (group.IsSelected)
                 {
                     if (_selectedLayers.Count > 1)
-                        layer.IsSelected = false;
+                        group.IsSelected = false;
                 }
                 else
                 {
-                    Document.RootLayer.ClearSelection();
-                    layer.IsSelected = true;
+                    Document.Root.ClearSelection();
+                    group.IsSelected = true;
                 }
             }
             else if (shift)
             {
-                Document.RootLayer.ClearSelection();
-                layer.IsSelected = true;
+                // Clear paths but keep other group selections
+                foreach (var p in _selectedPaths)
+                    p.ClearSelection();
+                group.IsSelected = true;
             }
             else
             {
-                Document.RootLayer.ClearSelection();
-                Document.RootLayer.ClearLayerSelections();
-                layer.IsSelected = true;
+                Document.Root.ClearSelection();
+                group.IsSelected = true;
             }
 
             RebuildSelectedPaths();
@@ -134,7 +136,9 @@ public partial class VectorSpriteEditor
 
         if (node is SpritePath path)
         {
-            Document.RootLayer.ClearLayerSelections();
+            // Path selection is mutually exclusive with group selection
+            foreach (var g in _selectedLayers)
+                g.IsSelected = false;
 
             if (ctrl)
             {
@@ -152,7 +156,7 @@ public partial class VectorSpriteEditor
             }
             else
             {
-                Document.RootLayer.ClearSelection();
+                Document.Root.ClearSelection();
                 path.SelectPath();
             }
 
@@ -163,9 +167,9 @@ public partial class VectorSpriteEditor
     private void AddLayer()
     {
         Undo.Record(Document);
-        var name = $"Layer {Document.RootLayer.Children.Count + 1}";
-        var layer = new SpriteLayer { Name = name };
-        Document.RootLayer.Add(layer);
+        var name = $"Layer {Document.Root.Children.Count + 1}";
+        var layer = new SpriteGroup { Name = name };
+        Document.Root.Add(layer);
         MarkDirty();
     }
 

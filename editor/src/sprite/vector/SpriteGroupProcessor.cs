@@ -28,11 +28,11 @@ internal readonly struct LayerPathResult(
     public readonly Matrix3x2 GradientTransform = GradientTransform;
 }
 
-internal static class SpriteLayerProcessor
+internal static class SpriteGroupProcessor
 {
     internal const int ClipperPrecision = 6;
 
-    private static bool HasClipPaths(SpriteLayer layer)
+    private static bool HasClipPaths(SpriteGroup layer)
     {
         for (int i = 0; i < layer.Children.Count; i++)
             if (layer.Children[i] is SpritePath { IsClip: true })
@@ -79,7 +79,7 @@ internal static class SpriteLayerProcessor
         }
     }
 
-    internal static void ProcessLayer(SpriteLayer layer, List<LayerPathResult> output)
+    internal static void ProcessLayer(SpriteGroup layer, List<LayerPathResult> output)
     {
         if (!layer.Visible) return;
 
@@ -94,7 +94,7 @@ internal static class SpriteLayerProcessor
             var child = layer.Children[ci];
 
             // Child layer: capture output into results so parent subtract/clip can affect it
-            if (child is SpriteLayer childLayer)
+            if (child is SpriteGroup childLayer)
             {
                 ProcessLayer(childLayer, results);
                 continue;

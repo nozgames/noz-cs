@@ -117,8 +117,8 @@ public class SpritePath : SpriteNode
             {
                 _cachedContractedPaths = Clipper.InflatePaths(contours,
                     -(StrokeWidth * StrokeScale),
-                    SpriteLayerProcessor.ToClipperJoinType(StrokeJoin),
-                    EndType.Polygon, precision: SpriteLayerProcessor.ClipperPrecision);
+                    SpriteGroupProcessor.ToClipperJoinType(StrokeJoin),
+                    EndType.Polygon, precision: SpriteGroupProcessor.ClipperPrecision);
             }
         }
         return _cachedContractedPaths;
@@ -287,10 +287,10 @@ public class SpritePath : SpriteNode
         }
     }
 
-    public new void ClearSelection()
+    public override void ClearSelection()
     {
         ClearAnchorSelection();
-        IsSelected = false;
+        base.ClearSelection();
     }
 
     public void SetAnchorSelected(int index, bool selected)

@@ -7,11 +7,11 @@ namespace NoZ.Editor;
 public class SpriteAnimFrame
 {
     public int Hold { get; set; }
-    public HashSet<SpriteLayer> VisibleLayers { get; } = new();
+    public HashSet<SpriteGroup> VisibleLayers { get; } = new();
 
-    public bool IsLayerVisible(SpriteLayer layer) => VisibleLayers.Contains(layer);
+    public bool IsLayerVisible(SpriteGroup layer) => VisibleLayers.Contains(layer);
 
-    public void SetLayerVisible(SpriteLayer layer, bool visible)
+    public void SetLayerVisible(SpriteGroup layer, bool visible)
     {
         if (visible)
             VisibleLayers.Add(layer);
@@ -19,16 +19,16 @@ public class SpriteAnimFrame
             VisibleLayers.Remove(layer);
     }
 
-    public void ApplyVisibility(SpriteLayer root)
+    public void ApplyVisibility(SpriteGroup root)
     {
-        root.ForEach((SpriteLayer layer) =>
+        root.ForEach((SpriteGroup layer) =>
         {
             if (layer != root)
                 layer.Visible = VisibleLayers.Contains(layer);
         });
     }
 
-    public void CaptureVisibility(SpriteLayer root)
+    public void CaptureVisibility(SpriteGroup root)
     {
         VisibleLayers.Clear();
         root.ForEach(layer =>
@@ -38,7 +38,7 @@ public class SpriteAnimFrame
         });
     }
 
-    public SpriteAnimFrame Clone(SpriteLayer sourceRoot, SpriteLayer targetRoot)
+    public SpriteAnimFrame Clone(SpriteGroup sourceRoot, SpriteGroup targetRoot)
     {
         var clone = new SpriteAnimFrame { Hold = Hold };
 
@@ -49,7 +49,7 @@ public class SpriteAnimFrame
 
     private void MapLayers(SpriteNode source, SpriteNode target, SpriteAnimFrame clone)
     {
-        if (source is SpriteLayer sourceLayer && target is SpriteLayer targetLayer)
+        if (source is SpriteGroup sourceLayer && target is SpriteGroup targetLayer)
         {
             if (VisibleLayers.Contains(sourceLayer))
                 clone.VisibleLayers.Add(targetLayer);
@@ -63,10 +63,10 @@ public class SpriteAnimFrame
         // Name-based fallback for extra source layers that had no positional match
         for (var i = minCount; i < source.Children.Count; i++)
         {
-            if (source.Children[i] is not SpriteLayer extraSource) continue;
+            if (source.Children[i] is not SpriteGroup extraSource) continue;
             if (!VisibleLayers.Contains(extraSource)) continue;
 
-            var matched = target.FindLayer(extraSource.Name);
+            var matched = target.FindGroup(extraSource.Name);
             if (matched != null)
                 clone.VisibleLayers.Add(matched);
         }

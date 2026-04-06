@@ -37,7 +37,7 @@ public class TransformMode : EditorMode<VectorSpriteEditor>
 
     public override void OnEnter()
     {
-        Editor.Document.RootLayer.ClearAnchorSelections();
+        Editor.Document.Root.ClearSelection();
     }
 
     public override void Update()
@@ -207,7 +207,7 @@ public class TransformMode : EditorMode<VectorSpriteEditor>
         {
             var candidateDocLocal = _transformState.Centroid + localDelta;
             var snappedDocLocal = SnapHelper.Snap(
-                candidateDocLocal, Editor.Document.RootLayer, _movingPaths!, out _snapType);
+                candidateDocLocal, Editor.Document.Root, _movingPaths!, out _snapType);
 
             if (_snapType != SnapType.None)
             {

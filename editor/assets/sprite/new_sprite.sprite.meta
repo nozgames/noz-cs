@@ -1,0 +1,11 @@
+[editor]
+position = (4.997792,-8.379884)
+collection = icons
+
+[sprite]
+show_in_skeleton = false
+show_tiling = false
+show_skeleton_overlay = false
+pixel_brush_size = 1
+pixel_brush_color = rgba(0,0,0,1.000)
+

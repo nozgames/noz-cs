@@ -25,7 +25,7 @@ public partial class VectorSpriteEditor
     internal IReadOnlyList<SpritePath> SelectedPaths => _selectedPaths;
 
     internal readonly List<SpritePath> _selectedPaths = new();
-    private readonly List<SpriteLayer> _selectedLayers = new();
+    private readonly List<SpriteGroup> _selectedLayers = new();
     internal float SelectionRotation => _selectionRotation;
     private float _selectionRotation;
     private Rect _selectionLocalBounds;
@@ -36,7 +36,7 @@ public partial class VectorSpriteEditor
 
     private SpritePath? GetPathWithSelection()
     {
-        return Document.RootLayer.GetPathWithSelection();
+        return Document.Root.GetPathWithSelection();
     }
 
     private SpritePath? GetFirstSelectedPath()
@@ -103,15 +103,15 @@ public partial class VectorSpriteEditor
         }
         else
         {
-            Document.RootLayer.ForEachEditablePath(p => p.SelectPath());
+            Document.Root.ForEachEditablePath(p => p.SelectPath());
             RebuildSelectedPaths();
         }
     }
 
     internal void ClearSelection()
     {
-        Document.RootLayer.ClearSelection();
-        Document.RootLayer.ClearLayerSelections();
+        Document.Root.ClearSelection();
+        Document.Root.ClearSelection();
         RebuildSelectedPaths();
     }
 
@@ -119,7 +119,7 @@ public partial class VectorSpriteEditor
     {
         _selectedPaths.Clear();
         _selectedLayers.Clear();
-        Document.RootLayer.CollectSelectedLayers(_selectedLayers);
+        Document.Root.CollectSelectedGroups(_selectedLayers);
         HasLayerSelection = _selectedLayers.Count > 0;
 
         if (HasLayerSelection)
@@ -130,7 +130,7 @@ public partial class VectorSpriteEditor
         }
         else
         {
-            Document.RootLayer.CollectSelectedPaths(_selectedPaths);
+            Document.Root.CollectSelectedPaths(_selectedPaths);
         }
 
         HasPathSelection = _selectedPaths.Count > 0;
@@ -243,8 +243,8 @@ public partial class VectorSpriteEditor
         {
             // V mode or A mode with no paths: box select paths
             if (!shift)
-                Document.RootLayer.ClearPathSelections();
-            Document.RootLayer.SelectPathsInRect(localRect);
+                Document.Root.ClearSelection();
+            Document.Root.SelectPathsInRect(localRect);
         }
 
         RebuildSelectedPaths();
@@ -291,7 +291,7 @@ public partial class VectorSpriteEditor
         if (HasLayerSelection)
         {
             // Don't delete the last layer
-            var remaining = Document.RootLayer.Children.Count - _selectedLayers.Count;
+            var remaining = Document.Root.Children.Count - _selectedLayers.Count;
             if (remaining < 1) return;
 
             Undo.Record(Document);
@@ -365,7 +365,7 @@ public partial class VectorSpriteEditor
     {
         if (HasLayerSelection)
         {
-            Clipboard.Copy(new NodeClipboardData(_selectedLayers));
+            Clipboard.Copy(new SpriteClipboardData(_selectedLayers));
             return;
         }
 
@@ -378,16 +378,16 @@ public partial class VectorSpriteEditor
 
     private void PasteSelected()
     {
-        var nodeData = Clipboard.Get<NodeClipboardData>();
+        var nodeData = Clipboard.Get<SpriteClipboardData>();
         if (nodeData != null)
         {
             Undo.Record(Document);
-            Document.RootLayer.ClearSelection();
-            Document.RootLayer.ClearLayerSelections();
+            Document.Root.ClearSelection();
+            Document.Root.ClearSelection();
 
             var nodes = nodeData.PasteAsNodes();
             foreach (var node in nodes)
-                Document.RootLayer.Insert(0, node);
+                Document.Root.Insert(0, node);
 
             MarkDirty();
             RebuildSelectedPaths();
@@ -398,11 +398,11 @@ public partial class VectorSpriteEditor
         if (clipboardData == null) return;
 
         Undo.Record(Document);
-        Document.RootLayer.ClearSelection();
+        Document.Root.ClearSelection();
 
         var newPaths = clipboardData.PasteAsPaths();
         foreach (var path in newPaths)
-            Document.RootLayer.Insert(0, path);
+            Document.Root.Insert(0, path);
 
         MarkDirty();
         RebuildSelectedPaths();

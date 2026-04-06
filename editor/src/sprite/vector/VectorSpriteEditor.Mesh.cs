@@ -165,13 +165,13 @@ public partial class VectorSpriteEditor
         var vertexOffset = 0;
         var indexOffset = 0;
 
-        TessellateLayer(Document.RootLayer, ref vertexOffset, ref indexOffset);
+        TessellateLayer(Document.Root, ref vertexOffset, ref indexOffset);
     }
 
-    private void TessellateLayer(SpriteLayer layer, ref int vertexOffset, ref int indexOffset)
+    private void TessellateLayer(SpriteGroup layer, ref int vertexOffset, ref int indexOffset)
     {
         _tessellateResults.Clear();
-        SpriteLayerProcessor.ProcessLayer(layer, _tessellateResults);
+        SpriteGroupProcessor.ProcessLayer(layer, _tessellateResults);
         foreach (var result in _tessellateResults)
             TessellateClipper(result.Contours, ref vertexOffset, ref indexOffset, result.Color.ToColor(),
                 result.FillType, result.Gradient, result.GradientTransform);

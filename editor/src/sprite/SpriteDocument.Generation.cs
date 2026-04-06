@@ -255,7 +255,7 @@ public partial class SpriteDocument
         var h = RasterBounds.Height;
         if (w <= 0 || h <= 0) return [];
 
-        if (RootLayer.Children.Count == 0)
+        if (Root.Children.Count == 0)
             return [];
 
         var dpi = EditorApplication.Config.PixelsPerUnit;
@@ -282,7 +282,7 @@ public partial class SpriteDocument
                 RasterBounds.Height * invDpi);
         }
 
-        RasterizeLayer(RootLayer, pixels, targetRect, sourceOffset, scaledDpi, clipRect);
+        RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi, clipRect);
 
         using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
         using var ms = new MemoryStream();

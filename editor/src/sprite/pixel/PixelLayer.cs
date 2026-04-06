@@ -4,13 +4,13 @@
 
 namespace NoZ.Editor;
 
-public class SpriteLayer : SpriteNode
+public class PixelLayer : SpriteNode
 {
     public PixelData<Color32>? Pixels { get; set; }
 
     public override SpriteNode Clone()
     {
-        var clone = new SpriteLayer();
+        var clone = new PixelLayer();
         ClonePropertiesTo(clone);
 
         if (Pixels != null)
@@ -22,8 +22,6 @@ public class SpriteLayer : SpriteNode
             clone.Pixels = dst;
         }
 
-        foreach (var child in Children)
-            clone.Add(child.Clone());
         return clone;
     }
 }

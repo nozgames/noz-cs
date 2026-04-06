@@ -72,7 +72,7 @@ public class PenMode : EditorMode<VectorSpriteEditor>
         _hoveringSegment = false;
         if (!_hoveringFirstPoint)
         {
-            var anchorHit = Editor.Document.RootLayer.HitTestAnchor(mouseLocal);
+            var anchorHit = Editor.Document.Root.HitTestAnchor(mouseLocal);
             if (anchorHit.HasValue)
             {
                 _hoveringExistingAnchor = true;
@@ -83,7 +83,7 @@ public class PenMode : EditorMode<VectorSpriteEditor>
             }
             else
             {
-                var segHit = Editor.Document.RootLayer.HitTestSegment(mouseLocal);
+                var segHit = Editor.Document.Root.HitTestSegment(mouseLocal);
                 if (segHit.HasValue)
                 {
                     _hoveringSegment = true;
@@ -191,7 +191,7 @@ public class PenMode : EditorMode<VectorSpriteEditor>
 
     private void Commit()
     {
-        var activeLayer = Editor.Document.RootLayer;
+        var activeLayer = Editor.Document.Root;
         if (_pointCount < 3 || activeLayer.Locked)
         {
             _pointCount = 0;

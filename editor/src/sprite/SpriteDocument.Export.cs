@@ -62,16 +62,16 @@ public partial class SpriteDocument
         var fi = GetFrameAtTimeSlot(frameIndex);
 
         // Apply frame visibility if animated, saving/restoring to avoid side effects
-        Dictionary<SpriteLayer, bool>? savedVisibility = null;
+        Dictionary<SpriteNode, bool>? savedVisibility = null;
         if (fi < AnimFrames.Count)
         {
-            savedVisibility = new Dictionary<SpriteLayer, bool>();
-            RootLayer.ForEach(layer =>
+            savedVisibility = new Dictionary<SpriteNode, bool>();
+            Root.ForEach(layer =>
             {
-                if (layer != RootLayer)
+                if (layer != Root)
                     savedVisibility[layer] = layer.Visible;
             });
-            AnimFrames[fi].ApplyVisibility(RootLayer);
+            AnimFrames[fi].ApplyVisibility(Root);
         }
 
         var targetRect = new RectInt(
@@ -90,7 +90,7 @@ public partial class SpriteDocument
                 RasterBounds.Height * invDpi);
         }
 
-        RasterizeLayer(RootLayer, image, targetRect, sourceOffset, dpi, clipRect);
+        RasterizeLayer(Root, image, targetRect, sourceOffset, dpi, clipRect);
 
         // Restore original visibility
         if (savedVisibility != null)
@@ -146,7 +146,7 @@ public partial class SpriteDocument
     }
 
     private static void RasterizeLayer(
-        SpriteLayer layer,
+        SpriteGroup layer,
         PixelData<Color32> image,
         RectInt targetRect,
         Vector2Int sourceOffset,
@@ -154,7 +154,7 @@ public partial class SpriteDocument
         Rect? clipRect = null)
     {
         var results = new List<LayerPathResult>();
-        SpriteLayerProcessor.ProcessLayer(layer, results);
+        SpriteGroupProcessor.ProcessLayer(layer, results);
 
         PathsD? clipPaths = null;
         if (clipRect.HasValue)
@@ -258,9 +258,9 @@ public partial class SpriteDocument
             rect.Rect.Position + new Vector2Int(padding, padding),
             new Vector2Int(w, h));
 
-        foreach (var child in RootLayer.Children)
+        foreach (var child in Root.Children)
         {
-            if (child is not SpriteLayer layer || !layer.Visible || layer.Pixels == null)
+            if (child is not PixelLayer layer || !layer.Visible || layer.Pixels == null)
                 continue;
 
             for (var y = 0; y < h; y++)

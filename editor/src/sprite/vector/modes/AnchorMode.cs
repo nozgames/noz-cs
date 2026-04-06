@@ -36,7 +36,7 @@ public class AnchorMode : AnchorBasedMode
     {
         // Collect all paths with selected anchors and snapshot them
         var paths = new List<SpritePath>();
-        Editor.Document.RootLayer.CollectPathsWithSelection(paths);
+        Editor.Document.Root.CollectPathsWithSelection(paths);
         if (paths.Count == 0) return false;
 
         Undo.Record(Editor.Document);
@@ -136,7 +136,7 @@ public class AnchorMode : AnchorBasedMode
                 var candidateDocLocal = Vector2.Transform(candidatePathLocal, refPathToDoc);
 
                 var snappedDocLocal = SnapHelper.Snap(
-                    candidateDocLocal, Editor.Document.RootLayer, _moveExcludePaths, out _snapType);
+                    candidateDocLocal, Editor.Document.Root, _moveExcludePaths, out _snapType);
 
                 if (_snapType != SnapType.None)
                 {

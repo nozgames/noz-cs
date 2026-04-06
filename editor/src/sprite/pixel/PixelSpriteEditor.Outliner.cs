@@ -20,22 +20,19 @@ public partial class PixelSpriteEditor
 
     protected override void OnNodeClicked(SpriteNode node)
     {
-        if (node is SpriteLayer { Pixels: null })
+        if (node is SpriteGroup)
             node.Expanded = !node.Expanded;
-        else if (node is SpriteLayer layer)
+        else if (node is PixelLayer layer)
             ActiveLayer = layer;
     }
 
     protected override void OnOutlinerChanged() => InvalidateComposite();
 
-    protected override bool IsNodeExpandable(SpriteNode node) =>
-        node is SpriteLayer { Pixels: null } && node.Children.Count > 0;
-
     protected override string GetNodeFallbackName(SpriteNode node) =>
-        node is SpriteLayer { Pixels: null } ? "Group" : "Layer";
+        node is SpriteGroup ? "Group" : "Layer";
 
     protected override Sprite GetNodeIcon(SpriteNode node) =>
-        node is SpriteLayer { Pixels: null }
+        node is SpriteGroup
             ? EditorAssets.Sprites.IconPathLayer
             : EditorAssets.Sprites.IconPath;
 
@@ -61,7 +58,7 @@ public partial class PixelSpriteEditor
                     AddLayer();
             }
 
-            DrawNodeTree(Document.RootLayer);
+            DrawNodeTree(Document.Root);
         }
     }
 

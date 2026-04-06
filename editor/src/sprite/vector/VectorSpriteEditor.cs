@@ -237,11 +237,11 @@ public partial class VectorSpriteEditor : SpriteEditor
 
         Undo.Record(Document);
 
-        var layer = new SpriteLayer { Name = "Group" };
+        var layer = new SpriteGroup { Name = "Group" };
 
         // Insert the new layer at the position of the first selected path
         var firstPath = _selectedPaths[0];
-        var parent = firstPath.Parent ?? Document.RootLayer;
+        var parent = firstPath.Parent ?? Document.Root;
         var insertIndex = parent.Children.IndexOf(firstPath);
         if (insertIndex < 0) insertIndex = 0;
         parent.Insert(insertIndex, layer);
@@ -253,8 +253,8 @@ public partial class VectorSpriteEditor : SpriteEditor
             layer.Add(path);
 
         // Select the new layer
-        Document.RootLayer.ClearSelection();
-        Document.RootLayer.ClearLayerSelections();
+        Document.Root.ClearSelection();
+        Document.Root.ClearSelection();
         layer.IsSelected = true;
         layer.Expanded = true;
         RebuildSelectedPaths();
@@ -506,7 +506,7 @@ public partial class VectorSpriteEditor : SpriteEditor
     {
         var fi = CurrentFrameIndex;
         if (fi < Document.AnimFrames.Count)
-            Document.AnimFrames[fi].ApplyVisibility(Document.RootLayer);
+            Document.AnimFrames[fi].ApplyVisibility(Document.Root);
     }
 
     private void TogglePlayback()
@@ -708,7 +708,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         var max = new Vector2(float.MinValue, float.MinValue);
         var hasAnchors = false;
 
-        Document.RootLayer.ForEachEditablePath(p =>
+        Document.Root.ForEachEditablePath(p =>
         {
             if (p.TotalAnchorCount == 0) return;
             hasAnchors = true;
@@ -729,7 +729,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                 MathF.Round(centerWorld.Y * dpi) * invDpi);
 
             // Translate all paths to center origin
-            Document.RootLayer.ForEachEditablePath(p =>
+            Document.Root.ForEachEditablePath(p =>
             {
                 foreach (var contour in p.Contours)
                 {
@@ -838,7 +838,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             result, firstPath.FillColor, firstPath.StrokeColor, firstPath.StrokeWidth, strokeJoin: firstPath.StrokeJoin);
 
         // Insert result into the first path's parent at its position
-        var parent = firstPath.Parent ?? Document.RootLayer;
+        var parent = firstPath.Parent ?? Document.Root;
         var insertIndex = parent.Children.IndexOf(firstPath);
 
         // Remove all original paths
@@ -914,7 +914,7 @@ public partial class VectorSpriteEditor : SpriteEditor
     internal bool HandlePathClick(Vector2 localMousePos, bool shift)
     {
         _pathHitResults.Clear();
-        Document.RootLayer.HitTestPath(localMousePos, _pathHitResults);
+        Document.Root.HitTestPath(localMousePos, _pathHitResults);
 
         HitPaths.Clear();
         foreach (var p in _pathHitResults)
@@ -924,7 +924,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             return false;
 
         // Viewport path clicks are mutually exclusive with layer selection
-        Document.RootLayer.ClearLayerSelections();
+        Document.Root.ClearSelection();
 
         if (!shift)
         {
@@ -943,12 +943,12 @@ public partial class VectorSpriteEditor : SpriteEditor
                     }
                 }
 
-                Document.RootLayer.ClearSelection();
+                Document.Root.ClearSelection();
                 (next ?? HitPaths[0]).SelectPath();
             }
             else
             {
-                Document.RootLayer.ClearSelection();
+                Document.Root.ClearSelection();
                 topmost.SelectPath();
             }
         }
@@ -1033,7 +1033,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         {
             if (Input.IsAltDown(InputScope.All))
             {
-                var segHit = Document.RootLayer.HitTestSegment(localMousePos, onlySelected: true);
+                var segHit = Document.Root.HitTestSegment(localMousePos, onlySelected: true);
                 if (segHit.HasValue)
                 {
                     EditorCursor.SetCrosshair();
@@ -1041,7 +1041,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                 }
             }
 
-            var hit = Document.RootLayer.HitTestAnchor(localMousePos, onlySelected: true);
+            var hit = Document.Root.HitTestAnchor(localMousePos, onlySelected: true);
             if (hit.HasValue)
             {
                 _hoverPath = hit.Value.Path;

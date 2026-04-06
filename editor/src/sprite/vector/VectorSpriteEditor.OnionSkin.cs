@@ -9,7 +9,7 @@ public partial class VectorSpriteEditor
     private readonly MeshVertex[] _onionVertices = new MeshVertex[MaxMeshVertices];
     private readonly ushort[] _onionIndices = new ushort[MaxMeshIndices];
     private readonly List<MeshSlotData> _onionSlots = new();
-    private readonly List<(SpriteLayer layer, bool visible)> _savedVisibility = new();
+    private readonly List<(SpriteGroup layer, bool visible)> _savedVisibility = new();
     private int _onionFrame = -1;
 
     private void DrawOnionSkin()
@@ -32,9 +32,9 @@ public partial class VectorSpriteEditor
 
             // Save layer visibility before mutating
             _savedVisibility.Clear();
-            Document.RootLayer.ForEach((SpriteLayer layer) =>
+            Document.Root.ForEach((SpriteGroup layer) =>
             {
-                if (layer != Document.RootLayer)
+                if (layer != Document.Root)
                     _savedVisibility.Add((layer, layer.Visible));
             });
 
@@ -57,10 +57,10 @@ public partial class VectorSpriteEditor
         if (frameIndex < 0 || frameIndex >= Document.AnimFrames.Count)
             return;
 
-        Document.AnimFrames[frameIndex].ApplyVisibility(Document.RootLayer);
+        Document.AnimFrames[frameIndex].ApplyVisibility(Document.Root);
 
         _tessellateResults.Clear();
-        SpriteLayerProcessor.ProcessLayer(Document.RootLayer, _tessellateResults);
+        SpriteGroupProcessor.ProcessLayer(Document.Root, _tessellateResults);
         foreach (var result in _tessellateResults)
             TessellateClipperTo(result.Contours, ref vertexOffset, ref indexOffset, tint, _onionVertices, _onionIndices, _onionSlots);
     }

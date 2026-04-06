@@ -134,7 +134,7 @@ public abstract partial class SpriteEditor
     {
         var index = _outlinerIndex++;
         var rowId = WidgetIds.OutlinerLayer + index;
-        var isExpandable = IsNodeExpandable(node);
+        var isExpandable = node.IsExpandable;
         var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
         var isDragSource = _outlinerDragging && _dragNodes.Contains(node);
         var dropBefore = isDragTarget && _dropZone == DropZone.Before;
@@ -270,7 +270,10 @@ public abstract partial class SpriteEditor
         // Click handling
         if (UI.WasPressed(rowId))
         {
-            if (IsNodeSelected(node))
+            var shift = Input.IsShiftDown(InputScope.All);
+            var ctrl = Input.IsCtrlDown(InputScope.All);
+
+            if (IsNodeSelected(node) && !shift && !ctrl)
             {
                 _deferredClickNode = node;
             }
@@ -384,7 +387,7 @@ public abstract partial class SpriteEditor
                 _dropTargetIndex = row.Index;
                 var relY = (mouseWorld.Y - rect.Y) / rect.Height;
 
-                if (IsNodeExpandable(row.Node))
+                if (row.Node.IsExpandable)
                 {
                     if (relY < 0.33f) _dropZone = DropZone.Before;
                     else if (relY > 0.67f) _dropZone = DropZone.FirstChild;
@@ -427,7 +430,7 @@ public abstract partial class SpriteEditor
             _dropTargetIndex = prevRow.Index;
             _dropZone = DropZone.After;
         }
-        else if (prevRow.Depth == row.Depth - 1 && IsNodeExpandable(prevRow.Node) && prevRow.Node.Expanded)
+        else if (prevRow.Depth == row.Depth - 1 && prevRow.Node.IsExpandable && prevRow.Node.Expanded)
         {
             _dropTargetIndex = prevRow.Index;
             _dropZone = DropZone.FirstChild;
@@ -493,13 +496,13 @@ public abstract partial class SpriteEditor
 
         switch (_dropZone)
         {
-            case DropZone.LastChild when targetNode is SpriteLayer layer:
+            case DropZone.LastChild when targetNode is SpriteGroup layer:
                 foreach (var node in ordered)
                     layer.Add(node);
                 layer.Expanded = true;
                 break;
 
-            case DropZone.FirstChild when targetNode is SpriteLayer layer2:
+            case DropZone.FirstChild when targetNode is SpriteGroup layer2:
                 for (var i = ordered.Count - 1; i >= 0; i--)
                     layer2.Insert(0, ordered[i]);
                 layer2.Expanded = true;

@@ -150,7 +150,7 @@ public class ShapeMode : EditorMode<VectorSpriteEditor>
     {
         var min = Vector2.Min(_startLocal, _currentLocal);
         var max = Vector2.Max(_startLocal, _currentLocal);
-        var activeLayer = Editor.Document.RootLayer;
+        var activeLayer = Editor.Document.Root;
 
         if (max.X - min.X < 0.01f || max.Y - min.Y < 0.01f || activeLayer.Locked)
         {

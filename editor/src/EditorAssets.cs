@@ -45,6 +45,7 @@ public static class EditorAssets
         public const string IconDuplicate = "icon_duplicate";
         public const string IconEdit = "icon_edit";
         public const string IconEmpty = "icon_empty";
+        public const string IconEraser = "icon_eraser";
         public const string IconExpandDown = "icon_expand_down";
         public const string IconExpandUp = "icon_expand_up";
         public const string IconFill = "icon_fill";
@@ -77,6 +78,7 @@ public static class EditorAssets
         public const string IconRootMotion = "icon_root_motion";
         public const string IconSearch = "icon_search";
         public const string IconSeed = "icon_seed";
+        public const string IconSelect = "icon_select";
         public const string IconSort = "icon_sort";
         public const string IconStroke = "icon_stroke";
         public const string IconStrokeJoinBevel = "icon_stroke_join_bevel";
@@ -88,6 +90,7 @@ public static class EditorAssets
         public const string IconTiling = "icon_tiling";
         public const string IconUnlock = "icon_unlock";
         public const string IconXray = "icon_xray";
+        public const string NewSprite = "new_sprite";
         public const string PpComposite = "pp_composite";
         public const string PpDownsample = "pp_downsample";
         public const string PpUpsample = "pp_upsample";
@@ -220,6 +223,7 @@ public static class EditorAssets
         public static readonly Sprite IconDuplicate = new();
         public static readonly Sprite IconEdit = new();
         public static readonly Sprite IconEmpty = new();
+        public static readonly Sprite IconEraser = new();
         public static readonly Sprite IconExpandDown = new();
         public static readonly Sprite IconExpandUp = new();
         public static readonly Sprite IconFill = new();
@@ -252,6 +256,7 @@ public static class EditorAssets
         public static readonly Sprite IconRootMotion = new();
         public static readonly Sprite IconSearch = new();
         public static readonly Sprite IconSeed = new();
+        public static readonly Sprite IconSelect = new();
         public static readonly Sprite IconSort = new();
         public static readonly Sprite IconStroke = new();
         public static readonly Sprite IconStrokeJoinBevel = new();
@@ -263,6 +268,7 @@ public static class EditorAssets
         public static readonly Sprite IconTiling = new();
         public static readonly Sprite IconUnlock = new();
         public static readonly Sprite IconXray = new();
+        public static readonly Sprite NewSprite = new();
         public static readonly Sprite Square = new();
         public static readonly Sprite Star = new();
 
@@ -302,6 +308,7 @@ public static class EditorAssets
             IconDuplicate.Load(Names.IconDuplicate, atlas);
             IconEdit.Load(Names.IconEdit, atlas);
             IconEmpty.Load(Names.IconEmpty, atlas);
+            IconEraser.Load(Names.IconEraser, atlas);
             IconExpandDown.Load(Names.IconExpandDown, atlas);
             IconExpandUp.Load(Names.IconExpandUp, atlas);
             IconFill.Load(Names.IconFill, atlas);
@@ -334,6 +341,7 @@ public static class EditorAssets
             IconRootMotion.Load(Names.IconRootMotion, atlas);
             IconSearch.Load(Names.IconSearch, atlas);
             IconSeed.Load(Names.IconSeed, atlas);
+            IconSelect.Load(Names.IconSelect, atlas);
             IconSort.Load(Names.IconSort, atlas);
             IconStroke.Load(Names.IconStroke, atlas);
             IconStrokeJoinBevel.Load(Names.IconStrokeJoinBevel, atlas);
@@ -345,6 +353,7 @@ public static class EditorAssets
             IconTiling.Load(Names.IconTiling, atlas);
             IconUnlock.Load(Names.IconUnlock, atlas);
             IconXray.Load(Names.IconXray, atlas);
+            NewSprite.Load(Names.NewSprite, atlas);
             Square.Load(Names.Square, atlas);
             Star.Load(Names.Star, atlas);
         }
@@ -385,6 +394,7 @@ public static class EditorAssets
             IconDuplicate.Reload();
             IconEdit.Reload();
             IconEmpty.Reload();
+            IconEraser.Reload();
             IconExpandDown.Reload();
             IconExpandUp.Reload();
             IconFill.Reload();
@@ -417,6 +427,7 @@ public static class EditorAssets
             IconRootMotion.Reload();
             IconSearch.Reload();
             IconSeed.Reload();
+            IconSelect.Reload();
             IconSort.Reload();
             IconStroke.Reload();
             IconStrokeJoinBevel.Reload();
@@ -428,6 +439,7 @@ public static class EditorAssets
             IconTiling.Reload();
             IconUnlock.Reload();
             IconXray.Reload();
+            NewSprite.Reload();
             Square.Reload();
             Star.Reload();
         }
@@ -468,6 +480,7 @@ public static class EditorAssets
             IconDuplicate.Dispose();
             IconEdit.Dispose();
             IconEmpty.Dispose();
+            IconEraser.Dispose();
             IconExpandDown.Dispose();
             IconExpandUp.Dispose();
             IconFill.Dispose();
@@ -500,6 +513,7 @@ public static class EditorAssets
             IconRootMotion.Dispose();
             IconSearch.Dispose();
             IconSeed.Dispose();
+            IconSelect.Dispose();
             IconSort.Dispose();
             IconStroke.Dispose();
             IconStrokeJoinBevel.Dispose();
@@ -511,6 +525,7 @@ public static class EditorAssets
             IconTiling.Dispose();
             IconUnlock.Dispose();
             IconXray.Dispose();
+            NewSprite.Dispose();
             Square.Dispose();
             Star.Dispose();
         }

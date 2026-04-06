@@ -39,6 +39,7 @@ public abstract class SpriteNode
     public SpriteNode? Parent { get; private set; }
     public bool Expanded { get; set; } = true;
     public bool IsSelected { get; set; }
+    public virtual bool IsExpandable => false;
 
     public abstract SpriteNode Clone();
 
@@ -97,10 +98,18 @@ public abstract class SpriteNode
             child.ForEach(action);
     }
 
-    public void ForEach(Action<SpriteLayer> action)
+    public void ForEach(Action<SpriteGroup> action)
     {
-        if (this is SpriteLayer layer)
-            action(layer);
+        if (this is SpriteGroup group)
+            action(group);
+        foreach (var child in Children)
+            child.ForEach(action);
+    }
+
+    public void ForEach(Action<PixelLayer> action)
+    {
+        if (this is PixelLayer pixel)
+            action(pixel);
         foreach (var child in Children)
             child.ForEach(action);
     }
@@ -120,14 +129,14 @@ public abstract class SpriteNode
         return null;
     }
 
-    public SpriteLayer? FindLayer(string name)
+    public SpriteGroup? FindGroup(string name)
     {
-        if (this is SpriteLayer layer && layer.Name == name)
-            return layer;
+        if (this is SpriteGroup group && group.Name == name)
+            return group;
 
         foreach (var child in Children)
         {
-            var found = child.FindLayer(name);
+            var found = child.FindGroup(name);
             if (found != null)
                 return found;
         }
@@ -194,52 +203,23 @@ public abstract class SpriteNode
             child.CollectPathsWithSelection(result);
     }
 
-    public void ClearSelection()
+    public virtual void ClearSelection()
     {
-        if (this is SpritePath path)
-            path.ClearSelection();
-
+        IsSelected = false;
         foreach (var child in Children)
             child.ClearSelection();
     }
 
-    public void ClearPathSelections()
+    public void CollectSelectedGroups(List<SpriteGroup> result)
     {
-        if (this is SpritePath path)
-            path.DeselectPath();
-
-        foreach (var child in Children)
-            child.ClearPathSelections();
-    }
-
-    public void ClearAnchorSelections()
-    {
-        if (this is SpritePath path)
-            path.ClearAnchorSelection();
-
-        foreach (var child in Children)
-            child.ClearAnchorSelections();
-    }
-
-    public void ClearLayerSelections()
-    {
-        if (this is SpriteLayer)
-            IsSelected = false;
-
-        foreach (var child in Children)
-            child.ClearLayerSelections();
-    }
-
-    public void CollectSelectedLayers(List<SpriteLayer> result)
-    {
-        if (this is SpriteLayer layer && layer.IsSelected)
+        if (this is SpriteGroup group && group.IsSelected)
         {
-            result.Add(layer);
+            result.Add(group);
             return;
         }
 
         foreach (var child in Children)
-            child.CollectSelectedLayers(result);
+            child.CollectSelectedGroups(result);
     }
 
     public void CollectSelectedPaths(List<SpritePath> result)
