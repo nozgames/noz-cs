@@ -70,8 +70,6 @@ public class ShaderDocument : Document
             writer.Write(binding.Name);
         }
         writer.Write(vertexHash);
-
-        Log.Info($"Imported WGSL shader {Name} with {bindings.Count} bindings, vertexHash=0x{vertexHash:X8}");
     }
 
     private List<ShaderBinding> ParseWgslBindings(string wgslSource)
@@ -115,7 +113,7 @@ public class ShaderDocument : Document
             }
             else
             {
-                Log.Warning($"Unknown WGSL binding type: {type} for {name}, assuming uniform buffer");
+                ReportWarning($"Unknown WGSL binding type: {type} for {name}, assuming uniform buffer");
                 bindingType = ShaderBindingType.UniformBuffer;
             }
 
@@ -184,43 +182,6 @@ public class ShaderDocument : Document
         if (DepthLess) flags |= ShaderFlags.DepthLess   ;
         if (PremultipliedAlpha) flags |= ShaderFlags.PremultipliedAlpha;
         return flags;
-    }
-
-    private static string ProcessIncludes(string source, string baseDir)
-    {
-        var result = new StringBuilder();
-        var lines = source.Split('\n');
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.TrimStart();
-            if (trimmed.StartsWith("#include"))
-            {
-                var quote1 = trimmed.IndexOf('"');
-                var quote2 = trimmed.LastIndexOf('"');
-                if (quote1 >= 0 && quote2 > quote1)
-                {
-                    var filename = trimmed.Substring(quote1 + 1, quote2 - quote1 - 1);
-                    var includePath = System.IO.Path.Combine(baseDir, filename);
-
-                    var store = EditorApplication.Store;
-                    if (store.FileExists(includePath))
-                    {
-                        var includeContent = store.ReadAllText(includePath);
-                        var includeDir = System.IO.Path.GetDirectoryName(includePath) ?? baseDir;
-                        result.AppendLine(ProcessIncludes(includeContent, includeDir));
-                    }
-                    else
-                    {
-                        Log.Error($"Could not open include file: {includePath}");
-                    }
-                    continue;
-                }
-            }
-            result.AppendLine(line);
-        }
-
-        return result.ToString();
     }
 
     public override void Draw()

@@ -60,7 +60,7 @@ public class SpriteAnimFrame
             var extraSource = source.Children[i];
             if (!VisibleLayers.Contains(extraSource)) continue;
 
-            var matched = target.FindNode(extraSource.Name);
+            var matched = target.Find<SpriteNode>(extraSource.Name);
             if (matched != null)
                 clone.VisibleLayers.Add(matched);
         }

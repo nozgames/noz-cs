@@ -1,6 +1,6 @@
 
 path "" {
-  translate -0.2813592 0.18797415
+  translate -0.2743249 0.17444676
   scale 1.8081658 1.8081658
   fill #FFFFFF
   anchor 0.20547712 -0.008544445
@@ -12,7 +12,7 @@ path "" {
 }
 
 path "" {
-  translate 0.03990079 -0.05144036
+  translate 0.046935093 -0.06496775
   scale 1.8081658 1.8081658
   fill #FFFFFF
   anchor -0.13252103 0.06411266

@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
 {
-    private static readonly List<SpriteNode.AnchorHitResult> _anchorHitResults = [];
+    private static readonly List<AnchorHitResult> _anchorHitResults = [];
 
     protected bool IsDragging { get; private set; }
     private bool _isBoxSelecting;
@@ -99,6 +99,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
                     if (!hitPath.Contours[hitCi].Anchors[hitAi].IsSelected)
                     {
                         Editor.Document.Root.ClearSelection();
+                        hitPath.SelectPath();
                         hitPath.SetAnchorSelected(hitCi, hitAi, true);
                     }
 
@@ -161,6 +162,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
             }
 
             if (!shift) Editor.Document.Root.ClearSelection();
+            h.Path.SelectPath();
             h.Path.SetAnchorSelected(h.ContourIndex, h.AnchorIndex, true);
             Editor.RebuildSelectedPaths();
             return true;
@@ -168,7 +170,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
         return false;
     }
 
-    private bool CycleAnchorSelection(SpriteNode.AnchorHitResult currentHit)
+    private bool CycleAnchorSelection(AnchorHitResult currentHit)
     {
         var foundCurrent = false;
         foreach (var h in _anchorHitResults)
@@ -183,6 +185,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
             }
 
             Editor.Document.Root.ClearSelection();
+            h.Path.SelectPath();
             h.Path.SetAnchorSelected(h.AnchorIndex, true);
             Editor.RebuildSelectedPaths();
             return true;
@@ -193,6 +196,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
         {
             if (!h.Path.IsSelected) continue;
             Editor.Document.Root.ClearSelection();
+            h.Path.SelectPath();
             h.Path.SetAnchorSelected(h.AnchorIndex, true);
             Editor.RebuildSelectedPaths();
             return true;

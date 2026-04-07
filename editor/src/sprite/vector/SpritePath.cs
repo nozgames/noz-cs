@@ -323,7 +323,7 @@ public class SpritePath : SpriteNode
         }
     }
 
-    public new void SelectAnchorsInRect(Rect rect)
+    public void SelectAnchorsInRect(Rect rect)
     {
         var hasXform = HasTransform;
         var xform = hasXform ? PathTransform : Matrix3x2.Identity;
@@ -471,7 +471,7 @@ public class SpritePath : SpriteNode
         return (bestContour, bestIndex, bestDistSqr, bestPos);
     }
 
-    public new bool HitTestPath(Vector2 point)
+    public bool HitTestPath(Vector2 point)
     {
         // Use Clipper paths (same geometry as rendering) for containment.
         // Clipper paths have PathTransform baked in, so point must be in document space.

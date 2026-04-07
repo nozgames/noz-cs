@@ -89,6 +89,7 @@ public static partial class UI
     {
         private const int MaxItems = 64;
         private const int MaxSubmenuDepth = 8;
+        private const float SubmenuDelay = 0.3f;
 
         private struct LevelState
         {
@@ -112,6 +113,9 @@ public static partial class UI
         private static PopupStyle _popupStyle;
         private static PopupMenuStyle _menuStyle;
         private static readonly LevelState[] _levels = new LevelState[MaxSubmenuDepth];
+        private static int _pendingSubmenuIndex = -1;
+        private static int _pendingSubmenuLevel = -1;
+        private static float _submenuTimer;
 
         public static bool IsVisible => _visible;
 
@@ -161,6 +165,7 @@ public static partial class UI
             _levels[0].ShowChecked = popupStyle.ShowChecked;
             _levels[0].ShowIcons = popupStyle.ShowIcons;
             UI.ClearHot();
+            ResetSubmenuTimer();
 
             _scope = Input.PushScope();
             Input.ConsumeButton(InputCode.MouseLeft);
@@ -173,10 +178,34 @@ public static partial class UI
             _title = null;
             _id = WidgetId.None;
             UI.ClearHot();
+            ResetSubmenuTimer();
             Input.PopScope(_scope);
         }
 
         public static bool IsOpen(WidgetId id) => _visible && _id == id;
+
+        private static bool UpdateSubmenuHover(int level, int targetIndex)
+        {
+            if (_pendingSubmenuLevel == level && _pendingSubmenuIndex == targetIndex)
+            {
+                _submenuTimer += Time.DeltaTime;
+            }
+            else
+            {
+                _pendingSubmenuLevel = level;
+                _pendingSubmenuIndex = targetIndex;
+                _submenuTimer = 0;
+            }
+
+            return _submenuTimer >= SubmenuDelay;
+        }
+
+        private static void ResetSubmenuTimer()
+        {
+            _pendingSubmenuIndex = -1;
+            _pendingSubmenuLevel = -1;
+            _submenuTimer = 0;
+        }
 
         public static void Update()
         {
@@ -376,6 +405,13 @@ public static partial class UI
 
                 if (ItemUI(itemId, ref item, enabled, _levels[level].ShowChecked, _levels[level].ShowIcons))
                     executed = item.Handler;
+
+                if (UI.IsHovered(itemId) && _levels[level].OpenSubmenu >= 0 && UpdateSubmenuHover(level, -1))
+                {
+                    _levels[level].OpenSubmenu = -1;
+                    for (var l = level + 1; l < MaxSubmenuDepth; l++)
+                        _levels[l].OpenSubmenu = -1;
+                }
             }
         }
 
@@ -427,14 +463,20 @@ public static partial class UI
 
                 for (var l = level + 1; l < MaxSubmenuDepth; l++)
                     _levels[l].OpenSubmenu = -1;
+
+                ResetSubmenuTimer();
             }
 
-            hovered = UI.IsHovered(itemId) && enabled;
-            if (hovered && _levels[level].OpenSubmenu >= 0 && _levels[level].OpenSubmenu != index)
+            hovered = UI.IsHovered(itemId);
+            if (hovered && _levels[level].OpenSubmenu != index)
             {
-                _levels[level].OpenSubmenu = index;
-                for (var l = level + 1; l < MaxSubmenuDepth; l++)
-                    _levels[l].OpenSubmenu = -1;
+                var targetIndex = enabled ? index : -1;
+                if (UpdateSubmenuHover(level, targetIndex))
+                {
+                    _levels[level].OpenSubmenu = targetIndex >= 0 ? targetIndex : -1;
+                    for (var l = level + 1; l < MaxSubmenuDepth; l++)
+                        _levels[l].OpenSubmenu = -1;
+                }
             }
 
             if (isSubmenuOpen)

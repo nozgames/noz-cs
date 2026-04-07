@@ -1,5 +1,5 @@
 
-layer "Layer 5" {
+group "Layer 5" {
   path "" {
     translate 0.0015599756 -0.0003944299
     scale 1.1616411 1.1616411
@@ -34,6 +34,6 @@ layer "Layer 5" {
 
 }
 
-layer "Layer 7" {
+group "Layer 7" {
 }
 

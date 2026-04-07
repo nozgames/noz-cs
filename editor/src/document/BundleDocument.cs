@@ -46,7 +46,7 @@ public class BundleDocument : Document
                     var assetType = ResolveTypeName(typeName);
                     if (assetType == AssetType.Unknown)
                     {
-                        Log.Error($"BundleDocument.Load: Unknown asset type '{typeName}'");
+                        ReportError($"Unknown asset type '{typeName}'");
                         continue;
                     }
 
@@ -64,7 +64,7 @@ public class BundleDocument : Document
             else
             {
                 tk.ExpectToken(out var badToken);
-                Log.Error($"BundleDocument.Load: Unexpected token '{tk.GetString(badToken)}'");
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}'");
                 break;
             }
         }
@@ -111,7 +111,7 @@ public class BundleDocument : Document
             var doc = DocumentManager.Find(entry.AssetType, entry.AssetName);
             if (doc == null)
             {
-                Log.Error($"BundleDocument.Import: Asset not found: {entry.AssetType}/{entry.AssetName}");
+                ReportError($"Asset not found: {entry.AssetType}/{entry.AssetName}");
                 writer.Write(0);
                 continue;
             }

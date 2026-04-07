@@ -480,7 +480,7 @@ internal class AtlasDocument : Document
                 sprite.UpdateBounds();
 
             if (!TryAdd(source))
-                Log.Warning($"Rebuild: failed to add '{source.Name}'");
+                ReportWarning($"Failed to add '{source.Name}'");
         }
 
         // Update texture

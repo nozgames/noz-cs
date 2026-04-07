@@ -130,7 +130,7 @@ public class GenerationConfig : Document
             else
             {
                 tk.ExpectToken(out var badToken);
-                Log.Error($"GenerationConfig.Load: Unexpected token '{tk.GetString(badToken)}'");
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}'");
                 break;
             }
         }

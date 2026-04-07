@@ -58,7 +58,7 @@ public partial class SpriteDocument
             else
             {
                 tk.ExpectToken(out var badToken);
-                Log.Error($"SpriteDocument.Load: Unexpected token '{tk.GetString(badToken)}'");
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}'");
                 break;
             }
         }
@@ -85,7 +85,7 @@ public partial class SpriteDocument
             else
             {
                 tk.ExpectToken(out var badToken);
-                Log.Error($"SpriteDocument.ParseGroup: Unexpected token '{tk.GetString(badToken)}' in group '{name}'");
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}' in group '{name}'");
                 break;
             }
         }
@@ -120,7 +120,7 @@ public partial class SpriteDocument
             else
             {
                 tk.ExpectToken(out var badToken);
-                Log.Error($"SpriteDocument.ParseLayer: Unexpected token '{tk.GetString(badToken)}' in layer '{name}'");
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}' in layer '{name}'");
                 break;
             }
         }
@@ -269,17 +269,17 @@ public partial class SpriteDocument
                     var name = tk.ExpectQuotedString();
                     if (name == null)
                         break;
-                    var node = Root.FindNode(name);
+                    var node = Root.Find<SpriteNode>(name);
                     if (node != null)
                         frame.VisibleLayers.Add(node);
                     else
-                        Log.Warning($"SpriteDocument: Animation frame references unknown layer '{name}'");
+                        ReportWarning($"Animation frame references unknown layer '{name}'");
                 }
             }
             else
             {
                 tk.ExpectToken(out var badToken);
-                Log.Error($"SpriteDocument.ParseAnimFrame: Unexpected token '{tk.GetString(badToken)}'");
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}'");
                 break;
             }
         }

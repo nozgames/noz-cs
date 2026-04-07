@@ -1,5 +1,5 @@
 
-layer "Layer 5" {
+group "Layer 5" {
   path "" {
     fill #000000
     stroke #FFFFFF 2
@@ -20,6 +20,6 @@ layer "Layer 5" {
 
 }
 
-layer "Layer 7" {
+group "Layer 7" {
 }
 

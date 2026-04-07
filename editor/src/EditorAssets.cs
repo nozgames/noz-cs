@@ -49,6 +49,7 @@ public static class EditorAssets
         public const string IconExpandDown = "icon_expand_down";
         public const string IconExpandUp = "icon_expand_up";
         public const string IconFill = "icon_fill";
+        public const string IconFloodFill = "icon_flood_fill";
         public const string IconFoldoutClosed = "icon_foldout_closed";
         public const string IconFoldoutOpen = "icon_foldout_open";
         public const string IconGenerating = "icon_generating";
@@ -226,6 +227,7 @@ public static class EditorAssets
         public static readonly Sprite IconExpandDown = new();
         public static readonly Sprite IconExpandUp = new();
         public static readonly Sprite IconFill = new();
+        public static readonly Sprite IconFloodFill = new();
         public static readonly Sprite IconFoldoutClosed = new();
         public static readonly Sprite IconFoldoutOpen = new();
         public static readonly Sprite IconGenerating = new();
@@ -310,6 +312,7 @@ public static class EditorAssets
             IconExpandDown.Load(Names.IconExpandDown, atlas);
             IconExpandUp.Load(Names.IconExpandUp, atlas);
             IconFill.Load(Names.IconFill, atlas);
+            IconFloodFill.Load(Names.IconFloodFill, atlas);
             IconFoldoutClosed.Load(Names.IconFoldoutClosed, atlas);
             IconFoldoutOpen.Load(Names.IconFoldoutOpen, atlas);
             IconGenerating.Load(Names.IconGenerating, atlas);
@@ -395,6 +398,7 @@ public static class EditorAssets
             IconExpandDown.Reload();
             IconExpandUp.Reload();
             IconFill.Reload();
+            IconFloodFill.Reload();
             IconFoldoutClosed.Reload();
             IconFoldoutOpen.Reload();
             IconGenerating.Reload();
@@ -480,6 +484,7 @@ public static class EditorAssets
             IconExpandDown.Dispose();
             IconExpandUp.Dispose();
             IconFill.Dispose();
+            IconFloodFill.Dispose();
             IconFoldoutClosed.Dispose();
             IconFoldoutOpen.Dispose();
             IconGenerating.Dispose();

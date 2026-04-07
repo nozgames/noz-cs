@@ -707,7 +707,7 @@ public class VfxDocument : Document
             }
             else if (tk.ExpectToken(out var badToken))
             {
-                Log.Error($"VfxDocument: Unexpected token '{tk.GetString(badToken)}'");
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}'");
                 break;
             }
         }

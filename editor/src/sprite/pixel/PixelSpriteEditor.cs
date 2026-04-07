@@ -18,6 +18,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         public static partial WidgetId ColorButton { get; }
         public static partial WidgetId EyeDropperButton { get; }
         public static partial WidgetId RectSelectButton { get; }
+        public static partial WidgetId LassoSelectButton { get; }
         public static partial WidgetId MoveButton { get; }
         public static partial WidgetId FillButton { get; }
         public static partial WidgetId DopeSheet { get; }
@@ -37,6 +38,12 @@ public partial class PixelSpriteEditor : SpriteEditor
         set
         {
             if (value is not { Pixels: not null }) return;
+            if (value == _activeLayer) return;
+
+            if (Mode is PixelMoveMode { IsLifted: true })
+                SetMode(new PencilMode());
+
+            ClearSelection();
             _activeLayer = value;
             Document.PixelActiveLayerName = value.Name;
         }
@@ -115,6 +122,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             new Command("Pencil", () => SetMode(new PencilMode()), [new KeyBinding(InputCode.KeyB)]),
             new Command("Eraser", () => SetMode(new PixelEraserMode()), [new KeyBinding(InputCode.KeyE)]),
             new Command("Rect Select", () => SetMode(new PixelRectSelectMode()), [new KeyBinding(InputCode.KeyM)]),
+            new Command("Lasso Select", () => SetMode(new PixelLassoSelectMode()), [new KeyBinding(InputCode.KeyL)]),
             new Command("Move", () => SetMode(new PixelMoveMode()), [new KeyBinding(InputCode.KeyV)]),
             new Command("Eye Dropper", () => SetMode(new PixelEyeDropperMode()), [new KeyBinding(InputCode.KeyI)]),
             new Command("Fill", () => SetMode(new PixelFillMode()), [new KeyBinding(InputCode.KeyG)]),
@@ -181,7 +189,7 @@ public partial class PixelSpriteEditor : SpriteEditor
     {
         if (!string.IsNullOrEmpty(Document.PixelActiveLayerName))
         {
-            var node = Document.Root.FindNode(Document.PixelActiveLayerName);
+            var node = Document.Root.Find<SpriteNode>(Document.PixelActiveLayerName);
             if (node is PixelLayer layer && layer.Pixels != null)
                 return layer;
         }
@@ -271,7 +279,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         DrawCanvas();
         if (Document.ShowTiling) DrawTiling();
         DrawPixelGrid();
-        if (Mode is not PixelMoveMode)
+        if (Mode is not PixelMoveMode { IsLifted: true })
             DrawSelectionOutline();
         Document.DrawBounds();
         Mode?.Draw();
@@ -294,13 +302,16 @@ public partial class PixelSpriteEditor : SpriteEditor
             if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, isSelected: Mode is PixelEraserMode))
                 SetMode(new PixelEraserMode());
 
-            if (FloatingToolbar.Button(WidgetIds.FillButton, EditorAssets.Sprites.IconFill, isSelected: Mode is PixelFillMode))
+            if (FloatingToolbar.Button(WidgetIds.FillButton, EditorAssets.Sprites.IconFloodFill, isSelected: Mode is PixelFillMode))
                 SetMode(new PixelFillMode());
 
             FloatingToolbar.Divider();
 
             if (FloatingToolbar.Button(WidgetIds.RectSelectButton, EditorAssets.Sprites.IconSelect, isSelected: Mode is PixelRectSelectMode))
                 SetMode(new PixelRectSelectMode());
+
+            if (FloatingToolbar.Button(WidgetIds.LassoSelectButton, EditorAssets.Sprites.IconSelect, isSelected: Mode is PixelLassoSelectMode))
+                SetMode(new PixelLassoSelectMode());
 
             if (FloatingToolbar.Button(WidgetIds.MoveButton, EditorAssets.Sprites.IconMove, isSelected: Mode is PixelMoveMode))
                 SetMode(new PixelMoveMode());
@@ -463,11 +474,10 @@ public partial class PixelSpriteEditor : SpriteEditor
         var pixelScreenSize = pixelWorldSize * Workspace.Zoom;
         if (pixelScreenSize < 4f) return;
 
-        using (Gizmos.PushState(EditorLayer.DocumentEditor))
+        using (Gizmos.PushState(EditorLayer.PixelGrid))
         {
             Graphics.SetTransform(Document.Transform);
             Graphics.SetColor(new Color(0.5f, 0.5f, 0.5f, 0.15f));
-            Graphics.SetSortGroup(5);
 
             var epr = EditablePixelRect;
             var w = epr.Width;

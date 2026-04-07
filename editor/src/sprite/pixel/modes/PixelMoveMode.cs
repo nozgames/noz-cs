@@ -16,9 +16,11 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
     }
 
     private List<FloatingLayer>? _floatingLayers;
+    public bool IsLifted => _floatingLayers != null;
     private RectInt _sourceRect;
     private Vector2Int _offset;
     private Vector2Int _dragStartPixel;
+    private bool _isDragging;
 
     private List<PixelLayer> GetTargetLayers()
     {
@@ -39,6 +41,13 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         return layers;
     }
 
+    public override void OnEnter()
+    {
+        Lift();
+        if (_floatingLayers == null)
+            Editor.SetMode(new PencilMode());
+    }
+
     public override void Update()
     {
         EditorCursor.SetCrosshair();
@@ -50,26 +59,32 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
             return;
         }
 
+        if (_floatingLayers == null) return;
+
         var pixel = Editor.WorldToPixel(Workspace.MouseWorldPosition);
 
-        // Start drag — lift pixels
-        if (_floatingLayers == null && Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
+        // Start drag — erase stamped pixels so they don't leave a copy behind
+        if (!_isDragging && Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
-            Lift();
+            Undo.Record(Editor.Document);
+            ClearFloatingFromCanvas();
+            _isDragging = true;
             _dragStartPixel = pixel;
             _offset = Vector2Int.Zero;
         }
 
         // Continue drag
-        if (_floatingLayers != null && Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
+        if (_isDragging && Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
         {
             _offset = pixel - _dragStartPixel;
         }
 
-        // Release — drop pixels
-        if (_floatingLayers != null && !Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
+        // Release — stamp pixels but keep floating buffer
+        if (_isDragging && !Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
         {
-            Drop();
+            _isDragging = false;
+            if (_offset != Vector2Int.Zero)
+                Stamp();
         }
     }
 
@@ -130,7 +145,34 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         Editor.InvalidateComposite();
     }
 
-    private void Drop()
+    private void ClearFloatingFromCanvas()
+    {
+        if (_floatingLayers == null) return;
+
+        foreach (var fl in _floatingLayers)
+        {
+            if (fl.Layer.Pixels == null) continue;
+
+            var fw = fl.Pixels.Width;
+            var fh = fl.Pixels.Height;
+
+            for (var y = 0; y < fh; y++)
+                for (var x = 0; x < fw; x++)
+                {
+                    if (fl.Mask != null && fl.Mask[x, y] == 0) continue;
+                    if (fl.Pixels[x, y].A == 0) continue;
+
+                    var dx = _sourceRect.X + x;
+                    var dy = _sourceRect.Y + y;
+                    if (Editor.IsPixelInBounds(new Vector2Int(dx, dy)))
+                        fl.Layer.Pixels.Set(dx, dy, default);
+                }
+        }
+
+        Editor.InvalidateComposite();
+    }
+
+    private void Stamp()
     {
         if (_floatingLayers == null) return;
 
@@ -155,19 +197,29 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
                 }
         }
 
-        if (Editor.HasSelection && _offset != Vector2Int.Zero)
+        // Update source rect to new position
+        _sourceRect = new RectInt(
+            _sourceRect.X + _offset.X,
+            _sourceRect.Y + _offset.Y,
+            _sourceRect.Width,
+            _sourceRect.Height);
+        _offset = Vector2Int.Zero;
+
+        if (Editor.HasSelection)
         {
             Editor.ApplyRectSelection(
-                new RectInt(
-                    _sourceRect.X + _offset.X,
-                    _sourceRect.Y + _offset.Y,
-                    _sourceRect.Width,
-                    _sourceRect.Height),
+                _sourceRect,
                 SelectionOp.Replace);
         }
 
-        DisposeFloating();
         Editor.InvalidateComposite();
+    }
+
+    private void Drop()
+    {
+        if (_floatingLayers == null) return;
+        Stamp();
+        DisposeFloating();
     }
 
     private void Cancel()
@@ -202,10 +254,9 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         var cellW = bounds.Width / epr.Width;
         var cellH = bounds.Height / epr.Height;
 
-        using (Gizmos.PushState(EditorLayer.Tool))
+        using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Editor.Document.Transform);
-            Graphics.SetSortGroup(6);
 
             foreach (var fl in _floatingLayers)
             {
@@ -237,7 +288,7 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
             _sourceRect.Width * cellW,
             _sourceRect.Height * cellH);
 
-        using (Gizmos.PushState(EditorLayer.Tool))
+        using (Gizmos.PushState(EditorLayer.Selection))
         {
             Graphics.SetTransform(Editor.Document.Transform);
             Graphics.SetColor(new Color(0f, 0f, 0f, 0.6f));

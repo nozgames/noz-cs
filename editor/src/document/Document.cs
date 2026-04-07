@@ -120,6 +120,11 @@ public abstract class Document : IDisposable, IChangeHandler
     protected virtual void OnNotifyChange() => IncrementVersion();
     protected virtual void OnCancelChange() => Undo.Cancel();
 
+    protected void ReportError(string message) => Log.Error($"{Path}: error: {message}");
+    protected void ReportError(int line, string message) => Log.Error($"{Path}({line}): error: {message}");
+    protected void ReportWarning(string message) => Log.Warning($"{Path}: warning: {message}");
+    protected void ReportWarning(int line, string message) => Log.Warning($"{Path}({line}): warning: {message}");
+
     public void IncrementVersion()
     {
         Version++;

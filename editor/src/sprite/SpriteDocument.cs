@@ -633,7 +633,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to load preview texture '{ImageFilePath}': {ex.Message}");
+            ReportError($"Failed to load preview texture '{ImageFilePath}': {ex.Message}");
         }
     }
 
