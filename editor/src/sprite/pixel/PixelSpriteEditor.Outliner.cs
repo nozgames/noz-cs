@@ -16,17 +16,22 @@ public partial class PixelSpriteEditor
 
     protected override bool ReverseChildren => true;
 
-    protected override bool IsNodeSelected(SpriteNode node) => node == ActiveLayer;
+    protected override bool IsNodeSelected(SpriteNode node) => node == _selectedNode;
+    protected override bool IsNodeActive(SpriteNode node) => node == _activeLayer;
 
     protected override void OnNodeClicked(SpriteNode node)
     {
-        if (node is SpriteGroup)
-            node.Expanded = !node.Expanded;
-        else if (node is PixelLayer layer)
-            ActiveLayer = layer;
+        SelectedNode = node;
     }
 
     protected override void OnOutlinerChanged() => InvalidateComposite();
+
+    protected override void OnVisibilityChanged(SpriteNode node)
+    {
+        var fi = CurrentFrameIndex;
+        if (fi < Document.AnimFrames.Count)
+            Document.AnimFrames[fi].SetLayerVisible(node, node.Visible);
+    }
 
     protected override string GetNodeFallbackName(SpriteNode node) =>
         node is SpriteGroup ? "Group" : "Layer";

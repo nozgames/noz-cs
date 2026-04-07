@@ -247,6 +247,21 @@ public partial class SpriteDocument
 
     private void RasterizePixelLayers(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
+        var fi = GetFrameAtTimeSlot(rect.FrameIndex);
+
+        // Save and apply frame visibility
+        Dictionary<SpriteNode, bool>? savedVisibility = null;
+        if (fi < AnimFrames.Count)
+        {
+            savedVisibility = new Dictionary<SpriteNode, bool>();
+            Root.ForEach((SpriteNode node) =>
+            {
+                if (node != Root)
+                    savedVisibility[node] = node.Visible;
+            });
+            AnimFrames[fi].ApplyVisibility(Root);
+        }
+
         // Use trimmed RasterBounds for atlas packing
         var srcX = RasterBounds.X + CanvasSize.X / 2;
         var srcY = RasterBounds.Y + CanvasSize.Y / 2;
@@ -258,9 +273,40 @@ public partial class SpriteDocument
             rect.Rect.Position + new Vector2Int(padding, padding),
             new Vector2Int(w, h));
 
-        foreach (var child in Root.Children)
+        RasterizePixelLayersRecursive(Root, image, rasterRect, srcX, srcY, w, h);
+
+        // Restore visibility
+        if (savedVisibility != null)
         {
-            if (child is not PixelLayer layer || !layer.Visible || layer.Pixels == null)
+            foreach (var (node, visible) in savedVisibility)
+                node.Visible = visible;
+        }
+
+        image.BleedColors(rasterRect);
+        for (var p = padding - 1; p >= 0; p--)
+        {
+            var padRect = new RectInt(
+                rect.Rect.Position + new Vector2Int(p, p),
+                new Vector2Int(w + padding2, h + padding2) - new Vector2Int(p * 2, p * 2));
+            image.ExtrudeEdges(padRect);
+        }
+    }
+
+    private static void RasterizePixelLayersRecursive(
+        SpriteNode parent, PixelData<Color32> image, RectInt rasterRect,
+        int srcX, int srcY, int w, int h)
+    {
+        foreach (var child in parent.Children)
+        {
+            if (!child.Visible) continue;
+
+            if (child is SpriteGroup group)
+            {
+                RasterizePixelLayersRecursive(group, image, rasterRect, srcX, srcY, w, h);
+                continue;
+            }
+
+            if (child is not PixelLayer layer || layer.Pixels == null)
                 continue;
 
             for (var y = 0; y < h; y++)
@@ -295,15 +341,6 @@ public partial class SpriteDocument
                     }
                 }
             }
-        }
-
-        image.BleedColors(rasterRect);
-        for (var p = padding - 1; p >= 0; p--)
-        {
-            var padRect = new RectInt(
-                rect.Rect.Position + new Vector2Int(p, p),
-                new Vector2Int(w + padding2, h + padding2) - new Vector2Int(p * 2, p * 2));
-            image.ExtrudeEdges(padRect);
         }
     }
 }

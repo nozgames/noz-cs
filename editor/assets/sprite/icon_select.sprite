@@ -1,5 +1,49 @@
 
 path "" {
+  translate 0.13588428 0.12755466
+  rotate 90
+  operation subtract
+  fill rgba(0,0,0,0)
+  anchor -0.30224776 -0.13739395
+  anchor -0.30224776 -0.096850395
+  anchor 0.28338242 -0.096850395
+  anchor 0.28338242 -0.13739395
+}
+
+path "" {
+  translate 0.052995205 0.123049736
+  rotate 90
+  operation subtract
+  fill rgba(0,0,0,0)
+  anchor -0.30224776 -0.13739395
+  anchor -0.30224776 -0.096850395
+  anchor 0.28338242 -0.096850395
+  anchor 0.28338242 -0.13739395
+}
+
+path "" {
+  translate -0.035299778 0.12665367
+  rotate 90
+  operation subtract
+  fill rgba(0,0,0,0)
+  anchor -0.30224776 -0.13739395
+  anchor -0.30224776 -0.096850395
+  anchor 0.28338242 -0.096850395
+  anchor 0.28338242 -0.13739395
+}
+
+path "" {
+  translate -0.119990826 0.12845588
+  rotate 90
+  operation subtract
+  fill rgba(0,0,0,0)
+  anchor -0.30224776 -0.13739395
+  anchor -0.30224776 -0.096850395
+  anchor 0.28338242 -0.096850395
+  anchor 0.28338242 -0.13739395
+}
+
+path "" {
   translate 0.0009012222 0.2558751
   operation subtract
   fill rgba(0,0,0,0)

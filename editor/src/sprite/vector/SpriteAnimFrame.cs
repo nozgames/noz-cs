@@ -7,55 +7,49 @@ namespace NoZ.Editor;
 public class SpriteAnimFrame
 {
     public int Hold { get; set; }
-    public HashSet<SpriteGroup> VisibleLayers { get; } = new();
+    public HashSet<SpriteNode> VisibleLayers { get; } = new();
 
-    public bool IsLayerVisible(SpriteGroup layer) => VisibleLayers.Contains(layer);
+    public bool IsLayerVisible(SpriteNode node) => VisibleLayers.Contains(node);
 
-    public void SetLayerVisible(SpriteGroup layer, bool visible)
+    public void SetLayerVisible(SpriteNode node, bool visible)
     {
         if (visible)
-            VisibleLayers.Add(layer);
+            VisibleLayers.Add(node);
         else
-            VisibleLayers.Remove(layer);
+            VisibleLayers.Remove(node);
     }
 
-    public void ApplyVisibility(SpriteGroup root)
+    public void ApplyVisibility(SpriteNode root)
     {
-        root.ForEach((SpriteGroup layer) =>
+        root.ForEach((SpriteNode node) =>
         {
-            if (layer != root)
-                layer.Visible = VisibleLayers.Contains(layer);
+            if (node != root)
+                node.Visible = VisibleLayers.Contains(node);
         });
     }
 
-    public void CaptureVisibility(SpriteGroup root)
+    public void CaptureVisibility(SpriteNode root)
     {
         VisibleLayers.Clear();
-        root.ForEach(layer =>
+        root.ForEach((SpriteNode node) =>
         {
-            if (layer != root && layer.Visible)
-                VisibleLayers.Add(layer);
+            if (node != root && node.Visible)
+                VisibleLayers.Add(node);
         });
     }
 
-    public SpriteAnimFrame Clone(SpriteGroup sourceRoot, SpriteGroup targetRoot)
+    public SpriteAnimFrame Clone(SpriteNode sourceRoot, SpriteNode targetRoot)
     {
         var clone = new SpriteAnimFrame { Hold = Hold };
-
-        // Map layers from source to target by matching tree positions
         MapLayers(sourceRoot, targetRoot, clone);
         return clone;
     }
 
     private void MapLayers(SpriteNode source, SpriteNode target, SpriteAnimFrame clone)
     {
-        if (source is SpriteGroup sourceLayer && target is SpriteGroup targetLayer)
-        {
-            if (VisibleLayers.Contains(sourceLayer))
-                clone.VisibleLayers.Add(targetLayer);
-        }
+        if (VisibleLayers.Contains(source))
+            clone.VisibleLayers.Add(target);
 
-        // Map children by position, then fall back to name matching for unmatched layers
         var minCount = Math.Min(source.Children.Count, target.Children.Count);
         for (var i = 0; i < minCount; i++)
             MapLayers(source.Children[i], target.Children[i], clone);
@@ -63,10 +57,10 @@ public class SpriteAnimFrame
         // Name-based fallback for extra source layers that had no positional match
         for (var i = minCount; i < source.Children.Count; i++)
         {
-            if (source.Children[i] is not SpriteGroup extraSource) continue;
+            var extraSource = source.Children[i];
             if (!VisibleLayers.Contains(extraSource)) continue;
 
-            var matched = target.FindGroup(extraSource.Name);
+            var matched = target.FindNode(extraSource.Name);
             if (matched != null)
                 clone.VisibleLayers.Add(matched);
         }

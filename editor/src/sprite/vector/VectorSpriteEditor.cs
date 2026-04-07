@@ -3,7 +3,6 @@
 //
 
 using System.Numerics;
-using CrypticWizard.RandomWordGenerator;
 
 namespace NoZ.Editor;
 
@@ -36,15 +35,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId BoolSubtract { get; }
         public static partial WidgetId BoolIntersect { get; }
         public static partial WidgetId FillColor { get; }
-        public static partial WidgetId GenerateButton { get; }
-        public static partial WidgetId CancelButton { get; }
-        public static partial WidgetId StyleDropDown { get; }
-        public static partial WidgetId GenerationPrompt { get; }
-        public static partial WidgetId GenerationNegativePrompt { get; }
-        public static partial WidgetId Seed { get; }
-        public static partial WidgetId RandomizeSeed { get; }
-        public static partial WidgetId AddGenerationButton { get; }
-        public static partial WidgetId RemoveGenerationButton { get; }
         public static partial WidgetId AddEdgesButton { get; }
         public static partial WidgetId RemoveEdgesButton { get; }
         public static partial WidgetId EdgeTop { get; }
@@ -55,7 +45,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId PenToolButton { get; }
         public static partial WidgetId RectToolButton { get; }
         public static partial WidgetId CircleToolButton { get; }
-        public static partial WidgetId GenImageToggle { get; }
         public static partial WidgetId DopeSheetToggle { get; }
         public static partial WidgetId VModeButton { get; }
         public static partial WidgetId AModeButton { get; }
@@ -64,8 +53,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId OnionSkinButton { get; }
     }
-
-    private static readonly WordGenerator _wordGenerator = new();
 
     private int _currentTimeSlot;
     private bool _isPlaying;
@@ -109,8 +96,6 @@ public partial class VectorSpriteEditor : SpriteEditor
                 new Command("Add Hold",             AddHoldFrame,               [new KeyBinding(InputCode.KeyH)]),
                 new Command("Remove Hold",          RemoveHoldFrame,            [new KeyBinding(InputCode.KeyH, ctrl:true)]),
                 new Command("Toggle Onion Skin",    ToggleOnionSkin,            [new KeyBinding(InputCode.KeyO, shift:true)]),
-                new Command("Generate",             Document.GenerateAsync,     [new KeyBinding(InputCode.KeyG, ctrl:true)]),
-                new Command("Generate (Random Seed)", GenerateWithRandomSeed, [new KeyBinding(InputCode.KeyG, ctrl:true, shift:true)]),
                 new Command("Eye Dropper",          () => SetMode(SpriteEditMode.EyeDropper), [new KeyBinding(InputCode.KeyI)]),
                 new Command("Boolean Union",        BooleanUnion,               [new KeyBinding(InputCode.KeyU, ctrl:true, shift:true)]),
                 new Command("Boolean Subtract",     BooleanSubtract,            [new KeyBinding(InputCode.KeyD, ctrl:true, shift:true)]),
@@ -274,31 +259,19 @@ public partial class VectorSpriteEditor : SpriteEditor
         UpdateHandleCursor();
         UpdateAnimation();
 
-        var hasGen = Document.Generation is { } gen && gen.Job.Texture != null;
-
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
-            Graphics.SetSortGroup(hasGen ? 6 : 5);
+            Graphics.SetSortGroup(5);
             Document.DrawOrigin();
-            Graphics.SetSortGroup(hasGen ? 5 : 4);
+            Graphics.SetSortGroup(4);
             DrawWireframe();
         }
 
         DrawGradientOverlay();
 
         UpdateMeshFromLayers();
-
-        if (hasGen)
-        {
-            DrawGeneratedImage(sortGroup: 1, alpha: 1f);
-            DrawColoredMesh(sortGroup: 2);
-            DrawGeneratedImage(sortGroup: 3, alpha: 0.3f);
-        }
-        else
-        {
-            DrawMesh();
-        }
+        DrawMesh();
 
         DrawOnionSkin();
 
@@ -1482,102 +1455,105 @@ public partial class VectorSpriteEditor : SpriteEditor
                 }
             }
 
-            using (Inspector.BeginProperty("Fill"))
+            if (Document.CurrentOperation != SpritePathOperation.Subtract)
             {
-                var wasPickerOpen = ColorPicker.IsOpen(WidgetIds.FillColor);
-                var fillColor = Document.CurrentFillColor.ToColor();
-                EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor);
-
-                // Re-open with gradient state when the picker just opened on a gradient path
-                if (!wasPickerOpen && ColorPicker.IsOpen(WidgetIds.FillColor) && Document.CurrentFillType == SpriteFillType.Linear)
+                using (Inspector.BeginProperty("Fill"))
                 {
-                    Log.Info($"[Gradient] Re-opening picker: start={Document.CurrentFillGradient.StartColor} end={Document.CurrentFillGradient.EndColor}");
-                    ColorPicker.Open(WidgetIds.FillColor, Document.CurrentFillType,
-                        Document.CurrentFillColor, Document.CurrentFillGradient);
-                }
+                    var wasPickerOpen = ColorPicker.IsOpen(WidgetIds.FillColor);
+                    var fillColor = Document.CurrentFillColor.ToColor();
+                    EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor);
 
-                // Set gradient handle passthrough while picker is in gradient mode
-                ColorPicker.OnBackdropClick = IsGradientOverlayVisible() ? OnGradientBackdropClick : null;
-
-                // Sync color/gradient to paths while picker is open
-                if (ColorPicker.IsOpen(WidgetIds.FillColor))
-                {
-                    var changed = false;
-                    if (ColorPicker.ResultFillType == SpriteFillType.Linear)
+                    // Re-open with gradient state when the picker just opened on a gradient path
+                    if (!wasPickerOpen && ColorPicker.IsOpen(WidgetIds.FillColor) && Document.CurrentFillType == SpriteFillType.Linear)
                     {
-                        var pickerGrad = ColorPicker.ResultGradient;
-                        if (_selectedPaths.Count > 0)
-                        {
-                            var cur = _selectedPaths[0].FillGradient;
-                            changed = cur.StartColor != pickerGrad.StartColor || cur.EndColor != pickerGrad.EndColor;
-                        }
-                        Document.CurrentFillType = SpriteFillType.Linear;
-                        var fallback = pickerGrad.StartColor.A > 0 ? pickerGrad.StartColor : pickerGrad.EndColor;
-                        if (fallback.A == 0) fallback = new Color32(fallback.R, fallback.G, fallback.B, 255);
-                        Document.CurrentFillColor = fallback;
-                        foreach (var path in _selectedPaths)
-                        {
-                            path.FillType = SpriteFillType.Linear;
-                            path.FillColor = fallback;
-                            var g = path.FillGradient;
-                            g.StartColor = pickerGrad.StartColor;
-                            g.EndColor = pickerGrad.EndColor;
-                            path.FillGradient = g;
-                            if (g.Start == Vector2.Zero && g.End == Vector2.Zero)
-                                path.InitializeDefaultGradient();
-                        }
-                        if (_selectedPaths.Count > 0)
-                            Document.CurrentFillGradient = _selectedPaths[0].FillGradient;
-                    }
-                    else
-                    {
-                        var newColor = fillColor.ToColor32();
-                        changed = newColor != Document.CurrentFillColor;
-                        SetFillColor(newColor);
+                        Log.Info($"[Gradient] Re-opening picker: start={Document.CurrentFillGradient.StartColor} end={Document.CurrentFillGradient.EndColor}");
+                        ColorPicker.Open(WidgetIds.FillColor, Document.CurrentFillType,
+                            Document.CurrentFillColor, Document.CurrentFillGradient);
                     }
 
-                    if (changed)
-                        UI.NotifyChanged(fillColor.GetHashCode());
-                    _meshDirty = true;
+                    // Set gradient handle passthrough while picker is in gradient mode
+                    ColorPicker.OnBackdropClick = IsGradientOverlayVisible() ? OnGradientBackdropClick : null;
+
+                    // Sync color/gradient to paths while picker is open
+                    if (ColorPicker.IsOpen(WidgetIds.FillColor))
+                    {
+                        var changed = false;
+                        if (ColorPicker.ResultFillType == SpriteFillType.Linear)
+                        {
+                            var pickerGrad = ColorPicker.ResultGradient;
+                            if (_selectedPaths.Count > 0)
+                            {
+                                var cur = _selectedPaths[0].FillGradient;
+                                changed = cur.StartColor != pickerGrad.StartColor || cur.EndColor != pickerGrad.EndColor;
+                            }
+                            Document.CurrentFillType = SpriteFillType.Linear;
+                            var fallback = pickerGrad.StartColor.A > 0 ? pickerGrad.StartColor : pickerGrad.EndColor;
+                            if (fallback.A == 0) fallback = new Color32(fallback.R, fallback.G, fallback.B, 255);
+                            Document.CurrentFillColor = fallback;
+                            foreach (var path in _selectedPaths)
+                            {
+                                path.FillType = SpriteFillType.Linear;
+                                path.FillColor = fallback;
+                                var g = path.FillGradient;
+                                g.StartColor = pickerGrad.StartColor;
+                                g.EndColor = pickerGrad.EndColor;
+                                path.FillGradient = g;
+                                if (g.Start == Vector2.Zero && g.End == Vector2.Zero)
+                                    path.InitializeDefaultGradient();
+                            }
+                            if (_selectedPaths.Count > 0)
+                                Document.CurrentFillGradient = _selectedPaths[0].FillGradient;
+                        }
+                        else
+                        {
+                            var newColor = fillColor.ToColor32();
+                            changed = newColor != Document.CurrentFillColor;
+                            SetFillColor(newColor);
+                        }
+
+                        if (changed)
+                            UI.NotifyChanged(fillColor.GetHashCode());
+                        _meshDirty = true;
+                    }
+
+                    // Handle undo — must be after NotifyChanged so WasChanged() sees it
+                    UI.HandleChange(Document);
                 }
 
-                // Handle undo — must be after NotifyChanged so WasChanged() sees it
-                UI.HandleChange(Document);
-            }
-
-            using (Inspector.BeginProperty("Stroke"))
-            using (UI.BeginRow(EditorStyle.Control.Spacing))
-            {
-                var strokeColor = Document.CurrentStrokeColor.ToColor();
-                EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor);
-
-                if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
-                {
-                    var newColor = strokeColor.ToColor32();
-                    if (newColor != Document.CurrentStrokeColor)
-                        UI.NotifyChanged(strokeColor.GetHashCode());
-                    SetStrokeColor(newColor);
-                }
-
-                UI.HandleChange(Document);
-
-                if (strokeColor.A > 0)
-                    StrokeWidthButtonUI();
-            }
-
-            if (Document.CurrentStrokeColor.A > 0)
-            {
-                using (Inspector.BeginProperty("Join"))
+                using (Inspector.BeginProperty("Stroke"))
                 using (UI.BeginRow(EditorStyle.Control.Spacing))
                 {
-                    if (UI.Button(WidgetIds.StrokeJoinRound, EditorAssets.Sprites.IconStrokeJoinRound, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Round))
-                        SetStrokeJoin(SpriteStrokeJoin.Round);
+                    var strokeColor = Document.CurrentStrokeColor.ToColor();
+                    EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor);
 
-                    if (UI.Button(WidgetIds.StrokeJoinMiter, EditorAssets.Sprites.IconStrokeJoinMiter, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Miter))
-                        SetStrokeJoin(SpriteStrokeJoin.Miter);
+                    if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
+                    {
+                        var newColor = strokeColor.ToColor32();
+                        if (newColor != Document.CurrentStrokeColor)
+                            UI.NotifyChanged(strokeColor.GetHashCode());
+                        SetStrokeColor(newColor);
+                    }
 
-                    if (UI.Button(WidgetIds.StrokeJoinBevel, EditorAssets.Sprites.IconStrokeJoinBevel, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Bevel))
-                        SetStrokeJoin(SpriteStrokeJoin.Bevel);
+                    UI.HandleChange(Document);
+
+                    if (strokeColor.A > 0)
+                        StrokeWidthButtonUI();
+                }
+
+                if (Document.CurrentStrokeColor.A > 0)
+                {
+                    using (Inspector.BeginProperty("Join"))
+                    using (UI.BeginRow(EditorStyle.Control.Spacing))
+                    {
+                        if (UI.Button(WidgetIds.StrokeJoinRound, EditorAssets.Sprites.IconStrokeJoinRound, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Round))
+                            SetStrokeJoin(SpriteStrokeJoin.Round);
+
+                        if (UI.Button(WidgetIds.StrokeJoinMiter, EditorAssets.Sprites.IconStrokeJoinMiter, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Miter))
+                            SetStrokeJoin(SpriteStrokeJoin.Miter);
+
+                        if (UI.Button(WidgetIds.StrokeJoinBevel, EditorAssets.Sprites.IconStrokeJoinBevel, EditorStyle.Button.ToggleIcon, isSelected: Document.CurrentStrokeJoin == SpriteStrokeJoin.Bevel))
+                            SetStrokeJoin(SpriteStrokeJoin.Bevel);
+                    }
                 }
             }
         }
@@ -1592,7 +1568,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         {
             EdgesInspectorUI();
             PathInspectorUI();
-            GenerationInspectorUI();
         }
     }
 
@@ -1676,188 +1651,6 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     #endregion
 
-    #region Generation
-
-    private void GenerationInspectorUI()
-    {
-        if (Document.Generation == null)
-        {
-            static void EmptySectionContent()
-            {
-                ElementTree.BeginAlign(Align.Min, Align.Center);
-                if (UI.Button(WidgetIds.AddGenerationButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
-                {
-                    var doc = (Workspace.ActiveDocument as SpriteDocument)!;
-                    Undo.Record(doc);
-                    doc.Generation = new SpriteGeneration { Prompt = " ", Seed = GenerateRandomSeed() };
-                    doc.ConstrainedSize ??= new Vector2Int(256, 256);
-                    doc.UpdateBounds();
-                }
-                ElementTree.EndAlign();
-            }
-
-            using (Inspector.BeginSection("GENERATION", content: EmptySectionContent, empty: true))
-            return;
-        }
-
-        static void GenerationSectionContent()
-        {
-            ElementTree.BeginAlign(Align.Min, Align.Center);
-            if (UI.Button(WidgetIds.RemoveGenerationButton, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
-                ((VectorSpriteEditor)Workspace.ActiveEditor!).RemoveGeneration();
-            ElementTree.EndAlign(); 
-        }
-
-        using (Inspector.BeginSection("GENERATION", content: GenerationSectionContent, empty: Document.Generation == null))
-        {
-            if (Document.Generation == null || Inspector.IsSectionCollapsed) return;
-
-            // style
-            using (Inspector.BeginProperty("Style"))
-                UI.DropDown(
-                    WidgetIds.StyleDropDown,
-                    text: Document.Generation!.Config.Name ?? "None",
-                    icon: EditorAssets.Sprites.AssetIconGenstyle,
-                    getItems: () =>
-                    {
-                        var items = new List<PopupMenuItem>
-                        {
-                        PopupMenuItem.Item("None", () => SetStyle(null))
-                        };
-                        foreach (var doc in DocumentManager.Documents)
-                        {
-                            if (doc is GenerationConfig styleDoc)
-                                items.Add(PopupMenuItem.Item(styleDoc.Name, () => SetStyle(styleDoc)));
-                        }
-                        return [.. items];
-                    });
-
-            var g = Document.Generation!;
-
-            using (Inspector.BeginProperty("Prompt"))
-            {
-                g.Prompt = UI.TextInput(WidgetIds.GenerationPrompt, g.Prompt, EditorStyle.TextArea, "Prompt", multiLine: true);
-                UI.HandleChange(Document);
-            }
-
-            using (Inspector.BeginProperty("Negative Prompt"))
-            {
-                g.NegativePrompt = UI.TextInput(WidgetIds.GenerationNegativePrompt, g.NegativePrompt, EditorStyle.TextArea, "Negative Prompt", multiLine: true);
-                UI.HandleChange(Document);
-            }
-
-            using (Inspector.BeginProperty("Seed"))
-            using (UI.BeginRow())
-            {
-                using (UI.BeginFlex())
-                {
-                    g.Seed = UI.TextInput(WidgetIds.Seed, g.Seed, EditorStyle.TextInput, "Seed", icon: EditorAssets.Sprites.IconSeed);
-                    UI.HandleChange(Document);
-                }
-
-                if (UI.Button(WidgetIds.RandomizeSeed, EditorAssets.Sprites.IconRandom, EditorStyle.Button.IconOnly))
-                {
-                    Undo.Record(Document);
-                    g.Seed = GenerateRandomSeed();
-                }
-            }
-            var job = g.Job;
-            if (job.IsGenerating)
-                GenerationProgressUI(job);
-            else
-                GenerateButtonUI(job);
-
-        }
-
-    }
-
-    private void SetStyle(GenerationConfig? style)
-    {
-        Undo.Record(Document);
-        Document.Generation!.Config = style;
-    }
-
-    private void GenerationProgressUI(GenerationJob genImage)
-    {
-        using (UI.BeginColumn(new ContainerStyle
-        {
-            Padding = EdgeInsets.Symmetric(12, 16),
-            Spacing = 10,
-        }))
-        {
-            var progressText = genImage.GenerationState switch
-            {
-                GenerationState.Queued when genImage.QueuePosition > 0 =>
-                    $"Queued (position {genImage.QueuePosition})",
-                GenerationState.Queued => "Queued...",
-                GenerationState.Running => $"Generating {(int)(genImage.GenerationProgress * 100)}%",
-                _ => "Starting..."
-            };
-
-            using (UI.BeginRow(new ContainerStyle { Spacing = 8 }))
-            {
-                UI.Text(progressText, EditorStyle.Text.Primary with { FontSize = EditorStyle.Control.TextSize });
-                UI.Flex();
-                if (UI.Button(WidgetIds.CancelButton, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
-                    genImage.CancelGeneration();
-            }
-
-            using (UI.BeginContainer(new ContainerStyle
-            {
-                Width = Size.Percent(1),
-                Height = 4f,
-                Background = EditorStyle.Palette.Active,
-                BorderRadius = 2f
-            }))
-            {
-                UI.Container(new ContainerStyle
-                {
-                    Width = Size.Percent(genImage.GenerationProgress),
-                    Height = 4f,
-                    Background = EditorStyle.Palette.Primary,
-                    BorderRadius = 2f
-                });
-            }
-        }
-    }
-
-    private void GenerateButtonUI(GenerationJob genImage)
-    {
-        if (genImage.GenerationError != null)
-            UI.Text(genImage.GenerationError, EditorStyle.Text.Secondary with { Color = EditorStyle.ErrorColor });
-
-        using (UI.BeginContainer(new ContainerStyle
-        {
-            Padding = EdgeInsets.Symmetric(12, 16),
-        }))
-        {
-            using (UI.BeginEnabled(!string.IsNullOrWhiteSpace(Document.Generation!.Prompt) && Document.Generation.Config.Value != null))
-                if (UI.Button(WidgetIds.GenerateButton, "Generate", EditorAssets.Sprites.IconAi, EditorStyle.Button.Primary with { Width = Size.Percent(1) }))
-                    Document.GenerateAsync();
-        }
-    }
-
-    private void RemoveGeneration()
-    {
-        Undo.Record(Document);
-        Document.Generation?.Dispose();
-        Document.Generation = null;
-    }
-
-    internal static string GenerateRandomSeed()
-    {
-        var adj = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.adj);
-        var noun = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.noun);
-        return $"{adj}-{noun}";
-    }
-
-    private void GenerateWithRandomSeed()
-    {
-        if (Document.Generation == null) return;
-        Document.Generation.Seed = GenerateRandomSeed();
-        Document.GenerateAsync();
-    }
-
     internal void ApplyEyeDropperColor(Color32 color, bool stroke)
     {
         Undo.Record(Document);
@@ -1874,8 +1667,6 @@ public partial class VectorSpriteEditor : SpriteEditor
                 ColorPicker.Open(WidgetIds.FillColor, color);
         }
     }
-
-    #endregion
 
     #region Skeleton Binding
 

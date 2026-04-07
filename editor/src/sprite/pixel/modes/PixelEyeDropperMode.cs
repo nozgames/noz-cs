@@ -48,24 +48,4 @@ public class PixelEyeDropperMode : EditorMode<PixelSpriteEditor>
         }
     }
 
-    public override void Draw()
-    {
-        var pixel = Editor.WorldToPixel(Workspace.MouseWorldPosition);
-        if (!Editor.IsPixelInBounds(pixel)) return;
-
-        var bounds = Editor.CanvasRect;
-        var cellW = bounds.Width / Editor.Document.CanvasSize.X;
-        var cellH = bounds.Height / Editor.Document.CanvasSize.Y;
-        var pixelRect = new Rect(
-            bounds.X + pixel.X * cellW,
-            bounds.Y + pixel.Y * cellH,
-            cellW, cellH);
-
-        using (Gizmos.PushState(EditorLayer.Tool))
-        {
-            Graphics.SetTransform(Editor.Document.Transform);
-            Graphics.SetColor(new Color(1f, 1f, 1f, 0.6f));
-            Gizmos.DrawRect(pixelRect, EditorStyle.Workspace.DocumentBoundsLineWidth);
-        }
-    }
 }

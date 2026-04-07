@@ -40,8 +40,9 @@ public partial class PixelSpriteEditor
                 if (!IsInBrush(dx, dy, BrushSize)) continue;
                 var px = pixel.X - offset + dx;
                 var py = pixel.Y - offset + dy;
-                if (!IsPixelInBounds(new Vector2Int(px, py))) continue;
+                if (!IsPixelInConstraint(new Vector2Int(px, py))) continue;
                 if (!IsPixelSelected(px, py)) continue;
+                if (AlphaLock && layer.Pixels[px, py].A == 0) continue;
                 layer.Pixels.Set(px, py, color);
             }
         InvalidateComposite();
@@ -114,11 +115,12 @@ public partial class PixelSpriteEditor
         if (runs.Length == 0) return;
 
         var canvas = CanvasRect;
-        var cellW = canvas.Width / Document.CanvasSize.X;
-        var cellH = canvas.Height / Document.CanvasSize.Y;
+        var epr = EditablePixelRect;
+        var cellW = canvas.Width / epr.Width;
+        var cellH = canvas.Height / epr.Height;
         var brushOffset = (BrushSize - 1) / 2;
-        var originX = canvas.X + (pixel.X - brushOffset) * cellW;
-        var originY = canvas.Y + (pixel.Y - brushOffset) * cellH;
+        var originX = canvas.X + (pixel.X - epr.X - brushOffset) * cellW;
+        var originY = canvas.Y + (pixel.Y - epr.Y - brushOffset) * cellH;
         var halfWidth = EditorStyle.Workspace.DocumentBoundsLineWidth * Gizmos.ZoomRefScale;
 
         var vertCount = runs.Length * 4;

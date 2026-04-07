@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using CrypticWizard.RandomWordGenerator;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -11,6 +12,8 @@ namespace NoZ.Editor;
 
 public class SpriteGeneration : IDisposable
 {
+    private static readonly WordGenerator _wordGenerator = new();
+
     public string Prompt = "";
     public string NegativePrompt = "";
     public string Seed = "";
@@ -23,6 +26,13 @@ public class SpriteGeneration : IDisposable
     public void RestoreJob(GenerationJob job) => Job = job;
 
     public void Dispose() => Job.Dispose();
+
+    public static string GenerateRandomSeed()
+    {
+        var adj = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.adj);
+        var noun = _wordGenerator.GetWord(WordGenerator.PartOfSpeech.noun);
+        return $"{adj}-{noun}";
+    }
 }
 
 public partial class SpriteDocument

@@ -182,7 +182,7 @@ public static partial class Workspace
                 continue;
             if (doc is SpriteDocument sprite && sprite.Generation != null)
             {
-                sprite.Generation.Seed = VectorSpriteEditor.GenerateRandomSeed();
+                sprite.Generation.Seed = SpriteGeneration.GenerateRandomSeed();
                 sprite.GenerateAsync();
                 count++;
             }
@@ -223,6 +223,19 @@ public static partial class Workspace
     {
         var position = PopupMenu.WorldPosition;
         var doc = SpriteDocument.CreateNewPixelSprite(position);
+        if (doc != null)
+        {
+            doc.CollectionId = CollectionManager.GetVisibleId();
+            doc.IncrementVersion();
+            ClearSelection();
+            SetSelected(doc, true);
+        }
+    }
+
+    private static void CreateNewGeneratedSprite()
+    {
+        var position = PopupMenu.WorldPosition;
+        var doc = SpriteDocument.CreateNewGeneratedSprite(position);
         if (doc != null)
         {
             doc.CollectionId = CollectionManager.GetVisibleId();
@@ -311,6 +324,13 @@ public static partial class Workspace
             items.Add(PopupMenuItem.Item(
                 "Pixel Sprite",
                 CreateNewPixelSprite,
+                level: 1,
+                icon: EditorAssets.Sprites.AssetIconSprite));
+
+            // Generated Sprite
+            items.Add(PopupMenuItem.Item(
+                "Generated Sprite",
+                CreateNewGeneratedSprite,
                 level: 1,
                 icon: EditorAssets.Sprites.AssetIconSprite));
 

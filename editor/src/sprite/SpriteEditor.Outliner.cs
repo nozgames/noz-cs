@@ -152,14 +152,16 @@ public abstract partial class SpriteEditor
 
         // Must be after BeginWidget so hover state is available
         var isSelected = IsNodeSelected(node);
+        var isActive = IsNodeActive(node);
         var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
-        var bg = isSelected ? EditorStyle.Palette.Active : Color.Transparent;
-        if (isHovered) bg = EditorStyle.Palette.Active;
+        var bg = isSelected || isHovered ? EditorStyle.Palette.Active : Color.Transparent;
+        var borderW = isSelected || isActive ? 1f : 0f;
+        var borderC = isSelected || isActive ? EditorStyle.Palette.Active : Color.Transparent;
 
         if (dropLastChild)
             ElementTree.BeginFill(bg, borderWidth: 1, borderColor: EditorStyle.Palette.Primary);
         else
-            ElementTree.BeginFill(bg);
+            ElementTree.BeginFill(bg, borderWidth: borderW, borderColor: borderC);
 
         // Drag indicators
         if (!dropLastChild && (dropBefore || dropAfter))
@@ -514,7 +516,8 @@ public abstract partial class SpriteEditor
                 var targetParent = targetNode.Parent;
                 if (targetParent == null) return;
                 var targetIdx = targetParent.Children.IndexOf(targetNode);
-                if (_dropZone == DropZone.After) targetIdx++;
+                var after = ReverseChildren ? _dropZone == DropZone.Before : _dropZone == DropZone.After;
+                if (after) targetIdx++;
                 for (var i = 0; i < ordered.Count; i++)
                     targetParent.Insert(targetIdx + i, ordered[i]);
                 break;

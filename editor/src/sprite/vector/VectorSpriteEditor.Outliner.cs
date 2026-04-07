@@ -26,8 +26,8 @@ public partial class VectorSpriteEditor
     protected override void OnVisibilityChanged(SpriteNode node)
     {
         var fi = CurrentFrameIndex;
-        if (fi < Document.AnimFrames.Count && node is SpriteGroup layer)
-            Document.AnimFrames[fi].SetLayerVisible(layer, node.Visible);
+        if (fi < Document.AnimFrames.Count)
+            Document.AnimFrames[fi].SetLayerVisible(node, node.Visible);
     }
 
     protected override string GetNodeFallbackName(SpriteNode node) =>

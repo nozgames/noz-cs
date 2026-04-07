@@ -10,6 +10,7 @@ public abstract partial class SpriteEditor(SpriteDocument document) : DocumentEd
 
     // Outliner hooks for subclasses
     protected abstract bool IsNodeSelected(SpriteNode node);
+    protected virtual bool IsNodeActive(SpriteNode node) => false;
     protected abstract void OnNodeClicked(SpriteNode node);
     protected abstract void OnOutlinerChanged();
     protected virtual void OnVisibilityChanged(SpriteNode node) { }

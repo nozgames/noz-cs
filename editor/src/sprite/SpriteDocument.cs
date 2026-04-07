@@ -8,7 +8,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace NoZ.Editor;
 
-public enum SpriteType { Vector, Raster }
+public enum SpriteType { Vector, Raster, Generated }
 
 public partial class SpriteDocument : Document, ISkeletonAttachment
 {
@@ -96,6 +96,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public Vector2Int? ConstrainedSize { get; set; }
     public int PixelBrushSize { get; set; } = 1;
     public Color32 PixelBrushColor { get; set; } = Color32.Black;
+    public bool PixelAlphaLock { get; set; }
+    public string PixelActiveLayerName { get; set; } = "";
 
     public ushort AtlasFrameCount => (ushort)TotalTimeSlots;
     internal AtlasDocument? Atlas { get; set; }
@@ -161,9 +163,12 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             EditorFactory = doc =>
             {
                 var sd = (SpriteDocument)doc;
-                return sd.SpriteMode == SpriteType.Raster
-                    ? new PixelSpriteEditor(sd)
-                    : new VectorSpriteEditor(sd);
+                return sd.SpriteMode switch
+                {
+                    SpriteType.Raster => new PixelSpriteEditor(sd),
+                    SpriteType.Generated => new GeneratedSpriteEditor(sd),
+                    _ => new VectorSpriteEditor(sd),
+                };
             },
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconSprite
@@ -198,6 +203,30 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         }
 
         // Reload so it picks up the raster type
+        doc.Reload();
+        return doc;
+    }
+
+    public static void NewGeneratedFile(StreamWriter writer)
+    {
+        writer.WriteLine("type generated");
+        writer.WriteLine("generate");
+        writer.WriteLine($"seed \"{SpriteGeneration.GenerateRandomSeed()}\"");
+    }
+
+    public static Document? CreateNewGeneratedSprite(Vector2? position = null)
+    {
+        var doc = DocumentManager.New(AssetType.Sprite, null, position);
+        if (doc == null) return null;
+
+        var store = EditorApplication.Store;
+        using (var ms = new MemoryStream())
+        {
+            using (var writer = new StreamWriter(ms))
+                NewGeneratedFile(writer);
+            store.WriteAllBytes(doc.Path, ms.ToArray());
+        }
+
         doc.Reload();
         return doc;
     }
@@ -382,7 +411,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             }
             else
             {
-                RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
+                RasterBounds = new RectInt(-ppu / 2, -ppu / 2, ppu, ppu);
             }
 
             if (ConstrainedSize.HasValue)
@@ -394,7 +423,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             }
             else
             {
-                // Auto: bounds match the trimmed content (or full canvas if empty)
                 var fw = RasterBounds.Width / (float)ppu;
                 var fh = RasterBounds.Height / (float)ppu;
                 Bounds = new Rect(
@@ -403,6 +431,15 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
                     fw, fh);
             }
 
+            MarkSpriteDirty();
+            return;
+        }
+
+        if (SpriteMode == SpriteType.Generated)
+        {
+            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+            RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
+            Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
             MarkSpriteDirty();
             return;
         }
@@ -703,6 +740,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         foreach (var frame in src.AnimFrames)
             AnimFrames.Add(frame.Clone(src.Root, Root));
 
+        PixelActiveLayerName = src.PixelActiveLayerName;
+
         CloneGeneration(src);
     }
 
@@ -724,6 +763,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         PixelBrushSize = Math.Clamp(meta.GetInt("sprite", "pixel_brush_size", 1), 1, 16);
         var brushColor = meta.GetColor("sprite", "pixel_brush_color", Color.Black);
         PixelBrushColor = (Color32)brushColor;
+        PixelAlphaLock = meta.GetBool("sprite", "pixel_alpha_lock", false);
+        PixelActiveLayerName = meta.GetString("sprite", "pixel_active_layer", "");
 
         // Recompute bounds now that ConstrainedSize is available
         // (Load() calls UpdateBounds() before metadata is loaded)
@@ -760,6 +801,12 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         meta.SetInt("sprite", "pixel_brush_size", PixelBrushSize);
         meta.SetColor("sprite", "pixel_brush_color", (Color)PixelBrushColor);
+        meta.SetBool("sprite", "pixel_alpha_lock", PixelAlphaLock);
+
+        if (!string.IsNullOrEmpty(PixelActiveLayerName))
+            meta.SetString("sprite", "pixel_active_layer", PixelActiveLayerName);
+        else
+            meta.RemoveKey("sprite", "pixel_active_layer");
 
         // Clean up legacy style from metadata (now stored in file)
         meta.RemoveKey("sprite", "style");

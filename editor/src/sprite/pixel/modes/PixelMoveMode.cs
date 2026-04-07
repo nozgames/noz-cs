@@ -8,11 +8,36 @@ namespace NoZ.Editor;
 
 public class PixelMoveMode : EditorMode<PixelSpriteEditor>
 {
-    private PixelData<Color32>? _floating;
-    private PixelData<byte>? _floatingMask;
+    private struct FloatingLayer
+    {
+        public PixelLayer Layer;
+        public PixelData<Color32> Pixels;
+        public PixelData<byte>? Mask;
+    }
+
+    private List<FloatingLayer>? _floatingLayers;
     private RectInt _sourceRect;
     private Vector2Int _offset;
     private Vector2Int _dragStartPixel;
+
+    private List<PixelLayer> GetTargetLayers()
+    {
+        var layers = new List<PixelLayer>();
+        var selected = Editor.SelectedNode;
+        if (selected is SpriteGroup group)
+        {
+            group.ForEach((PixelLayer layer) =>
+            {
+                if (layer.Pixels != null)
+                    layers.Add(layer);
+            });
+        }
+        else if (Editor.ActiveLayer is { Pixels: not null } active)
+        {
+            layers.Add(active);
+        }
+        return layers;
+    }
 
     public override void Update()
     {
@@ -20,7 +45,7 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {
-            if (_floating != null)
+            if (_floatingLayers != null)
                 Cancel();
             return;
         }
@@ -28,7 +53,7 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         var pixel = Editor.WorldToPixel(Workspace.MouseWorldPosition);
 
         // Start drag — lift pixels
-        if (_floating == null && Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
+        if (_floatingLayers == null && Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
             Lift();
             _dragStartPixel = pixel;
@@ -36,13 +61,13 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         }
 
         // Continue drag
-        if (_floating != null && Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
+        if (_floatingLayers != null && Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
         {
             _offset = pixel - _dragStartPixel;
         }
 
         // Release — drop pixels
-        if (_floating != null && !Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
+        if (_floatingLayers != null && !Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
         {
             Drop();
         }
@@ -50,24 +75,29 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
 
     private void Lift()
     {
-        var layer = Editor.ActiveLayer;
-        if (layer?.Pixels == null) return;
+        var layers = GetTargetLayers();
+        if (layers.Count == 0) return;
 
         Undo.Record(Editor.Document);
 
         var w = Editor.Document.CanvasSize.X;
         var h = Editor.Document.CanvasSize.Y;
+        _floatingLayers = new List<FloatingLayer>();
 
         if (!Editor.HasSelection)
         {
             _sourceRect = new RectInt(0, 0, w, h);
-            _floating = new PixelData<Color32>(w, h);
-            for (var y = 0; y < h; y++)
-                for (var x = 0; x < w; x++)
-                {
-                    _floating[x, y] = layer.Pixels[x, y];
-                    layer.Pixels.Set(x, y, default);
-                }
+            foreach (var layer in layers)
+            {
+                var floating = new PixelData<Color32>(w, h);
+                for (var y = 0; y < h; y++)
+                    for (var x = 0; x < w; x++)
+                    {
+                        floating[x, y] = layer.Pixels![x, y];
+                        layer.Pixels.Set(x, y, default);
+                    }
+                _floatingLayers.Add(new FloatingLayer { Layer = layer, Pixels = floating });
+            }
         }
         else
         {
@@ -76,21 +106,25 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
 
             var s = sb.Value;
             _sourceRect = s;
-            _floating = new PixelData<Color32>(s.Width, s.Height);
-            _floatingMask = new PixelData<byte>(s.Width, s.Height);
+            foreach (var layer in layers)
+            {
+                var floating = new PixelData<Color32>(s.Width, s.Height);
+                var mask = new PixelData<byte>(s.Width, s.Height);
 
-            for (var y = 0; y < s.Height; y++)
-                for (var x = 0; x < s.Width; x++)
-                {
-                    var sx = s.X + x;
-                    var sy = s.Y + y;
-                    if (!Editor.IsPixelInBounds(new Vector2Int(sx, sy))) continue;
-                    if (!Editor.IsPixelSelected(sx, sy)) continue;
+                for (var y = 0; y < s.Height; y++)
+                    for (var x = 0; x < s.Width; x++)
+                    {
+                        var sx = s.X + x;
+                        var sy = s.Y + y;
+                        if (!Editor.IsPixelInBounds(new Vector2Int(sx, sy))) continue;
+                        if (!Editor.IsPixelSelected(sx, sy)) continue;
 
-                    _floating[x, y] = layer.Pixels[sx, sy];
-                    _floatingMask[x, y] = 255;
-                    layer.Pixels.Set(sx, sy, default);
-                }
+                        floating[x, y] = layer.Pixels![sx, sy];
+                        mask[x, y] = 255;
+                        layer.Pixels.Set(sx, sy, default);
+                    }
+                _floatingLayers.Add(new FloatingLayer { Layer = layer, Pixels = floating, Mask = mask });
+            }
         }
 
         Editor.InvalidateComposite();
@@ -98,98 +132,108 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
 
     private void Drop()
     {
-        if (_floating == null) return;
+        if (_floatingLayers == null) return;
 
-        var layer = Editor.ActiveLayer;
-        if (layer?.Pixels != null)
+        foreach (var fl in _floatingLayers)
         {
-            var fw = _floating.Width;
-            var fh = _floating.Height;
+            if (fl.Layer.Pixels == null) continue;
+
+            var fw = fl.Pixels.Width;
+            var fh = fl.Pixels.Height;
 
             for (var y = 0; y < fh; y++)
                 for (var x = 0; x < fw; x++)
                 {
-                    if (_floatingMask != null && _floatingMask[x, y] == 0) continue;
-                    var src = _floating[x, y];
+                    if (fl.Mask != null && fl.Mask[x, y] == 0) continue;
+                    var src = fl.Pixels[x, y];
                     if (src.A == 0) continue;
 
                     var dx = _sourceRect.X + _offset.X + x;
                     var dy = _sourceRect.Y + _offset.Y + y;
                     if (Editor.IsPixelInBounds(new Vector2Int(dx, dy)))
-                        layer.Pixels.Set(dx, dy, src);
+                        fl.Layer.Pixels.Set(dx, dy, src);
                 }
-
-            if (Editor.HasSelection && _offset != Vector2Int.Zero)
-            {
-                Editor.ApplyRectSelection(
-                    new RectInt(
-                        _sourceRect.X + _offset.X,
-                        _sourceRect.Y + _offset.Y,
-                        _sourceRect.Width,
-                        _sourceRect.Height),
-                    SelectionOp.Replace);
-            }
         }
 
-        _floating.Dispose();
-        _floating = null;
-        _floatingMask?.Dispose();
-        _floatingMask = null;
+        if (Editor.HasSelection && _offset != Vector2Int.Zero)
+        {
+            Editor.ApplyRectSelection(
+                new RectInt(
+                    _sourceRect.X + _offset.X,
+                    _sourceRect.Y + _offset.Y,
+                    _sourceRect.Width,
+                    _sourceRect.Height),
+                SelectionOp.Replace);
+        }
+
+        DisposeFloating();
         Editor.InvalidateComposite();
     }
 
     private void Cancel()
     {
-        _floating?.Dispose();
-        _floating = null;
-        _floatingMask?.Dispose();
-        _floatingMask = null;
+        DisposeFloating();
         Undo.DoUndo();
+    }
+
+    private void DisposeFloating()
+    {
+        if (_floatingLayers == null) return;
+        foreach (var fl in _floatingLayers)
+        {
+            fl.Pixels.Dispose();
+            fl.Mask?.Dispose();
+        }
+        _floatingLayers = null;
     }
 
     public override void OnExit()
     {
-        if (_floating != null)
+        if (_floatingLayers != null)
             Drop();
     }
 
     public override void Draw()
     {
-        if (_floating == null) return;
+        if (_floatingLayers == null) return;
 
         var bounds = Editor.CanvasRect;
-        var cellW = bounds.Width / Editor.Document.CanvasSize.X;
-        var cellH = bounds.Height / Editor.Document.CanvasSize.Y;
+        var epr = Editor.EditablePixelRect;
+        var cellW = bounds.Width / epr.Width;
+        var cellH = bounds.Height / epr.Height;
 
         using (Gizmos.PushState(EditorLayer.Tool))
         {
             Graphics.SetTransform(Editor.Document.Transform);
             Graphics.SetSortGroup(6);
 
-            var fw = _floating.Width;
-            var fh = _floating.Height;
+            foreach (var fl in _floatingLayers)
+            {
+                var fw = fl.Pixels.Width;
+                var fh = fl.Pixels.Height;
 
-            for (var y = 0; y < fh; y++)
-                for (var x = 0; x < fw; x++)
-                {
-                    if (_floatingMask != null && _floatingMask[x, y] == 0) continue;
-                    var c = _floating[x, y];
-                    if (c.A == 0) continue;
+                for (var y = 0; y < fh; y++)
+                    for (var x = 0; x < fw; x++)
+                    {
+                        if (fl.Mask != null && fl.Mask[x, y] == 0) continue;
+                        var c = fl.Pixels[x, y];
+                        if (c.A == 0) continue;
 
-                    var dx = _sourceRect.X + _offset.X + x;
-                    var dy = _sourceRect.Y + _offset.Y + y;
+                        var dx = _sourceRect.X + _offset.X + x;
+                        var dy = _sourceRect.Y + _offset.Y + y;
 
-                    Graphics.SetColor(c.ToColor());
-                    Graphics.Draw(new Rect(
-                        bounds.X + dx * cellW,
-                        bounds.Y + dy * cellH,
-                        cellW, cellH));
-                }
+                        Graphics.SetColor(c.ToColor());
+                        Graphics.Draw(new Rect(
+                            bounds.X + (dx - epr.X) * cellW,
+                            bounds.Y + (dy - epr.Y) * cellH,
+                            cellW, cellH));
+                    }
+            }
         }
 
         var selRect = new Rect(
-            bounds.X + (_sourceRect.X + _offset.X) * cellW,
-            bounds.Y + (_sourceRect.Y + _offset.Y) * cellH,
+            bounds.X + (_sourceRect.X + _offset.X - epr.X) * cellW,
+            bounds.Y + (_sourceRect.Y + _offset.Y - epr.Y) * cellH,
             _sourceRect.Width * cellW,
             _sourceRect.Height * cellH);
 

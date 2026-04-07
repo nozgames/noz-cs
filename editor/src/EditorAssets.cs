@@ -90,7 +90,6 @@ public static class EditorAssets
         public const string IconTiling = "icon_tiling";
         public const string IconUnlock = "icon_unlock";
         public const string IconXray = "icon_xray";
-        public const string NewSprite = "new_sprite";
         public const string PpComposite = "pp_composite";
         public const string PpDownsample = "pp_downsample";
         public const string PpUpsample = "pp_upsample";
@@ -268,7 +267,6 @@ public static class EditorAssets
         public static readonly Sprite IconTiling = new();
         public static readonly Sprite IconUnlock = new();
         public static readonly Sprite IconXray = new();
-        public static readonly Sprite NewSprite = new();
         public static readonly Sprite Square = new();
         public static readonly Sprite Star = new();
 
@@ -353,7 +351,6 @@ public static class EditorAssets
             IconTiling.Load(Names.IconTiling, atlas);
             IconUnlock.Load(Names.IconUnlock, atlas);
             IconXray.Load(Names.IconXray, atlas);
-            NewSprite.Load(Names.NewSprite, atlas);
             Square.Load(Names.Square, atlas);
             Star.Load(Names.Star, atlas);
         }
@@ -439,7 +436,6 @@ public static class EditorAssets
             IconTiling.Reload();
             IconUnlock.Reload();
             IconXray.Reload();
-            NewSprite.Reload();
             Square.Reload();
             Star.Reload();
         }
@@ -525,7 +521,6 @@ public static class EditorAssets
             IconTiling.Dispose();
             IconUnlock.Dispose();
             IconXray.Dispose();
-            NewSprite.Dispose();
             Square.Dispose();
             Star.Dispose();
         }

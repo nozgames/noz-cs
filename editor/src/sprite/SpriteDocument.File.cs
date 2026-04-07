@@ -18,7 +18,9 @@ public partial class SpriteDocument
 
         while (!tk.IsEOF)
         {
-            if (tk.ExpectIdentifier("layer"))
+            if (tk.ExpectIdentifier("group"))
+                ParseGroup(ref tk, Root);
+            else if (tk.ExpectIdentifier("layer"))
                 ParseLayer(ref tk, Root);
             else if (tk.ExpectIdentifier("path"))
                 ParsePath(ref tk, Root);
@@ -38,7 +40,12 @@ public partial class SpriteDocument
             else if (tk.ExpectIdentifier("type"))
             {
                 var typeName = tk.ExpectIdentifier();
-                SpriteMode = typeName == "raster" ? SpriteType.Raster : SpriteType.Vector;
+                SpriteMode = typeName switch
+                {
+                    "raster" => SpriteType.Raster,
+                    "generated" => SpriteType.Generated,
+                    _ => SpriteType.Vector,
+                };
             }
             else if (tk.ExpectIdentifier("canvas"))
             {
@@ -58,23 +65,45 @@ public partial class SpriteDocument
 
     }
 
+    private void ParseGroup(ref Tokenizer tk, SpriteGroup parent)
+    {
+        var name = tk.ExpectQuotedString() ?? "";
+        tk.ExpectDelimiter('{');
+
+        var group = new SpriteGroup { Name = name };
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectDelimiter('}'))
+                break;
+            else if (tk.ExpectIdentifier("group"))
+                ParseGroup(ref tk, group);
+            else if (tk.ExpectIdentifier("layer"))
+                ParseLayer(ref tk, group);
+            else if (tk.ExpectIdentifier("path"))
+                ParsePath(ref tk, group);
+            else
+            {
+                tk.ExpectToken(out var badToken);
+                Log.Error($"SpriteDocument.ParseGroup: Unexpected token '{tk.GetString(badToken)}' in group '{name}'");
+                break;
+            }
+        }
+
+        parent.Add(group);
+    }
+
     private void ParseLayer(ref Tokenizer tk, SpriteGroup parent)
     {
         var name = tk.ExpectQuotedString() ?? "";
         tk.ExpectDelimiter('{');
 
-        // Parse into a temporary group; if we find pixels, we'll create a PixelLayer instead
-        var group = new SpriteGroup { Name = name };
         PixelData<Color32>? pixels = null;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectDelimiter('}'))
                 break;
-            else if (tk.ExpectIdentifier("layer"))
-                ParseLayer(ref tk, group);
-            else if (tk.ExpectIdentifier("path"))
-                ParsePath(ref tk, group);
             else if (tk.ExpectIdentifier("pixels"))
             {
                 var base64 = tk.ExpectQuotedString();
@@ -96,19 +125,11 @@ public partial class SpriteDocument
             }
         }
 
-        if (pixels != null)
+        parent.Add(new PixelLayer
         {
-            // This is a pixel layer — create PixelLayer and migrate any children
-            var pixelLayer = new PixelLayer { Name = name, Pixels = pixels };
-            foreach (var child in group.Children)
-                pixelLayer.Add(child);
-            group.Clear();
-            parent.Add(pixelLayer);
-        }
-        else
-        {
-            parent.Add(group);
-        }
+            Name = name,
+            Pixels = pixels ?? new PixelData<Color32>(CanvasSize.X, CanvasSize.Y)
+        });
     }
 
     private static void ParsePath(ref Tokenizer tk, SpriteNode layer)
@@ -248,9 +269,9 @@ public partial class SpriteDocument
                     var name = tk.ExpectQuotedString();
                     if (name == null)
                         break;
-                    var layer = Root.FindGroup(name);
-                    if (layer != null)
-                        frame.VisibleLayers.Add(layer);
+                    var node = Root.FindNode(name);
+                    if (node != null)
+                        frame.VisibleLayers.Add(node);
                     else
                         Log.Warning($"SpriteDocument: Animation frame references unknown layer '{name}'");
                 }
@@ -272,6 +293,10 @@ public partial class SpriteDocument
         {
             writer.WriteLine("type raster");
             writer.WriteLine($"canvas {CanvasSize.X} {CanvasSize.Y}");
+        }
+        else if (SpriteMode == SpriteType.Generated)
+        {
+            writer.WriteLine("type generated");
         }
 
         if (!Edges.IsZero)
@@ -394,7 +419,7 @@ public partial class SpriteDocument
     private void SaveGroup(StreamWriter writer, SpriteGroup group, int depth)
     {
         var indent = new string(' ', depth * 2);
-        writer.WriteLine($"{indent}layer \"{group.Name}\" {{");
+        writer.WriteLine($"{indent}group \"{group.Name}\" {{");
 
         foreach (var child in group.Children)
         {

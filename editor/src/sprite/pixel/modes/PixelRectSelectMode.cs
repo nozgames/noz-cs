@@ -90,12 +90,13 @@ public class PixelRectSelectMode : EditorMode<PixelSpriteEditor>
         var y1 = Math.Max(start.Y, end.Y) + 1;
 
         var bounds = Editor.CanvasRect;
-        var cellW = bounds.Width / Editor.Document.CanvasSize.X;
-        var cellH = bounds.Height / Editor.Document.CanvasSize.Y;
+        var epr = Editor.EditablePixelRect;
+        var cellW = bounds.Width / epr.Width;
+        var cellH = bounds.Height / epr.Height;
 
         var selRect = new Rect(
-            bounds.X + x0 * cellW,
-            bounds.Y + y0 * cellH,
+            bounds.X + (x0 - epr.X) * cellW,
+            bounds.Y + (y0 - epr.Y) * cellH,
             (x1 - x0) * cellW,
             (y1 - y0) * cellH);
 

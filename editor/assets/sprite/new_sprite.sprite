@@ -1,6 +1,0 @@
-type raster
-canvas 256 256
-
-layer "Layer 1" {
-}
-

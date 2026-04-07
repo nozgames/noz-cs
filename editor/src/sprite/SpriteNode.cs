@@ -398,6 +398,10 @@ public abstract class SpriteNode
         if (!path.HitTestPath(point))
             return false;
 
+        // Subtract paths have no visible fill or stroke but must still be selectable
+        if (path.IsSubtract)
+            return true;
+
         // Filled paths: any point inside the contour is a hit
         if (path.FillColor.A > 0)
             return true;
