@@ -10,6 +10,7 @@ public abstract class EditorMode
 
     public virtual void OnEnter() { }
     public virtual void OnExit() { }
+    public virtual void OnUndoRedo() { }
     public virtual void Update() { }
     public virtual void Draw() { }
     public virtual void DrawUI() { }

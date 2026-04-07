@@ -53,6 +53,7 @@ public class PixelEraserMode : EditorMode<PixelSpriteEditor>
     {
         _isErasing = false;
         _lastPixel = new Vector2Int(-1, -1);
+        Editor.InvalidateActiveLayerPreview();
     }
 
     private void ErasePixel(Vector2Int pixel)

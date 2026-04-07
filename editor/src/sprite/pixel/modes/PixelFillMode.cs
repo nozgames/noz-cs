@@ -50,6 +50,7 @@ public class PixelFillMode : EditorMode<PixelSpriteEditor>
         }
 
         Editor.InvalidateComposite();
+        Editor.InvalidateActiveLayerPreview();
     }
 
     private void TryEnqueue(PixelData<Color32> pixels, Queue<Vector2Int> queue, Vector2Int p, Color32 targetColor, Color32 fillColor)

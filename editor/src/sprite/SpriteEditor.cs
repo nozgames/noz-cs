@@ -21,6 +21,7 @@ protected virtual string GetNodeFallbackName(SpriteNode node) => node is SpriteG
     protected virtual bool ReverseChildren => false;
 
     protected virtual void OnNodeRightClicked(SpriteNode node, bool isHovered) { }
+    protected virtual Sprite? GetNodePreview(SpriteNode node) => null;
 
     protected virtual void PopulateDragNodes(SpriteNode clickedNode, List<SpriteNode> dragNodes)
     {

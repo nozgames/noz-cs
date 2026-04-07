@@ -33,7 +33,7 @@ public abstract class DocumentEditor(Document document) : IDisposable
     public virtual void UpdateUI() { }
     public virtual void UpdateOverlayUI() { }
     public virtual void LateUpdate() { }
-    public virtual void OnUndoRedo() { }
+    public virtual void OnUndoRedo() { Mode?.OnUndoRedo(); }
     public virtual void Dispose()
     {
         Mode?.OnExit();

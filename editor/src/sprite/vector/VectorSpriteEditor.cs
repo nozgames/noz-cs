@@ -151,6 +151,7 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     public override void OnUndoRedo()
     {
+        base.OnUndoRedo();
         MarkDirty();
         RebuildSelectedPaths();
     }

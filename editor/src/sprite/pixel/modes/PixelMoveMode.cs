@@ -41,6 +41,40 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         return layers;
     }
 
+    private RectInt GetContentBounds()
+    {
+        var minX = int.MaxValue;
+        var minY = int.MaxValue;
+        var maxX = int.MinValue;
+        var maxY = int.MinValue;
+
+        if (_floatingLayers != null)
+        {
+            foreach (var fl in _floatingLayers)
+            {
+                var fw = fl.Pixels.Width;
+                var fh = fl.Pixels.Height;
+
+                for (var y = 0; y < fh; y++)
+                    for (var x = 0; x < fw; x++)
+                    {
+                        if (fl.Mask != null && fl.Mask[x, y] == 0) continue;
+                        if (fl.Pixels[x, y].A == 0) continue;
+
+                        var dx = _sourceRect.X + x;
+                        var dy = _sourceRect.Y + y;
+                        if (dx < minX) minX = dx;
+                        if (dy < minY) minY = dy;
+                        if (dx >= maxX) maxX = dx + 1;
+                        if (dy >= maxY) maxY = dy + 1;
+                    }
+            }
+        }
+
+        if (minX > maxX) return _sourceRect;
+        return new RectInt(minX, minY, maxX - minX, maxY - minY);
+    }
+
     public override void OnEnter()
     {
         Lift();
@@ -51,13 +85,6 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
     public override void Update()
     {
         EditorCursor.SetCrosshair();
-
-        if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
-        {
-            if (_floatingLayers != null)
-                Cancel();
-            return;
-        }
 
         if (_floatingLayers == null) return;
 
@@ -93,8 +120,6 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         var layers = GetTargetLayers();
         if (layers.Count == 0) return;
 
-        Undo.Record(Editor.Document);
-
         var w = Editor.Document.CanvasSize.X;
         var h = Editor.Document.CanvasSize.Y;
         _floatingLayers = new List<FloatingLayer>();
@@ -107,10 +132,7 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
                 var floating = new PixelData<Color32>(w, h);
                 for (var y = 0; y < h; y++)
                     for (var x = 0; x < w; x++)
-                    {
                         floating[x, y] = layer.Pixels![x, y];
-                        layer.Pixels.Set(x, y, default);
-                    }
                 _floatingLayers.Add(new FloatingLayer { Layer = layer, Pixels = floating });
             }
         }
@@ -136,13 +158,10 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
 
                         floating[x, y] = layer.Pixels![sx, sy];
                         mask[x, y] = 255;
-                        layer.Pixels.Set(sx, sy, default);
                     }
                 _floatingLayers.Add(new FloatingLayer { Layer = layer, Pixels = floating, Mask = mask });
             }
         }
-
-        Editor.InvalidateComposite();
     }
 
     private void ClearFloatingFromCanvas()
@@ -208,7 +227,7 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
         if (Editor.HasSelection)
         {
             Editor.ApplyRectSelection(
-                _sourceRect,
+                GetContentBounds(),
                 SelectionOp.Replace);
         }
 
@@ -219,13 +238,8 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
     {
         if (_floatingLayers == null) return;
         Stamp();
+        Editor.InvalidateActiveLayerPreview();
         DisposeFloating();
-    }
-
-    private void Cancel()
-    {
-        DisposeFloating();
-        Undo.DoUndo();
     }
 
     private void DisposeFloating()
@@ -237,6 +251,12 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
             fl.Mask?.Dispose();
         }
         _floatingLayers = null;
+    }
+
+    public override void OnUndoRedo()
+    {
+        DisposeFloating();
+        Lift();
     }
 
     public override void OnExit()
@@ -288,13 +308,6 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
             _sourceRect.Width * cellW,
             _sourceRect.Height * cellH);
 
-        using (Gizmos.PushState(EditorLayer.Selection))
-        {
-            Graphics.SetTransform(Editor.Document.Transform);
-            Graphics.SetColor(new Color(0f, 0f, 0f, 0.6f));
-            Gizmos.DrawRect(selRect, EditorStyle.Workspace.DocumentBoundsLineWidth * 2f);
-            Graphics.SetColor(new Color(1f, 1f, 1f, 0.8f));
-            Gizmos.DrawRect(selRect, EditorStyle.Workspace.DocumentBoundsLineWidth);
-        }
+        Editor.DrawSelectionRect(selRect);
     }
 }

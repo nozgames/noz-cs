@@ -704,6 +704,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public override void Clone(Document source)
     {
         var src = (SpriteDocument)source;
+        CanvasSize = src.CanvasSize;
         Depth = src.Depth;
         Bounds = src.Bounds;
         CurrentFillColor = src.CurrentFillColor;

@@ -15,6 +15,16 @@ public abstract class SpriteNode
     public bool IsSelected { get; set; }
     public virtual bool IsExpandable => false;
 
+    // Preview handle (transient, not cloned/saved)
+    public int PreviewIndex = -1;
+    public int PreviewGeneration;
+
+    public void InvalidatePreview()
+    {
+        PreviewGeneration++;
+        Parent?.InvalidatePreview();
+    }
+
     public abstract SpriteNode Clone();
 
     protected void ClonePropertiesTo(SpriteNode target)

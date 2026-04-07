@@ -100,15 +100,6 @@ public class PixelRectSelectMode : EditorMode<PixelSpriteEditor>
             (x1 - x0) * cellW,
             (y1 - y0) * cellH);
 
-        using (Gizmos.PushState(EditorLayer.Tool))
-        {
-            Graphics.SetTransform(Editor.Document.Transform);
-
-            // Dashed selection preview
-            Graphics.SetColor(new Color(0f, 0f, 0f, 0.6f));
-            Gizmos.DrawRect(selRect, EditorStyle.Workspace.DocumentBoundsLineWidth * 2f);
-            Graphics.SetColor(new Color(1f, 1f, 1f, 0.8f));
-            Gizmos.DrawRect(selRect, EditorStyle.Workspace.DocumentBoundsLineWidth);
-        }
+        Editor.DrawSelectionRect(selRect);
     }
 }

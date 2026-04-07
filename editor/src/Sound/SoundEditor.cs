@@ -103,6 +103,7 @@ internal partial class SoundEditor : DocumentEditor
 
     public override void OnUndoRedo()
     {
+        base.OnUndoRedo();
         _waveform.BuildCache();
     }
 

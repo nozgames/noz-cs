@@ -205,12 +205,25 @@ public abstract partial class SpriteEditor
             UI.Spacer(EditorStyle.Icon.SmallSize);
         }
 
-        // Icon
-        ElementTree.Image(
-            image: GetNodeIcon(node),
-            size: new Size2(EditorStyle.Icon.Size, Size.Default),
-            align: Align.Center,
-            color: EditorStyle.Palette.SecondaryText);
+        // Preview thumbnail or icon
+        var preview = GetNodePreview(node);
+        if (preview != null)
+        {
+            var previewSize = EditorStyle.Control.Height - 2;
+            ElementTree.Image(
+                image: preview,
+                size: new Size2(previewSize, previewSize),
+                stretch: ImageStretch.Uniform,
+                align: new Align2(Align.Center, Align.Center));
+        }
+        else
+        {
+            ElementTree.Image(
+                image: GetNodeIcon(node),
+                size: new Size2(EditorStyle.Icon.Size, Size.Default),
+                align: Align.Center,
+                color: EditorStyle.Palette.SecondaryText);
+        }
 
         // Name (inline rename or static text)
         ElementTree.BeginFlex();

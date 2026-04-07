@@ -273,6 +273,7 @@ internal partial class CompositeSoundEditor : DocumentEditor
 
     public override void OnUndoRedo()
     {
+        base.OnUndoRedo();
         RebuildLayerEditors();
         if (SelectedLayerIndex >= Document.Layers.Count)
             SelectedLayerIndex = Document.Layers.Count - 1;

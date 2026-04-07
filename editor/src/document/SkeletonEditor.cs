@@ -65,6 +65,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
     public override void OnUndoRedo()
     {
+        base.OnUndoRedo();
     }
 
     public override void Update()

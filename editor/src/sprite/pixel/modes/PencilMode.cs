@@ -59,6 +59,7 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
     {
         _isDrawing = false;
         _lastPixel = new Vector2Int(-1, -1);
+        Editor.InvalidateActiveLayerPreview();
     }
 
     private void PaintPixel(Vector2Int pixel)

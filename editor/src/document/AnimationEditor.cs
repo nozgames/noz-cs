@@ -919,6 +919,7 @@ internal partial class AnimationEditor : DocumentEditor
 
     public override void OnUndoRedo()
     {
+        base.OnUndoRedo();
         Document.UpdateSkeleton();
         Document.UpdateTransforms();
     }
