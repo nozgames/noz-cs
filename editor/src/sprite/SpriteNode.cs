@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public abstract class SpriteNode
+public abstract class SpriteNode : IDisposable
 {
     public string Name { get; set; } = "";
     public bool Visible { get; set; } = true;
@@ -71,6 +71,12 @@ public abstract class SpriteNode
         Children.Clear();
     }
 
+    public virtual void Dispose()
+    {
+        foreach (var child in Children)
+            child.Dispose();
+    }
+
     #endregion
 
     #region Tree Traversal
@@ -96,6 +102,14 @@ public abstract class SpriteNode
             action(pixel);
         foreach (var child in Children)
             child.ForEach(action);
+    }
+
+    public void Collect<T>(List<T> result, Func<T, bool> predicate) where T : SpriteNode
+    {
+        if (this is T match && predicate(match))
+            result.Add(match);
+        foreach (var child in Children)
+            child.Collect(result, predicate);
     }
 
     public T? Find<T>(string name) where T : SpriteNode

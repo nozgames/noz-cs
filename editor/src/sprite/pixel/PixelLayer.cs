@@ -14,14 +14,15 @@ public class PixelLayer : SpriteNode
         ClonePropertiesTo(clone);
 
         if (Pixels != null)
-        {
-            var src = Pixels;
-            var dst = new PixelData<Color32>(src.Width, src.Height);
-            for (var i = 0; i < src.Width * src.Height; i++)
-                dst[i] = src[i];
-            clone.Pixels = dst;
-        }
+            clone.Pixels = Pixels.Clone();
 
         return clone;
+    }
+
+    public override void Dispose()
+    {
+        base.Dispose();
+        Pixels?.Dispose();
+        Pixels = null;
     }
 }

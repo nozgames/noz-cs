@@ -181,13 +181,6 @@ public static class DocumentManager
         return defs[0];
     }
 
-    public static IEnumerable<DocumentDef> GetCreatableDefs()
-    {
-        foreach (var def in _defsByType.Values)
-            if (def.NewFile != null)
-                yield return def;
-    }
-
     public static Document? Create(string path)
     {
         var def = ResolveDef(path);
@@ -216,10 +209,10 @@ public static class DocumentManager
         return name;
     }
 
-    public static Document? New(AssetType assetType, string? name, System.Numerics.Vector2? position = null)
+    public static Document? New(AssetType assetType, string? name, System.Numerics.Vector2? position = null, Action<StreamWriter>? writeContent = null)
     {
         var def = GetDef(assetType);
-        if (def == null || def.NewFile == null)
+        if (def == null)
             return null;
 
         if (_sourcePaths.Count == 0)
@@ -241,15 +234,21 @@ public static class DocumentManager
         if (!string.IsNullOrEmpty(directory))
             store.CreateDirectory(directory);
 
-        var doc = Create(path);
-
-        using (var ms = new MemoryStream())
+        // Write file content before Create so path-aware factories can peek the file
+        if (writeContent != null)
         {
-            using (var writer = new StreamWriter(ms))
-                def.NewFile(writer);
+            using var ms = new MemoryStream();
+            using var writer = new StreamWriter(ms);
+            writeContent(writer);
+            writer.Flush();
             store.WriteAllBytes(path, ms.ToArray());
         }
+        else
+        {
+            store.WriteAllBytes(path, []);
+        }
 
+        var doc = Create(path);
         if (doc == null) return null;
 
         doc.Loaded = true;

@@ -24,17 +24,19 @@ public class PaletteDocument : Document
             Extensions = [".pal"],
             Factory = _ => new PaletteDocument(),
             EditorFactory = doc => new PaletteEditor((PaletteDocument)doc),
-            NewFile = NewFile,
         });
     }
 
-    private static void NewFile(StreamWriter writer)
+    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        writer.WriteLine("JASC-PAL");
-        writer.WriteLine("0100");
-        writer.WriteLine("16");
-        for (int i = 0; i < 16; i++)
-            writer.WriteLine("0 0 0");
+        return DocumentManager.New(PaletteAssetType, name, position, writer =>
+        {
+            writer.WriteLine("JASC-PAL");
+            writer.WriteLine("0100");
+            writer.WriteLine("16");
+            for (int i = 0; i < 16; i++)
+                writer.WriteLine("0 0 0");
+        });
     }
 
     public override void Load()

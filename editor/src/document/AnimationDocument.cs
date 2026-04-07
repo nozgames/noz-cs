@@ -118,7 +118,6 @@ internal class AnimationDocument : Document
             Extensions = [".anim"],
             Factory = _ => new AnimationDocument(),
             EditorFactory = doc => new AnimationEditor((AnimationDocument)doc),
-            NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconAnimation
         });
     }
@@ -1002,9 +1001,12 @@ internal class AnimationDocument : Document
         return doc;
     }
 
-    private static void NewFile(StreamWriter writer)
+    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        writer.WriteLine("s \"\"");
+        return DocumentManager.New(AssetType.Animation, name, position, writer =>
+        {
+            writer.WriteLine("s \"\"");
+        });
     }
 
     public void SetSkeleton(SkeletonDocument? skeleton)

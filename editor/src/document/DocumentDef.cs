@@ -10,7 +10,6 @@ public class DocumentDef
     public required string Name { get; init; }
     public required string[] Extensions { get; init; }
     public required Func<string?, Document> Factory { get; init; }
-    public Action<StreamWriter>? NewFile { get; init; }
     public Func<Document, DocumentEditor>? EditorFactory { get; init; }
     public string[]? AuxiliaryExtensions { get; init; }
     public Func<Document, bool>? CanEdit { get; init; }

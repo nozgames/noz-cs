@@ -92,7 +92,6 @@ public class SoundDocument : Document, IWaveformSource
             Name = "Sound",
             Extensions = [".sound", ".wav"],
             Factory = _ => new SoundDocument(),
-            NewFile = NewFile,
             EditorFactory = doc =>
             {
                 var soundDoc = (SoundDocument)doc;
@@ -105,10 +104,13 @@ public class SoundDocument : Document, IWaveformSource
         });
     }
 
-    private static void NewFile(StreamWriter writer)
+    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        writer.WriteLine("volume 1 1");
-        writer.WriteLine("pitch 1 1");
+        return DocumentManager.New(AssetType.Sound, name, position, writer =>
+        {
+            writer.WriteLine("volume 1 1");
+            writer.WriteLine("pitch 1 1");
+        });
     }
 
     public override void Load()

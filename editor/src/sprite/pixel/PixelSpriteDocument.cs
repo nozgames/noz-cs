@@ -20,19 +20,7 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
-        var doc = DocumentManager.New(AssetType.Sprite, null, position);
-        if (doc == null) return null;
-
-        var store = EditorApplication.Store;
-        using (var ms = new MemoryStream())
-        {
-            using (var writer = new StreamWriter(ms))
-                WriteNewFile(writer);
-            store.WriteAllBytes(doc.Path, ms.ToArray());
-        }
-
-        doc.Reload();
-        return doc;
+        return DocumentManager.New(AssetType.Sprite, null, position, WriteNewFile);
     }
 
     public static void WriteNewFile(StreamWriter writer)
@@ -120,17 +108,7 @@ public partial class PixelSpriteDocument : SpriteDocument
         CanvasSize = src.CanvasSize;
 
         SelectionMask?.Dispose();
-        if (src.SelectionMask != null)
-        {
-            var total = src.CanvasSize.X * src.CanvasSize.Y;
-            SelectionMask = new PixelData<byte>(src.CanvasSize.X, src.CanvasSize.Y);
-            for (var i = 0; i < total; i++)
-                SelectionMask[i] = src.SelectionMask[i];
-        }
-        else
-        {
-            SelectionMask = null;
-        }
+        SelectionMask = src.SelectionMask?.Clone();
 
         ActiveLayerName = src.ActiveLayerName;
     }

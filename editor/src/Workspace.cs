@@ -205,44 +205,13 @@ public static partial class Workspace
         AssetManifest.Generate(force: true);
     }
 
-    private static void CreateNewDocument(AssetType assetType)
+    private static void CreateNewDocument(Document? doc)
     {
-        var position = PopupMenu.WorldPosition;
-        var doc = DocumentManager.New(assetType, null, position);
-        if (doc != null)
-        {
-            doc.CollectionId = CollectionManager.GetVisibleId();
-            doc.IncrementVersion();
-            ClearSelection();
-            SetSelected(doc, true);
-
-        }
-    }
-
-    private static void CreateNewPixelSprite()
-    {
-        var position = PopupMenu.WorldPosition;
-        var doc = PixelSpriteDocument.CreateNew(position);
-        if (doc != null)
-        {
-            doc.CollectionId = CollectionManager.GetVisibleId();
-            doc.IncrementVersion();
-            ClearSelection();
-            SetSelected(doc, true);
-        }
-    }
-
-    private static void CreateNewGeneratedSprite()
-    {
-        var position = PopupMenu.WorldPosition;
-        var doc = GeneratedSpriteDocument.CreateNew(position);
-        if (doc != null)
-        {
-            doc.CollectionId = CollectionManager.GetVisibleId();
-            doc.IncrementVersion();
-            ClearSelection();
-            SetSelected(doc, true);
-        }
+        if (doc == null) return;
+        doc.CollectionId = CollectionManager.GetVisibleId();
+        doc.IncrementVersion();
+        ClearSelection();
+        SetSelected(doc, true);
     }
 
     private static void RebuildAtlas()
@@ -307,35 +276,25 @@ public static partial class Workspace
         CommandManager.RegisterWorkspace([.. workspaceCommands]);
 
         var items = new List<PopupMenuItem>();
-        var creatableDefs = DocumentManager.GetCreatableDefs().ToArray();
-        if (creatableDefs.Length > 0)
-        {
-            items.Add(PopupMenuItem.Submenu("New"));
-            foreach (var def in creatableDefs.OrderBy(d => d.Name))
-            {
-                var assetType = def.Type;
-                items.Add(PopupMenuItem.Item(
-                    def.Name,
-                    () => CreateNewDocument(assetType),
-                    level: 1,
-                    icon: def.Icon?.Invoke()));
-            }
-            // Pixel Sprite (raster)
-            items.Add(PopupMenuItem.Item(
-                "Pixel Sprite",
-                CreateNewPixelSprite,
-                level: 1,
-                icon: EditorAssets.Sprites.AssetIconSprite));
+        var p = PopupMenu.WorldPosition;
 
-            // Generated Sprite
-            items.Add(PopupMenuItem.Item(
-                "Generated Sprite",
-                CreateNewGeneratedSprite,
-                level: 1,
-                icon: EditorAssets.Sprites.AssetIconSprite));
+        items.Add(PopupMenuItem.Submenu("New"));
 
-            items.Add(PopupMenuItem.Separator());
-        }
+        // Sprites
+        items.Add(PopupMenuItem.Submenu("Sprite", level: 1));
+        items.Add(PopupMenuItem.Item("Vector",    () => CreateNewDocument(VectorSpriteDocument.CreateNew(p)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite));
+        items.Add(PopupMenuItem.Item("Pixel",     () => CreateNewDocument(PixelSpriteDocument.CreateNew(p)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite));
+        items.Add(PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(p)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle));
+
+        // Other document types
+        items.Add(PopupMenuItem.Item("Skeleton",   () => CreateNewDocument(SkeletonDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.IconBone));
+        items.Add(PopupMenuItem.Item("Animation",  () => CreateNewDocument(AnimationDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation));
+        items.Add(PopupMenuItem.Item("VFX",        () => CreateNewDocument(VfxDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx));
+        items.Add(PopupMenuItem.Item("Sound",      () => CreateNewDocument(SoundDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconSound));
+        items.Add(PopupMenuItem.Item("Palette",    () => CreateNewDocument(PaletteDocument.CreateNew(position: p)), level: 1));
+        items.Add(PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle));
+
+        items.Add(PopupMenuItem.Separator());
 
         if (CollectionManager.Collections.Count > 0)
         {

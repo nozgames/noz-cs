@@ -100,7 +100,6 @@ public class SkeletonDocument : Document
             Extensions = [".skel"],
             Factory = _ => new SkeletonDocument(),
             EditorFactory = doc => new SkeletonEditor((SkeletonDocument)doc),
-            NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.IconBone
         });
     }
@@ -828,8 +827,11 @@ public class SkeletonDocument : Document
         base.Dispose();
     }
 
-    private static void NewFile(StreamWriter writer)
+    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        writer.WriteLine("b \"root\" -1 p 0 0 r 0 l 0.1");
+        return DocumentManager.New(AssetType.Skeleton, name, position, writer =>
+        {
+            writer.WriteLine("b \"root\" -1 p 0 0 r 0 l 0.1");
+        });
     }
 }

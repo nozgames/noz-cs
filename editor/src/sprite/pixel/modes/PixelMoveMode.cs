@@ -21,24 +21,21 @@ public class PixelMoveMode : EditorMode<PixelSpriteEditor>
     private Vector2Int _offset;
     private Vector2Int _dragStartPixel;
     private bool _isDragging;
+    private readonly List<PixelLayer> _targetLayers = [];
 
     private List<PixelLayer> GetTargetLayers()
     {
-        var layers = new List<PixelLayer>();
+        _targetLayers.Clear();
         var selected = Editor.SelectedNode;
         if (selected is SpriteGroup group)
         {
-            group.ForEach((PixelLayer layer) =>
-            {
-                if (layer.Pixels != null)
-                    layers.Add(layer);
-            });
+            group.Collect(_targetLayers, layer => layer.Pixels != null);
         }
         else if (Editor.ActiveLayer is { Pixels: not null } active)
         {
-            layers.Add(active);
+            _targetLayers.Add(active);
         }
-        return layers;
+        return _targetLayers;
     }
 
     private RectInt GetContentBounds()

@@ -299,7 +299,7 @@ public static class AtlasManager
         }
 
         // No existing atlas has space — create a new one and pack into it
-        var atlas = DocumentManager.New(AssetType.Atlas, GetAtlasName(_atlases.Count)) as AtlasDocument;
+        var atlas = AtlasDocument.CreateNew(GetAtlasName(_atlases.Count)) as AtlasDocument;
         if (atlas == null)
         {
             Log.Error($"Failed to create new atlas for '{source.Name}'");
@@ -327,7 +327,7 @@ public static class AtlasManager
             }
         }
 
-        var atlas = DocumentManager.New(AssetType.Atlas, GetEditorAtlasName(_editorAtlases.Count)) as AtlasDocument;
+        var atlas = AtlasDocument.CreateNew(GetEditorAtlasName(_editorAtlases.Count)) as AtlasDocument;
         if (atlas == null)
         {
             Log.Error($"Failed to create editor atlas for '{source.Name}'");

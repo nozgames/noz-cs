@@ -499,27 +499,31 @@ public class VfxDocument : Document
             Extensions = [".vfx"],
             Factory = _ => new VfxDocument(),
             EditorFactory = doc => new VfxEditor((VfxDocument)doc),
-            NewFile = writer =>
-            {
-                writer.WriteLine("duration 1");
-                writer.WriteLine("loop false");
-                writer.WriteLine();
-                writer.WriteLine("particle \"default.particle\" {");
-                writer.WriteLine("  duration [0.5, 1.0]");
-                writer.WriteLine("  size 0.5=>[0.0, 0.1]:easeout");
-                writer.WriteLine("  speed [20, 40]=>[5, 10]:linear");
-                writer.WriteLine("  opacity 1.0=>0.0:easeout");
-                writer.WriteLine("}");
-                writer.WriteLine();
-                writer.WriteLine("emitter \"default\" {");
-                writer.WriteLine("  rate 10");
-                writer.WriteLine("  burst 0");
-                writer.WriteLine("  duration 1");
-                writer.WriteLine("  particle \"default.particle\"");
-                writer.WriteLine("  spread 180");
-                writer.WriteLine("}");
-            },
             Icon = () => EditorAssets.Sprites.AssetIconVfx
+        });
+    }
+
+    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
+    {
+        return DocumentManager.New(AssetType.Vfx, name, position, writer =>
+        {
+            writer.WriteLine("duration 1");
+            writer.WriteLine("loop false");
+            writer.WriteLine();
+            writer.WriteLine("particle \"default.particle\" {");
+            writer.WriteLine("  duration [0.5, 1.0]");
+            writer.WriteLine("  size 0.5=>[0.0, 0.1]:easeout");
+            writer.WriteLine("  speed [20, 40]=>[5, 10]:linear");
+            writer.WriteLine("  opacity 1.0=>0.0:easeout");
+            writer.WriteLine("}");
+            writer.WriteLine();
+            writer.WriteLine("emitter \"default\" {");
+            writer.WriteLine("  rate 10");
+            writer.WriteLine("  burst 0");
+            writer.WriteLine("  duration 1");
+            writer.WriteLine("  particle \"default.particle\"");
+            writer.WriteLine("  spread 180");
+            writer.WriteLine("}");
         });
     }
 

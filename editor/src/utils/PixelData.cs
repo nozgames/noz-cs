@@ -90,6 +90,19 @@ public sealed unsafe class PixelData<T> : IDisposable where T : unmanaged
 
     public ReadOnlySpan<byte> AsByteSpan() => new(_memory, Size.X * Size.Y * sizeof(T));
 
+    public void CopyTo(PixelData<T> destination)
+    {
+        var count = Size.X * Size.Y;
+        NativeMemory.Copy(_memory, destination._memory, (nuint)(count * sizeof(T)));
+    }
+
+    public PixelData<T> Clone()
+    {
+        var clone = new PixelData<T>(Size);
+        CopyTo(clone);
+        return clone;
+    }
+
     /// <summary>
     /// Extrudes edge pixels into a 1-pixel padding around the given inner rect.
     /// Used for texture atlases to prevent seams with point filtering.

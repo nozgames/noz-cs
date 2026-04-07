@@ -48,17 +48,19 @@ internal class AtlasDocument : Document
             Name = "Atlas",
             Extensions = [".atlas"],
             Factory = _ => new AtlasDocument(),
-            NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconAtlas
         });
     }
 
-    private static void NewFile(StreamWriter writer)
+    public static Document? CreateNew(string? name = null)
     {
-        writer.WriteLine($"w {EditorApplication.Config.AtlasSize}");
-        writer.WriteLine($"h {EditorApplication.Config.AtlasSize}");
-        writer.WriteLine($"d {Graphics.PixelsPerUnit}");
-        writer.WriteLine($"p {EditorApplication.Config.AtlasPadding}");
+        return DocumentManager.New(AssetType.Atlas, name, writeContent: writer =>
+        {
+            writer.WriteLine($"w {EditorApplication.Config.AtlasSize}");
+            writer.WriteLine($"h {EditorApplication.Config.AtlasSize}");
+            writer.WriteLine($"d {Graphics.PixelsPerUnit}");
+            writer.WriteLine($"p {EditorApplication.Config.AtlasPadding}");
+        });
     }
 
     private void Load(ref Tokenizer tk)

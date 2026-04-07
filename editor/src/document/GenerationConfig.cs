@@ -81,14 +81,16 @@ public class GenerationConfig : Document
             Extensions = [".gen", ".genstyle"],
             Factory = _ => new GenerationConfig(),
             EditorFactory = doc => new GenerationConfigEditor((GenerationConfig)doc),
-            NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconGenstyle
         });
     }
 
-    private static void NewFile(StreamWriter writer)
+    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        writer.WriteLine("prompt \"\"");
+        return DocumentManager.New(AssetTypeGen, name, position, writer =>
+        {
+            writer.WriteLine("prompt \"\"");
+        });
     }
 
     public override void Load()

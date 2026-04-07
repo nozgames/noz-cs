@@ -136,7 +136,6 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             Extensions = [".sprite"],
             Factory = CreateFromFile,
             EditorFactory = doc => ((SpriteDocument)doc).CreateEditor(),
-            NewFile = _ => { },
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
 
@@ -364,6 +363,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         Skeleton = src.Skeleton;
         BoneName = src.BoneName;
 
+        Root.Dispose();
         Root.Clear();
         foreach (var child in src.Root.Children)
             Root.Add(child.Clone());
@@ -554,6 +554,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     public override void Dispose()
     {
+        Root.Dispose();
         _standaloneTexture?.Dispose();
         _standaloneTexture = null;
         base.Dispose();

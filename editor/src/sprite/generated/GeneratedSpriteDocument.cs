@@ -49,19 +49,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(Vector2? position = null)
     {
-        var doc = DocumentManager.New(AssetType.Sprite, null, position);
-        if (doc == null) return null;
-
-        var store = EditorApplication.Store;
-        using (var ms = new MemoryStream())
-        {
-            using (var writer = new StreamWriter(ms))
-                WriteNewFile(writer);
-            store.WriteAllBytes(doc.Path, ms.ToArray());
-        }
-
-        doc.Reload();
-        return doc;
+        return DocumentManager.New(AssetType.Sprite, null, position, WriteNewFile);
     }
 
     public static void WriteNewFile(StreamWriter writer)
