@@ -21,6 +21,11 @@
     <EmbeddedResource Include="..\..\library\**\*" LinkBase="assets.library" Visible="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Microsoft.iOS" />
+    <TrimmerRootAssembly Include="Clipper2Lib" />
+  </ItemGroup>
+
   <!-- wgpu-native static library — device build -->
   <ItemGroup Condition="!$(RuntimeIdentifier.Contains('simulator'))">
     <NativeReference Include="..\..\..\platform\ios\libs\device\libwgpu_native.a">
@@ -36,5 +41,13 @@
       <ForceLoad>true</ForceLoad>
     </NativeReference>
   </ItemGroup>
+
+  <!-- Patch UIDeviceFamily to support both iPhone and iPad (the SDK defaults to iPhone-only) -->
+  <Target Name="_PatchDeviceFamily" AfterTargets="_CompileAppManifest" BeforeTargets="_ReadAppManifest">
+    <Exec Command="/usr/libexec/PlistBuddy -c 'Delete :UIDeviceFamily' '$(_TemporaryAppManifest)'" IgnoreExitCode="true" />
+    <Exec Command="/usr/libexec/PlistBuddy -c 'Add :UIDeviceFamily array' '$(_TemporaryAppManifest)'" />
+    <Exec Command="/usr/libexec/PlistBuddy -c 'Add :UIDeviceFamily:0 integer 1' '$(_TemporaryAppManifest)'" />
+    <Exec Command="/usr/libexec/PlistBuddy -c 'Add :UIDeviceFamily:1 integer 2' '$(_TemporaryAppManifest)'" />
+  </Target>
 
 </Project>

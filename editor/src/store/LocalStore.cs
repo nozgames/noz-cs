@@ -57,6 +57,9 @@ public class LocalStore : IEditorStore
 
     public void StartWatching(string path)
     {
+        if (OperatingSystem.IsIOS())
+            return;
+
         var fullPath = Resolve(path);
         var watcher = new FileSystemWatcher(fullPath)
         {

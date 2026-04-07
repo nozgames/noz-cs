@@ -4,15 +4,41 @@
 
 using System.Runtime.InteropServices;
 using System.Numerics;
+using Silk.NET.Core.Contexts;
 using Silk.NET.Core.Loader;
 using Silk.NET.Core.Native;
 using Silk.NET.WebGPU;
-using Silk.NET.WebGPU.Extensions.Dawn;
 using WGPUBuffer = Silk.NET.WebGPU.Buffer;
 using WGPUTexture = Silk.NET.WebGPU.Texture;
 using WGPUTextureFormat = Silk.NET.WebGPU.TextureFormat;
 
 namespace NoZ.Platform.WebGPU;
+
+internal class StaticLinkNativeContext : INativeContext
+{
+    // Use dlsym(RTLD_DEFAULT) to search all loaded images, including
+    // statically linked symbols that aren't in the main export trie.
+    [DllImport("libSystem.dylib")]
+    private static extern nint dlsym(nint handle, string symbol);
+
+    private const nint RTLD_DEFAULT = -2;
+
+    public nint GetProcAddress(string proc, int? slot = null)
+    {
+        var addr = dlsym(RTLD_DEFAULT, proc);
+        if (addr != 0)
+            return addr;
+        throw new EntryPointNotFoundException(proc);
+    }
+
+    public bool TryGetProcAddress(string proc, out nint addr, int? slot = null)
+    {
+        addr = dlsym(RTLD_DEFAULT, proc);
+        return addr != 0;
+    }
+
+    public void Dispose() { }
+}
 
 public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 {
@@ -174,12 +200,24 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     {
         _config = config;
 
-        // For browser/WASM, use IOS platform which uses __Internal linking
-        // This allows Emscripten to provide the WebGPU functions
         if (OperatingSystem.IsBrowser())
+        {
+            // For browser/WASM, use IOS platform which uses __Internal linking.
+            // Emscripten provides the WebGPU functions.
             SearchPathContainer.Platform = UnderlyingPlatform.IOS;
-
-        _wgpu = Silk.NET.WebGPU.WebGPU.GetApi();
+            _wgpu = Silk.NET.WebGPU.WebGPU.GetApi();
+        }
+        else if (OperatingSystem.IsIOS())
+        {
+            // On iOS, wgpu-native is statically linked. Silk.NET's LibraryLoader
+            // can't find it, so we provide a custom context that resolves symbols
+            // from the main program handle.
+            _wgpu = new Silk.NET.WebGPU.WebGPU(new StaticLinkNativeContext());
+        }
+        else
+        {
+            _wgpu = Silk.NET.WebGPU.WebGPU.GetApi();
+        }
 
         InitSync();
     }
@@ -239,6 +277,22 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _nearestSampler = _wgpu.DeviceCreateSampler(_device, &nearestDesc);
     }
 
+    [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
+    private static void OnUncapturedError(ErrorType type, byte* message, void* userdata)
+    {
+        var msg = Marshal.PtrToStringAnsi((nint)message) ?? "Unknown error";
+        Log.Error($"[WebGPU] {type}: {msg}");
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
+    private static void OnAdapterRequested(RequestAdapterStatus status, Adapter* adapter, byte* message, void* userdata)
+    {
+        var handle = GCHandle.FromIntPtr((nint)userdata);
+        var tcs = (TaskCompletionSource<nint>)handle.Target!;
+        handle.Free();
+        tcs.SetResult(status == RequestAdapterStatus.Success ? (nint)adapter : 0);
+    }
+
     private void RequestAdapter()
     {
         var tcs = new TaskCompletionSource<nint>();
@@ -248,15 +302,10 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             PowerPreference = PowerPreference.HighPerformance,
         };
 
-        PfnRequestAdapterCallback callback = new((status, adapter, message, userdata) =>
-        {
-            if (status == RequestAdapterStatus.Success)
-                tcs.SetResult((nint)adapter);
-            else
-                tcs.SetResult(0);
-        });
-
-        _wgpu.InstanceRequestAdapter(_instance, &options, callback, null);
+        var handle = GCHandle.Alloc(tcs);
+        _wgpu.InstanceRequestAdapter(_instance, &options,
+            new PfnRequestAdapterCallback((delegate* unmanaged[Cdecl]<RequestAdapterStatus, Adapter*, byte*, void*, void>)&OnAdapterRequested),
+            (void*)GCHandle.ToIntPtr(handle));
 
         if (!tcs.Task.Wait(TimeSpan.FromSeconds(5)) || tcs.Task.Result == 0)
             throw new Exception("Failed to find a compatible WebGPU adapter");
@@ -269,43 +318,32 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         Log.Info($"WebGPU adapter: {adapterName} (backend: {props.BackendType})");
     }
 
+    [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
+    private static void OnDeviceRequested(RequestDeviceStatus status, Device* device, byte* message, void* userdata)
+    {
+        var handle = GCHandle.FromIntPtr((nint)userdata);
+        var tcs = (TaskCompletionSource<nint>)handle.Target!;
+        handle.Free();
+        if (status == RequestDeviceStatus.Success)
+            tcs.SetResult((nint)device);
+        else
+            tcs.SetException(new Exception($"Failed to request device: {Marshal.PtrToStringAnsi((nint)message) ?? "Unknown error"}"));
+    }
+
     private void RequestDevice()
     {
-        var tcs = new TaskCompletionSource<nint>(); // Store pointer as nint
-
-        using var labelToggle = SilkMarshal.StringToMemory("use_user_defined_labels_in_backend");
-
-        var enabledToggles = stackalloc byte*[1];
-        enabledToggles[0] = (byte*)labelToggle;
-
-        var togglesDescriptor = stackalloc DawnTogglesDescriptor[1];
-        togglesDescriptor->Chain = new ChainedStruct { SType = (SType)0x0005000A };
-        togglesDescriptor->EnabledToggleCount = 1;
-        togglesDescriptor->EnabledToggles = enabledToggles;
-        togglesDescriptor->DisabledToggleCount = 0;
-        togglesDescriptor->DisabledToggles = null;
+        var tcs = new TaskCompletionSource<nint>();
 
         using var deviceLabel = SilkMarshal.StringToMemory("NoZ Device");
         var deviceDesc = new DeviceDescriptor
         {
-            NextInChain = (ChainedStruct*)togglesDescriptor,
             Label = (byte*)deviceLabel,
         };
 
-        PfnRequestDeviceCallback callback = new((status, device, message, userdata) =>
-        {
-            if (status == RequestDeviceStatus.Success)
-            {
-                tcs.SetResult((nint)device);
-            }
-            else
-            {
-                var msg = Marshal.PtrToStringAnsi((nint)message) ?? "Unknown error";
-                tcs.SetException(new Exception($"Failed to request device: {msg}"));
-            }
-        });
-
-        _wgpu.AdapterRequestDevice(_adapter, &deviceDesc, callback, null);
+        var handle = GCHandle.Alloc(tcs);
+        _wgpu.AdapterRequestDevice(_adapter, &deviceDesc,
+            new PfnRequestDeviceCallback((delegate* unmanaged[Cdecl]<RequestDeviceStatus, Device*, byte*, void*, void>)&OnDeviceRequested),
+            (void*)GCHandle.ToIntPtr(handle));
 
         if (!tcs.Task.Wait(TimeSpan.FromSeconds(5)))
             throw new TimeoutException("Device request timed out");
@@ -316,12 +354,8 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             throw new Exception("Device is null after successful request - this should not happen");
 
         // Set error callback to catch validation errors
-        PfnErrorCallback errorCallback = new((type, message, userdata) =>
-        {
-            var msg = Marshal.PtrToStringAnsi((nint)message) ?? "Unknown error";
-            Log.Error($"[WebGPU] {type}: {msg}");
-        });
-        _wgpu.DeviceSetUncapturedErrorCallback(_device, errorCallback, null);
+        _wgpu.DeviceSetUncapturedErrorCallback(_device,
+            new PfnErrorCallback((delegate* unmanaged[Cdecl]<ErrorType, byte*, void*, void>)&OnUncapturedError), null);
     }
 
     private Surface* CreateSurface()

@@ -3,11 +3,26 @@
 //
 
 using System.Reflection;
+using Foundation;
 using NoZ.Editor;
 using NoZ.Platform;
+using UIKit;
 
 iOSPlatformSetup.Init();
-EditorApplication.Run(new EditorApplicationConfig
+
+UIApplication.Main(args, null, typeof(EditorAppDelegate));
+
+[Register("EditorAppDelegate")]
+public class EditorAppDelegate : UIApplicationDelegate
 {
-    ResourceAssembly = Assembly.GetExecutingAssembly(),
-}, args);
+    public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
+    {
+        EditorApplication.Run(new EditorApplicationConfig
+        {
+            ResourceAssembly = Assembly.GetExecutingAssembly(),
+            Store = new GitStore(GitStore.DefaultClientId),
+        }, []);
+
+        return true;
+    }
+}

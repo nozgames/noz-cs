@@ -24,6 +24,22 @@ public enum PlatformEventType
     GamepadButtonUp,
     GamepadAxis,
 
+    // Touch
+    TouchDown,
+    TouchUp,
+    TouchMove,
+    TouchCancel,
+
+    // Pinch
+    PinchBegin,
+    PinchUpdate,
+    PinchEnd,
+
+    // Pen
+    PenDown,
+    PenUp,
+    PenMove,
+
     // Window
     WindowResize,
     WindowFocus,

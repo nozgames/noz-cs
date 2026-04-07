@@ -255,6 +255,7 @@ internal static partial class User32
 
 public unsafe partial class SDLPlatform
 {
+    private bool _iosTextInputActive;
     private nint _editHwnd;
     private nint _editFont;
     private nint _editBgBrush;
@@ -274,7 +275,7 @@ public unsafe partial class SDLPlatform
     private uint _editPlaceholderColor;
     private string? _editFontFamily;
 
-    public bool IsTextboxVisible => _editVisible;
+    public bool IsTextboxVisible => _iosTextInputActive || _editVisible;
 
     private void InitNativeTextInput()
     {
@@ -439,6 +440,16 @@ public unsafe partial class SDLPlatform
 
     public void ShowTextbox(Rect rect, string text, NativeTextboxStyle style)
     {
+        if (OperatingSystem.IsIOS())
+        {
+            if (_window != null && !_iosTextInputActive)
+            {
+                SDL_StartTextInput(_window);
+                _iosTextInputActive = true;
+            }
+            return;
+        }
+
         if (_editHwnd == nint.Zero) return;
 
         _editTextColor = ColorToColorRef(style.TextColor);
@@ -486,6 +497,16 @@ public unsafe partial class SDLPlatform
 
     public void HideTextbox()
     {
+        if (OperatingSystem.IsIOS())
+        {
+            if (_window != null && _iosTextInputActive)
+            {
+                SDL_StopTextInput(_window);
+                _iosTextInputActive = false;
+            }
+            return;
+        }
+
         if (_editHwnd == nint.Zero) return;
 
         // Send KeyUp for special keys to prevent them getting stuck
