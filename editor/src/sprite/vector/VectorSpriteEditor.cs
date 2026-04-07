@@ -72,47 +72,39 @@ public partial class VectorSpriteEditor : SpriteEditor
     private int CurrentFrameIndex =>
         Document.GetFrameAtTimeSlot(_currentTimeSlot);
 
-    public VectorSpriteEditor(SpriteDocument doc) : base(doc)
+    public new VectorSpriteDocument Document => (VectorSpriteDocument)base.Document;
+
+    public VectorSpriteEditor(VectorSpriteDocument doc) : base(doc)
     {
         _versionOnOpen = doc.Version;
 
-        if (doc.IsMutable)
-        {
-            Commands =
-            [
-                ..GetShapeCommands(),
-                new Command("Exit Edit Mode",       Workspace.EndEdit,          [InputCode.KeyTab]),
-                new Command("Origin to Center",     CenterShape,                [new KeyBinding(InputCode.KeyC, shift:true)]),
-                new Command("Flip Horizontal",      () => FlipAxis(true)),
-                new Command("Flip Vertical",        () => FlipAxis(false)),
-                new Command("Bring Forward",        () => MovePathInOrder(-1),  [InputCode.KeyRightBracket]),
-                new Command("Send Backward",        () => MovePathInOrder(1),   [InputCode.KeyLeftBracket]),
-                new Command("Toggle Playback",      TogglePlayback,             [InputCode.KeySpace]),
-                new Command("Previous Frame",       PreviousFrame,              [InputCode.KeyQ]),
-                new Command("Next Frame",           NextFrame,                  [InputCode.KeyE]),
-                new Command("Insert Frame Before",  InsertFrameBefore,          [new KeyBinding(InputCode.KeyI, ctrl:true)]),
-                new Command("Insert Frame After",   InsertFrameAfter,           [new KeyBinding(InputCode.KeyO, ctrl:true)]),
-                new Command("Delete Frame",         DeleteCurrentFrame,         [new KeyBinding(InputCode.KeyX, shift:true)]),
-                new Command("Add Hold",             AddHoldFrame,               [new KeyBinding(InputCode.KeyH)]),
-                new Command("Remove Hold",          RemoveHoldFrame,            [new KeyBinding(InputCode.KeyH, ctrl:true)]),
-                new Command("Toggle Onion Skin",    ToggleOnionSkin,            [new KeyBinding(InputCode.KeyO, shift:true)]),
-                new Command("Eye Dropper",          () => SetMode(SpriteEditMode.EyeDropper), [new KeyBinding(InputCode.KeyI)]),
-                new Command("Boolean Union",        BooleanUnion,               [new KeyBinding(InputCode.KeyU, ctrl:true, shift:true)]),
-                new Command("Boolean Subtract",     BooleanSubtract,            [new KeyBinding(InputCode.KeyD, ctrl:true, shift:true)]),
-                new Command("Boolean Intersect",    BooleanIntersect,           [new KeyBinding(InputCode.KeyI, ctrl:true, shift:true)]),
-                new Command("Export to PNG",        ExportToPng,                [new KeyBinding(InputCode.KeyE, ctrl:true, shift:true)]),
-            ];
+        Commands =
+        [
+            ..GetShapeCommands(),
+            new Command("Exit Edit Mode",       Workspace.EndEdit,          [InputCode.KeyTab]),
+            new Command("Origin to Center",     CenterShape,                [new KeyBinding(InputCode.KeyC, shift:true)]),
+            new Command("Flip Horizontal",      () => FlipAxis(true)),
+            new Command("Flip Vertical",        () => FlipAxis(false)),
+            new Command("Bring Forward",        () => MovePathInOrder(-1),  [InputCode.KeyRightBracket]),
+            new Command("Send Backward",        () => MovePathInOrder(1),   [InputCode.KeyLeftBracket]),
+            new Command("Toggle Playback",      TogglePlayback,             [InputCode.KeySpace]),
+            new Command("Previous Frame",       PreviousFrame,              [InputCode.KeyQ]),
+            new Command("Next Frame",           NextFrame,                  [InputCode.KeyE]),
+            new Command("Insert Frame Before",  InsertFrameBefore,          [new KeyBinding(InputCode.KeyI, ctrl:true)]),
+            new Command("Insert Frame After",   InsertFrameAfter,           [new KeyBinding(InputCode.KeyO, ctrl:true)]),
+            new Command("Delete Frame",         DeleteCurrentFrame,         [new KeyBinding(InputCode.KeyX, shift:true)]),
+            new Command("Add Hold",             AddHoldFrame,               [new KeyBinding(InputCode.KeyH)]),
+            new Command("Remove Hold",          RemoveHoldFrame,            [new KeyBinding(InputCode.KeyH, ctrl:true)]),
+            new Command("Toggle Onion Skin",    ToggleOnionSkin,            [new KeyBinding(InputCode.KeyO, shift:true)]),
+            new Command("Eye Dropper",          () => SetMode(SpriteEditMode.EyeDropper), [new KeyBinding(InputCode.KeyI)]),
+            new Command("Boolean Union",        BooleanUnion,               [new KeyBinding(InputCode.KeyU, ctrl:true, shift:true)]),
+            new Command("Boolean Subtract",     BooleanSubtract,            [new KeyBinding(InputCode.KeyD, ctrl:true, shift:true)]),
+            new Command("Boolean Intersect",    BooleanIntersect,           [new KeyBinding(InputCode.KeyI, ctrl:true, shift:true)]),
+            new Command("Export to PNG",        ExportToPng,                [new KeyBinding(InputCode.KeyE, ctrl:true, shift:true)]),
+        ];
 
-            ApplyCurrentFrameVisibility();
-            SetMode(new TransformMode());
-        }
-        else
-        {
-            Commands =
-            [
-                new Command("Exit Edit Mode",       Workspace.EndEdit,          [InputCode.KeyTab]),
-            ];
-        }
+        ApplyCurrentFrameVisibility();
+        SetMode(new TransformMode());
     }
 
 
@@ -249,14 +241,6 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     public override void Update()
     {
-        if (!Document.IsMutable)
-        {
-            // Immutable sprites just draw the image preview
-            Document.DrawBounds(true);
-            Document.Draw();
-            return;
-        }
-
         UpdateHandleCursor();
         UpdateAnimation();
 
@@ -289,7 +273,6 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     public override void LateUpdate()
     {
-        if (!Document.IsMutable) return;
         Mode?.Update();
     }
 
@@ -298,8 +281,6 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     public override void UpdateOverlayUI()
     {
-        if (!Document.IsMutable) return;
-
         using (FloatingToolbar.Begin())
         {
             FloatingToolbarUI();
@@ -1313,18 +1294,15 @@ public partial class VectorSpriteEditor : SpriteEditor
         using var _ = Inspector.BeginSection("SPRITE");
         if (Inspector.IsSectionCollapsed) return;
 
-        if (!Document.IsReference)
+        using (Inspector.BeginProperty("Export"))
         {
-            using (Inspector.BeginProperty("Export"))
+            var shouldExport = Document.ShouldExport;
+            if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
             {
-                var shouldExport = Document.ShouldExport;
-                if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
-                {
-                    shouldExport = !shouldExport;
-                    Undo.Record(Document);
-                    Document.ShouldExport = shouldExport;
-                    AssetManifest.IsModified = true;
-                }
+                shouldExport = !shouldExport;
+                Undo.Record(Document);
+                Document.ShouldExport = shouldExport;
+                AssetManifest.IsModified = true;
             }
         }
 
@@ -1565,11 +1543,8 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (!HasPathSelection && !HasLayerSelection)
             SpriteInspectorUI();
 
-        if (Document.IsMutable)
-        {
-            EdgesInspectorUI();
-            PathInspectorUI();
-        }
+        EdgesInspectorUI();
+        PathInspectorUI();
     }
 
     #region Edges

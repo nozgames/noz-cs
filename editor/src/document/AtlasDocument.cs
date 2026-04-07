@@ -47,7 +47,7 @@ internal class AtlasDocument : Document
             Type = AssetType.Atlas,
             Name = "Atlas",
             Extensions = [".atlas"],
-            Factory = () => new AtlasDocument(),
+            Factory = _ => new AtlasDocument(),
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconAtlas
         });

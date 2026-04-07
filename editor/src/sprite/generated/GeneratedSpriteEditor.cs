@@ -25,14 +25,10 @@ public partial class GeneratedSpriteEditor : SpriteEditor
     public override bool ShowInspector => true;
     public override bool ShowOutliner => false;
 
-    public GeneratedSpriteEditor(SpriteDocument doc) : base(doc)
+    public new GeneratedSpriteDocument Document => (GeneratedSpriteDocument)base.Document;
+
+    public GeneratedSpriteEditor(GeneratedSpriteDocument doc) : base(doc)
     {
-        if (doc.Generation == null)
-        {
-            doc.Generation = new SpriteGeneration { Prompt = " ", Seed = SpriteGeneration.GenerateRandomSeed() };
-            doc.ConstrainedSize ??= new Vector2Int(256, 256);
-            doc.UpdateBounds();
-        }
 
         Commands =
         [
@@ -143,18 +139,15 @@ public partial class GeneratedSpriteEditor : SpriteEditor
         using var _ = Inspector.BeginSection("SPRITE");
         if (Inspector.IsSectionCollapsed) return;
 
-        if (!Document.IsReference)
+        using (Inspector.BeginProperty("Export"))
         {
-            using (Inspector.BeginProperty("Export"))
+            var shouldExport = Document.ShouldExport;
+            if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
             {
-                var shouldExport = Document.ShouldExport;
-                if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
-                {
-                    shouldExport = !shouldExport;
-                    Undo.Record(Document);
-                    Document.ShouldExport = shouldExport;
-                    AssetManifest.IsModified = true;
-                }
+                shouldExport = !shouldExport;
+                Undo.Record(Document);
+                Document.ShouldExport = shouldExport;
+                AssetManifest.IsModified = true;
             }
         }
 
@@ -328,7 +321,6 @@ public partial class GeneratedSpriteEditor : SpriteEditor
 
     private void GenerateWithRandomSeed()
     {
-        if (Document.Generation == null) return;
         Document.Generation.Seed = SpriteGeneration.GenerateRandomSeed();
         Document.GenerateAsync();
     }

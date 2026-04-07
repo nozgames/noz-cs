@@ -116,7 +116,7 @@ internal class AnimationDocument : Document
             Type = AssetType.Animation,
             Name = "Animation",
             Extensions = [".anim"],
-            Factory = () => new AnimationDocument(),
+            Factory = _ => new AnimationDocument(),
             EditorFactory = doc => new AnimationEditor((AnimationDocument)doc),
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconAnimation

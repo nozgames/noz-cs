@@ -159,7 +159,7 @@ public static partial class Workspace
         {
             if (!doc.IsSelected)
                 continue;
-            if (doc is SpriteDocument sprite && sprite.Generation != null)
+            if (doc is GeneratedSpriteDocument sprite)
             {
                 sprite.GenerateAsync();
                 count++;
@@ -180,7 +180,7 @@ public static partial class Workspace
         {
             if (!doc.IsSelected)
                 continue;
-            if (doc is SpriteDocument sprite && sprite.Generation != null)
+            if (doc is GeneratedSpriteDocument sprite)
             {
                 sprite.Generation.Seed = SpriteGeneration.GenerateRandomSeed();
                 sprite.GenerateAsync();
@@ -222,7 +222,7 @@ public static partial class Workspace
     private static void CreateNewPixelSprite()
     {
         var position = PopupMenu.WorldPosition;
-        var doc = SpriteDocument.CreateNewPixelSprite(position);
+        var doc = PixelSpriteDocument.CreateNew(position);
         if (doc != null)
         {
             doc.CollectionId = CollectionManager.GetVisibleId();
@@ -235,7 +235,7 @@ public static partial class Workspace
     private static void CreateNewGeneratedSprite()
     {
         var position = PopupMenu.WorldPosition;
-        var doc = SpriteDocument.CreateNewGeneratedSprite(position);
+        var doc = GeneratedSpriteDocument.CreateNew(position);
         if (doc != null)
         {
             doc.CollectionId = CollectionManager.GetVisibleId();

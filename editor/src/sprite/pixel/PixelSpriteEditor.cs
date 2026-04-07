@@ -43,7 +43,7 @@ public partial class PixelSpriteEditor : SpriteEditor
 
             ClearSelection();
             _activeLayer = value;
-            Document.PixelActiveLayerName = value.Name;
+            Document.ActiveLayerName = value.Name;
         }
     }
 
@@ -108,7 +108,9 @@ public partial class PixelSpriteEditor : SpriteEditor
     public override bool ShowInspector => true;
     public override bool ShowOutliner => true;
 
-    public PixelSpriteEditor(SpriteDocument document) : base(document)
+    public new PixelSpriteDocument Document => (PixelSpriteDocument)base.Document;
+
+    public PixelSpriteEditor(PixelSpriteDocument document) : base(document)
     {
         _versionOnOpen = document.Version;
 
@@ -151,9 +153,9 @@ public partial class PixelSpriteEditor : SpriteEditor
 
         ActiveLayer = RestoreActiveLayer();
         _selectedNode = _activeLayer;
-        BrushSize = Document.PixelBrushSize;
-        BrushColor = Document.PixelBrushColor;
-        AlphaLock = Document.PixelAlphaLock;
+        BrushSize = Document.BrushSize;
+        BrushColor = Document.BrushColor;
+        AlphaLock = Document.AlphaLock;
         Grid.PixelsPerUnitOverride = CanvasPPU;
         ApplyCurrentFrameVisibility();
         SetMode(new PencilMode());
@@ -183,9 +185,9 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     private PixelLayer? RestoreActiveLayer()
     {
-        if (!string.IsNullOrEmpty(Document.PixelActiveLayerName))
+        if (!string.IsNullOrEmpty(Document.ActiveLayerName))
         {
-            var node = Document.Root.Find<SpriteNode>(Document.PixelActiveLayerName);
+            var node = Document.Root.Find<SpriteNode>(Document.ActiveLayerName);
             if (node is PixelLayer layer && layer.Pixels != null)
                 return layer;
         }
@@ -231,7 +233,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         _activeLayer = next;
         _selectedNode = next;
         if (next != null)
-            Document.PixelActiveLayerName = next.Name;
+            Document.ActiveLayerName = next.Name;
         deleted.RemoveFromParent();
         InvalidateComposite();
     }
@@ -811,9 +813,9 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     public override void Dispose()
     {
-        Document.PixelBrushSize = BrushSize;
-        Document.PixelBrushColor = BrushColor;
-        Document.PixelAlphaLock = AlphaLock;
+        Document.BrushSize = BrushSize;
+        Document.BrushColor = BrushColor;
+        Document.AlphaLock = AlphaLock;
         Grid.PixelsPerUnitOverride = null;
 
         if (Document.Version != _versionOnOpen && Document.Atlas != null)

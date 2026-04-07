@@ -35,49 +35,64 @@ public class SpriteGeneration : IDisposable
     }
 }
 
-public partial class SpriteDocument
+public partial class GeneratedSpriteDocument : SpriteDocument
 {
-    public SpriteGeneration? Generation { get; set; }
+    protected override int PixelsPerUnit => EditorApplication.Config.PixelsPerUnit;
+    protected override TextureFilter TextureFilter => TextureFilter.Linear;
 
-    private const int RasterizeSize = 1024;
+    public SpriteGeneration Generation { get; set; } = new();
+    public string? ImageFilePath { get; set; }
 
     private GenerationJob? _pendingGenerationJob;
 
-    private void ReloadGeneration()
+    public override DocumentEditor? CreateEditor() => new GeneratedSpriteEditor(this);
+
+    public static Document? CreateNew(Vector2? position = null)
     {
-        // Preserve the active generation job across reloads so that
-        // file-watcher triggered reloads (e.g. after SaveAll on edit exit)
-        // don't destroy in-flight generation state.
-        if (Generation is { IsGenerating: true })
+        var doc = DocumentManager.New(AssetType.Sprite, null, position);
+        if (doc == null) return null;
+
+        var store = EditorApplication.Store;
+        using (var ms = new MemoryStream())
+        {
+            using (var writer = new StreamWriter(ms))
+                WriteNewFile(writer);
+            store.WriteAllBytes(doc.Path, ms.ToArray());
+        }
+
+        doc.Reload();
+        return doc;
+    }
+
+    public static void WriteNewFile(StreamWriter writer)
+    {
+        writer.WriteLine("type generated");
+        writer.WriteLine("generate");
+        writer.WriteLine($"seed \"{SpriteGeneration.GenerateRandomSeed()}\"");
+    }
+
+    protected override void UpdateContentBounds()
+    {
+        var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+        RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
+        Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
+    }
+
+    public override void Reload()
+    {
+        if (Generation.IsGenerating)
         {
             _pendingGenerationJob = Generation.Job;
-            Generation = null;
+            Generation = new SpriteGeneration();
         }
         else
         {
-            Generation?.Dispose();
-            Generation = null;
-        }
-    }
-
-    private void PostLoadGeneration()
-    {
-        if (Generation == null)
-            return;
-
-        LoadGeneratedTexture();
-        Generation.Config.Resolve();
-    }
-
-    private void ResolveGeneration()
-    {
-        if (Generation == null)
-        {
-            _pendingGenerationJob = null;
-            return;
+            Generation.Dispose();
+            Generation = new SpriteGeneration();
         }
 
-        // Restore an in-flight generation job that was preserved across reload
+        base.Reload();
+
         if (_pendingGenerationJob != null)
         {
             Generation.Job.Dispose();
@@ -92,29 +107,34 @@ public partial class SpriteDocument
         Generation.Config.Resolve();
     }
 
-    private void SaveGeneration(StreamWriter writer)
+    public override void PostLoad()
     {
-        if (Generation == null)
-            return;
-
-        var gen = Generation;
-        writer.WriteLine("generate");
-        if (!string.IsNullOrEmpty(gen.Prompt))
-            writer.WriteLine($"prompt \"{gen.Prompt.Replace("\"", "\\\"")}\"");
-        if (!string.IsNullOrEmpty(gen.NegativePrompt))
-            writer.WriteLine($"prompt_neg \"{gen.NegativePrompt.Replace("\"", "\\\"")}\"");
-        if (!string.IsNullOrEmpty(gen.Seed))
-            writer.WriteLine($"seed \"{gen.Seed}\"");
-        if (!string.IsNullOrEmpty(gen.Config.Name))
-            writer.WriteLine($"style \"{gen.Config.Name}\"");
-        if (gen.Job.HasImageData && ImageFilePath != null)
-            EditorApplication.Store.WriteAllBytes(ImageFilePath, gen.Job.ImageData!);
+        base.PostLoad();
+        LoadGeneratedTexture();
+        Generation.Config.Resolve();
     }
 
-    private void CloneGeneration(SpriteDocument src)
+    public override void Draw()
     {
-        if (src.Generation == null)
-            return;
+        DrawOrigin();
+        DrawGeneration();
+    }
+
+    public override bool DrawThumbnail()
+    {
+        var texture = Generation.Job.Texture;
+        if (texture != null)
+        {
+            UI.Image(texture, ImageStyle.Center);
+            return true;
+        }
+
+        return base.DrawThumbnail();
+    }
+
+    protected override void CloneContent(SpriteDocument source)
+    {
+        if (source is not GeneratedSpriteDocument src) return;
 
         Generation = new SpriteGeneration
         {
@@ -128,67 +148,49 @@ public partial class SpriteDocument
             Generation.Job.ImageData = (byte[])src.Generation.Job.ImageData!.Clone();
     }
 
-    private void DisposeGeneration()
+    protected override void LoadContentMetadata(PropertySet meta)
     {
-        _pendingGenerationJob?.Dispose();
-        _pendingGenerationJob = null;
-        Generation?.Dispose();
-        Generation = null;
+        if (string.IsNullOrEmpty(Generation.Config.Name))
+        {
+            var style = meta.GetString("sprite", "style", "");
+            if (!string.IsNullOrEmpty(style))
+                Generation.Config.Name = style;
+        }
     }
 
-    private void ParseGeneration(ref Tokenizer tk)
+    protected override void SaveContentMetadata(PropertySet meta)
     {
-        Generation = new SpriteGeneration();
+        meta.RemoveKey("sprite", "prompt_hash");
+        meta.RemoveKey("sprite", "style");
+    }
+
+    internal void LoadGeneratedTexture()
+    {
         var gen = Generation;
-        while (!tk.IsEOF)
+        gen.Job.Dispose();
+
+        if (!gen.Job.HasImageData) return;
+
+        try
         {
-            if (tk.ExpectIdentifier("prompt"))
-                gen.Prompt = tk.ExpectQuotedString() ?? "";
-            else if (tk.ExpectIdentifier("prompt_neg"))
-                gen.NegativePrompt = tk.ExpectQuotedString() ?? "";
-            else if (tk.ExpectIdentifier("seed"))
-            {
-                if (tk.ExpectQuotedString(out var seedStr))
-                    gen.Seed = seedStr;
-                else
-                    gen.Seed = tk.ExpectInt().ToString();
-            }
-            else if (tk.ExpectIdentifier("style"))
-                gen.Config.Name = tk.ExpectQuotedString();
-            else if (tk.ExpectIdentifier("prompt_hash"))
-                tk.ExpectQuotedString(); // Legacy: skip
-            else if (tk.ExpectIdentifier("reference"))
-                tk.ExpectQuotedString(); // Legacy: skip
-            else if (tk.ExpectIdentifier("image"))
-            {
-                // Legacy migration: extract embedded base64 to companion file
-                var base64 = tk.ExpectQuotedString();
-                if (!string.IsNullOrEmpty(base64))
-                {
-                    gen.Job.ImageData = Convert.FromBase64String(base64);
+            using var ms = new MemoryStream(gen.Job.ImageData!);
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
 
-                    if (ImageFilePath == null)
-                    {
-                        var dir = System.IO.Path.GetDirectoryName(Path) ?? "";
-                        var stem = System.IO.Path.GetFileNameWithoutExtension(Path);
-                        ImageFilePath = System.IO.Path.Combine(dir, stem + ".png");
-                    }
+            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
+            if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
+                srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
 
-                    if (!EditorApplication.Store.FileExists(ImageFilePath))
-                        EditorApplication.Store.WriteAllBytes(ImageFilePath, gen.Job.ImageData);
-                }
-            }
-            else
-                break;
+            gen.Job.Texture = CreateTextureFromImage(srcImage, $"{Name}_gen");
         }
-
-        if (!gen.Job.HasImageData && ImageFilePath != null && EditorApplication.Store.FileExists(ImageFilePath))
-            gen.Job.ImageData = EditorApplication.Store.ReadAllBytes(ImageFilePath);
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to create generated texture for '{Name}': {ex.Message}");
+        }
     }
 
     private void DrawGeneration()
     {
-        var gen = Generation!;
+        var gen = Generation;
         var texture = gen.Job.Texture;
         if (texture != null)
         {
@@ -235,74 +237,9 @@ public partial class SpriteDocument
         }
     }
 
-    internal void LoadGeneratedTexture()
-    {
-        var gen = Generation!;
-        gen.Job.Dispose();
-
-        if (!gen.Job.HasImageData) return;
-
-        try
-        {
-            using var ms = new MemoryStream(gen.Job.ImageData!);
-            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
-
-            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
-            if (srcImage.Width != cs.X || srcImage.Height != cs.Y)
-                srcImage.Mutate(x => x.Resize(cs.X, cs.Y));
-
-            gen.Job.Texture = CreateTextureFromImage(srcImage, $"{Name}_gen");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to create generated texture for '{Name}': {ex.Message}");
-        }
-    }
-
-    internal byte[] RasterizeColorToPng()
-    {
-        var w = RasterBounds.Width;
-        var h = RasterBounds.Height;
-        if (w <= 0 || h <= 0) return [];
-
-        if (Root.Children.Count == 0)
-            return [];
-
-        var dpi = EditorApplication.Config.PixelsPerUnit;
-        var scale = (float)RasterizeSize / MathF.Max(w, h);
-        var scaledDpi = (int)MathF.Round(dpi * scale);
-        var outW = (int)MathF.Round(w * scale);
-        var outH = (int)MathF.Round(h * scale);
-
-        using var pixels = new PixelData<Color32>(outW, outH);
-
-        var targetRect = new RectInt(0, 0, outW, outH);
-        var sourceOffset = new Vector2Int(
-            (int)MathF.Round(-RasterBounds.X * scale),
-            (int)MathF.Round(-RasterBounds.Y * scale));
-
-        Rect? clipRect = null;
-        if (ConstrainedSize.HasValue)
-        {
-            float invDpi = 1f / dpi;
-            clipRect = new Rect(
-                RasterBounds.X * invDpi,
-                RasterBounds.Y * invDpi,
-                RasterBounds.Width * invDpi,
-                RasterBounds.Height * invDpi);
-        }
-
-        RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi, clipRect);
-
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
-        using var ms = new MemoryStream();
-        image.SaveAsPng(ms);
-        return ms.ToArray();
-    }
-
     public PipelineRequest BuildGenerationRequest()
     {
-        var gen = Generation!;
+        var gen = Generation;
         var config = gen.Config.Value;
         var prompt = GenerationConfig.FormatPrompt(config?.Prompt ?? "", gen.Prompt);
         var negPrompt = GenerationConfig.FormatPrompt(config?.NegativePrompt ?? "", gen.NegativePrompt);
@@ -310,6 +247,7 @@ public partial class SpriteDocument
 
         var references = new List<Dictionary<string, object>>();
 
+        // Use vector paths as reference if available
         var imageBytes = RasterizeColorToPng();
         if (imageBytes.Length > 0)
         {
@@ -319,7 +257,7 @@ public partial class SpriteDocument
             });
         }
 
-        var workflow = "concept"; // references.Count > 0 ? "sprite" : "txt2img";
+        var workflow = "concept";
         var genArgs = new Dictionary<string, object> { ["prompt"] = prompt, ["workflow"] = workflow };
         if (!string.IsNullOrEmpty(negPrompt))
             genArgs["negative"] = negPrompt;
@@ -365,9 +303,40 @@ public partial class SpriteDocument
         };
     }
 
+    private byte[] RasterizeColorToPng()
+    {
+        if (Root.Children.Count == 0)
+            return [];
+
+        // Rasterize any vector paths that may exist as references
+        var w = RasterBounds.Width;
+        var h = RasterBounds.Height;
+        if (w <= 0 || h <= 0) return [];
+
+        var dpi = EditorApplication.Config.PixelsPerUnit;
+        const int rasterizeSize = 1024;
+        var scale = (float)rasterizeSize / MathF.Max(w, h);
+        var scaledDpi = (int)MathF.Round(dpi * scale);
+        var outW = (int)MathF.Round(w * scale);
+        var outH = (int)MathF.Round(h * scale);
+
+        using var pixels = new PixelData<Color32>(outW, outH);
+        var targetRect = new RectInt(0, 0, outW, outH);
+        var sourceOffset = new Vector2Int(
+            (int)MathF.Round(-RasterBounds.X * scale),
+            (int)MathF.Round(-RasterBounds.Y * scale));
+
+        VectorSpriteDocument.RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi);
+
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
+        using var ms = new MemoryStream();
+        image.SaveAsPng(ms);
+        return ms.ToArray();
+    }
+
     public void ApplyGenerationResult(GenerationStatus status, bool createTexture = true)
     {
-        var gen = Generation!;
+        var gen = Generation;
         var cs = ConstrainedSize ?? new Vector2Int(256, 256);
 
         if (status.Result == null)
@@ -414,7 +383,6 @@ public partial class SpriteDocument
                 ImageFilePath = System.IO.Path.Combine(dir, stem + ".png");
             }
 
-            Log.Info($"[Gen] '{Name}' ApplyResult: imagePath='{ImageFilePath}' hasImage={gen.HasImageData}");
             Log.Info($"Generation complete for '{Name}' ({status.Result.Width}x{status.Result.Height}, seed={status.Result.Seed})");
             IncrementVersion();
         }
@@ -426,7 +394,7 @@ public partial class SpriteDocument
 
     public void GenerateAsync()
     {
-        var gen = Generation!;
+        var gen = Generation;
 
         if (string.IsNullOrEmpty(gen.Prompt))
         {
@@ -480,13 +448,11 @@ public partial class SpriteDocument
                     job.GenerationState = GenerationState.Completed;
                     job.GenerationProgress = 1f;
                     ApplyGenerationResult(status);
-                    Log.Info($"[Gen] '{Name}' saving after generation...");
                     Save();
                     SaveMetadata();
                     DocumentManager.QueueExport(this, force: true);
                     if (Atlas != null)
                         AtlasManager.UpdateSource(this);
-                    Log.Info($"[Gen] '{Name}' saved and queued for export");
                     break;
 
                 case GenerationState.Failed:
@@ -498,5 +464,13 @@ public partial class SpriteDocument
                     break;
             }
         }, cts.Token);
+    }
+
+    public override void Dispose()
+    {
+        _pendingGenerationJob?.Dispose();
+        _pendingGenerationJob = null;
+        Generation.Dispose();
+        base.Dispose();
     }
 }

@@ -194,9 +194,10 @@ public static class DocumentManager
         if (def == null)
             return null;
 
-        var doc = def.Factory();
+        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
+        var doc = def.Factory(normalizedPath);
         doc.Def = def;
-        doc.Path = path.Replace('\\', '/').ToLowerInvariant();
+        doc.Path = normalizedPath;
         doc.Name = MakeCanonicalName(path);
         doc.Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
         _documents.Add(doc);
@@ -785,8 +786,8 @@ public static class DocumentManager
     public static async Task GenerateSpritesAsync(CancellationToken ct = default)
     {
         var sprites = _documents
-            .OfType<SpriteDocument>()
-            .Where(s => s.Generation is { HasImageData: false })
+            .OfType<GeneratedSpriteDocument>()
+            .Where(s => !s.Generation.HasImageData)
             .ToList();
 
         if (sprites.Count == 0)
@@ -846,8 +847,8 @@ public static class DocumentManager
     public static void QueueGenerations()
     {
         var sprites = _documents
-            .OfType<SpriteDocument>()
-            .Where(s => s.Generation is { HasImageData: false })
+            .OfType<GeneratedSpriteDocument>()
+            .Where(s => !s.Generation.HasImageData)
             .ToList();
 
         if (sprites.Count == 0)

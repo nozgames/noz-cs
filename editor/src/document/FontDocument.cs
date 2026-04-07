@@ -27,7 +27,7 @@ public class FontDocument : Document
             Type = AssetType.Font,
             Name = "Font",
             Extensions = [".ttf"],
-            Factory = () => new FontDocument()
+            Factory = _ => new FontDocument()
         });
     }
 

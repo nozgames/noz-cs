@@ -3,30 +3,16 @@
 //
 
 using System.Numerics;
-using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace NoZ.Editor;
 
-public enum SpriteType { Vector, Raster, Generated }
-
-public partial class SpriteDocument : Document, ISkeletonAttachment
+public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 {
-    private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
-
     public const float DefaultFrameRate = 12f;
 
-    public override bool CanSave => IsMutable;
+    public override bool CanSave => true;
 
-    public bool IsMutable { get; private set; } = true;
-    public bool IsReference { get; private set; }
-    public string? ImageFilePath { get; private set; }
-    private Texture? _texture;
-    private Vector2Int _textureSize;
-    private Vector2Int _sourceImageSize;
-    private Texture? _standaloneTexture;
-    private int _standaloneTextureVersion = -1;
-    
     public byte SortOrder { get; private set; }
 
     private string? _sortOrderId;
@@ -38,31 +24,25 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     public bool ShouldAtlas => true;
 
-    public SpriteType SpriteMode { get; set; } = SpriteType.Vector;
-    public Vector2Int CanvasSize { get; set; } = new(64, 64);
-
-    // Pixel selection mask (raster sprites only): null = no selection
-    public PixelData<byte>? SelectionMask { get; set; }
-
     // Layer-based model
     public SpriteGroup Root { get; } = new() { Name = "Root" };
     public List<SpriteAnimFrame> AnimFrames { get; } = new();
 
     private readonly List<Rect> _atlasUV = new();
-    private readonly List<SpritePath> _visiblePathsCache = new();
     private Sprite? _sprite;
+    private Texture? _standaloneTexture;
     public float Depth;
-    public RectInt RasterBounds { get; private set; }
+    public RectInt RasterBounds { get; protected set; }
     public EdgeInsets Edges { get; set; } = EdgeInsets.Zero;
 
-    public Color32 CurrentFillColor = Color32.White;
-    public SpriteFillType CurrentFillType;
-    public SpriteFillGradient CurrentFillGradient;
-    public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
-    public byte CurrentStrokeWidth = 1;
-    public SpriteStrokeJoin CurrentStrokeJoin;
-    public SpritePathOperation CurrentOperation;
+    protected abstract int PixelsPerUnit { get; }
+    protected abstract TextureFilter TextureFilter { get; }
+    protected abstract void UpdateContentBounds();
+    internal abstract void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding);
+    protected abstract void SaveContent(StreamWriter writer);
+    protected abstract void CloneContent(SpriteDocument source);
 
+    public virtual DocumentEditor? CreateEditor() => null;
 
     public int TotalTimeSlots
     {
@@ -94,10 +74,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public bool ShowTiling { get; set; }
     public bool ShowSkeletonOverlay { get; set; }
     public Vector2Int? ConstrainedSize { get; set; }
-    public int PixelBrushSize { get; set; } = 1;
-    public Color32 PixelBrushColor { get; set; } = Color32.Black;
-    public bool PixelAlphaLock { get; set; }
-    public string PixelActiveLayerName { get; set; } = "";
 
     public ushort AtlasFrameCount => (ushort)TotalTimeSlots;
     internal AtlasDocument? Atlas { get; set; }
@@ -112,7 +88,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         var index = Math.Clamp(insertAt, 0, AnimFrames.Count);
         var frame = new SpriteAnimFrame();
-        // Copy visibility from adjacent frame if available
         if (AnimFrames.Count > 0)
         {
             var sourceIndex = Math.Min(index, AnimFrames.Count - 1);
@@ -158,173 +133,60 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         {
             Type = AssetType.Sprite,
             Name = "Sprite",
-            Extensions = [".sprite", ".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"],
-            Factory = () => new SpriteDocument(),
-            EditorFactory = doc =>
-            {
-                var sd = (SpriteDocument)doc;
-                return sd.SpriteMode switch
-                {
-                    SpriteType.Raster => new PixelSpriteEditor(sd),
-                    SpriteType.Generated => new GeneratedSpriteEditor(sd),
-                    _ => new VectorSpriteEditor(sd),
-                };
-            },
-            NewFile = NewFile,
+            Extensions = [".sprite"],
+            Factory = CreateFromFile,
+            EditorFactory = doc => ((SpriteDocument)doc).CreateEditor(),
+            NewFile = _ => { },
+            Icon = () => EditorAssets.Sprites.AssetIconSprite
+        });
+
+        DocumentDef<ImageSpriteDocument>.Register(new DocumentDef
+        {
+            Type = AssetType.Sprite,
+            Name = "Image",
+            Extensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"],
+            Factory = _ => new ImageSpriteDocument(),
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
     }
 
-    private static void NewFile(StreamWriter writer)
+    private static SpriteDocument CreateFromFile(string? path)
     {
-    }
+        if (path == null || !EditorApplication.Store.FileExists(path))
+            return new VectorSpriteDocument();
 
-    public static void NewPixelFile(StreamWriter writer)
-    {
-        writer.WriteLine("type raster");
-        writer.WriteLine("canvas 64 64");
-        writer.WriteLine();
-        writer.WriteLine("layer \"Layer 1\" {");
-        writer.WriteLine("}");
-    }
-
-    public static Document? CreateNewPixelSprite(Vector2? position = null)
-    {
-        var doc = DocumentManager.New(AssetType.Sprite, null, position);
-        if (doc == null) return null;
-
-        // Overwrite the file with pixel sprite content
-        var store = EditorApplication.Store;
-        using (var ms = new MemoryStream())
+        var content = EditorApplication.Store.ReadAllText(path);
+        foreach (var line in content.AsSpan().EnumerateLines())
         {
-            using (var writer = new StreamWriter(ms))
-                NewPixelFile(writer);
-            store.WriteAllBytes(doc.Path, ms.ToArray());
+            var trimmed = line.Trim();
+            if (!trimmed.StartsWith("type "))
+                continue;
+
+            return trimmed[5..].Trim().ToString() switch
+            {
+                "raster" => new PixelSpriteDocument(),
+                "generated" => new GeneratedSpriteDocument(),
+                _ => new VectorSpriteDocument(),
+            };
         }
 
-        // Reload so it picks up the raster type
-        doc.Reload();
-        return doc;
-    }
-
-    public static void NewGeneratedFile(StreamWriter writer)
-    {
-        writer.WriteLine("type generated");
-        writer.WriteLine("generate");
-        writer.WriteLine($"seed \"{SpriteGeneration.GenerateRandomSeed()}\"");
-    }
-
-    public static Document? CreateNewGeneratedSprite(Vector2? position = null)
-    {
-        var doc = DocumentManager.New(AssetType.Sprite, null, position);
-        if (doc == null) return null;
-
-        var store = EditorApplication.Store;
-        using (var ms = new MemoryStream())
-        {
-            using (var writer = new StreamWriter(ms))
-                NewGeneratedFile(writer);
-            store.WriteAllBytes(doc.Path, ms.ToArray());
-        }
-
-        doc.Reload();
-        return doc;
+        return new VectorSpriteDocument();
     }
 
     public override void Load()
     {
-        DiscoverFiles();
-
-        if (IsMutable)
-        {
-            var contents = EditorApplication.Store.ReadAllText(Path);
-            var tk = new Tokenizer(contents);
-            Load(ref tk);
-        }
-        else
-        {
-            LoadStaticImage();
-        }
-
+        var contents = EditorApplication.Store.ReadAllText(Path);
+        var tk = new Tokenizer(contents);
+        Load(ref tk);
         UpdateBounds();
         Loaded = true;
     }
 
-    private void DiscoverFiles()
-    {
-        var ext = System.IO.Path.GetExtension(Path).ToLowerInvariant();
-        var dir = System.IO.Path.GetDirectoryName(Path) ?? "";
-        var stem = System.IO.Path.GetFileNameWithoutExtension(Path);
-
-        var store = EditorApplication.Store;
-        if (ext == ".sprite")
-        {
-            // Created from .sprite — look for companion image
-            foreach (var imgExt in ImageExtensions)
-            {
-                var imgPath = System.IO.Path.Combine(dir, stem + imgExt);
-                if (store.FileExists(imgPath))
-                {
-                    ImageFilePath = imgPath;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            // Created from an image file — check if .sprite exists
-            var spritePath = System.IO.Path.Combine(dir, stem + ".sprite");
-            if (store.FileExists(spritePath))
-            {
-                // .sprite is the primary file, image is companion
-                ImageFilePath = Path;
-                Path = spritePath.Replace('\\', '/').ToLowerInvariant();
-            }
-            else
-            {
-                // No .sprite — this is a static/immutable image
-                IsMutable = false;
-                ImageFilePath = Path;
-            }
-        }
-
-        // Files in a "reference" directory are never exported
-        if (Path.Contains("reference", StringComparison.OrdinalIgnoreCase))
-        {
-            IsReference = true;
-            ShouldExport = false;
-        }
-    }
-
-    private void LoadStaticImage()
-    {
-        if (ImageFilePath == null || !EditorApplication.Store.FileExists(ImageFilePath))
-            return;
-
-        var info = Image.Identify(EditorApplication.Store.OpenRead(ImageFilePath));
-        if (info == null)
-            return;
-
-        var w = info.Width;
-        var h = info.Height;
-
-        _sourceImageSize = new Vector2Int(w, h);
-        RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
-    }
-
     public override void Reload()
     {
-        if (!IsMutable)
-        {
-            LoadStaticImage();
-            UpdateBounds();
-            return;
-        }
-
         Edges = EdgeInsets.Zero;
         Skeleton.Clear();
         BoneName = null;
-        ReloadGeneration();
         Root.Clear();
         AnimFrames.Clear();
         var contents = EditorApplication.Store.ReadAllText(Path);
@@ -332,7 +194,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         Load(ref tk);
 
         Skeleton.Resolve();
-        ResolveGeneration();
         ResolveSortOrder();
         ResolveBone();
         UpdateBounds();
@@ -352,195 +213,14 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             SortOrder = def.SortOrder;
     }
 
-    public RectInt? ComputeContentBounds()
-    {
-        if (SpriteMode != SpriteType.Raster) return null;
-
-        var w = CanvasSize.X;
-        var h = CanvasSize.Y;
-        var minX = w;
-        var minY = h;
-        var maxX = 0;
-        var maxY = 0;
-
-        foreach (var child in Root.Children)
-        {
-            if (child is not PixelLayer layer || !layer.Visible || layer.Pixels == null)
-                continue;
-
-            for (var y = 0; y < h; y++)
-            {
-                for (var x = 0; x < w; x++)
-                {
-                    if (layer.Pixels[x, y].A == 0) continue;
-                    if (x < minX) minX = x;
-                    if (y < minY) minY = y;
-                    if (x >= maxX) maxX = x + 1;
-                    if (y >= maxY) maxY = y + 1;
-                }
-            }
-        }
-
-        if (minX >= maxX) return null;
-        return new RectInt(minX, minY, maxX - minX, maxY - minY);
-    }
-
     public void UpdateBounds()
     {
-        if (!IsMutable)
-        {
-            UpdateImmutableBounds();
-            return;
-        }
-
-        if (SpriteMode == SpriteType.Raster)
-        {
-            const int ppu = 32;
-            var w = CanvasSize.X;
-            var h = CanvasSize.Y;
-
-            var contentBounds = ComputeContentBounds();
-            if (contentBounds.HasValue)
-            {
-                var cb = contentBounds.Value;
-                RasterBounds = new RectInt(
-                    cb.X - w / 2,
-                    cb.Y - h / 2,
-                    cb.Width,
-                    cb.Height);
-            }
-            else
-            {
-                RasterBounds = new RectInt(-ppu / 2, -ppu / 2, ppu, ppu);
-            }
-
-            if (ConstrainedSize.HasValue)
-            {
-                var cs = ConstrainedSize.Value;
-                var fw = cs.X / (float)ppu;
-                var fh = cs.Y / (float)ppu;
-                Bounds = new Rect(-fw / 2, -fh / 2, fw, fh);
-            }
-            else
-            {
-                var fw = RasterBounds.Width / (float)ppu;
-                var fh = RasterBounds.Height / (float)ppu;
-                Bounds = new Rect(
-                    RasterBounds.X / (float)ppu,
-                    RasterBounds.Y / (float)ppu,
-                    fw, fh);
-            }
-
-            MarkSpriteDirty();
-            return;
-        }
-
-        if (SpriteMode == SpriteType.Generated)
-        {
-            var cs = ConstrainedSize ?? new Vector2Int(256, 256);
-            RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
-            Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
-            MarkSpriteDirty();
-            return;
-        }
-
-        _visiblePathsCache.Clear();
-        Root.CollectVisiblePaths(_visiblePathsCache);
-
-        if (_visiblePathsCache.Count == 0)
-        {
-            SetDefaultBounds();
-            return;
-        }
-
-        var first = true;
-        var bounds = Rect.Zero;
-
-        foreach (var path in _visiblePathsCache)
-        {
-            path.UpdateSamples();
-            path.UpdateBounds();
-
-            if (path.TotalAnchorCount == 0)
-                continue;
-
-            if (first)
-            {
-                bounds = path.Bounds;
-                first = false;
-            }
-            else
-            {
-                var pb = path.Bounds;
-                var minX = MathF.Min(bounds.X, pb.X);
-                var minY = MathF.Min(bounds.Y, pb.Y);
-                var maxX = MathF.Max(bounds.Right, pb.Right);
-                var maxY = MathF.Max(bounds.Bottom, pb.Bottom);
-                bounds = Rect.FromMinMax(new Vector2(minX, minY), new Vector2(maxX, maxY));
-            }
-        }
-
-        if (first)
-        {
-            SetDefaultBounds();
-            return;
-        }
-
-        var dpi = EditorApplication.Config.PixelsPerUnit;
-        var rMinX = SnapFloor(bounds.X * dpi);
-        var rMinY = SnapFloor(bounds.Y * dpi);
-        var rMaxX = SnapCeil(bounds.Right * dpi);
-        var rMaxY = SnapCeil(bounds.Bottom * dpi);
-        RasterBounds = new RectInt(rMinX, rMinY, rMaxX - rMinX, rMaxY - rMinY);
-
-        Bounds = bounds;
-
-        if (Bounds.Width <= 0 || Bounds.Height <= 0)
-        {
-            SetDefaultBounds();
-            return;
-        }
-
-        if (ConstrainedSize.HasValue)
-        {
-            var cs = ConstrainedSize.Value;
-            RasterBounds = new RectInt(
-                -cs.X / 2,
-                -cs.Y / 2,
-                cs.X,
-                cs.Y);
-        }
-
+        UpdateContentBounds();
         ClampToMaxSpriteSize();
-        Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
         MarkSpriteDirty();
     }
 
-    private void UpdateImmutableBounds()
-    {
-        if (ConstrainedSize.HasValue)
-        {
-            var cs = ConstrainedSize.Value;
-            RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
-        }
-        else
-        {
-            var w = _sourceImageSize.X;
-            var h = _sourceImageSize.Y;
-            RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
-        }
-
-        ClampToMaxSpriteSize();
-        var ppu = EditorApplication.Config.PixelsPerUnitInv;
-        Bounds = new Rect(
-            RasterBounds.X * ppu,
-            RasterBounds.Y * ppu,
-            RasterBounds.Width * ppu,
-            RasterBounds.Height * ppu);
-        MarkSpriteDirty();
-    }
-
-    private void SetDefaultBounds()
+    protected void SetDefaultBounds()
     {
         if (ConstrainedSize.HasValue)
         {
@@ -559,13 +239,13 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         }
     }
 
-    private static int SnapFloor(float v)
+    protected static int SnapFloor(float v)
     {
         var r = MathF.Round(v);
         return (int)(MathF.Abs(v - r) < 0.01f ? r : MathF.Floor(v));
     }
 
-    private static int SnapCeil(float v)
+    protected static int SnapCeil(float v)
     {
         var r = MathF.Round(v);
         return (int)(MathF.Abs(v - r) < 0.01f ? r : MathF.Ceiling(v));
@@ -594,9 +274,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     {
         DrawOrigin();
 
-        if (Generation != null)
-            DrawGeneration();
-        else if (Sprite != null)
+        if (Sprite != null)
             DrawSprite();
         else
             DrawBounds();
@@ -610,34 +288,10 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             return true;
         }
 
-        EnsurePreviewTexture();
-        if (_texture != null)
-        {
-            UI.Image(_texture, ImageStyle.Center);
-            return true;
-        }
-
         return false;
     }
 
-    private void EnsurePreviewTexture()
-    {
-        if (_texture != null || ImageFilePath == null || !EditorApplication.Store.FileExists(ImageFilePath))
-            return;
-
-        try
-        {
-            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(EditorApplication.Store.OpenRead(ImageFilePath));
-            _textureSize = new Vector2Int(srcImage.Width, srcImage.Height);
-            _texture = CreateTextureFromImage(srcImage, Name + "_preview");
-        }
-        catch (Exception ex)
-        {
-            ReportError($"Failed to load preview texture '{ImageFilePath}': {ex.Message}");
-        }
-    }
-
-    private static Texture CreateTextureFromImage(Image<Rgba32> image, string name)
+    protected static Texture CreateTextureFromImage(SixLabors.ImageSharp.Image<Rgba32> image, string name)
     {
         var w = image.Width;
         var h = image.Height;
@@ -646,14 +300,14 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         return Texture.Create(w, h, data, TextureFormat.RGBA8, TextureFilter.Linear, name);
     }
 
-    private void DrawTexturedRect(Texture texture, Rect bounds, Color color, Rect? uv = null)
+    protected void DrawTexturedRect(Texture texture, Rect bounds, Color color, Rect? uv = null)
     {
         using (Graphics.PushState())
         {
             Graphics.SetTransform(Transform);
             Graphics.SetTexture(texture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetTextureFilter(SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
+            Graphics.SetTextureFilter(TextureFilter);
             Graphics.SetColor(color);
             if (uv.HasValue)
                 Graphics.Draw(bounds, uv.Value, order: SortOrder);
@@ -669,7 +323,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         using (Graphics.PushState())
         {
-            Graphics.SetTextureFilter(SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
+            Graphics.SetTextureFilter(TextureFilter);
             Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetColor(Color.White.WithAlpha(alpha * Workspace.XrayAlpha));
             if (offset != default)
@@ -689,13 +343,12 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         using (Graphics.PushState())
         {
-
             Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetColor(tint ?? Color.White);
 
             var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
             var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
-            Graphics.SetTextureFilter(SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
+            Graphics.SetTextureFilter(TextureFilter);
             Graphics.SetTransform(transform);
             Graphics.Draw(sprite, SortOrder, frame: frame);
         }
@@ -704,35 +357,13 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
     public override void Clone(Document source)
     {
         var src = (SpriteDocument)source;
-        CanvasSize = src.CanvasSize;
         Depth = src.Depth;
         Bounds = src.Bounds;
-        CurrentFillColor = src.CurrentFillColor;
-        CurrentFillType = src.CurrentFillType;
-        CurrentFillGradient = src.CurrentFillGradient;
-        CurrentStrokeColor = src.CurrentStrokeColor;
-        CurrentStrokeWidth = src.CurrentStrokeWidth;
-        CurrentStrokeJoin = src.CurrentStrokeJoin;
-
+        RasterBounds = src.RasterBounds;
         Edges = src.Edges;
         Skeleton = src.Skeleton;
         BoneName = src.BoneName;
 
-        // Clone selection mask
-        SelectionMask?.Dispose();
-        if (src.SelectionMask != null)
-        {
-            var total = src.CanvasSize.X * src.CanvasSize.Y;
-            SelectionMask = new PixelData<byte>(src.CanvasSize.X, src.CanvasSize.Y);
-            for (var i = 0; i < total; i++)
-                SelectionMask[i] = src.SelectionMask[i];
-        }
-        else
-        {
-            SelectionMask = null;
-        }
-
-        // Clone layer model
         Root.Clear();
         foreach (var child in src.Root.Children)
             Root.Add(child.Clone());
@@ -741,9 +372,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         foreach (var frame in src.AnimFrames)
             AnimFrames.Add(frame.Clone(src.Root, Root));
 
-        PixelActiveLayerName = src.PixelActiveLayerName;
-
-        CloneGeneration(src);
+        CloneContent(src);
     }
 
     public override void LoadMetadata(PropertySet meta)
@@ -753,27 +382,15 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
 
-        // Backward compat: migrate style from metadata to file content
-        if (Generation != null && string.IsNullOrEmpty(Generation.Config.Name))
-        {
-            var style = meta.GetString("sprite", "style", "");
-            if (!string.IsNullOrEmpty(style))
-                Generation.Config.Name = style;
-        }
+        LoadContentMetadata(meta);
 
-        PixelBrushSize = Math.Clamp(meta.GetInt("sprite", "pixel_brush_size", 1), 1, 16);
-        var brushColor = meta.GetColor("sprite", "pixel_brush_color", Color.Black);
-        PixelBrushColor = (Color32)brushColor;
-        PixelAlphaLock = meta.GetBool("sprite", "pixel_alpha_lock", false);
-        PixelActiveLayerName = meta.GetString("sprite", "pixel_active_layer", "");
-
-        // Recompute bounds now that ConstrainedSize is available
-        // (Load() calls UpdateBounds() before metadata is loaded)
         if (Loaded && ConstrainedSize.HasValue)
             UpdateBounds();
     }
 
-    private static Vector2Int? ParseConstrainedSize(string value)
+    protected virtual void LoadContentMetadata(PropertySet meta) { }
+
+    protected static Vector2Int? ParseConstrainedSize(string value)
     {
         if (string.IsNullOrEmpty(value))
             return null;
@@ -798,25 +415,14 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         else
             meta.RemoveKey("sprite", "constrained_size");
 
-        meta.RemoveKey("sprite", "prompt_hash");
-
-        meta.SetInt("sprite", "pixel_brush_size", PixelBrushSize);
-        meta.SetColor("sprite", "pixel_brush_color", (Color)PixelBrushColor);
-        meta.SetBool("sprite", "pixel_alpha_lock", PixelAlphaLock);
-
-        if (!string.IsNullOrEmpty(PixelActiveLayerName))
-            meta.SetString("sprite", "pixel_active_layer", PixelActiveLayerName);
-        else
-            meta.RemoveKey("sprite", "pixel_active_layer");
-
-        // Clean up legacy style from metadata (now stored in file)
-        meta.RemoveKey("sprite", "style");
+        SaveContentMetadata(meta);
     }
+
+    protected virtual void SaveContentMetadata(PropertySet meta) { }
 
     public override void PostLoad()
     {
         Skeleton.Resolve();
-        PostLoadGeneration();
         ResolveSortOrder();
         ResolveBone();
     }
@@ -835,7 +441,6 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
         var totalSlots = (ushort)TotalTimeSlots;
 
-        // Build a frame→rect index for this sprite's rects only (O(n) scan once)
         Span<int> frameToRect = totalSlots <= 64 ? stackalloc int[totalSlots] : new int[totalSlots];
         frameToRect.Fill(-1);
         for (int i = 0; i < allRects.Length; i++)
@@ -896,7 +501,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
         _sprite = Sprite.Create(
             name: Name,
             bounds: RasterBounds,
-            pixelsPerUnit: SpriteMode == SpriteType.Raster ? 32 : EditorApplication.Config.PixelsPerUnit,
+            pixelsPerUnit: PixelsPerUnit,
             boneIndex: -1,
             frames: frames,
             frameRate: 12.0f,
@@ -904,7 +509,7 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
             sliceMask: Sprite.CalculateSliceMask(RasterBounds, Edges),
             atlasIndex: Atlas?.Index ?? 0,
             atlas: AtlasManager.TextureArray,
-            filter: SpriteMode == SpriteType.Raster ? TextureFilter.Point : TextureFilter.Linear);
+            filter: TextureFilter);
     }
 
     internal void MarkSpriteDirty()
@@ -949,11 +554,8 @@ public partial class SpriteDocument : Document, ISkeletonAttachment
 
     public override void Dispose()
     {
-        _texture?.Dispose();
-        _texture = null;
         _standaloneTexture?.Dispose();
         _standaloneTexture = null;
-        DisposeGeneration();
         base.Dispose();
     }
 }

@@ -74,8 +74,6 @@ public partial class VectorSpriteEditor
 
     public override void OutlinerUI()
     {
-        if (!Document.IsMutable) return;
-
         _outlinerIndex = 0;
 
         HandleRenameInput();

@@ -98,7 +98,7 @@ public class SkeletonDocument : Document
             Type = AssetType.Skeleton,
             Name = "Skeleton",
             Extensions = [".skel"],
-            Factory = () => new SkeletonDocument(),
+            Factory = _ => new SkeletonDocument(),
             EditorFactory = doc => new SkeletonEditor((SkeletonDocument)doc),
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.IconBone

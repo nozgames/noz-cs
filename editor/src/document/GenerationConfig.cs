@@ -79,7 +79,7 @@ public class GenerationConfig : Document
             Type = AssetTypeGen,
             Name = "Generation",
             Extensions = [".gen", ".genstyle"],
-            Factory = () => new GenerationConfig(),
+            Factory = _ => new GenerationConfig(),
             EditorFactory = doc => new GenerationConfigEditor((GenerationConfig)doc),
             NewFile = NewFile,
             Icon = () => EditorAssets.Sprites.AssetIconGenstyle

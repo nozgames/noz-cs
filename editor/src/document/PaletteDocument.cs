@@ -22,7 +22,7 @@ public class PaletteDocument : Document
             Type = PaletteAssetType,
             Name = "Palette",
             Extensions = [".pal"],
-            Factory = () => new PaletteDocument(),
+            Factory = _ => new PaletteDocument(),
             EditorFactory = doc => new PaletteEditor((PaletteDocument)doc),
             NewFile = NewFile,
         });

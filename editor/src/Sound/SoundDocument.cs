@@ -91,7 +91,7 @@ public class SoundDocument : Document, IWaveformSource
             Type = AssetType.Sound,
             Name = "Sound",
             Extensions = [".sound", ".wav"],
-            Factory = () => new SoundDocument(),
+            Factory = _ => new SoundDocument(),
             NewFile = NewFile,
             EditorFactory = doc =>
             {

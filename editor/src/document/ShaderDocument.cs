@@ -22,7 +22,7 @@ public class ShaderDocument : Document
             Type = AssetType.Shader,
             Name = "Shader",
             Extensions = [".wgsl"],
-            Factory = () => new ShaderDocument()
+            Factory = _ => new ShaderDocument()
         });
     }
 

@@ -310,7 +310,7 @@ public static class Undo
 
     internal static Document CloneDocument(Document source)
     {
-        var clone = source.Def.Factory();
+        var clone = (Document)Activator.CreateInstance(source.GetType())!;
         clone.Def = source.Def;
         clone.Name = source.Name;
         clone.Path = source.Path;

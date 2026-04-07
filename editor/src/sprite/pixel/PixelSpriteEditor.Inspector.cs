@@ -42,18 +42,15 @@ public partial class PixelSpriteEditor
         using var _ = Inspector.BeginSection("SPRITE");
         if (Inspector.IsSectionCollapsed) return;
 
-        if (!Document.IsReference)
+        using (Inspector.BeginProperty("Export"))
         {
-            using (Inspector.BeginProperty("Export"))
+            var shouldExport = Document.ShouldExport;
+            if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
             {
-                var shouldExport = Document.ShouldExport;
-                if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
-                {
-                    shouldExport = !shouldExport;
-                    Undo.Record(Document);
-                    Document.ShouldExport = shouldExport;
-                    AssetManifest.IsModified = true;
-                }
+                shouldExport = !shouldExport;
+                Undo.Record(Document);
+                Document.ShouldExport = shouldExport;
+                AssetManifest.IsModified = true;
             }
         }
 

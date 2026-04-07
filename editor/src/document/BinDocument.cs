@@ -13,7 +13,7 @@ public class BinDocument : Document
             Type = AssetType.Bin,
             Name = "Bin",
             Extensions = [".bin"],
-            Factory = () => new BinDocument(),
+            Factory = _ => new BinDocument(),
             Icon = () => EditorAssets.Sprites.AssetIconBin
         });
     }

@@ -20,7 +20,7 @@ public class BundleDocument : Document
             Type = AssetType.Bundle,
             Name = "AssetBundle",
             Extensions = [".bundle"],
-            Factory = () => new BundleDocument(),
+            Factory = _ => new BundleDocument(),
         });
     }
 
