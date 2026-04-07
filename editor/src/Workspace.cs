@@ -358,6 +358,9 @@ public static partial class Workspace
             if (!UI.HasHot())
                 CommandManager.ProcessShortcuts();
 
+            if (Touch.WasDoubleTapped)
+                BeginEdit();
+
             UpdateMouse();
             UpdatePan();
             UpdateZoom();
@@ -911,13 +914,37 @@ public static partial class Workspace
             var worldDelta = _camera.ScreenToWorld(DragDelta) - _camera.ScreenToWorld(Vector2.Zero);
             _camera.Position = _panPositionCamera - worldDelta;
         }
+
+        if (Touch.IsTwoFingerPanning)
+        {
+            var worldDelta = _camera.ScreenToWorld(Touch.TwoFingerDelta) - _camera.ScreenToWorld(Vector2.Zero);
+            _camera.Position -= worldDelta;
+        }
     }
 
     private static void UpdateZoom()
     {
         var scrollDelta = Input.GetAxis(InputCode.MouseScrollY);
         if (scrollDelta > -0.5f && scrollDelta < 0.5f)
+        {
+            // No scroll wheel — check for pinch gesture
+            if (Touch.IsPinching)
+            {
+                var pinchScreen = Touch.TwoFingerCenter;
+                var worldUnderPinch = _camera.ScreenToWorld(pinchScreen);
+
+                _zoom *= Touch.PinchScale;
+                _zoom = Math.Clamp(_zoom, ZoomMin, ZoomMax);
+
+                UpdateCamera();
+
+                var worldUnderPinchAfter = _camera.ScreenToWorld(pinchScreen);
+                _camera.Position += worldUnderPinch - worldUnderPinchAfter;
+
+                UpdateCamera();
+            }
             return;
+        }
 
         var mouseScreen = Input.MousePosition;
         var worldUnderCursor = _camera.ScreenToWorld(mouseScreen);

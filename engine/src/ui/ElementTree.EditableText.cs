@@ -152,6 +152,7 @@ public static unsafe partial class ElementTree
             // External defocus — don't commit. Value was already applied each frame.
             state.Focused = 0;
             state.WasCancelled = 0;
+            Application.Platform.HideTextbox();
             focused = false;
         }
 
@@ -237,6 +238,12 @@ public static unsafe partial class ElementTree
             d.Text = state.EditText;
             d.CursorIndex = state.CursorIndex;
             d.SelectionStart = state.SelectionStart;
+
+            Application.Platform.ShowTextbox(
+                e.Rect,
+                new string(d.Text.AsReadOnlySpan()),
+                new Platform.NativeTextboxStyle { FontSize = (int)d.FontSize });
+
             return;
         }
 
@@ -247,6 +254,7 @@ public static unsafe partial class ElementTree
         {
             state.FocusExited = 1;
             state.Focused = 0;
+            Application.Platform.HideTextbox();
             ClearHot();
             return;
         }
@@ -377,6 +385,7 @@ public static unsafe partial class ElementTree
             state.WasCancelled = 1;
             state.FocusExited = 1;
             state.Focused = 0;
+            Application.Platform.HideTextbox();
             ClearHot();
             return;
         }
@@ -387,6 +396,7 @@ public static unsafe partial class ElementTree
             var reverse = Input.IsShiftDown(scope);
             state.FocusExited = 1;
             state.Focused = 0;
+            Application.Platform.HideTextbox();
             RequestTabNavigation(elementIndex, reverse);
             if (_tabNavigationTarget < 0)
                 ClearHot();
@@ -410,6 +420,7 @@ public static unsafe partial class ElementTree
             {
                 state.FocusExited = 1;
                 state.Focused = 0;
+                Application.Platform.HideTextbox();
                 ClearHot();
             }
             return;

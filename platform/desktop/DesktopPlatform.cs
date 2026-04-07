@@ -33,6 +33,7 @@ public unsafe partial class SDLPlatform : IPlatform
     private bool _isMouseCaptured;
     private Action? _beforeQuit;
     private int _activeTouchFingers;
+    private bool _suppressMouseForTouch;
 
     public bool IsMouseInWindow => _isMouseInWindow;
     public bool IsMouseCaptured => _isMouseCaptured;
@@ -362,10 +363,17 @@ public unsafe partial class SDLPlatform : IPlatform
                 OnEvent?.Invoke(PlatformEvent.TouchDown((long)evt.tfinger.fingerID, pos, evt.tfinger.pressure));
 
                 // First finger also drives mouse for UI button taps
-                if (_activeTouchFingers == 1)
+                if (_activeTouchFingers == 1 && !_suppressMouseForTouch)
                 {
                     OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
                     OnEvent?.Invoke(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                }
+
+                // Second finger: cancel in-progress mouse interaction for two-finger gestures
+                if (_activeTouchFingers == 2)
+                {
+                    OnEvent?.Invoke(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    _suppressMouseForTouch = true;
                 }
                 break;
             }
@@ -374,13 +382,15 @@ public unsafe partial class SDLPlatform : IPlatform
             {
                 var pos = new Vector2(evt.tfinger.x * WindowSize.X, evt.tfinger.y * WindowSize.Y);
                 // Emit mouse up before touch up so UI sees the click complete
-                if (_activeTouchFingers == 1)
+                if (_activeTouchFingers == 1 && !_suppressMouseForTouch)
                 {
                     OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
                     OnEvent?.Invoke(PlatformEvent.MouseUp(InputCode.MouseLeft));
                 }
                 OnEvent?.Invoke(PlatformEvent.TouchUp((long)evt.tfinger.fingerID, pos));
                 _activeTouchFingers = Math.Max(0, _activeTouchFingers - 1);
+                if (_activeTouchFingers == 0)
+                    _suppressMouseForTouch = false;
                 break;
             }
 
@@ -391,7 +401,7 @@ public unsafe partial class SDLPlatform : IPlatform
                 OnEvent?.Invoke(PlatformEvent.TouchMoveEvent((long)evt.tfinger.fingerID, pos, delta, evt.tfinger.pressure));
 
                 // Single finger drag also moves mouse position
-                if (_activeTouchFingers == 1)
+                if (_activeTouchFingers == 1 && !_suppressMouseForTouch)
                     OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
                 break;
             }

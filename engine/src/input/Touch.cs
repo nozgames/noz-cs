@@ -37,6 +37,12 @@ public static class Touch
     private const float TapMaxDistance = 20f;
     private const float DoubleTapMaxInterval = 0.3f;
 
+    // Two-finger pan gesture
+    private static bool _twoFingerPanning;
+    private static Vector2 _twoFingerCenter;
+    private static Vector2 _twoFingerPrevCenter;
+    private static Vector2 _twoFingerDelta;
+
     // Track finger down times for tap detection
     private static readonly float[] _fingerDownTimes = new float[MaxFingers];
 
@@ -50,6 +56,11 @@ public static class Touch
     public static bool IsPinching => _pinchActive;
     public static float PinchScale => _pinchScale;
 
+    // Two-finger pan gesture
+    public static bool IsTwoFingerPanning => _twoFingerPanning;
+    public static Vector2 TwoFingerCenter => _twoFingerCenter;
+    public static Vector2 TwoFingerDelta => _twoFingerDelta;
+
     public static ReadOnlySpan<TouchFinger> Fingers => _fingers.AsSpan(0, MaxFingers);
 
     public static TouchFinger GetFinger(int index) =>
@@ -60,6 +71,7 @@ public static class Touch
         _tapped = false;
         _doubleTapped = false;
         _pinchScale = 1f;
+        _twoFingerDelta = Vector2.Zero;
 
         for (var i = 0; i < MaxFingers; i++)
             _fingers[i].Delta = Vector2.Zero;
@@ -83,6 +95,13 @@ public static class Touch
                 f.Active = true;
                 _fingerDownTimes[slot] = Time.TotalTime;
                 _fingerCount++;
+
+                if (_fingerCount >= 2 && !_twoFingerPanning)
+                {
+                    _twoFingerPanning = true;
+                    _twoFingerCenter = ComputeTwoFingerCenter();
+                    _twoFingerPrevCenter = _twoFingerCenter;
+                }
                 break;
             }
 
@@ -111,6 +130,9 @@ public static class Touch
 
                 f = default;
                 _fingerCount = Math.Max(0, _fingerCount - 1);
+
+                if (_fingerCount < 2)
+                    _twoFingerPanning = false;
                 break;
             }
 
@@ -123,6 +145,13 @@ public static class Touch
                 f.Delta = evt.TouchDelta;
                 f.Position = evt.TouchPosition;
                 f.Pressure = evt.Pressure;
+
+                if (_twoFingerPanning)
+                {
+                    _twoFingerPrevCenter = _twoFingerCenter;
+                    _twoFingerCenter = ComputeTwoFingerCenter();
+                    _twoFingerDelta += _twoFingerCenter - _twoFingerPrevCenter;
+                }
                 break;
             }
 
@@ -133,6 +162,9 @@ public static class Touch
 
                 _fingers[slot] = default;
                 _fingerCount = Math.Max(0, _fingerCount - 1);
+
+                if (_fingerCount < 2)
+                    _twoFingerPanning = false;
                 break;
             }
 
@@ -151,6 +183,19 @@ public static class Touch
                 _pinchScale = 1f;
                 break;
         }
+    }
+
+    private static Vector2 ComputeTwoFingerCenter()
+    {
+        var count = 0;
+        var center = Vector2.Zero;
+        for (var i = 0; i < MaxFingers && count < 2; i++)
+        {
+            if (!_fingers[i].Active) continue;
+            center += _fingers[i].Position;
+            count++;
+        }
+        return count > 0 ? center / count : Vector2.Zero;
     }
 
     private static int FindSlot(long fingerId)
