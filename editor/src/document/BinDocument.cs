@@ -6,13 +6,15 @@ namespace NoZ.Editor;
 
 public class BinDocument : Document
 {
+    public const string Extension = ".bin";
+
     public static void RegisterDef()
     {
         DocumentDef<BinDocument>.Register(new DocumentDef
         {
             Type = AssetType.Bin,
             Name = "Bin",
-            Extensions = [".bin"],
+            Extensions = [Extension],
             Factory = _ => new BinDocument(),
             Icon = () => EditorAssets.Sprites.AssetIconBin
         });

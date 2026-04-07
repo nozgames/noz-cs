@@ -6,6 +6,8 @@ namespace NoZ.Editor;
 
 public class FontDocument : Document
 {
+    public const string Extension = ".ttf";
+
     private const string DefaultCharacters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
     private const float PixelsPerUnit = 256.0f;
@@ -26,7 +28,7 @@ public class FontDocument : Document
         {
             Type = AssetType.Font,
             Name = "Font",
-            Extensions = [".ttf"],
+            Extensions = [Extension],
             Factory = _ => new FontDocument()
         });
     }

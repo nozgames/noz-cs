@@ -43,7 +43,10 @@ public class AnimationFrameData
 
 internal class AnimationDocument : Document
 {
+    public const string Extension = ".anim";
+
     public override bool CanSave => true;
+
 
     public const int MaxFrames = 64;
     private const float BoundsPadding = 0.1f;
@@ -115,7 +118,7 @@ internal class AnimationDocument : Document
         {
             Type = AssetType.Animation,
             Name = "Animation",
-            Extensions = [".anim"],
+            Extensions = [Extension],
             Factory = _ => new AnimationDocument(),
             EditorFactory = doc => new AnimationEditor((AnimationDocument)doc),
             Icon = () => EditorAssets.Sprites.AssetIconAnimation
@@ -1003,7 +1006,7 @@ internal class AnimationDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Animation, name, position, writer =>
+        return DocumentManager.New(AssetType.Animation, Extension, name, position, writer =>
         {
             writer.WriteLine("s \"\"");
         });

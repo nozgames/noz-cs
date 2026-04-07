@@ -52,6 +52,8 @@ public struct BoneHitResult
 
 public class SkeletonDocument : Document
 {
+    public const string Extension = ".skel";
+
     public override bool CanSave => true;
 
     private const float BoneWidth = 0.15f;
@@ -97,7 +99,7 @@ public class SkeletonDocument : Document
         DocumentDef<SkeletonDocument>.Register(new DocumentDef {
             Type = AssetType.Skeleton,
             Name = "Skeleton",
-            Extensions = [".skel"],
+            Extensions = [Extension],
             Factory = _ => new SkeletonDocument(),
             EditorFactory = doc => new SkeletonEditor((SkeletonDocument)doc),
             Icon = () => EditorAssets.Sprites.IconBone
@@ -829,7 +831,7 @@ public class SkeletonDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Skeleton, name, position, writer =>
+        return DocumentManager.New(AssetType.Skeleton, Extension, name, position, writer =>
         {
             writer.WriteLine("b \"root\" -1 p 0 0 r 0 l 0.1");
         });

@@ -209,23 +209,19 @@ public static class DocumentManager
         return name;
     }
 
-    public static Document? New(AssetType assetType, string? name, System.Numerics.Vector2? position = null, Action<StreamWriter>? writeContent = null)
+    public static Document? New(AssetType assetType, string extension, string? name, System.Numerics.Vector2? position = null, Action<StreamWriter>? writeContent = null)
     {
-        var def = GetDef(assetType);
-        if (def == null)
-            return null;
-
         if (_sourcePaths.Count == 0)
             return null;
 
-        var typeName = (Asset.GetDef(assetType)?.Name ?? def.Name).ToLowerInvariant();
+        var typeName = (Asset.GetDef(assetType)?.Name ?? assetType.ToString()).ToLowerInvariant();
         name = name ?? MakeCanonicalName($"new_{typeName}");
         name = GenerateUniqueName(assetType, name);
 
         var canonicalName = MakeCanonicalName(name);
         if (Find(assetType, canonicalName) != null)
             return null;
-        var path = CombinePath(CombinePath(_sourcePaths[0], typeName), canonicalName + def.Extensions[0]);
+        var path = CombinePath(CombinePath(_sourcePaths[0], typeName), canonicalName + extension);
         var store = EditorApplication.Store;
         if (store.FileExists(path))
             return null;
@@ -234,7 +230,7 @@ public static class DocumentManager
         if (!string.IsNullOrEmpty(directory))
             store.CreateDirectory(directory);
 
-        // Write file content before Create so path-aware factories can peek the file
+        // Write file content before creating document
         if (writeContent != null)
         {
             using var ms = new MemoryStream();

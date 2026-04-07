@@ -39,6 +39,8 @@ public class GenerationJob : IDisposable
 
 public class GenerationConfig : Document
 {
+    public const string Extension = ".gen";
+
     public static readonly AssetType AssetTypeGen = AssetType.FromString("GNST");
 
     public override bool CanSave => true;
@@ -78,7 +80,7 @@ public class GenerationConfig : Document
         {
             Type = AssetTypeGen,
             Name = "Generation",
-            Extensions = [".gen", ".genstyle"],
+            Extensions = [Extension, ".genstyle"],
             Factory = _ => new GenerationConfig(),
             EditorFactory = doc => new GenerationConfigEditor((GenerationConfig)doc),
             Icon = () => EditorAssets.Sprites.AssetIconGenstyle
@@ -87,7 +89,7 @@ public class GenerationConfig : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetTypeGen, name, position, writer =>
+        return DocumentManager.New(AssetTypeGen, Extension, name, position, writer =>
         {
             writer.WriteLine("prompt \"\"");
         });

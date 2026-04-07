@@ -26,6 +26,7 @@ public class SoundLayer : IWaveformSource
 
 public class SoundDocument : Document, IWaveformSource
 {
+    public const string Extension = ".sound";
     private SoundHandle _playHandle;
 
     // Preview sound built from in-memory samples + current modifiers
@@ -90,7 +91,7 @@ public class SoundDocument : Document, IWaveformSource
         {
             Type = AssetType.Sound,
             Name = "Sound",
-            Extensions = [".sound", ".wav"],
+            Extensions = [Extension, ".wav"],
             Factory = _ => new SoundDocument(),
             EditorFactory = doc =>
             {
@@ -106,7 +107,7 @@ public class SoundDocument : Document, IWaveformSource
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sound, name, position, writer =>
+        return DocumentManager.New(AssetType.Sound, Extension, name, position, writer =>
         {
             writer.WriteLine("volume 1 1");
             writer.WriteLine("pitch 1 1");

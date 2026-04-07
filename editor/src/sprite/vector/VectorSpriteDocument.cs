@@ -13,7 +13,7 @@ public partial class VectorSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sprite, null, position);
+        return DocumentManager.New(AssetType.Sprite, Extension, null, position);
     }
 
     public Color32 CurrentFillColor = Color32.White;

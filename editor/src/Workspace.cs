@@ -275,43 +275,28 @@ public static partial class Workspace
 
         CommandManager.RegisterWorkspace([.. workspaceCommands]);
 
-        var items = new List<PopupMenuItem>();
-        var p = PopupMenu.WorldPosition;
-
-        items.Add(PopupMenuItem.Submenu("New"));
-
-        // Sprites
-        items.Add(PopupMenuItem.Submenu("Sprite", level: 1));
-        items.Add(PopupMenuItem.Item("Vector",    () => CreateNewDocument(VectorSpriteDocument.CreateNew(p)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite));
-        items.Add(PopupMenuItem.Item("Pixel",     () => CreateNewDocument(PixelSpriteDocument.CreateNew(p)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite));
-        items.Add(PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(p)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle));
-
-        // Other document types
-        items.Add(PopupMenuItem.Item("Skeleton",   () => CreateNewDocument(SkeletonDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.IconBone));
-        items.Add(PopupMenuItem.Item("Animation",  () => CreateNewDocument(AnimationDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation));
-        items.Add(PopupMenuItem.Item("VFX",        () => CreateNewDocument(VfxDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx));
-        items.Add(PopupMenuItem.Item("Sound",      () => CreateNewDocument(SoundDocument.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconSound));
-        items.Add(PopupMenuItem.Item("Palette",    () => CreateNewDocument(PaletteDocument.CreateNew(position: p)), level: 1));
-        items.Add(PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: p)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle));
-
-        items.Add(PopupMenuItem.Separator());
-
-        if (CollectionManager.Collections.Count > 0)
-        {
-            items.Add(PopupMenuItem.Submenu("Move to Collection", showChecked: true, showIcons: false));
-            foreach (var collection in CollectionManager.Collections)
-            {
-                var idx = collection.Index;
-                items.Add(PopupMenuItem.Item(collection.Name, () => MoveSelectedToCollection(idx), level: 1, isChecked: () => idx == CollectionManager.VisibleIndex));
-            }
-            items.Add(PopupMenuItem.Separator());
-        }
-
-        items.Add(editCommand.ToPopupMenuItem(enabled: () => SelectedCount == 1));
-        items.Add(duplicateCommand.ToPopupMenuItem());
-        items.Add(renameCommand.ToPopupMenuItem());
-        items.Add(deleteCommand.ToPopupMenuItem());
-        _workspacePopupItems = [.. items];
+        _workspacePopupItems = [        
+            PopupMenuItem.Submenu("New"),
+            PopupMenuItem.Submenu("Sprite", level: 1),
+            PopupMenuItem.Item("Vector", () => CreateNewDocument(VectorSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
+            PopupMenuItem.Item("Pixel", () => CreateNewDocument(PixelSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
+            PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle),
+            PopupMenuItem.Item("Skeleton", () => CreateNewDocument(SkeletonDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.IconBone),
+            PopupMenuItem.Item("Animation", () => CreateNewDocument(AnimationDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation),
+            PopupMenuItem.Item("VFX", () => CreateNewDocument(VfxDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx),
+            PopupMenuItem.Item("Sound", () => CreateNewDocument(SoundDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSound),
+            PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1),
+            PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle),
+            PopupMenuItem.Separator(),
+            PopupMenuItem.Submenu("Move to Collection", showChecked: true, showIcons: false),
+            ..CollectionManager.Collections.Select(c =>
+                PopupMenuItem.Item(c.Name, () => MoveSelectedToCollection(c.Index), level: 1, isChecked: () => c.Index == CollectionManager.VisibleIndex)),
+            PopupMenuItem.Separator(),
+            editCommand.ToPopupMenuItem(enabled: () => SelectedCount == 1),
+            duplicateCommand.ToPopupMenuItem(),
+            renameCommand.ToPopupMenuItem(),
+            deleteCommand.ToPopupMenuItem()
+        ];
     }
 
     public static void LoadUserSettings(PropertySet props)

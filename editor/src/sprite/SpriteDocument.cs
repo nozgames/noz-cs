@@ -9,6 +9,7 @@ namespace NoZ.Editor;
 
 public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 {
+    public const string Extension = ".sprite";
     public const float DefaultFrameRate = 12f;
 
     public override bool CanSave => true;
@@ -133,7 +134,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         {
             Type = AssetType.Sprite,
             Name = "Sprite",
-            Extensions = [".sprite"],
+            Extensions = [Extension],
             Factory = CreateFromFile,
             EditorFactory = doc => ((SpriteDocument)doc).CreateEditor(),
             Icon = () => EditorAssets.Sprites.AssetIconSprite

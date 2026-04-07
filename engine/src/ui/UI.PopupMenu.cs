@@ -457,14 +457,12 @@ public static partial class UI
 
             ElementTree.EndTree();
 
-            if (flags.HasFlag(WidgetFlags.Pressed) && enabled)
+            if (flags.HasFlag(WidgetFlags.Pressed) && enabled && !isSubmenuOpen)
             {
-                _levels[level].OpenSubmenu = isSubmenuOpen ? -1 : index;
+                _levels[level].OpenSubmenu = index;
 
                 for (var l = level + 1; l < MaxSubmenuDepth; l++)
                     _levels[l].OpenSubmenu = -1;
-
-                ResetSubmenuTimer();
             }
 
             hovered = UI.IsHovered(itemId);
@@ -477,6 +475,10 @@ public static partial class UI
                     for (var l = level + 1; l < MaxSubmenuDepth; l++)
                         _levels[l].OpenSubmenu = -1;
                 }
+            }
+            else if (hovered && _levels[level].OpenSubmenu == index)
+            {
+                ResetSubmenuTimer();
             }
 
             if (isSubmenuOpen)

@@ -20,6 +20,8 @@ internal struct AtlasSpriteRect
 
 internal class AtlasDocument : Document
 {
+    public const string Extension = ".atlas";
+
     public override bool CanSave => true;
 
     private readonly List<AtlasSpriteRect> _rects = new(128);
@@ -46,7 +48,7 @@ internal class AtlasDocument : Document
         {
             Type = AssetType.Atlas,
             Name = "Atlas",
-            Extensions = [".atlas"],
+            Extensions = [Extension],
             Factory = _ => new AtlasDocument(),
             Icon = () => EditorAssets.Sprites.AssetIconAtlas
         });
@@ -54,7 +56,7 @@ internal class AtlasDocument : Document
 
     public static Document? CreateNew(string? name = null)
     {
-        return DocumentManager.New(AssetType.Atlas, name, writeContent: writer =>
+        return DocumentManager.New(AssetType.Atlas, Extension, name, writeContent: writer =>
         {
             writer.WriteLine($"w {EditorApplication.Config.AtlasSize}");
             writer.WriteLine($"h {EditorApplication.Config.AtlasSize}");

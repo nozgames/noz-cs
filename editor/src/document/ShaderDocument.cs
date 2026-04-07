@@ -9,6 +9,8 @@ namespace NoZ.Editor;
 
 public class ShaderDocument : Document
 {
+    public const string Extension = ".wgsl";
+
     public bool Blend { get; set; }
     public bool Depth { get; set; }
     public bool DepthLess { get; set; }
@@ -21,7 +23,7 @@ public class ShaderDocument : Document
         {
             Type = AssetType.Shader,
             Name = "Shader",
-            Extensions = [".wgsl"],
+            Extensions = [Extension],
             Factory = _ => new ShaderDocument()
         });
     }

@@ -20,7 +20,7 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sprite, null, position, WriteNewFile);
+        return DocumentManager.New(AssetType.Sprite, Extension, null, position, WriteNewFile);
     }
 
     public static void WriteNewFile(StreamWriter writer)

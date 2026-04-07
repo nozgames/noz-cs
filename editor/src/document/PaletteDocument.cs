@@ -6,6 +6,8 @@ namespace NoZ.Editor;
 
 public class PaletteDocument : Document
 {
+    public const string Extension = ".pal";
+
     public static readonly AssetType PaletteAssetType = AssetType.FromString("PAL_");
     public const int MaxColors = 256;
 
@@ -21,7 +23,7 @@ public class PaletteDocument : Document
         {
             Type = PaletteAssetType,
             Name = "Palette",
-            Extensions = [".pal"],
+            Extensions = [Extension],
             Factory = _ => new PaletteDocument(),
             EditorFactory = doc => new PaletteEditor((PaletteDocument)doc),
         });
@@ -29,7 +31,7 @@ public class PaletteDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(PaletteAssetType, name, position, writer =>
+        return DocumentManager.New(PaletteAssetType, Extension, name, position, writer =>
         {
             writer.WriteLine("JASC-PAL");
             writer.WriteLine("0100");

@@ -20,8 +20,11 @@ public partial class PixelSpriteEditor
 
     protected override Sprite? GetNodePreview(SpriteNode node)
     {
-        if (node.PreviewIndex == -1)
+        if (node.PreviewIndex == -1 || node.PreviewIndex >= _slotGenerations.Count)
+        {
+            node.PreviewIndex = -1;
             AllocatePreviewSlot(node);
+        }
 
         if (node.PreviewIndex < 0)
             return null;
@@ -309,6 +312,7 @@ public partial class PixelSpriteEditor
 
     private void ResetPreviews()
     {
+        Document.Root.ForEach((SpriteNode n) => n.PreviewIndex = -1);
         _nextPreviewSlot = 0;
         _freePreviewSlots.Clear();
         _slotGenerations.Clear();

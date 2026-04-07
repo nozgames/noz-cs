@@ -24,6 +24,8 @@ public class VfxDocEmitter
 
 public class VfxDocument : Document
 {
+    public const string Extension = ".vfx";
+
     public override bool CanSave => true;
 
     private const int MaxEmitters = 32;
@@ -496,7 +498,7 @@ public class VfxDocument : Document
         {
             Type = AssetType.Vfx,
             Name = "Vfx",
-            Extensions = [".vfx"],
+            Extensions = [Extension],
             Factory = _ => new VfxDocument(),
             EditorFactory = doc => new VfxEditor((VfxDocument)doc),
             Icon = () => EditorAssets.Sprites.AssetIconVfx
@@ -505,7 +507,7 @@ public class VfxDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Vfx, name, position, writer =>
+        return DocumentManager.New(AssetType.Vfx, Extension, name, position, writer =>
         {
             writer.WriteLine("duration 1");
             writer.WriteLine("loop false");

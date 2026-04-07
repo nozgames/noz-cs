@@ -8,6 +8,8 @@ namespace NoZ.Editor;
 
 public class BundleDocument : Document
 {
+    public const string Extension = ".bundle";
+
     public override bool CanSave => true;
 
     public bool IsRemote { get; set; }
@@ -19,7 +21,7 @@ public class BundleDocument : Document
         {
             Type = AssetType.Bundle,
             Name = "AssetBundle",
-            Extensions = [".bundle"],
+            Extensions = [Extension],
             Factory = _ => new BundleDocument(),
         });
     }
