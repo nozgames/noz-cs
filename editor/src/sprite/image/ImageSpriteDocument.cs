@@ -19,6 +19,21 @@ public class ImageSpriteDocument : SpriteDocument
     
     public override DocumentEditor CreateEditor() => new ImageEditor(this);
 
+    public override Color32 GetPixelAt(System.Numerics.Vector2 worldPos)
+    {
+        EnsurePreviewTexture();
+        EnsurePreviewTexture();
+        if (_texture == null)
+            return default;
+
+        System.Numerics.Matrix3x2.Invert(Transform, out var invTransform);
+        var local = System.Numerics.Vector2.Transform(worldPos, invTransform);
+
+        var nx = (local.X - Bounds.X) / Bounds.Width;
+        var ny = (local.Y - Bounds.Y) / Bounds.Height;
+        return _texture.GetPixel((int)(nx * _texture.Width), (int)(ny * _texture.Height));
+    }
+
     public override void Load()
     {
         LoadImageSize();

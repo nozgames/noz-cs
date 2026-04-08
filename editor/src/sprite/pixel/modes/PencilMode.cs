@@ -10,32 +10,19 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
 {
     private Vector2Int _lastPixel = new(-1, -1);
     private bool _isDrawing;
-    private Task<Color>? _eyeDropperTask;
 
     private bool UpdateEyeDropper()
     {
-        if (_eyeDropperTask != null)
-        {
-            EditorCursor.SetDropper();
-            if (_eyeDropperTask.IsCompleted)
-            {
-                var color = _eyeDropperTask.Result.ToColor32();
-                _eyeDropperTask = null;
-                if (color.A > 0)
-                    Editor.BrushColor = color;
-            }
-            return true;
-        }
-
         if (!Input.IsAltDown(InputScope.All) || _isDrawing)
             return false;
 
         EditorCursor.SetDropper();
         if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
-            _eyeDropperTask = Workspace.ReadPixelAtMouse();
-            if (_eyeDropperTask != null)
-                Input.ConsumeButton(InputCode.MouseLeft);
+            var color = Workspace.ReadPixelAtMouse();
+            Input.ConsumeButton(InputCode.MouseLeft);
+            if (color.A > 0)
+                Editor.BrushColor = color;
         }
 
         return true;
@@ -125,6 +112,7 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
         var mouseWorld = Workspace.MouseWorldPosition;
         var pixel = Editor.WorldToPixel(mouseWorld);
         if (!Editor.IsPixelInBounds(pixel)) return;
+        if (!UI.IsHovered(Workspace.SceneWidgetId)) return;
         Editor.DrawBrushOutline(pixel, new Color(1f, 1f, 1f, 0.6f));
     }
 }

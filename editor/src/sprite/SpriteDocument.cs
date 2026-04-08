@@ -39,6 +39,8 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     protected abstract int PixelsPerUnit { get; }
     protected abstract TextureFilter TextureFilter { get; }
     protected abstract void UpdateContentBounds();
+
+    public virtual Color32 GetPixelAt(Vector2 worldPos) => default;
     internal abstract void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding);
     protected abstract void SaveContent(StreamWriter writer);
     protected abstract void CloneContent(SpriteDocument source);

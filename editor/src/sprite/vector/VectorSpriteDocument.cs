@@ -26,6 +26,29 @@ public partial class VectorSpriteDocument : SpriteDocument
 
     public override DocumentEditor CreateEditor() => new VectorSpriteEditor(this);
 
+    public override Color32 GetPixelAt(Vector2 worldPos)
+    {
+        Matrix3x2.Invert(Transform, out var invTransform);
+        var local = Vector2.Transform(worldPos, invTransform);
+        var p = new Clipper2Lib.PointD(local.X, local.Y);
+
+        var results = new List<LayerPathResult>();
+        SpriteGroupProcessor.ProcessLayer(Root, results);
+
+        // Iterate top-to-bottom (last result = topmost)
+        for (var i = results.Count - 1; i >= 0; i--)
+        {
+            var r = results[i];
+            foreach (var contour in r.Contours)
+            {
+                if (Clipper2Lib.Clipper.PointInPolygon(p, contour) != Clipper2Lib.PointInPolygonResult.IsOutside)
+                    return r.Color;
+            }
+        }
+
+        return default;
+    }
+
     protected override void UpdateContentBounds()
     {
         _visiblePathsCache.Clear();

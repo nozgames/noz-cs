@@ -22,19 +22,6 @@ public partial class PixelSpriteEditor
     public override void InspectorUI()
     {
         SpriteInspectorUI();
-
-        using (Inspector.BeginSection("BRUSH"))
-        {
-            if (Inspector.IsSectionCollapsed) return;
-
-            using (Inspector.BeginProperty("Color"))
-            {
-                var color = BrushColor.ToColor();
-                var newColor = EditorUI.ColorButton(WidgetIds.BrushColor, color).ToColor32();
-                if (newColor != BrushColor)
-                    BrushColor = newColor;
-            }
-        }
     }
 
     private void SpriteInspectorUI()

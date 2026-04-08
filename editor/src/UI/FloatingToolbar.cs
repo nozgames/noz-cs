@@ -53,4 +53,9 @@ public static partial class FloatingToolbar
     {
         return UI.Button(id, icon, EditorStyle.FloatingToolbar.ToolButton, isSelected);
     }
+
+    public static Color ColorButton(WidgetId id, Color color)
+    {
+        return EditorUI.ColorButton(id, color);
+    }
 }

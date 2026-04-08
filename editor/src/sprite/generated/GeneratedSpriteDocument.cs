@@ -47,6 +47,20 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
     public override DocumentEditor CreateEditor() => new GeneratedSpriteEditor(this);
 
+    public override Color32 GetPixelAt(Vector2 worldPos)
+    {
+        var texture = Generation.Job.Texture;
+        if (texture == null)
+            return default;
+
+        Matrix3x2.Invert(Transform, out var invTransform);
+        var local = Vector2.Transform(worldPos, invTransform);
+
+        var nx = (local.X - Bounds.X) / Bounds.Width;
+        var ny = (local.Y - Bounds.Y) / Bounds.Height;
+        return texture.GetPixel((int)(nx * texture.Width), (int)(ny * texture.Height));
+    }
+
     public static Document? CreateNew(Vector2? position = null)
     {
         return DocumentManager.New(AssetType.Sprite, Extension, null, position, WriteNewFile);

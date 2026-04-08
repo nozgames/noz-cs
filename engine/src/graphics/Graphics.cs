@@ -271,7 +271,7 @@ public static unsafe partial class Graphics
         using (s_markerExecuteCommands.Begin())
             ExecuteCommands();
 
-        if (_internalRT.IsValid)ff
+        if (_internalRT.IsValid)
             BlitInternalRT();
 
         AfterEndFrame?.Invoke();

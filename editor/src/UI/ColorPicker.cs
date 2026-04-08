@@ -64,7 +64,6 @@ internal static partial class ColorPicker
 
     // Eyedropper state
     private static bool _eyeDropperActive;
-    private static Task<Color>? _eyeDropperTask;
 
     // HDR state
     private static bool _hdr;
@@ -75,16 +74,27 @@ internal static partial class ColorPicker
     {
         _popupId = WidgetId.None;
         _eyeDropperActive = false;
-        _eyeDropperTask = null;
         FloatingPanel.Close();
         UI.ClearHot();
     }
 
-    private static void InitiateEyeDropperReadback()
+    private static void PickEyeDropperColor()
     {
-        _eyeDropperTask = Workspace.ReadPixelAtMouse();
-        if (_eyeDropperTask != null)
-            Input.ConsumeButton(InputCode.MouseLeft);
+        Input.ConsumeButton(InputCode.MouseLeft);
+
+        var color = Workspace.ReadPixelAtMouse();
+        if (color.A > 0)
+        {
+            RgbToHsv(color, out _hue, out _sat, out _val);
+            _alpha = color.A / 255f;
+            InvalidateSVTexture();
+            _trackNeedsInit = true;
+
+            if (_paletteMode == ColorMode.None)
+                _paletteMode = ColorMode.Color;
+        }
+
+        _eyeDropperActive = false;
     }
 
     private static void OpenPanel(WidgetId id)
@@ -145,31 +155,12 @@ internal static partial class ColorPicker
         if (_eyeDropperActive)
             EditorCursor.SetDropper();
 
-        if (_eyeDropperTask != null)
-        {
-            if (_eyeDropperTask.IsCompleted)
-            {
-                var sampledColor = _eyeDropperTask.Result.ToColor32();
-                _eyeDropperTask = null;
-                _eyeDropperActive = false;
-
-                RgbToHsv(sampledColor, out _hue, out _sat, out _val);
-                _alpha = sampledColor.A / 255f;
-                InvalidateSVTexture();
-                _trackNeedsInit = true;
-
-                if (_paletteMode == ColorMode.None)
-                    _paletteMode = ColorMode.Color;
-            }
-        }
-
         if (Input.WasButtonPressed(InputCode.KeyEscape))
         {
             Input.ConsumeButton(InputCode.KeyEscape);
             if (_eyeDropperActive)
             {
                 _eyeDropperActive = false;
-                _eyeDropperTask = null;
             }
             else
             {
@@ -183,7 +174,6 @@ internal static partial class ColorPicker
         {
             Input.ConsumeButton(InputCode.MouseRight);
             _eyeDropperActive = false;
-            _eyeDropperTask = null;
         }
 
         var wasEyeDropperActive = _eyeDropperActive;
@@ -197,7 +187,7 @@ internal static partial class ColorPicker
         if (FloatingPanel.WasBackdropPressed)
         {
             if (_eyeDropperActive)
-                InitiateEyeDropperReadback();
+                PickEyeDropperColor();
             else
                 close = true;
         }

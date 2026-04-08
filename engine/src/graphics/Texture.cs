@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Runtime.CompilerServices;
+
 namespace NoZ;
 
 public class Texture : Asset, IImage
@@ -16,7 +18,7 @@ public class Texture : Asset, IImage
     public TextureFormat Format { get; private set; }
     public TextureFilter Filter { get; private set; }
     public TextureClamp Clamp { get; private set; }
-    public byte[] Data { get; private set; } = [];
+    public NativeArray<byte> Data { get; private set; }
     public bool IsArray { get; private set; }
 
     private bool _ownsRenderTexture;
@@ -36,6 +38,9 @@ public class Texture : Asset, IImage
         TextureFilter filter = TextureFilter.Linear,
         string name = "")
     {
+        var nativeData = new NativeArray<byte>(data.Length, data.Length);
+        data.CopyTo(nativeData.AsSpan());
+
         var texture = new Texture(name, false)
         {
             Width = width,
@@ -43,7 +48,7 @@ public class Texture : Asset, IImage
             Format = format,
             Filter = filter,
             Clamp = TextureClamp.Clamp,
-            Data = data.ToArray()
+            Data = nativeData
         };
         texture.Upload();
         texture.Register();
@@ -72,7 +77,9 @@ public class Texture : Asset, IImage
         Height = (int)reader.ReadUInt32();
 
         var dataSize = Width * Height * GetBytesPerPixel(Format);
-        Data = reader.ReadBytes(dataSize);
+        var bytes = reader.ReadBytes(dataSize);
+        Data = new NativeArray<byte>(dataSize, dataSize);
+        bytes.AsSpan().CopyTo(Data.AsSpan());
         Upload();
     }
 
@@ -168,10 +175,29 @@ public class Texture : Asset, IImage
         RegisterDef(new AssetDef(AssetType.Texture, "Texture", typeof(Texture), Load, Version));
     }
 
+    public unsafe Color32 GetPixel(int x, int y)
+    {
+        if (!Data.IsCreated || (uint)x >= (uint)Width || (uint)y >= (uint)Height)
+            return default;
+
+        var bpp = GetBytesPerPixel(Format);
+        var ptr = Data.Ptr + (y * Width + x) * bpp;
+        return bpp switch
+        {
+            4 => Unsafe.ReadUnaligned<Color32>(ptr),
+            3 => new Color32(ptr[0], ptr[1], ptr[2], 255),
+            2 => new Color32(ptr[0], ptr[1], 0, 255),
+            1 => new Color32(ptr[0], ptr[0], ptr[0], 255),
+            _ => default
+        };
+    }
+
     public override void Dispose()
     {
         GC.SuppressFinalize(this);
         Unregister();
+
+        Data.Dispose();
 
         if (Handle != nuint.Zero)
         {

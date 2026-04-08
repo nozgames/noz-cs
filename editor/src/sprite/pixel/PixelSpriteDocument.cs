@@ -25,6 +25,69 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     public override DocumentEditor CreateEditor() => new PixelSpriteEditor(this);
 
+    public override Color32 GetPixelAt(System.Numerics.Vector2 worldPos)
+    {
+        System.Numerics.Matrix3x2.Invert(Transform, out var invTransform);
+        var local = System.Numerics.Vector2.Transform(worldPos, invTransform);
+
+        var ppu = (float)PixelsPerUnit;
+        var w = CanvasSize.X;
+        var h = CanvasSize.Y;
+        var cw = w / ppu;
+        var ch = h / ppu;
+        var nx = (local.X + cw / 2) / cw;
+        var ny = (local.Y + ch / 2) / ch;
+        var px = (int)MathF.Floor(nx * w);
+        var py = (int)MathF.Floor(ny * h);
+
+        if (px < 0 || px >= w || py < 0 || py >= h)
+            return default;
+
+        var result = default(Color32);
+        CompositePixelAt(Root, px, py, ref result);
+        return result;
+    }
+
+    private static void CompositePixelAt(SpriteNode parent, int px, int py, ref Color32 result)
+    {
+        foreach (var child in parent.Children)
+        {
+            if (!child.Visible) continue;
+
+            if (child is SpriteGroup group)
+            {
+                CompositePixelAt(group, px, py, ref result);
+                continue;
+            }
+
+            if (child is not PixelLayer layer || layer.Pixels == null)
+                continue;
+
+            var src = layer.Pixels[px, py];
+            if (src.A == 0) continue;
+
+            if (result.A == 0)
+            {
+                result = src;
+            }
+            else
+            {
+                var sa = src.A / 255f;
+                var da = result.A / 255f;
+                var outA = sa + da * (1f - sa);
+                if (outA > 0f)
+                {
+                    var invOutA = 1f / outA;
+                    result = new Color32(
+                        (byte)((src.R * sa + result.R * da * (1f - sa)) * invOutA),
+                        (byte)((src.G * sa + result.G * da * (1f - sa)) * invOutA),
+                        (byte)((src.B * sa + result.B * da * (1f - sa)) * invOutA),
+                        (byte)(outA * 255f));
+                }
+            }
+        }
+    }
+
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
         return DocumentManager.New(AssetType.Sprite, Extension, null, position, WriteNewFile);

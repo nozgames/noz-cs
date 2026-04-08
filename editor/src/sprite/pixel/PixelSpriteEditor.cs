@@ -289,8 +289,16 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     public override void UpdateOverlayUI()
     {
+        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
         using (FloatingToolbar.Begin())
         {
+            var color = BrushColor.ToColor();
+            var newColor = FloatingToolbar.ColorButton(WidgetIds.BrushColor, color).ToColor32();
+            if (newColor != BrushColor)
+                BrushColor = newColor;
+
+            FloatingToolbar.Divider();
+
             if (FloatingToolbar.Button(WidgetIds.PencilButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is PencilMode))
                 SetMode(new PencilMode());
 

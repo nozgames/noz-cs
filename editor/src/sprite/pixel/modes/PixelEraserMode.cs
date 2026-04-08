@@ -10,33 +10,20 @@ public class PixelEraserMode : EditorMode<PixelSpriteEditor>
 {
     private Vector2Int _lastPixel = new(-1, -1);
     private bool _isErasing;
-    private Task<Color>? _eyeDropperTask;
 
     private bool UpdateEyeDropper()
     {
-        if (_eyeDropperTask != null)
-        {
-            EditorCursor.SetDropper();
-            if (_eyeDropperTask.IsCompleted)
-            {
-                var color = _eyeDropperTask.Result.ToColor32();
-                _eyeDropperTask = null;
-                if (color.A > 0)
-                    Editor.BrushColor = color;
-                Editor.SetMode(new PencilMode());
-            }
-            return true;
-        }
-
         if (!Input.IsAltDown(InputScope.All) || _isErasing)
             return false;
 
         EditorCursor.SetDropper();
         if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
-            _eyeDropperTask = Workspace.ReadPixelAtMouse();
-            if (_eyeDropperTask != null)
-                Input.ConsumeButton(InputCode.MouseLeft);
+            var color = Workspace.ReadPixelAtMouse();
+            Input.ConsumeButton(InputCode.MouseLeft);
+            if (color.A > 0)
+                Editor.BrushColor = color;
+            Editor.SetMode(new PencilMode());
         }
 
         return true;

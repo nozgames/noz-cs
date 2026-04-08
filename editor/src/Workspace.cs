@@ -88,18 +88,38 @@ public static partial class Workspace
     public static bool WasDragging => _wasDragging;
     public static bool DragStarted => _dragStarted;
 
-    public static Task<Color>? ReadPixelAtMouse()
+    public static Color32 ReadPixelAtMouse()
     {
-        if (!UI.TryGetSceneRenderInfo(SceneWidgetId, out var info) || info.Handle == 0)
-            return null;
+        var worldPos = MouseWorldPosition;
 
-        var mouseScreen = MousePosition;
-        var relX = (mouseScreen.X - info.ScreenRect.X) / info.ScreenRect.Width;
-        var relY = (mouseScreen.Y - info.ScreenRect.Y) / info.ScreenRect.Height;
-        var px = Math.Clamp((int)(relX * info.Width), 0, info.Width - 1);
-        var py = Math.Clamp((int)(relY * info.Height), 0, info.Height - 1);
+        // In isolation mode, only sample from the active editor's document
+        if (IsIsolationActive)
+        {
+            if (_activeDocument is SpriteDocument activeSprite)
+                return activeSprite.GetPixelAt(worldPos);
+            return default;
+        }
 
-        return Graphics.Driver.ReadPixelAsync(info.Handle, px, py);
+        // Sample from visible documents, front-to-back
+        for (var i = DocumentManager.Documents.Count - 1; i >= 0; i--)
+        {
+            var doc = DocumentManager.Documents[i];
+            if (!doc.Loaded || !doc.PostLoaded) continue;
+            if (doc.IsEditing || doc.IsClipped) continue;
+            if (!ShowHidden && !doc.IsVisible) continue;
+            if (doc.IsHiddenInWorkspace) continue;
+            if (!CollectionManager.IsDocumentVisible(doc)) continue;
+            if (!doc.Bounds.Translate(doc.Position).Contains(worldPos)) continue;
+
+            if (doc is SpriteDocument spriteDoc)
+            {
+                var color = spriteDoc.GetPixelAt(worldPos);
+                if (color.A > 0)
+                    return color;
+            }
+        }
+
+        return default;
     }
     public static InputCode DragButton => _dragButton;
     public static Vector2 DragDelta { get; private set; }
