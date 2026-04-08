@@ -8,6 +8,7 @@ public interface IChangeHandler
 {
     void BeginChange();
     void NotifyChange();
+    void EndChange();
     void CancelChange();
 }
 
@@ -16,8 +17,11 @@ public static partial class UI
     public static void HandleChange(IChangeHandler? handler)
     {
         if (handler == null) return;
-        if (HotEnter()) handler.BeginChange();
+        if (WasChangeStarted()) handler.BeginChange();
         if (WasChanged()) handler.NotifyChange();
-        if (HotExit() && !IsChanged()) handler.CancelChange();
+        if (WasChangeCancelled())
+            handler.CancelChange();
+        else if (WasChangeEnded())
+            handler.EndChange();
     }
 }

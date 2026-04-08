@@ -143,9 +143,6 @@ public static partial class UI
     public static string DumpElementTree() => ElementTree.DebugDumpTree();
 #endif
 
-    public static bool TryGetSceneRenderInfo(WidgetId id, out SceneRenderInfo info) =>
-        ElementTree.TryGetSceneRenderInfo(id, out info);
-
     public static bool IsHovered(WidgetId id) => ElementTree.IsHovered(id);
     public static bool IsHovered() => ElementTree.IsHovered();
     public static bool HoverEnter() => ElementTree.HoverEnter();
@@ -257,7 +254,6 @@ public static partial class UI
     {
         _prevHotId = ElementTree._hotId;
         ElementTree._prevHotId = ElementTree._hotId;
-        _valueChanged = false;
         _disabledDepth = 0;
 
         _frame++;

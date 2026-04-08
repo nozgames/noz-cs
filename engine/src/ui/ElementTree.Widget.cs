@@ -63,6 +63,23 @@ public static unsafe partial class ElementTree
     public static bool IsHot() => _hotId == _currentWidget;
     public static bool IsHot(WidgetId id) => _hotId == id;
 
+    internal static WidgetFlags GetPrevWidgetFlags(WidgetId id) =>
+        _widgetsPrev.ContainsKey(id)
+            ? Unsafe.AsRef<WidgetState>(_widgetsPrev[id].Ptr).Flags
+            : WidgetFlags.None;
+
+    internal static void SetWidgetFlag(WidgetId id, WidgetFlags flag)
+    {
+        if (IsValidWidgetId(id))
+            GetWidgetState(id).Flags |= flag;
+    }
+
+    internal static void ClearWidgetFlag(WidgetId id, WidgetFlags flag)
+    {
+        if (IsValidWidgetId(id))
+            GetWidgetState(id).Flags &= ~flag;
+    }
+
     internal static bool IsHovered(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
     internal static bool WasPressed(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Pressed);
     internal static bool IsDown(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Down);
@@ -150,6 +167,9 @@ public static unsafe partial class ElementTree
         var hasPrev = _widgetsPrev.ContainsKey(id);
         if (hasPrev)
             NativeMemory.Copy(_widgetsPrev[id].Ptr, state.Ptr, (nuint)stateSize);
+
+        // Changed is set fresh each frame by controls
+        state.Ptr->Flags &= ~WidgetFlags.Changed;
 
         ref var e = ref BeginElement(ElementType.Widget);
         e.Data = default;

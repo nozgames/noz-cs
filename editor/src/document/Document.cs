@@ -115,10 +115,12 @@ public abstract class Document : IDisposable, IChangeHandler
     void IChangeHandler.BeginChange() => OnBeginChange();
     void IChangeHandler.NotifyChange() => OnNotifyChange();
     void IChangeHandler.CancelChange() => OnCancelChange();
+    void IChangeHandler.EndChange() => OnEndChange();
 
     protected virtual void OnBeginChange() => Undo.Record(this);
-    protected virtual void OnNotifyChange() => IncrementVersion();
+    protected virtual void OnNotifyChange() {}
     protected virtual void OnCancelChange() => Undo.Cancel();
+    protected virtual void OnEndChange() {}
 
     protected void ReportError(string message) => Log.Error($"{Path}: error: {message}");
     protected void ReportError(int line, string message) => Log.Error($"{Path}({line}): error: {message}");

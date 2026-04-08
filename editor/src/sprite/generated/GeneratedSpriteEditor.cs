@@ -186,7 +186,6 @@ public partial class GeneratedSpriteEditor : SpriteEditor
         Undo.Record(Document);
         Document.ConstrainedSize = size;
         Document.UpdateBounds();
-        EditorUI.ClosePopup();
     }
 
     private void GenerationInspectorUI()

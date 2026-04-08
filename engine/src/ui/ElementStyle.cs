@@ -24,35 +24,6 @@ public struct BackgroundStyle()
     public static implicit operator BackgroundStyle(Texture texture) => new() { Image = texture };
 }
 
-public struct ContainerStyle()
-{
-    public Size2 Size = new(NoZ.Size.Default, NoZ.Size.Default);
-    public float MinWidth = 0;
-    public float MinHeight = 0;
-    public float MaxWidth = float.MaxValue;
-    public float MaxHeight = float.MaxValue;
-    public Align2 Align = NoZ.Align.Min;
-    public EdgeInsets Margin = EdgeInsets.Zero;
-    public EdgeInsets Padding = EdgeInsets.Zero;
-    public BackgroundStyle Background = Color.Transparent;
-    public BorderRadius BorderRadius = BorderRadius.Zero;
-    public float BorderWidth;
-    public Color BorderColor = Color.Transparent;
-    public float Spacing = 0;
-    public bool Clip = false;
-    public ushort Order = 0;
-    public Func<ContainerStyle, WidgetFlags, ContainerStyle>? Resolve;
-
-    public Size Width { readonly get => Size.Width; set => Size.Width = value; }
-    public Size Height { readonly get => Size.Height; set => Size.Height = value; }
-    public Align AlignX { readonly get => Align.X; set => Align.X = value; }
-    public Align AlignY { readonly get => Align.Y; set => Align.Y = value; }
-
-    public static readonly ContainerStyle Default = new();
-    public static readonly ContainerStyle Fit = new() { Size = Size2.Fit };
-    public static readonly ContainerStyle Center = new() { Size = Size2.Fit, Align = NoZ.Align.Center };
-}
-
 public enum TextOverflow : byte
 {
     Overflow,
@@ -99,13 +70,6 @@ public struct ImageStyle()
     public static readonly ImageStyle Center = new() { Align = NoZ.Align.Center };
     public static readonly ImageStyle Fill = new() { Stretch = ImageStretch.Fill };
     public static readonly ImageStyle UniformToFill = new() { Stretch = ImageStretch.UniformToFill };
-}
-
-public struct RectangleStyle()
-{
-    public float Width = 0;
-    public float Height = 0;
-    public Color Color = Color.White;
 }
 
 public struct TransformStyle()
@@ -196,79 +160,4 @@ public struct SceneStyle()
     public Color Color = Color.Transparent;
     public int SampleCount = 1;
     public bool PixelPerfect = false;
-}
-
-public struct SceneRenderInfo
-{
-    public nuint Handle;
-    public int Width;
-    public int Height;
-    public Rect ScreenRect;
-    public TextureFormat Format;
-}
-
-public static class ElementStyle
-{
-    public static ContainerStyle WithBackground(this ContainerStyle style, BackgroundStyle background)
-    {
-        style.Background = background;
-        return style;
-    }
-
-    public static ContainerStyle WithColor(this ContainerStyle style, Color color)
-    {
-        style.Background = color;
-        return style;
-    }
-
-    public static ContainerStyle WithSize(this ContainerStyle style, float width=0, float height=0)
-    {
-        style.Width = width;
-        style.Height = height;
-        return style;
-    }
-
-    public static ContainerStyle WithAlign(this ContainerStyle style, Align align)
-    {
-        style.Align = align;
-        return style;
-    }
-
-    public static ContainerStyle WithAlignX(this ContainerStyle style, Align alignX)
-    {
-        style.Align.X = alignX;
-        return style;
-    }
-
-    public static ContainerStyle WithAlignY(this ContainerStyle style, Align alignY)
-    {
-        style.Align.Y = alignY;
-        return style;
-    }
-
-    public static ContainerStyle WithMargin(this ContainerStyle style, in EdgeInsets margin)
-        {
-        style.Margin = margin;
-        return style;
-    }
-
-    public static ContainerStyle WithMinSize(this ContainerStyle style, float minWidth=0, float minHeight=0)
-    {
-        style.MinWidth = minWidth;
-        style.MinHeight = minHeight;
-        return style;
-    }
-
-    public static ContainerStyle WithMaxSize(this ContainerStyle style, float maxWidth=float.MaxValue, float maxHeight=float.MaxValue)
-    {
-        style.MaxWidth = maxWidth;
-        style.MaxHeight = maxHeight;
-        return style;
-    }
-
-    public static TextStyle WithColor(this TextStyle style, Color color)
-    {
-        style.Color = color;
-        return style;
-    }
 }

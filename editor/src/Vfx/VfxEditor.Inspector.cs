@@ -359,7 +359,7 @@ internal partial class VfxEditor
 
                 using (Inspector.BeginProperty("Sprite"))
                 {
-                    var newRef = EditorUI.SpriteButton(FieldId.SpriteDropDown, particle.SpriteRef);
+                    var newRef = EditorUI.SpriteField(FieldId.SpriteDropDown, particle.SpriteRef);
                     if (newRef.Value != particle.SpriteRef.Value)
                     {
                         Undo.Record(Document);
@@ -877,9 +877,8 @@ internal partial class VfxEditor
 
     private static bool ColorInput(WidgetId id, ref Color color)
     {
-        var prev = color;
         color = EditorUI.ColorButton(id, color, fillWidth: true, hdr: true);
-        return color != prev;
+        return UI.WasChanged();
     }
 
     private static bool ApproximatelyEqual(VfxColorRange a, VfxColorRange b)

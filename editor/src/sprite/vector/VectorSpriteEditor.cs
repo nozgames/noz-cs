@@ -133,7 +133,6 @@ public partial class VectorSpriteEditor : SpriteEditor
     public override void Dispose()
     {
         ClearSelection();
-        EditorUI.ClosePopup();
 
         if (Document.Version != _versionOnOpen && Document.Atlas != null)
             AtlasManager.UpdateSource(Document);
@@ -431,7 +430,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         Undo.Record(Document);
         Document.ConstrainedSize = size;
         MarkDirty();
-        EditorUI.ClosePopup();
     }
 
     private void StrokeWidthButtonUI()
@@ -1308,26 +1306,14 @@ public partial class VectorSpriteEditor : SpriteEditor
         // Skeleton
         using (Inspector.BeginProperty("Skeleton"))
         {
-            var skeletonLabel = Document.Skeleton.IsResolved
-                ? StringId.Get(Document.Skeleton.Value!.Name).ToString()
-                : "None";
-
-            UI.DropDown(WidgetIds.SkeletonDropDown, () =>
+            var skeleton = EditorUI.SkeletonField(WidgetIds.SkeletonDropDown, Document.Skeleton.Value);
+            if (UI.WasChanged())
             {
-                var skeletonItems = new List<PopupMenuItem>();
-
-                foreach (var doc in DocumentManager.Documents)
-                {
-                    if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
-                        continue;
-
-                    var name = StringId.Get(skeleton.Name).ToString();
-                    skeletonItems.Add(new PopupMenuItem { Label = name, Handler = () => CommitSkeletonBinding(skeleton) });
-                }
-
-                skeletonItems.Add(new PopupMenuItem { Label = "None", Handler = ClearSkeletonBinding });
-                return [.. skeletonItems];
-            }, skeletonLabel, EditorAssets.Sprites.IconBone);
+                if (skeleton != null)
+                    CommitSkeletonBinding(skeleton);
+                else
+                    ClearSkeletonBinding();
+            }
         }
 
         if (Document.Skeleton.IsResolved)

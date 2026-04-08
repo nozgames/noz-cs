@@ -349,7 +349,15 @@ public static unsafe partial class ElementTree
         ref var d = ref e.Data.Widget;
         ref var state = ref GetWidgetState(d.Id);
         var prevFlags = state.Flags;
-        state.Flags = WidgetFlags.None;
+
+        const WidgetFlags InputFlags = 
+            WidgetFlags.Hovered |
+            WidgetFlags.Pressed |
+            WidgetFlags.Down |
+            WidgetFlags.HoverChanged |
+            WidgetFlags.DoubleClick |
+            WidgetFlags.RightClick;
+        state.Flags &= ~InputFlags;
 
         if (_activePopupCount > 0 && !IsInsidePopup(e.Index))
             return;
@@ -376,9 +384,6 @@ public static unsafe partial class ElementTree
 
         if (isCaptured ? _inputMouseDown : (isDeepHovered && _inputMouseDown && _captureId == 0))
             state.Flags |= WidgetFlags.Down;
-
-        if (_hotId == d.Id)
-            state.Flags |= WidgetFlags.Hot;
 
         if ((state.Flags & WidgetFlags.Hovered) != (prevFlags & WidgetFlags.Hovered))
             state.Flags |= WidgetFlags.HoverChanged;

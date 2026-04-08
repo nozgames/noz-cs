@@ -103,45 +103,14 @@ internal partial class AnimationEditor : DocumentEditor
             Mode?.Update();
     }
 
-    private void SkeletonPopupUI()
-    {
-        void Content()
-        {
-            for (int i = 0; i < DocumentManager.Count; i++)
-            {
-                var doc = DocumentManager.Get(i);
-                if (doc.Def.Type != AssetType.Skeleton) continue;
-
-                // TODO: migrate to UI.PopupMenu
-                if (EditorUI.PopupItem(doc.Name, selected: doc as SkeletonDocument == Document.Skeleton))
-                {
-                    // TODO: migrate to UI.PopupMenu
-                    EditorUI.ClosePopup();
-                    Undo.Record(Document);
-                    Document.IncrementVersion();
-                    Document.SetSkeleton(doc as SkeletonDocument);
-                }
-            }
-        }
-
-        // TODO: migrate to UI.PopupMenu
-        EditorUI.Popup(WidgetIds.SkeletonButton, Content);
-    }
-
     private void SkeletonButtonUI()
     {
-        if (UI.Button(WidgetIds.SkeletonButton, () =>
+        var skeleton = EditorUI.SkeletonField(WidgetIds.SkeletonButton, Document.Skeleton);
+        if (UI.WasChanged())
         {
-            UI.Image(EditorAssets.Sprites.IconBone, EditorStyle.Icon.Primary);
-            if (Document.Skeleton == null)
-                UI.Text("Select Skeleton...", EditorStyle.Control.Text);
-            else
-                UI.Text(Document.Skeleton.Name, EditorStyle.Control.Text);
-        }, EditorStyle.Button.Secondary, isSelected: EditorUI.IsPopupOpen(WidgetIds.SkeletonButton)))
-            // TODO: migrate to UI.PopupMenu
-            EditorUI.TogglePopup(WidgetIds.SkeletonButton);
-
-        SkeletonPopupUI();
+            Undo.Record(Document);
+            Document.SetSkeleton(skeleton);
+        }
     }
 
     public override void UpdateUI()

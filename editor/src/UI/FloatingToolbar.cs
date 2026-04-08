@@ -56,6 +56,6 @@ public static partial class FloatingToolbar
 
     public static Color ColorButton(WidgetId id, Color color)
     {
-        return EditorUI.ColorButton(id, color);
+        return EditorUI.ColorButton(id, color, style: new ColorButtonStyle { Popup = EditorStyle.PopupAbove });
     }
 }

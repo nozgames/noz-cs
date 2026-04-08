@@ -2,8 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Security.Cryptography;
-
 namespace NoZ;
 
 public readonly struct EdgeInsets(float top, float left, float bottom, float right)

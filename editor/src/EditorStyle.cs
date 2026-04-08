@@ -70,6 +70,26 @@ public static class EditorStyle
         Background = Palette.Active,
     };
 
+    public static readonly PopupStyle PopupLeft = new()
+    {
+        AnchorX = Align.Min,
+        AnchorY = Align.Min,
+        PopupAlignX = Align.Max,
+        PopupAlignY = Align.Min,
+        Spacing = Control.Spacing,
+        ClampToScreen = true,
+    };
+
+    public static readonly PopupStyle PopupAbove = new()
+    {
+        AnchorX = Align.Min,
+        AnchorY = Align.Min,
+        PopupAlignX = Align.Min,
+        PopupAlignY = Align.Max,
+        Spacing = Control.Spacing,
+        ClampToScreen = true,
+    };
+
     // :icon
     public static class Icon
     {

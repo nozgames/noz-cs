@@ -7,35 +7,30 @@ namespace NoZ;
 public static partial class UI
 {
     private static WidgetId _prevHotId;
-    private static int _hotOriginalHash;
-    private static int _hotCurrentHash;
     private static WidgetId _lastWidgetId;
-    private static bool _valueChanged;
+
     public static void SetHot<T>(WidgetId id, T originalValue) where T : notnull
-        => SetHot(id, originalValue.GetHashCode());
+        => SetHot(id);
 
     public static void SetHot(WidgetId id, ReadOnlySpan<char> originalValue)
-        => SetHot(id, string.GetHashCode(originalValue));
+        => SetHot(id);
 
     public static void SetHot(WidgetId id, int originalHash)
-    {
-        if (_prevHotId != id && ElementTree._hotId != id)
-        {
-            _hotOriginalHash = originalHash;
-            _hotCurrentHash = originalHash;
-        }
-
-        ElementTree._hotId = id;
-    }
+        => SetHot(id);
 
     public static void SetHot(WidgetId id)
     {
         ElementTree._hotId = id;
+        ElementTree.SetWidgetFlag(id, WidgetFlags.Hot);
     }
 
     public static void ClearHot()
     {
-        ElementTree._hotId = WidgetId.None;
+        if (ElementTree._hotId != WidgetId.None)
+        {
+            ElementTree.ClearWidgetFlag(ElementTree._hotId, WidgetFlags.Hot);
+            ElementTree._hotId = WidgetId.None;
+        }
     }
 
     public static bool HasHot() => ElementTree._hotId != 0 || _prevHotId != 0;
@@ -43,8 +38,7 @@ public static partial class UI
 
     public static void NotifyChanged(int currentHash)
     {
-        _valueChanged = true;
-        _hotCurrentHash = currentHash;
+        ElementTree.SetWidgetFlag(_lastWidgetId, WidgetFlags.Changed);
     }
 
     public static void SetLastElement(WidgetId id)
@@ -52,18 +46,16 @@ public static partial class UI
         _lastWidgetId = id;
     }
 
-    public static bool IsHot() => ElementTree._hotId != 0 && ElementTree._hotId == _lastWidgetId;
-    public static bool WasHot() => _prevHotId != 0 && _prevHotId == _lastWidgetId;
-    public static bool WasChanged() => _valueChanged && ElementTree._hotId == _lastWidgetId;
+    public static bool IsHot() => ElementTree.GetWidgetFlags(_lastWidgetId).HasFlag(WidgetFlags.Hot);
+    public static bool WasHot() => ElementTree.GetPrevWidgetFlags(_lastWidgetId).HasFlag(WidgetFlags.Hot);
+    public static bool WasChanged() => ElementTree.GetWidgetFlags(_lastWidgetId).HasFlag(WidgetFlags.Changed);
 
-    public static bool IsChanged() => ElementTree._hotId == _lastWidgetId
-        ? _hotCurrentHash != _hotOriginalHash
-        : _prevHotId == _lastWidgetId && _hotCurrentHash != _hotOriginalHash;
+    public static bool IsChanged() => IsHot() && WasChanged();
 
     public static bool HotEnter() => IsHot() && !WasHot();
     public static bool HotExit() => !IsHot() && WasHot();
 
-    public static bool WasChangeStarted() => HotEnter() || (_valueChanged && !IsHot() && !WasHot());
-    public static bool WasChangeEnded() => HotExit() || (_valueChanged && !IsHot() && !WasHot());
-    public static bool WasChangeCancelled() => WasChangeEnded() && _hotCurrentHash == _hotOriginalHash;
+    public static bool WasChangeStarted() => HotEnter() || (WasChanged() && !IsHot() && !WasHot());
+    public static bool WasChangeEnded() => HotExit() || (WasChanged() && !IsHot() && !WasHot());
+    public static bool WasChangeCancelled() => WasChangeEnded() && !WasChanged();
 }

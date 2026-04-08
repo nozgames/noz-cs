@@ -28,7 +28,7 @@ public struct DropDownStyle()
 
 public static partial class UI
 {
-    public static bool DropDown(
+    public static void DropDown(
         WidgetId id,
         Func<PopupMenuItem[]> getItems,
         string? text = null,
@@ -122,7 +122,5 @@ public static partial class UI
                 OpenPopupMenu(id, getItems(), ms, popupStyle);
             }
         }
-
-        return flags.HasFlag(WidgetFlags.Pressed);
     }
 }

@@ -92,26 +92,14 @@ public partial class PixelSpriteEditor
 
         using (Inspector.BeginProperty("Skeleton"))
         {
-            var skeletonLabel = Document.Skeleton.IsResolved
-                ? StringId.Get(Document.Skeleton.Value!.Name).ToString()
-                : "None";
-
-            UI.DropDown(WidgetIds.SkeletonDropDown, () =>
+            var skeleton = EditorUI.SkeletonField(WidgetIds.SkeletonDropDown, Document.Skeleton.Value);
+            if (UI.WasChanged())
             {
-                var skeletonItems = new List<PopupMenuItem>();
-
-                foreach (var doc in DocumentManager.Documents)
-                {
-                    if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
-                        continue;
-
-                    var name = StringId.Get(skeleton.Name).ToString();
-                    skeletonItems.Add(new PopupMenuItem { Label = name, Handler = () => CommitSkeletonBinding(skeleton) });
-                }
-
-                skeletonItems.Add(new PopupMenuItem { Label = "None", Handler = ClearSkeletonBinding });
-                return [.. skeletonItems];
-            }, skeletonLabel, EditorAssets.Sprites.IconBone);
+                if (skeleton != null)
+                    CommitSkeletonBinding(skeleton);
+                else
+                    ClearSkeletonBinding();
+            }
         }
 
         if (Document.Skeleton.IsResolved)
@@ -164,7 +152,6 @@ public partial class PixelSpriteEditor
 
         Document.UpdateBounds();
         InvalidateComposite();
-        EditorUI.ClosePopup();
     }
 
     private void CommitSkeletonBinding(SkeletonDocument skeleton)

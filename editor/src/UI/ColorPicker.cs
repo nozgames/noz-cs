@@ -6,6 +6,11 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
+internal struct ColorButtonStyle()
+{
+    public PopupStyle Popup = EditorStyle.PopupLeft;
+}
+
 internal static partial class ColorPicker
 {
     private const float SVSize = EditorStyle.ColorPicker.SVSize;
@@ -28,6 +33,7 @@ internal static partial class ColorPicker
         public static partial WidgetId ColorPickerPaletteItem { get; }
         public static partial WidgetId Intensity { get; }
         public static partial WidgetId EyeDropper { get; }
+        public static partial WidgetId Popup { get; }
     }
 
     private enum ColorMode
@@ -68,13 +74,15 @@ internal static partial class ColorPicker
     // HDR state
     private static bool _hdr;
 
+    // Popup
+    private static PopupStyle _popupStyle;
+
     public static bool IsOpen(WidgetId id) => _popupId == id;
 
     internal static void Close()
     {
         _popupId = WidgetId.None;
         _eyeDropperActive = false;
-        FloatingPanel.Close();
         UI.ClearHot();
     }
 
@@ -97,14 +105,7 @@ internal static partial class ColorPicker
         _eyeDropperActive = false;
     }
 
-    private static void OpenPanel(WidgetId id)
-    {
-        var anchorRect = UI.GetElementWorldRect(id);
-        var panelWidth = EditorStyle.ColorPicker.Root.Width.Value + 2; // panel width + gap
-        FloatingPanel.Open(id, new Vector2(anchorRect.Left - panelWidth, anchorRect.Top));
-    }
-
-    internal static void Open(WidgetId id, Color color, bool hdr = false)
+    internal static void Open(WidgetId id, Color color, bool hdr = false, ColorButtonStyle? style = null)
     {
         _hdr = hdr;
 
@@ -142,13 +143,14 @@ internal static partial class ColorPicker
         else
             _paletteMode = ColorMode.Color;
 
-        OpenPanel(id);
+        var s = style ?? new ColorButtonStyle();
+        _popupStyle = s.Popup;
+        _popupStyle.AnchorRect = UI.GetElementWorldRect(id);
     }
 
     internal static void Update()
     {
         if (_popupId == WidgetId.None) return;
-        if (!FloatingPanel.IsOpen(_popupId)) return;
 
         var close = false;
 
@@ -176,73 +178,74 @@ internal static partial class ColorPicker
             _eyeDropperActive = false;
         }
 
+        // Eyedropper: detect outside clicks manually since AutoClose is off
+        if (_eyeDropperActive && Input.WasButtonPressedRaw(InputCode.MouseLeft))
+            PickEyeDropperColor();
+
         var wasEyeDropperActive = _eyeDropperActive;
         if (wasEyeDropperActive)
             ElementTree.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorDropper));
         else
             ElementTree.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
 
-        FloatingPanel.Begin(_popupId, EditorStyle.ColorPicker.Root);
+        _popupStyle.AutoClose = !_eyeDropperActive;
+        UI.BeginPopup(ElementId.Popup, _popupStyle);
 
-        if (FloatingPanel.WasBackdropPressed)
+        if (UI.IsClosed())
+            close = true;
+
+        using (UI.BeginColumn(EditorStyle.ColorPicker.Root))
         {
-            if (_eyeDropperActive)
-                PickEyeDropperColor();
+            using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
+            {
+                if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
+                {
+                    _savedAlpha = _alpha;
+                    _paletteMode = ColorMode.None;
+                }
+
+                if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
+                {
+                    _paletteMode = ColorMode.Color;
+                    if (_alpha == 0)
+                        _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
+                    _trackNeedsInit = true;
+                }
+
+                UI.Flex();
+
+                if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
+                {
+                    close = true;
+                }
+            }
+
+            Color32 color;
+
+            if (_paletteMode == ColorMode.Color)
+            {
+                SaturationAndValue();
+                Hue();
+                Alpha();
+                if (_hdr)
+                    Intensity();
+                _trackNeedsInit = false;
+                color = HsvToColor32(_hue, _sat, _val, _alpha);
+                PaletteUI();
+            }
             else
-                close = true;
-        }
-
-        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
-        {
-            if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
             {
-                _savedAlpha = _alpha;
-                _paletteMode = ColorMode.None;
+                color = Color.Transparent;
             }
 
-            if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
+            if (color != _prevColor)
             {
-                _paletteMode = ColorMode.Color;
-                if (_alpha == 0)
-                    _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
-                _trackNeedsInit = true;
-            }
-
-            UI.Flex();
-
-            if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
-            {
-                UI.NotifyChanged(_originalColor.GetHashCode());
-                close = true;
+                UI.NotifyChanged(color.GetHashCode());
+                _prevColor = color;
             }
         }
 
-        Color32 color;
-
-        if (_paletteMode == ColorMode.Color)
-        {
-            SaturationAndValue();
-            Hue();
-            Alpha();
-            if (_hdr)
-                Intensity();
-            _trackNeedsInit = false;
-            color = HsvToColor32(_hue, _sat, _val, _alpha);
-            PaletteUI();
-        }
-        else
-        {
-            color = Color.Transparent;
-        }
-
-        if (color != _prevColor)
-        {
-            UI.NotifyChanged(color.GetHashCode());
-            _prevColor = color;
-        }
-
-        FloatingPanel.End();
-
+        UI.EndPopup();
         ElementTree.EndCursor();
 
         if (close)
