@@ -821,6 +821,43 @@ public unsafe partial class WebGPUGraphicsDriver
         _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)rt.Width, (uint)rt.Height);
     }
 
+    public void ResumeRenderTexturePass(nuint renderTexture)
+    {
+        if (_currentRenderPass != null)
+            throw new InvalidOperationException("Already in a render pass");
+
+        var rtSlot = _rtHandleToSlot[(int)renderTexture];
+        ref var rt = ref _renderTextures[rtSlot];
+        _activeRenderTexture = renderTexture;
+
+        _state = default;
+        _state.CurrentPassSampleCount = rt.SampleCount;
+        _state.CurrentPassFormat = rt.Format;
+        _state.PipelineDirty = true;
+        _state.BindGroupDirty = true;
+        _currentGlobalsIndex = -1;
+
+        var colorAttachment = new RenderPassColorAttachment
+        {
+            View = rt.SampleCount > 1 ? rt.MsaaTextureView : rt.TextureView,
+            ResolveTarget = rt.SampleCount > 1 ? rt.TextureView : null,
+            LoadOp = LoadOp.Load,
+            StoreOp = rt.SampleCount > 1 ? StoreOp.Discard : StoreOp.Store,
+        };
+
+        var desc = new RenderPassDescriptor
+        {
+            ColorAttachments = &colorAttachment,
+            ColorAttachmentCount = 1,
+            DepthStencilAttachment = null
+        };
+
+        _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, in desc);
+
+        _wgpu.RenderPassEncoderSetViewport(_currentRenderPass, 0, 0, rt.Width, rt.Height, 0, 1);
+        _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, (uint)rt.Width, (uint)rt.Height);
+    }
+
     public void EndRenderTexturePass()
     {
         s_counterEndTexturePass.Increment(1);

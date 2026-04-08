@@ -385,7 +385,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
         LoadContentMetadata(meta);
 
-        if (Loaded && ConstrainedSize.HasValue)
+        if (Loaded)
             UpdateBounds();
     }
 

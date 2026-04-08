@@ -72,8 +72,7 @@ public static class Cursor
         var sprite = _spriteCursor.Sprite;
         if (sprite == null || !Input.MouseInWindow) return;
 
-        var size = Application.WindowSize;
-        _camera.SetExtents(new Rect(0, 0, size.X, size.Y));
+        _camera.SetExtents(new Rect(0, 0, Graphics.RenderSize.X, Graphics.RenderSize.Y));
         _camera.Update();
 
         using var _ = Graphics.PushState();

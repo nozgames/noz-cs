@@ -110,8 +110,7 @@ public static unsafe partial class Graphics
         for (var i = 0; i < MaxRenderPasses; i++)
             _passProjections[i] = Matrix4x4.Identity;
 
-        var size = Application.WindowSize;
-        SetViewport(0, 0, (int)size.X, (int)size.Y);
+        SetViewport(0, 0, RenderSize.X, RenderSize.Y);
     }
 
     public static void SetCamera(Camera? camera)

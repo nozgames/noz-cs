@@ -23,7 +23,7 @@ public class PixelFillMode : EditorMode<PixelSpriteEditor>
     private void Fill(Vector2Int seed)
     {
         var layer = Editor.ActiveLayer;
-        if (layer?.Pixels == null || layer.Locked) return;
+        if (layer?.Pixels == null || layer.Locked || !layer.Visible) return;
         if (!Editor.IsPixelInConstraint(seed)) return;
         if (!Editor.IsPixelSelected(seed.X, seed.Y)) return;
 

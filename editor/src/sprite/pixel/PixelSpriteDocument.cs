@@ -95,7 +95,9 @@ public partial class PixelSpriteDocument : SpriteDocument
         }
         else
         {
-            RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
+            RasterBounds = new RectInt(-ppu / 2, -ppu / 2, ppu, ppu);
+            Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
+            return;
         }
 
         if (ConstrainedSize.HasValue)

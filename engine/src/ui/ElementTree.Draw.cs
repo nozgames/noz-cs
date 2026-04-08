@@ -18,7 +18,7 @@ public static partial class ElementTree
         var bottomRight = Vector2.Transform(e.Rect.Position + e.Rect.Size, ltw);
         var screenTopLeft = UI.Camera!.WorldToScreen(topLeft);
         var screenBottomRight = UI.Camera!.WorldToScreen(bottomRight);
-        var screenHeight = Application.WindowSize.Y;
+        var screenHeight = Graphics.RenderSize.Y;
         Graphics.SetScissor(
             (int)screenTopLeft.X,
             (int)(screenHeight - screenBottomRight.Y),
@@ -631,7 +631,7 @@ public static partial class ElementTree
 
         if (rtW <= 0 || rtH <= 0)
         {
-            var winSize = Application.WindowSize;
+            var winSize = Graphics.RenderSize;
             rtW = winSize.X;
             rtH = winSize.Y;
             if (rtW <= 0 || rtH <= 0)

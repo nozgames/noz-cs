@@ -87,6 +87,20 @@ public static partial class Workspace
     public static bool IsDragging => _isDragging;
     public static bool WasDragging => _wasDragging;
     public static bool DragStarted => _dragStarted;
+
+    public static Task<Color>? ReadPixelAtMouse()
+    {
+        if (!UI.TryGetSceneRenderInfo(SceneWidgetId, out var info) || info.Handle == 0)
+            return null;
+
+        var mouseScreen = MousePosition;
+        var relX = (mouseScreen.X - info.ScreenRect.X) / info.ScreenRect.Width;
+        var relY = (mouseScreen.Y - info.ScreenRect.Y) / info.ScreenRect.Height;
+        var px = Math.Clamp((int)(relX * info.Width), 0, info.Width - 1);
+        var py = Math.Clamp((int)(relY * info.Height), 0, info.Height - 1);
+
+        return Graphics.Driver.ReadPixelAsync(info.Handle, px, py);
+    }
     public static InputCode DragButton => _dragButton;
     public static Vector2 DragDelta { get; private set; }
     public static Vector2 DragWorldDelta { get; private set; }

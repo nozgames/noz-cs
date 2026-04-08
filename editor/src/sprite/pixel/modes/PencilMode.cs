@@ -10,12 +10,46 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
 {
     private Vector2Int _lastPixel = new(-1, -1);
     private bool _isDrawing;
+    private Task<Color>? _eyeDropperTask;
+
+    private bool UpdateEyeDropper()
+    {
+        if (_eyeDropperTask != null)
+        {
+            EditorCursor.SetDropper();
+            if (_eyeDropperTask.IsCompleted)
+            {
+                var color = _eyeDropperTask.Result.ToColor32();
+                _eyeDropperTask = null;
+                if (color.A > 0)
+                    Editor.BrushColor = color;
+            }
+            return true;
+        }
+
+        if (!Input.IsAltDown(InputScope.All) || _isDrawing)
+            return false;
+
+        EditorCursor.SetDropper();
+        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
+        {
+            _eyeDropperTask = Workspace.ReadPixelAtMouse();
+            if (_eyeDropperTask != null)
+                Input.ConsumeButton(InputCode.MouseLeft);
+        }
+
+        return true;
+    }
 
     public override void Update()
     {
-        EditorCursor.SetCrosshair();
         var mouseWorld = Workspace.MouseWorldPosition;
         var pixel = Editor.WorldToPixel(mouseWorld);
+
+        if (UpdateEyeDropper())
+            return;
+
+        EditorCursor.SetCrosshair();
 
         if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
@@ -33,7 +67,7 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
     private void BeginStroke(Vector2Int pixel)
     {
         var layer = Editor.ActiveLayer;
-        if (layer == null || layer.Pixels == null || layer.Locked) return;
+        if (layer == null || layer.Pixels == null || layer.Locked || !layer.Visible) return;
 
         Undo.Record(Editor.Document);
         _isDrawing = true;

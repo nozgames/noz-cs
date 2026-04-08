@@ -84,12 +84,12 @@ public class Camera
     public void Update()
     {
         var windowSize = UI.SceneViewport != null
-            ? UI.SceneViewport.Value.Size 
-            : Application.WindowSize;
+            ? UI.SceneViewport.Value.Size
+            : Graphics.RenderSize;
 
         if (UI.SceneViewport != null)
             Viewport = UI.SceneViewport.Value.ToRect();
-        
+
         Update(windowSize);
     }
 

@@ -80,10 +80,12 @@ public static unsafe partial class Graphics
     private static int _boneRow;
     private static float _time;
     public static event Action? AfterEndFrame;
-
     private static State[] _stateStack = null!;
     private static int _stateStackDepth = 0;
     private static bool _batchStateDirty = true;
+    private static RenderTexture _internalRT;
+    private static readonly Camera _blitCamera = new();
+    private static Shader? _blitShader;
     
     public static ApplicationConfig Config { get; private set; } = null!;
     public static GraphicsConfig RenderConfig => Config.Graphics!;
@@ -95,6 +97,10 @@ public static unsafe partial class Graphics
     public static float PixelsPerUnit { get; private set; }
     public static float PixelsPerUnitInv {  get; private set; }
     public static bool IsScissor => CurrentState.ScissorEnabled;
+
+
+    public static float RenderScale { get; set; } = 1.0f;
+    public static Vector2Int RenderSize { get; private set; }
 
     private static ref State CurrentState => ref _stateStack[_stateStackDepth];
     
@@ -207,6 +213,20 @@ public static unsafe partial class Graphics
 
         RenderTexturePool.FlushPendingReleases();
 
+        // Compute render size for this frame
+        if (RenderScale < 1.0f)
+        {
+            var win = Application.WindowSize;
+            RenderSize = new Vector2Int(
+                Math.Max(1, (int)MathF.Round(win.X * RenderScale)),
+                Math.Max(1, (int)MathF.Round(win.Y * RenderScale)));
+            _internalRT = RenderTexturePool.Acquire(RenderSize.X, RenderSize.Y);
+        }
+        else
+        {
+            RenderSize = Application.WindowSize;
+        }
+
         _time += Time.DeltaTime;
 
         return true;
@@ -251,11 +271,42 @@ public static unsafe partial class Graphics
         using (s_markerExecuteCommands.Begin())
             ExecuteCommands();
 
+        if (_internalRT.IsValid)ff
+            BlitInternalRT();
+
         AfterEndFrame?.Invoke();
         AfterEndFrame = null;
 
         using (s_markerEndFrame.Begin())
             Driver.EndFrame();
+    }
+
+    private static void BlitInternalRT()
+    {
+        var savedRT = _internalRT;
+        _internalRT = default;
+        var savedScale = RenderScale;
+        RenderScale = 1.0f;
+        RenderSize = Application.WindowSize;
+
+        var winSize = Application.WindowSize;
+        _blitCamera.SetExtents(new Rect(0, 0, winSize.X, winSize.Y));
+        _blitCamera.Update(winSize);
+
+        ResetState();
+        SetCamera(_blitCamera);
+        _blitShader ??= Asset.Get<Shader>(AssetType.Shader, "texture")!;
+        SetShader(_blitShader);
+        SetTextureFilter(TextureFilter.Point);
+        SetTexture(savedRT.Handle);
+        SetBlendMode(BlendMode.None);
+        Draw(0, 0, winSize.X, winSize.Y);
+
+        using (s_markerExecuteCommands.Begin())
+            ExecuteCommands();
+
+        _internalRT = savedRT;
+        RenderScale = savedScale;
     }
 
     internal static void ResolveAssets()
@@ -558,23 +609,39 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
     {
         if (currentRT == 0)
         {
-            using (s_markerEndPass.Begin())
-                Driver.EndScenePass();
+            if (_internalRT.IsValid)
+            {
+                using (s_markerEndRenderTexturePass.Begin())
+                    Driver.EndRenderTexturePass();
+            }
+            else
+            {
+                using (s_markerEndPass.Begin())
+                    Driver.EndScenePass();
+            }
         }
         else if (currentRT != nuint.MaxValue)
         {
             using (s_markerEndRenderTexturePass.Begin())
-                Driver.EndRenderTexturePass();                    
+                Driver.EndRenderTexturePass();
         }
     }
 
     private static void ExecuteCommands()
     {
-        // If no commands, just clear the screen and return early
+        // If no commands, just clear the target and return early
         if (_commands.Length == 0)
         {
-            Driver.BeginScenePass(ClearColor);
-            Driver.EndScenePass();
+            if (_internalRT.IsValid)
+            {
+                Driver.BeginRenderTexturePass(_internalRT.Handle, ClearColor);
+                Driver.EndRenderTexturePass();
+            }
+            else
+            {
+                Driver.BeginScenePass(ClearColor);
+                Driver.EndScenePass();
+            }
             return;
         }
 
@@ -628,15 +695,20 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
                 // Begin new pass
                 if (currentRT == 0)
                 {
-                    // Scene pass - clear if first time, resume if returning after RT
                     if (!scenePassStarted)
                     {
-                        Driver.BeginScenePass(ClearColor);
+                        if (_internalRT.IsValid)
+                            Driver.BeginRenderTexturePass(_internalRT.Handle, ClearColor);
+                        else
+                            Driver.BeginScenePass(ClearColor);
                         scenePassStarted = true;
                     }
                     else
                     {
-                        Driver.ResumeScenePass();
+                        if (_internalRT.IsValid)
+                            Driver.ResumeRenderTexturePass(_internalRT.Handle);
+                        else
+                            Driver.ResumeScenePass();
                     }
                 }
                 else

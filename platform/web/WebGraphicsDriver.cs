@@ -1331,6 +1331,33 @@ public class WebGraphicsDriver : IGraphicsDriver
         WebGPUInterop.SetScissorRect(0, 0, rt.Width, rt.Height);
     }
 
+    public void ResumeRenderTexturePass(nuint renderTexture)
+    {
+        if (!_renderTextures.TryGetValue(renderTexture, out var rt))
+        {
+            Log.Error($"Render texture {renderTexture} not found");
+            return;
+        }
+
+        _activeRenderTexture = renderTexture;
+
+        _state.Reset();
+        _state.CurrentPassSampleCount = rt.SampleCount;
+        _currentGlobalsIndex = -1;
+
+        _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
+            rt.JsTextureId,
+            0,
+            "load",
+            "store",
+            Color.Transparent
+        );
+
+        WebGPUInterop.BeginRenderPass(_singleColorAttachment, null, "RenderTexturePass (resumed)");
+        WebGPUInterop.SetViewport(0, 0, rt.Width, rt.Height, 0, 1);
+        WebGPUInterop.SetScissorRect(0, 0, rt.Width, rt.Height);
+    }
+
     public void EndRenderTexturePass()
     {
         FlushCommandBuffer();

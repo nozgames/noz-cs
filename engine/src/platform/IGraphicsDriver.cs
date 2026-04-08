@@ -87,6 +87,7 @@ public interface IGraphicsDriver
     nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null);
     void DestroyRenderTexture(nuint handle);
     void BeginRenderTexturePass(nuint renderTexture, Color clearColor);
+    void ResumeRenderTexturePass(nuint renderTexture);
     void EndRenderTexturePass();
     Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture);
     Task<Color> ReadPixelAsync(nuint renderTexture, int x, int y);

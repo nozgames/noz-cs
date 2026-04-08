@@ -877,8 +877,9 @@ internal partial class VfxEditor
 
     private static bool ColorInput(WidgetId id, ref Color color)
     {
+        var prev = color;
         color = EditorUI.ColorButton(id, color, fillWidth: true, hdr: true);
-        return UI.WasChanged();
+        return color != prev;
     }
 
     private static bool ApproximatelyEqual(VfxColorRange a, VfxColorRange b)

@@ -52,7 +52,7 @@ public static partial class UI
 
     public static Vector2Int GetRefSize()
     {
-        var screenSize = Application.WindowSize.ToVector2();
+        var screenSize = Graphics.RenderSize.ToVector2();
         var displayScale = Application.Platform.DisplayScale;
 
         switch (ScaleMode ?? Config.ScaleMode)
@@ -249,7 +249,7 @@ public static partial class UI
     }
 
     public static Vector2 ScreenToUI(Vector2 screenPos) =>
-        screenPos / Application.WindowSize.ToVector2() * _size;
+        screenPos / Graphics.RenderSize.ToVector2() * _size;
 
     public static bool IsClosed() => ElementTree.ClosePopups;
 
@@ -263,7 +263,7 @@ public static partial class UI
         _frame++;
         _refSize = GetRefSize();
 
-        var screenSize = Application.WindowSize.ToVector2();
+        var screenSize = Graphics.RenderSize.ToVector2();
         var rw = (float)_refSize.X;
         var rh = (float)_refSize.Y;
         var sw = screenSize.X;
@@ -310,7 +310,16 @@ public static partial class UI
     internal static void ProcessInput()
     {
         if (Camera == null) return;
-        var mouse = Camera.ScreenToWorld(Input.MousePosition);
+        var mousePos = Input.MousePosition;
+        var renderSize = Graphics.RenderSize;
+        var windowSize = Application.WindowSize;
+        if (renderSize != windowSize)
+        {
+            mousePos *= new Vector2(
+                (float)renderSize.X / windowSize.X,
+                (float)renderSize.Y / windowSize.Y);
+        }
+        var mouse = Camera.ScreenToWorld(mousePos);
         MouseWorldPosition = mouse;
         ElementTree.MouseWorldPosition = mouse;
         ElementTree.HandleInput();

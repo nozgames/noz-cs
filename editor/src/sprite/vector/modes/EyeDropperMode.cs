@@ -47,17 +47,9 @@ public class EyeDropperMode : EditorMode<VectorSpriteEditor>
 
     private void InitiateReadback()
     {
-        if (!UI.TryGetSceneRenderInfo(Workspace.SceneWidgetId, out var info) || info.Handle == 0)
-            return;
-
-        var mouseScreen = Workspace.MousePosition;
-        var relX = (mouseScreen.X - info.ScreenRect.X) / info.ScreenRect.Width;
-        var relY = (mouseScreen.Y - info.ScreenRect.Y) / info.ScreenRect.Height;
-        var px = Math.Clamp((int)(relX * info.Width), 0, info.Width - 1);
-        var py = Math.Clamp((int)(relY * info.Height), 0, info.Height - 1);
-
-        _readbackTask = Graphics.Driver.ReadPixelAsync(info.Handle, px, py);
-        Input.ConsumeButton(InputCode.MouseLeft);
+        _readbackTask = Workspace.ReadPixelAtMouse();
+        if (_readbackTask != null)
+            Input.ConsumeButton(InputCode.MouseLeft);
     }
 
     private void ReturnToPreviousMode()

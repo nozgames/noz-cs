@@ -54,6 +54,7 @@ public partial class PixelSpriteEditor
                     layer.Pixels.Set(x, y, default);
 
         InvalidateComposite();
+        InvalidateActiveLayerPreview();
     }
 
     public void ApplyRectSelection(RectInt rect, SelectionOp op)
@@ -245,6 +246,7 @@ public partial class PixelSpriteEditor
 
         ApplyRectSelection(src, SelectionOp.Replace);
         InvalidateComposite();
+        InvalidateActiveLayerPreview();
         SetMode(new PixelTransformMode());
     }
 
