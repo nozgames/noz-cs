@@ -113,7 +113,6 @@ public static partial class UI
             scrollState.Offset = newOffset;
         }
 
-        SetLastElement(id);
     }
 
     public static void ScrollBar(WidgetId id, WidgetId scrollableId) =>

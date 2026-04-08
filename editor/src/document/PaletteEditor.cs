@@ -11,6 +11,7 @@ internal partial class PaletteEditor : DocumentEditor
         public static partial WidgetId InspectorRoot { get; }
         public static partial WidgetId InspectorScroll { get; }
         public static partial WidgetId ColorItem { get; }
+        public static partial WidgetId ColorGrid { get; }
     }
 
     public new PaletteDocument Document => (PaletteDocument)base.Document;
@@ -45,12 +46,13 @@ internal partial class PaletteEditor : DocumentEditor
                 ScrollSpeed = 40
             }))
             {
-                using (UI.BeginGrid(new GridStyle
+                var colorLayout = new CollectionLayout
                 {
-                    CellHeight = EditorStyle.Control.Height,
-                    CellWidth = EditorStyle.Control.Height,
+                    ItemHeight = EditorStyle.Control.Height,
+                    ItemWidth = EditorStyle.Control.Height,
                     Columns = 6
-                }))
+                };
+                using (UI.BeginCollection(WidgetIds.ColorGrid, colorLayout, Document.ColorCount, out var cStart, out var cEnd))
                 {
                     var nextId = WidgetIds.ColorItem;
                     for (int i = 0; i < Document.ColorCount; i++)

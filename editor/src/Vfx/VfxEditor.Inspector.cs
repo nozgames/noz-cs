@@ -145,7 +145,7 @@ internal partial class VfxEditor
             var loop = Document.Loop;
             using (Inspector.BeginProperty("Loop"))
             {
-                if (UI.Toggle(FieldId.VfxLoop, "", loop, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+                if (UI.Toggle(FieldId.VfxLoop, loop, EditorStyle.Inspector.Toggle))
                 {
                     Undo.Record(Document);
                     Document.Loop = !loop;
@@ -173,7 +173,7 @@ internal partial class VfxEditor
 
             using (Inspector.BeginProperty("WorldSpace"))
             {
-                if (UI.Toggle(FieldId.EmitterWorldSpace, "", worldSpace, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+                if (UI.Toggle(FieldId.EmitterWorldSpace, worldSpace, EditorStyle.Inspector.Toggle))
                 {
                     worldSpace = !worldSpace;
                     changed = true;
@@ -832,8 +832,8 @@ internal partial class VfxEditor
         var flags = WidgetFlags.None | (isExpanded ? WidgetFlags.Checked : WidgetFlags.None);
 
         ElementTree.BeginTree();
-        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isExpanded);
         ElementTree.BeginWidget(id);
+        ElementTree.SetWidgetFlag(id, WidgetFlags.Checked, isExpanded);
         flags |= ElementTree.GetWidgetFlags();
         var style = EditorStyle.Button.ToggleIcon.Resolve!(EditorStyle.Button.ToggleIcon, flags);
 

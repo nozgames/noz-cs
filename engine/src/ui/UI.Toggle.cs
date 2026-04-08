@@ -7,63 +7,49 @@ namespace NoZ;
 public struct ToggleStyle()
 {
     public float Size = 18;
-    public float IconSize = 14;
-    public float Spacing = 8;
-    public float FontSize = Style.Widget.FontSize;
     public float BorderRadius = 3;
     public float BorderWidth = 1;
-    public Color Color = Style.Palette.Background;
-    public Color CheckedColor = Style.Palette.Primary;
     public Color BorderColor = Style.Palette.Border;
-    public Color ContentColor = Style.Palette.Content;
+    public Color Background = Style.Palette.Background;
+    public float CheckSize = 14;
     public Color CheckColor = Color.White;
-    public Font? Font = null;
+    public Sprite? CheckSprite = null;
     public Func<ToggleStyle, WidgetFlags, ToggleStyle>? Resolve;
 }
 
 public static partial class UI
 {
-    public static bool Toggle(WidgetId id, string label, bool isChecked, in ToggleStyle style, Sprite? checkIcon = null)
+    public static bool Toggle(WidgetId id, bool value, in ToggleStyle style)
     {
         ElementTree.BeginTree();
-        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isChecked);
         ElementTree.BeginWidget(id);
+        ElementTree.SetWidgetFlag(id, WidgetFlags.Checked, value);
 
         var flags = ElementTree.GetWidgetFlags();
         var s = style.Resolve != null
             ? style.Resolve(style, flags)
             : style;
 
-        ElementTree.BeginSize(new Size2(Size.Fit, Size.Default));
-        ElementTree.BeginRow(s.Spacing);
-        ElementTree.BeginAlign(new Align2(Align.Min, Align.Center));
         ElementTree.BeginSize(s.Size);
-        ElementTree.BeginFill(isChecked ? s.CheckedColor : s.Color, s.BorderRadius, s.BorderWidth, s.BorderColor);
+        ElementTree.BeginFill(s.Background, s.BorderRadius, s.BorderWidth, s.BorderColor);
 
-        if (isChecked && checkIcon != null)
+        if (value && s.CheckSprite != null)
         {
-            var inset = (s.Size - s.IconSize) / 2;
-            ElementTree.BeginPadding(EdgeInsets.All(inset));
-            ElementTree.Image(checkIcon, color: s.CheckColor, align: Align.Center);
+            ElementTree.BeginPadding((s.Size - s.CheckSize) / 2);
+            ElementTree.Image(s.CheckSprite, color: s.CheckColor, align: Align.Center);
             ElementTree.EndPadding();
         }
 
-        ElementTree.EndFill();
-        ElementTree.EndSize();
-        ElementTree.EndAlign();
-
-        // Label
-        var font = s.Font ?? _defaultFont!;
-        ElementTree.Text(
-            label,
-            font,
-            s.FontSize,
-            s.ContentColor,
-            new Align2(Align.Min, Align.Center),
-            TextOverflow.Overflow);
-
         ElementTree.EndTree();
 
-        return flags.HasFlag(WidgetFlags.Pressed);
+        var pressed = flags.HasFlag(WidgetFlags.Pressed);
+        if (pressed)
+        {
+            SetHot(id, value ? 1 : 0);
+            NotifyChanged(value ? 0 : 1);
+            ClearHot();
+        }
+
+        return pressed;
     }
 }

@@ -198,7 +198,7 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("Enable"))
             {
-                if (UI.Toggle(FieldId.NormalizeToggle, "", enabled, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+                if (UI.Toggle(FieldId.NormalizeToggle, enabled, EditorStyle.Inspector.Toggle))
                 {
                     Undo.Record(Document);
                     Document.NormalizeTarget = enabled ? 0f : 0.9f;
@@ -237,8 +237,8 @@ internal partial class SoundEditor
     private static bool RandomToggle(WidgetId id, ref bool isExpanded)
     {
         ElementTree.BeginTree();
-        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isExpanded);
         ElementTree.BeginWidget(id);
+        ElementTree.SetWidgetFlag(id, WidgetFlags.Checked, isExpanded);
         var flags = ElementTree.GetWidgetFlags();
         var style = EditorStyle.Button.ToggleIcon.Resolve!(EditorStyle.Button.ToggleIcon, flags);
 

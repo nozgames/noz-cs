@@ -216,8 +216,8 @@ internal partial class CompositeSoundEditor
     private static bool RandomToggle(WidgetId id, ref bool isExpanded)
     {
         ElementTree.BeginTree();
-        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isExpanded);
         ElementTree.BeginWidget(id);
+        ElementTree.SetWidgetFlag(id, WidgetFlags.Checked, isExpanded);
         var flags = ElementTree.GetWidgetFlags();
         var style = EditorStyle.Button.ToggleIcon.Resolve!(EditorStyle.Button.ToggleIcon, flags);
 

@@ -34,6 +34,7 @@ internal static partial class ColorPicker
         public static partial WidgetId Intensity { get; }
         public static partial WidgetId EyeDropper { get; }
         public static partial WidgetId Popup { get; }
+        public static partial WidgetId SwatchGrid { get; }
     }
 
     private enum ColorMode
@@ -240,7 +241,7 @@ internal static partial class ColorPicker
 
             if (color != _prevColor)
             {
-                UI.NotifyChanged(color.GetHashCode());
+                UI.NotifyChanged(color);
                 _prevColor = color;
             }
         }
@@ -467,12 +468,13 @@ internal static partial class ColorPicker
 
         var nextPaletteItemId = ElementId.ColorPickerPaletteItem;
 
-        using var grid = UI.BeginGrid(new GridStyle
+        var swatchLayout = new CollectionLayout
         {
-            CellHeight = SwatchCellSize,
-            CellWidth = SwatchCellSize,
+            ItemHeight = SwatchCellSize,
+            ItemWidth = SwatchCellSize,
             Columns = SwatchColumns
-        });
+        };
+        using var grid = UI.BeginCollection(ElementId.SwatchGrid, swatchLayout, selectedPalette.Count, out var swatchStart, out var swatchEnd);
 
         for (int i = 0; i < selectedPalette.Count; i++)
         {

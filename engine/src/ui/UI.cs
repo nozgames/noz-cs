@@ -25,7 +25,6 @@ public static partial class UI
     public struct AutoScrollable : IDisposable { readonly void IDisposable.Dispose() => EndScrollable(); }
     public struct AutoFlex : IDisposable { readonly void IDisposable.Dispose() => EndFlex(); }
     public struct AutoPopup : IDisposable { readonly void IDisposable.Dispose() => EndPopup(); }
-    public struct AutoGrid : IDisposable { readonly void IDisposable.Dispose() => EndGrid(); }
     public struct AutoCollection : IDisposable { readonly void IDisposable.Dispose() => EndCollection(); }
     public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
     public struct AutoOpacity : IDisposable { readonly void IDisposable.Dispose() => EndOpacity(); }
@@ -216,35 +215,6 @@ public static partial class UI
     public static void SetScrollOffset(WidgetId elementId, float offset) =>
         ElementTree.SetScrollOffset(elementId, offset);
 
-    /// <summary>
-    /// Calculates the visible index range for a virtualized grid inside a scrollable.
-    /// Returns (startIndex, endIndex) where endIndex is exclusive.
-    /// </summary>
-    public static (int startIndex, int endIndex) GetGridCellRange(
-        WidgetId scrollId,
-        int columns,
-        float cellHeight,
-        float spacing,
-        float viewportHeight,
-        int totalCount)
-    {
-        if (totalCount <= 0) return (0, 0);
-
-        var scrollOffset = GetScrollOffset(scrollId);
-        var rowHeight = cellHeight + spacing;
-
-        // Calculate visible row range with 1-row buffer above and below
-        var totalRows = (totalCount + columns - 1) / columns;
-        var startRow = Math.Max(0, (int)(scrollOffset / rowHeight) - 1);
-        var visibleRows = (int)Math.Ceiling(viewportHeight / rowHeight) + 2;
-        var endRow = Math.Min(totalRows, startRow + visibleRows);
-
-        var startIndex = startRow * columns;
-        var endIndex = Math.Min(totalCount, endRow * columns);
-
-        return (startIndex, endIndex);
-    }
-
     public static Vector2 ScreenToUI(Vector2 screenPos) =>
         screenPos / Graphics.RenderSize.ToVector2() * _size;
 
@@ -422,33 +392,6 @@ public static partial class UI
         ElementTree.EndWidget();
     }
 
-    public static AutoGrid BeginGrid(GridStyle style)
-    {
-        ElementTree.BeginGrid(style.Spacing, style.Columns, style.CellWidth, style.CellHeight,
-            style.CellMinWidth, style.CellHeightOffset, style.VirtualCount, style.StartIndex);
-        return new AutoGrid();
-    }
-
-    public static (int columns, float cellWidth, float cellHeight) ResolveGridCellSize(
-        int columns, float cellWidth, float cellHeight,
-        float cellMinWidth, float cellHeightOffset,
-        float spacing, float availableWidth)
-    {
-        if (columns <= 0 && cellMinWidth > 0)
-            columns = Math.Max(1, (int)((availableWidth + spacing) / (cellMinWidth + spacing)));
-        columns = Math.Max(1, columns);
-
-        if (cellWidth <= 0)
-        {
-            cellWidth = Math.Max(0, (availableWidth - (columns - 1) * spacing) / columns);
-            cellHeight = cellWidth + cellHeightOffset;
-        }
-
-        return (columns, cellWidth, cellHeight);
-    }
-
-    public static void EndGrid() => ElementTree.EndGrid();
-
     public static AutoCollection BeginCollection(WidgetId scrollId, in CollectionLayout layout,
         int totalCount, out int start, out int end)
     {
@@ -461,6 +404,11 @@ public static partial class UI
         {
             start = 0;
             end = 0;
+        }
+        else if (viewportHeight <= 0)
+        {
+            start = 0;
+            end = totalCount;
         }
         else
         {

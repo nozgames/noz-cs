@@ -81,6 +81,11 @@ public static partial class UI
             false,
             s.Scope);
 
+        if (hasIcon)
+            ElementTree.EndRow();
+
+        ElementTree.EndTree();
+
         if (state.JustFocused != 0)
             SetHot(id, state.PrevTextHash);
 
@@ -89,12 +94,6 @@ public static partial class UI
 
         if (state.FocusExited != 0)
             ClearHot();
-
-        if (hasIcon)
-            ElementTree.EndRow();
-
-        SetLastElement(id);
-        ElementTree.EndTree();
 
         return value;
     }

@@ -109,15 +109,24 @@ public unsafe partial class WebGPUGraphicsDriver
         _wgpu.RenderPassEncoderSetVertexBuffer(_currentRenderPass, 0, mesh.VertexBuffer, 0, (ulong)(mesh.MaxVertices * mesh.Stride));
         _wgpu.RenderPassEncoderSetIndexBuffer(_currentRenderPass, mesh.IndexBuffer, IndexFormat.Uint16, 0, (ulong)(mesh.MaxIndices * sizeof(ushort)));
 
-        // Apply scissor state right before draw
         if (_state.ScissorEnabled)
         {
-            _wgpu.RenderPassEncoderSetScissorRect(
-                _currentRenderPass,
-                (uint)_state.Scissor.X,
-                (uint)(_state.Viewport.Height - _state.Scissor.Y - _state.Scissor.Height),
-                (uint)_state.Scissor.Width,
-                (uint)_state.Scissor.Height);
+            var sy = _state.Viewport.Height - _state.Scissor.Y - _state.Scissor.Height;
+            var sh = _state.Scissor.Height;
+            var sx = _state.Scissor.X;
+            var sw = _state.Scissor.Width;
+            if (sy < 0) { sh += sy; sy = 0; }
+            if (sx < 0) { sw += sx; sx = 0; }
+            
+            if (sw <= 0 || sh <= 0)
+                _wgpu.RenderPassEncoderSetScissorRect(_currentRenderPass, 0, 0, 0, 0);
+            else
+                _wgpu.RenderPassEncoderSetScissorRect(
+                    _currentRenderPass,
+                    (uint)sx,
+                    (uint)sy,
+                    (uint)Math.Min(sw, _state.Viewport.Width - sx),
+                    (uint)Math.Min(sh, _state.Viewport.Height - sy));
         }
         else
         {

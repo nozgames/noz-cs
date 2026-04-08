@@ -80,18 +80,6 @@ public struct TransformStyle()
     public Vector2 Scale = Vector2.One;
 }
 
-public struct GridStyle()
-{
-    public float Spacing = 0;
-    public int Columns = 3;
-    public float CellWidth = 100;
-    public float CellHeight = 100;
-    public float CellMinWidth = 0;
-    public float CellHeightOffset = 0;
-    public int VirtualCount = 0;
-    public int StartIndex = 0;
-}
-
 public struct CollectionLayout()
 {
     public int Columns = 1;

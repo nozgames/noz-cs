@@ -46,12 +46,6 @@ public static unsafe partial class ElementTree
     private static ref Element GetWidget(WidgetId id) =>
         ref GetElement(_widgets[id].Ptr->Index);
 
-    internal static void SetWidgetFlag(WidgetFlags flag, bool value)
-    {
-        if (value) _pendingWidgetFlags |= flag;
-        else _pendingWidgetFlags &= ~flag;
-    }
-
     public static bool IsHovered() => GetWidgetFlags().HasFlag(WidgetFlags.Hovered);
     public static bool IsDisabled() => GetWidgetFlags().HasFlag(WidgetFlags.Disabled);
     public static bool IsChecked() => GetWidgetFlags().HasFlag(WidgetFlags.Checked);
@@ -72,6 +66,12 @@ public static unsafe partial class ElementTree
     {
         if (IsValidWidgetId(id))
             GetWidgetState(id).Flags |= flag;
+    }
+
+    internal static void SetWidgetFlag(WidgetId id, WidgetFlags flag, bool value)
+    {
+        if (value) SetWidgetFlag(id, flag);
+        else ClearWidgetFlag(id, flag);
     }
 
     internal static void ClearWidgetFlag(WidgetId id, WidgetFlags flag)
@@ -178,8 +178,6 @@ public static unsafe partial class ElementTree
         e.Data.Widget.IsInteractive = interactive;
 
         state.Ptr->Index = e.Index;
-        state.Ptr->Flags |= _pendingWidgetFlags;
-        _pendingWidgetFlags = WidgetFlags.None;
 
         if (UI.IsDisabled())
             state.Ptr->Flags |= WidgetFlags.Disabled;
@@ -200,6 +198,7 @@ public static unsafe partial class ElementTree
 
     public static void EndWidget()
     {
+        _lastWidgetId = _currentWidget;
         EndElement(ElementType.Widget);
 
         _currentWidget = WidgetId.None;
@@ -214,4 +213,5 @@ public static unsafe partial class ElementTree
         }
     }
 
+    public static void SetLastWidget(WidgetId id) => _lastWidgetId = id;
 }

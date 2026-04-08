@@ -59,7 +59,7 @@ internal static partial class EditorUI
             UI.ClearHot();
         }
 
-        UI.SetLastElement(id);
+        ElementTree.SetLastWidget(id);
 
         // Return picked result
         if (_spritePickerHasResult && _spritePickerId == id)
@@ -67,7 +67,7 @@ internal static partial class EditorUI
             _spritePickerHasResult = false;
             _spritePickerId = WidgetId.None;
             var result = new DocumentRef<SpriteDocument> { Value = _spritePickerResult, Name = _spritePickerResult?.Name };
-            UI.NotifyChanged(result.GetHashCode());
+            UI.NotifyChanged(result);
             return result;
         }
 

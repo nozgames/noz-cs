@@ -712,11 +712,11 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             targetHeight = _surfaceHeight;
         }
 
-        var clampedScissor = scissor;
-        clampedScissor.X = Math.Max(0, scissor.X);
-        clampedScissor.Y = Math.Max(0, scissor.Y);
-        clampedScissor.Width = Math.Min(scissor.Width, targetWidth - scissor.X);
-        clampedScissor.Height = Math.Min(scissor.Height, targetHeight - scissor.Y);
+        var x1 = Math.Max(0, scissor.X);
+        var y1 = Math.Max(0, scissor.Y);
+        var x2 = Math.Min(scissor.X + scissor.Width, targetWidth);
+        var y2 = Math.Min(scissor.Y + scissor.Height, targetHeight);
+        var clampedScissor = new RectInt(x1, y1, x2 - x1, y2 - y1);
         if (clampedScissor.Width <= 0 || clampedScissor.Height <= 0)
             return;
 

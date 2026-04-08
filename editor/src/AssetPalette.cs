@@ -223,20 +223,13 @@ public static partial class AssetPalette
             using (UI.BeginFlex())
             using (UI.BeginScrollable(WidgetIds.AssetList))
             {
-                var cellHeight = EditorStyle.List.ItemHeight;
-                var scrollRect = UI.GetElementRect(WidgetIds.AssetList);
-                var (startIndex, endIndex) = UI.GetGridCellRange(
-                    WidgetIds.AssetList, 1, cellHeight, 0,
-                    scrollRect.Height, _filteredCount);
-
-                using (UI.BeginGrid(new GridStyle
+                var listLayout = new CollectionLayout
                 {
                     Columns = 1,
-                    CellWidth = scrollRect.Width,
-                    CellHeight = cellHeight,
-                    VirtualCount = _filteredCount,
-                    StartIndex = startIndex,
-                }))
+                    ItemHeight = EditorStyle.List.ItemHeight,
+                };
+
+                using (UI.BeginCollection(WidgetIds.AssetList, listLayout, _filteredCount, out var startIndex, out var endIndex))
                 {
                     for (var i = startIndex; i < endIndex; i++)
                     {
@@ -280,21 +273,15 @@ public static partial class AssetPalette
             using (UI.BeginFlex())
             using (UI.BeginScrollable(WidgetIds.AssetList))
             {
-                var cellHeight = GridCellSize + GridLabelHeight;
-                var viewportHeight = UI.GetElementRect(WidgetIds.AssetList).Height;
-                var (startIndex, endIndex) = UI.GetGridCellRange(
-                    WidgetIds.AssetList, GridColumns, cellHeight, GridCellSpacing,
-                    viewportHeight, _filteredCount);
-
-                using (UI.BeginGrid(new GridStyle
+                var gridLayout = new CollectionLayout
                 {
                     Columns = GridColumns,
-                    CellWidth = GridCellSize,
-                    CellHeight = cellHeight,
+                    ItemWidth = GridCellSize,
+                    ItemHeight = GridCellSize + GridLabelHeight,
                     Spacing = GridCellSpacing,
-                    VirtualCount = _filteredCount,
-                    StartIndex = startIndex,
-                }))
+                };
+
+                using (UI.BeginCollection(WidgetIds.AssetList, gridLayout, _filteredCount, out var startIndex, out var endIndex))
                 {
                     for (var i = startIndex; i < endIndex; i++)
                     {
@@ -306,7 +293,7 @@ public static partial class AssetPalette
                         using (UI.BeginColumn(WidgetIds.Item + i, new ContainerStyle
                         {
                             Width = GridCellSize,
-                            Height = cellHeight,
+                            Height = gridLayout.ItemHeight,
                         }))
                         {
                             using (UI.BeginContainer(new ContainerStyle

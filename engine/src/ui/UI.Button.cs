@@ -33,8 +33,8 @@ public static partial class UI
     public static bool Button(WidgetId id, string? text, Sprite? icon, in ButtonStyle style, bool isSelected = false)
     {
         ElementTree.BeginTree();
-        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isSelected);
         ElementTree.BeginWidget(id);
+        ElementTree.SetWidgetFlag(id, WidgetFlags.Checked, isSelected);
 
         var flags = ElementTree.GetWidgetFlags();
         var s = style.Resolve != null
@@ -83,8 +83,8 @@ public static partial class UI
     public static bool Button(WidgetId id, Action content, in ButtonStyle style, bool isSelected = false)
     {
         ElementTree.BeginTree();
-        ElementTree.SetWidgetFlag(WidgetFlags.Checked, isSelected);
         ElementTree.BeginWidget(id);
+        ElementTree.SetWidgetFlag(id, WidgetFlags.Checked, isSelected);
 
         var flags = ElementTree.GetWidgetFlags();
         var s = style.Resolve != null

@@ -85,10 +85,9 @@ public static partial class UI
         if (changed)
         {
             value = newValue;
-            NotifyChanged(newValue.GetHashCode());
+            NotifyChanged(newValue);
         }
 
-        SetLastElement(id);
         return changed;
     }
 

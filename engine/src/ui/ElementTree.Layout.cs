@@ -66,19 +66,15 @@ public static unsafe partial class ElementTree
             case ElementType.Flex:
                 return e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
 
-            case ElementType.Grid:
+            case ElementType.Collection:
             {
                 if (axis == 0) return 0;
-                ref var d = ref e.Data.Grid;
-                var (cols, cw, ch) = UI.ResolveGridCellSize(
-                    d.Columns, d.CellWidth, d.CellHeight,
-                    d.CellMinWidth, d.CellHeightOffset,
-                    d.Spacing, e.Rect.Width);
+                ref var d = ref e.Data.Collection;
+                var cols = Math.Max(1, d.Columns);
                 var totalItems = d.VirtualCount > 0 ? d.VirtualCount : e.ChildCount;
                 var rowCount = (totalItems + cols - 1) / cols;
-                return rowCount * ch + Math.Max(0, rowCount - 1) * d.Spacing;
+                return rowCount * d.ItemHeight + Math.Max(0, rowCount - 1) * d.Spacing;
             }
-            case ElementType.Collection:
             case ElementType.Popup:
                 return 0;
 
@@ -294,26 +290,6 @@ public static unsafe partial class ElementTree
                 size = e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, -1) : 0;
                 break;
 
-            case ElementType.Grid:
-            {
-                ref var d = ref e.Data.Grid;
-                if (axis == 0)
-                {
-                    size = available;
-                }
-                else
-                {
-                    var (cols, cw, ch) = UI.ResolveGridCellSize(
-                        d.Columns, d.CellWidth, d.CellHeight,
-                        d.CellMinWidth, d.CellHeightOffset,
-                        d.Spacing, e.Rect.Width);
-                    var totalItems = d.VirtualCount > 0 ? d.VirtualCount : e.ChildCount;
-                    var rowCount = (totalItems + cols - 1) / cols;
-                    size = rowCount * ch + Math.Max(0, rowCount - 1) * d.Spacing;
-                }
-                break;
-            }
-
             case ElementType.Collection:
             {
                 ref var d = ref e.Data.Collection;
@@ -391,9 +367,6 @@ public static unsafe partial class ElementTree
                 AdjustPopupPosition(ref e, axis, size);
                 LayoutChildrenAxis(ref e, e.Rect[axis], e.Rect.GetSize(axis), axis, -1);
                 break;
-            case ElementType.Grid:
-                LayoutGridAxis(ref e, axis);
-                break;
             case ElementType.Collection:
                 LayoutCollectionAxis(ref e, axis);
                 break;
@@ -444,31 +417,6 @@ public static unsafe partial class ElementTree
             state.Offset = maxScroll;
         if (state.Offset != 0)
             ApplyScrollOffset(ref e, state.Offset);
-    }
-
-    private static void LayoutGridAxis(ref Element e, int axis)
-    {
-        ref var d = ref e.Data.Grid;
-        var (columns, cellWidth, cellHeight) = UI.ResolveGridCellSize(
-            d.Columns, d.CellWidth, d.CellHeight,
-            d.CellMinWidth, d.CellHeightOffset,
-            d.Spacing, e.Rect.Width);
-
-        var childOffset = (int)e.FirstChild;
-        for (int i = 0; i < e.ChildCount; i++)
-        {
-            var virtualIndex = d.StartIndex + i;
-            var col = virtualIndex % columns;
-            var row = virtualIndex / columns;
-            var childPos = axis == 0
-                ? e.Rect.X + col * (cellWidth + d.Spacing)
-                : e.Rect.Y + row * (cellHeight + d.Spacing);
-            var childAvail = axis == 0 ? cellWidth : cellHeight;
-
-            ref var child = ref GetElement(childOffset);
-            LayoutAxis(childOffset, childPos, childAvail, axis, -1);
-            childOffset = child.NextSibling;
-        }
     }
 
     private static void LayoutCollectionAxis(ref Element e, int axis)

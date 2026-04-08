@@ -32,7 +32,7 @@ public partial class PixelSpriteEditor
         using (Inspector.BeginProperty("Export"))
         {
             var shouldExport = Document.ShouldExport;
-            if (UI.Toggle(WidgetIds.ExportToggle, "", shouldExport, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+            if (UI.Toggle(WidgetIds.ExportToggle, shouldExport, EditorStyle.Inspector.Toggle))
             {
                 shouldExport = !shouldExport;
                 Undo.Record(Document);

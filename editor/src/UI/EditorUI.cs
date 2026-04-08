@@ -93,17 +93,17 @@ internal static partial class EditorUI
         if (flags.HasFlag(WidgetFlags.Pressed))
         {
             state.OriginalColor = color;
-            UI.SetHot<Color>(id, color);
+            UI.SetHot(id, color);
             ColorPicker.Open(id, color, hdr, style);
         }
 
-        UI.SetLastElement(id);
+        ElementTree.SetLastWidget(id);
 
         var prev = color;
         ColorPicker.Popup(id, ref color);
 
         if (color != prev)
-            UI.NotifyChanged(color.GetHashCode());
+            UI.NotifyChanged(color);
 
         if (!ColorPicker.IsOpen(id) && UI.IsHot())
             UI.ClearHot();

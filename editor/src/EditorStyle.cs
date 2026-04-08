@@ -397,7 +397,7 @@ public static class EditorStyle
         Spacing = Control.Spacing,
         BorderRadius = Control.BorderRadius,
         Padding = EdgeInsets.LeftRight(7),
-        ArrowIcon = null,
+        ArrowIcon = EditorAssets.Sprites.IconFoldoutClosed,
         Resolve = (s, f) =>
         {
             if ((f & WidgetFlags.Disabled) != 0) return s with
@@ -665,6 +665,8 @@ public static class EditorStyle
             TitlePadding = EdgeInsets.LeftRight(10.0f),
             ShortcutColor = Palette.SecondaryText,
             SubmenuSpacing = Control.Spacing,
+            CheckIcon = EditorAssets.Sprites.IconCheck,
+            SubmenuIcon = EditorAssets.Sprites.IconSubmenu,
         };
     }
 
@@ -838,20 +840,17 @@ public static class EditorStyle
         public static readonly ToggleStyle Toggle = new()
         {
             Size = 16,
-            IconSize = Control.IconSize,
-            Spacing = 6,
-            FontSize = Control.TextSize,
+            CheckSize = Control.IconSize,
             BorderRadius = Control.BorderRadius,
             BorderWidth = 0,
-            Color = Palette.Control,
-            CheckedColor = Palette.Control,
+            Background = Palette.Control,
             BorderColor = Color.Transparent,
-            ContentColor = Palette.Content,
             CheckColor = Palette.Content,
+            CheckSprite = EditorAssets.Sprites.IconCheck,
             Resolve = (s, f) =>
             {
                 if ((f & WidgetFlags.Hovered) != 0)
-                    s.Color = Palette.Active;
+                    s.Background = Palette.Active;
                 return s;
             },
         };
@@ -1326,10 +1325,6 @@ public static class EditorStyle
 
     public static void Init()
     {
-        ContextMenu.Style.CheckIcon = EditorAssets.Sprites.IconCheck;
-        ContextMenu.Style.SubmenuIcon = EditorAssets.Sprites.IconSubmenu;
-        DropDown.ArrowIcon = EditorAssets.Sprites.IconFoldoutClosed;
-
         Style.DropDown = DropDown;
         Style.PopupMenu = ContextMenu.Style;
         Style.TextInput = EditorStyle.TextInput;

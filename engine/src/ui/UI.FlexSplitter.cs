@@ -73,7 +73,6 @@ public static partial class UI
         var changed = newSize != size;
         size = newSize;
 
-        SetLastElement(id);
         return changed;
     }
 

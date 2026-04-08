@@ -160,31 +160,6 @@ public static unsafe partial class ElementTree
 
     public static void EndTransform() => EndElement(ElementType.Transform);
 
-    public static int BeginGrid(
-        float spacing,
-        int columns,
-        float cellWidth,
-        float cellHeight,
-        float cellMinWidth,
-        float cellHeightOffset,
-        int virtualCount,
-        int startIndex)
-    {
-        ref var e = ref BeginElement(ElementType.Grid);
-        ref var d = ref e.Data.Grid;
-        d.Spacing = spacing;
-        d.Columns = columns;
-        d.CellWidth = cellWidth;
-        d.CellHeight = cellHeight;
-        d.CellMinWidth = cellMinWidth;
-        d.CellHeightOffset = cellHeightOffset;
-        d.VirtualCount = virtualCount;
-        d.StartIndex = startIndex;
-        return e.Index;
-    }
-
-    public static void EndGrid() => EndElement(ElementType.Grid);
-
     public static int BeginCollection(float spacing, int columns, float itemWidth, float itemHeight,
         int virtualCount, int startIndex)
     {

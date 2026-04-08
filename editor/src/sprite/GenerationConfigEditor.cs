@@ -136,7 +136,7 @@ public partial class GenerationConfigEditor : DocumentEditor
 
         using (Inspector.BeginProperty("Remove Background"))
         {
-            if (UI.Toggle(WidgetIds.RemoveBackground, "", Document.RemoveBackground, EditorStyle.Inspector.Toggle, EditorAssets.Sprites.IconCheck))
+            if (UI.Toggle(WidgetIds.RemoveBackground, Document.RemoveBackground, EditorStyle.Inspector.Toggle))
             {
                 Undo.Record(Document);
                 Document.RemoveBackground = !Document.RemoveBackground;

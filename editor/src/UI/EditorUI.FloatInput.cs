@@ -42,11 +42,10 @@ internal static partial class EditorUI
             value = Math.Clamp(parsed, min, max);
 
         ElementTree.BeginMargin(EdgeInsets.Left(4));
-        value = ScrubHandle(id, value, step, fineStep, min, max, style.TextColor, out var scrubWasActive);
+        value = ScrubHandle(id, value, step, fineStep, min, max, style.TextColor);
         ElementTree.EndMargin();
 
-        if (scrubWasActive)
-            UI.SetLastElement(id);
+        ElementTree.SetLastWidget(id);
 
         return value;
     }
@@ -58,14 +57,12 @@ internal static partial class EditorUI
         float fineStep,
         float min,
         float max,
-        Color color,
-        out bool wasActive)
+        Color color)
     {
         ElementTree.BeginSize(EditorStyle.Icon.LargeSize, Size.Default);
         ElementTree.BeginCursor(SystemCursor.ResizeEW);
         ref var state = ref ElementTree.BeginWidget<ScrubState>(id);
         var flags = ElementTree.GetWidgetFlags();
-        wasActive = state.Active != 0;
 
         ElementTree.Image(EditorAssets.Sprites.IconScrub, EditorStyle.Icon.LargeSize, ImageStretch.Uniform, color, align: Align.Center);
 
@@ -118,7 +115,7 @@ internal static partial class EditorUI
                 if (newValue != value)
                 {
                     value = newValue;
-                    UI.NotifyChanged(newValue.GetHashCode());
+                    UI.NotifyChanged(newValue);
                 }
 
                 if (!Input.IsButtonDownRaw(InputCode.MouseLeft))
@@ -134,7 +131,7 @@ internal static partial class EditorUI
         ElementTree.EndWidget();
         ElementTree.EndCursor();
         ElementTree.EndSize();
-        UI.SetLastElement(id);
+        ElementTree.SetLastWidget(id);
         return value;
     }
 }
