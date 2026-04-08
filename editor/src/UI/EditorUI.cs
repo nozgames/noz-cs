@@ -202,18 +202,13 @@ internal static partial class EditorUI
 
     // --- Color Button ---
 
-    public static bool ColorButton(WidgetId id, ref Color color, bool fillWidth=false)
+    private struct ColorButtonState
     {
-        ElementTree.BeginTree();
-        ElementTree.BeginWidget(id);
+        public Color OriginalColor;
+    }
 
-        var flags = ElementTree.GetWidgetFlags();
-
-        if (fillWidth)
-            ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
-        else
-            ElementTree.BeginSize(EditorStyle.Control.Height);
-
+    private static void DrawColorButtonContent(Color color)
+    {
         if (color.A == 0)
         {
             ElementTree.BeginPadding(4);
@@ -222,17 +217,15 @@ internal static partial class EditorUI
         }
         else
         {
-            // HDR color?
             var maxComponent = MathF.Max(color.R, MathF.Max(color.G, color.B));
             if (maxComponent > 1f)
             {
-                // HDR: gradient from base color to full intensity
                 var baseColor = new Color(color.R / maxComponent, color.G / maxComponent, color.B / maxComponent);
                 var brightColor = new Color(
                     MathF.Min(color.R, 1f),
                     MathF.Min(color.G, 1f),
                     MathF.Min(color.B, 1f));
-                
+
                 ElementTree.BeginRow();
                 ElementTree.BeginFlex();
                 ElementTree.Fill(new BackgroundStyle
@@ -255,7 +248,6 @@ internal static partial class EditorUI
                 ElementTree.EndFlex();
                 ElementTree.EndRow();
 
-                // Border
                 ElementTree.Fill(Color.Transparent, EditorStyle.Control.BorderRadius, 4, EditorStyle.Palette.Control);
             }
             else
@@ -277,17 +269,40 @@ internal static partial class EditorUI
             ElementTree.EndAlign();
             ElementTree.EndPadding();
         }
+    }
 
+    public static Color ColorButton(WidgetId id, Color color, bool fillWidth = false, bool hdr = false)
+    {
+        ElementTree.BeginTree();
+        ref var state = ref ElementTree.BeginWidget<ColorButtonState>(id);
+        var flags = ElementTree.GetWidgetFlags();
+
+        if (fillWidth)
+            ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
+        else
+            ElementTree.BeginSize(EditorStyle.Control.Height);
+
+        DrawColorButtonContent(color);
         ElementTree.EndTree();
 
         if (flags.HasFlag(WidgetFlags.Pressed))
-            ColorPicker.Open(id, color);
+        {
+            state.OriginalColor = color;
+            UI.SetHot<Color>(id, color);
+            ColorPicker.Open(id, color, hdr);
+        }
 
         var prev = color;
         ColorPicker.Popup(id, ref color);
-        UI.SetLastElement(id);
 
-        return color != prev;
+        if (color != prev)
+            UI.NotifyChanged(color.GetHashCode());
+
+        if (!ColorPicker.IsOpen(id) && UI.IsHot())
+            UI.ClearHot();
+
+        UI.SetLastElement(id);
+        return color;
     }
 
     // --- Sprite Button ---

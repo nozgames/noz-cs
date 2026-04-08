@@ -77,6 +77,7 @@ public static class EditorAssets
         public const string IconRefresh = "icon_refresh";
         public const string IconRemove = "icon_remove";
         public const string IconRootMotion = "icon_root_motion";
+        public const string IconScrub = "icon_scrub";
         public const string IconSearch = "icon_search";
         public const string IconSeed = "icon_seed";
         public const string IconSelect = "icon_select";
@@ -255,6 +256,7 @@ public static class EditorAssets
         public static readonly Sprite IconRefresh = new();
         public static readonly Sprite IconRemove = new();
         public static readonly Sprite IconRootMotion = new();
+        public static readonly Sprite IconScrub = new();
         public static readonly Sprite IconSearch = new();
         public static readonly Sprite IconSeed = new();
         public static readonly Sprite IconSelect = new();
@@ -340,6 +342,7 @@ public static class EditorAssets
             IconRefresh.Load(Names.IconRefresh, atlas);
             IconRemove.Load(Names.IconRemove, atlas);
             IconRootMotion.Load(Names.IconRootMotion, atlas);
+            IconScrub.Load(Names.IconScrub, atlas);
             IconSearch.Load(Names.IconSearch, atlas);
             IconSeed.Load(Names.IconSeed, atlas);
             IconSelect.Load(Names.IconSelect, atlas);
@@ -426,6 +429,7 @@ public static class EditorAssets
             IconRefresh.Reload();
             IconRemove.Reload();
             IconRootMotion.Reload();
+            IconScrub.Reload();
             IconSearch.Reload();
             IconSeed.Reload();
             IconSelect.Reload();
@@ -512,6 +516,7 @@ public static class EditorAssets
             IconRefresh.Dispose();
             IconRemove.Dispose();
             IconRootMotion.Dispose();
+            IconScrub.Dispose();
             IconSearch.Dispose();
             IconSeed.Dispose();
             IconSelect.Dispose();

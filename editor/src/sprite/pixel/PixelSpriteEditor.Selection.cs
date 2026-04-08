@@ -116,6 +116,172 @@ public partial class PixelSpriteEditor
         return new RectInt(minX, minY, maxX - minX, maxY - minY);
     }
 
+    private readonly List<PixelLayer> _selectedLayers = [];
+
+    public List<PixelLayer> GetSelectedLayers()
+    {
+        _selectedLayers.Clear();
+        CollectSelectedLayers(Document.Root);
+
+        // Fallback: nothing selected → use active layer
+        if (_selectedLayers.Count == 0 && ActiveLayer is { Pixels: not null } active)
+            _selectedLayers.Add(active);
+
+        return _selectedLayers;
+    }
+
+    private void CollectSelectedLayers(SpriteNode node)
+    {
+        if (node.IsSelected)
+        {
+            if (node is SpriteGroup)
+            {
+                node.Collect(_selectedLayers, layer => layer.Pixels != null);
+                return;
+            }
+
+            if (node is PixelLayer { Pixels: not null } layer)
+            {
+                _selectedLayers.Add(layer);
+                return;
+            }
+        }
+
+        foreach (var child in node.Children)
+            CollectSelectedLayers(child);
+    }
+
+    public void FitSelectionToContent()
+    {
+        if (Document.SelectionMask == null) return;
+
+        var sb = GetSelectionBounds();
+        if (sb == null) { ClearSelection(); return; }
+
+        var s = sb.Value;
+        var minX = s.X + s.Width;
+        var minY = s.Y + s.Height;
+        var maxX = s.X;
+        var maxY = s.Y;
+
+        var hasContent = false;
+        var layers = GetSelectedLayers();
+        foreach (var layer in layers)
+        {
+            if (layer.Pixels == null) continue;
+            for (var y = s.Y; y < s.Y + s.Height; y++)
+                for (var x = s.X; x < s.X + s.Width; x++)
+                {
+                    if (!IsPixelSelected(x, y)) continue;
+                    if (!IsPixelInBounds(new Vector2Int(x, y))) continue;
+                    if (layer.Pixels[x, y].A == 0) continue;
+
+                    hasContent = true;
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x >= maxX) maxX = x + 1;
+                    if (y >= maxY) maxY = y + 1;
+                }
+        }
+
+        if (!hasContent) { ClearSelection(); return; }
+
+        ApplyRectSelection(new RectInt(minX, minY, maxX - minX, maxY - minY), SelectionOp.Replace);
+    }
+
+    private void CopySelected()
+    {
+        if (!HasSelection)
+        {
+            var layers = GetSelectedLayers();
+            if (layers.Count == 0) return;
+            Clipboard.Copy(new SpriteClipboardData(layers));
+            return;
+        }
+
+        var bounds = GetSelectionBounds();
+        if (bounds == null) return;
+
+        var selectedLayers = GetSelectedLayers();
+        if (selectedLayers.Count == 0) return;
+
+        Clipboard.Copy(new PixelClipboardData(selectedLayers, Document.SelectionMask, bounds.Value));
+    }
+
+    private void PasteSelected()
+    {
+        var nodeData = Clipboard.Get<SpriteClipboardData>();
+        if (nodeData != null)
+        {
+            Undo.Record(Document);
+            var nodes = nodeData.PasteAsNodes();
+            foreach (var node in nodes)
+                Document.Root.Insert(0, node);
+            InvalidateComposite();
+            return;
+        }
+
+        var pixelData = Clipboard.Get<PixelClipboardData>();
+        if (pixelData == null) return;
+
+        var targetLayer = ActiveLayer;
+        if (targetLayer?.Pixels == null) return;
+
+        Undo.Record(Document);
+
+        var src = pixelData.SourceRect;
+        var entry = pixelData.Layers[0];
+        for (var y = 0; y < src.Height; y++)
+            for (var x = 0; x < src.Width; x++)
+            {
+                if (pixelData.Mask != null && pixelData.Mask[x, y] == 0) continue;
+                var c = entry.Pixels[x, y];
+                if (c.A == 0) continue;
+                var dx = src.X + x;
+                var dy = src.Y + y;
+                if (IsPixelInBounds(new Vector2Int(dx, dy)))
+                    targetLayer.Pixels.Set(dx, dy, c);
+            }
+
+        ApplyRectSelection(src, SelectionOp.Replace);
+        InvalidateComposite();
+        SetMode(new PixelTransformMode());
+    }
+
+    private void CutSelected()
+    {
+        if (!HasSelection && GetSelectedLayers().Count == 0) return;
+        CopySelected();
+
+        if (HasSelection)
+            DeleteSelected();
+        else
+            DeleteActiveLayer();
+    }
+
+    private void DuplicateSelected()
+    {
+        if (!HasSelection)
+        {
+            var layers = GetSelectedLayers();
+            if (layers.Count == 0) return;
+
+            Undo.Record(Document);
+            foreach (var layer in layers)
+            {
+                var clone = layer.Clone();
+                clone.IsSelected = true;
+                layer.IsSelected = false;
+                layer.Parent?.Insert(0, clone);
+            }
+            InvalidateComposite();
+            return;
+        }
+
+        CopySelected();
+        PasteSelected();
+    }
+
     public void DrawSelectionRect(Rect selRect)
     {
         using (Gizmos.PushState(EditorLayer.Tool))

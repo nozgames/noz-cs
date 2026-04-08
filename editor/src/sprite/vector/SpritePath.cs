@@ -41,8 +41,6 @@ public class SpritePath : SpriteNode
     public bool Open { get => Contours[0].Open; set => Contours[0].Open = value; }
 
     public Color32 FillColor { get; set; } = Color32.White;
-    public SpriteFillType FillType { get; set; } = SpriteFillType.Solid;
-    public SpriteFillGradient FillGradient { get; set; }
     public Color32 StrokeColor { get; set; } = new(0, 0, 0, 0);
     public byte StrokeWidth { get; set; }
     public SpritePathOperation Operation { get; set; } = SpritePathOperation.Normal;
@@ -70,23 +68,6 @@ public class SpritePath : SpriteNode
                  * Matrix3x2.CreateTranslation(center)
                  * Matrix3x2.CreateTranslation(PathTranslation);
         }
-    }
-
-    public void InitializeDefaultGradient()
-    {
-        UpdateSamples();
-        UpdateBounds();
-        var b = LocalBounds;
-        if (b.Width == 0 && b.Height == 0) return;
-        var g = FillGradient;
-        g.Start = new Vector2(b.Center.X, b.Top);
-        g.End = new Vector2(b.Center.X, b.Bottom);
-        if (g.StartColor.A == 0 && g.EndColor.A == 0)
-        {
-            g.StartColor = FillColor;
-            g.EndColor = Color32.White;
-        }
-        FillGradient = g;
     }
 
     public Rect LocalBounds { get; private set; }
@@ -848,8 +829,6 @@ public class SpritePath : SpriteNode
         var newPath = new SpritePath
         {
             FillColor = FillColor,
-            FillType = FillType,
-            FillGradient = FillGradient,
             StrokeColor = StrokeColor,
             StrokeWidth = StrokeWidth,
             Operation = Operation,
@@ -866,8 +845,6 @@ public class SpritePath : SpriteNode
         var clone = new SpritePath
         {
             FillColor = FillColor,
-            FillType = FillType,
-            FillGradient = FillGradient,
             StrokeColor = StrokeColor,
             StrokeWidth = StrokeWidth,
             Operation = Operation,

@@ -524,8 +524,8 @@ public static partial class ElementTree
 
         var srcSize = new Vector2(d.Width, d.Height);
         var dstSize = new Vector2(
-            d.Size.Width.IsPercent ? e.Rect.Width * d.Size.Width.Value : e.Rect.Width,
-            d.Size.Height.IsPercent ? e.Rect.Height * d.Size.Height.Value : e.Rect.Height);
+            d.Size.Width.IsFixed ? d.Size.Width.Value : (d.Size.Width.IsPercent ? e.Rect.Width * d.Size.Width.Value : e.Rect.Width),
+            d.Size.Height.IsFixed ? d.Size.Height.Value : (d.Size.Height.IsPercent ? e.Rect.Height * d.Size.Height.Value : e.Rect.Height));
         var scale = GetImageScale(d.Stretch, srcSize, dstSize);
         var scaledSize = scale * srcSize;
         var alignFactor = new Vector2(d.Align.X.ToFactor(), d.Align.Y.ToFactor());
@@ -638,6 +638,18 @@ public static partial class ElementTree
                 return;
         }
 
+        if (d.PixelPerfect)
+        {
+            var ppu = Graphics.PixelsPerUnit;
+            var screenAspect = (float)rtW / rtH;
+            var cameraWidth = camera.ConfiguredWidth;
+            if (cameraWidth > 0)
+            {
+                rtW = (int)MathF.Ceiling(cameraWidth * ppu);
+                rtH = (int)MathF.Round(rtW / screenAspect);
+            }
+        }
+
         var rt = RenderTexturePool.Acquire(rtW, rtH, d.SampleCount);
 
         // Store RT info keyed by the parent widget ID (if any)
@@ -688,7 +700,7 @@ public static partial class ElementTree
         {
             Graphics.SetShader(_textureShader);
             Graphics.SetColor(ApplyOpacity(Color.White));
-            Graphics.SetTextureFilter(TextureFilter.Linear);
+            Graphics.SetTextureFilter(d.PixelPerfect ? TextureFilter.Point : TextureFilter.Linear);
             Graphics.Draw(blitRT, topLeft, bottomRight);
         }
     }

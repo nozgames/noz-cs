@@ -67,6 +67,17 @@ public static unsafe partial class ElementTree
                 return e.ChildCount > 0 ? FitAxis(e.FirstChild, axis, layoutAxis) : 0;
 
             case ElementType.Grid:
+            {
+                if (axis == 0) return 0;
+                ref var d = ref e.Data.Grid;
+                var (cols, cw, ch) = UI.ResolveGridCellSize(
+                    d.Columns, d.CellWidth, d.CellHeight,
+                    d.CellMinWidth, d.CellHeightOffset,
+                    d.Spacing, e.Rect.Width);
+                var totalItems = d.VirtualCount > 0 ? d.VirtualCount : e.ChildCount;
+                var rowCount = (totalItems + cols - 1) / cols;
+                return rowCount * ch + Math.Max(0, rowCount - 1) * d.Spacing;
+            }
             case ElementType.Collection:
             case ElementType.Popup:
                 return 0;
@@ -252,10 +263,10 @@ public static unsafe partial class ElementTree
             case ElementType.Image:
             {
                 ref var d = ref e.Data.Image;
-                if (d.Size[axis].IsFixed)
-                    size = d.Size[axis].Value;
-                else if (d.Size[axis].IsPercent)
+                if (d.Size[axis].IsPercent)
                     size = available;
+                else if (d.Size[axis].IsFixed)
+                    size = available > 0 ? available : d.Size[axis].Value;
                 else
                     size = available > 0 ? available : (axis == 0 ? d.Width : d.Height) * d.Scale;
                 break;

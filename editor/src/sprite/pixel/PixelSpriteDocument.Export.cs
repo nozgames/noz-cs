@@ -2,6 +2,9 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace NoZ.Editor;
 
 public partial class PixelSpriteDocument
@@ -48,6 +51,28 @@ public partial class PixelSpriteDocument
                 new Vector2Int(w + padding2, h + padding2) - new Vector2Int(p * 2, p * 2));
             image.ExtrudeEdges(padRect);
         }
+    }
+
+    public byte[] RasterizeColorToPng()
+    {
+        var w = RasterBounds.Width;
+        var h = RasterBounds.Height;
+        if (w <= 0 || h <= 0) return [];
+
+        if (Root.Children.Count == 0)
+            return [];
+
+        var srcX = RasterBounds.X + CanvasSize.X / 2;
+        var srcY = RasterBounds.Y + CanvasSize.Y / 2;
+
+        using var pixels = new PixelData<Color32>(w, h);
+        var rasterRect = new RectInt(0, 0, w, h);
+        RasterizePixelLayersRecursive(Root, pixels, rasterRect, srcX, srcY, w, h);
+
+        using var image = Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), w, h);
+        using var ms = new MemoryStream();
+        image.SaveAsPng(ms);
+        return ms.ToArray();
     }
 
     private static void RasterizePixelLayersRecursive(

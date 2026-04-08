@@ -74,6 +74,7 @@ public class PixelRectSelectMode : EditorMode<PixelSpriteEditor>
             op = SelectionOp.Replace;
 
         Editor.ApplyRectSelection(rect, op);
+        Editor.FitSelectionToContent();
     }
 
     public override void Draw()

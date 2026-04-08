@@ -7,6 +7,8 @@ namespace NoZ.Editor;
 public partial class PixelSpriteEditor
 {
     private const int PreviewCellSize = 25;
+    private const int PreviewPadding = 1;
+    private const int PreviewContentSize = PreviewCellSize - PreviewPadding * 2;
     private const int PreviewAtlasSize = 512;
     private const int PreviewCellsPerRow = PreviewAtlasSize / PreviewCellSize;
     private const int MaxPreviewSlots = PreviewCellsPerRow * PreviewCellsPerRow;
@@ -73,17 +75,17 @@ public partial class PixelSpriteEditor
             var idx = _previewSprites.Count;
             var col = idx % PreviewCellsPerRow;
             var row = idx / PreviewCellsPerRow;
-            var u0 = col * PreviewCellSize / (float)PreviewAtlasSize;
-            var v0 = row * PreviewCellSize / (float)PreviewAtlasSize;
-            var u1 = u0 + PreviewCellSize / (float)PreviewAtlasSize;
-            var v1 = v0 + PreviewCellSize / (float)PreviewAtlasSize;
+            var u0 = (col * PreviewCellSize + PreviewPadding) / (float)PreviewAtlasSize;
+            var v0 = (row * PreviewCellSize + PreviewPadding) / (float)PreviewAtlasSize;
+            var u1 = u0 + PreviewContentSize / (float)PreviewAtlasSize;
+            var v1 = v0 + PreviewContentSize / (float)PreviewAtlasSize;
 
             var sprite = Sprite.Create(
                 name: $"preview_{idx}",
-                bounds: new RectInt(0, 0, PreviewCellSize, PreviewCellSize),
-                pixelsPerUnit: PreviewCellSize,
+                bounds: new RectInt(0, 0, PreviewContentSize, PreviewContentSize),
+                pixelsPerUnit: PreviewContentSize,
                 boneIndex: -1,
-                frames: [new SpriteFrame(Rect.FromMinMax(u0, v0, u1, v1), Vector2Int.Zero, new Vector2Int(PreviewCellSize, PreviewCellSize))],
+                frames: [new SpriteFrame(Rect.FromMinMax(u0, v0, u1, v1), Vector2Int.Zero, new Vector2Int(PreviewContentSize, PreviewContentSize))],
                 atlas: _previewAtlas,
                 filter: TextureFilter.Point);
 
@@ -95,10 +97,10 @@ public partial class PixelSpriteEditor
     {
         _slotGenerations[node.PreviewIndex] = node.PreviewGeneration;
         var slot = node.PreviewIndex;
-        var cellX = (slot % PreviewCellsPerRow) * PreviewCellSize;
-        var cellY = (slot / PreviewCellsPerRow) * PreviewCellSize;
+        var cellX = (slot % PreviewCellsPerRow) * PreviewCellSize + PreviewPadding;
+        var cellY = (slot / PreviewCellsPerRow) * PreviewCellSize + PreviewPadding;
 
-        // Clear cell
+        // Clear content area
         ClearPreviewCell(cellX, cellY);
 
         if (node is PixelLayer layer)
@@ -112,10 +114,10 @@ public partial class PixelSpriteEditor
 
     private void ClearPreviewCell(int cellX, int cellY)
     {
-        for (var y = 0; y < PreviewCellSize; y++)
+        for (var y = 0; y < PreviewContentSize; y++)
         {
             var rowStart = ((cellY + y) * PreviewAtlasSize + cellX) * 4;
-            Array.Clear(_previewAtlasData, rowStart, PreviewCellSize * 4);
+            Array.Clear(_previewAtlasData, rowStart, PreviewContentSize * 4);
         }
     }
 
@@ -140,8 +142,8 @@ public partial class PixelSpriteEditor
         var ur = unionRect.Value;
 
         // Composite into a temp buffer at preview size, then copy to atlas
-        var tempW = PreviewCellSize;
-        var tempH = PreviewCellSize;
+        var tempW = PreviewContentSize;
+        var tempH = PreviewContentSize;
         Span<Color32> temp = stackalloc Color32[tempW * tempH];
         temp.Clear();
 
@@ -206,22 +208,22 @@ public partial class PixelSpriteEditor
     private void BlitScaled(PixelData<Color32> pixels, in RectInt sourceRect, int cellX, int cellY)
     {
         // Compute fit scale preserving aspect ratio
-        var scaleX = (float)PreviewCellSize / sourceRect.Width;
-        var scaleY = (float)PreviewCellSize / sourceRect.Height;
+        var scaleX = (float)PreviewContentSize / sourceRect.Width;
+        var scaleY = (float)PreviewContentSize / sourceRect.Height;
         var scale = MathF.Min(scaleX, scaleY);
-        var dstW = (int)MathF.Ceiling(sourceRect.Width * scale);
-        var dstH = (int)MathF.Ceiling(sourceRect.Height * scale);
-        var offsetX = (PreviewCellSize - dstW) / 2;
-        var offsetY = (PreviewCellSize - dstH) / 2;
+        var dstW = Math.Min((int)MathF.Ceiling(sourceRect.Width * scale), PreviewContentSize);
+        var dstH = Math.Min((int)MathF.Ceiling(sourceRect.Height * scale), PreviewContentSize);
+        var offsetX = (PreviewContentSize - dstW) / 2;
+        var offsetY = (PreviewContentSize - dstH) / 2;
 
         for (var y = 0; y < dstH; y++)
         {
-            var srcY = sourceRect.Y + (int)(y / scale);
+            var srcY = sourceRect.Y + y * (sourceRect.Height - 1) / Math.Max(dstH - 1, 1);
             if (srcY >= pixels.Height) continue;
 
             for (var x = 0; x < dstW; x++)
             {
-                var srcX = sourceRect.X + (int)(x / scale);
+                var srcX = sourceRect.X + x * (sourceRect.Width - 1) / Math.Max(dstW - 1, 1);
                 if (srcX >= pixels.Width) continue;
 
                 var c = pixels[srcX, srcY];
@@ -241,19 +243,19 @@ public partial class PixelSpriteEditor
         var scaleX = (float)destW / sourceRect.Width;
         var scaleY = (float)destH / sourceRect.Height;
         var scale = MathF.Min(scaleX, scaleY);
-        var dstW = (int)MathF.Ceiling(sourceRect.Width * scale);
-        var dstH = (int)MathF.Ceiling(sourceRect.Height * scale);
+        var dstW = Math.Min((int)MathF.Ceiling(sourceRect.Width * scale), destW);
+        var dstH = Math.Min((int)MathF.Ceiling(sourceRect.Height * scale), destH);
         var offsetX = (destW - dstW) / 2;
         var offsetY = (destH - dstH) / 2;
 
         for (var y = 0; y < dstH; y++)
         {
-            var srcY = sourceRect.Y + (int)(y / scale);
+            var srcY = sourceRect.Y + y * (sourceRect.Height - 1) / Math.Max(dstH - 1, 1);
             if (srcY >= pixels.Height) continue;
 
             for (var x = 0; x < dstW; x++)
             {
-                var srcX = sourceRect.X + (int)(x / scale);
+                var srcX = sourceRect.X + x * (sourceRect.Width - 1) / Math.Max(dstW - 1, 1);
                 if (srcX >= pixels.Width) continue;
 
                 var src = pixels[srcX, srcY];

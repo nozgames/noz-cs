@@ -92,11 +92,7 @@ public partial class VectorSpriteDocument
                 if (contours.Count == 0) continue;
             }
 
-            if (result.FillType == SpriteFillType.Linear)
-                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi,
-                    result.FillType, result.Color, result.Gradient, result.GradientTransform);
-            else
-                Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
+            Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
         }
     }
 

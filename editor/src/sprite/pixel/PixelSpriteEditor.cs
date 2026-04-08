@@ -37,13 +37,10 @@ public partial class PixelSpriteEditor : SpriteEditor
         {
             if (value is not { Pixels: not null }) return;
             if (value == _activeLayer) return;
-
-            if (Mode is PixelMoveMode { IsLifted: true })
-                SetMode(new PencilMode());
-
-            ClearSelection();
             _activeLayer = value;
             Document.ActiveLayerName = value.Name;
+            if (Mode is IActiveLayerHandler handler)
+                handler.OnActiveLayerChanged(this);
         }
     }
 
@@ -51,12 +48,7 @@ public partial class PixelSpriteEditor : SpriteEditor
     public SpriteNode? SelectedNode
     {
         get => _selectedNode;
-        set
-        {
-            _selectedNode = value;
-            if (value is PixelLayer layer)
-                ActiveLayer = layer;
-        }
+        set => _selectedNode = value;
     }
 
     private Texture? _canvasTexture;
@@ -70,7 +62,7 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     private int CurrentFrameIndex => Document.GetFrameAtTimeSlot(_currentTimeSlot);
 
-    private const float CanvasPPU = 32f;
+    private float CanvasPPU => Document.PixelsPerUnitOverride ?? 32f;
 
     private int GetMaxWorkingSize()
     {
@@ -121,13 +113,17 @@ public partial class PixelSpriteEditor : SpriteEditor
             new Command("Eraser", () => SetMode(new PixelEraserMode()), [new KeyBinding(InputCode.KeyE)]),
             new Command("Rect Select", () => SetMode(new PixelRectSelectMode()), [new KeyBinding(InputCode.KeyM)]),
             new Command("Lasso Select", () => SetMode(new PixelLassoSelectMode()), [new KeyBinding(InputCode.KeyL)]),
-            new Command("Move", () => SetMode(new PixelMoveMode()), [new KeyBinding(InputCode.KeyV)]),
+            new Command("Move", () => SetMode(new PixelTransformMode()), [new KeyBinding(InputCode.KeyV)]),
             new Command("Eye Dropper", () => SetMode(new PixelEyeDropperMode()), [new KeyBinding(InputCode.KeyI)]),
             new Command("Fill", () => SetMode(new PixelFillMode()), [new KeyBinding(InputCode.KeyG)]),
             new Command("Select All", SelectAll, [new KeyBinding(InputCode.KeyA, ctrl: true)]),
-            new Command("Deselect", ClearSelection, [new KeyBinding(InputCode.KeyD, ctrl: true)]),
+            new Command("Deselect", ClearSelection, [new KeyBinding(InputCode.KeyD, ctrl: true, shift: true)]),
             new Command("Invert Selection", InvertSelection, [new KeyBinding(InputCode.KeyI, ctrl: true, shift: true)]),
             new Command("Toggle Brush/Eraser", ToggleBrushEraser, [new KeyBinding(InputCode.KeyX)]),
+            new Command("Copy", CopySelected, [new KeyBinding(InputCode.KeyC, ctrl: true)]),
+            new Command("Paste", PasteSelected, [new KeyBinding(InputCode.KeyV, ctrl: true)]),
+            new Command("Cut", CutSelected, [new KeyBinding(InputCode.KeyX, ctrl: true)]),
+            new Command("Duplicate", DuplicateSelected, [new KeyBinding(InputCode.KeyD, ctrl: true)]),
             new Command("Delete", Delete, [InputCode.KeyDelete]),
             new Command("Increase Brush", () => BrushSize = Math.Min(BrushSize + 1, 16), [InputCode.KeyRightBracket]),
             new Command("Decrease Brush", () => BrushSize = Math.Max(BrushSize - 1, 1), [InputCode.KeyLeftBracket]),
@@ -140,6 +136,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             new Command("Delete Frame",        DeleteCurrentFrame, [new KeyBinding(InputCode.KeyX, shift: true)]),
             new Command("Add Hold",            AddHoldFrame,       [new KeyBinding(InputCode.KeyH)]),
             new Command("Remove Hold",         RemoveHoldFrame,    [new KeyBinding(InputCode.KeyH, ctrl: true)]),
+            new Command("Export to PNG",      ExportToPng,        [new KeyBinding(InputCode.KeyE, ctrl: true, shift: true)]),
         ];
 
         // Ensure at least one layer exists
@@ -277,7 +274,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         DrawCanvas();
         if (Document.ShowTiling) DrawTiling();
         DrawPixelGrid();
-        if (Mode is not PixelMoveMode { IsLifted: true })
+        if (Mode is not PixelTransformMode)
             DrawSelectionOutline();
         Document.DrawBounds();
         Mode?.Draw();
@@ -311,8 +308,8 @@ public partial class PixelSpriteEditor : SpriteEditor
             if (FloatingToolbar.Button(WidgetIds.LassoSelectButton, EditorAssets.Sprites.IconSelect, isSelected: Mode is PixelLassoSelectMode))
                 SetMode(new PixelLassoSelectMode());
 
-            if (FloatingToolbar.Button(WidgetIds.MoveButton, EditorAssets.Sprites.IconMove, isSelected: Mode is PixelMoveMode))
-                SetMode(new PixelMoveMode());
+            if (FloatingToolbar.Button(WidgetIds.MoveButton, EditorAssets.Sprites.IconMove, isSelected: Mode is PixelTransformMode))
+                SetMode(new PixelTransformMode());
 
             FloatingToolbar.Divider();
 
@@ -809,6 +806,28 @@ public partial class PixelSpriteEditor : SpriteEditor
                 UI.Flex();
             }
         }
+    }
+
+    private void ExportToPng()
+    {
+        var pngBytes = Document.RasterizeColorToPng();
+        if (pngBytes.Length == 0)
+        {
+            Log.Warning("Nothing to export: sprite has no content.");
+            return;
+        }
+
+        var defaultName = Document.Name + ".png";
+        var path = NativeFileDialog.ShowSaveFileDialog(
+            Application.Platform.WindowHandle,
+            "PNG Files\0*.png\0All Files\0*.*\0",
+            "png",
+            defaultName);
+
+        if (path == null) return;
+
+        File.WriteAllBytes(path, pngBytes);
+        Log.Info($"Exported PNG to: {path}");
     }
 
     public override void Dispose()

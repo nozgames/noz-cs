@@ -171,7 +171,7 @@ public partial class VectorSpriteEditor
         MarkDirty();
     }
 
-    private new void BeginRename()
+    private void BeginRename()
     {
         SpriteNode node;
         if (HasLayerSelection)

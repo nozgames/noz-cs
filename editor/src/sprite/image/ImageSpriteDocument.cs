@@ -12,10 +12,12 @@ public class ImageSpriteDocument : SpriteDocument
     protected override int PixelsPerUnit => EditorApplication.Config.PixelsPerUnit;
     protected override TextureFilter TextureFilter => TextureFilter.Linear;
 
-    public override bool CanSave => false;
-
     private Vector2Int _sourceImageSize;
     private Texture? _texture;
+
+    public override bool CanSave => false;
+    
+    public override DocumentEditor CreateEditor() => new ImageEditor(this);
 
     public override void Load()
     {

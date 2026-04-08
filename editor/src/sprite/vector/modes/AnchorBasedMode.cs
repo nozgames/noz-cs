@@ -25,23 +25,6 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
             return;
         }
 
-        if (Editor._isGradientDragging)
-        {
-            if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
-                Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
-            {
-                Editor.CancelGradientDrag();
-                return;
-            }
-            if (Input.WasButtonReleasedRaw(InputCode.MouseLeft))
-            {
-                Editor.CommitGradientDrag();
-                return;
-            }
-            Editor.UpdateGradientDrag();
-            return;
-        }
-
         if (IsDragging)
         {
             if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
@@ -78,9 +61,6 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
         if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
         {
             var dragLocal = Vector2.Transform(Workspace.DragWorldPosition, invTransform);
-
-            if (Editor.IsGradientOverlayVisible() && Editor.HandleGradientDrag(dragLocal))
-                return;
 
             if (Editor.SelectedPaths.Count > 0)
             {

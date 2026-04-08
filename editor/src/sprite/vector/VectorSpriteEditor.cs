@@ -253,8 +253,6 @@ public partial class VectorSpriteEditor : SpriteEditor
             DrawWireframe();
         }
 
-        DrawGradientOverlay();
-
         UpdateMeshFromLayers();
         DrawMesh();
 
@@ -555,32 +553,10 @@ public partial class VectorSpriteEditor : SpriteEditor
     private void SetFillColor(Color32 color)
     {
         Document.CurrentFillColor = color;
-        Document.CurrentFillType = SpriteFillType.Solid;
 
         if (_selectedPaths.Count == 0) return;
         foreach (var path in _selectedPaths)
-        {
             path.FillColor = color;
-            path.FillType = SpriteFillType.Solid;
-        }
-        _meshDirty = true;
-    }
-
-    private void SetFillGradient(SpriteFillType fillType, Color32 fallbackColor, SpriteFillGradient gradient)
-    {
-        Document.CurrentFillColor = fallbackColor;
-        Document.CurrentFillType = fillType;
-        Document.CurrentFillGradient = gradient;
-
-        if (_selectedPaths.Count == 0) return;
-        foreach (var path in _selectedPaths)
-        {
-            path.FillColor = fallbackColor;
-            path.FillType = fillType;
-            path.FillGradient = gradient;
-            if (fillType == SpriteFillType.Linear && path.FillGradient.Start == Vector2.Zero && path.FillGradient.End == Vector2.Zero)
-                path.InitializeDefaultGradient();
-        }
         _meshDirty = true;
     }
 
@@ -878,9 +854,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (HitPaths.Count == 0)
             return false;
 
-        // Viewport path clicks are mutually exclusive with layer selection
-        Document.Root.ClearSelection();
-
         if (!shift)
         {
             // Without shift: select topmost, or cycle if already selected
@@ -939,9 +912,6 @@ public partial class VectorSpriteEditor : SpriteEditor
     {
         if (_selectedPaths.Count == 0) return;
 
-        // When gradient handles are active, hide normal wireframe controls
-        if (IsGradientOverlayVisible()) return;
-
         var transform = Document.Transform;
 
         if (CurrentMode != SpriteEditMode.Transform)
@@ -970,7 +940,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         _hoverAnchorIndex = -1;
         _hoverHandle = SpritePathHandle.None;
 
-        if (_selectedPaths.Count == 0 || IsGradientOverlayVisible())
+        if (_selectedPaths.Count == 0)
         {
             SetCursor(SpritePathHandle.None);
             return;
@@ -1438,84 +1408,30 @@ public partial class VectorSpriteEditor : SpriteEditor
             {
                 using (Inspector.BeginProperty("Fill"))
                 {
-                    var wasPickerOpen = ColorPicker.IsOpen(WidgetIds.FillColor);
-                    var fillColor = Document.CurrentFillColor.ToColor();
-                    EditorUI.ColorButton(WidgetIds.FillColor, ref fillColor);
+                    var fillColor = EditorUI.ColorButton(WidgetIds.FillColor, Document.CurrentFillColor.ToColor());
 
-                    // Re-open with gradient state when the picker just opened on a gradient path
-                    if (!wasPickerOpen && ColorPicker.IsOpen(WidgetIds.FillColor) && Document.CurrentFillType == SpriteFillType.Linear)
+                    if (UI.WasChangeStarted()) Undo.Record(Document);
+
+                    if (UI.WasChanged())
                     {
-                        Log.Info($"[Gradient] Re-opening picker: start={Document.CurrentFillGradient.StartColor} end={Document.CurrentFillGradient.EndColor}");
-                        ColorPicker.Open(WidgetIds.FillColor, Document.CurrentFillType,
-                            Document.CurrentFillColor, Document.CurrentFillGradient);
-                    }
-
-                    // Set gradient handle passthrough while picker is in gradient mode
-                    ColorPicker.OnBackdropClick = IsGradientOverlayVisible() ? OnGradientBackdropClick : null;
-
-                    // Sync color/gradient to paths while picker is open
-                    if (ColorPicker.IsOpen(WidgetIds.FillColor))
-                    {
-                        var changed = false;
-                        if (ColorPicker.ResultFillType == SpriteFillType.Linear)
-                        {
-                            var pickerGrad = ColorPicker.ResultGradient;
-                            if (_selectedPaths.Count > 0)
-                            {
-                                var cur = _selectedPaths[0].FillGradient;
-                                changed = cur.StartColor != pickerGrad.StartColor || cur.EndColor != pickerGrad.EndColor;
-                            }
-                            Document.CurrentFillType = SpriteFillType.Linear;
-                            var fallback = pickerGrad.StartColor.A > 0 ? pickerGrad.StartColor : pickerGrad.EndColor;
-                            if (fallback.A == 0) fallback = new Color32(fallback.R, fallback.G, fallback.B, 255);
-                            Document.CurrentFillColor = fallback;
-                            foreach (var path in _selectedPaths)
-                            {
-                                path.FillType = SpriteFillType.Linear;
-                                path.FillColor = fallback;
-                                var g = path.FillGradient;
-                                g.StartColor = pickerGrad.StartColor;
-                                g.EndColor = pickerGrad.EndColor;
-                                path.FillGradient = g;
-                                if (g.Start == Vector2.Zero && g.End == Vector2.Zero)
-                                    path.InitializeDefaultGradient();
-                            }
-                            if (_selectedPaths.Count > 0)
-                                Document.CurrentFillGradient = _selectedPaths[0].FillGradient;
-                        }
-                        else
-                        {
-                            var newColor = fillColor.ToColor32();
-                            changed = newColor != Document.CurrentFillColor;
-                            SetFillColor(newColor);
-                        }
-
-                        if (changed)
-                            UI.NotifyChanged(fillColor.GetHashCode());
+                        SetFillColor(fillColor.ToColor32());
                         _meshDirty = true;
                     }
 
-                    // Handle undo — must be after NotifyChanged so WasChanged() sees it
-                    UI.HandleChange(Document);
+                    if (UI.WasChangeCancelled()) Undo.Cancel();
                 }
 
                 using (Inspector.BeginProperty("Stroke"))
                 using (UI.BeginRow(EditorStyle.Control.Spacing))
                 {
                     var strokeColor = Document.CurrentStrokeColor.ToColor();
-                    EditorUI.ColorButton(WidgetIds.StrokeColor, ref strokeColor);
+                    var newStrokeColor = EditorUI.ColorButton(WidgetIds.StrokeColor, strokeColor);
 
-                    if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
-                    {
-                        var newColor = strokeColor.ToColor32();
-                        if (newColor != Document.CurrentStrokeColor)
-                            UI.NotifyChanged(strokeColor.GetHashCode());
-                        SetStrokeColor(newColor);
-                    }
+                    if (UI.WasChangeStarted()) Undo.Record(Document);
+                    if (UI.WasChanged()) SetStrokeColor(newStrokeColor.ToColor32());
+                    if (UI.WasChangeCancelled()) Undo.Cancel();
 
-                    UI.HandleChange(Document);
-
-                    if (strokeColor.A > 0)
+                    if (newStrokeColor.A > 0)
                         StrokeWidthButtonUI();
                 }
 
@@ -1634,13 +1550,13 @@ public partial class VectorSpriteEditor : SpriteEditor
         {
             SetStrokeColor(color);
             if (ColorPicker.IsOpen(WidgetIds.StrokeColor))
-                ColorPicker.Open(WidgetIds.StrokeColor, color);
+                ColorPicker.Open(WidgetIds.StrokeColor, color.ToColor());
         }
         else
         {
             SetFillColor(color);
             if (ColorPicker.IsOpen(WidgetIds.FillColor))
-                ColorPicker.Open(WidgetIds.FillColor, color);
+                ColorPicker.Open(WidgetIds.FillColor, color.ToColor());
         }
     }
 

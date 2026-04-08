@@ -181,6 +181,7 @@ internal struct SceneElement
     public Size2 Size;
     public Color ClearColor;
     public int SampleCount;
+    public bool PixelPerfect;
     public ushort Camera;
     public ushort DrawCallback;
 }

@@ -45,7 +45,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
     private GenerationJob? _pendingGenerationJob;
 
-    public override DocumentEditor? CreateEditor() => new GeneratedSpriteEditor(this);
+    public override DocumentEditor CreateEditor() => new GeneratedSpriteEditor(this);
 
     public static Document? CreateNew(Vector2? position = null)
     {

@@ -9,23 +9,16 @@
 //  beziers natively — preserving curve fidelity during self-union.
 //
 
-using System.Numerics;
 using Clipper2Lib;
 
 namespace NoZ.Editor;
 
 internal readonly struct LayerPathResult(
-    PathsD Contours, Color32 Color, bool IsStroke,
-    SpriteFillType FillType = SpriteFillType.Solid,
-    SpriteFillGradient Gradient = default,
-    Matrix3x2 GradientTransform = default)
+    PathsD Contours, Color32 Color, bool IsStroke)
 {
     public readonly PathsD Contours = Contours;
     public readonly Color32 Color = Color;
     public readonly bool IsStroke = IsStroke;
-    public readonly SpriteFillType FillType = FillType;
-    public readonly SpriteFillGradient Gradient = Gradient;
-    public readonly Matrix3x2 GradientTransform = GradientTransform;
 }
 
 internal static class SpriteGroupProcessor
@@ -65,7 +58,7 @@ internal static class SpriteGroupProcessor
                     var trimmed = Clipper.BooleanOp(ClipType.Difference,
                         r.Contours, contracted, FillRule.NonZero, precision: ClipperPrecision);
                     if (trimmed.Count > 0)
-                        results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke, r.FillType, r.Gradient, r.GradientTransform);
+                        results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke);
                 }
             }
 
@@ -115,7 +108,7 @@ internal static class SpriteGroupProcessor
                         var diff = Clipper.BooleanOp(ClipType.Difference,
                             ri.Contours, subContours, FillRule.NonZero, precision: ClipperPrecision);
                         if (diff.Count > 0)
-                            results[i] = new LayerPathResult(diff, ri.Color, ri.IsStroke, ri.FillType, ri.Gradient, ri.GradientTransform);
+                            results[i] = new LayerPathResult(diff, ri.Color, ri.IsStroke);
                         else
                             results.RemoveAt(i);
                     }
@@ -165,8 +158,7 @@ internal static class SpriteGroupProcessor
             }
 
             var hasStroke = path.StrokeColor.A > 0 && path.StrokeWidth > 0;
-            var hasFill = path.FillColor.A > 0 || path.FillType == SpriteFillType.Linear;
-            var gradTransform = path.PathTransform;
+            var hasFill = path.FillColor.A > 0;
 
             if (hasStroke)
             {
@@ -182,7 +174,7 @@ internal static class SpriteGroupProcessor
                             contours, contracted, FillRule.NonZero, precision: ClipperPrecision);
                         if (ring.Count > 0)
                             results.Add(new LayerPathResult(ring, path.StrokeColor, true));
-                        results.Add(new LayerPathResult(contracted, path.FillColor, false, path.FillType, path.FillGradient, gradTransform));
+                        results.Add(new LayerPathResult(contracted, path.FillColor, false));
                     }
                     else
                     {
@@ -206,7 +198,7 @@ internal static class SpriteGroupProcessor
             }
             else if (hasFill)
             {
-                results.Add(new LayerPathResult(contours, path.FillColor, false, path.FillType, path.FillGradient, gradTransform));
+                results.Add(new LayerPathResult(contours, path.FillColor, false));
             }
         }
 

@@ -211,8 +211,8 @@ public static unsafe partial class ElementTree
         Matrix3x2.Invert(e.Transform, out var inv);
         var localMouse = Vector2.Transform(MouseWorldPosition, inv);
 
-        // Focus enter
-        if (_inputMousePressed && mouseInside && !focused)
+        // Focus enter (only if this widget is the deepest hovered — prevents overlapping widgets from stealing focus)
+        if (_inputMousePressed && mouseInside && !focused && _hoveredWidget == widgetId)
         {
             _hotId = widgetId;
             state.Focused = 1;

@@ -43,7 +43,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     protected abstract void SaveContent(StreamWriter writer);
     protected abstract void CloneContent(SpriteDocument source);
 
-    public virtual DocumentEditor? CreateEditor() => null;
+    public abstract DocumentEditor CreateEditor();
 
     public int TotalTimeSlots
     {
@@ -136,7 +136,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             Name = "Sprite",
             Extensions = [Extension],
             Factory = CreateFromFile,
-            EditorFactory = doc => ((SpriteDocument)doc).CreateEditor(),
+            EditorFactory = doc => ((SpriteDocument)doc)!.CreateEditor(),
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
 

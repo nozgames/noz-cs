@@ -79,10 +79,9 @@ internal partial class CompositeSoundEditor
             using (Inspector.BeginProperty(state.IsRange ? "Min" : singleLabel))
             using (UI.BeginRow(ValueRowStyle))
             {
-                var valMin = getMin();
-                if (FloatInput(minId, ref valMin))
+                var valMin = FloatInput(minId, getMin());
+                if (valMin != getMin())
                 {
-                    Undo.Record(Document);
                     setMin(valMin);
                     if (!state.IsRange) setMax(valMin);
                     Document.ApplyChanges();
@@ -97,10 +96,9 @@ internal partial class CompositeSoundEditor
 
                 if (state.IsRange)
                 {
-                    var valMax = getMax();
-                    if (FloatInput(maxId, ref valMax))
+                    var valMax = FloatInput(maxId, getMax());
+                    if (valMax != getMax())
                     {
-                        Undo.Record(Document);
                         setMax(valMax);
                         Document.ApplyChanges();
                     }
@@ -156,24 +154,14 @@ internal partial class CompositeSoundEditor
 
             using (Inspector.BeginProperty("Start"))
             {
-                var v = layer.TrimStart;
-                if (FloatInput(FieldId.LayerTrimStart, ref v))
-                {
-                    Undo.Record(Document);
-                    layer.TrimStart = MathF.Max(0f, v);
-                    Document.ApplyChanges();
-                }
+                var v = FloatInput(FieldId.LayerTrimStart, layer.TrimStart);
+                if (v != layer.TrimStart) { layer.TrimStart = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
 
             using (Inspector.BeginProperty("End"))
             {
-                var v = layer.TrimEnd;
-                if (FloatInput(FieldId.LayerTrimEnd, ref v))
-                {
-                    Undo.Record(Document);
-                    layer.TrimEnd = MathF.Max(0f, v);
-                    Document.ApplyChanges();
-                }
+                var v = FloatInput(FieldId.LayerTrimEnd, layer.TrimEnd);
+                if (v != layer.TrimEnd) { layer.TrimEnd = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
         }
 
@@ -183,24 +171,14 @@ internal partial class CompositeSoundEditor
 
             using (Inspector.BeginProperty("Fade In"))
             {
-                var v = layer.FadeIn;
-                if (FloatInput(FieldId.LayerFadeIn, ref v))
-                {
-                    Undo.Record(Document);
-                    layer.FadeIn = Math.Clamp(v, 0f, 1f);
-                    Document.ApplyChanges();
-                }
+                var v = FloatInput(FieldId.LayerFadeIn, layer.FadeIn);
+                if (v != layer.FadeIn) { layer.FadeIn = Math.Clamp(v, 0f, 1f); Document.ApplyChanges(); }
             }
 
             using (Inspector.BeginProperty("Fade Out"))
             {
-                var v = layer.FadeOut;
-                if (FloatInput(FieldId.LayerFadeOut, ref v))
-                {
-                    Undo.Record(Document);
-                    layer.FadeOut = Math.Clamp(v, 0f, 1f);
-                    Document.ApplyChanges();
-                }
+                var v = FloatInput(FieldId.LayerFadeOut, layer.FadeOut);
+                if (v != layer.FadeOut) { layer.FadeOut = Math.Clamp(v, 0f, 1f); Document.ApplyChanges(); }
             }
         }
 
@@ -210,24 +188,14 @@ internal partial class CompositeSoundEditor
 
             using (Inspector.BeginProperty("Offset"))
             {
-                var v = layer.Offset;
-                if (FloatInput(FieldId.LayerOffset, ref v))
-                {
-                    Undo.Record(Document);
-                    layer.Offset = MathF.Max(0f, v);
-                    Document.ApplyChanges();
-                }
+                var v = FloatInput(FieldId.LayerOffset, layer.Offset);
+                if (v != layer.Offset) { layer.Offset = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
 
             using (Inspector.BeginProperty("Volume"))
             {
-                var v = layer.Volume;
-                if (FloatInput(FieldId.LayerVolume, ref v))
-                {
-                    Undo.Record(Document);
-                    layer.Volume = MathF.Max(0f, v);
-                    Document.ApplyChanges();
-                }
+                var v = FloatInput(FieldId.LayerVolume, layer.Volume);
+                if (v != layer.Volume) { layer.Volume = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
         }
     }
@@ -266,19 +234,13 @@ internal partial class CompositeSoundEditor
         return pressed;
     }
 
-    private static bool FloatInput(WidgetId id, ref float value)
+    private float FloatInput(WidgetId id, float value)
     {
-        var text = FormatFloat(value);
+        float result;
         using (UI.BeginFlex())
-        {
-            var result = UI.TextInput(id, text, EditorStyle.Inspector.TextBox, "0");
-            if (result != text && float.TryParse(result, out var parsed))
-            {
-                value = parsed;
-                return true;
-            }
-        }
-        return false;
+            result = EditorUI.FloatInput(id, value, EditorStyle.Inspector.TextBox, step: 0.01f, fineStep: 0.001f);
+        UI.HandleChange(Document);
+        return result;
     }
 
     private static string FormatFloat(float v) =>

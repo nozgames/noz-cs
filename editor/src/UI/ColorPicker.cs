@@ -13,6 +13,7 @@ internal static partial class ColorPicker
     private const float ThumbSize = SliderHeight - 2;
     private const float ThumbRadius = ThumbSize / 2;
     private const float SwatchCellSize = 28;
+    private const int SwatchColumns = (int)(EditorStyle.ColorPicker.SliderWidth / SwatchCellSize);
 
     private static partial class ElementId
     {
@@ -22,10 +23,7 @@ internal static partial class ColorPicker
         public static partial WidgetId SaturationAndValue { get; }
         public static partial WidgetId ModeNone { get; }
         public static partial WidgetId ModeColor { get; }
-        public static partial WidgetId ModePalette { get; }
-        public static partial WidgetId ModeLinear { get; }
-        public static partial WidgetId GradientStop0 { get; }
-        public static partial WidgetId GradientStop1 { get; }
+        public static partial WidgetId PaletteDropDown { get; }
         public static partial WidgetId ColorPickerPaletteScroll { get; }
         public static partial WidgetId ColorPickerPaletteItem { get; }
         public static partial WidgetId Intensity { get; }
@@ -36,8 +34,6 @@ internal static partial class ColorPicker
     {
         None,
         Color,
-        Palette,
-        Linear,
     }
 
     private static WidgetId _popupId;
@@ -62,42 +58,22 @@ internal static partial class ColorPicker
     private static Color32 _prevColor;
 
     private static ColorMode _paletteMode = ColorMode.None;
+    private static float _savedAlpha;
     private static bool _trackNeedsInit;
+    private static int _selectedPaletteIndex;
 
     // Eyedropper state
     private static bool _eyeDropperActive;
     private static Task<Color>? _eyeDropperTask;
 
-    // Gradient state
-    private static int _gradientActiveStop;  // 0 or 1
-    private static SpriteFillGradient _gradient;
-
-    // Public API for sprite editor to read gradient state
-    internal static SpriteFillType ResultFillType => _paletteMode == ColorMode.Linear ? SpriteFillType.Linear : SpriteFillType.Solid;
-    internal static SpriteFillGradient ResultGradient => _gradient;
-    internal static int ActiveGradientStop
-    {
-        get => _gradientActiveStop;
-        set
-        {
-            if (_gradientActiveStop == value) return;
-            _gradientActiveStop = value;
-            var color = value == 0 ? _gradient.StartColor : _gradient.EndColor;
-            RgbToHsv(color, out _hue, out _sat, out _val);
-            _alpha = color.A / 255f;
-            _trackNeedsInit = true;
-            InvalidateSVTexture();
-        }
-    }
-
-    internal static Func<bool>? OnBackdropClick;
+    // HDR state
+    private static bool _hdr;
 
     public static bool IsOpen(WidgetId id) => _popupId == id;
 
     internal static void Close()
     {
         _popupId = WidgetId.None;
-        OnBackdropClick = null;
         _eyeDropperActive = false;
         _eyeDropperTask = null;
         FloatingPanel.Close();
@@ -122,88 +98,51 @@ internal static partial class ColorPicker
     private static void OpenPanel(WidgetId id)
     {
         var anchorRect = UI.GetElementWorldRect(id);
-        var panelWidth = EditorStyle.ColorPicker.SVSize + 60 + 10; // SV + padding/chrome + gap
+        var panelWidth = EditorStyle.ColorPicker.Root.Width.Value + 2; // panel width + gap
         FloatingPanel.Open(id, new Vector2(anchorRect.Left - panelWidth, anchorRect.Top));
     }
 
-    internal static void Open(WidgetId id, Color color)
+    internal static void Open(WidgetId id, Color color, bool hdr = false)
     {
-        // Extract HDR intensity from color: factor = max component, intensity = log2(factor)
-        var maxComponent = MathF.Max(color.R, MathF.Max(color.G, color.B));
-        if (maxComponent > 1f)
+        _hdr = hdr;
+
+        // Extract HDR intensity from color
+        if (hdr)
         {
-            _intensity = MathF.Log2(maxComponent);
-            var factor = MathF.Pow(2f, _intensity);
-            color = new Color(color.R / factor, color.G / factor, color.B / factor, color.A);
+            var maxComponent = MathF.Max(color.R, MathF.Max(color.G, color.B));
+            if (maxComponent > 1f)
+            {
+                _intensity = MathF.Log2(maxComponent);
+                var factor = MathF.Pow(2f, _intensity);
+                color = new Color(color.R / factor, color.G / factor, color.B / factor, color.A);
+            }
+            else
+            {
+                _intensity = 0f;
+            }
         }
         else
         {
             _intensity = 0f;
         }
 
-        Open(id, color.ToColor32());
-    }
-
-    internal static void Open(WidgetId id, Color32 color)
-    {
+        var c32 = color.ToColor32();
         _popupId = id;
-        _originalColor = color;
-        _prevColor = color;
+        _originalColor = c32;
+        _prevColor = c32;
         _trackNeedsInit = true;
-        UI.SetHot<Color32>(id, color);
-        RgbToHsv(color, out _hue, out _sat, out _val);
-        _alpha = color.A / 255f;
+        UI.SetHot<Color32>(id, c32);
+        RgbToHsv(c32, out _hue, out _sat, out _val);
+        _alpha = c32.A / 255f;
 
-        if (color.A == 0)
+        if (c32.A == 0)
             _paletteMode = ColorMode.None;
         else
-        {
             _paletteMode = ColorMode.Color;
-
-            foreach (var palette in PaletteManager.Palettes)
-            {
-                for (int i = 0; i < palette.Count; i++)
-                {
-                    var paletteColor = palette.Colors[i];
-                    if (paletteColor.ToColor32() == color)
-                    {
-                        _paletteMode = ColorMode.Palette;
-                        break;
-                    }
-                }
-                if (_paletteMode == ColorMode.Palette) break;
-            }
-        }
 
         OpenPanel(id);
     }
 
-    internal static void Open(WidgetId id, SpriteFillType fillType, Color32 solidColor, SpriteFillGradient gradient)
-    {
-        if (fillType == SpriteFillType.Linear)
-        {
-            _popupId = id;
-            _originalColor = solidColor;
-            _prevColor = solidColor;
-            _trackNeedsInit = true;
-            _paletteMode = ColorMode.Linear;
-            _gradient = gradient;
-            _gradientActiveStop = 0;
-            UI.SetHot<Color32>(id, solidColor);
-
-            var activeColor = gradient.StartColor;
-            RgbToHsv(activeColor, out _hue, out _sat, out _val);
-            _alpha = activeColor.A / 255f;
-
-            OpenPanel(id);
-        }
-        else
-        {
-            Open(id, solidColor);
-        }
-    }
-
-    /// Draw the floating color picker panel. Call from overlay UI.
     internal static void Update()
     {
         if (_popupId == WidgetId.None) return;
@@ -227,17 +166,8 @@ internal static partial class ColorPicker
                 InvalidateSVTexture();
                 _trackNeedsInit = true;
 
-                if (_paletteMode == ColorMode.Linear)
-                {
-                    if (_gradientActiveStop == 0)
-                        _gradient.StartColor = sampledColor;
-                    else
-                        _gradient.EndColor = sampledColor;
-                }
-                else if (_paletteMode == ColorMode.None)
-                {
+                if (_paletteMode == ColorMode.None)
                     _paletteMode = ColorMode.Color;
-                }
             }
         }
 
@@ -251,6 +181,8 @@ internal static partial class ColorPicker
             }
             else
             {
+                // Cancel: restore original color
+                _prevColor = _originalColor;
                 close = true;
             }
         }
@@ -265,54 +197,34 @@ internal static partial class ColorPicker
         var wasEyeDropperActive = _eyeDropperActive;
         if (wasEyeDropperActive)
             ElementTree.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorDropper));
+        else
+            ElementTree.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
 
         FloatingPanel.Begin(_popupId, EditorStyle.ColorPicker.Root);
 
         if (FloatingPanel.WasBackdropPressed)
         {
             if (_eyeDropperActive)
-            {
                 InitiateEyeDropperReadback();
-            }
-            else if (_paletteMode != ColorMode.Linear || OnBackdropClick == null || !OnBackdropClick())
-            {
+            else
                 close = true;
-            }
         }
 
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
         {
             if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
+            {
+                _savedAlpha = _alpha;
                 _paletteMode = ColorMode.None;
+            }
 
             if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
             {
                 _paletteMode = ColorMode.Color;
                 if (_alpha == 0)
-                    _alpha = 1;
+                    _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
+                _trackNeedsInit = true;
             }
-
-            if (UI.Button(ElementId.ModeLinear, "Grad", EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Linear))
-            {
-                _paletteMode = ColorMode.Linear;
-                if (_alpha == 0)
-                    _alpha = 1;
-                if (_gradient.StartColor.A == 0 && _gradient.EndColor.A == 0)
-                {
-                    var c = HsvToColor32(_hue, _sat, _val, _alpha);
-                    _gradient.StartColor = c;
-                    _gradient.EndColor = Color32.White;
-                }
-            }
-
-            if (PaletteManager.Palettes.Count > 0)
-            {
-                if (UI.Button(ElementId.ModePalette, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Palette))
-                    _paletteMode = ColorMode.Palette;
-            }
-
-            if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
-                _eyeDropperActive = !_eyeDropperActive;
 
             UI.Flex();
 
@@ -330,35 +242,15 @@ internal static partial class ColorPicker
             SaturationAndValue();
             Hue();
             Alpha();
-            if (Graphics.RenderConfig.HDR)
+            if (_hdr)
                 Intensity();
             _trackNeedsInit = false;
             color = HsvToColor32(_hue, _sat, _val, _alpha);
-        }
-        else if (_paletteMode == ColorMode.Linear)
-        {
-            GradientStopsUI();
-            SaturationAndValue();
-            Hue();
-            Alpha();
-            _trackNeedsInit = false;
-
-            var editedColor = HsvToColor32(_hue, _sat, _val, _alpha);
-            if (_gradientActiveStop == 0)
-                _gradient.StartColor = editedColor;
-            else
-                _gradient.EndColor = editedColor;
-
-            color = _gradient.StartColor;
-        }
-        else if (_paletteMode == ColorMode.None)
-        {
-            color = Color.Transparent;
+            PaletteUI();
         }
         else
         {
-            PaletteUI();
-            color = HsvToColor32(_hue, _sat, _val, _alpha);
+            color = Color.Transparent;
         }
 
         if (color != _prevColor)
@@ -369,34 +261,27 @@ internal static partial class ColorPicker
 
         FloatingPanel.End();
 
-        if (wasEyeDropperActive)
-            ElementTree.EndCursor();
+        ElementTree.EndCursor();
 
         if (close)
             Close();
     }
 
-    /// Read the current color. Call from where the color button is drawn.
-    internal static void Popup(WidgetId id, ref Color32 color)
+    private static Color GetResultColor()
     {
-        if (_popupId != id) return;
-        color = _prevColor;
+        var baseColor = _prevColor.ToColor();
+        if (_hdr && _intensity > 0f)
+        {
+            var factor = MathF.Pow(2f, _intensity);
+            return new Color(baseColor.R * factor, baseColor.G * factor, baseColor.B * factor, baseColor.A);
+        }
+        return baseColor;
     }
 
     internal static void Popup(WidgetId id, ref Color color)
     {
         if (_popupId != id) return;
-
-        var baseColor = _prevColor.ToColor();
-        if (_intensity > 0f)
-        {
-            var factor = MathF.Pow(2f, _intensity);
-            color = new Color(baseColor.R * factor, baseColor.G * factor, baseColor.B * factor, baseColor.A);
-        }
-        else
-        {
-            color = baseColor;
-        }
+        color = GetResultColor();
     }
 
     private static void SaturationAndValue()
@@ -422,8 +307,9 @@ internal static partial class ColorPicker
             if (_svTexture != null)
                 UI.Image(_svTexture, ImageStyle.Fill);
 
+            var svMargin = (SVSize - EditorStyle.ColorPicker.SliderWidth) / 2;
             DrawCrosshair(
-                _sat * SVSize,
+                _sat * EditorStyle.ColorPicker.SliderWidth + svMargin,
                 (1 - _val) * SVSize);
         }
 
@@ -567,78 +453,65 @@ internal static partial class ColorPicker
         return container;
     }
 
-    private static void GradientStopsUI()
-    {
-        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
-        {
-            using (BeginColorContainer(ElementId.GradientStop0, _gradientActiveStop == 0))
-            {
-                UI.Container(new ContainerStyle
-                {
-                    Background = _gradient.StartColor.ToColor(),
-                    BorderRadius = EditorStyle.Control.BorderRadius - 2,
-                    Width = SwatchCellSize,
-                    Height = SwatchCellSize,
-                });
-
-                if (UI.WasPressed())
-                    ActiveGradientStop = 0;
-            }
-
-            using (BeginColorContainer(ElementId.GradientStop1, _gradientActiveStop == 1))
-            {
-                UI.Container(new ContainerStyle
-                {
-                    Background = _gradient.EndColor.ToColor(),
-                    BorderRadius = EditorStyle.Control.BorderRadius - 2,
-                    Width = SwatchCellSize,
-                    Height = SwatchCellSize,
-                });
-
-                if (UI.WasPressed())
-                    ActiveGradientStop = 1;
-            }
-        }
-    }
-
     private static void PaletteUI()
     {
+        var palettes = PaletteManager.Palettes;
+        if (palettes.Count == 0) return;
+
+        if (_selectedPaletteIndex < 0 || _selectedPaletteIndex >= palettes.Count)
+            _selectedPaletteIndex = 0;
+
+        var selectedPalette = palettes[_selectedPaletteIndex];
+
+        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
+        {
+            if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
+                _eyeDropperActive = !_eyeDropperActive;
+
+            UI.DropDown(ElementId.PaletteDropDown, () =>
+            {
+                var items = new PopupMenuItem[palettes.Count];
+                for (int i = 0; i < palettes.Count; i++)
+                {
+                    var index = i;
+                    items[i] = PopupMenuItem.Item(palettes[i].Label, () => _selectedPaletteIndex = index);
+                }
+                return items;
+            }, text: selectedPalette.Label);
+        }
+
         var nextPaletteItemId = ElementId.ColorPickerPaletteItem;
 
-        foreach (var palette in PaletteManager.Palettes)
+        using var grid = UI.BeginGrid(new GridStyle
         {
-            UI.Text(palette.Label, EditorStyle.Control.Text);
+            CellHeight = SwatchCellSize,
+            CellWidth = SwatchCellSize,
+            Columns = SwatchColumns
+        });
 
-            using var grid = UI.BeginGrid(new GridStyle
+        for (int i = 0; i < selectedPalette.Count; i++)
+        {
+            var swatchColor = selectedPalette.Colors[i];
+            if (swatchColor.A <= float.Epsilon) continue;
+
+            var itemId = nextPaletteItemId++;
+            var c32 = swatchColor.ToColor32();
+            var isSelected = IsSwatchSelected(c32);
+
+            using (BeginColorContainer(itemId, isSelected))
             {
-                CellHeight = SwatchCellSize,
-                CellWidth = SwatchCellSize,
-                Columns = 16
-            });
-
-            for (int i = 0; i < palette.Count; i++)
-            {
-                var swatchColor = palette.Colors[i];
-                if (swatchColor.A <= float.Epsilon) continue;
-
-                var itemId = nextPaletteItemId++;
-                var c32 = swatchColor.ToColor32();
-                var isSelected = IsSwatchSelected(c32);
-
-                using (BeginColorContainer(itemId, isSelected))
+                UI.Container(new ContainerStyle
                 {
-                    UI.Container(new ContainerStyle
-                    {
-                        Background = swatchColor,
-                        BorderRadius = EditorStyle.Control.BorderRadius - 2
-                    });
+                    Background = swatchColor,
+                    BorderRadius = EditorStyle.Control.BorderRadius - 2
+                });
 
-                    if (UI.WasPressed())
-                    {
-                        RgbToHsv(c32, out _hue, out _sat, out _val);
-                        _alpha = c32.A / 255f;
-                        InvalidateSVTexture();
-                    }
+                if (UI.WasPressed())
+                {
+                    RgbToHsv(c32, out _hue, out _sat, out _val);
+                    _alpha = c32.A / 255f;
+                    InvalidateSVTexture();
+                    _trackNeedsInit = true;
                 }
             }
         }
@@ -669,8 +542,6 @@ internal static partial class ColorPicker
     {
         if (_checkerTexture != null) return;
 
-        // Create a checkerboard pattern sized so cells appear roughly square
-        // when stretched to the alpha bar (~280 x 20).  Each texel = one cell.
         const int w = 40;
         const int h = 3;
         var light = new Color32(255, 255, 255);

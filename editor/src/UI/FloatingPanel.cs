@@ -11,14 +11,11 @@ internal static partial class FloatingPanel
     private static partial class ElementId
     {
         public static partial WidgetId Backdrop { get; }
-        public static partial WidgetId Header { get; }
+        public static partial WidgetId Panel { get; }
     }
 
     private static WidgetId _ownerId;
     private static Vector2 _position;
-    private static Vector2 _dragStart;
-    private static Vector2 _dragPositionStart;
-    private static bool _dragging;
     private static bool _backdropPressed;
 
     public static bool IsOpen(WidgetId id) => _ownerId == id;
@@ -28,13 +25,11 @@ internal static partial class FloatingPanel
     {
         _ownerId = id;
         _position = position;
-        _dragging = false;
     }
 
     public static void Close()
     {
         _ownerId = WidgetId.None;
-        _dragging = false;
     }
 
     public struct Auto : IDisposable
@@ -47,57 +42,33 @@ internal static partial class FloatingPanel
         UI.BeginContainer(ElementId.Backdrop);
         _backdropPressed = UI.WasPressed();
 
+        // Clamp position to screen bounds using previous frame's panel size
+        var prevRect = UI.GetElementWorldRect(ElementId.Panel);
+        if (prevRect.Width > 0 && prevRect.Height > 0)
+        {
+            var screen = UI.ScreenSize;
+            _position.X = Math.Clamp(_position.X, 0, Math.Max(0, screen.X - prevRect.Width));
+            _position.Y = Math.Clamp(_position.Y, 0, Math.Max(0, screen.Y - prevRect.Height));
+        }
+
         ElementTree.BeginMargin(EdgeInsets.TopLeft(_position.Y, _position.X));
+
+        // Non-interactive widget to track panel size across frames
+        ElementTree.BeginWidget(ElementId.Panel, interactive: false);
 
         style.AlignX = Align.Min;
         style.AlignY = Align.Min;
         style.Width = Size.Fit;
         style.Height = Size.Fit;
         UI.BeginColumn(style);
-        DrawHeader(style.Width);
         return new Auto();
     }
 
     public static void End()
     {
         UI.EndColumn();
+        ElementTree.EndWidget();
         ElementTree.EndMargin();
         UI.EndContainer();
-    }
-
-    private static void DrawHeader(Size width)
-    {
-        ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Header);
-        ElementTree.BeginTrack(ref trackState, ElementId.Header, 1, 1);
-
-        using (UI.BeginContainer(new ContainerStyle
-        {
-            Width = width,
-            Height = 8,
-            Background = EditorStyle.Palette.Control,
-            BorderRadius = 2,
-        }))
-        {
-        }
-
-        if (UI.IsDown())
-        {
-            if (UI.WasPressed())
-            {
-                _dragging = true;
-                _dragStart = Input.MousePosition;
-                _dragPositionStart = _position;
-            }
-
-            if (_dragging)
-                _position = _dragPositionStart + (Input.MousePosition - _dragStart);
-        }
-        else
-        {
-            _dragging = false;
-        }
-
-        ElementTree.EndTrack();
-        ElementTree.EndWidget();
     }
 }

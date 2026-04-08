@@ -147,15 +147,12 @@ public partial class GenerationConfigEditor : DocumentEditor
         using (Inspector.BeginProperty("Outline"))
         using (UI.BeginRow(EditorStyle.Control.Spacing))
         {
-            var outlineColor = Document.OutlineColor.ToColor();
-            if (EditorUI.ColorButton(WidgetIds.OutlineColor, ref outlineColor))
-            {
-                Undo.Record(Document);
-                Document.OutlineColor = outlineColor.ToColor32();
-                Document.IncrementVersion();
-            }
+            var outlineColor = EditorUI.ColorButton(WidgetIds.OutlineColor, Document.OutlineColor.ToColor());
+            if (UI.WasChangeStarted()) Undo.Record(Document);
+            if (UI.WasChanged()) Document.OutlineColor = outlineColor.ToColor32();
+            if (UI.WasChangeCancelled()) Undo.Cancel();
 
-            if (outlineColor.A > 0)
+            if (Document.OutlineColor.A > 0)
             {
                 UI.DropDown(
                     WidgetIds.OutlineThickness,

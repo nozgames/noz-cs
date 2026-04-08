@@ -135,8 +135,6 @@ public unsafe partial class SDLPlatform : IPlatform
         _instance = this;
         SDL_AddEventWatch(&ResizeEventWatch, nint.Zero);
 
-        InitNativeTextInput();
-
         // Open any already-connected gamepads
         int count;
         var joysticks = SDL_GetGamepads(&count);
@@ -198,8 +196,6 @@ public unsafe partial class SDLPlatform : IPlatform
                 _cursors[i] = null;
             }
         }
-
-        ShutdownNativeTextInput();
 
         if (_window != null)
         {

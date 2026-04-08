@@ -29,6 +29,8 @@ public class Camera
 
     public bool IsPixelPerfect { get; set; } = false;
 
+    public float ConfiguredWidth => MathF.Abs(_extents.Y) >= float.MaxValue ? 0f : _extents.Y - _extents.X;
+
     public Matrix3x2 ViewMatrix => _view;
     public Vector2Int ScreenSize => _screenSize;
     public Rect WorldBounds => _bounds;

@@ -220,6 +220,9 @@ public static class Gizmos
         Graphics.SetColor(Color.White);
         var angleOffset = -MathF.PI * 0.5f; // start at top
 
+        Span<MeshVertex> vertsBuf = stackalloc MeshVertex[totalSegments + 2];
+        Span<ushort> indicesBuf = stackalloc ushort[totalSegments * 3];
+
         for (var wi = 0; wi < weights.Length; wi++)
         {
             if (weights[wi] <= 0.001f)
@@ -228,8 +231,8 @@ public static class Gizmos
             var wedgeAngle = weights[wi] / totalWeight * MathF.PI * 2f;
             var wedgeSegments = int.Max(2, (int)(totalSegments * weights[wi] / totalWeight));
 
-            Span<MeshVertex> verts = stackalloc MeshVertex[wedgeSegments + 2];
-            Span<ushort> indices = stackalloc ushort[wedgeSegments * 3];
+            var verts = vertsBuf[..(wedgeSegments + 2)];
+            var indices = indicesBuf[..(wedgeSegments * 3)];
 
             verts[0] = new MeshVertex { Position = center, Color = colors[wi] };
 

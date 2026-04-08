@@ -138,7 +138,6 @@ internal partial class VfxEditor
             var duration = Document.Duration;
             if (RangeField(FieldId.VfxDuration, "Duration", ref duration))
             {
-                Undo.Record(Document);
                 Document.Duration = duration;
                 Document.ApplyChanges();
             }
@@ -204,7 +203,6 @@ internal partial class VfxEditor
 
             if (changed)
             {
-                Undo.Record(Document);
                 emitter.Def.Rate = rate;
                 emitter.Def.Burst = burst;
                 emitter.Def.Duration = duration;
@@ -223,20 +221,18 @@ internal partial class VfxEditor
         {
             if (!Inspector.IsSectionCollapsed)
             {
-                var changed = false;
                 var direction = emitter.Def.Direction;
                 var spread = emitter.Def.Spread;
                 var radial = emitter.Def.Radial;
 
                 using (Inspector.BeginProperty("Direction"))
-                    if (FloatInput(FieldId.EmitterDirection, ref direction)) changed = true;
+                    direction = FloatInput(FieldId.EmitterDirection, direction);
                 using (Inspector.BeginProperty("Spread"))
-                    if (FloatInput(FieldId.EmitterSpread, ref spread)) changed = true;
+                    spread = FloatInput(FieldId.EmitterSpread, spread);
                 using (Inspector.BeginProperty("Radial"))
-                    if (FloatInput(FieldId.EmitterRadial, ref radial)) changed = true;
-                if (changed)
+                    radial = FloatInput(FieldId.EmitterRadial, radial);
+                if (direction != emitter.Def.Direction || spread != emitter.Def.Spread || radial != emitter.Def.Radial)
                 {
-                    Undo.Record(Document);
                     emitter.Def.Direction = direction;
                     emitter.Def.Spread = spread;
                     emitter.Def.Radial = radial;
@@ -300,8 +296,8 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty("Offset"))
         using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
         {
-            if (FloatInput(FieldId.EmitterSpawnOffset, ref spawn.Offset.X)) changed = true;
-            if (FloatInput(FieldId.EmitterSpawnOffset + 1, ref spawn.Offset.Y)) changed = true;
+            spawn.Offset.X = FloatInput(FieldId.EmitterSpawnOffset, spawn.Offset.X);
+            spawn.Offset.Y = FloatInput(FieldId.EmitterSpawnOffset + 2, spawn.Offset.Y);
         }
 
         // Shape-specific fields
@@ -309,32 +305,38 @@ internal partial class VfxEditor
         {
             case VfxSpawnShape.Circle:
                 using (Inspector.BeginProperty("Radius"))
-                    if (FloatInput(FieldId.EmitterSpawnRadius, ref spawn.Circle.Radius)) changed = true;
+                    spawn.Circle.Radius = FloatInput(FieldId.EmitterSpawnRadius, spawn.Circle.Radius);
                 using (Inspector.BeginProperty("Inner Radius"))
-                    if (FloatInput(FieldId.EmitterSpawnInnerRadius, ref spawn.Circle.InnerRadius)) changed = true;
+                    spawn.Circle.InnerRadius = FloatInput(FieldId.EmitterSpawnInnerRadius, spawn.Circle.InnerRadius);
                 break;
 
             case VfxSpawnShape.Box:
                 using (Inspector.BeginProperty("Size"))
                 using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
                 {
-                    if (FloatInput(FieldId.EmitterSpawnSize, ref spawn.Box.Size.X)) changed = true;
-                    if (FloatInput(FieldId.EmitterSpawnSize + 1, ref spawn.Box.Size.Y)) changed = true;
+                    spawn.Box.Size.X = FloatInput(FieldId.EmitterSpawnSize, spawn.Box.Size.X);
+                    spawn.Box.Size.Y = FloatInput(FieldId.EmitterSpawnSize + 2, spawn.Box.Size.Y);
                 }
                 using (Inspector.BeginProperty("Inner Size"))
                 using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
                 {
-                    if (FloatInput(FieldId.EmitterSpawnInnerSize, ref spawn.Box.InnerSize.X)) changed = true;
-                    if (FloatInput(FieldId.EmitterSpawnInnerSize + 1, ref spawn.Box.InnerSize.Y)) changed = true;
+                    spawn.Box.InnerSize.X = FloatInput(FieldId.EmitterSpawnInnerSize, spawn.Box.InnerSize.X);
+                    spawn.Box.InnerSize.Y = FloatInput(FieldId.EmitterSpawnInnerSize + 2, spawn.Box.InnerSize.Y);
                 }
                 using (Inspector.BeginProperty("Rotation"))
-                    if (FloatInput(FieldId.EmitterSpawnRotation, ref spawn.Box.Rotation)) changed = true;
+                    spawn.Box.Rotation = FloatInput(FieldId.EmitterSpawnRotation, spawn.Box.Rotation);
                 break;
         }
 
-        if (changed)
+        var spawnChanged = spawn.Offset != emitter.Def.Spawn.Offset
+            || spawn.Shape != emitter.Def.Spawn.Shape
+            || spawn.Circle.Radius != emitter.Def.Spawn.Circle.Radius
+            || spawn.Circle.InnerRadius != emitter.Def.Spawn.Circle.InnerRadius
+            || spawn.Box.Size != emitter.Def.Spawn.Box.Size
+            || spawn.Box.InnerSize != emitter.Def.Spawn.Box.InnerSize
+            || spawn.Box.Rotation != emitter.Def.Spawn.Box.Rotation;
+        if (changed || spawnChanged)
         {
-            Undo.Record(Document);
             emitter.Def.Spawn = spawn;
             Document.ApplyChanges();
         }
@@ -351,7 +353,6 @@ internal partial class VfxEditor
                 var duration = particle.Def.Duration;
                 if (RangeField(FieldId.ParticleDuration, "Duration", ref duration))
                 {
-                    Undo.Record(Document);
                     particle.Def.Duration = duration;
                     Document.ApplyChanges();
                 }
@@ -388,7 +389,6 @@ internal partial class VfxEditor
             var size = particle.Def.Size;
             if (FloatCurveField(FieldId.ParticleSize, "Size", ref size))
             {
-                Undo.Record(Document);
                 particle.Def.Size = size;
                 Document.ApplyChanges();
             }
@@ -402,7 +402,6 @@ internal partial class VfxEditor
             var speed = particle.Def.Speed;
             if (FloatCurveField(FieldId.ParticleSpeed, "Speed", ref speed))
             {
-                Undo.Record(Document);
                 particle.Def.Speed = speed;
                 Document.ApplyChanges();
             }
@@ -430,7 +429,6 @@ internal partial class VfxEditor
             var opacity = particle.Def.Opacity;
             if (FloatCurveField(FieldId.ParticleOpacity, "Opacity", ref opacity))
             {
-                Undo.Record(Document);
                 particle.Def.Opacity = opacity;
                 Document.ApplyChanges();
             }
@@ -444,7 +442,6 @@ internal partial class VfxEditor
             var gravity = particle.Def.Gravity;
             if (Vec2RangeField(FieldId.ParticleGravity, "Gravity", ref gravity))
             {
-                Undo.Record(Document);
                 particle.Def.Gravity = gravity;
                 Document.ApplyChanges();
             }
@@ -458,7 +455,6 @@ internal partial class VfxEditor
             var drag = particle.Def.Drag;
             if (RangeField(FieldId.ParticleDrag, "Drag", ref drag))
             {
-                Undo.Record(Document);
                 particle.Def.Drag = drag;
                 Document.ApplyChanges();
             }
@@ -472,7 +468,6 @@ internal partial class VfxEditor
             var rotation = particle.Def.Rotation;
             if (RangeField(FieldId.ParticleRotation, "Rotation", ref rotation))
             {
-                Undo.Record(Document);
                 particle.Def.Rotation = rotation;
                 Document.ApplyChanges();
             }
@@ -486,7 +481,6 @@ internal partial class VfxEditor
             var rotSpeed = particle.Def.RotationSpeed;
             if (FloatCurveField(FieldId.ParticleRotationSpeed, "Speed", ref rotSpeed))
             {
-                Undo.Record(Document);
                 particle.Def.RotationSpeed = rotSpeed;
                 Document.ApplyChanges();
             }
@@ -575,22 +569,24 @@ internal partial class VfxEditor
     private static readonly ContainerStyle CurveRowStyle = new() { Spacing = 4, Height = Size.Fit, MinHeight = 22 };
 
     // Range field: [label] [min] [⇄] [max]  — no curve row
-    // baseId+0: min, +1: randomToggle, +2: max, +3: state
-    private static bool RangeField(WidgetId baseId, string label, ref VfxRange value)
+    // baseId+0,+1: min float (scrub+text), +2: randomToggle, +3,+4: max float (scrub+text), +5: state
+    private bool RangeField(WidgetId baseId, string label, ref VfxRange value)
     {
         var changed = false;
-        ref var state = ref BeginFieldState(baseId + 3,
+        ref var state = ref BeginFieldState(baseId + 5,
             dataCurve: false,
             dataRandomStart: value.Min != value.Max);
         using (Inspector.BeginProperty(label))
         using (UI.BeginRow(ValueRowStyle))
         {
-            if (FloatInput(baseId, ref value.Min)) { changed = true; if (!state.HasRandomStart) value.Max = value.Min; }
-            if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var pressed)) changed = true;
+            var min = FloatInput(baseId, value.Min);
+            if (min != value.Min) { value.Min = min; changed = true; if (!state.HasRandomStart) value.Max = min; }
+            if (RandomToggleButton(baseId + 2, ref state.HasRandomStart, out var pressed)) changed = true;
             if (pressed && !state.HasRandomStart) value.Max = value.Min;
             if (state.HasRandomStart)
             {
-                if (FloatInput(baseId + 2, ref value.Max)) changed = true;
+                var max = FloatInput(baseId + 3, value.Max);
+                if (max != value.Max) { value.Max = max; changed = true; }
             }
             else
                 using (UI.BeginFlex()) { } // reserve space
@@ -623,7 +619,8 @@ internal partial class VfxEditor
     }
 
     // Vec2 range field: two rows of min/max (no random toggle — too complex)
-    private static bool Vec2RangeField(WidgetId baseId, string label, ref VfxVec2Range value)
+    // baseId+0,+1: minX, +2,+3: minY, +4,+5: maxX, +6,+7: maxY
+    private bool Vec2RangeField(WidgetId baseId, string label, ref VfxVec2Range value)
     {
         var changed = false;
         using (Inspector.BeginProperty(label))
@@ -631,13 +628,17 @@ internal partial class VfxEditor
         {
             using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
             {
-                if (FloatInput(baseId, ref value.Min.X)) changed = true;
-                if (FloatInput(baseId + 1, ref value.Min.Y)) changed = true;
+                var mx = FloatInput(baseId, value.Min.X);
+                var my = FloatInput(baseId + 2, value.Min.Y);
+                if (mx != value.Min.X) { value.Min.X = mx; changed = true; }
+                if (my != value.Min.Y) { value.Min.Y = my; changed = true; }
             }
             using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
             {
-                if (FloatInput(baseId + 2, ref value.Max.X)) changed = true;
-                if (FloatInput(baseId + 3, ref value.Max.Y)) changed = true;
+                var mx = FloatInput(baseId + 4, value.Max.X);
+                var my = FloatInput(baseId + 6, value.Max.Y);
+                if (mx != value.Max.X) { value.Max.X = mx; changed = true; }
+                if (my != value.Max.Y) { value.Max.Y = my; changed = true; }
             }
         }
         return changed;
@@ -645,10 +646,12 @@ internal partial class VfxEditor
 
     // Float curve field with progressive disclosure
     // baseId+0: startMin, +1: startRandom, +2: startMax, +3: endMin, +4: endRandom, +5: endMax, +6: curveType, +7: state
-    private static bool FloatCurveField(WidgetId baseId, string label, ref VfxFloatCurve curve)
+    // baseId+0,+1: startMin float, +2: startRandom, +3,+4: startMax float,
+    // +5,+6: endMin float, +7: endRandom, +8,+9: endMax float, +10: curveType, +11: state
+    private bool FloatCurveField(WidgetId baseId, string label, ref VfxFloatCurve curve)
     {
         var changed = false;
-        ref var state = ref BeginFieldState(baseId + 7,
+        ref var state = ref BeginFieldState(baseId + 11,
             dataCurve: curve.Start != curve.End,
             dataRandomStart: curve.Start.Min != curve.Start.Max,
             dataRandomEnd: curve.End.Min != curve.End.Max);
@@ -658,12 +661,14 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty(startLabel))
         using (UI.BeginRow(ValueRowStyle))
         {
-            if (FloatInput(baseId, ref curve.Start.Min)) { changed = true; if (!state.HasRandomStart) curve.Start.Max = curve.Start.Min; }
-            if (RandomToggleButton(baseId + 1, ref state.HasRandomStart, out var startPressed)) changed = true;
+            var smin = FloatInput(baseId, curve.Start.Min);
+            if (smin != curve.Start.Min) { curve.Start.Min = smin; changed = true; if (!state.HasRandomStart) curve.Start.Max = smin; }
+            if (RandomToggleButton(baseId + 2, ref state.HasRandomStart, out var startPressed)) changed = true;
             if (startPressed && !state.HasRandomStart) curve.Start.Max = curve.Start.Min;
             if (state.HasRandomStart)
             {
-                if (FloatInput(baseId + 2, ref curve.Start.Max)) changed = true;
+                var smax = FloatInput(baseId + 3, curve.Start.Max);
+                if (smax != curve.Start.Max) { curve.Start.Max = smax; changed = true; }
             }
             else
                 using (UI.BeginFlex()) { }
@@ -675,12 +680,14 @@ internal partial class VfxEditor
             using (Inspector.BeginProperty("End"))
             using (UI.BeginRow(ValueRowStyle))
             {
-                if (FloatInput(baseId + 3, ref curve.End.Min)) { changed = true; if (!state.HasRandomEnd) curve.End.Max = curve.End.Min; }
-                if (RandomToggleButton(baseId + 4, ref state.HasRandomEnd, out var endPressed)) changed = true;
+                var emin = FloatInput(baseId + 5, curve.End.Min);
+                if (emin != curve.End.Min) { curve.End.Min = emin; changed = true; if (!state.HasRandomEnd) curve.End.Max = emin; }
+                if (RandomToggleButton(baseId + 7, ref state.HasRandomEnd, out var endPressed)) changed = true;
                 if (endPressed && !state.HasRandomEnd) curve.End.Max = curve.End.Min;
                 if (state.HasRandomEnd)
                 {
-                    if (FloatInput(baseId + 5, ref curve.End.Max)) changed = true;
+                    var emax = FloatInput(baseId + 8, curve.End.Max);
+                    if (emax != curve.End.Max) { curve.End.Max = emax; changed = true; }
                 }
                 else
                     using (UI.BeginFlex()) { }
@@ -688,12 +695,11 @@ internal partial class VfxEditor
         }
         else if (changed)
         {
-            // No curve active — keep End synced with Start so editing Start doesn't auto-enable the curve
             curve.End = curve.Start;
         }
 
         // Curve type row (always visible)
-        if (CurveRow(baseId + 6, ref state.HasCurve, ref curve.Type, ref curve.Start, ref curve.End))
+        if (CurveRow(baseId + 10, ref state.HasCurve, ref curve.Type, ref curve.Start, ref curve.End))
             changed = true;
 
         return changed;
@@ -844,20 +850,13 @@ internal partial class VfxEditor
         return pressed;
     }
 
-    private static bool FloatInput(WidgetId id, ref float value)
+    private float FloatInput(WidgetId id, float value)
     {
-        var text = VfxDocument.FormatFloat(value);
-        bool changed = false;
+        float result;
         using (UI.BeginFlex())
-        {
-            var result = UI.TextInput(id, text, EditorStyle.Inspector.TextBox, "0");
-            if (result != text && float.TryParse(result, out var parsed))
-            {
-                value = parsed;
-                changed = true;
-            }
-        }
-        return changed;
+            result = EditorUI.FloatInput(id, value, EditorStyle.Inspector.TextBox, step: 0.1f, fineStep: 0.01f);
+        UI.HandleChange(Document);
+        return result;
     }
 
     private static bool IntInput(WidgetId id, ref int value)
@@ -878,7 +877,8 @@ internal partial class VfxEditor
 
     private static bool ColorInput(WidgetId id, ref Color color)
     {
-        return EditorUI.ColorButton(id, ref color, fillWidth: true);
+        color = EditorUI.ColorButton(id, color, fillWidth: true, hdr: true);
+        return UI.WasChanged();
     }
 
     private static bool ApproximatelyEqual(VfxColorRange a, VfxColorRange b)

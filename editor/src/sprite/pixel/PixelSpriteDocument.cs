@@ -6,7 +6,14 @@ namespace NoZ.Editor;
 
 public partial class PixelSpriteDocument : SpriteDocument
 {
-    protected override int PixelsPerUnit => 32;
+    private static partial class WidgetIds
+    {
+        public static partial WidgetId PixelsPerUnit { get; }
+    }
+
+    public int? PixelsPerUnitOverride { get; set; }
+
+    protected override int PixelsPerUnit => PixelsPerUnitOverride ?? 32;
     protected override TextureFilter TextureFilter => TextureFilter.Point;
 
     public Vector2Int CanvasSize { get; set; } = new(64, 64);
@@ -16,7 +23,7 @@ public partial class PixelSpriteDocument : SpriteDocument
     public bool AlphaLock { get; set; }
     public string ActiveLayerName { get; set; } = "";
 
-    public override DocumentEditor? CreateEditor() => new PixelSpriteEditor(this);
+    public override DocumentEditor CreateEditor() => new PixelSpriteEditor(this);
 
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
@@ -41,9 +48,16 @@ public partial class PixelSpriteDocument : SpriteDocument
         var maxX = 0;
         var maxY = 0;
 
+        // For animated sprites, include all layers regardless of visibility
+        // since different frames show different layers.
+        var hasAnimation = AnimFrames.Count > 0;
+
         foreach (var child in Root.Children)
         {
-            if (child is not PixelLayer layer || !layer.Visible || layer.Pixels == null)
+            if (child is not PixelLayer layer || layer.Pixels == null)
+                continue;
+
+            if (!hasAnimation && !layer.Visible)
                 continue;
 
             for (var y = 0; y < h; y++)
@@ -65,7 +79,7 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     protected override void UpdateContentBounds()
     {
-        const int ppu = 32;
+        var ppu = PixelsPerUnit;
         var w = CanvasSize.X;
         var h = CanvasSize.Y;
 
@@ -81,7 +95,7 @@ public partial class PixelSpriteDocument : SpriteDocument
         }
         else
         {
-            RasterBounds = new RectInt(-ppu / 2, -ppu / 2, ppu, ppu);
+            RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
         }
 
         if (ConstrainedSize.HasValue)
@@ -106,6 +120,7 @@ public partial class PixelSpriteDocument : SpriteDocument
     {
         if (source is not PixelSpriteDocument src) return;
         CanvasSize = src.CanvasSize;
+        PixelsPerUnitOverride = src.PixelsPerUnitOverride;
 
         SelectionMask?.Dispose();
         SelectionMask = src.SelectionMask?.Clone();
@@ -115,23 +130,58 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     protected override void LoadContentMetadata(PropertySet meta)
     {
-        BrushSize = Math.Clamp(meta.GetInt("sprite", "pixel_brush_size", 1), 1, 16);
-        var brushColor = meta.GetColor("sprite", "pixel_brush_color", Color.Black);
+        var ppu = meta.GetInt("sprite", "ppu", 0);
+        PixelsPerUnitOverride = ppu > 0 ? ppu : null;
+
+        BrushSize = Math.Clamp(meta.GetInt("sprite", "brush_size", 1), 1, 16);
+        var brushColor = meta.GetColor("sprite", "brush_color", Color.Black);
         BrushColor = (Color32)brushColor;
-        AlphaLock = meta.GetBool("sprite", "pixel_alpha_lock", false);
-        ActiveLayerName = meta.GetString("sprite", "pixel_active_layer", "");
+        AlphaLock = meta.GetBool("sprite", "alpha_lock", false);
+        ActiveLayerName = meta.GetString("sprite", "active_layer", "");
     }
 
     protected override void SaveContentMetadata(PropertySet meta)
     {
-        meta.SetInt("sprite", "pixel_brush_size", BrushSize);
-        meta.SetColor("sprite", "pixel_brush_color", (Color)BrushColor);
-        meta.SetBool("sprite", "pixel_alpha_lock", AlphaLock);
+        if (PixelsPerUnitOverride.HasValue)
+            meta.SetInt("sprite", "ppu", PixelsPerUnitOverride.Value);
+        else
+            meta.RemoveKey("sprite", "ppu");
+
+        meta.SetInt("sprite", "brush_size", BrushSize);
+        meta.SetColor("sprite", "brush_color", (Color)BrushColor);
+        meta.SetBool("sprite", "alpha_lock", AlphaLock);
 
         if (!string.IsNullOrEmpty(ActiveLayerName))
-            meta.SetString("sprite", "pixel_active_layer", ActiveLayerName);
+            meta.SetString("sprite", "active_layer", ActiveLayerName);
         else
-            meta.RemoveKey("sprite", "pixel_active_layer");
+            meta.RemoveKey("sprite", "active_layer");
+    }
+
+    public override void InspectorUI()
+    {
+        Inspector.Section("PIXEL SPRITE", icon: Def.Icon?.Invoke());
+        if (!Inspector.IsSectionCollapsed)
+        {
+            using (Inspector.BeginProperty("Pixels Per Unit"))
+            {
+                var current = PixelsPerUnitOverride ?? 32;
+                var label = PixelsPerUnitOverride.HasValue ? $"{current}" : $"{current} (Default)";
+                UI.DropDown(WidgetIds.PixelsPerUnit, () =>
+                [
+                    ..new[] { 8, 16, 32, 64, 128 }.Select(v => new PopupMenuItem
+                    {
+                        Label = v == 32 ? "32 (Default)" : $"{v}",
+                        Handler = () =>
+                        {
+                            Undo.Record(this);
+                            PixelsPerUnitOverride = v == 32 ? null : v;
+                            UpdateBounds();
+                            AssetManifest.IsModified = true;
+                        }
+                    })
+                ], label);
+            }
+        }
     }
 
     public override void Dispose()

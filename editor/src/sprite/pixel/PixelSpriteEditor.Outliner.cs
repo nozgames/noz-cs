@@ -16,12 +16,33 @@ public partial class PixelSpriteEditor
 
     protected override bool ReverseChildren => true;
 
-    protected override bool IsNodeSelected(SpriteNode node) => node == _selectedNode;
+    protected override bool IsNodeSelected(SpriteNode node) => node.IsSelected;
     protected override bool IsNodeActive(SpriteNode node) => node == _activeLayer;
 
     protected override void OnNodeClicked(SpriteNode node)
     {
-        SelectedNode = node;
+        var shift = Input.IsShiftDown(InputScope.All);
+        var ctrl = Input.IsCtrlDown(InputScope.All);
+
+        if (ctrl)
+        {
+            node.IsSelected = !node.IsSelected;
+        }
+        else if (shift)
+        {
+            node.IsSelected = true;
+        }
+        else
+        {
+            Document.Root.ClearSelection();
+            node.IsSelected = true;
+            ClearSelection();
+        }
+
+        if (node is PixelLayer layer)
+            ActiveLayer = layer;
+
+        _selectedNode = node;
     }
 
     protected override void OnOutlinerChanged() => InvalidateComposite();
@@ -67,7 +88,7 @@ public partial class PixelSpriteEditor
         }
     }
 
-    private new void BeginRename()
+    private void BeginRename()
     {
         if (ActiveLayer == null) return;
         BeginRename(ActiveLayer);

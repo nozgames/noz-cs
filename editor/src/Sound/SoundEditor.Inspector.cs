@@ -82,10 +82,9 @@ internal partial class SoundEditor
             using (Inspector.BeginProperty(state.IsRange ? "Min" : singleLabel))
             using (UI.BeginRow(ValueRowStyle))
             {
-                var valMin = getMin();
-                if (FloatInput(minId, ref valMin))
+                var valMin = FloatInput(minId, getMin());
+                if (valMin != getMin())
                 {
-                    Undo.Record(Document);
                     setMin(valMin);
                     if (!state.IsRange) setMax(valMin);
                     Document.ApplyChanges();
@@ -100,10 +99,9 @@ internal partial class SoundEditor
 
                 if (state.IsRange)
                 {
-                    var valMax = getMax();
-                    if (FloatInput(maxId, ref valMax))
+                    var valMax = FloatInput(maxId, getMax());
+                    if (valMax != getMax())
                     {
-                        Undo.Record(Document);
                         setMax(valMax);
                         Document.ApplyChanges();
                     }
@@ -142,10 +140,9 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("Fade In"))
             {
-                var fadeIn = Document.FadeIn;
-                if (FloatInput(FieldId.FadeIn, ref fadeIn))
+                var fadeIn = FloatInput(FieldId.FadeIn, Document.FadeIn);
+                if (fadeIn != Document.FadeIn)
                 {
-                    Undo.Record(Document);
                     Document.FadeIn = Math.Clamp(fadeIn, 0f, 1f);
                     Document.ApplyChanges();
                 }
@@ -153,10 +150,9 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("Fade Out"))
             {
-                var fadeOut = Document.FadeOut;
-                if (FloatInput(FieldId.FadeOut, ref fadeOut))
+                var fadeOut = FloatInput(FieldId.FadeOut, Document.FadeOut);
+                if (fadeOut != Document.FadeOut)
                 {
-                    Undo.Record(Document);
                     Document.FadeOut = Math.Clamp(fadeOut, 0f, 1f);
                     Document.ApplyChanges();
                 }
@@ -172,10 +168,9 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("Start"))
             {
-                var trimStart = Document.TrimStart;
-                if (FloatInput(FieldId.TrimStart, ref trimStart))
+                var trimStart = FloatInput(FieldId.TrimStart, Document.TrimStart);
+                if (trimStart != Document.TrimStart)
                 {
-                    Undo.Record(Document);
                     Document.TrimStart = MathF.Max(0f, trimStart);
                     Document.ApplyChanges();
                 }
@@ -183,10 +178,9 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("End"))
             {
-                var trimEnd = Document.TrimEnd;
-                if (FloatInput(FieldId.TrimEnd, ref trimEnd))
+                var trimEnd = FloatInput(FieldId.TrimEnd, Document.TrimEnd);
+                if (trimEnd != Document.TrimEnd)
                 {
-                    Undo.Record(Document);
                     Document.TrimEnd = MathF.Max(0f, trimEnd);
                     Document.ApplyChanges();
                 }
@@ -216,10 +210,9 @@ internal partial class SoundEditor
             {
                 using (Inspector.BeginProperty("Target"))
                 {
-                    var normTarget = Document.NormalizeTarget;
-                    if (FloatInput(FieldId.NormalizeTarget, ref normTarget))
+                    var normTarget = FloatInput(FieldId.NormalizeTarget, Document.NormalizeTarget);
+                    if (normTarget != Document.NormalizeTarget)
                     {
-                        Undo.Record(Document);
                         Document.NormalizeTarget = Math.Clamp(normTarget, 0.01f, 1f);
                         Document.ApplyChanges();
                     }
@@ -262,19 +255,13 @@ internal partial class SoundEditor
         return pressed;
     }
 
-    private static bool FloatInput(WidgetId id, ref float value)
+    private float FloatInput(WidgetId id, float value)
     {
-        var text = FormatFloat(value);
+        float result;
         using (UI.BeginFlex())
-        {
-            var result = UI.TextInput(id, text, EditorStyle.Inspector.TextBox, "0");
-            if (result != text && float.TryParse(result, out var parsed))
-            {
-                value = parsed;
-                return true;
-            }
-        }
-        return false;
+            result = EditorUI.FloatInput(id, value, EditorStyle.Inspector.TextBox, step: 0.01f, fineStep: 0.001f);
+        UI.HandleChange(Document);
+        return result;
     }
 
     private static string FormatFloat(float v) =>

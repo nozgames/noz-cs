@@ -50,17 +50,7 @@ internal static class EditorCursor
 
     public static void SetDropper() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorDropper));
 
-    public static void SetCrosshair()
-    {
-        _cursor = null;
-        _systemCursor = SystemCursor.Crosshair;
-    }
-
-    public static void SetSystem(SystemCursor cursor)
-    {
-        _cursor = null;
-        _systemCursor = cursor;
-    }
+    public static void SetCrosshair() => SetSystem(SystemCursor.Crosshair);
 
     public static void Begin()
     {
@@ -81,4 +71,10 @@ internal static class EditorCursor
         _cursor = cursor;
         _systemCursor = SystemCursor.None;
     }
+
+    public static void SetSystem(SystemCursor cursor)
+    {
+        _cursor = null;
+        _systemCursor = cursor;
+    }    
 }

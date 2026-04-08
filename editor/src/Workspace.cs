@@ -562,8 +562,8 @@ public static partial class Workspace
     {
         using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
 
-        if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
-            ;
+        // if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
+        //     ;
 
         using (UI.BeginFlex())
             if (_showFps)

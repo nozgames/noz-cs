@@ -1088,6 +1088,8 @@ public static class EditorStyle
             Spacing = Control.Spacing * 2,
             Padding = Padding,
             Width = Width,
+            MinWidth = Width,
+            MaxWidth = Width,
             Height = Size.Fit
         };
 

@@ -480,7 +480,7 @@ public static partial class UI
     public static void Scene(WidgetId id, Camera camera, Action draw, SceneStyle style = default)
     {
         if (id != 0) ElementTree.BeginWidget(id, interactive: false);
-        ElementTree.Scene(camera, draw, style.Size, style.Color, style.SampleCount);
+        ElementTree.Scene(camera, draw, style.Size, style.Color, style.SampleCount, style.PixelPerfect);
         if (id != 0) ElementTree.EndWidget();
     }
 

@@ -62,4 +62,8 @@ public static partial class UI
 
     public static bool HotEnter() => IsHot() && !WasHot();
     public static bool HotExit() => !IsHot() && WasHot();
+
+    public static bool WasChangeStarted() => HotEnter() || (_valueChanged && !IsHot() && !WasHot());
+    public static bool WasChangeEnded() => HotExit() || (_valueChanged && !IsHot() && !WasHot());
+    public static bool WasChangeCancelled() => WasChangeEnded() && _hotCurrentHash == _hotOriginalHash;
 }

@@ -43,6 +43,7 @@ internal static partial class Inspector
         {
             using (UI.BeginFlex())
             using (UI.BeginScrollable(ElementId.Scroll))
+            using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
             using (UI.BeginColumn(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
             {
                 if (Workspace.ActiveEditor?.ShowInspector ?? false)

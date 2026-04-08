@@ -17,8 +17,6 @@ public partial class VectorSpriteDocument : SpriteDocument
     }
 
     public Color32 CurrentFillColor = Color32.White;
-    public SpriteFillType CurrentFillType;
-    public SpriteFillGradient CurrentFillGradient;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);
     public byte CurrentStrokeWidth = 1;
     public SpriteStrokeJoin CurrentStrokeJoin;
@@ -26,7 +24,7 @@ public partial class VectorSpriteDocument : SpriteDocument
 
     private readonly List<SpritePath> _visiblePathsCache = new();
 
-    public override DocumentEditor? CreateEditor() => new VectorSpriteEditor(this);
+    public override DocumentEditor CreateEditor() => new VectorSpriteEditor(this);
 
     protected override void UpdateContentBounds()
     {
@@ -104,8 +102,6 @@ public partial class VectorSpriteDocument : SpriteDocument
     {
         if (source is not VectorSpriteDocument src) return;
         CurrentFillColor = src.CurrentFillColor;
-        CurrentFillType = src.CurrentFillType;
-        CurrentFillGradient = src.CurrentFillGradient;
         CurrentStrokeColor = src.CurrentStrokeColor;
         CurrentStrokeWidth = src.CurrentStrokeWidth;
         CurrentStrokeJoin = src.CurrentStrokeJoin;

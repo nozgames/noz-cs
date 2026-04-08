@@ -14,7 +14,6 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
     public override void Update()
     {
         EditorCursor.SetCrosshair();
-
         var mouseWorld = Workspace.MouseWorldPosition;
         var pixel = Editor.WorldToPixel(mouseWorld);
 
@@ -25,13 +24,9 @@ public class PencilMode : EditorMode<PixelSpriteEditor>
         else if (_isDrawing)
         {
             if (Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
-            {
                 ContinueStroke(pixel);
-            }
             else
-            {
                 EndStroke();
-            }
         }
     }
 

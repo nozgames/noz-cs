@@ -38,6 +38,7 @@ internal static partial class Outliner
         using (UI.BeginRow(ElementId.Root, EditorStyle.Inspector.Root))
         {
             using (UI.BeginFlex())
+            using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))            
             using (UI.BeginScrollable(ElementId.Scroll))
             using (UI.BeginColumn(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
             {

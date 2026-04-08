@@ -70,32 +70,11 @@ public class TransformMode : EditorMode<VectorSpriteEditor>
                 return;
         }
 
-        // Check gradient drag
-        if (Editor._isGradientDragging)
-        {
-            if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
-                Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
-            {
-                Editor.CancelGradientDrag();
-                return;
-            }
-            if (Input.WasButtonReleasedRaw(InputCode.MouseLeft))
-            {
-                Editor.CommitGradientDrag();
-                return;
-            }
-            Editor.UpdateGradientDrag();
-            return;
-        }
-
         // Handle drag start
         if (Workspace.DragStarted && Workspace.DragButton == InputCode.MouseLeft)
         {
             Matrix3x2.Invert(Editor.Document.Transform, out var invTransform);
             var dragLocal = Vector2.Transform(Workspace.DragWorldPosition, invTransform);
-
-            if (Editor.IsGradientOverlayVisible() && Editor.HandleGradientDrag(dragLocal))
-                return;
 
             if (Editor.SelectedPaths.Count > 0 && TryStartTransformDrag(dragLocal))
                 return;

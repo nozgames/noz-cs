@@ -331,7 +331,8 @@ public static class VfxSystem
                 Graphics.SetOverlayColor(instance.OverlayColor);
                 Graphics.SetSortGroup((int)instance.Depth);
                 Graphics.SetTransform(particleTransform);
-                Graphics.Draw(pdef.Sprite, pdef.Sort);
+                var frame = Math.Min((int)(t * pdef.Sprite.FrameCount), pdef.Sprite.FrameCount - 1);
+                Graphics.Draw(pdef.Sprite, pdef.Sort, frame: frame);
             }
         }
     }

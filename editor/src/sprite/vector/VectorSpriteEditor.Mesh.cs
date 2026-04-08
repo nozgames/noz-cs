@@ -2,7 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Numerics;
 using Clipper2Lib;
 using LibTessDotNet;
 
@@ -24,9 +23,6 @@ public partial class VectorSpriteEditor
         public int IndexOffset;
         public int IndexCount;
         public Color FillColor;
-        public SpriteFillType FillType;
-        public SpriteFillGradient Gradient;
-        public Matrix3x2 GradientTransform;
     }
 
     private readonly List<MeshSlotData> _meshSlots = new();
@@ -34,20 +30,14 @@ public partial class VectorSpriteEditor
 
     private int _meshFrame = -1;
 
-    private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color,
-        SpriteFillType fillType = SpriteFillType.Solid,
-        SpriteFillGradient gradient = default,
-        Matrix3x2 gradientTransform = default)
+    private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color)
     {
         return TessellateClipperTo(paths, ref vertexOffset, ref indexOffset, color,
-            _meshVertices, _meshIndices, _meshSlots, fillType, gradient, gradientTransform);
+            _meshVertices, _meshIndices, _meshSlots);
     }
 
     private bool TessellateClipperTo(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color,
-        MeshVertex[] vertices, ushort[] indices, List<MeshSlotData> slots,
-        SpriteFillType fillType = SpriteFillType.Solid,
-        SpriteFillGradient gradient = default,
-        Matrix3x2 gradientTransform = default)
+        MeshVertex[] vertices, ushort[] indices, List<MeshSlotData> slots)
     {
         var tess = new Tess();
         foreach (var path in paths)
@@ -61,14 +51,11 @@ public partial class VectorSpriteEditor
 
         tess.Tessellate(WindingRule.NonZero, LibTessDotNet.ElementType.Polygons, 3);
         return EmitTessellationTo(tess, ref vertexOffset, ref indexOffset, color,
-            vertices, indices, slots, fillType, gradient, gradientTransform);
+            vertices, indices, slots);
     }
 
     private bool EmitTessellationTo(Tess tess, ref int vertexOffset, ref int indexOffset, Color color,
-        MeshVertex[] vertices, ushort[] indices, List<MeshSlotData> slots,
-        SpriteFillType fillType = SpriteFillType.Solid,
-        SpriteFillGradient gradient = default,
-        Matrix3x2 gradientTransform = default)
+        MeshVertex[] vertices, ushort[] indices, List<MeshSlotData> slots)
     {
         if (tess.ElementCount == 0) return false;
 
@@ -79,28 +66,11 @@ public partial class VectorSpriteEditor
             indexOffset + idxCount > MaxMeshIndices)
             return false;
 
-        var startVert = vertexOffset;
-
         for (int v = 0; v < vertCount; v++)
         {
             ref var tv = ref tess.Vertices[v];
             vertices[vertexOffset + v] = new MeshVertex(
                 tv.Position.X, tv.Position.Y, 0, 0, Color.White);
-        }
-
-        if (fillType == SpriteFillType.Linear)
-        {
-            var gradStart = Vector2.Transform(gradient.Start, gradientTransform);
-            var gradEnd = Vector2.Transform(gradient.End, gradientTransform);
-            var axis = gradEnd - gradStart;
-            var axisSqLen = Vector2.Dot(axis, axis);
-            var endVert = vertexOffset + vertCount;
-            for (int v = startVert; v < endVert; v++)
-            {
-                var pos = vertices[v].Position;
-                float t = axisSqLen > 0 ? Math.Clamp(Vector2.Dot(pos - gradStart, axis) / axisSqLen, 0, 1) : 0;
-                vertices[v].Color = Color32.Mix(gradient.StartColor, gradient.EndColor, t).ToColor();
-            }
         }
 
         for (int e = 0; e < tess.ElementCount; e++)
@@ -117,9 +87,6 @@ public partial class VectorSpriteEditor
             IndexOffset = indexOffset,
             IndexCount = idxCount,
             FillColor = color,
-            FillType = fillType,
-            Gradient = gradient,
-            GradientTransform = gradientTransform,
         });
 
         vertexOffset += vertCount;
@@ -141,11 +108,8 @@ public partial class VectorSpriteEditor
 
             foreach (var slot in _meshSlots)
             {
-                if (slot.FillType == SpriteFillType.Linear)
-                    Graphics.SetColor(Color.White.WithAlpha(Workspace.XrayAlpha));
-                else
-                    Graphics.SetColor(slot.FillColor.WithAlpha(
-                        slot.FillColor.A * Workspace.XrayAlpha));
+                Graphics.SetColor(slot.FillColor.WithAlpha(
+                    slot.FillColor.A * Workspace.XrayAlpha));
                 Graphics.Draw(
                     _meshVertices.AsSpan(slot.VertexOffset, slot.VertexCount),
                     _meshIndices.AsSpan(slot.IndexOffset, slot.IndexCount));
@@ -173,8 +137,7 @@ public partial class VectorSpriteEditor
         _tessellateResults.Clear();
         SpriteGroupProcessor.ProcessLayer(layer, _tessellateResults);
         foreach (var result in _tessellateResults)
-            TessellateClipper(result.Contours, ref vertexOffset, ref indexOffset, result.Color.ToColor(),
-                result.FillType, result.Gradient, result.GradientTransform);
+            TessellateClipper(result.Contours, ref vertexOffset, ref indexOffset, result.Color.ToColor());
     }
 
     private void DrawColoredMesh(int sortGroup)

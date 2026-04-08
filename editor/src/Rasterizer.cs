@@ -11,7 +11,6 @@
 //  of these area deltas gives per-pixel winding coverage.
 //
 
-using System.Numerics;
 using Clipper2Lib;
 
 namespace NoZ.Editor;
@@ -134,129 +133,6 @@ internal static class Rasterizer
                         // coverages are complementary and should sum to full opacity.
                         // The over formula treats them as independent, causing dark seams.
                         if (color.A == 255)
-                            blended.A = (byte)Math.Min(srcA + dst.A, 255);
-                        target[tx, ty] = blended;
-                    }
-                }
-            }
-        }
-    }
-
-    public static void Fill(
-        PathsD paths,
-        PixelData<Color32> target,
-        RectInt targetRect,
-        Vector2Int sourceOffset,
-        int dpi,
-        SpriteFillType fillType,
-        Color32 color,
-        SpriteFillGradient gradient,
-        Matrix3x2 gradientTransform)
-    {
-        if (fillType == SpriteFillType.Solid)
-        {
-            Fill(paths, target, targetRect, sourceOffset, dpi, color);
-            return;
-        }
-
-        int w = targetRect.Width;
-        int h = targetRect.Height;
-        if (w <= 0 || h <= 0 || paths.Count == 0) return;
-
-        var edges = _edgePool ??= new List<Edge>();
-        edges.Clear();
-        CollectEdges(edges, paths, dpi, sourceOffset);
-        if (edges.Count == 0) return;
-
-        edges.Sort(EdgeYMinComparison);
-
-        var coverageLen = w + 2;
-        var coverage = _coveragePool;
-        if (coverage == null || coverage.Length < coverageLen)
-        {
-            coverage = new float[coverageLen];
-            _coveragePool = coverage;
-        }
-
-        // Pre-compute gradient in pixel space
-        var gs = Vector2.Transform(gradient.Start, gradientTransform);
-        var ge = Vector2.Transform(gradient.End, gradientTransform);
-        var gradStartPx = new Vector2((float)(gs.X * dpi) + sourceOffset.X, (float)(gs.Y * dpi) + sourceOffset.Y);
-        var gradEndPx = new Vector2((float)(ge.X * dpi) + sourceOffset.X, (float)(ge.Y * dpi) + sourceOffset.Y);
-        var axis = gradEndPx - gradStartPx;
-        var axisSqLen = Vector2.Dot(axis, axis);
-        var invAxisSqLen = axisSqLen > 0 ? 1f / axisSqLen : 0f;
-
-        int edgeStart = 0;
-
-        for (int py = 0; py < h; py++)
-        {
-            Array.Clear(coverage, 0, coverageLen);
-
-            float rowTop = py;
-            float rowBot = py + 1;
-
-            for (int ei = edgeStart; ei < edges.Count; ei++)
-            {
-                var edge = edges[ei];
-                if (edge.YMin >= rowBot) break;
-                if (edge.YMax <= rowTop)
-                {
-                    if (ei == edgeStart) edgeStart++;
-                    continue;
-                }
-
-                float eyMin, eyMax, exAtMin, exAtMax;
-                if (edge.Y0 < edge.Y1)
-                { eyMin = edge.Y0; eyMax = edge.Y1; exAtMin = edge.X0; exAtMax = edge.X1; }
-                else
-                { eyMin = edge.Y1; eyMax = edge.Y0; exAtMin = edge.X1; exAtMax = edge.X0; }
-
-                float clipTop = MathF.Max(eyMin, rowTop);
-                float clipBot = MathF.Min(eyMax, rowBot);
-                if (clipTop >= clipBot) continue;
-
-                float edgeHeight = eyMax - eyMin;
-                float invHeight = 1f / edgeHeight;
-                float tTop = (clipTop - eyMin) * invHeight;
-                float tBot = (clipBot - eyMin) * invHeight;
-                float xAtTop = exAtMin + tTop * (exAtMax - exAtMin);
-                float xAtBot = exAtMin + tBot * (exAtMax - exAtMin);
-
-                float dy = clipBot - clipTop;
-                float dir = edge.Direction;
-
-                DepositEdge(coverage, w, xAtTop, xAtBot, dy * dir);
-            }
-
-            int ty = targetRect.Y + py;
-            float sum = 0;
-            for (int px = 0; px < w; px++)
-            {
-                sum += coverage[px];
-                float alpha = MathF.Abs(sum);
-                if (alpha > 1f) alpha = 1f;
-
-                if (alpha > 0.004f)
-                {
-                    int tx = targetRect.X + px;
-
-                    // Compute gradient color for this pixel
-                    var pixelPos = new Vector2(px, py);
-                    float t = axisSqLen > 0 ? MathF.Max(0, MathF.Min(1, Vector2.Dot(pixelPos - gradStartPx, axis) * invAxisSqLen)) : 0;
-                    var gradColor = Color32.Mix(gradient.StartColor, gradient.EndColor, t);
-
-                    byte srcA = (byte)(alpha * gradColor.A + 0.5f);
-                    var srcColor = new Color32(gradColor.R, gradColor.G, gradColor.B, srcA);
-                    var dst = target[tx, ty];
-                    if (dst.A == 0)
-                    {
-                        target[tx, ty] = srcColor;
-                    }
-                    else
-                    {
-                        var blended = Color32.Blend(dst, srcColor);
-                        if (gradColor.A == 255)
                             blended.A = (byte)Math.Min(srcA + dst.A, 255);
                         target[tx, ty] = blended;
                     }

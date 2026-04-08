@@ -257,16 +257,7 @@ public partial class VectorSpriteEditor
 
         if (path != null)
         {
-            var fillColor = path.FillColor;
-            if (path.FillType == SpriteFillType.Linear && fillColor.A == 0)
-            {
-                fillColor = path.FillGradient.StartColor.A > 0 ? path.FillGradient.StartColor
-                    : path.FillGradient.EndColor.A > 0 ? path.FillGradient.EndColor
-                    : new Color32(fillColor.R, fillColor.G, fillColor.B, 255);
-            }
-            Document.CurrentFillColor = fillColor;
-            Document.CurrentFillType = path.FillType;
-            Document.CurrentFillGradient = path.FillGradient;
+            Document.CurrentFillColor = path.FillColor;
             Document.CurrentStrokeColor = path.StrokeColor;
             Document.CurrentStrokeWidth = (byte)int.Max(1, (int)path.StrokeWidth);
             Document.CurrentStrokeJoin = path.StrokeJoin;

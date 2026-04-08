@@ -215,6 +215,14 @@ public static class Input
                 MousePosition = evt.MousePosition;
                 break;
 
+            case PlatformEventType.PenDown:
+                IsPenDown = true;
+                break;
+
+            case PlatformEventType.PenUp:
+                IsPenDown = false;
+                break;
+
             case PlatformEventType.MouseScroll:
                 _scrollX = evt.ScrollX;
                 _scrollY = evt.ScrollY;
@@ -375,6 +383,8 @@ public static class Input
 
     public static string GetTextInput() => _scopeStack.Count == 0 ? _textInput : string.Empty;
     public static string GetTextInput(InputScope scope) => CheckScope(scope) ? _textInput : string.Empty;
+
+    public static bool IsPenDown { get; private set; }
 
     public static Vector2 MousePosition { get; private set; }
     public static bool MouseInWindow => Application.Platform.IsMouseInWindow;
