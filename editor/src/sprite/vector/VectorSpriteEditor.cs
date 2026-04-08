@@ -1228,35 +1228,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         }
     }
 
-    private void DrawSkeletonOverlay()
-    {
-        var skeleton = Document.Skeleton.Value;
-        if (skeleton == null)
-            return;
-
-        using (Graphics.PushState())
-        {
-            Graphics.SetSortGroup(0);
-            Graphics.SetLayer(EditorLayer.DocumentEditor);
-            foreach (var bound in skeleton.Attachments)
-            {
-                if (bound is not SpriteDocument sprite || sprite == Document) continue;
-                Graphics.SetBlendMode(BlendMode.Alpha);
-                Graphics.SetTransform(Document.Transform);
-                sprite.DrawSprite(alpha: 0.3f);
-            }
-        }
-
-        using (Gizmos.PushState(EditorLayer.DocumentEditor))
-        {
-            Graphics.SetSortGroup(6);
-            Graphics.SetTransform(Document.Transform);
-
-            for (var boneIndex = 0; boneIndex < skeleton.BoneCount; boneIndex++)
-                Gizmos.DrawBoneAndJoints(skeleton, boneIndex, selected: false);
-        }
-    }
-
     private void SpriteInspectorUI()
     {
         using var _ = Inspector.BeginSection("SPRITE");

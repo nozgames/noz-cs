@@ -9,6 +9,9 @@ public partial class PixelSpriteDocument : SpriteDocument
     private static partial class WidgetIds
     {
         public static partial WidgetId PixelsPerUnit { get; }
+        public static partial WidgetId SkeletonDropDown { get; }
+        public static partial WidgetId BoneDropDown { get; }
+        public static partial WidgetId ShowInSkeleton { get; }
     }
 
     public int? PixelsPerUnitOverride { get; set; }
@@ -245,6 +248,70 @@ public partial class PixelSpriteDocument : SpriteDocument
                         }
                     })
                 ], label);
+            }
+
+            using (Inspector.BeginProperty("Skeleton"))
+            {
+                var skeleton = EditorUI.SkeletonField(WidgetIds.SkeletonDropDown, Skeleton.Value);
+                if (UI.WasChanged())
+                {
+                    Undo.Record(this);
+                    if (skeleton != null)
+                    {
+                        Skeleton = skeleton;
+                        skeleton.UpdateSprites();
+                    }
+                    else
+                    {
+                        var old = Skeleton.Value;
+                        Skeleton.Clear();
+                        BoneName = null;
+                        old?.UpdateSprites();
+                    }
+                }
+            }
+
+            if (Skeleton.IsResolved)
+            {
+                using (Inspector.BeginProperty("Bone"))
+                {
+                    var skeleton = Skeleton.Value!;
+                    var boneLabel = BoneName ?? "None";
+
+                    UI.DropDown(WidgetIds.BoneDropDown, () =>
+                    {
+                        var boneItems = new List<PopupMenuItem>();
+                        for (var i = 0; i < skeleton.BoneCount; i++)
+                        {
+                            var boneName = skeleton.Bones[i].Name;
+                            boneItems.Add(new PopupMenuItem { Label = boneName, Handler = () =>
+                            {
+                                Undo.Record(this);
+                                BoneName = boneName;
+                                ResolveBone();
+                                Skeleton.Value?.UpdateSprites();
+                            }});
+                        }
+                        boneItems.Add(new PopupMenuItem { Label = "None", Handler = () =>
+                        {
+                            Undo.Record(this);
+                            BoneName = null;
+                            ResolveBone();
+                            Skeleton.Value?.UpdateSprites();
+                        }});
+                        return [.. boneItems];
+                    }, boneLabel, EditorAssets.Sprites.IconBone);
+                }
+
+                using (Inspector.BeginProperty("Show In Skeleton"))
+                {
+                    if (UI.Toggle(WidgetIds.ShowInSkeleton, ShowInSkeleton, EditorStyle.Inspector.Toggle))
+                    {
+                        Undo.Record(this);
+                        ShowInSkeleton = !ShowInSkeleton;
+                        Skeleton.Value?.UpdateSprites();
+                    }
+                }
             }
         }
     }

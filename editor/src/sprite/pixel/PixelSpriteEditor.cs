@@ -23,6 +23,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         public static partial WidgetId AddFrameButton { get; }
         public static partial WidgetId AlphaLockButton { get; }
         public static partial WidgetId TilingButton { get; }
+        public static partial WidgetId ShowSkeletonOverlay { get; }
     }
 
     public Color32 BrushColor { get; set; } = Color32.Black;
@@ -276,6 +277,8 @@ public partial class PixelSpriteEditor : SpriteEditor
         DrawPixelGrid();
         if (Mode is not PixelTransformMode)
             DrawSelectionOutline();
+        if (Document.ShowSkeletonOverlay)
+            DrawSkeletonOverlay();
         Document.DrawBounds();
         Mode?.Draw();
     }
@@ -331,6 +334,9 @@ public partial class PixelSpriteEditor : SpriteEditor
 
             if (FloatingToolbar.Button(WidgetIds.TilingButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
                 Document.ShowTiling = !Document.ShowTiling;
+
+            if (FloatingToolbar.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, isSelected: Document.ShowSkeletonOverlay))
+                Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
 
             FloatingToolbar.Divider();
 

@@ -14,8 +14,6 @@ public partial class PixelSpriteEditor
         public static partial WidgetId SortOrder { get; }
         public static partial WidgetId SkeletonDropDown { get; }
         public static partial WidgetId BoneDropDown { get; }
-        public static partial WidgetId ShowInSkeleton { get; }
-        public static partial WidgetId ShowSkeletonOverlay { get; }
         public static partial WidgetId PixelsPerUnit { get; }
     }
 
@@ -124,18 +122,7 @@ public partial class PixelSpriteEditor
                 }, boneLabel, EditorAssets.Sprites.IconBone);
             }
 
-            if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowInSkeleton))
-            {
-                Undo.Record(Document);
-                Document.ShowInSkeleton = !Document.ShowInSkeleton;
-                Document.Skeleton.Value?.UpdateSprites();
-            }
 
-            if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowSkeletonOverlay))
-            {
-                Undo.Record(Document);
-                Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
-            }
         }
     }
 
