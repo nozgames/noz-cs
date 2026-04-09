@@ -17,6 +17,7 @@ public static partial class FloatingToolbar
     {
         UI.BeginColumn();
         UI.Flex();
+        UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
         UI.BeginColumn(EditorStyle.FloatingToolbar.Root);
         UI.BeginRow(EditorStyle.FloatingToolbar.Row);
         _rowOpen = true;
@@ -41,6 +42,7 @@ public static partial class FloatingToolbar
         }
 
         UI.EndColumn();
+        UI.EndCursor();
         UI.EndColumn();
     }
 

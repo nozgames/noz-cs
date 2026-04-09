@@ -2,7 +2,6 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Diagnostics;
 using Clipper2Lib;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -46,8 +45,6 @@ public partial class VectorSpriteDocument
         int dpi,
         Rect? clipRect = null)
     {
-        var sw = Stopwatch.StartNew();
-
         var results = new List<LayerPathResult>();
         SpriteGroupProcessor.ProcessLayer(layer, results);
 
@@ -85,9 +82,6 @@ public partial class VectorSpriteDocument
         }
 
         Rasterizer.Resolve(image, samples, targetRect);
-
-        sw.Stop();
-        Log.Info($"RasterizeLayer: {targetRect.Width}x{targetRect.Height}, {results.Count} paths — {sw.Elapsed.TotalMilliseconds:F2} ms");
     }
 
     public byte[] RasterizeColorToPng()

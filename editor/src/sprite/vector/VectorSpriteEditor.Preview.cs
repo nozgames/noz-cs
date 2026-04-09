@@ -8,8 +8,6 @@ namespace NoZ.Editor;
 
 public partial class VectorSpriteEditor
 {
-    // Editor-wide toggle; state lives on the editor instance but the user
-    // preference is sticky across editor instances within a session.
     private static bool s_previewRasterize;
 
     public static bool PreviewRasterize
@@ -27,18 +25,11 @@ public partial class VectorSpriteEditor
     {
         base.PreUpdate();
 
-        // Build/refresh the preview RT before the scene pass starts so Update()
-        // can display it the same frame — avoids a one-frame blank when the
-        // user toggles preview on.
-        if (PreviewRasterize)
-        {
-            UpdateMeshFromLayers();
-            UpdatePreviewTexture();
-        }
-        else if (_previewRT.IsValid)
-        {
-            DisposePreview();
-        }
+        // Always keep the preview RT current — the PreviewRasterize flag
+        // only controls whether Update() displays it, so toggling on never
+        // shows stale content.
+        UpdateMeshFromLayers();
+        UpdatePreviewTexture();
     }
 
     internal static void LoadUserSettings(PropertySet props)
@@ -51,20 +42,16 @@ public partial class VectorSpriteEditor
         props.SetBool("vector_sprite", "preview_rasterize", s_previewRasterize);
     }
 
-    // Supersample factor: render mesh into _previewRTHi (Nx native + 4xMSAA)
-    // then downsample to _previewRT (1x, no MSAA) via a single linear blit.
-    // A bilinear lookup only samples 2x2 source texels, so going above 2x
-    // without cascaded downsampling wastes rendering work.
+    // Supersample factor for the hi-res RT. A single bilinear downsample
+    // only samples 2x2 source texels, so values above 2 waste work.
     private const int PreviewSupersample = 1;
 
-    // Fixed allocation ceiling — the preview RTs are acquired at this size
-    // once and never reallocated as the sprite's RasterBounds change. This
-    // avoids the visual flash that happens when the RT is recreated (or the
-    // pool hands us a different handle) on sprite resize.
+    // Fixed ceiling — the RTs are acquired at this size once and never
+    // reallocated as RasterBounds change, which avoids flashes on resize.
     private const int MaxPreviewSize = 1024;
 
-    private RenderTexture _previewRT;      // MaxPreviewSize x MaxPreviewSize
-    private RenderTexture _previewRTHi;    // MaxPreviewSize * PreviewSupersample, 4xMSAA
+    private RenderTexture _previewRT;
+    private RenderTexture _previewRTHi;
     private int _previewMeshVersion = -1;
     private Vector2Int _renderedSize;
     private readonly Camera _previewCamera = new() { FlipY = false };
@@ -75,29 +62,24 @@ public partial class VectorSpriteEditor
         if (size.X <= 0 || size.Y <= 0 ||
             size.X > MaxPreviewSize || size.Y > MaxPreviewSize)
         {
-            // Nothing to render — clear the cached size so DrawPreviewQuad
-            // stops displaying the stale RT contents (e.g. after the user
-            // deletes every path in the sprite).
+            // Clear the cached size so DrawPreviewQuad hides stale content.
             _renderedSize = default;
             return;
         }
         var hiSize = size * PreviewSupersample;
 
-        // Always acquire at the MAX size — the pool reuses the same entry
-        // across frames, and we render into a (0,0,size.X,size.Y) sub-region
-        // via viewport. DrawPreviewQuad samples only the used UV corner.
+        // Fixed max-size acquire: the pool reuses the same entry each frame,
+        // and we render into a (0,0,size.X,size.Y) sub-region via viewport.
         const int maxHi = MaxPreviewSize * PreviewSupersample;
         _previewRTHi = RenderTexturePool.Acquire(maxHi, maxHi, sampleCount: 4);
         _previewRT = RenderTexturePool.Acquire(MaxPreviewSize, MaxPreviewSize, sampleCount: 1);
 
-        // Re-render if the mesh or the rendered sub-region changed.
         if (_previewMeshVersion == _meshVersion && _renderedSize == size)
             return;
         _previewMeshVersion = _meshVersion;
         _renderedSize = size;
 
-        // --- Pass 1: render mesh into the (0,0,hiSize.X,hiSize.Y) sub-region
-        // of the fixed max-size hi RT ---
+        // Pass 1: mesh → hi-res MSAA RT sub-region.
         Graphics.BeginPass(_previewRTHi, Color.Transparent);
         Graphics.SetViewport(0, 0, hiSize.X, hiSize.Y);
 
@@ -121,9 +103,7 @@ public partial class VectorSpriteEditor
 
         Graphics.EndPass();
 
-        // --- Pass 2: downsample the used sub-region of hi RT into the 1x RT ---
-        // Samples only the (0,0) -> (hiU,hiV) UV corner so the unused portion
-        // of the max-size hi RT doesn't contaminate the blit.
+        // Pass 2: linear downsample the used sub-region into the 1x RT.
         Graphics.BeginPass(_previewRT, Color.Transparent);
         Graphics.SetViewport(0, 0, size.X, size.Y);
 
@@ -161,32 +141,16 @@ public partial class VectorSpriteEditor
             Graphics.SetTextureFilter(TextureFilter.Point);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
 
-            // The MSAA-resolved RT holds premultiplied values by construction:
-            // box-averaging per-sample Alpha-blend results produces (R*cov,
-            // G*cov, B*cov, cov). Display with Premultiplied so the engine
-            // doesn't darken the RGB a second time — this matches the CPU
-            // rasterizer's alpha-weighted straight-alpha output visually.
+            // The MSAA-resolved RT is premultiplied by construction, so
+            // display with Premultiplied to avoid darkening edges twice.
             Graphics.SetBlendMode(BlendMode.Premultiplied);
             var xray = Workspace.XrayAlpha;
             Graphics.SetColor(new Color(xray, xray, xray, xray));
 
-            // Sample only the (0,0) -> (u,v) corner: the max-size RT contains
-            // valid pixels in the top-left sub-region matching _renderedSize.
             var bounds = Document.Bounds;
             var u = (float)_renderedSize.X / MaxPreviewSize;
             var v = (float)_renderedSize.Y / MaxPreviewSize;
             Graphics.Draw(bounds.X, bounds.Y, bounds.Width, bounds.Height, 0f, 0f, u, v);
         }
-    }
-
-    private void DisposePreview()
-    {
-        // The pool owns the textures; we just drop our references. The next
-        // couple of FlushPendingReleases calls (in Graphics.BeginFrame) will
-        // destroy them once they've aged out of any in-flight GPU commands.
-        _previewRT = default;
-        _previewRTHi = default;
-        _previewMeshVersion = -1;
-        _renderedSize = default;
     }
 }

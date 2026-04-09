@@ -76,17 +76,17 @@ public partial class VectorSpriteEditor
         HandleRenameInput();
         UpdateOutlinerDrag();
 
-        using (UI.BeginColumn(WidgetIds.OutlinerPanel, OutlinerPanelStyle))
+        void AddButton()
         {
-            // Header
-            using (UI.BeginRow(new ContainerStyle { Height = 22, Spacing = 4, AlignY = Align.Center }))
-            {
-                UI.Text("Layers", EditorStyle.Text.Secondary);
-                using (UI.BeginFlex()) { }
-                if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, OutlinerIconButtonStyle))
-                    AddLayer();
-            }
+            ElementTree.BeginAlign(Align.Min, Align.Center);
+            if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+                AddLayer();
+            ElementTree.EndAlign();
+        }
 
+        using (UI.BeginColumn(WidgetIds.OutlinerPanel, OutlinerPanelStyle))
+        using (Outliner.BeginSection("LAYERS", content: AddButton, collapsible: false))
+        {
             DrawNodeTree(Document.Root);
         }
     }

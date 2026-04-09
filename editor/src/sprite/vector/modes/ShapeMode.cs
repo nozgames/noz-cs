@@ -25,6 +25,11 @@ public class ShapeMode : EditorMode<VectorSpriteEditor>
         _shapeType = shapeType;
     }
 
+    public override void OnEnter()
+    {
+        Editor.ClearSelection();
+    }
+
     public override void Update()
     {
         EditorCursor.SetCrosshair();

@@ -330,7 +330,6 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     public override void UpdateOverlayUI()
     {
-        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
         using (FloatingToolbar.Begin())
         {
             var color = BrushColor.ToColor();

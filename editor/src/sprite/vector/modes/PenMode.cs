@@ -28,7 +28,7 @@ public class PenMode : EditorMode<VectorSpriteEditor>
 
     public override void Update()
     {
-        EditorCursor.SetCrosshair();
+        EditorCursor.SetPen();
         var mouseWorld = Workspace.MouseWorldPosition;
         Matrix3x2.Invert(Editor.Document.Transform, out var invTransform);
         var mouseLocal = Vector2.Transform(mouseWorld, invTransform);

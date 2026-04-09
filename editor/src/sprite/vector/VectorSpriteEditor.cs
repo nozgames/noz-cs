@@ -123,8 +123,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (Document.Version != _versionOnOpen && Document.Atlas != null)
             AtlasManager.UpdateSource(Document);
 
-        DisposePreview();
-
         base.Dispose();
     }
 
@@ -291,39 +289,54 @@ public partial class VectorSpriteEditor : SpriteEditor
     private void FloatingToolbarUI()
     {
         // V/A mode toggles
-        if (FloatingToolbar.Button(WidgetIds.VModeButton, EditorAssets.Sprites.IconMove, isSelected: CurrentMode == SpriteEditMode.Transform))
+        if (FloatingToolbar.Button(WidgetIds.VModeButton, EditorAssets.Sprites.IconModeTransform, isSelected: CurrentMode == SpriteEditMode.Transform))
             SetMode(SpriteEditMode.Transform);
+        EditorUI.Tooltip(WidgetIds.VModeButton, "Transform");
 
-        if (FloatingToolbar.Button(WidgetIds.AModeButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.Anchor))
+        if (FloatingToolbar.Button(WidgetIds.AModeButton, EditorAssets.Sprites.IconModeAnchor, isSelected: CurrentMode == SpriteEditMode.Anchor))
             SetMode(SpriteEditMode.Anchor);
-
-        if (FloatingToolbar.Button(WidgetIds.BevelModeButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.Bevel))
-            SetMode(SpriteEditMode.Bevel);
+        EditorUI.Tooltip(WidgetIds.AModeButton, "Edit Anchors");
 
         FloatingToolbar.Divider();
 
         // Creation modes: Pen, Rect, Circle
-        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconEdit, isSelected: CurrentMode == SpriteEditMode.Pen))
+        if (FloatingToolbar.Button(WidgetIds.PenToolButton, EditorAssets.Sprites.IconPenMode, isSelected: CurrentMode == SpriteEditMode.Pen))
             SetMode(SpriteEditMode.Pen);
+        EditorUI.Tooltip(WidgetIds.PenToolButton, "Pen Tool");
 
-        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconLayer, isSelected: CurrentMode == SpriteEditMode.Rectangle))
+        if (FloatingToolbar.Button(WidgetIds.RectToolButton, EditorAssets.Sprites.IconRectMode, isSelected: CurrentMode == SpriteEditMode.Rectangle))
             SetMode(SpriteEditMode.Rectangle);
+        EditorUI.Tooltip(WidgetIds.RectToolButton, "Rectangle Tool");
 
-        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircle, isSelected: CurrentMode == SpriteEditMode.Circle))
+        if (FloatingToolbar.Button(WidgetIds.CircleToolButton, EditorAssets.Sprites.IconCircleMode, isSelected: CurrentMode == SpriteEditMode.Circle))
             SetMode(SpriteEditMode.Circle);
+        EditorUI.Tooltip(WidgetIds.CircleToolButton, "Circle Tool");
 
         FloatingToolbar.Divider();
 
-        if (FloatingToolbar.Button(WidgetIds.AnimatedButton, EditorAssets.Sprites.IconKeyframe, isSelected: Document.IsAnimated))
+        if (FloatingToolbar.Button(WidgetIds.BevelModeButton, EditorAssets.Sprites.IconStrokeJoinBevel, isSelected: CurrentMode == SpriteEditMode.Bevel))
+            SetMode(SpriteEditMode.Bevel);
+        EditorUI.Tooltip(WidgetIds.BevelModeButton, "Bevel");
+
+        FloatingToolbar.Divider();
+
+        if (FloatingToolbar.Button(WidgetIds.AnimatedButton, EditorAssets.Sprites.AssetIconAnimation, isSelected: Document.IsAnimated))
             ToggleAnimation();
+        EditorUI.Tooltip(WidgetIds.AnimatedButton, "Animation");
+
+        if (Document.IsAnimated)
+        {
+            if (FloatingToolbar.Button(WidgetIds.OnionSkinButton, EditorAssets.Sprites.IconOnion, isSelected: _onionSkin))
+                _onionSkin = !_onionSkin;
+            EditorUI.Tooltip(WidgetIds.OnionSkinButton, "Onion Skin");            
+        }
 
         FloatingToolbar.Divider();
 
         if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
             Document.ShowTiling = !Document.ShowTiling;
+        EditorUI.Tooltip(WidgetIds.TileButton, "Tiling Preview");
 
-        if (FloatingToolbar.Button(WidgetIds.OnionSkinButton, EditorAssets.Sprites.IconOnion, isSelected: _onionSkin))
-            _onionSkin = !_onionSkin;
 
         if (FloatingToolbar.Button(WidgetIds.PreviewRasterizeButton, EditorAssets.Sprites.IconRasterize, isSelected: PreviewRasterize))
             TogglePreviewRasterize();
@@ -608,46 +621,56 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     private void CenterShape()
     {
-        Undo.Record(Document);
+        if (_selectedPaths.Count == 0) return;
+
+        // If the selection contains any non-clip paths, ignore clip paths when
+        // computing bounds so masks don't skew the center.
+        var hasNonClip = false;
+        foreach (var p in _selectedPaths)
+        {
+            if (!p.IsClip) { hasNonClip = true; break; }
+        }
 
         var min = new Vector2(float.MaxValue, float.MaxValue);
         var max = new Vector2(float.MinValue, float.MinValue);
         var hasAnchors = false;
 
-        Document.Root.ForEachEditablePath(p =>
+        foreach (var p in _selectedPaths)
         {
-            if (p.TotalAnchorCount == 0) return;
+            if (hasNonClip && p.IsClip) continue;
+            if (p.TotalAnchorCount == 0) continue;
             hasAnchors = true;
             p.UpdateSamples();
             p.UpdateBounds();
             var b = p.Bounds;
             min = Vector2.Min(min, new Vector2(b.X, b.Y));
             max = Vector2.Max(max, new Vector2(b.Right, b.Bottom));
-        });
+        }
 
-        if (hasAnchors)
+        if (!hasAnchors) return;
+
+        Undo.Record(Document);
+
+        var dpi = EditorApplication.Config.PixelsPerUnit;
+        var invDpi = 1f / dpi;
+        var centerWorld = (min + max) * 0.5f;
+        var center = new Vector2(
+            MathF.Round(centerWorld.X * dpi) * invDpi,
+            MathF.Round(centerWorld.Y * dpi) * invDpi);
+
+        // Translate every selected path (clips included) so masks stay aligned.
+        foreach (var p in _selectedPaths)
         {
-            var dpi = EditorApplication.Config.PixelsPerUnit;
-            var invDpi = 1f / dpi;
-            var centerWorld = (min + max) * 0.5f;
-            var center = new Vector2(
-                MathF.Round(centerWorld.X * dpi) * invDpi,
-                MathF.Round(centerWorld.Y * dpi) * invDpi);
-
-            // Translate all paths to center origin
-            Document.Root.ForEachEditablePath(p =>
+            foreach (var contour in p.Contours)
             {
-                foreach (var contour in p.Contours)
+                for (var i = 0; i < contour.Anchors.Count; i++)
                 {
-                    for (var i = 0; i < contour.Anchors.Count; i++)
-                    {
-                        var a = contour.Anchors[i];
-                        a.Position -= center;
-                        contour.Anchors[i] = a;
-                    }
+                    var a = contour.Anchors[i];
+                    a.Position -= center;
+                    contour.Anchors[i] = a;
                 }
-                p.MarkDirty();
-            });
+            }
+            p.MarkDirty();
         }
 
         MarkDirty();
@@ -914,6 +937,13 @@ public partial class VectorSpriteEditor : SpriteEditor
         _hoverPath = null;
         _hoverAnchorIndex = -1;
         _hoverHandle = SpritePathHandle.None;
+
+        // Modes that manage their own cursor set it from Mode.Update() in LateUpdate.
+        // Don't stomp them here or the cursor never reaches the element tree.
+        if (CurrentMode != SpriteEditMode.Transform &&
+            CurrentMode != SpriteEditMode.Anchor &&
+            CurrentMode != SpriteEditMode.Bevel)
+            return;
 
         if (_selectedPaths.Count == 0)
         {

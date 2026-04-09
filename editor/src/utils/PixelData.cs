@@ -55,6 +55,12 @@ public sealed unsafe class PixelData<T> : IDisposable where T : unmanaged
 
     public ref T this[int x, int y] => ref _pixels[y * Size.X + x];
 
+    /// <summary>
+    /// Raw pointer to the first pixel. Use for tight-loop pointer arithmetic
+    /// that bypasses the managed indexer. Caller is responsible for bounds.
+    /// </summary>
+    public T* Ptr => (T*)_memory;
+
     public void Clear(in RectInt rect, T value = default)
     {
         for (var y = rect.Y; y < rect.Y + rect.Height; y++ )

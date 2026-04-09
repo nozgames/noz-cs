@@ -66,21 +66,24 @@ public partial class PixelSpriteEditor
         HandleRenameInput();
         UpdateOutlinerDrag();
 
-        using (UI.BeginColumn(WidgetIds.OutlinerPanel, OutlinerPanelStyle))
+        void HeaderButtons()
         {
-            // Header
-            using (UI.BeginRow(new ContainerStyle { Height = 22, Spacing = 4, AlignY = Align.Center }))
+            ElementTree.BeginAlign(Align.Min, Align.Center);
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
-                UI.Text("Layers", EditorStyle.Text.Secondary);
-                using (UI.BeginFlex()) { }
-                if (UI.Button(WidgetIds.DeleteLayerButton, EditorAssets.Sprites.IconDelete, OutlinerIconButtonStyle))
+                if (UI.Button(WidgetIds.DeleteLayerButton, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
                     DeleteActiveLayer();
-                if (UI.Button(WidgetIds.AddGroupButton, EditorAssets.Sprites.IconPathLayer, OutlinerIconButtonStyle))
+                if (UI.Button(WidgetIds.AddGroupButton, EditorAssets.Sprites.IconPathLayer, EditorStyle.Inspector.SectionButton))
                     AddGroup();
-                if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, OutlinerIconButtonStyle))
+                if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
                     AddLayer();
             }
+            ElementTree.EndAlign();
+        }
 
+        using (UI.BeginColumn(WidgetIds.OutlinerPanel, OutlinerPanelStyle))
+        using (Outliner.BeginSection("LAYERS", content: HeaderButtons, collapsible: false))
+        {
             DrawNodeTree(Document.Root);
         }
     }

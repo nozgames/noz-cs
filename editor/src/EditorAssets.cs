@@ -26,6 +26,7 @@ public static class EditorAssets
         public const string CursorCurve = "cursor_curve";
         public const string CursorDropper = "cursor_dropper";
         public const string CursorMove = "cursor_move";
+        public const string CursorPen = "cursor_pen";
         public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
         public const string EditorSprites000 = "editor_sprites000";
@@ -35,6 +36,7 @@ public static class EditorAssets
         public const string IconBone = "icon_bone";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
+        public const string IconCircleMode = "icon_circle_mode";
         public const string IconClip = "icon_clip";
         public const string IconClose = "icon_close";
         public const string IconCollection = "icon_collection";
@@ -61,6 +63,8 @@ public static class EditorAssets
         public const string IconLoop = "icon_loop";
         public const string IconMenu = "icon_menu";
         public const string IconMirror = "icon_mirror";
+        public const string IconModeAnchor = "icon_mode_anchor";
+        public const string IconModeTransform = "icon_mode_transform";
         public const string IconMove = "icon_move";
         public const string IconNofill = "icon_nofill";
         public const string IconOnion = "icon_onion";
@@ -69,12 +73,14 @@ public static class EditorAssets
         public const string IconPalette = "icon_palette";
         public const string IconPath = "icon_path";
         public const string IconPathLayer = "icon_path_layer";
+        public const string IconPenMode = "icon_pen_mode";
         public const string IconPlay = "icon_play";
         public const string IconPreview = "icon_preview";
         public const string IconPublish = "icon_publish";
         public const string IconRandom = "icon_random";
         public const string IconRandomRange = "icon_random_range";
         public const string IconRasterize = "icon_rasterize";
+        public const string IconRectMode = "icon_rect_mode";
         public const string IconRefresh = "icon_refresh";
         public const string IconRemove = "icon_remove";
         public const string IconRootMotion = "icon_root_motion";
@@ -207,6 +213,7 @@ public static class EditorAssets
         public static readonly Sprite CursorCurve = new();
         public static readonly Sprite CursorDropper = new();
         public static readonly Sprite CursorMove = new();
+        public static readonly Sprite CursorPen = new();
         public static readonly Sprite CursorRotate = new();
         public static readonly Sprite CursorScale = new();
         public static readonly Sprite GizmoHandle = new();
@@ -215,6 +222,7 @@ public static class EditorAssets
         public static readonly Sprite IconBone = new();
         public static readonly Sprite IconCheck = new();
         public static readonly Sprite IconCircle = new();
+        public static readonly Sprite IconCircleMode = new();
         public static readonly Sprite IconClip = new();
         public static readonly Sprite IconClose = new();
         public static readonly Sprite IconCollection = new();
@@ -241,6 +249,8 @@ public static class EditorAssets
         public static readonly Sprite IconLoop = new();
         public static readonly Sprite IconMenu = new();
         public static readonly Sprite IconMirror = new();
+        public static readonly Sprite IconModeAnchor = new();
+        public static readonly Sprite IconModeTransform = new();
         public static readonly Sprite IconMove = new();
         public static readonly Sprite IconNofill = new();
         public static readonly Sprite IconOnion = new();
@@ -249,12 +259,14 @@ public static class EditorAssets
         public static readonly Sprite IconPalette = new();
         public static readonly Sprite IconPath = new();
         public static readonly Sprite IconPathLayer = new();
+        public static readonly Sprite IconPenMode = new();
         public static readonly Sprite IconPlay = new();
         public static readonly Sprite IconPreview = new();
         public static readonly Sprite IconPublish = new();
         public static readonly Sprite IconRandom = new();
         public static readonly Sprite IconRandomRange = new();
         public static readonly Sprite IconRasterize = new();
+        public static readonly Sprite IconRectMode = new();
         public static readonly Sprite IconRefresh = new();
         public static readonly Sprite IconRemove = new();
         public static readonly Sprite IconRootMotion = new();
@@ -294,6 +306,7 @@ public static class EditorAssets
             CursorCurve.Load(Names.CursorCurve, atlas);
             CursorDropper.Load(Names.CursorDropper, atlas);
             CursorMove.Load(Names.CursorMove, atlas);
+            CursorPen.Load(Names.CursorPen, atlas);
             CursorRotate.Load(Names.CursorRotate, atlas);
             CursorScale.Load(Names.CursorScale, atlas);
             GizmoHandle.Load(Names.GizmoHandle, atlas);
@@ -302,6 +315,7 @@ public static class EditorAssets
             IconBone.Load(Names.IconBone, atlas);
             IconCheck.Load(Names.IconCheck, atlas);
             IconCircle.Load(Names.IconCircle, atlas);
+            IconCircleMode.Load(Names.IconCircleMode, atlas);
             IconClip.Load(Names.IconClip, atlas);
             IconClose.Load(Names.IconClose, atlas);
             IconCollection.Load(Names.IconCollection, atlas);
@@ -328,6 +342,8 @@ public static class EditorAssets
             IconLoop.Load(Names.IconLoop, atlas);
             IconMenu.Load(Names.IconMenu, atlas);
             IconMirror.Load(Names.IconMirror, atlas);
+            IconModeAnchor.Load(Names.IconModeAnchor, atlas);
+            IconModeTransform.Load(Names.IconModeTransform, atlas);
             IconMove.Load(Names.IconMove, atlas);
             IconNofill.Load(Names.IconNofill, atlas);
             IconOnion.Load(Names.IconOnion, atlas);
@@ -336,12 +352,14 @@ public static class EditorAssets
             IconPalette.Load(Names.IconPalette, atlas);
             IconPath.Load(Names.IconPath, atlas);
             IconPathLayer.Load(Names.IconPathLayer, atlas);
+            IconPenMode.Load(Names.IconPenMode, atlas);
             IconPlay.Load(Names.IconPlay, atlas);
             IconPreview.Load(Names.IconPreview, atlas);
             IconPublish.Load(Names.IconPublish, atlas);
             IconRandom.Load(Names.IconRandom, atlas);
             IconRandomRange.Load(Names.IconRandomRange, atlas);
             IconRasterize.Load(Names.IconRasterize, atlas);
+            IconRectMode.Load(Names.IconRectMode, atlas);
             IconRefresh.Load(Names.IconRefresh, atlas);
             IconRemove.Load(Names.IconRemove, atlas);
             IconRootMotion.Load(Names.IconRootMotion, atlas);
@@ -382,6 +400,7 @@ public static class EditorAssets
             CursorCurve.Reload();
             CursorDropper.Reload();
             CursorMove.Reload();
+            CursorPen.Reload();
             CursorRotate.Reload();
             CursorScale.Reload();
             GizmoHandle.Reload();
@@ -390,6 +409,7 @@ public static class EditorAssets
             IconBone.Reload();
             IconCheck.Reload();
             IconCircle.Reload();
+            IconCircleMode.Reload();
             IconClip.Reload();
             IconClose.Reload();
             IconCollection.Reload();
@@ -416,6 +436,8 @@ public static class EditorAssets
             IconLoop.Reload();
             IconMenu.Reload();
             IconMirror.Reload();
+            IconModeAnchor.Reload();
+            IconModeTransform.Reload();
             IconMove.Reload();
             IconNofill.Reload();
             IconOnion.Reload();
@@ -424,12 +446,14 @@ public static class EditorAssets
             IconPalette.Reload();
             IconPath.Reload();
             IconPathLayer.Reload();
+            IconPenMode.Reload();
             IconPlay.Reload();
             IconPreview.Reload();
             IconPublish.Reload();
             IconRandom.Reload();
             IconRandomRange.Reload();
             IconRasterize.Reload();
+            IconRectMode.Reload();
             IconRefresh.Reload();
             IconRemove.Reload();
             IconRootMotion.Reload();
@@ -470,6 +494,7 @@ public static class EditorAssets
             CursorCurve.Dispose();
             CursorDropper.Dispose();
             CursorMove.Dispose();
+            CursorPen.Dispose();
             CursorRotate.Dispose();
             CursorScale.Dispose();
             GizmoHandle.Dispose();
@@ -478,6 +503,7 @@ public static class EditorAssets
             IconBone.Dispose();
             IconCheck.Dispose();
             IconCircle.Dispose();
+            IconCircleMode.Dispose();
             IconClip.Dispose();
             IconClose.Dispose();
             IconCollection.Dispose();
@@ -504,6 +530,8 @@ public static class EditorAssets
             IconLoop.Dispose();
             IconMenu.Dispose();
             IconMirror.Dispose();
+            IconModeAnchor.Dispose();
+            IconModeTransform.Dispose();
             IconMove.Dispose();
             IconNofill.Dispose();
             IconOnion.Dispose();
@@ -512,12 +540,14 @@ public static class EditorAssets
             IconPalette.Dispose();
             IconPath.Dispose();
             IconPathLayer.Dispose();
+            IconPenMode.Dispose();
             IconPlay.Dispose();
             IconPreview.Dispose();
             IconPublish.Dispose();
             IconRandom.Dispose();
             IconRandomRange.Dispose();
             IconRasterize.Dispose();
+            IconRectMode.Dispose();
             IconRefresh.Dispose();
             IconRemove.Dispose();
             IconRootMotion.Dispose();

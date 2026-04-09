@@ -60,9 +60,10 @@ internal static partial class Outliner
         Action? content = null,
         bool isActive = false,
         bool collapsed = false,
-        bool empty = false)
+        bool empty = false,
+        bool collapsible = true)
     {
-        BeginSectionCore(name, icon, content, isActive, collapsed, empty);
+        BeginSectionCore(name, icon, content, isActive, collapsed, empty, collapsible);
         return new AutoSection();
     }
 
@@ -72,12 +73,13 @@ internal static partial class Outliner
         Action? content = null,
         bool isActive = false,
         bool collapsed = false,
-        bool empty = false)
+        bool empty = false,
+        bool collapsible = true)
     {
         if (_sectionOpen)
             EndSection();
 
-        BeginSectionCore(name, icon, content, isActive, collapsed, empty);
+        BeginSectionCore(name, icon, content, isActive, collapsed, empty, collapsible);
         _sectionOpen = true;
     }
 
@@ -87,7 +89,8 @@ internal static partial class Outliner
         Action? content,
         bool isActive,
         bool collapsed,
-        bool empty)
+        bool empty,
+        bool collapsible)
     {
         var sectionId = _nextSectionId++;
         _sectionActive = isActive;
@@ -98,10 +101,10 @@ internal static partial class Outliner
         ElementTree.BeginTree();
         ref var state = ref ElementTree.BeginWidget<SectionState>(sectionId);
         var flags = ElementTree.GetWidgetFlags();
-        var hovered = flags.HasFlag(WidgetFlags.Hovered);
+        var hovered = collapsible && flags.HasFlag(WidgetFlags.Hovered);
 
-        _wasHeaderPressed = flags.HasFlag(WidgetFlags.Pressed);
-        _sectionCollapsed = empty || state.Collapsed != 0 || collapsed;
+        _wasHeaderPressed = collapsible && flags.HasFlag(WidgetFlags.Pressed);
+        _sectionCollapsed = collapsible && (empty || state.Collapsed != 0 || collapsed);
 
         if (_wasHeaderPressed)
             state.Collapsed = (byte)(state.Collapsed != 0 ? 0 : 1);
@@ -121,7 +124,11 @@ internal static partial class Outliner
         ElementTree.BeginPadding(EdgeInsets.LeftRight(8));
 
         ElementTree.BeginRow(EditorStyle.Control.Spacing);
-        if (empty)
+        if (!collapsible)
+        {
+            // no chevron, no spacer — text aligns to left padding
+        }
+        else if (empty)
             ElementTree.Spacer(EditorStyle.Icon.Size);
         else
             ElementTree.Image(chevron, EditorStyle.Icon.Size, ImageStretch.Uniform, iconColor, 1.0f, Align.Center);

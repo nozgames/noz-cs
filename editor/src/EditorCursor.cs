@@ -50,6 +50,8 @@ internal static class EditorCursor
 
     public static void SetDropper() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorDropper));
 
+    public static void SetPen() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorPen));
+
     public static void SetCrosshair() => SetSystem(SystemCursor.Crosshair);
 
     public static void Begin()
