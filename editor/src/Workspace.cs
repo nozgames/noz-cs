@@ -380,6 +380,8 @@ public static partial class Workspace
     
     public static void Update()
     {
+        ActiveEditor?.PreUpdate();
+
         UpdateState();
         UpdateCamera();
 

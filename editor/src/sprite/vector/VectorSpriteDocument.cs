@@ -68,6 +68,9 @@ public partial class VectorSpriteDocument : SpriteDocument
             if (path.TotalAnchorCount == 0)
                 continue;
 
+            if (path.Operation != SpritePathOperation.Normal)
+                continue;
+
             if (first)
             {
                 bounds = path.Bounds;

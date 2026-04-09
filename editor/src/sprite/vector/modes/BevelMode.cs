@@ -8,6 +8,8 @@ namespace NoZ.Editor;
 
 public class BevelMode : AnchorBasedMode
 {
+    private const float MaxRatio = 0.95f;
+
     private struct BevelTarget
     {
         public int AnchorIndex;
@@ -109,16 +111,15 @@ public class BevelMode : AnchorBasedMode
         ref var primary = ref _targets[_primaryIndex];
         if (primary.MaxDist < 0.001f) return;
 
-        // Cursor-relative: compute t from primary anchor geometry
         var d1 = Vector2.Normalize(primary.PrevPos - primary.OriginalPos);
         var d2 = Vector2.Normalize(primary.NextPos - primary.OriginalPos);
         var dc = mouseLocal - primary.OriginalPos;
         var dcLen = dc.Length();
 
-        float t;
+        float worldDist;
         if (dcLen < 0.0001f)
         {
-            t = 0f;
+            worldDist = 0f;
         }
         else
         {
@@ -127,7 +128,7 @@ public class BevelMode : AnchorBasedMode
             var cross_d2_dc = d2.X * dc.Y - d2.Y * dc.X;
 
             var inside = (cross_d1_dc * cross_d1_d2 >= 0f) && (cross_d2_dc * -cross_d1_d2 >= 0f);
-            t = inside ? Math.Clamp(dcLen / primary.MaxDist, 0f, 0.95f) : 0f;
+            worldDist = inside ? MathF.Min(dcLen, primary.MaxDist * MaxRatio) : 0f;
         }
 
         // Restore anchors from snapshot
@@ -136,7 +137,7 @@ public class BevelMode : AnchorBasedMode
         for (var i = 0; i < _saved.Length; i++)
             contour.Anchors.Add(_saved[i]);
 
-        if (t < 0.001f)
+        if (worldDist < 0.001f)
         {
             for (var ti = 0; ti < _targets.Length; ti++)
             {
@@ -149,11 +150,11 @@ public class BevelMode : AnchorBasedMode
 
         var ctrlDown = Input.IsCtrlDown(InputScope.All);
 
-        // Compute bevel for each target
+        // Compute bevel for each target using the same world distance, clamped per-target
         for (var ti = 0; ti < _targets.Length; ti++)
         {
-            var clampedT = Math.Clamp(t * primary.MaxDist / MathF.Max(_targets[ti].MaxDist, 0.001f), 0f, 0.95f);
-            ComputeBevel(ref _targets[ti], clampedT, ctrlDown);
+            var targetDist = MathF.Min(worldDist, _targets[ti].MaxDist * MaxRatio);
+            ComputeBevel(ref _targets[ti], targetDist, ctrlDown);
         }
 
         // Rebuild anchor list with all bevels
@@ -289,16 +290,22 @@ public class BevelMode : AnchorBasedMode
         Gizmos.DrawLine(prev, anchors[nextIdx].Position, EditorStyle.SpritePath.SegmentLineWidth, order: 2);
     }
 
-    private static void ComputeBevel(ref BevelTarget target, float t, bool ctrlDown)
+    private static void ComputeBevel(ref BevelTarget target, float worldDist, bool ctrlDown)
     {
+        var prevLen = Vector2.Distance(target.OriginalPos, target.PrevPos);
+        var nextLen = Vector2.Distance(target.OriginalPos, target.NextPos);
+
+        var tPrev = prevLen > 0.0001f ? Math.Clamp(worldDist / prevLen, 0f, MaxRatio) : 0f;
+        var tNext = nextLen > 0.0001f ? Math.Clamp(worldDist / nextLen, 0f, MaxRatio) : 0f;
+
         if (MathF.Abs(target.PrevCurve) < SpritePath.MinCurve)
         {
-            target.P1 = Vector2.Lerp(target.OriginalPos, target.PrevPos, t);
+            target.P1 = Vector2.Lerp(target.OriginalPos, target.PrevPos, tPrev);
             target.LeftCurve = 0f;
         }
         else
         {
-            var splitT = 1f - t;
+            var splitT = 1f - tPrev;
             var mid = (target.PrevPos + target.OriginalPos) * 0.5f;
             var dir = target.OriginalPos - target.PrevPos;
             var perp = new Vector2(-dir.Y, dir.X);
@@ -315,7 +322,7 @@ public class BevelMode : AnchorBasedMode
 
         if (MathF.Abs(target.OrigCurve) < SpritePath.MinCurve)
         {
-            target.P2 = Vector2.Lerp(target.OriginalPos, target.NextPos, t);
+            target.P2 = Vector2.Lerp(target.OriginalPos, target.NextPos, tNext);
             target.RightCurve = 0f;
         }
         else
@@ -327,10 +334,10 @@ public class BevelMode : AnchorBasedMode
             if (len > 0) perp /= len;
             var control = mid + perp * target.OrigCurve;
 
-            var u = 1f - t;
-            target.P2 = u * u * target.OriginalPos + 2 * u * t * control + t * t * target.NextPos;
+            var u = 1f - tNext;
+            target.P2 = u * u * target.OriginalPos + 2 * u * tNext * control + tNext * tNext * target.NextPos;
 
-            var cRight = Vector2.Lerp(control, target.NextPos, t);
+            var cRight = Vector2.Lerp(control, target.NextPos, tNext);
             target.RightCurve = SpritePath.ProjectCurve(target.P2, target.NextPos, cRight);
         }
 

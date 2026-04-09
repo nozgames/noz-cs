@@ -20,6 +20,11 @@ public partial class PixelSpriteDocument
             ParseLayer(ref tk, Root);
             return true;
         }
+        if (tk.ExpectIdentifier("group"))
+        {
+            ParseGroup(ref tk, Root);
+            return true;
+        }
         return false;
     }
 

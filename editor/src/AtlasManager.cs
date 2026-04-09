@@ -359,7 +359,7 @@ public static class AtlasManager
             Add(_sources[i]);
         }
 
-        for (int atlasIndex = _atlases.Count - 1; atlasIndex > 1; atlasIndex--)
+        for (int atlasIndex = _atlases.Count - 1; atlasIndex > 0; atlasIndex--)
             if (_atlases[atlasIndex].RectCount == 0)
                 DocumentManager.Delete(_atlases[atlasIndex]);
 

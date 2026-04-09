@@ -74,6 +74,7 @@ public static class EditorAssets
         public const string IconPublish = "icon_publish";
         public const string IconRandom = "icon_random";
         public const string IconRandomRange = "icon_random_range";
+        public const string IconRasterize = "icon_rasterize";
         public const string IconRefresh = "icon_refresh";
         public const string IconRemove = "icon_remove";
         public const string IconRootMotion = "icon_root_motion";
@@ -253,6 +254,7 @@ public static class EditorAssets
         public static readonly Sprite IconPublish = new();
         public static readonly Sprite IconRandom = new();
         public static readonly Sprite IconRandomRange = new();
+        public static readonly Sprite IconRasterize = new();
         public static readonly Sprite IconRefresh = new();
         public static readonly Sprite IconRemove = new();
         public static readonly Sprite IconRootMotion = new();
@@ -339,6 +341,7 @@ public static class EditorAssets
             IconPublish.Load(Names.IconPublish, atlas);
             IconRandom.Load(Names.IconRandom, atlas);
             IconRandomRange.Load(Names.IconRandomRange, atlas);
+            IconRasterize.Load(Names.IconRasterize, atlas);
             IconRefresh.Load(Names.IconRefresh, atlas);
             IconRemove.Load(Names.IconRemove, atlas);
             IconRootMotion.Load(Names.IconRootMotion, atlas);
@@ -426,6 +429,7 @@ public static class EditorAssets
             IconPublish.Reload();
             IconRandom.Reload();
             IconRandomRange.Reload();
+            IconRasterize.Reload();
             IconRefresh.Reload();
             IconRemove.Reload();
             IconRootMotion.Reload();
@@ -513,6 +517,7 @@ public static class EditorAssets
             IconPublish.Dispose();
             IconRandom.Dispose();
             IconRandomRange.Dispose();
+            IconRasterize.Dispose();
             IconRefresh.Dispose();
             IconRemove.Dispose();
             IconRootMotion.Dispose();

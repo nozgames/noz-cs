@@ -29,6 +29,7 @@ public abstract class DocumentEditor(Document document) : IDisposable
         SetMode((EditorMode?)mode);
     }
 
+    public virtual void PreUpdate() { }
     public virtual void Update() { }
     public virtual void UpdateUI() { }
     public virtual void UpdateOverlayUI() { }

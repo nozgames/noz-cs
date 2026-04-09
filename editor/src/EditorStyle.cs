@@ -962,7 +962,7 @@ public static class EditorStyle
             Height = Control.Height,
             Background = Color.Transparent,
             ContentColor = Palette.SecondaryText,
-            IconSize = Icon.LargeSize,
+            IconSize = 17,
             BorderRadius = Control.BorderRadius,
             Resolve = (s, f) =>
             {

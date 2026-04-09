@@ -1,13 +1,13 @@
 //
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
-//  CPU 8x MSAA polygon rasterizer.
+//  CPU 4x MSAA polygon rasterizer.
 //
-//  For each pixel, 8 sub-samples are tested independently against each path
+//  For each pixel, 4 sub-samples are tested independently against each path
 //  using a non-zero winding rule. Paths are blended back-to-front into the
 //  per-sample accumulator with Porter-Duff over, then averaged in Resolve().
-//  Sub-sample positions follow the D3D11 8x rotated grid (one sample per
-//  sub-row), so each pixel row is rasterized via 8 sub-scanlines walking an
+//  Sub-sample positions follow the D3D11 4x rotated grid (one sample per
+//  sub-row), so each pixel row is rasterized via 4 sub-scanlines walking an
 //  active edge table.
 //
 //  This avoids the shared-edge bleed of analytic per-path coverage: at a
@@ -21,8 +21,8 @@ using Clipper2Lib;
 
 namespace NoZ.Editor;
 
-[InlineArray(8)]
-internal struct Sample8
+[InlineArray(4)]
+internal struct Sample4
 {
     private Color32 _element0;
 }
@@ -36,21 +36,21 @@ internal static class Rasterizer
 
     private static readonly Comparison<Edge> EdgeYMinComparison = (a, b) => a.YMin.CompareTo(b.YMin);
 
-    // D3D11 8x MSAA sample positions, converted from signed 16ths via (v + 8) / 16:
-    //   (1,-3), (-1,3), (5,1), (-3,-5), (-5,5), (-7,-1), (3,7), (7,-7)
+    // D3D11 4x MSAA sample positions, converted from signed 16ths via (v + 8) / 16:
+    //   (-2,-6), (6,-2), (-6,2), (2,6)
     // Each sample sits on a distinct sub-row (Y values are all unique), which
     // lets the rasterizer run one scanline per sub-row.
     private static readonly (float X, float Y)[] SampleOffsets =
     {
-        (0.5625f, 0.3125f), (0.4375f, 0.6875f),
-        (0.8125f, 0.5625f), (0.3125f, 0.1875f),
-        (0.1875f, 0.8125f), (0.0625f, 0.4375f),
-        (0.6875f, 0.9375f), (0.9375f, 0.0625f),
+        (0.375f, 0.125f),
+        (0.875f, 0.375f),
+        (0.125f, 0.625f),
+        (0.625f, 0.875f),
     };
 
     public static void Fill(
         PathsD paths,
-        PixelData<Sample8> samples,
+        PixelData<Sample4> samples,
         RectInt targetRect,
         Vector2Int sourceOffset,
         int dpi,
@@ -111,7 +111,7 @@ internal static class Rasterizer
 
             if (aet.Count == 0) continue;
 
-            for (int s = 0; s < 8; s++)
+            for (int s = 0; s < 4; s++)
             {
                 float subY = py + SampleOffsets[s].Y;
 
@@ -192,7 +192,7 @@ internal static class Rasterizer
 
     public static void Resolve(
         PixelData<Color32> target,
-        PixelData<Sample8> samples,
+        PixelData<Sample4> samples,
         RectInt targetRect)
     {
         int w = targetRect.Width;
@@ -204,7 +204,7 @@ internal static class Rasterizer
             {
                 ref var row = ref samples[px, py];
                 int sumR = 0, sumG = 0, sumB = 0, sumA = 0;
-                for (int s = 0; s < 8; s++)
+                for (int s = 0; s < 4; s++)
                 {
                     var c = row[s];
                     // Weight RGB by per-sample alpha so transparent slots
@@ -223,7 +223,7 @@ internal static class Rasterizer
                     (byte)((sumR + halfA) / sumA),
                     (byte)((sumG + halfA) / sumA),
                     (byte)((sumB + halfA) / sumA),
-                    (byte)((sumA + 4) >> 3));
+                    (byte)((sumA + 2) >> 2));
 
                 int tx = targetRect.X + px;
                 ref var dst = ref target[tx, ty];

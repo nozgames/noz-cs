@@ -17,6 +17,7 @@ public static class UserSettings
 
         CollectionManager.LoadUserSettings(props);
         Workspace.LoadUserSettings(props);
+        VectorSpriteEditor.LoadUserSettings(props);
         EditorApplication.AppConfig.LoadUserSettings?.Invoke(props);
     }
 
@@ -30,6 +31,7 @@ public static class UserSettings
         var props = new PropertySet();
         Workspace.SaveUserSettings(props);
         CollectionManager.SaveUserSettings(props);
+        VectorSpriteEditor.SaveUserSettings(props);
         EditorApplication.AppConfig.SaveUserSettings?.Invoke(props);
         props.Save(UserConfigPath, store);
     }

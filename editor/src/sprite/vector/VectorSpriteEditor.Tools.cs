@@ -334,9 +334,9 @@ public partial class VectorSpriteEditor
 
         Undo.Record(Document);
 
-        // Duplicate all selected paths
-        foreach (var path in _selectedPaths)
+        for (var i = _selectedPaths.Count - 1; i >= 0; i--)
         {
+            var path = _selectedPaths[i];
             var parent = path.Parent;
             if (parent == null) continue;
 
@@ -379,8 +379,8 @@ public partial class VectorSpriteEditor
             Document.Root.ClearSelection();
 
             var nodes = nodeData.PasteAsNodes();
-            foreach (var node in nodes)
-                Document.Root.Insert(0, node);
+            for (var i = nodes.Count - 1; i >= 0; i--)
+                Document.Root.Insert(0, nodes[i]);
 
             MarkDirty();
             RebuildSelectedPaths();
@@ -394,8 +394,8 @@ public partial class VectorSpriteEditor
         Document.Root.ClearSelection();
 
         var newPaths = clipboardData.PasteAsPaths();
-        foreach (var path in newPaths)
-            Document.Root.Insert(0, path);
+        for (var i = newPaths.Count - 1; i >= 0; i--)
+            Document.Root.Insert(0, newPaths[i]);
 
         MarkDirty();
         RebuildSelectedPaths();

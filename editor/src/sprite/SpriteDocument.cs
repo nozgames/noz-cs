@@ -51,7 +51,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     protected virtual TextureFilter DefaultTextureFilter => TextureFilter.Linear;
 
     public virtual int PixelsPerUnit => PixelsPerUnitOverride ?? EditorApplication.Config.PixelsPerUnit;
-    protected virtual TextureFilter TextureFilter => TextureFilterOverride ?? DefaultTextureFilter;
+    public virtual TextureFilter TextureFilter => TextureFilterOverride ?? DefaultTextureFilter;
 
     public bool IsAnimated { get; set; }
 

@@ -50,6 +50,7 @@ public class PenMode : EditorMode<VectorSpriteEditor>
         {
             if (_pointCount > 0)
                 _pointCount--;
+            Input.ConsumeButton(InputCode.MouseRight);
             return;
         }
 
@@ -224,6 +225,10 @@ public class PenMode : EditorMode<VectorSpriteEditor>
         path.UpdateSamples();
         path.UpdateBounds();
         activeLayer.Insert(0, path);
+
+        Editor.ClearSelection();
+        path.SelectPath();
+        Editor.RebuildSelectedPaths();
 
         Editor.MarkDirty();
         _pointCount = 0;

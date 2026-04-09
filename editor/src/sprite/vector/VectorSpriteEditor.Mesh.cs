@@ -12,10 +12,6 @@ public partial class VectorSpriteEditor
     private const int MaxMeshVertices = 1024 * 16;
     private const int MaxMeshIndices = MaxMeshVertices * 3;
 
-    private readonly MeshVertex[] _meshVertices = new MeshVertex[MaxMeshVertices];
-    private readonly ushort[] _meshIndices = new ushort[MaxMeshIndices];
-    private bool _meshDirty = true;
-
     private struct MeshSlotData
     {
         public int VertexOffset;
@@ -25,10 +21,13 @@ public partial class VectorSpriteEditor
         public Color FillColor;
     }
 
+    private readonly MeshVertex[] _meshVertices = new MeshVertex[MaxMeshVertices];
+    private readonly ushort[] _meshIndices = new ushort[MaxMeshIndices];
+    private bool _meshDirty = true;
     private readonly List<MeshSlotData> _meshSlots = new();
     private readonly List<LayerPathResult> _tessellateResults = new();
-
     private int _meshFrame = -1;
+    private int _meshVersion = -1;
 
     private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color)
     {
@@ -124,6 +123,7 @@ public partial class VectorSpriteEditor
 
         _meshDirty = false;
         _meshFrame = CurrentFrameIndex;
+        _meshVersion++;
         _meshSlots.Clear();
 
         var vertexOffset = 0;

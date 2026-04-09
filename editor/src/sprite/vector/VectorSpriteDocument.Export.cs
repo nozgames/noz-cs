@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Diagnostics;
 using Clipper2Lib;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -45,6 +46,8 @@ public partial class VectorSpriteDocument
         int dpi,
         Rect? clipRect = null)
     {
+        var sw = Stopwatch.StartNew();
+
         var results = new List<LayerPathResult>();
         SpriteGroupProcessor.ProcessLayer(layer, results);
 
@@ -60,10 +63,10 @@ public partial class VectorSpriteDocument
             }};
         }
 
-        // 8x MSAA sample accumulator. Paths are blended back-to-front into 8
+        // 4x MSAA sample accumulator. Paths are blended back-to-front into 4
         // sub-pixel slots per pixel; Resolve() averages and writes the final
         // color into the image. Sized to the target rect, indexed locally.
-        using var samples = new PixelData<Sample8>(targetRect.Size);
+        using var samples = new PixelData<Sample4>(targetRect.Size);
 
         // Iterate forward — the results list is already ordered back-to-front
         // (index 0 = bottommost) by SpriteGroupProcessor's reverse child pass.
@@ -82,6 +85,9 @@ public partial class VectorSpriteDocument
         }
 
         Rasterizer.Resolve(image, samples, targetRect);
+
+        sw.Stop();
+        Log.Info($"RasterizeLayer: {targetRect.Width}x{targetRect.Height}, {results.Count} paths — {sw.Elapsed.TotalMilliseconds:F2} ms");
     }
 
     public byte[] RasterizeColorToPng()

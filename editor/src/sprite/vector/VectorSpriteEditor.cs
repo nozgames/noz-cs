@@ -40,6 +40,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId BevelModeButton { get; }
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId OnionSkinButton { get; }
+        public static partial WidgetId PreviewRasterizeButton { get; }
     }
 
     private int _currentTimeSlot;
@@ -86,6 +87,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             new Command("Boolean Subtract",     BooleanSubtract,            [new KeyBinding(InputCode.KeyD, ctrl:true, shift:true)]),
             new Command("Boolean Intersect",    BooleanIntersect,           [new KeyBinding(InputCode.KeyI, ctrl:true, shift:true)]),
             new Command("Export to PNG",        ExportToPng,                [new KeyBinding(InputCode.KeyE, ctrl:true, shift:true)]),
+            new Command("Toggle Rasterization Preview", TogglePreviewRasterize, [InputCode.KeyF6]),
         ];
 
         SetMode(new TransformMode());
@@ -121,6 +123,8 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (Document.Version != _versionOnOpen && Document.Atlas != null)
             AtlasManager.UpdateSource(Document);
 
+        DisposePreview();
+
         base.Dispose();
     }
 
@@ -133,6 +137,10 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     public override void OpenContextMenu(WidgetId popupId)
     {
+        // Pen tool uses right-click to remove the last placed point; suppress the context menu in that mode.
+        if (CurrentMode == SpriteEditMode.Pen)
+            return;
+
         var vMode = CurrentMode == SpriteEditMode.Transform;
         var hasPath = HasPathSelection && _selectedPaths.Count > 0;
         var hasSelection = hasPath || HasLayerSelection;
@@ -237,7 +245,11 @@ public partial class VectorSpriteEditor : SpriteEditor
         }
 
         UpdateMeshFromLayers();
-        DrawMesh();
+
+        if (PreviewRasterize)
+            DrawPreviewQuad();
+        else
+            DrawMesh();
 
         DrawOnionSkin();
 
@@ -309,6 +321,10 @@ public partial class VectorSpriteEditor : SpriteEditor
 
         if (FloatingToolbar.Button(WidgetIds.OnionSkinButton, EditorAssets.Sprites.IconOnion, isSelected: _onionSkin))
             _onionSkin = !_onionSkin;
+
+        if (FloatingToolbar.Button(WidgetIds.PreviewRasterizeButton, EditorAssets.Sprites.IconRasterize, isSelected: PreviewRasterize))
+            TogglePreviewRasterize();
+        EditorUI.Tooltip(WidgetIds.PreviewRasterizeButton, "Rasterization Preview");
 
         if (Document.Skeleton.IsResolved)
         {
