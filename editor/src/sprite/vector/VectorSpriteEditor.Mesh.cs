@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Numerics;
 using Clipper2Lib;
 using LibTessDotNet;
 
@@ -93,7 +94,9 @@ public partial class VectorSpriteEditor
         return true;
     }
 
-    private void DrawMesh()
+    private void DrawMesh() => DrawMesh(Document.Transform);
+
+    private void DrawMesh(Matrix3x2 transform)
     {
         if (_meshSlots.Count == 0) return;
 
@@ -101,7 +104,7 @@ public partial class VectorSpriteEditor
         {
             Graphics.SetSortGroup(3);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
-            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTransform(transform);
             Graphics.SetTexture(Graphics.WhiteTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
 
@@ -113,6 +116,25 @@ public partial class VectorSpriteEditor
                     _meshVertices.AsSpan(slot.VertexOffset, slot.VertexCount),
                     _meshIndices.AsSpan(slot.IndexOffset, slot.IndexCount));
             }
+        }
+    }
+
+    private void DrawTiling()
+    {
+        var bounds = Document.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+
+        for (var dy = -2; dy <= 2; dy++)
+        for (var dx = -2; dx <= 2; dx++)
+        {
+            if (dx == 0 && dy == 0) continue;
+            var offset = new Vector2(dx * bounds.Width, dy * bounds.Height);
+            var tileTransform = Matrix3x2.CreateTranslation(offset) * Document.Transform;
+
+            if (PreviewRasterize)
+                DrawPreviewQuad(tileTransform);
+            else
+                DrawMesh(tileTransform);
         }
     }
 

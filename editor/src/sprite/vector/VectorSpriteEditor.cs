@@ -251,6 +251,9 @@ public partial class VectorSpriteEditor : SpriteEditor
         else
             DrawMesh();
 
+        if (Document.ShowTiling)
+            DrawTiling();
+
         DrawOnionSkin();
 
         if (Document.ShowSkeletonOverlay)

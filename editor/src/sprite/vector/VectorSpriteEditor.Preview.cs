@@ -145,7 +145,9 @@ public partial class VectorSpriteEditor
         Graphics.EndPass();
     }
 
-    private void DrawPreviewQuad()
+    private void DrawPreviewQuad() => DrawPreviewQuad(Document.Transform);
+
+    private void DrawPreviewQuad(Matrix3x2 transform)
     {
         if (!_previewRT.IsValid) return;
         if (_renderedSize.X <= 0 || _renderedSize.Y <= 0) return;
@@ -154,7 +156,7 @@ public partial class VectorSpriteEditor
         {
             Graphics.SetSortGroup(3);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
-            Graphics.SetTransform(Document.Transform);
+            Graphics.SetTransform(transform);
             Graphics.SetTexture(_previewRT.Handle);
             Graphics.SetTextureFilter(TextureFilter.Point);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
