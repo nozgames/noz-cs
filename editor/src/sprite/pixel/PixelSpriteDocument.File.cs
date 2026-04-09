@@ -42,17 +42,20 @@ public partial class PixelSpriteDocument
         }
     }
 
-    private void ParseLayer(ref Tokenizer tk, SpriteGroup parent)
+    private void ParseLayer(ref Tokenizer tk, SpriteNode parent)
     {
         var name = tk.ExpectQuotedString() ?? "";
         tk.ExpectDelimiter('{');
 
         PixelData<Color32>? pixels = null;
+        var hold = 0;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectDelimiter('}'))
                 break;
+            else if (tk.ExpectIdentifier("hold"))
+                hold = tk.ExpectInt();
             else if (tk.ExpectIdentifier("pixels"))
             {
                 var base64 = tk.ExpectQuotedString();
@@ -77,6 +80,7 @@ public partial class PixelSpriteDocument
         parent.Add(new PixelLayer
         {
             Name = name,
+            Hold = hold,
             Pixels = pixels ?? new PixelData<Color32>(CanvasSize.X, CanvasSize.Y)
         });
     }
@@ -86,6 +90,9 @@ public partial class PixelSpriteDocument
         var indent = new string(' ', depth * 2);
         var propIndent = new string(' ', (depth + 1) * 2);
         writer.WriteLine($"{indent}layer \"{layer.Name}\" {{");
+
+        if (layer.Hold > 0)
+            writer.WriteLine($"{propIndent}hold {layer.Hold}");
 
         if (layer.Pixels != null)
         {
@@ -98,10 +105,42 @@ public partial class PixelSpriteDocument
         writer.WriteLine();
     }
 
+    private void ParseGroup(ref Tokenizer tk, SpriteNode parent)
+    {
+        var name = tk.ExpectQuotedString() ?? "";
+        tk.ExpectDelimiter('{');
+
+        var group = new SpriteGroup { Name = name };
+
+        while (!tk.IsEOF)
+        {
+            if (tk.ExpectDelimiter('}'))
+                break;
+            else if (tk.ExpectIdentifier("hold"))
+                group.Hold = tk.ExpectInt();
+            else if (tk.ExpectIdentifier("layer"))
+                ParseLayer(ref tk, group);
+            else if (tk.ExpectIdentifier("group"))
+                ParseGroup(ref tk, group);
+            else
+            {
+                tk.ExpectToken(out var badToken);
+                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}' in group '{name}'");
+                break;
+            }
+        }
+
+        parent.Add(group);
+    }
+
     private static void SaveGroup(StreamWriter writer, SpriteGroup group, int depth)
     {
         var indent = new string(' ', depth * 2);
+        var propIndent = new string(' ', (depth + 1) * 2);
         writer.WriteLine($"{indent}group \"{group.Name}\" {{");
+
+        if (group.Hold > 0)
+            writer.WriteLine($"{propIndent}hold {group.Hold}");
 
         foreach (var child in group.Children)
         {

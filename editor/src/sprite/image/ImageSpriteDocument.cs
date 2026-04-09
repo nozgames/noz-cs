@@ -9,9 +9,6 @@ namespace NoZ.Editor;
 
 public class ImageSpriteDocument : SpriteDocument
 {
-    protected override int PixelsPerUnit => EditorApplication.Config.PixelsPerUnit;
-    protected override TextureFilter TextureFilter => TextureFilter.Linear;
-
     private Vector2Int _sourceImageSize;
     private Texture? _texture;
 

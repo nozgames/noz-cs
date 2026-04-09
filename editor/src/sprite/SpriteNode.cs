@@ -9,6 +9,7 @@ public abstract class SpriteNode : IDisposable
     public string Name { get; set; } = "";
     public bool Visible { get; set; } = true;
     public bool Locked { get; set; }
+    public int Hold { get; set; }
     public List<SpriteNode> Children { get; } = [];
     public SpriteNode? Parent { get; private set; }
     public bool Expanded { get; set; } = true;
@@ -32,6 +33,7 @@ public abstract class SpriteNode : IDisposable
         target.Name = Name;
         target.Visible = Visible;
         target.Locked = Locked;
+        target.Hold = Hold;
         target.Expanded = Expanded;
         target.IsSelected = IsSelected;
     }

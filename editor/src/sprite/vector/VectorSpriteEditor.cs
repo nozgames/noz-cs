@@ -21,12 +21,8 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId StrokeJoinRound { get; }
         public static partial WidgetId StrokeJoinMiter { get; }
         public static partial WidgetId StrokeJoinBevel { get; }
-        public static partial WidgetId AddFrameButton { get; }
+        public static partial WidgetId AnimatedButton { get; }
         public static partial WidgetId PlayButton { get; }
-        public static partial WidgetId ConstraintDropDown { get; }
-        public static partial WidgetId SkeletonDropDown { get; }
-        public static partial WidgetId BoneDropDown { get; }
-        public static partial WidgetId ShowInSkeleton { get; }
         public static partial WidgetId ShowSkeletonOverlay { get; }
         public static partial WidgetId PathNormal { get; }
         public static partial WidgetId PathSubtract { get; }
@@ -41,7 +37,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId EdgeLeft { get; }
         public static partial WidgetId EdgeBottom { get; }
         public static partial WidgetId EdgeRight { get; }
-        public static partial WidgetId ExportToggle { get; }
         public static partial WidgetId PenToolButton { get; }
         public static partial WidgetId RectToolButton { get; }
         public static partial WidgetId CircleToolButton { get; }
@@ -49,7 +44,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId VModeButton { get; }
         public static partial WidgetId AModeButton { get; }
         public static partial WidgetId BevelModeButton { get; }
-        public static partial WidgetId SortOrder { get; }
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId OnionSkinButton { get; }
     }
@@ -90,9 +84,6 @@ public partial class VectorSpriteEditor : SpriteEditor
             new Command("Toggle Playback",      TogglePlayback,             [InputCode.KeySpace]),
             new Command("Previous Frame",       PreviousFrame,              [InputCode.KeyQ]),
             new Command("Next Frame",           NextFrame,                  [InputCode.KeyE]),
-            new Command("Insert Frame Before",  InsertFrameBefore,          [new KeyBinding(InputCode.KeyI, ctrl:true)]),
-            new Command("Insert Frame After",   InsertFrameAfter,           [new KeyBinding(InputCode.KeyO, ctrl:true)]),
-            new Command("Delete Frame",         DeleteCurrentFrame,         [new KeyBinding(InputCode.KeyX, shift:true)]),
             new Command("Add Hold",             AddHoldFrame,               [new KeyBinding(InputCode.KeyH)]),
             new Command("Remove Hold",          RemoveHoldFrame,            [new KeyBinding(InputCode.KeyH, ctrl:true)]),
             new Command("Toggle Onion Skin",    ToggleOnionSkin,            [new KeyBinding(InputCode.KeyO, shift:true)]),
@@ -103,7 +94,6 @@ public partial class VectorSpriteEditor : SpriteEditor
             new Command("Export to PNG",        ExportToPng,                [new KeyBinding(InputCode.KeyE, ctrl:true, shift:true)]),
         ];
 
-        ApplyCurrentFrameVisibility();
         SetMode(new TransformMode());
     }
 
@@ -282,7 +272,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         {
             FloatingToolbarUI();
 
-            if (Document.AnimFrames.Count > 1)
+            if (Document.IsAnimated)
             {
                 FloatingToolbar.Row();
                 DopeSheetUI();
@@ -316,18 +306,26 @@ public partial class VectorSpriteEditor : SpriteEditor
 
         FloatingToolbar.Divider();
 
-        // Add frame
-        if (FloatingToolbar.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
-            InsertFrameAfter();
+        if (FloatingToolbar.Button(WidgetIds.AnimatedButton, EditorAssets.Sprites.IconKeyframe, isSelected: Document.IsAnimated))
+            ToggleAnimation();
 
         FloatingToolbar.Divider();
 
-        // Toggle group: Tile
         if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
             Document.ShowTiling = !Document.ShowTiling;
 
         if (FloatingToolbar.Button(WidgetIds.OnionSkinButton, EditorAssets.Sprites.IconOnion, isSelected: _onionSkin))
             _onionSkin = !_onionSkin;
+
+        if (Document.Skeleton.IsResolved)
+        {
+            if (FloatingToolbar.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, isSelected: Document.ShowSkeletonOverlay))
+            {
+                Undo.Record(Document);
+                Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
+            }
+            EditorUI.Tooltip(WidgetIds.ShowSkeletonOverlay, "Skeleton Overlay");
+        }
     }
 
     private int TotalTimeSlots() => Document.TotalTimeSlots;
@@ -366,8 +364,9 @@ public partial class VectorSpriteEditor : SpriteEditor
             using (UI.BeginRow(EditorStyle.Dopesheet.FloatingLayerRow))
             {
                 var slotIndex = 0;
-                for (ushort fi = 0; fi < Document.AnimFrames.Count && slotIndex < maxSlots; fi++)
+                for (ushort fi = 0; fi < Document.Root.Children.Count && slotIndex < maxSlots; fi++)
                 {
+                    var frame = Document.Root.Children[fi];
                     var isCurrentSlot = IsTimeSlotInRange(fi, _currentTimeSlot);
 
                     using (UI.BeginRow(WidgetIds.DopeSheet + fi))
@@ -388,7 +387,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                         slotIndex++;
 
                         // Hold cells (no dot, same color as keyframe)
-                        var hold = fi < Document.AnimFrames.Count ? Document.AnimFrames[fi].Hold : 0;
+                        var hold = frame.Hold;
                         for (int h = 0; h < hold && slotIndex < maxSlots; h++, slotIndex++)
                         {
                             if (h < hold - 1)
@@ -414,23 +413,16 @@ public partial class VectorSpriteEditor : SpriteEditor
     private bool IsTimeSlotInRange(int frameIndex, int timeSlot)
     {
         var accumulated = 0;
-        for (var f = 0; f < Document.AnimFrames.Count; f++)
+        for (var fi = 0; fi < Document.Root.Children.Count; fi++)
         {
-            var slots = 1 + Document.AnimFrames[f].Hold;
-            if (f == frameIndex)
+            var slots = 1 + Document.Root.Children[fi].Hold;
+            if (fi == frameIndex)
                 return timeSlot >= accumulated && timeSlot < accumulated + slots;
             accumulated += slots;
         }
         return false;
     }
 
-
-    private void SetConstraint(Vector2Int? size)
-    {
-        Undo.Record(Document);
-        Document.ConstrainedSize = size;
-        MarkDirty();
-    }
 
     private void StrokeWidthButtonUI()
     {
@@ -447,18 +439,9 @@ public partial class VectorSpriteEditor : SpriteEditor
         var maxSlots = Document.TotalTimeSlots;
         var newSlot = Math.Clamp(timeSlot, 0, maxSlots - 1);
         if (newSlot != _currentTimeSlot)
-        {
             _currentTimeSlot = newSlot;
-            ApplyCurrentFrameVisibility();
-        }
     }
 
-    private void ApplyCurrentFrameVisibility()
-    {
-        var fi = CurrentFrameIndex;
-        if (fi < Document.AnimFrames.Count)
-            Document.AnimFrames[fi].ApplyVisibility(Document.Root);
-    }
 
     private void TogglePlayback()
     {
@@ -473,79 +456,61 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     private void NextFrame()
     {
-        if (Document.AnimFrames.Count <= 1)
-            return;
+        var frameCount = Document.FrameCount;
+        if (frameCount <= 1) return;
 
         var fi = CurrentFrameIndex;
-        fi = (fi + 1) % Document.AnimFrames.Count;
+        fi = (fi + 1) % frameCount;
         SetCurrentTimeSlot(TimeSlotForFrame(fi));
     }
 
     private void PreviousFrame()
     {
-        if (Document.AnimFrames.Count <= 1)
-            return;
+        var frameCount = Document.FrameCount;
+        if (frameCount <= 1) return;
 
         var fi = CurrentFrameIndex;
-        fi = fi == 0 ? Document.AnimFrames.Count - 1 : fi - 1;
+        fi = fi == 0 ? frameCount - 1 : fi - 1;
         SetCurrentTimeSlot(TimeSlotForFrame(fi));
     }
 
     private int TimeSlotForFrame(int frameIndex)
     {
         var slot = 0;
-        for (var f = 0; f < frameIndex && f < Document.AnimFrames.Count; f++)
-            slot += 1 + Document.AnimFrames[f].Hold;
+        for (var i = 0; i < frameIndex && i < Document.Root.Children.Count; i++)
+            slot += 1 + Document.Root.Children[i].Hold;
         return slot;
     }
 
-    private void InsertFrameBefore()
+    private void ToggleAnimation()
     {
         Undo.Record(Document);
-        var fi = CurrentFrameIndex;
-        var newFrame = Document.InsertFrame(fi);
-        if (newFrame >= 0)
-            SetCurrentTimeSlot(TimeSlotForFrame(newFrame));
-        MarkDirty();
-    }
-
-    private void InsertFrameAfter()
-    {
-        Undo.Record(Document);
-        var fi = CurrentFrameIndex;
-        var newFrame = Document.InsertFrame(fi + 1);
-        if (newFrame >= 0)
-            SetCurrentTimeSlot(TimeSlotForFrame(newFrame));
-        MarkDirty();
-    }
-
-    private void DeleteCurrentFrame()
-    {
-        if (Document.AnimFrames.Count <= 1) return;
-        Undo.Record(Document);
-        var fi = Document.DeleteFrame(CurrentFrameIndex);
-        SetCurrentTimeSlot(TimeSlotForFrame(fi));
+        if (Document.IsAnimated)
+        {
+            Document.DisableAnimation();
+        }
+        else
+        {
+            Document.EnableAnimation();
+            SetCurrentTimeSlot(0);
+        }
         MarkDirty();
     }
 
     private void AddHoldFrame()
     {
-        var fi = CurrentFrameIndex;
-        if (fi >= Document.AnimFrames.Count) return;
+        if (!Document.IsAnimated || Document.FrameCount == 0) return;
         Undo.Record(Document);
-        Document.AnimFrames[fi].Hold++;
+        Document.Root.Children[CurrentFrameIndex].Hold++;
     }
 
     private void RemoveHoldFrame()
     {
-        var fi = CurrentFrameIndex;
-        if (fi >= Document.AnimFrames.Count) return;
-        var frame = Document.AnimFrames[fi];
-        if (frame.Hold <= 0)
-            return;
-
+        if (!Document.IsAnimated || Document.FrameCount == 0) return;
+        var frame = Document.Root.Children[CurrentFrameIndex];
+        if (frame.Hold <= 0) return;
         Undo.Record(Document);
-        frame.Hold = Math.Max(0, frame.Hold - 1);
+        frame.Hold--;
     }
 
     private void SetFillColor(Color32 color)
@@ -1228,102 +1193,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         }
     }
 
-    private void SpriteInspectorUI()
-    {
-        using var _ = Inspector.BeginSection("SPRITE");
-        if (Inspector.IsSectionCollapsed) return;
-
-        using (Inspector.BeginProperty("Export"))
-        {
-            var shouldExport = Document.ShouldExport;
-            if (UI.Toggle(WidgetIds.ExportToggle, shouldExport, EditorStyle.Inspector.Toggle))
-            {
-                shouldExport = !shouldExport;
-                Undo.Record(Document);
-                Document.ShouldExport = shouldExport;
-                AssetManifest.IsModified = true;
-            }
-        }
-
-        using (Inspector.BeginProperty("Size"))
-        {
-            var sizes = EditorApplication.Config.SpriteSizes;
-            var constraintLabel = "Auto";
-            if (Document.ConstrainedSize.HasValue)
-                for (int i = 0; i < sizes.Length; i++)
-                    if (Document.ConstrainedSize.Value == sizes[i].Size)
-                    {
-                        constraintLabel = sizes[i].Label;
-                        break;
-                    }
-
-            UI.DropDown(WidgetIds.ConstraintDropDown, () => [
-                ..EditorApplication.Config.SpriteSizes.Select(s =>
-                new PopupMenuItem { Label = s.Label, Handler = () => SetConstraint(s.Size) }
-            ),
-            new PopupMenuItem { Label = "Auto", Handler = () => SetConstraint(null)}
-            ], constraintLabel, EditorAssets.Sprites.IconConstraint);
-        }
-
-        using (Inspector.BeginProperty("Sort Order"))
-        {
-            EditorUI.SortOrderDropDown(WidgetIds.SortOrder, Document.SortOrderId, id =>
-            {
-                Undo.Record(Document);
-                Document.SortOrderId = id;
-            });
-        }
-
-        // Skeleton
-        using (Inspector.BeginProperty("Skeleton"))
-        {
-            var skeleton = EditorUI.SkeletonField(WidgetIds.SkeletonDropDown, Document.Skeleton.Value);
-            if (UI.WasChanged())
-            {
-                if (skeleton != null)
-                    CommitSkeletonBinding(skeleton);
-                else
-                    ClearSkeletonBinding();
-            }
-        }
-
-        if (Document.Skeleton.IsResolved)
-        {
-            using (Inspector.BeginProperty("Bone"))
-            {
-                var skeleton = Document.Skeleton.Value!;
-                var boneLabel = Document.BoneName ?? "None";
-
-                UI.DropDown(WidgetIds.BoneDropDown, () =>
-                {
-                    var boneItems = new List<PopupMenuItem>();
-
-                    for (var i = 0; i < skeleton.BoneCount; i++)
-                    {
-                        var boneName = skeleton.Bones[i].Name;
-                        boneItems.Add(new PopupMenuItem { Label = boneName, Handler = () => CommitBoneBinding(boneName) });
-                    }
-
-                    boneItems.Add(new PopupMenuItem { Label = "None", Handler = () => CommitBoneBinding(null) });
-                    return [.. boneItems];
-                }, boneLabel, EditorAssets.Sprites.IconBone);
-            }
-
-            if (UI.Button(WidgetIds.ShowInSkeleton, EditorAssets.Sprites.IconPreview, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowInSkeleton))
-            {
-                Undo.Record(Document);
-                Document.ShowInSkeleton = !Document.ShowInSkeleton;
-                Document.Skeleton.Value?.UpdateSprites();
-            }
-
-            if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowSkeletonOverlay))
-            {
-                Undo.Record(Document);
-                Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
-            }
-        }
-    }
-
     private void PathInspectorUI()
     {
         if (!HasPathSelection || HasLayerSelection)
@@ -1413,9 +1282,6 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     public override void InspectorUI()
     {
-        if (!HasPathSelection && !HasLayerSelection)
-            SpriteInspectorUI();
-
         EdgesInspectorUI();
         PathInspectorUI();
     }
@@ -1516,36 +1382,5 @@ public partial class VectorSpriteEditor : SpriteEditor
                 ColorPicker.Open(WidgetIds.FillColor, color.ToColor());
         }
     }
-
-    #region Skeleton Binding
-
-    private void CommitSkeletonBinding(SkeletonDocument skeleton)
-    {
-        Undo.Record(Document);
-        Document.Skeleton = skeleton;
-        skeleton.UpdateSprites();
-    }
-
-    private void ClearSkeletonBinding()
-    {
-        if (!Document.Skeleton.IsResolved)
-            return;
-
-        var skeleton = Document.Skeleton.Value;
-        Undo.Record(Document);
-        Document.Skeleton.Clear();
-        Document.BoneName = null;
-        skeleton?.UpdateSprites();
-    }
-
-    private void CommitBoneBinding(string? boneName)
-    {
-        Undo.Record(Document);
-        Document.BoneName = boneName;
-        Document.ResolveBone();
-        Document.Skeleton.Value?.UpdateSprites();
-    }
-
-    #endregion
 
 }

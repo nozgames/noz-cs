@@ -14,24 +14,8 @@ public partial class VectorSpriteDocument
 
     internal override void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
-        var frameIndex = rect.FrameIndex;
-        var dpi = EditorApplication.Config.PixelsPerUnit;
+        var dpi = PixelsPerUnit;
         var padding2 = padding * 2;
-
-        var fi = GetFrameAtTimeSlot(frameIndex);
-
-        Dictionary<SpriteNode, bool>? savedVisibility = null;
-        if (fi < AnimFrames.Count)
-        {
-            savedVisibility = new Dictionary<SpriteNode, bool>();
-            Root.ForEach(layer =>
-            {
-                if (layer != Root)
-                    savedVisibility[layer] = layer.Visible;
-            });
-            AnimFrames[fi].ApplyVisibility(Root);
-        }
-
         var targetRect = new RectInt(
             rect.Rect.Position,
             new Vector2Int(RasterBounds.Size.X + padding2, RasterBounds.Size.Y + padding2));
@@ -49,12 +33,6 @@ public partial class VectorSpriteDocument
         }
 
         RasterizeLayer(Root, image, targetRect, sourceOffset, dpi, clipRect);
-
-        if (savedVisibility != null)
-        {
-            foreach (var (layer, visible) in savedVisibility)
-                layer.Visible = visible;
-        }
 
         image.BleedColors(targetRect);
     }

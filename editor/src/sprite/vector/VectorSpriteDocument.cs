@@ -8,9 +8,6 @@ namespace NoZ.Editor;
 
 public partial class VectorSpriteDocument : SpriteDocument
 {
-    protected override int PixelsPerUnit => EditorApplication.Config.PixelsPerUnit;
-    protected override TextureFilter TextureFilter => TextureFilter.Linear;
-
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
         return DocumentManager.New(AssetType.Sprite, Extension, null, position);
@@ -93,7 +90,7 @@ public partial class VectorSpriteDocument : SpriteDocument
             return;
         }
 
-        var dpi = EditorApplication.Config.PixelsPerUnit;
+        var dpi = PixelsPerUnit;
         var rMinX = SnapFloor(bounds.X * dpi);
         var rMinY = SnapFloor(bounds.Y * dpi);
         var rMaxX = SnapCeil(bounds.Right * dpi);
@@ -118,7 +115,7 @@ public partial class VectorSpriteDocument : SpriteDocument
                 cs.Y);
         }
 
-        Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
+        Bounds = RasterBounds.ToRect().Scale(1.0f / PixelsPerUnit);
     }
 
     protected override void CloneContent(SpriteDocument source)

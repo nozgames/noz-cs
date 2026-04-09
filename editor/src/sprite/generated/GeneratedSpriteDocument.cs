@@ -37,9 +37,6 @@ public class SpriteGeneration : IDisposable
 
 public partial class GeneratedSpriteDocument : SpriteDocument
 {
-    protected override int PixelsPerUnit => EditorApplication.Config.PixelsPerUnit;
-    protected override TextureFilter TextureFilter => TextureFilter.Linear;
-
     public SpriteGeneration Generation { get; set; } = new();
     public string? ImageFilePath { get; set; }
 

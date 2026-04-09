@@ -17,9 +17,6 @@ public partial class GeneratedSpriteEditor : SpriteEditor
         public static partial WidgetId GenerationNegativePrompt { get; }
         public static partial WidgetId Seed { get; }
         public static partial WidgetId RandomizeSeed { get; }
-        public static partial WidgetId ConstraintDropDown { get; }
-        public static partial WidgetId SortOrder { get; }
-        public static partial WidgetId ExportToggle { get; }
     }
 
     public override bool ShowInspector => true;
@@ -130,62 +127,7 @@ public partial class GeneratedSpriteEditor : SpriteEditor
 
     public override void InspectorUI()
     {
-        SpriteInspectorUI();
         GenerationInspectorUI();
-    }
-
-    private void SpriteInspectorUI()
-    {
-        using var _ = Inspector.BeginSection("SPRITE");
-        if (Inspector.IsSectionCollapsed) return;
-
-        using (Inspector.BeginProperty("Export"))
-        {
-            var shouldExport = Document.ShouldExport;
-            if (UI.Toggle(WidgetIds.ExportToggle, shouldExport, EditorStyle.Inspector.Toggle))
-            {
-                shouldExport = !shouldExport;
-                Undo.Record(Document);
-                Document.ShouldExport = shouldExport;
-                AssetManifest.IsModified = true;
-            }
-        }
-
-        using (Inspector.BeginProperty("Size"))
-        {
-            var sizes = EditorApplication.Config.SpriteSizes;
-            var constraintLabel = "Auto";
-            if (Document.ConstrainedSize.HasValue)
-                for (int i = 0; i < sizes.Length; i++)
-                    if (Document.ConstrainedSize.Value == sizes[i].Size)
-                    {
-                        constraintLabel = sizes[i].Label;
-                        break;
-                    }
-
-            UI.DropDown(WidgetIds.ConstraintDropDown, () => [
-                ..EditorApplication.Config.SpriteSizes.Select(s =>
-                new PopupMenuItem { Label = s.Label, Handler = () => SetConstraint(s.Size) }
-            ),
-            new PopupMenuItem { Label = "Auto", Handler = () => SetConstraint(null)}
-            ], constraintLabel, EditorAssets.Sprites.IconConstraint);
-        }
-
-        using (Inspector.BeginProperty("Sort Order"))
-        {
-            EditorUI.SortOrderDropDown(WidgetIds.SortOrder, Document.SortOrderId, id =>
-            {
-                Undo.Record(Document);
-                Document.SortOrderId = id;
-            });
-        }
-    }
-
-    private void SetConstraint(Vector2Int? size)
-    {
-        Undo.Record(Document);
-        Document.ConstrainedSize = size;
-        Document.UpdateBounds();
     }
 
     private void GenerationInspectorUI()

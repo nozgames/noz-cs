@@ -25,9 +25,6 @@ public partial class VectorSpriteEditor
 
     protected override void OnVisibilityChanged(SpriteNode node)
     {
-        var fi = CurrentFrameIndex;
-        if (fi < Document.AnimFrames.Count)
-            Document.AnimFrames[fi].SetLayerVisible(node, node.Visible);
     }
 
     protected override string GetNodeFallbackName(SpriteNode node) =>
@@ -168,6 +165,13 @@ public partial class VectorSpriteEditor
         var name = $"Layer {Document.Root.Children.Count + 1}";
         var layer = new SpriteGroup { Name = name };
         Document.Root.Add(layer);
+
+        if (Document.IsAnimated)
+        {
+            Document.IncrementVersion();
+            SetCurrentTimeSlot(TimeSlotForFrame(Document.FrameCount - 1));
+        }
+
         MarkDirty();
     }
 

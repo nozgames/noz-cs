@@ -135,7 +135,7 @@ public partial class PixelSpriteEditor
     {
         if (node.IsSelected)
         {
-            if (node is SpriteGroup)
+            if (node.IsExpandable)
             {
                 node.Collect(_selectedLayers, layer => layer.Pixels != null);
                 return;

@@ -249,8 +249,8 @@ public abstract partial class SpriteEditor
         }
         ElementTree.EndFlex();
 
-        // Visibility toggle (show on hover or when hidden)
-        var showVisibility = isHovered || !node.Visible;
+        var isTopLevelInAnimated = Document.IsAnimated && node.Parent == Document.Root;
+        var showVisibility = !isTopLevelInAnimated && (isHovered || !node.Visible);
         if (showVisibility)
         {
             var visIcon = node.Visible ? EditorAssets.Sprites.IconPreview : EditorAssets.Sprites.IconHidden;
@@ -285,6 +285,18 @@ public abstract partial class SpriteEditor
         // Click handling
         if (UI.WasPressed(rowId))
         {
+            // When animated, clicking a node switches to its top-level frame
+            if (Document.IsAnimated)
+            {
+                var topLevel = node;
+                while (topLevel.Parent != null && topLevel.Parent != Document.Root)
+                    topLevel = topLevel.Parent;
+
+                var fi = Document.Root.Children.IndexOf(topLevel);
+                if (fi >= 0)
+                    OnNodeFrameSwitch(fi);
+            }
+
             var shift = Input.IsShiftDown(InputScope.All);
             var ctrl = Input.IsCtrlDown(InputScope.All);
 
@@ -511,17 +523,20 @@ public abstract partial class SpriteEditor
 
         switch (_dropZone)
         {
-            case DropZone.LastChild when targetNode is SpriteGroup layer:
+            case DropZone.LastChild when targetNode.IsExpandable:
                 foreach (var node in ordered)
-                    layer.Add(node);
-                layer.Expanded = true;
+                    targetNode.Add(node);
+                targetNode.Expanded = true;
                 break;
 
-            case DropZone.FirstChild when targetNode is SpriteGroup layer2:
-                for (var i = ordered.Count - 1; i >= 0; i--)
-                    layer2.Insert(0, ordered[i]);
-                layer2.Expanded = true;
+            case DropZone.FirstChild when targetNode.IsExpandable:
+            {
+                var insertIdx = 0;
+                foreach (var node in ordered)
+                    targetNode.Insert(insertIdx++, node);
+                targetNode.Expanded = true;
                 break;
+            }
 
             case DropZone.Before:
             case DropZone.After:

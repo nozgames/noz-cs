@@ -20,7 +20,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         public static partial WidgetId MoveButton { get; }
         public static partial WidgetId FillButton { get; }
         public static partial WidgetId DopeSheet { get; }
-        public static partial WidgetId AddFrameButton { get; }
+        public static partial WidgetId AnimatedButton { get; }
         public static partial WidgetId AlphaLockButton { get; }
         public static partial WidgetId TilingButton { get; }
         public static partial WidgetId ShowSkeletonOverlay { get; }
@@ -132,9 +132,6 @@ public partial class PixelSpriteEditor : SpriteEditor
             new Command("Toggle Playback",     TogglePlayback,     [InputCode.KeySpace]),
             new Command("Previous Frame",      PreviousFrame,      [InputCode.KeyQ]),
             new Command("Next Frame",          NextFrame,          [InputCode.KeyComma]),
-            new Command("Insert Frame Before", InsertFrameBefore,  [new KeyBinding(InputCode.KeyI, ctrl: true)]),
-            new Command("Insert Frame After",  InsertFrameAfter,   [new KeyBinding(InputCode.KeyO, ctrl: true)]),
-            new Command("Delete Frame",        DeleteCurrentFrame, [new KeyBinding(InputCode.KeyX, shift: true)]),
             new Command("Add Hold",            AddHoldFrame,       [new KeyBinding(InputCode.KeyH)]),
             new Command("Remove Hold",         RemoveHoldFrame,    [new KeyBinding(InputCode.KeyH, ctrl: true)]),
             new Command("Export to PNG",      ExportToPng,        [new KeyBinding(InputCode.KeyE, ctrl: true, shift: true)]),
@@ -149,13 +146,22 @@ public partial class PixelSpriteEditor : SpriteEditor
         if (Document.CanvasSize.X < maxWork || Document.CanvasSize.Y < maxWork)
             ResizeCanvas(new Vector2Int(maxWork, maxWork));
 
-        ActiveLayer = RestoreActiveLayer();
+        // When animated, always use the current frame's topmost leaf as the active layer
+        if (Document.IsAnimated && Document.FrameCount > 0)
+        {
+            var frame = Document.Root.Children[CurrentFrameIndex];
+            ActiveLayer = FindFirstLeafLayer(frame) ?? FindFirstLayer();
+        }
+        else
+        {
+            ActiveLayer = RestoreActiveLayer();
+        }
+
         _selectedNode = _activeLayer;
         BrushSize = Document.BrushSize;
         BrushColor = Document.BrushColor;
         AlphaLock = Document.AlphaLock;
         Grid.PixelsPerUnitOverride = CanvasPPU;
-        ApplyCurrentFrameVisibility();
         SetMode(new PencilMode());
     }
 
@@ -166,14 +172,17 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     private static PixelLayer? FindFirstLeafLayer(SpriteNode parent)
     {
+        if (parent is PixelLayer parentLayer)
+            return parentLayer;
+
         foreach (var child in parent.Children)
         {
             if (child is PixelLayer pixel)
                 return pixel;
 
-            if (child is SpriteGroup group)
+            if (child.IsExpandable)
             {
-                var found = FindFirstLeafLayer(group);
+                var found = FindFirstLeafLayer(child);
                 if (found != null)
                     return found;
             }
@@ -200,7 +209,19 @@ public partial class PixelSpriteEditor : SpriteEditor
             Name = $"Layer {Document.Root.Children.Count + 1}",
             Pixels = new PixelData<Color32>(Document.CanvasSize.X, Document.CanvasSize.Y)
         };
-        Document.Root.Add(layer);
+
+        if (Document.IsAnimated)
+        {
+            // Adding a layer while animated = adding a new frame at the end
+            Document.Root.Add(layer);
+            Document.IncrementVersion();
+            SetCurrentTimeSlot(TimeSlotForFrame(Document.FrameCount - 1));
+        }
+        else
+        {
+            Document.Root.Add(layer);
+            ActiveLayer = layer;
+        }
         SelectedNode = layer;
     }
 
@@ -211,7 +232,18 @@ public partial class PixelSpriteEditor : SpriteEditor
         {
             Name = $"Group {Document.Root.Children.Count + 1}",
         };
-        Document.Root.Add(group);
+
+        if (Document.IsAnimated)
+        {
+            // Adding a group while animated = adding a new frame at the end
+            Document.Root.Add(group);
+            Document.IncrementVersion();
+            SetCurrentTimeSlot(TimeSlotForFrame(Document.FrameCount - 1));
+        }
+        else
+        {
+            Document.Root.Add(group);
+        }
     }
 
     public void DeleteActiveLayer()
@@ -252,9 +284,9 @@ public partial class PixelSpriteEditor : SpriteEditor
                 result = pixel;
                 return;
             }
-            if (child is SpriteGroup group)
+            if (child.IsExpandable)
             {
-                FindNextLeafLayerRecursive(group, skip, ref result);
+                FindNextLeafLayerRecursive(child, skip, ref result);
                 if (result != null) return;
             }
         }
@@ -299,51 +331,63 @@ public partial class PixelSpriteEditor : SpriteEditor
             var newColor = FloatingToolbar.ColorButton(WidgetIds.BrushColor, color).ToColor32();
             if (newColor != BrushColor)
                 BrushColor = newColor;
+            EditorUI.Tooltip(WidgetIds.BrushColor, "Brush Color");
 
             FloatingToolbar.Divider();
 
             if (FloatingToolbar.Button(WidgetIds.PencilButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is PencilMode))
                 SetMode(new PencilMode());
+            EditorUI.Tooltip(WidgetIds.PencilButton, "Pencil");
 
             if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, isSelected: Mode is PixelEraserMode))
                 SetMode(new PixelEraserMode());
+            EditorUI.Tooltip(WidgetIds.EraserButton, "Eraser");
 
             if (FloatingToolbar.Button(WidgetIds.FillButton, EditorAssets.Sprites.IconFloodFill, isSelected: Mode is PixelFillMode))
                 SetMode(new PixelFillMode());
+            EditorUI.Tooltip(WidgetIds.FillButton, "Fill");
 
             FloatingToolbar.Divider();
 
             if (FloatingToolbar.Button(WidgetIds.RectSelectButton, EditorAssets.Sprites.IconSelect, isSelected: Mode is PixelRectSelectMode))
                 SetMode(new PixelRectSelectMode());
+            EditorUI.Tooltip(WidgetIds.RectSelectButton, "Rectangle Select");
 
             if (FloatingToolbar.Button(WidgetIds.LassoSelectButton, EditorAssets.Sprites.IconSelect, isSelected: Mode is PixelLassoSelectMode))
                 SetMode(new PixelLassoSelectMode());
+            EditorUI.Tooltip(WidgetIds.LassoSelectButton, "Lasso Select");
 
             if (FloatingToolbar.Button(WidgetIds.MoveButton, EditorAssets.Sprites.IconMove, isSelected: Mode is PixelTransformMode))
                 SetMode(new PixelTransformMode());
+            EditorUI.Tooltip(WidgetIds.MoveButton, "Move");
 
             FloatingToolbar.Divider();
 
             if (FloatingToolbar.Button(WidgetIds.EyeDropperButton, EditorAssets.Sprites.IconPreview, isSelected: Mode is PixelEyeDropperMode))
                 SetMode(new PixelEyeDropperMode());
+            EditorUI.Tooltip(WidgetIds.EyeDropperButton, "Eye Dropper");
 
             FloatingToolbar.Divider();
 
             if (FloatingToolbar.Button(WidgetIds.AlphaLockButton, EditorAssets.Sprites.IconLock, isSelected: AlphaLock))
                 AlphaLock = !AlphaLock;
+            EditorUI.Tooltip(WidgetIds.AlphaLockButton, "Alpha Lock");
 
             if (FloatingToolbar.Button(WidgetIds.TilingButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
                 Document.ShowTiling = !Document.ShowTiling;
+            EditorUI.Tooltip(WidgetIds.TilingButton, "Tiling Preview");
 
             if (FloatingToolbar.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, isSelected: Document.ShowSkeletonOverlay))
                 Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
+            EditorUI.Tooltip(WidgetIds.ShowSkeletonOverlay, "Skeleton Overlay");
 
             FloatingToolbar.Divider();
 
-            if (FloatingToolbar.Button(WidgetIds.AddFrameButton, EditorAssets.Sprites.IconKeyframe))
-                InsertFrameAfter();
+            if (FloatingToolbar.Button(WidgetIds.AnimatedButton, EditorAssets.Sprites.IconKeyframe, isSelected: Document.IsAnimated))
+                ToggleAnimation();
+            EditorUI.Tooltip(WidgetIds.AnimatedButton, "Animated");
 
-            if (Document.AnimFrames.Count > 1)
+            if (Document.IsAnimated && Document.FrameCount > 1)
             {
                 FloatingToolbar.Row();
                 DopeSheetUI();
@@ -389,9 +433,9 @@ public partial class PixelSpriteEditor : SpriteEditor
         {
             if (!child.Visible) continue;
 
-            if (child is SpriteGroup group)
+            if (child.IsExpandable)
             {
-                CompositeChildren(group, epr);
+                CompositeChildren(child, epr);
                 continue;
             }
 
@@ -439,7 +483,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(_canvasTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetTextureFilter(TextureFilter.Point);
+            Graphics.SetTextureFilter(Document.TextureFilterOverride ?? TextureFilter.Point);
             Graphics.SetColor(Color.White);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
             Graphics.Draw(CanvasRect, order: Document.SortOrder);
@@ -456,7 +500,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(_canvasTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
-            Graphics.SetTextureFilter(TextureFilter.Point);
+            Graphics.SetTextureFilter(Document.TextureFilterOverride ?? TextureFilter.Point);
             Graphics.SetColor(Color.White);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
 
@@ -615,17 +659,6 @@ public partial class PixelSpriteEditor : SpriteEditor
         _compositePixels = null;
         InvalidateComposite();
         ResetPreviews();
-        ApplyCurrentFrameVisibility();
-    }
-
-    // --- Animation ---
-
-    private void ApplyCurrentFrameVisibility()
-    {
-        var fi = CurrentFrameIndex;
-        if (fi < Document.AnimFrames.Count)
-            Document.AnimFrames[fi].ApplyVisibility(Document.Root);
-        InvalidateComposite();
     }
 
     private void SetCurrentTimeSlot(int timeSlot)
@@ -635,25 +668,33 @@ public partial class PixelSpriteEditor : SpriteEditor
         if (newSlot != _currentTimeSlot)
         {
             _currentTimeSlot = newSlot;
-            ApplyCurrentFrameVisibility();
+
+            // Set topmost leaf layer in the current frame as active
+            if (Document.IsAnimated && Document.FrameCount > 0)
+            {
+                var frame = Document.Root.Children[CurrentFrameIndex];
+                var firstLayer = FindFirstLeafLayer(frame);
+                if (firstLayer != null)
+                    ActiveLayer = firstLayer;
+            }
         }
     }
 
     private int TimeSlotForFrame(int frameIndex)
     {
         var slot = 0;
-        for (var f = 0; f < frameIndex && f < Document.AnimFrames.Count; f++)
-            slot += 1 + Document.AnimFrames[f].Hold;
+        for (var i = 0; i < frameIndex && i < Document.Root.Children.Count; i++)
+            slot += 1 + Document.Root.Children[i].Hold;
         return slot;
     }
 
     private bool IsTimeSlotInRange(int frameIndex, int timeSlot)
     {
         var accumulated = 0;
-        for (var f = 0; f < Document.AnimFrames.Count; f++)
+        for (var fi = 0; fi < Document.Root.Children.Count; fi++)
         {
-            var slots = 1 + Document.AnimFrames[f].Hold;
-            if (f == frameIndex)
+            var slots = 1 + Document.Root.Children[fi].Hold;
+            if (fi == frameIndex)
                 return timeSlot >= accumulated && timeSlot < accumulated + slots;
             accumulated += slots;
         }
@@ -668,71 +709,53 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     private void NextFrame()
     {
-        if (Document.AnimFrames.Count <= 1)
-            return;
+        var frameCount = Document.FrameCount;
+        if (frameCount <= 1) return;
 
         var fi = CurrentFrameIndex;
-        fi = (fi + 1) % Document.AnimFrames.Count;
+        fi = (fi + 1) % frameCount;
         SetCurrentTimeSlot(TimeSlotForFrame(fi));
     }
 
     private void PreviousFrame()
     {
-        if (Document.AnimFrames.Count <= 1)
-            return;
+        var frameCount = Document.FrameCount;
+        if (frameCount <= 1) return;
 
         var fi = CurrentFrameIndex;
-        fi = fi == 0 ? Document.AnimFrames.Count - 1 : fi - 1;
+        fi = fi == 0 ? frameCount - 1 : fi - 1;
         SetCurrentTimeSlot(TimeSlotForFrame(fi));
     }
 
-    private void InsertFrameBefore()
+    private void ToggleAnimation()
     {
         Undo.Record(Document);
-        var fi = CurrentFrameIndex;
-        var newFrame = Document.InsertFrame(fi);
-        if (newFrame >= 0)
-            SetCurrentTimeSlot(TimeSlotForFrame(newFrame));
-        InvalidateComposite();
-    }
-
-    private void InsertFrameAfter()
-    {
-        Undo.Record(Document);
-        var fi = CurrentFrameIndex;
-        var newFrame = Document.InsertFrame(fi + 1);
-        if (newFrame >= 0)
-            SetCurrentTimeSlot(TimeSlotForFrame(newFrame));
-        InvalidateComposite();
-    }
-
-    private void DeleteCurrentFrame()
-    {
-        if (Document.AnimFrames.Count <= 1) return;
-        Undo.Record(Document);
-        var fi = Document.DeleteFrame(CurrentFrameIndex);
-        SetCurrentTimeSlot(TimeSlotForFrame(fi));
+        if (Document.IsAnimated)
+        {
+            Document.DisableAnimation();
+        }
+        else
+        {
+            Document.EnableAnimation();
+            SetCurrentTimeSlot(0);
+        }
         InvalidateComposite();
     }
 
     private void AddHoldFrame()
     {
-        var fi = CurrentFrameIndex;
-        if (fi >= Document.AnimFrames.Count) return;
+        if (!Document.IsAnimated || Document.FrameCount == 0) return;
         Undo.Record(Document);
-        Document.AnimFrames[fi].Hold++;
+        Document.Root.Children[CurrentFrameIndex].Hold++;
     }
 
     private void RemoveHoldFrame()
     {
-        var fi = CurrentFrameIndex;
-        if (fi >= Document.AnimFrames.Count) return;
-        var frame = Document.AnimFrames[fi];
-        if (frame.Hold <= 0)
-            return;
-
+        if (!Document.IsAnimated || Document.FrameCount == 0) return;
+        var frame = Document.Root.Children[CurrentFrameIndex];
+        if (frame.Hold <= 0) return;
         Undo.Record(Document);
-        frame.Hold = Math.Max(0, frame.Hold - 1);
+        frame.Hold--;
     }
 
     private void UpdateAnimation()
@@ -780,8 +803,9 @@ public partial class PixelSpriteEditor : SpriteEditor
             using (UI.BeginRow(EditorStyle.Dopesheet.FloatingLayerRow))
             {
                 var slotIndex = 0;
-                for (ushort fi = 0; fi < Document.AnimFrames.Count && slotIndex < maxSlots; fi++)
+                for (ushort fi = 0; fi < Document.Root.Children.Count && slotIndex < maxSlots; fi++)
                 {
+                    var animFrame = Document.Root.Children[fi];
                     var isCurrentSlot = IsTimeSlotInRange(fi, _currentTimeSlot);
 
                     using (UI.BeginRow(WidgetIds.DopeSheet + fi))
@@ -800,7 +824,7 @@ public partial class PixelSpriteEditor : SpriteEditor
 
                         slotIndex++;
 
-                        var hold = fi < Document.AnimFrames.Count ? Document.AnimFrames[fi].Hold : 0;
+                        var hold = animFrame.Hold;
                         for (int h = 0; h < hold && slotIndex < maxSlots; h++, slotIndex++)
                         {
                             if (h < hold - 1)

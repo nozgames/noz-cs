@@ -13,18 +13,6 @@ public partial class PixelSpriteDocument
     {
         var fi = GetFrameAtTimeSlot(rect.FrameIndex);
 
-        Dictionary<SpriteNode, bool>? savedVisibility = null;
-        if (fi < AnimFrames.Count)
-        {
-            savedVisibility = new Dictionary<SpriteNode, bool>();
-            Root.ForEach((SpriteNode node) =>
-            {
-                if (node != Root)
-                    savedVisibility[node] = node.Visible;
-            });
-            AnimFrames[fi].ApplyVisibility(Root);
-        }
-
         var srcX = RasterBounds.X + CanvasSize.X / 2;
         var srcY = RasterBounds.Y + CanvasSize.Y / 2;
         var w = RasterBounds.Width;
@@ -36,12 +24,6 @@ public partial class PixelSpriteDocument
             new Vector2Int(w, h));
 
         RasterizePixelLayersRecursive(Root, image, rasterRect, srcX, srcY, w, h);
-
-        if (savedVisibility != null)
-        {
-            foreach (var (node, visible) in savedVisibility)
-                node.Visible = visible;
-        }
 
         image.BleedColors(rasterRect);
         for (var p = padding - 1; p >= 0; p--)
@@ -83,9 +65,9 @@ public partial class PixelSpriteDocument
         {
             if (!child.Visible) continue;
 
-            if (child is SpriteGroup group)
+            if (child.IsExpandable)
             {
-                RasterizePixelLayersRecursive(group, image, rasterRect, srcX, srcY, w, h);
+                RasterizePixelLayersRecursive(child, image, rasterRect, srcX, srcY, w, h);
                 continue;
             }
 

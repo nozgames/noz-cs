@@ -80,7 +80,7 @@ public class PixelEraserMode : EditorMode<PixelSpriteEditor>
     private void ErasePixel(Vector2Int pixel)
     {
         if (!Editor.IsPixelInBounds(pixel)) return;
-        Editor.PaintBrush(pixel, default);
+        Editor.PaintBrush(pixel, default, blend: false);
     }
 
     private void DrawLine(Vector2Int from, Vector2Int to)

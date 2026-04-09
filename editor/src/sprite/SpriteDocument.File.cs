@@ -9,7 +9,6 @@ public abstract partial class SpriteDocument
     private void Load(ref Tokenizer tk)
     {
         Root.Clear();
-        AnimFrames.Clear();
 
         while (!tk.IsEOF)
         {
@@ -29,8 +28,8 @@ public abstract partial class SpriteDocument
                 BoneName = tk.ExpectQuotedString();
             else if (tk.ExpectIdentifier("sort"))
                 SortOrderId = tk.ExpectQuotedString();
-            else if (tk.ExpectIdentifier("frame"))
-                ParseAnimFrame(ref tk);
+            else if (tk.ExpectIdentifier("animated"))
+                IsAnimated = true;
             else if (!TryLoadContentToken(ref tk))
             {
                 tk.ExpectToken(out var badToken);
@@ -42,40 +41,19 @@ public abstract partial class SpriteDocument
 
     protected virtual bool TryLoadContentToken(ref Tokenizer tk) => false;
 
-    private void ParseAnimFrame(ref Tokenizer tk)
+    private static void SkipOldAnimFrame(ref Tokenizer tk)
     {
         tk.ExpectDelimiter('{');
-        var frame = new SpriteAnimFrame();
-
-        while (!tk.IsEOF)
+        var depth = 1;
+        while (!tk.IsEOF && depth > 0)
         {
-            if (tk.ExpectDelimiter('}'))
-                break;
-            else if (tk.ExpectIdentifier("hold"))
-                frame.Hold = tk.ExpectInt();
-            else if (tk.ExpectIdentifier("visible"))
-            {
-                while (!tk.IsEOF)
-                {
-                    var name = tk.ExpectQuotedString();
-                    if (name == null)
-                        break;
-                    var node = Root.Find<SpriteNode>(name);
-                    if (node != null)
-                        frame.VisibleLayers.Add(node);
-                    else
-                        ReportWarning($"Animation frame references unknown layer '{name}'");
-                }
-            }
+            if (tk.ExpectDelimiter('{'))
+                depth++;
+            else if (tk.ExpectDelimiter('}'))
+                depth--;
             else
-            {
-                tk.ExpectToken(out var badToken);
-                ReportError(badToken.Line, $"Unexpected token '{tk.GetString(badToken)}'");
-                break;
-            }
+                tk.ExpectToken(out _);
         }
-
-        AnimFrames.Add(frame);
     }
 
     public override void Save(StreamWriter writer)
@@ -94,37 +72,13 @@ public abstract partial class SpriteDocument
         if (SortOrderId != null)
             writer.WriteLine($"sort \"{SortOrderId}\"");
 
+        if (IsAnimated)
+            writer.WriteLine("animated");
+
         SaveContent(writer);
-        SaveAnimFrames(writer);
     }
 
     protected virtual void SaveTypeHeader(StreamWriter writer) { }
-
-    private void SaveAnimFrames(StreamWriter writer)
-    {
-        if (AnimFrames.Count == 0)
-            return;
-
-        foreach (var frame in AnimFrames)
-        {
-            writer.Write("frame {");
-            writer.WriteLine();
-
-            if (frame.Hold > 0)
-                writer.WriteLine($"  hold {frame.Hold}");
-
-            if (frame.VisibleLayers.Count > 0)
-            {
-                writer.Write("  visible");
-                foreach (var layer in frame.VisibleLayers)
-                    writer.Write($" \"{layer.Name}\"");
-                writer.WriteLine();
-            }
-
-            writer.WriteLine("}");
-            writer.WriteLine();
-        }
-    }
 
     protected static string FormatColor(Color32 c)
     {

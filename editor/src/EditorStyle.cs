@@ -90,6 +90,14 @@ public static class EditorStyle
         ClampToScreen = true,
     };
 
+    public static readonly ContainerStyle Tooltip = new()
+    {
+        Background = Palette.Popup,
+        BorderRadius = Control.BorderRadius,
+        Padding = EdgeInsets.Symmetric(4, 8),
+    };
+
+
     // :icon
     public static class Icon
     {

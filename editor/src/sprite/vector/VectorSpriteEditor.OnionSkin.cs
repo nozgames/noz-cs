@@ -9,18 +9,17 @@ public partial class VectorSpriteEditor
     private readonly MeshVertex[] _onionVertices = new MeshVertex[MaxMeshVertices];
     private readonly ushort[] _onionIndices = new ushort[MaxMeshIndices];
     private readonly List<MeshSlotData> _onionSlots = new();
-    private readonly List<(SpriteGroup layer, bool visible)> _savedVisibility = new();
     private int _onionFrame = -1;
 
     private void DrawOnionSkin()
     {
-        if (!_onionSkin || _isPlaying || Document.AnimFrames.Count <= 1)
+        if (!_onionSkin || _isPlaying || !Document.IsAnimated || Document.FrameCount <= 1)
             return;
 
         var currentFi = CurrentFrameIndex;
         if (_onionFrame != currentFi || _meshDirty)
         {
-            var frameCount = Document.AnimFrames.Count;
+            var frameCount = Document.FrameCount;
             var prevFi = (currentFi - 1 + frameCount) % frameCount;
             var nextFi = (currentFi + 1) % frameCount;
 
@@ -30,23 +29,11 @@ public partial class VectorSpriteEditor
             _onionSlots.Clear();
             _onionFrame = currentFi;
 
-            // Save layer visibility before mutating
-            _savedVisibility.Clear();
-            Document.Root.ForEach((SpriteGroup layer) =>
-            {
-                if (layer != Document.Root)
-                    _savedVisibility.Add((layer, layer.Visible));
-            });
-
             var vertexOffset = 0;
             var indexOffset = 0;
 
             TessellateOnionFrame(prevFi, prevColor, ref vertexOffset, ref indexOffset);
             TessellateOnionFrame(nextFi, nextColor, ref vertexOffset, ref indexOffset);
-
-            // Restore original visibility
-            foreach (var (layer, visible) in _savedVisibility)
-                layer.Visible = visible;
         }
 
         DrawOnionMesh();
@@ -54,10 +41,9 @@ public partial class VectorSpriteEditor
 
     private void TessellateOnionFrame(int frameIndex, Color tint, ref int vertexOffset, ref int indexOffset)
     {
-        if (frameIndex < 0 || frameIndex >= Document.AnimFrames.Count)
+        var frameCount = Document.FrameCount;
+        if (frameIndex < 0 || frameIndex >= frameCount)
             return;
-
-        Document.AnimFrames[frameIndex].ApplyVisibility(Document.Root);
 
         _tessellateResults.Clear();
         SpriteGroupProcessor.ProcessLayer(Document.Root, _tessellateResults);

@@ -12,66 +12,50 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     public const string Extension = ".sprite";
     public const float DefaultFrameRate = 12f;
 
+    private static partial class WidgetIds
+    {
+        public static partial WidgetId PixelsPerUnit { get; }
+        public static partial WidgetId FilterDropDown { get; }
+        public static partial WidgetId SkeletonDropDown { get; }
+        public static partial WidgetId BoneDropDown { get; }
+        public static partial WidgetId ShowInSkeleton { get; }
+        public static partial WidgetId ConstraintDropDown { get; }
+        public static partial WidgetId SortOrder { get; }
+    }
+
+    public string? BoneName;
+    private string? _sortOrderId;
+    private readonly List<Rect> _atlasUV = [];
+    private Sprite? _sprite;
+    private Texture? _standaloneTexture;
+    public float Depth;
+
     public override bool CanSave => true;
 
     public byte SortOrder { get; private set; }
 
-    private string? _sortOrderId;
     public string? SortOrderId
     {
         get => _sortOrderId;
         set { _sortOrderId = value; ResolveSortOrder(); }
     }
 
-    public bool ShouldAtlas => true;
-
-    // Layer-based model
     public SpriteGroup Root { get; } = new() { Name = "Root" };
-    public List<SpriteAnimFrame> AnimFrames { get; } = new();
 
-    private readonly List<Rect> _atlasUV = new();
-    private Sprite? _sprite;
-    private Texture? _standaloneTexture;
-    public float Depth;
     public RectInt RasterBounds { get; protected set; }
     public EdgeInsets Edges { get; set; } = EdgeInsets.Zero;
 
-    protected abstract int PixelsPerUnit { get; }
-    protected abstract TextureFilter TextureFilter { get; }
-    protected abstract void UpdateContentBounds();
+    public int? PixelsPerUnitOverride { get; set; }
+    public TextureFilter? TextureFilterOverride { get; set; }
 
-    public virtual Color32 GetPixelAt(Vector2 worldPos) => default;
-    internal abstract void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding);
-    protected abstract void SaveContent(StreamWriter writer);
-    protected abstract void CloneContent(SpriteDocument source);
+    protected virtual TextureFilter DefaultTextureFilter => TextureFilter.Linear;
 
-    public abstract DocumentEditor CreateEditor();
+    protected virtual int PixelsPerUnit => PixelsPerUnitOverride ?? EditorApplication.Config.PixelsPerUnit;
+    protected virtual TextureFilter TextureFilter => TextureFilterOverride ?? DefaultTextureFilter;
 
-    public int TotalTimeSlots
-    {
-        get
-        {
-            if (AnimFrames.Count == 0) return 1;
-            var total = 0;
-            foreach (var frame in AnimFrames)
-                total += 1 + frame.Hold;
-            return total;
-        }
-    }
+    public bool IsAnimated { get; set; }
 
-    public int GetFrameAtTimeSlot(int timeSlot)
-    {
-        if (AnimFrames.Count == 0) return 0;
-        var accumulated = 0;
-        for (var i = 0; i < AnimFrames.Count; i++)
-        {
-            var slots = 1 + AnimFrames[i].Hold;
-            if (timeSlot < accumulated + slots)
-                return i;
-            accumulated += slots;
-        }
-        return AnimFrames.Count - 1;
-    }
+    public int FrameCount => IsAnimated ? Root.Children.Count : 0;
 
     public bool ShowInSkeleton { get; set; }
     public bool ShowTiling { get; set; }
@@ -82,41 +66,18 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     internal AtlasDocument? Atlas { get; set; }
 
     public DocumentRef<SkeletonDocument> Skeleton;
-    public string? BoneName;
     public int BoneIndex { get; private set; } = -1;
 
-    public bool ShouldShowInSkeleton(SkeletonDocument skeleton) => ShowInSkeleton;
-
-    public int InsertFrame(int insertAt)
+    public int TotalTimeSlots
     {
-        var index = Math.Clamp(insertAt, 0, AnimFrames.Count);
-        var frame = new SpriteAnimFrame();
-        if (AnimFrames.Count > 0)
+        get
         {
-            var sourceIndex = Math.Min(index, AnimFrames.Count - 1);
-            foreach (var layer in AnimFrames[sourceIndex].VisibleLayers)
-                frame.VisibleLayers.Add(layer);
+            if (!IsAnimated || Root.Children.Count == 0) return 1;
+            var total = 0;
+            foreach (var child in Root.Children)
+                total += 1 + child.Hold;
+            return total;
         }
-        AnimFrames.Insert(index, frame);
-        IncrementVersion();
-        return index;
-    }
-
-    public int DeleteFrame(int frameIndex)
-    {
-        if (AnimFrames.Count <= 1 || frameIndex < 0 || frameIndex >= AnimFrames.Count)
-            return Math.Max(0, frameIndex);
-        AnimFrames.RemoveAt(frameIndex);
-        IncrementVersion();
-        return Math.Min(frameIndex, AnimFrames.Count - 1);
-    }
-
-    public void DrawSkinned(
-        ReadOnlySpan<Matrix3x2> bindPose,
-        ReadOnlySpan<Matrix3x2> animatedPose,
-        in Matrix3x2 baseTransform)
-    {
-        DrawSprite(bindPose, animatedPose, baseTransform);
     }
 
     public Rect AtlasUV => GetAtlasUV(0);
@@ -128,6 +89,53 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             if (_sprite == null) UpdateSprite();
             return _sprite;
         }
+    }
+
+    protected abstract void UpdateContentBounds();
+
+    public virtual Color32 GetPixelAt(Vector2 worldPos) => default;
+    internal abstract void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding);
+    protected abstract void SaveContent(StreamWriter writer);
+    protected abstract void CloneContent(SpriteDocument source);
+
+    public abstract DocumentEditor CreateEditor();
+
+    public int GetFrameAtTimeSlot(int timeSlot)
+    {
+        if (!IsAnimated || Root.Children.Count == 0) return 0;
+        var accumulated = 0;
+        for (var i = 0; i < Root.Children.Count; i++)
+        {
+            var slots = 1 + Root.Children[i].Hold;
+            if (timeSlot < accumulated + slots)
+                return i;
+            accumulated += slots;
+        }
+        return Root.Children.Count - 1;
+    }
+
+    public void EnableAnimation()
+    {
+        if (IsAnimated) return;
+        Undo.Record(this);
+        IsAnimated = true;
+    }
+
+    public void DisableAnimation()
+    {
+        if (!IsAnimated) return;
+        Undo.Record(this);
+        IsAnimated = false;
+    }
+
+    public bool ShouldShowInSkeleton(SkeletonDocument skeleton) => ShowInSkeleton;
+
+    public void DrawSkinned(
+        ReadOnlySpan<Matrix3x2> bindPose,
+        ReadOnlySpan<Matrix3x2> animatedPose,
+        in Matrix3x2 baseTransform)
+    {
+        DrawSprite(bindPose, animatedPose, baseTransform);
     }
 
     public static void RegisterDef()
@@ -189,8 +197,8 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         Edges = EdgeInsets.Zero;
         Skeleton.Clear();
         BoneName = null;
+        IsAnimated = false;
         Root.Clear();
-        AnimFrames.Clear();
         var contents = EditorApplication.Store.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
@@ -365,15 +373,14 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         Edges = src.Edges;
         Skeleton = src.Skeleton;
         BoneName = src.BoneName;
+        IsAnimated = src.IsAnimated;
+        PixelsPerUnitOverride = src.PixelsPerUnitOverride;
+        TextureFilterOverride = src.TextureFilterOverride;
 
         Root.Dispose();
         Root.Clear();
         foreach (var child in src.Root.Children)
             Root.Add(child.Clone());
-
-        AnimFrames.Clear();
-        foreach (var frame in src.AnimFrames)
-            AnimFrames.Add(frame.Clone(src.Root, Root));
 
         CloneContent(src);
     }
@@ -384,6 +391,12 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         ShowTiling = meta.GetBool("sprite", "show_tiling", false);
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
+
+        var ppu = meta.GetInt("sprite", "ppu", 0);
+        PixelsPerUnitOverride = ppu > 0 ? ppu : null;
+
+        var filter = meta.GetInt("sprite", "filter", -1);
+        TextureFilterOverride = filter >= 0 ? (TextureFilter)filter : null;
 
         LoadContentMetadata(meta);
 
@@ -418,10 +431,201 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         else
             meta.RemoveKey("sprite", "constrained_size");
 
+        if (PixelsPerUnitOverride.HasValue)
+            meta.SetInt("sprite", "ppu", PixelsPerUnitOverride.Value);
+        else
+            meta.RemoveKey("sprite", "ppu");
+
+        if (TextureFilterOverride.HasValue)
+            meta.SetInt("sprite", "filter", (int)TextureFilterOverride.Value);
+        else
+            meta.RemoveKey("sprite", "filter");
+
         SaveContentMetadata(meta);
     }
 
     protected virtual void SaveContentMetadata(PropertySet meta) { }
+
+    public override void InspectorUI()
+    {
+        if (Inspector.IsSectionCollapsed)
+            return;
+
+        using (Inspector.BeginProperty("Pixels Per Unit"))
+        {
+            var current = PixelsPerUnitOverride ?? EditorApplication.Config.PixelsPerUnit;
+            var label = PixelsPerUnitOverride.HasValue
+                ? $"{current}"
+                : $"{current} (Default)";
+            UI.DropDown(WidgetIds.PixelsPerUnit, () =>
+            [
+                ..new[] { 8, 16, 32, 64, 128, 256 }.Select(v => new PopupMenuItem
+                {
+                    Label = v == EditorApplication.Config.PixelsPerUnit ? $"{v} (Default)" : $"{v}",
+                    Handler = () =>
+                    {
+                        Undo.Record(this);
+                        PixelsPerUnitOverride = v == EditorApplication.Config.PixelsPerUnit ? null : v;
+                        UpdateBounds();
+                        if (Atlas != null)
+                            AtlasManager.UpdateSource(this);
+                        AssetManifest.IsModified = true;
+                    }
+                })
+            ], label);
+        }
+
+        using (Inspector.BeginProperty("Filter"))
+        {
+            var current = TextureFilterOverride ?? DefaultTextureFilter;
+            var filterLabel = TextureFilterOverride.HasValue
+                ? $"{current}"
+                : $"{current} (Default)";
+            UI.DropDown(WidgetIds.FilterDropDown, () =>
+            [
+                new PopupMenuItem
+                {
+                    Label = DefaultTextureFilter == TextureFilter.Point ? "Point (Default)" : "Point",
+                    Handler = () =>
+                    {
+                        Undo.Record(this);
+                        TextureFilterOverride = DefaultTextureFilter == TextureFilter.Point ? null : TextureFilter.Point;
+                        MarkSpriteDirty();
+                        AssetManifest.IsModified = true;
+                    }
+                },
+                new PopupMenuItem
+                {
+                    Label = DefaultTextureFilter == TextureFilter.Linear ? "Linear (Default)" : "Linear",
+                    Handler = () =>
+                    {
+                        Undo.Record(this);
+                        TextureFilterOverride = DefaultTextureFilter == TextureFilter.Linear ? null : TextureFilter.Linear;
+                        MarkSpriteDirty();
+                        AssetManifest.IsModified = true;
+                    }
+                }
+            ], filterLabel);
+        }
+
+        using (Inspector.BeginProperty("Size"))
+        {
+            var sizes = EditorApplication.Config.SpriteSizes;
+            var constraintLabel = "Auto";
+            if (ConstrainedSize.HasValue)
+                for (int i = 0; i < sizes.Length; i++)
+                    if (ConstrainedSize.Value == sizes[i].Size)
+                    {
+                        constraintLabel = sizes[i].Label;
+                        break;
+                    }
+
+            UI.DropDown(WidgetIds.ConstraintDropDown, () =>
+            [
+                ..EditorApplication.Config.SpriteSizes.Select(s =>
+                    new PopupMenuItem { Label = s.Label, Handler = () =>
+                    {
+                        Undo.Record(this);
+                        ConstrainedSize = s.Size;
+                        UpdateBounds();
+                        if (Atlas != null)
+                            AtlasManager.UpdateSource(this);
+                        AssetManifest.IsModified = true;
+                    }}),
+                new PopupMenuItem { Label = "Auto", Handler = () =>
+                {
+                    Undo.Record(this);
+                    ConstrainedSize = null;
+                    UpdateBounds();
+                    if (Atlas != null)
+                        AtlasManager.UpdateSource(this);
+                    AssetManifest.IsModified = true;
+                }}
+            ], constraintLabel, EditorAssets.Sprites.IconConstraint);
+        }
+
+        using (Inspector.BeginProperty("Sort Order"))
+        {
+            EditorUI.SortOrderDropDown(WidgetIds.SortOrder, SortOrderId, id =>
+            {
+                Undo.Record(this);
+                SortOrderId = id;
+                AssetManifest.IsModified = true;
+            });
+        }
+
+        using (Inspector.BeginProperty("Skeleton"))
+        {
+            var skeleton = EditorUI.SkeletonField(WidgetIds.SkeletonDropDown, Skeleton.Value);
+            if (UI.WasChanged())
+            {
+                Undo.Record(this);
+                if (skeleton != null)
+                {
+                    Skeleton = skeleton;
+                    skeleton.UpdateSprites();
+                }
+                else
+                {
+                    var old = Skeleton.Value;
+                    Skeleton.Clear();
+                    BoneName = null;
+                    old?.UpdateSprites();
+                }
+            }
+        }
+
+        if (Skeleton.IsResolved)
+        {
+            using (Inspector.BeginProperty("Bone"))
+            {
+                var skeleton = Skeleton.Value!;
+                var boneLabel = BoneName ?? "None";
+
+                UI.DropDown(WidgetIds.BoneDropDown, () =>
+                {
+                    var boneItems = new List<PopupMenuItem>();
+                    for (var i = 0; i < skeleton.BoneCount; i++)
+                    {
+                        var boneName = skeleton.Bones[i].Name;
+                        boneItems.Add(new PopupMenuItem
+                        {
+                            Label = boneName,
+                            Handler = () =>
+                            {
+                                Undo.Record(this);
+                                BoneName = boneName;
+                                ResolveBone();
+                                Skeleton.Value?.UpdateSprites();
+                            }
+                        });
+                    }
+                    boneItems.Add(new PopupMenuItem
+                    {
+                        Label = "None",
+                        Handler = () =>
+                        {
+                            Undo.Record(this);
+                            BoneName = null;
+                            ResolveBone();
+                            Skeleton.Value?.UpdateSprites();
+                        }
+                    });
+                    return [.. boneItems];
+                }, boneLabel, EditorAssets.Sprites.IconBone);
+            }
+
+            using (Inspector.BeginProperty("Show In Skeleton"))
+            {
+                if (UI.Toggle(WidgetIds.ShowInSkeleton, ShowInSkeleton, EditorStyle.Inspector.Toggle))
+                {
+                    Undo.Record(this);
+                    ShowInSkeleton = !ShowInSkeleton;
+                    Skeleton.Value?.UpdateSprites();
+                }
+            }
+        }
+    }
 
     public override void PostLoad()
     {

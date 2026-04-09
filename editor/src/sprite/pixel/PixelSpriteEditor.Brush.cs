@@ -28,7 +28,7 @@ public partial class PixelSpriteEditor
         return distX * distX + distY * distY <= radius * radius;
     }
 
-    public void PaintBrush(Vector2Int pixel, Color32 color)
+    public void PaintBrush(Vector2Int pixel, Color32 color, bool blend = true)
     {
         var layer = ActiveLayer;
         if (layer?.Pixels == null) return;
@@ -43,7 +43,8 @@ public partial class PixelSpriteEditor
                 if (!IsPixelInConstraint(new Vector2Int(px, py))) continue;
                 if (!IsPixelSelected(px, py)) continue;
                 if (AlphaLock && layer.Pixels[px, py].A == 0) continue;
-                layer.Pixels.Set(px, py, color);
+                var dst = layer.Pixels[px, py];
+                layer.Pixels.Set(px, py, blend && color.A < 255 ? Color32.Blend(dst, color) : color);
             }
         InvalidateComposite();
     }

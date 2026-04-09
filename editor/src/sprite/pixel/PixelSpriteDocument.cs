@@ -6,18 +6,7 @@ namespace NoZ.Editor;
 
 public partial class PixelSpriteDocument : SpriteDocument
 {
-    private static partial class WidgetIds
-    {
-        public static partial WidgetId PixelsPerUnit { get; }
-        public static partial WidgetId SkeletonDropDown { get; }
-        public static partial WidgetId BoneDropDown { get; }
-        public static partial WidgetId ShowInSkeleton { get; }
-    }
-
-    public int? PixelsPerUnitOverride { get; set; }
-
-    protected override int PixelsPerUnit => PixelsPerUnitOverride ?? 32;
-    protected override TextureFilter TextureFilter => TextureFilter.Point;
+    protected override TextureFilter DefaultTextureFilter => TextureFilter.Point;
 
     public Vector2Int CanvasSize { get; set; } = new(64, 64);
     public PixelData<byte>? SelectionMask { get; set; }
@@ -57,9 +46,9 @@ public partial class PixelSpriteDocument : SpriteDocument
         {
             if (!child.Visible) continue;
 
-            if (child is SpriteGroup group)
+            if (child.IsExpandable)
             {
-                CompositePixelAt(group, px, py, ref result);
+                CompositePixelAt(child, px, py, ref result);
                 continue;
             }
 
@@ -114,23 +103,17 @@ public partial class PixelSpriteDocument : SpriteDocument
         var maxX = 0;
         var maxY = 0;
 
-        // For animated sprites, include all layers regardless of visibility
-        // since different frames show different layers.
-        var hasAnimation = AnimFrames.Count > 0;
+        // todo: dont allocate here.
+        var layers = new List<PixelLayer>();
+        Root.Collect(layers, l => l.Pixels != null && (IsAnimated || l.Visible));
 
-        foreach (var child in Root.Children)
+        foreach (var layer in layers)
         {
-            if (child is not PixelLayer layer || layer.Pixels == null)
-                continue;
-
-            if (!hasAnimation && !layer.Visible)
-                continue;
-
             for (var y = 0; y < h; y++)
             {
                 for (var x = 0; x < w; x++)
                 {
-                    if (layer.Pixels[x, y].A == 0) continue;
+                    if (layer.Pixels![x, y].A == 0) continue;
                     if (x < minX) minX = x;
                     if (y < minY) minY = y;
                     if (x >= maxX) maxX = x + 1;
@@ -188,7 +171,6 @@ public partial class PixelSpriteDocument : SpriteDocument
     {
         if (source is not PixelSpriteDocument src) return;
         CanvasSize = src.CanvasSize;
-        PixelsPerUnitOverride = src.PixelsPerUnitOverride;
 
         SelectionMask?.Dispose();
         SelectionMask = src.SelectionMask?.Clone();
@@ -198,9 +180,6 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     protected override void LoadContentMetadata(PropertySet meta)
     {
-        var ppu = meta.GetInt("sprite", "ppu", 0);
-        PixelsPerUnitOverride = ppu > 0 ? ppu : null;
-
         BrushSize = Math.Clamp(meta.GetInt("sprite", "brush_size", 1), 1, 16);
         var brushColor = meta.GetColor("sprite", "brush_color", Color.Black);
         BrushColor = (Color32)brushColor;
@@ -210,11 +189,6 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     protected override void SaveContentMetadata(PropertySet meta)
     {
-        if (PixelsPerUnitOverride.HasValue)
-            meta.SetInt("sprite", "ppu", PixelsPerUnitOverride.Value);
-        else
-            meta.RemoveKey("sprite", "ppu");
-
         meta.SetInt("sprite", "brush_size", BrushSize);
         meta.SetColor("sprite", "brush_color", (Color)BrushColor);
         meta.SetBool("sprite", "alpha_lock", AlphaLock);
@@ -223,97 +197,6 @@ public partial class PixelSpriteDocument : SpriteDocument
             meta.SetString("sprite", "active_layer", ActiveLayerName);
         else
             meta.RemoveKey("sprite", "active_layer");
-    }
-
-    public override void InspectorUI()
-    {
-        Inspector.Section("PIXEL SPRITE", icon: Def.Icon?.Invoke());
-        if (!Inspector.IsSectionCollapsed)
-        {
-            using (Inspector.BeginProperty("Pixels Per Unit"))
-            {
-                var current = PixelsPerUnitOverride ?? 32;
-                var label = PixelsPerUnitOverride.HasValue ? $"{current}" : $"{current} (Default)";
-                UI.DropDown(WidgetIds.PixelsPerUnit, () =>
-                [
-                    ..new[] { 8, 16, 32, 64, 128 }.Select(v => new PopupMenuItem
-                    {
-                        Label = v == 32 ? "32 (Default)" : $"{v}",
-                        Handler = () =>
-                        {
-                            Undo.Record(this);
-                            PixelsPerUnitOverride = v == 32 ? null : v;
-                            UpdateBounds();
-                            AssetManifest.IsModified = true;
-                        }
-                    })
-                ], label);
-            }
-
-            using (Inspector.BeginProperty("Skeleton"))
-            {
-                var skeleton = EditorUI.SkeletonField(WidgetIds.SkeletonDropDown, Skeleton.Value);
-                if (UI.WasChanged())
-                {
-                    Undo.Record(this);
-                    if (skeleton != null)
-                    {
-                        Skeleton = skeleton;
-                        skeleton.UpdateSprites();
-                    }
-                    else
-                    {
-                        var old = Skeleton.Value;
-                        Skeleton.Clear();
-                        BoneName = null;
-                        old?.UpdateSprites();
-                    }
-                }
-            }
-
-            if (Skeleton.IsResolved)
-            {
-                using (Inspector.BeginProperty("Bone"))
-                {
-                    var skeleton = Skeleton.Value!;
-                    var boneLabel = BoneName ?? "None";
-
-                    UI.DropDown(WidgetIds.BoneDropDown, () =>
-                    {
-                        var boneItems = new List<PopupMenuItem>();
-                        for (var i = 0; i < skeleton.BoneCount; i++)
-                        {
-                            var boneName = skeleton.Bones[i].Name;
-                            boneItems.Add(new PopupMenuItem { Label = boneName, Handler = () =>
-                            {
-                                Undo.Record(this);
-                                BoneName = boneName;
-                                ResolveBone();
-                                Skeleton.Value?.UpdateSprites();
-                            }});
-                        }
-                        boneItems.Add(new PopupMenuItem { Label = "None", Handler = () =>
-                        {
-                            Undo.Record(this);
-                            BoneName = null;
-                            ResolveBone();
-                            Skeleton.Value?.UpdateSprites();
-                        }});
-                        return [.. boneItems];
-                    }, boneLabel, EditorAssets.Sprites.IconBone);
-                }
-
-                using (Inspector.BeginProperty("Show In Skeleton"))
-                {
-                    if (UI.Toggle(WidgetIds.ShowInSkeleton, ShowInSkeleton, EditorStyle.Inspector.Toggle))
-                    {
-                        Undo.Record(this);
-                        ShowInSkeleton = !ShowInSkeleton;
-                        Skeleton.Value?.UpdateSprites();
-                    }
-                }
-            }
-        }
     }
 
     public override void Dispose()

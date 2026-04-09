@@ -199,7 +199,7 @@ public partial class PixelSpriteEditor
             if (!child.Visible) continue;
 
             if (child is PixelLayer layer && layer.Pixels != null)
-                BlitScaledComposite(layer.Pixels, sourceRect, dest, destW, destH);
+                CompositeScaled(layer.Pixels, sourceRect, dest, destW, destH);
             else if (child is SpriteGroup group)
                 CompositeScaled(group, sourceRect, dest, destW, destH);
         }
@@ -238,7 +238,7 @@ public partial class PixelSpriteEditor
         }
     }
 
-    private static void BlitScaledComposite(PixelData<Color32> pixels, in RectInt sourceRect, Span<Color32> dest, int destW, int destH)
+    private static void CompositeScaled(PixelData<Color32> pixels, in RectInt sourceRect, Span<Color32> dest, int destW, int destH)
     {
         var scaleX = (float)destW / sourceRect.Width;
         var scaleY = (float)destH / sourceRect.Height;

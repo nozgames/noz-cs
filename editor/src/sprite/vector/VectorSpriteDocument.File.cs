@@ -43,7 +43,7 @@ public partial class VectorSpriteDocument
         }
     }
 
-    private void ParseGroup(ref Tokenizer tk, SpriteGroup parent)
+    private void ParseGroup(ref Tokenizer tk, SpriteNode parent)
     {
         var name = tk.ExpectQuotedString() ?? "";
         tk.ExpectDelimiter('{');
@@ -54,6 +54,8 @@ public partial class VectorSpriteDocument
         {
             if (tk.ExpectDelimiter('}'))
                 break;
+            else if (tk.ExpectIdentifier("hold"))
+                group.Hold = tk.ExpectInt();
             else if (tk.ExpectIdentifier("group"))
                 ParseGroup(ref tk, group);
             else if (tk.ExpectIdentifier("path"))
@@ -186,6 +188,10 @@ public partial class VectorSpriteDocument
                     Curve = curve,
                 });
             }
+            else if (tk.ExpectIdentifier("hold"))
+            {
+                path.Hold = tk.ExpectInt();
+            }
             else
                 break;
         }
@@ -202,6 +208,9 @@ public partial class VectorSpriteDocument
             writer.WriteLine($"{indent}path \"{path.Name}\" {{");
         else
             writer.WriteLine($"{indent}path {{");
+
+        if (path.Hold > 0)
+            writer.WriteLine($"{propIndent}hold {path.Hold}");
 
         if (path.HasTransform)
         {
@@ -250,7 +259,11 @@ public partial class VectorSpriteDocument
     internal static void SaveGroup(StreamWriter writer, SpriteGroup group, int depth)
     {
         var indent = new string(' ', depth * 2);
+        var propIndent = new string(' ', (depth + 1) * 2);
         writer.WriteLine($"{indent}group \"{group.Name}\" {{");
+
+        if (group.Hold > 0)
+            writer.WriteLine($"{propIndent}hold {group.Hold}");
 
         foreach (var child in group.Children)
         {

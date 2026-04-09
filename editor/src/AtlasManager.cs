@@ -40,13 +40,13 @@ public static class AtlasManager
 
     private static void HandleDocumentAdded(Document doc)
     {
-        if (doc is SpriteDocument { ShouldAtlas: true } sprite)
-        {
-            if (sprite.ShouldExport)
-                AddSource(sprite);
-            else
-                AddEditorSource(sprite);
-        }
+        if (doc is not SpriteDocument sprite)
+            return;
+
+        if (sprite.ShouldExport)
+            AddSource(sprite);
+        else
+            AddEditorSource(sprite);
     }
 
     private static string GetAtlasName(int index) => $"{EditorApplication.Config.AtlasPrefix}{index:000}.atlas";
@@ -113,7 +113,7 @@ public static class AtlasManager
                     _atlases.Add(atlas);
                 }
             }
-            else if (doc is SpriteDocument { ShouldAtlas: true } sprite)
+            else if (doc is SpriteDocument sprite)
             {
                 if (sprite.ShouldExport)
                     _sources.Add(sprite);
