@@ -233,6 +233,6 @@ public class PenMode : EditorMode<VectorSpriteEditor>
     private void Cancel()
     {
         _pointCount = 0;
-        Editor.SetMode(new AnchorMode());
+        Editor.SetMode(SpriteEditMode.Anchor);
     }
 }

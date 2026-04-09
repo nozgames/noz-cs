@@ -74,7 +74,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
     {
         var cs = ConstrainedSize ?? new Vector2Int(256, 256);
         RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
-        Bounds = RasterBounds.ToRect().Scale(1.0f / EditorApplication.Config.PixelsPerUnit);
+        Bounds = RasterBounds.ToRect().Scale(1.0f / PixelsPerUnit);
     }
 
     public override void Reload()
@@ -193,7 +193,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
         var texture = gen.Job.Texture;
         if (texture != null)
         {
-            var ppu = EditorApplication.Config.PixelsPerUnitInv;
+            var ppu = 1.0f / PixelsPerUnit;
             var cs = ConstrainedSize ?? new Vector2Int(256, 256);
             var rect = new Rect(
                 cs.X * ppu * -0.5f,
@@ -312,7 +312,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
         var h = RasterBounds.Height;
         if (w <= 0 || h <= 0) return [];
 
-        var dpi = EditorApplication.Config.PixelsPerUnit;
+        var dpi = PixelsPerUnit;
         const int rasterizeSize = 1024;
         var scale = (float)rasterizeSize / MathF.Max(w, h);
         var scaledDpi = (int)MathF.Round(dpi * scale);

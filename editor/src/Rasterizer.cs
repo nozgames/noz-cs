@@ -15,6 +15,12 @@ using Clipper2Lib;
 
 namespace NoZ.Editor;
 
+internal struct EdgePixel
+{
+    public Color32 Color;
+    public byte Coverage;
+}
+
 internal static class Rasterizer
 {
     [ThreadStatic] private static List<Edge>? _edgePool;
@@ -25,6 +31,7 @@ internal static class Rasterizer
     public static void Fill(
         PathsD paths,
         PixelData<Color32> target,
+        PixelData<EdgePixel> edgeBuffer,
         RectInt targetRect,
         Vector2Int sourceOffset,
         int dpi,
@@ -115,28 +122,66 @@ internal static class Rasterizer
                 float alpha = MathF.Abs(sum);
                 if (alpha > 1f) alpha = 1f;
 
-                if (alpha > 0.004f) // ~1/255
+                if (alpha >= 0.5f)
                 {
+                    // Binary interior write to primary buffer.
                     int tx = targetRect.X + px;
-                    byte srcA = (byte)(alpha * color.A + 0.5f);
-                    var srcColor = new Color32(color.R, color.G, color.B, srcA);
                     var dst = target[tx, ty];
-                    if (dst.A == 0)
+                    if (dst.A == 0 || color.A == 255)
                     {
-                        target[tx, ty] = srcColor;
+                        // Empty destination or opaque path — straight overwrite.
+                        target[tx, ty] = color;
                     }
                     else
                     {
-                        var blended = Color32.Blend(dst, srcColor);
-                        // For opaque paths, use additive alpha (clamped) instead of
-                        // Porter-Duff over. After geometry trimming, adjacent path
-                        // coverages are complementary and should sum to full opacity.
-                        // The over formula treats them as independent, causing dark seams.
-                        if (color.A == 255)
-                            blended.A = (byte)Math.Min(srcA + dst.A, 255);
-                        target[tx, ty] = blended;
+                        // Semi-transparent path — Porter-Duff over with srcA = color.A.
+                        target[tx, ty] = Color32.Blend(dst, color);
                     }
+
+                    // An interior pixel hides any prior edge contribution here.
+                    edgeBuffer[px, py] = default;
                 }
+                else if (alpha > 0.004f) // ~1/255
+                {
+                    // Edge (fractional coverage) — record in edge buffer (last-writer-wins).
+                    // Remap (0, 0.5) -> (0, 1) by multiplying by 2, then modulate by path alpha.
+                    float cov = alpha * 2f * (color.A / 255f);
+                    if (cov > 1f) cov = 1f;
+                    edgeBuffer[px, py] = new EdgePixel
+                    {
+                        Color = color,
+                        Coverage = (byte)(cov * 255f + 0.5f),
+                    };
+                }
+            }
+        }
+    }
+
+    public static void Composite(
+        PixelData<Color32> target,
+        PixelData<EdgePixel> edgeBuffer,
+        RectInt targetRect)
+    {
+        int w = targetRect.Width;
+        int h = targetRect.Height;
+        for (int py = 0; py < h; py++)
+        {
+            int ty = targetRect.Y + py;
+            for (int px = 0; px < w; px++)
+            {
+                ref var ep = ref edgeBuffer[px, py];
+                if (ep.Coverage == 0) continue;
+
+                int tx = targetRect.X + px;
+                ref var dst = ref target[tx, ty];
+                // Integer-weighted lerp: dst = lerp(dst, ep.Color, ep.Coverage / 255)
+                int t = ep.Coverage;
+                int it = 255 - t;
+                dst = new Color32(
+                    (byte)((dst.R * it + ep.Color.R * t) / 255),
+                    (byte)((dst.G * it + ep.Color.G * t) / 255),
+                    (byte)((dst.B * it + ep.Color.B * t) / 255),
+                    (byte)((dst.A * it + ep.Color.A * t) / 255));
             }
         }
     }

@@ -76,7 +76,7 @@ public class ImageSpriteDocument : SpriteDocument
             RasterBounds = new RectInt(-w / 2, -h / 2, w, h);
         }
 
-        var ppu = EditorApplication.Config.PixelsPerUnitInv;
+        var ppu = 1.0f / PixelsPerUnit;
         Bounds = new Rect(
             RasterBounds.X * ppu,
             RasterBounds.Y * ppu,

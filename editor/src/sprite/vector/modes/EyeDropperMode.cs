@@ -6,12 +6,15 @@ namespace NoZ.Editor;
 
 public class EyeDropperMode : EditorMode<VectorSpriteEditor>
 {
+    private readonly SpriteEditMode _previousMode;
     private bool _shift;
-    private SpriteEditMode _previousMode;
 
-    public override void OnEnter()
+    public EyeDropperMode(SpriteEditMode previousMode)
     {
-        _previousMode = Editor.CurrentMode;
+        // Defensive: never loop back into EyeDropper if something weird happens
+        _previousMode = previousMode == SpriteEditMode.EyeDropper
+            ? SpriteEditMode.Transform
+            : previousMode;
     }
 
     public override void Update()
@@ -21,7 +24,7 @@ public class EyeDropperMode : EditorMode<VectorSpriteEditor>
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
             Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
         {
-            ReturnToPreviousMode();
+            Editor.SetMode(_previousMode);
             return;
         }
 
@@ -31,20 +34,7 @@ public class EyeDropperMode : EditorMode<VectorSpriteEditor>
             var color = Workspace.ReadPixelAtMouse();
             Input.ConsumeButton(InputCode.MouseLeft);
             Editor.ApplyEyeDropperColor(color, _shift);
-            ReturnToPreviousMode();
+            Editor.SetMode(_previousMode);
         }
-    }
-
-    private void ReturnToPreviousMode()
-    {
-        // Go back to whichever mode was active before eyedropper
-        EditorMode mode = _previousMode switch
-        {
-            SpriteEditMode.Transform => new TransformMode(),
-            SpriteEditMode.Anchor => new AnchorMode(),
-            SpriteEditMode.Bevel => new BevelMode(),
-            _ => new TransformMode(),
-        };
-        Editor.SetMode(mode);
     }
 }

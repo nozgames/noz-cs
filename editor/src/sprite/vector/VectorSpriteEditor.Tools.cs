@@ -44,11 +44,9 @@ public partial class VectorSpriteEditor
         return _selectedPaths.Count > 0 ? _selectedPaths[0] : null;
     }
 
-    private void SetMode(SpriteEditMode mode)
+    internal void SetMode(SpriteEditMode mode)
     {
         if (CurrentMode == mode) return;
-
-        CurrentMode = mode;
 
         EditorMode newMode = mode switch
         {
@@ -58,9 +56,10 @@ public partial class VectorSpriteEditor
             SpriteEditMode.Pen => new PenMode(),
             SpriteEditMode.Rectangle => new ShapeMode(ShapeType.Rectangle),
             SpriteEditMode.Circle => new ShapeMode(ShapeType.Circle),
-            SpriteEditMode.EyeDropper => new EyeDropperMode(),
+            SpriteEditMode.EyeDropper => new EyeDropperMode(CurrentMode),
             _ => new TransformMode(),
         };
+        CurrentMode = mode;
         SetMode(newMode);
     }
 

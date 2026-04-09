@@ -60,6 +60,11 @@ public partial class VectorSpriteDocument
             }};
         }
 
+        // Edge buffer for two-pass AA: paths write binary coverage to the primary
+        // image and record sub-threshold edge coverage here. After all paths are
+        // rasterized, Composite lerps the edge contributions back on top.
+        using var edgeBuffer = new PixelData<EdgePixel>(targetRect.Size);
+
         foreach (var result in results)
         {
             var contours = result.Contours;
@@ -70,8 +75,10 @@ public partial class VectorSpriteDocument
                 if (contours.Count == 0) continue;
             }
 
-            Rasterizer.Fill(contours, image, targetRect, sourceOffset, dpi, result.Color);
+            Rasterizer.Fill(contours, image, edgeBuffer, targetRect, sourceOffset, dpi, result.Color);
         }
+
+        Rasterizer.Composite(image, edgeBuffer, targetRect);
     }
 
     public byte[] RasterizeColorToPng()

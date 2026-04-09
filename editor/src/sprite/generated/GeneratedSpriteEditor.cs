@@ -48,7 +48,7 @@ public partial class GeneratedSpriteEditor : SpriteEditor
         if (texture != null)
         {
             var cs = Document.ConstrainedSize ?? new Vector2Int(256, 256);
-            var ppu = EditorApplication.Config.PixelsPerUnitInv;
+            var ppu = 1.0f / Document.PixelsPerUnit;
             var rect = new Rect(
                 cs.X * ppu * -0.5f,
                 cs.Y * ppu * -0.5f,

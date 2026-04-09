@@ -1152,12 +1152,11 @@ public partial class VectorSpriteEditor : SpriteEditor
     {
         var bounds = Document.Bounds;
         var edges = Document.Edges;
-        var ppu = 1.0f / EditorApplication.Config.PixelsPerUnit;
 
-        var edgeL = edges.L * ppu;
-        var edgeR = edges.R * ppu;
-        var edgeT = edges.T * ppu;
-        var edgeB = edges.B * ppu;
+        var edgeL = edges.L;
+        var edgeR = edges.R;
+        var edgeT = edges.T;
+        var edgeB = edges.B;
 
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
@@ -1288,16 +1287,17 @@ public partial class VectorSpriteEditor : SpriteEditor
 
     #region Edges
 
-    private static bool EdgeIntInput(WidgetId id, float value, out float newValue)
+    private static bool EdgeIntInput(WidgetId id, float worldValue, int ppu, out float newWorldValue)
     {
-        var text = ((int)value).ToString();
-        newValue = value;
+        var pixelValue = (int)MathF.Round(worldValue * ppu);
+        var text = pixelValue.ToString();
+        newWorldValue = worldValue;
         using (UI.BeginFlex())
         {
             var result = UI.TextInput(id, text, EditorStyle.Inspector.TextBox, "0");
             if (result != text && int.TryParse(result, out var parsed) && parsed >= 0)
             {
-                newValue = parsed;
+                newWorldValue = parsed / (float)ppu;
                 return true;
             }
         }
@@ -1315,7 +1315,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                 {
                     var doc = (Workspace.ActiveDocument as SpriteDocument)!;
                     Undo.Record(doc);
-                    doc.Edges = new EdgeInsets(8);
+                    doc.Edges = new EdgeInsets(8f / doc.PixelsPerUnit);
                     doc.UpdateBounds();
                 }
                 ElementTree.EndAlign();
@@ -1342,19 +1342,20 @@ public partial class VectorSpriteEditor : SpriteEditor
             if (Inspector.IsSectionCollapsed) return;
 
             var edges = Document.Edges;
+            var ppu = Document.PixelsPerUnit;
             var changed = false;
 
             using (Inspector.BeginProperty("Top"))
-                if (EdgeIntInput(WidgetIds.EdgeTop, edges.T, out var v)) { edges = new EdgeInsets(v, edges.L, edges.B, edges.R); changed = true; }
+                if (EdgeIntInput(WidgetIds.EdgeTop, edges.T, ppu, out var v)) { edges = new EdgeInsets(v, edges.L, edges.B, edges.R); changed = true; }
 
             using (Inspector.BeginProperty("Left"))
-                if (EdgeIntInput(WidgetIds.EdgeLeft, edges.L, out var v)) { edges = new EdgeInsets(edges.T, v, edges.B, edges.R); changed = true; }
+                if (EdgeIntInput(WidgetIds.EdgeLeft, edges.L, ppu, out var v)) { edges = new EdgeInsets(edges.T, v, edges.B, edges.R); changed = true; }
 
             using (Inspector.BeginProperty("Bottom"))
-                if (EdgeIntInput(WidgetIds.EdgeBottom, edges.B, out var v)) { edges = new EdgeInsets(edges.T, edges.L, v, edges.R); changed = true; }
+                if (EdgeIntInput(WidgetIds.EdgeBottom, edges.B, ppu, out var v)) { edges = new EdgeInsets(edges.T, edges.L, v, edges.R); changed = true; }
 
             using (Inspector.BeginProperty("Right"))
-                if (EdgeIntInput(WidgetIds.EdgeRight, edges.R, out var v)) { edges = new EdgeInsets(edges.T, edges.L, edges.B, v); changed = true; }
+                if (EdgeIntInput(WidgetIds.EdgeRight, edges.R, ppu, out var v)) { edges = new EdgeInsets(edges.T, edges.L, edges.B, v); changed = true; }
 
             if (changed)
             {

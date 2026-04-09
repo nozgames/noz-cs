@@ -50,7 +50,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     protected virtual TextureFilter DefaultTextureFilter => TextureFilter.Linear;
 
-    protected virtual int PixelsPerUnit => PixelsPerUnitOverride ?? EditorApplication.Config.PixelsPerUnit;
+    public virtual int PixelsPerUnit => PixelsPerUnitOverride ?? EditorApplication.Config.PixelsPerUnit;
     protected virtual TextureFilter TextureFilter => TextureFilterOverride ?? DefaultTextureFilter;
 
     public bool IsAnimated { get; set; }
@@ -236,7 +236,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         {
             var cs = ConstrainedSize.Value;
             RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
-            var ppu = EditorApplication.Config.PixelsPerUnitInv;
+            var ppu = 1.0f / PixelsPerUnit;
             Bounds = new Rect(
                 RasterBounds.X * ppu,
                 RasterBounds.Y * ppu,
@@ -705,15 +705,22 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             frames[frameIndex] = new NoZ.SpriteFrame(uv, RasterBounds.Position, RasterBounds.Size);
         }
 
+        var ppu = PixelsPerUnit;
+        var pixelEdges = new EdgeInsets(
+            MathF.Round(Edges.T * ppu),
+            MathF.Round(Edges.L * ppu),
+            MathF.Round(Edges.B * ppu),
+            MathF.Round(Edges.R * ppu));
+
         _sprite = Sprite.Create(
             name: Name,
             bounds: RasterBounds,
-            pixelsPerUnit: PixelsPerUnit,
+            pixelsPerUnit: ppu,
             boneIndex: -1,
             frames: frames,
             frameRate: 12.0f,
-            edges: Edges,
-            sliceMask: Sprite.CalculateSliceMask(RasterBounds, Edges),
+            edges: pixelEdges,
+            sliceMask: Sprite.CalculateSliceMask(RasterBounds, pixelEdges),
             atlasIndex: Atlas?.Index ?? 0,
             atlas: AtlasManager.TextureArray,
             filter: TextureFilter);

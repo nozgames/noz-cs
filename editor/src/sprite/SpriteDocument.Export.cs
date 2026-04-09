@@ -37,12 +37,16 @@ public abstract partial class SpriteDocument
         writer.Write((ushort)SortOrder);
         writer.Write((byte)(BoneIndex == -1 ? 255 : BoneIndex));
 
-        var activeEdges = Edges;
-        writer.Write((short)activeEdges.T);
-        writer.Write((short)activeEdges.L);
-        writer.Write((short)activeEdges.B);
-        writer.Write((short)activeEdges.R);
-        writer.Write(Sprite.CalculateSliceMask(RasterBounds, activeEdges));
+        var ppu = PixelsPerUnit;
+        var et = (short)MathF.Round(Edges.T * ppu);
+        var el = (short)MathF.Round(Edges.L * ppu);
+        var eb = (short)MathF.Round(Edges.B * ppu);
+        var er = (short)MathF.Round(Edges.R * ppu);
+        writer.Write(et);
+        writer.Write(el);
+        writer.Write(eb);
+        writer.Write(er);
+        writer.Write(Sprite.CalculateSliceMask(RasterBounds, new EdgeInsets(et, el, eb, er)));
 
         writer.Write(frameCount);
         writer.Write((byte)DefaultFrameRate);

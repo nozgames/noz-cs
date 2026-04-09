@@ -31,7 +31,7 @@ public class ShapeMode : EditorMode<VectorSpriteEditor>
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {
-            Editor.SetMode(new AnchorMode());
+            Editor.SetMode(SpriteEditMode.Anchor);
             return;
         }
 
