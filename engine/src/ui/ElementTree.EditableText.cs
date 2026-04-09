@@ -255,7 +255,7 @@ public static unsafe partial class ElementTree
             state.FocusExited = 1;
             state.Focused = 0;
             Application.Platform.HideTextbox();
-            ClearHot();
+            ClearHot(widgetId);
             return;
         }
 
@@ -301,7 +301,7 @@ public static unsafe partial class ElementTree
         var prevCursor = state.CursorIndex;
         var prevSelection = state.SelectionStart;
         var prevHash = state.TextHash;
-        HandleTextInput(ref state, font, d.FontSize, d.MultiLine, e.Rect.Width, d.Scope, d.CommitOnEnter, e.Index);
+        HandleTextInput(ref state, font, d.FontSize, d.MultiLine, e.Rect.Width, d.Scope, d.CommitOnEnter, e.Index, widgetId);
 
         // Reset blink timer when cursor moves or text changes
         if (state.CursorIndex != prevCursor || state.SelectionStart != prevSelection || state.TextHash != prevHash)
@@ -373,7 +373,8 @@ public static unsafe partial class ElementTree
         float contentWidth,
         InputScope scope,
         bool commitOnEnter,
-        int elementIndex)
+        int elementIndex,
+        WidgetId widgetId)
     {
         var ctrl = Input.IsCtrlDown(scope);
         var shift = Input.IsShiftDown(scope);
@@ -386,7 +387,7 @@ public static unsafe partial class ElementTree
             state.FocusExited = 1;
             state.Focused = 0;
             Application.Platform.HideTextbox();
-            ClearHot();
+            ClearHot(widgetId);
             return;
         }
 
@@ -399,7 +400,7 @@ public static unsafe partial class ElementTree
             Application.Platform.HideTextbox();
             RequestTabNavigation(elementIndex, reverse);
             if (_tabNavigationTarget < 0)
-                ClearHot();
+                ClearHot(widgetId);
             Input.ConsumeButton(InputCode.KeyTab);
             return;
         }
@@ -421,7 +422,7 @@ public static unsafe partial class ElementTree
                 state.FocusExited = 1;
                 state.Focused = 0;
                 Application.Platform.HideTextbox();
-                ClearHot();
+                ClearHot(widgetId);
             }
             return;
         }

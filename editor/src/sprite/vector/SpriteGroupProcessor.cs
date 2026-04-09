@@ -33,45 +33,6 @@ internal static class SpriteGroupProcessor
         return false;
     }
 
-    private static void TrimOverlaps(List<LayerPathResult> results)
-    {
-        if (results.Count < 2) return;
-
-        // Process from top (last) to bottom (first), building cumulative "above" contours.
-        // Each lower opaque path gets its overlapping region with higher paths subtracted,
-        // creating clean geometric boundaries for the rasterizer's AA.
-        PathsD? above = null;
-        for (int i = results.Count - 1; i >= 0; i--)
-        {
-            var r = results[i];
-            bool isOpaque = r.Color.A == 255;
-
-            if (above != null && r.Contours.Count > 0)
-            {
-                // Contract the subtraction shape by ~0.5px so the lower path
-                // extends slightly under the upper path's edge, preventing
-                // dark seams from tiny gaps in Clipper2's boolean output.
-                var contracted = Clipper.InflatePaths(above, -0.5 / EditorApplication.Config.PixelsPerUnit,
-                    JoinType.Miter, EndType.Polygon, precision: ClipperPrecision);
-                if (contracted.Count > 0)
-                {
-                    var trimmed = Clipper.BooleanOp(ClipType.Difference,
-                        r.Contours, contracted, FillRule.NonZero, precision: ClipperPrecision);
-                    if (trimmed.Count > 0)
-                        results[i] = new LayerPathResult(trimmed, r.Color, r.IsStroke);
-                }
-            }
-
-            if (isOpaque && r.Contours.Count > 0)
-            {
-                above = above == null
-                    ? new PathsD(r.Contours)
-                    : Clipper.BooleanOp(ClipType.Union,
-                        above, r.Contours, FillRule.NonZero, precision: ClipperPrecision);
-            }
-        }
-    }
-
     internal static void ProcessLayer(SpriteGroup layer, List<LayerPathResult> output)
     {
         if (!layer.Visible) return;

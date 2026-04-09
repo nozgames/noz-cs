@@ -16,6 +16,7 @@ public partial class PixelSpriteEditor
     public override void InspectorUI()
     {
         SpriteInspectorUI();
+        EdgesInspectorUI();
     }
 
     private void SpriteInspectorUI()

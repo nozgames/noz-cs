@@ -1,37 +1,56 @@
 //
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
-//  Anti-aliased scanline polygon rasterizer using signed-area coverage.
-//  Takes Clipper2 PathsD contours (flat linear polygons in world-space
-//  coordinates) and composites them into a PixelData<Color32> bitmap.
+//  CPU 8x MSAA polygon rasterizer.
 //
-//  Algorithm overview (stb_truetype style):
-//  For each edge, walk scanlines it overlaps. Within each scanline, compute
-//  the signed area the edge contributes to each pixel column. A running sum
-//  of these area deltas gives per-pixel winding coverage.
+//  For each pixel, 8 sub-samples are tested independently against each path
+//  using a non-zero winding rule. Paths are blended back-to-front into the
+//  per-sample accumulator with Porter-Duff over, then averaged in Resolve().
+//  Sub-sample positions follow the D3D11 8x rotated grid (one sample per
+//  sub-row), so each pixel row is rasterized via 8 sub-scanlines walking an
+//  active edge table.
+//
+//  This avoids the shared-edge bleed of analytic per-path coverage: at a
+//  pixel straddling an edge shared by two paths, sub-samples covered by
+//  both receive the topmost path's color via opaque overwrite, and samples
+//  covered by neither stay transparent.
 //
 
+using System.Runtime.CompilerServices;
 using Clipper2Lib;
 
 namespace NoZ.Editor;
 
-internal struct EdgePixel
+[InlineArray(8)]
+internal struct Sample8
 {
-    public Color32 Color;
-    public byte Coverage;
+    private Color32 _element0;
 }
 
 internal static class Rasterizer
 {
     [ThreadStatic] private static List<Edge>? _edgePool;
-    [ThreadStatic] private static float[]? _coveragePool;
+    [ThreadStatic] private static List<int>? _aetPool;
+    [ThreadStatic] private static float[]? _xsPool;
+    [ThreadStatic] private static int[]? _wsPool;
 
     private static readonly Comparison<Edge> EdgeYMinComparison = (a, b) => a.YMin.CompareTo(b.YMin);
 
+    // D3D11 8x MSAA sample positions, converted from signed 16ths via (v + 8) / 16:
+    //   (1,-3), (-1,3), (5,1), (-3,-5), (-5,5), (-7,-1), (3,7), (7,-7)
+    // Each sample sits on a distinct sub-row (Y values are all unique), which
+    // lets the rasterizer run one scanline per sub-row.
+    private static readonly (float X, float Y)[] SampleOffsets =
+    {
+        (0.5625f, 0.3125f), (0.4375f, 0.6875f),
+        (0.8125f, 0.5625f), (0.3125f, 0.1875f),
+        (0.1875f, 0.8125f), (0.0625f, 0.4375f),
+        (0.6875f, 0.9375f), (0.9375f, 0.0625f),
+    };
+
     public static void Fill(
         PathsD paths,
-        PixelData<Color32> target,
-        PixelData<EdgePixel> edgeBuffer,
+        PixelData<Sample8> samples,
         RectInt targetRect,
         Vector2Int sourceOffset,
         int dpi,
@@ -41,7 +60,6 @@ internal static class Rasterizer
         int h = targetRect.Height;
         if (w <= 0 || h <= 0 || paths.Count == 0) return;
 
-        // Reuse pooled edge list
         var edges = _edgePool ??= new List<Edge>();
         edges.Clear();
         CollectEdges(edges, paths, dpi, sourceOffset);
@@ -49,117 +67,132 @@ internal static class Rasterizer
 
         edges.Sort(EdgeYMinComparison);
 
-        // Reuse pooled coverage buffer, grow if needed
-        var coverageLen = w + 2;
-        var coverage = _coveragePool;
-        if (coverage == null || coverage.Length < coverageLen)
+        var aet = _aetPool ??= new List<int>();
+        aet.Clear();
+
+        var xs = _xsPool;
+        var ws = _wsPool;
+        if (xs == null || ws == null)
         {
-            coverage = new float[coverageLen];
-            _coveragePool = coverage;
+            xs = new float[64];
+            ws = new int[64];
+            _xsPool = xs;
+            _wsPool = ws;
         }
 
-        int edgeStart = 0;
+        int nextEdge = 0;
+        int edgeCount = edges.Count;
+        bool opaque = color.A == 255;
 
         for (int py = 0; py < h; py++)
         {
-            Array.Clear(coverage, 0, coverageLen);
-
-            float rowTop = py;
-            float rowBot = py + 1;
-
-            for (int ei = edgeStart; ei < edges.Count; ei++)
+            // Compact AET in place: drop edges whose YMax has passed this row.
+            int writeIdx = 0;
+            for (int readIdx = 0; readIdx < aet.Count; readIdx++)
             {
-                var edge = edges[ei];
-
-                if (edge.YMin >= rowBot) break;
-
-                if (edge.YMax <= rowTop)
+                int ei = aet[readIdx];
+                if (edges[ei].YMax > py)
                 {
-                    if (ei == edgeStart) edgeStart++;
-                    continue;
+                    if (writeIdx != readIdx) aet[writeIdx] = ei;
+                    writeIdx++;
                 }
+            }
+            if (writeIdx < aet.Count)
+                aet.RemoveRange(writeIdx, aet.Count - writeIdx);
 
-                // Clip edge to scanline [rowTop, rowBot]
-                float eyMin, eyMax, exAtMin, exAtMax;
-                if (edge.Y0 < edge.Y1)
-                {
-                    eyMin = edge.Y0;
-                    eyMax = edge.Y1;
-                    exAtMin = edge.X0;
-                    exAtMax = edge.X1;
-                }
-                else
-                {
-                    eyMin = edge.Y1;
-                    eyMax = edge.Y0;
-                    exAtMin = edge.X1;
-                    exAtMax = edge.X0;
-                }
-
-                float clipTop = MathF.Max(eyMin, rowTop);
-                float clipBot = MathF.Min(eyMax, rowBot);
-                if (clipTop >= clipBot) continue;
-
-                float edgeHeight = eyMax - eyMin;
-                float invHeight = 1f / edgeHeight;
-                float tTop = (clipTop - eyMin) * invHeight;
-                float tBot = (clipBot - eyMin) * invHeight;
-                float xAtTop = exAtMin + tTop * (exAtMax - exAtMin);
-                float xAtBot = exAtMin + tBot * (exAtMax - exAtMin);
-
-                float dy = clipBot - clipTop;
-                float dir = edge.Direction;
-
-                DepositEdge(coverage, w, xAtTop, xAtBot, dy * dir);
+            // Admit edges whose YMin falls inside this pixel row.
+            float rowBot = py + 1;
+            while (nextEdge < edgeCount && edges[nextEdge].YMin < rowBot)
+            {
+                if (edges[nextEdge].YMax > py)
+                    aet.Add(nextEdge);
+                nextEdge++;
             }
 
-            // Convert coverage to pixels via running sum
-            int ty = targetRect.Y + py;
-            float sum = 0;
-            for (int px = 0; px < w; px++)
+            if (aet.Count == 0) continue;
+
+            for (int s = 0; s < 8; s++)
             {
-                sum += coverage[px];
-                float alpha = MathF.Abs(sum);
-                if (alpha > 1f) alpha = 1f;
+                float subY = py + SampleOffsets[s].Y;
 
-                if (alpha >= 0.5f)
+                // Collect x-crossings of the AET against this sub-scanline.
+                int n = 0;
+                for (int k = 0; k < aet.Count; k++)
                 {
-                    // Binary interior write to primary buffer.
-                    int tx = targetRect.X + px;
-                    var dst = target[tx, ty];
-                    if (dst.A == 0 || color.A == 255)
-                    {
-                        // Empty destination or opaque path — straight overwrite.
-                        target[tx, ty] = color;
-                    }
-                    else
-                    {
-                        // Semi-transparent path — Porter-Duff over with srcA = color.A.
-                        target[tx, ty] = Color32.Blend(dst, color);
-                    }
+                    var e = edges[aet[k]];
+                    // Half-open vertical range [YMin, YMax) — keeps edges that
+                    // touch a sub-row Y exactly from being double-counted.
+                    if (subY < e.YMin || subY >= e.YMax) continue;
 
-                    // An interior pixel hides any prior edge contribution here.
-                    edgeBuffer[px, py] = default;
+                    float t = (subY - e.Y0) / (e.Y1 - e.Y0);
+                    float x = e.X0 + t * (e.X1 - e.X0);
+
+                    if (n >= xs.Length)
+                    {
+                        var newXs = new float[xs.Length * 2];
+                        var newWs = new int[ws.Length * 2];
+                        Array.Copy(xs, newXs, xs.Length);
+                        Array.Copy(ws, newWs, ws.Length);
+                        xs = newXs;
+                        ws = newWs;
+                        _xsPool = xs;
+                        _wsPool = ws;
+                    }
+                    xs[n] = x;
+                    ws[n] = (int)e.Direction;
+                    n++;
                 }
-                else if (alpha > 0.004f) // ~1/255
+
+                if (n < 2) continue;
+
+                // Insertion sort by x — n is typically small (< 20).
+                for (int i = 1; i < n; i++)
                 {
-                    // Edge (fractional coverage) — record in edge buffer (last-writer-wins).
-                    // Remap (0, 0.5) -> (0, 1) by multiplying by 2, then modulate by path alpha.
-                    float cov = alpha * 2f * (color.A / 255f);
-                    if (cov > 1f) cov = 1f;
-                    edgeBuffer[px, py] = new EdgePixel
+                    float kx = xs[i];
+                    int kw = ws[i];
+                    int j = i - 1;
+                    while (j >= 0 && xs[j] > kx)
                     {
-                        Color = color,
-                        Coverage = (byte)(cov * 255f + 0.5f),
-                    };
+                        xs[j + 1] = xs[j];
+                        ws[j + 1] = ws[j];
+                        j--;
+                    }
+                    xs[j + 1] = kx;
+                    ws[j + 1] = kw;
+                }
+
+                // Walk pixel columns, integrating winding through the crossings.
+                int ci = 0;
+                int winding = 0;
+                float subX = SampleOffsets[s].X;
+                for (int px = 0; px < w; px++)
+                {
+                    float sampleX = px + subX;
+                    while (ci < n && xs[ci] <= sampleX)
+                    {
+                        winding += ws[ci];
+                        ci++;
+                    }
+                    if (winding != 0)
+                    {
+                        ref var sample = ref samples[px, py];
+                        // Overwrite if the slot is still transparent or the
+                        // incoming color is opaque — avoids the dark halo
+                        // Color32.Blend produces when lerping RGB against a
+                        // (0,0,0,0) dst.
+                        if (opaque || sample[s].A == 0)
+                            sample[s] = color;
+                        else
+                            sample[s] = Color32.Blend(sample[s], color);
+                    }
                 }
             }
         }
     }
 
-    public static void Composite(
+    public static void Resolve(
         PixelData<Color32> target,
-        PixelData<EdgePixel> edgeBuffer,
+        PixelData<Sample8> samples,
         RectInt targetRect)
     {
         int w = targetRect.Width;
@@ -169,69 +202,32 @@ internal static class Rasterizer
             int ty = targetRect.Y + py;
             for (int px = 0; px < w; px++)
             {
-                ref var ep = ref edgeBuffer[px, py];
-                if (ep.Coverage == 0) continue;
+                ref var row = ref samples[px, py];
+                int sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+                for (int s = 0; s < 8; s++)
+                {
+                    var c = row[s];
+                    // Weight RGB by per-sample alpha so transparent slots
+                    // don't drag the color toward black. This produces a
+                    // straight-alpha result: RGB is the color of covered
+                    // samples, alpha is the coverage fraction.
+                    sumR += c.R * c.A;
+                    sumG += c.G * c.A;
+                    sumB += c.B * c.A;
+                    sumA += c.A;
+                }
+                if (sumA == 0) continue;
+
+                int halfA = sumA >> 1;
+                var avg = new Color32(
+                    (byte)((sumR + halfA) / sumA),
+                    (byte)((sumG + halfA) / sumA),
+                    (byte)((sumB + halfA) / sumA),
+                    (byte)((sumA + 4) >> 3));
 
                 int tx = targetRect.X + px;
                 ref var dst = ref target[tx, ty];
-                // Integer-weighted lerp: dst = lerp(dst, ep.Color, ep.Coverage / 255)
-                int t = ep.Coverage;
-                int it = 255 - t;
-                dst = new Color32(
-                    (byte)((dst.R * it + ep.Color.R * t) / 255),
-                    (byte)((dst.G * it + ep.Color.G * t) / 255),
-                    (byte)((dst.B * it + ep.Color.B * t) / 255),
-                    (byte)((dst.A * it + ep.Color.A * t) / 255));
-            }
-        }
-    }
-
-    // Deposit the signed area contribution of one edge segment into the coverage buffer.
-    //
-    // The edge goes from (x0, top) to (x1, bottom) within a single scanline row.
-    // signedDy = (bottom - top) * direction, where direction is +1 (downward) or -1 (upward).
-    //
-    // Uses the stb_truetype approach: for an edge at x within pixel ix,
-    // the signed area delta at pixel ix = (ix + 1 - xMid) * signedDy.
-    private static void DepositEdge(float[] coverage, int w, float x0, float x1, float signedDy)
-    {
-        float xLeft = MathF.Min(x0, x1);
-        float xRight = MathF.Max(x0, x1);
-
-        int iLeft = Math.Max((int)MathF.Floor(xLeft), 0);
-        int iRight = Math.Min((int)MathF.Floor(xRight), w - 1);
-
-        if (iLeft == iRight)
-        {
-            // Edge stays within one pixel column
-            float xMid = (x0 + x1) * 0.5f;
-            int ix = Math.Max((int)MathF.Floor(xMid), 0);
-            ix = Math.Min(ix, w - 1);
-
-            float area = (ix + 1 - xMid) * signedDy;
-            coverage[ix] += area;
-            coverage[ix + 1] += signedDy - area;
-        }
-        else
-        {
-            // Edge spans multiple pixel columns — distribute area proportionally
-            float invXSpan = 1f / (xRight - xLeft);
-
-            for (int ix = iLeft; ix <= iRight; ix++)
-            {
-                float pxL = MathF.Max(xLeft, (float)ix);
-                float pxR = MathF.Min(xRight, (float)(ix + 1));
-                float spanFrac = (pxR - pxL) * invXSpan;
-
-                float xMid = (pxL + pxR) * 0.5f;
-
-                float h = spanFrac * signedDy;
-                float area = (ix + 1 - xMid) * h;
-
-                if (ix >= 0 && ix < w)
-                    coverage[ix] += area;
-                if (ix + 1 < w + 2)
-                    coverage[ix + 1] += h - area;
+                dst = dst.A == 0 ? avg : Color32.Blend(dst, avg);
             }
         }
     }

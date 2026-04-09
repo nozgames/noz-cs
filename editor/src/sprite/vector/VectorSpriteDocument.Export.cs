@@ -60,11 +60,14 @@ public partial class VectorSpriteDocument
             }};
         }
 
-        // Edge buffer for two-pass AA: paths write binary coverage to the primary
-        // image and record sub-threshold edge coverage here. After all paths are
-        // rasterized, Composite lerps the edge contributions back on top.
-        using var edgeBuffer = new PixelData<EdgePixel>(targetRect.Size);
+        // 8x MSAA sample accumulator. Paths are blended back-to-front into 8
+        // sub-pixel slots per pixel; Resolve() averages and writes the final
+        // color into the image. Sized to the target rect, indexed locally.
+        using var samples = new PixelData<Sample8>(targetRect.Size);
 
+        // Iterate forward — the results list is already ordered back-to-front
+        // (index 0 = bottommost) by SpriteGroupProcessor's reverse child pass.
+        // Porter-Duff over per sample composites each path on top of prior ones.
         foreach (var result in results)
         {
             var contours = result.Contours;
@@ -75,10 +78,10 @@ public partial class VectorSpriteDocument
                 if (contours.Count == 0) continue;
             }
 
-            Rasterizer.Fill(contours, image, edgeBuffer, targetRect, sourceOffset, dpi, result.Color);
+            Rasterizer.Fill(contours, samples, targetRect, sourceOffset, dpi, result.Color);
         }
 
-        Rasterizer.Composite(image, edgeBuffer, targetRect);
+        Rasterizer.Resolve(image, samples, targetRect);
     }
 
     public byte[] RasterizeColorToPng()

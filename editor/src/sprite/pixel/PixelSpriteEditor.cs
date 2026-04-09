@@ -311,6 +311,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             DrawSelectionOutline();
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
+        DrawEdges();
         Document.DrawBounds();
         Mode?.Draw();
     }
@@ -318,6 +319,11 @@ public partial class PixelSpriteEditor : SpriteEditor
     public override void LateUpdate()
     {
         Mode?.Update();
+    }
+
+    protected override void ExitEdgeEditMode()
+    {
+        SetMode(new PencilMode());
     }
 
     public override void UpdateUI() { }

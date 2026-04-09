@@ -46,7 +46,10 @@ public partial class VectorSpriteEditor
 
     internal void SetMode(SpriteEditMode mode)
     {
-        if (CurrentMode == mode) return;
+        // Also re-instantiate if currently in EdgeEditMode: CurrentMode still
+        // holds the pre-edge value, so the enum check alone would short-circuit
+        // the intended restore back to a real tool mode.
+        if (CurrentMode == mode && Mode is not EdgeEditMode) return;
 
         EditorMode newMode = mode switch
         {

@@ -116,16 +116,28 @@ public static unsafe partial class ElementTree
     public static bool HasCapture() =>
         _captureId != 0 && _captureId == _currentWidget;
 
-    public static void SetHot()
+    internal static void SetHot(WidgetId id)
     {
-        _hotId = _currentWidget;
+        if (_hotId != WidgetId.None && _hotId != id)
+            ClearWidgetFlag(_hotId, WidgetFlags.Hot);
+        _hotId = id;
+        SetWidgetFlag(id, WidgetFlags.Hot);
     }
 
-    internal static void SetHotById(WidgetId id) => _hotId = id;
-
-    public static void ClearHot()
+    internal static void ClearHot()
     {
+        if (_hotId == WidgetId.None)
+            return;
+
+        ClearWidgetFlag(_hotId, WidgetFlags.Hot);
         _hotId = WidgetId.None;
+    }
+
+    internal static void ClearHot(WidgetId id)
+    {
+        ClearWidgetFlag(id, WidgetFlags.Hot);
+        if (_hotId == id)
+            _hotId = WidgetId.None;
     }
 
     public static void SetCapture()

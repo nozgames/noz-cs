@@ -31,20 +31,11 @@ public static partial class UI
         SetHot(id);
     }
 
-    public static void SetHot(WidgetId id)
-    {
-        ElementTree._hotId = id;
-        ElementTree.SetWidgetFlag(id, WidgetFlags.Hot);
-    }
+    public static void SetHot(WidgetId id) => ElementTree.SetHot(id);
 
-    public static void ClearHot()
-    {
-        if (ElementTree._hotId != WidgetId.None)
-        {
-            ElementTree.ClearWidgetFlag(ElementTree._hotId, WidgetFlags.Hot);
-            ElementTree._hotId = WidgetId.None;
-        }
-    }
+    public static void ClearHot() => ElementTree.ClearHot();
+
+    public static void ClearHot(WidgetId id) => ElementTree.ClearHot(id);
 
     public static bool HasHot() => ElementTree._hotId != 0 || _prevHotId != 0;
     internal static WidgetId HotId => ElementTree._hotId;

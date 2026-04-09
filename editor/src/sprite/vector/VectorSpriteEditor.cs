@@ -31,12 +31,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId BoolSubtract { get; }
         public static partial WidgetId BoolIntersect { get; }
         public static partial WidgetId FillColor { get; }
-        public static partial WidgetId AddEdgesButton { get; }
-        public static partial WidgetId RemoveEdgesButton { get; }
-        public static partial WidgetId EdgeTop { get; }
-        public static partial WidgetId EdgeLeft { get; }
-        public static partial WidgetId EdgeBottom { get; }
-        public static partial WidgetId EdgeRight { get; }
         public static partial WidgetId PenToolButton { get; }
         public static partial WidgetId RectToolButton { get; }
         public static partial WidgetId CircleToolButton { get; }
@@ -250,8 +244,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
 
-        if (!Document.Edges.IsZero)
-            DrawEdges();
+        DrawEdges();
 
         Document.DrawBounds();
 
@@ -1148,50 +1141,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         };
     }
 
-    private void DrawEdges()
-    {
-        var bounds = Document.Bounds;
-        var edges = Document.Edges;
-
-        var edgeL = edges.L;
-        var edgeR = edges.R;
-        var edgeT = edges.T;
-        var edgeB = edges.B;
-
-        using (Gizmos.PushState(EditorLayer.DocumentEditor))
-        {
-            Graphics.SetTransform(Document.Transform);
-            Graphics.SetSortGroup(6);
-            Gizmos.SetColor(new Color(0.2f, 0.9f, 0.2f, 0.8f));
-
-            var lineWidth = EditorStyle.Workspace.DocumentBoundsLineWidth;
-
-            if (edgeT > 0)
-            {
-                var y = bounds.Top + edgeT;
-                Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
-            }
-
-            if (edgeB > 0)
-            {
-                var y = bounds.Bottom - edgeB;
-                Gizmos.DrawLine(new Vector2(bounds.Left, y), new Vector2(bounds.Right, y), lineWidth);
-            }
-
-            if (edgeL > 0)
-            {
-                var x = bounds.Left + edgeL;
-                Gizmos.DrawLine(new Vector2(x, bounds.Top), new Vector2(x, bounds.Bottom), lineWidth);
-            }
-
-            if (edgeR > 0)
-            {
-                var x = bounds.Right - edgeR;
-                Gizmos.DrawLine(new Vector2(x, bounds.Top), new Vector2(x, bounds.Bottom), lineWidth);
-            }
-        }
-    }
-
     private void PathInspectorUI()
     {
         if (!HasPathSelection || HasLayerSelection)
@@ -1285,87 +1234,12 @@ public partial class VectorSpriteEditor : SpriteEditor
         PathInspectorUI();
     }
 
-    #region Edges
-
-    private static bool EdgeIntInput(WidgetId id, float worldValue, int ppu, out float newWorldValue)
+    protected override void ExitEdgeEditMode()
     {
-        var pixelValue = (int)MathF.Round(worldValue * ppu);
-        var text = pixelValue.ToString();
-        newWorldValue = worldValue;
-        using (UI.BeginFlex())
-        {
-            var result = UI.TextInput(id, text, EditorStyle.Inspector.TextBox, "0");
-            if (result != text && int.TryParse(result, out var parsed) && parsed >= 0)
-            {
-                newWorldValue = parsed / (float)ppu;
-                return true;
-            }
-        }
-        return false;
+        // CurrentMode enum still holds the pre-edge value; the loosened early-out
+        // in SetMode(SpriteEditMode) lets us re-instantiate that mode here.
+        SetMode(CurrentMode);
     }
-
-    private void EdgesInspectorUI()
-    {
-        if (Document.Edges.IsZero)
-        {
-            static void EmptySectionContent()
-            {
-                ElementTree.BeginAlign(Align.Min, Align.Center);
-                if (UI.Button(WidgetIds.AddEdgesButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
-                {
-                    var doc = (Workspace.ActiveDocument as SpriteDocument)!;
-                    Undo.Record(doc);
-                    doc.Edges = new EdgeInsets(8f / doc.PixelsPerUnit);
-                    doc.UpdateBounds();
-                }
-                ElementTree.EndAlign();
-            }
-
-            using (Inspector.BeginSection("EDGES", content: EmptySectionContent, empty: true))
-            return;
-        }
-
-        static void EdgesSectionContent()
-        {
-            ElementTree.BeginAlign(Align.Min, Align.Center);
-            if (UI.Button(WidgetIds.RemoveEdgesButton, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
-            {
-                var doc = (Workspace.ActiveDocument as SpriteDocument)!;
-                Undo.Record(doc);
-                doc.Edges = EdgeInsets.Zero;
-            }
-            ElementTree.EndAlign();
-        }
-
-        using (Inspector.BeginSection("EDGES", content: EdgesSectionContent))
-        {
-            if (Inspector.IsSectionCollapsed) return;
-
-            var edges = Document.Edges;
-            var ppu = Document.PixelsPerUnit;
-            var changed = false;
-
-            using (Inspector.BeginProperty("Top"))
-                if (EdgeIntInput(WidgetIds.EdgeTop, edges.T, ppu, out var v)) { edges = new EdgeInsets(v, edges.L, edges.B, edges.R); changed = true; }
-
-            using (Inspector.BeginProperty("Left"))
-                if (EdgeIntInput(WidgetIds.EdgeLeft, edges.L, ppu, out var v)) { edges = new EdgeInsets(edges.T, v, edges.B, edges.R); changed = true; }
-
-            using (Inspector.BeginProperty("Bottom"))
-                if (EdgeIntInput(WidgetIds.EdgeBottom, edges.B, ppu, out var v)) { edges = new EdgeInsets(edges.T, edges.L, v, edges.R); changed = true; }
-
-            using (Inspector.BeginProperty("Right"))
-                if (EdgeIntInput(WidgetIds.EdgeRight, edges.R, ppu, out var v)) { edges = new EdgeInsets(edges.T, edges.L, edges.B, v); changed = true; }
-
-            if (changed)
-            {
-                Document.Edges = edges;
-                UI.HandleChange(Document);
-            }
-        }
-    }
-
-    #endregion
 
     internal void ApplyEyeDropperColor(Color32 color, bool stroke)
     {
