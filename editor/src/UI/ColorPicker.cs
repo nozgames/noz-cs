@@ -75,6 +75,7 @@ internal static partial class ColorPicker
 
     // Eyedropper state
     private static bool _eyeDropperActive;
+    private static bool _eyeDropperMouseWasDown;
 
     // HDR state
     private static bool _hdr;
@@ -88,6 +89,7 @@ internal static partial class ColorPicker
     {
         _popupId = WidgetId.None;
         _eyeDropperActive = false;
+        _eyeDropperMouseWasDown = false;
         UI.ClearHot();
     }
 
@@ -183,9 +185,17 @@ internal static partial class ColorPicker
             _eyeDropperActive = false;
         }
 
-        // Eyedropper: detect outside clicks manually since AutoClose is off
-        if (_eyeDropperActive && Input.WasButtonPressedRaw(InputCode.MouseLeft))
-            PickEyeDropperColor();
+        // Eyedropper: detect clicks via physical state edge detection.
+        // WasButtonPressedRaw is unreliable here because the UI widget system's
+        // HandleInput consumes the button when the eye dropper button is clicked,
+        // and the Consumed flag can persist into subsequent frames.
+        if (_eyeDropperActive)
+        {
+            var mouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
+            if (mouseDown && !_eyeDropperMouseWasDown)
+                PickEyeDropperColor();
+            _eyeDropperMouseWasDown = mouseDown;
+        }
 
         var wasEyeDropperActive = _eyeDropperActive;
         if (wasEyeDropperActive)
@@ -505,7 +515,10 @@ internal static partial class ColorPicker
         using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
         {
             if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
+            {
                 _eyeDropperActive = !_eyeDropperActive;
+                _eyeDropperMouseWasDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
+            }
 
             UI.DropDown(ElementId.PaletteDropDown, () =>
             {

@@ -177,10 +177,13 @@ public class ShapeMode : EditorMode<VectorSpriteEditor>
         else
             AddCircleAnchors(path, min, max);
 
-        path.SelectAll();
         path.UpdateSamples();
         path.UpdateBounds();
         activeLayer.Insert(0, path);
+
+        Editor.ClearSelection();
+        path.SelectPath();
+        Editor.RebuildSelectedPaths();
 
         Editor.MarkDirty();
         _isDragging = false;

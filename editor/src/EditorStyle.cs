@@ -356,14 +356,13 @@ public static class EditorStyle
             },
         };
 
-        // Toggle icon button (27x27, checked = canvas bg, hover = border)
         public static readonly ButtonStyle ToggleIcon = new()
         {
             Width = Control.Height,
             Height = Control.Height,
             Background = Color.Transparent,
             ContentColor = Palette.Content,
-            IconSize = Control.IconSize,
+            IconSize = Icon.LargeSize,
             BorderRadius = Control.BorderRadius,
             Padding = EdgeInsets.All(3),
             Resolve = (s, f) =>
@@ -374,7 +373,6 @@ public static class EditorStyle
             },
         };
 
-        // Icon-only button (27x27, hover = Active bg)
         public static readonly ButtonStyle IconOnly = new()
         {
             Width = Control.Height,

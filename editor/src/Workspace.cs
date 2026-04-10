@@ -27,6 +27,7 @@ public static partial class Workspace
         public static partial WidgetId InspectorSplitter { get; }
         public static partial WidgetId OutlinerSplitter { get; }
         public static partial WidgetId RenameTextBox { get; }
+        public static partial WidgetId IsolationButton { get; }
     }
 
     private const float ZoomMin = 0.2f;
@@ -338,6 +339,7 @@ public static partial class Workspace
         _showFps = props.GetBool("workspace", "show_fps", false);
         _showGrid = props.GetBool("workspace", "show_grid", true);
         _showNames = props.GetBool("workspace", "show_names", false);
+        _isolationOverride = props.GetBool("workspace", "isolation_override", false);
         _userUIScale = props.GetFloat("workspace", "ui_scale", 1f);
         _inspectorSize = props.GetFloat("workspace", "inspector_size", 300f);
         _outlinerSize = props.GetFloat("workspace", "outliner_size", 200f);
@@ -366,6 +368,7 @@ public static partial class Workspace
         props.SetBool("workspace", "show_fps", _showFps);
         props.SetBool("workspace", "show_grid", _showGrid);
         props.SetBool("workspace", "show_names", _showNames);
+        props.SetBool("workspace", "isolation_override", _isolationOverride);
         props.SetFloat("workspace", "ui_scale", UI.UserScale);
         props.SetFloat("workspace", "inspector_size", _inspectorSize);
         props.SetFloat("workspace", "outliner_size", _outlinerSize);
@@ -625,6 +628,9 @@ public static partial class Workspace
 
             return items;
         }
+
+        if (UI.Button(WidgetIds.IsolationButton, EditorAssets.Sprites.IconIsolate, EditorStyle.Button.ToggleIcon, isSelected: !_isolationOverride))
+            ToggleIsolation();
 
         if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon, isSelected: _showReferences))
             _showReferences = !_showReferences;
@@ -1334,14 +1340,12 @@ public static partial class Workspace
     public static void EndEdit()
     {
         _pendingState = WorkspaceState.Default;
-        _isolationOverride = false;
     }
 
     private static void BeginEdit()
     {
         if (SelectedCount != 1) return;
 
-        _isolationOverride = false;
         _pendingState = State == WorkspaceState.Edit
             ? WorkspaceState.Default
             : WorkspaceState.Edit;

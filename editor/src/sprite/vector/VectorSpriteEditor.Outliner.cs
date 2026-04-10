@@ -164,7 +164,7 @@ public partial class VectorSpriteEditor
         Undo.Record(Document);
         var name = $"Layer {Document.Root.Children.Count + 1}";
         var layer = new SpriteGroup { Name = name };
-        Document.Root.Add(layer);
+        Document.Root.Insert(0, layer);
 
         if (Document.IsAnimated)
         {
