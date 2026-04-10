@@ -110,6 +110,34 @@ public sealed unsafe class PixelData<T> : IDisposable where T : unmanaged
     }
 
     /// <summary>
+    /// Fills the padding ring around an interior rect by wrap-copying from
+    /// the opposite edge of the interior. Used for tileable atlas sprites so
+    /// that linear filtering across the tile boundary matches the wrapped
+    /// content. Handles any padding depth in a single pass.
+    /// </summary>
+    public void WrapEdges(in RectInt interior, int padding)
+    {
+        int ix = interior.X;
+        int iy = interior.Y;
+        int w = interior.Width;
+        int h = interior.Height;
+        if (padding <= 0 || w <= 0 || h <= 0) return;
+
+        for (int oy = -padding; oy < h + padding; oy++)
+        {
+            for (int ox = -padding; ox < w + padding; ox++)
+            {
+                if ((uint)ox < (uint)w && (uint)oy < (uint)h) continue;
+
+                int wrapX = ((ox % w) + w) % w;
+                int wrapY = ((oy % h) + h) % h;
+
+                this[ix + ox, iy + oy] = this[ix + wrapX, iy + wrapY];
+            }
+        }
+    }
+
+    /// <summary>
     /// Extrudes edge pixels into a 1-pixel padding around the given inner rect.
     /// Used for texture atlases to prevent seams with point filtering.
     /// </summary>

@@ -25,6 +25,9 @@ public partial class VectorSpriteDocument : SpriteDocument
 
     public override Color32 GetPixelAt(Vector2 worldPos)
     {
+        if (Workspace.ActiveEditor is VectorSpriteEditor editor && editor.Document == this)
+            return editor.GetPixelAt(worldPos);
+
         Matrix3x2.Invert(Transform, out var invTransform);
         var local = Vector2.Transform(worldPos, invTransform);
         var p = new Clipper2Lib.PointD(local.X, local.Y);

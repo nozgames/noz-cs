@@ -105,7 +105,7 @@ public static partial class Workspace
         {
             var doc = DocumentManager.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded) continue;
-            if (doc.IsEditing || doc.IsClipped) continue;
+            if (doc.IsClipped) continue;
             if (!ShowHidden && !doc.IsVisible) continue;
             if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;

@@ -1307,4 +1307,28 @@ public partial class VectorSpriteEditor : SpriteEditor
         }
     }
 
+    internal Color32 GetPixelAt(Vector2 worldPos)
+    {
+        var size = Document.RasterBounds.Size;
+        if (size.X <= 0 || size.Y <= 0)
+            return default;
+
+        Matrix3x2.Invert(Document.Transform, out var inv);
+        var local = Vector2.Transform(worldPos, inv);
+
+        var bounds = Document.Bounds;
+        var px = (int)((local.X - bounds.X) / bounds.Width * size.X);
+        var py = (int)((local.Y - bounds.Y) / bounds.Height * size.Y);
+
+        if (px < 0 || px >= size.X || py < 0 || py >= size.Y)
+            return default;
+
+        using var pixels = new PixelData<Color32>(size);
+        var dpi = Document.PixelsPerUnit;
+        var targetRect = new RectInt(Vector2Int.Zero, size);
+        var sourceOffset = -Document.RasterBounds.Position;
+        VectorSpriteDocument.RasterizeLayer(Document.Root, pixels, targetRect, sourceOffset, dpi);
+
+        return pixels[px, py];
+    }
 }
