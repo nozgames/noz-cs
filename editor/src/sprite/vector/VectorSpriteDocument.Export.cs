@@ -19,42 +19,54 @@ public partial class VectorSpriteDocument
         var w = RasterBounds.Size.X;
         var h = RasterBounds.Size.Y;
 
-        // Rasterize into the sprite interior only — any path overshoot past
-        // RasterBounds is clipped by the buffer bounds. The padding ring is
-        // filled separately below.
-        var rasterRect = new RectInt(
-            rect.Rect.Position + new Vector2Int(padding, padding),
-            new Vector2Int(w, h));
-        var sourceOffset = -RasterBounds.Position;
-
-        Rect? clipRect = null;
+        // Constrained sprites have a fixed rect, so we rasterize into the
+        // interior only (overshoot clipped by buffer bounds) and fill the
+        // padding ring with wrap or extrude. Unconstrained sprites derive
+        // their bounds from content, so we let paths extend into the padding
+        // naturally to preserve their AA fringe.
         if (ConstrainedSize.HasValue)
         {
+            var rasterRect = new RectInt(
+                rect.Rect.Position + new Vector2Int(padding, padding),
+                new Vector2Int(w, h));
+            var sourceOffset = -RasterBounds.Position;
+
             float invDpi = 1f / dpi;
-            clipRect = new Rect(
+            var clipRect = new Rect(
                 RasterBounds.X * invDpi,
                 RasterBounds.Y * invDpi,
                 RasterBounds.Width * invDpi,
                 RasterBounds.Height * invDpi);
-        }
 
-        RasterizeLayer(Root, image, rasterRect, sourceOffset, dpi, clipRect);
+            RasterizeLayer(Root, image, rasterRect, sourceOffset, dpi, clipRect);
 
-        image.BleedColors(rasterRect);
+            image.BleedColors(rasterRect);
 
-        if (ShowTiling)
-        {
-            image.WrapEdges(rasterRect, padding);
+            if (ShowTiling)
+            {
+                image.WrapEdges(rasterRect, padding);
+            }
+            else
+            {
+                for (var p = padding - 1; p >= 0; p--)
+                {
+                    var padRect = new RectInt(
+                        rect.Rect.Position + new Vector2Int(p, p),
+                        new Vector2Int(w + padding2, h + padding2) - new Vector2Int(p * 2, p * 2));
+                    image.ExtrudeEdges(padRect);
+                }
+            }
         }
         else
         {
-            for (var p = padding - 1; p >= 0; p--)
-            {
-                var padRect = new RectInt(
-                    rect.Rect.Position + new Vector2Int(p, p),
-                    new Vector2Int(w + padding2, h + padding2) - new Vector2Int(p * 2, p * 2));
-                image.ExtrudeEdges(padRect);
-            }
+            var targetRect = new RectInt(
+                rect.Rect.Position,
+                new Vector2Int(w + padding2, h + padding2));
+            var sourceOffset = -RasterBounds.Position + new Vector2Int(padding, padding);
+
+            RasterizeLayer(Root, image, targetRect, sourceOffset, dpi);
+
+            image.BleedColors(targetRect);
         }
     }
 

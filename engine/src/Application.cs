@@ -110,7 +110,8 @@ public static class Application
         // Set resize callback after all subsystems are initialized to avoid early resize events
         Platform.SetResizeCallback(RenderFrame);
 
-        AssetWatcher.Init();
+        if (config.HotReload)
+            AssetWatcher.Init();
 
         if (config.Profiler)
             Profiler.Init();
@@ -166,7 +167,8 @@ public static class Application
         }
 
         Input.Update();
-        AssetWatcher.Update();
+        if (Config.HotReload)
+            AssetWatcher.Update();
 
         var preFrame = PreFrame;
         PreFrame = null;
@@ -204,7 +206,8 @@ public static class Application
         _instance.Shutdown();
         _instance.SaveConfig();
         _instance.UnloadAssets();
-        AssetWatcher.Shutdown();
+        if (Config.HotReload)
+            AssetWatcher.Shutdown();
 
         VfxSystem.Shutdown();
         UI.Shutdown();

@@ -35,6 +35,10 @@ internal static partial class ColorPicker
         public static partial WidgetId EyeDropper { get; }
         public static partial WidgetId Popup { get; }
         public static partial WidgetId SwatchGrid { get; }
+        public static partial WidgetId Hex { get; }
+        public static partial WidgetId InputR { get; }
+        public static partial WidgetId InputG { get; }
+        public static partial WidgetId InputB { get; }
     }
 
     private enum ColorMode
@@ -232,6 +236,7 @@ internal static partial class ColorPicker
                     Intensity();
                 _trackNeedsInit = false;
                 color = HsvToColor32(_hue, _sat, _val, _alpha);
+                HexAndRgbRow(ref color);
                 PaletteUI();
             }
             else
@@ -404,6 +409,54 @@ internal static partial class ColorPicker
 
         ElementTree.EndTrack();
         ElementTree.EndWidget();
+    }
+
+    private static void HexAndRgbRow(ref Color32 color)
+    {
+        Span<char> hexBuf = stackalloc char[6];
+        Strings.ColorHex(color, hexBuf);
+        var hexStr = new string(hexBuf);
+
+        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = 20 }))
+        {
+            using (UI.BeginFlex())
+            {
+                var newHex = UI.TextInput(ElementId.Hex, hexStr, EditorStyle.ColorPicker.HexInput, "#HEX");
+                if (newHex != hexStr && Color32.TryParseHex(newHex, out var parsed))
+                {
+                    RgbToHsv(parsed, out _hue, out _sat, out _val);
+                    InvalidateSVTexture();
+                    _trackNeedsInit = true;
+                    color = new Color32(parsed.R, parsed.G, parsed.B, color.A);
+                }
+            }
+
+            int r = color.R, g = color.G, b = color.B;
+
+            if (UI.NumberInput(ElementId.InputR, ref r, EditorStyle.ColorPicker.RgbInput, min: 0, max: 255))
+            {
+                RgbToHsv(new Color32((byte)r, (byte)g, (byte)b), out _hue, out _sat, out _val);
+                InvalidateSVTexture();
+                _trackNeedsInit = true;
+                color = new Color32((byte)r, color.G, color.B, color.A);
+            }
+
+            if (UI.NumberInput(ElementId.InputG, ref g, EditorStyle.ColorPicker.RgbInput, min: 0, max: 255))
+            {
+                RgbToHsv(new Color32((byte)r, (byte)g, (byte)b), out _hue, out _sat, out _val);
+                InvalidateSVTexture();
+                _trackNeedsInit = true;
+                color = new Color32(color.R, (byte)g, color.B, color.A);
+            }
+
+            if (UI.NumberInput(ElementId.InputB, ref b, EditorStyle.ColorPicker.RgbInput, min: 0, max: 255))
+            {
+                RgbToHsv(new Color32((byte)r, (byte)g, (byte)b), out _hue, out _sat, out _val);
+                InvalidateSVTexture();
+                _trackNeedsInit = true;
+                color = new Color32(color.R, color.G, (byte)b, color.A);
+            }
+        }
     }
 
     private static void SliderThumb(float t, Color color, Color borderColor)

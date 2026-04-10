@@ -1135,6 +1135,19 @@ public static class EditorStyle
         };
 
         public readonly static ImageStyle SliderImage = ImageStyle.Fill with { BorderRadius = 7 };
+
+        public readonly static TextInputStyle HexInput = EditorStyle.TextInput with
+        {
+            Height = 20,
+            FontSize = 10,
+            Padding = EdgeInsets.Symmetric(2, 4),
+            BorderRadius = 2,
+        };
+
+        public readonly static TextInputStyle RgbInput = HexInput with
+        {
+            Width = 36,
+        };
     }
 
     // :dopesheet

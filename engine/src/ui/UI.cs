@@ -420,7 +420,11 @@ public static partial class UI
             end = Math.Min(totalCount, endRow * columns);
         }
 
-        ElementTree.BeginCollection(layout.Spacing, columns, layout.ItemWidth, layout.ItemHeight,
+        ElementTree.BeginCollection(
+            layout.Spacing,
+            columns,
+            layout.ItemWidth,
+            layout.ItemHeight,
             totalCount, start);
         return new AutoCollection();
     }

@@ -14,6 +14,7 @@ public class Animator
     private readonly AnimationTransform[] _poseB;
 
     private Animation? _animation;
+    private AnimationTransform[]? _boneModifiers;
     private Animation? _blendFromAnimation;
     private float _time;
     private float _blendFromTime;
@@ -160,10 +161,22 @@ public class Animator
         {
             ref var transform = ref pose[boneIndex];
 
+            var position = transform.Position;
+            var rotation = transform.Rotation;
+            var scale = transform.Scale;
+
+            if (_boneModifiers != null)
+            {
+                ref var modifier = ref _boneModifiers[boneIndex];
+                position += modifier.Position;
+                rotation += modifier.Rotation;
+                scale *= modifier.Scale;
+            }
+
             var localMatrix =
-                Matrix3x2.CreateScale(transform.Scale) *
-                Matrix3x2.CreateRotation(MathEx.Deg2Rad * transform.Rotation) *
-                Matrix3x2.CreateTranslation(transform.Position);
+                Matrix3x2.CreateScale(scale) *
+                Matrix3x2.CreateRotation(MathEx.Deg2Rad * rotation) *
+                Matrix3x2.CreateTranslation(position);
 
             ref var bone = ref _skeleton.GetBone(boneIndex);
             if (bone.ParentIndex >= 0)
@@ -176,6 +189,24 @@ public class Animator
     public ref readonly Matrix3x2 GetBoneTransform(int boneIndex)
     {
         return ref _boneTransforms[boneIndex];
+    }
+
+    public void SetBoneModifier(int boneIndex, AnimationTransform value)
+    {
+        if (_boneModifiers == null)
+        {
+            _boneModifiers = new AnimationTransform[_skeleton.BoneCount];
+            for (var i = 0; i < _skeleton.BoneCount; i++)
+                _boneModifiers[i] = AnimationTransform.Identity;
+        }
+
+        _boneModifiers[boneIndex] = value;
+    }
+
+    public void ClearBoneModifier(int boneIndex)
+    {
+        if (_boneModifiers != null)
+            _boneModifiers[boneIndex] = AnimationTransform.Identity;
     }
 
     public void SetBones(Span<Matrix3x2> destination)

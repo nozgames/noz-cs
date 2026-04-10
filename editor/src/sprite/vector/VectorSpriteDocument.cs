@@ -25,28 +25,25 @@ public partial class VectorSpriteDocument : SpriteDocument
 
     public override Color32 GetPixelAt(Vector2 worldPos)
     {
-        if (Workspace.ActiveEditor is VectorSpriteEditor editor && editor.Document == this)
-            return editor.GetPixelAt(worldPos);
+        var size = RasterBounds.Size;
+        if (size.X <= 0 || size.Y <= 0)
+            return default;
 
-        Matrix3x2.Invert(Transform, out var invTransform);
-        var local = Vector2.Transform(worldPos, invTransform);
-        var p = new Clipper2Lib.PointD(local.X, local.Y);
+        Matrix3x2.Invert(Transform, out var inv);
+        var local = Vector2.Transform(worldPos, inv);
 
-        var results = new List<LayerPathResult>();
-        SpriteGroupProcessor.ProcessLayer(Root, results);
+        var px = (int)((local.X - Bounds.X) / Bounds.Width * size.X);
+        var py = (int)((local.Y - Bounds.Y) / Bounds.Height * size.Y);
 
-        // Iterate top-to-bottom (last result = topmost)
-        for (var i = results.Count - 1; i >= 0; i--)
-        {
-            var r = results[i];
-            foreach (var contour in r.Contours)
-            {
-                if (Clipper2Lib.Clipper.PointInPolygon(p, contour) != Clipper2Lib.PointInPolygonResult.IsOutside)
-                    return r.Color;
-            }
-        }
+        if (px < 0 || px >= size.X || py < 0 || py >= size.Y)
+            return default;
 
-        return default;
+        using var pixels = new PixelData<Color32>(size);
+        var targetRect = new RectInt(Vector2Int.Zero, size);
+        var sourceOffset = -RasterBounds.Position;
+        RasterizeLayer(Root, pixels, targetRect, sourceOffset, PixelsPerUnit);
+
+        return pixels[px, py];
     }
 
     protected override void UpdateContentBounds()

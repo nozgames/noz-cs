@@ -15,6 +15,18 @@ public unsafe struct BitMask256
     public fixed ulong Bits[4];
     public int Count { get; private set; }
 
+    public BitMask256(ulong a, ulong b, ulong c, ulong d)
+    {
+        Bits[0] = a;
+        Bits[1] = b;
+        Bits[2] = c;
+        Bits[3] = d;
+        Count = BitOperations.PopCount(a)
+             + BitOperations.PopCount(b)
+             + BitOperations.PopCount(c)
+             + BitOperations.PopCount(d);
+    }
+
     public bool this[int index]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

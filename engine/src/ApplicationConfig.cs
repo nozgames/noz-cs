@@ -43,6 +43,7 @@ public class ApplicationConfig
     public IAudioDriver? AudioBackend { get; init; }
     public string? AssetPath { get; init; } = null;
     public string TextShader { get; init; } = "text";
+    public bool HotReload { get; init; } = true;
     public bool Profiler { get; init; } = false;
     public Assembly? ResourceAssembly { get; init; }
 }

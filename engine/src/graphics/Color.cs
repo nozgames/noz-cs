@@ -66,9 +66,30 @@ public struct Color32(byte r, byte g, byte b, byte a=255)
     public static readonly Color32 Blue = new(0, 0, 255);
     public static readonly Color32 Transparent = new(0, 0, 0, 0);
 
+    public static bool TryParseHex(ReadOnlySpan<char> hex, out Color32 color)
+    {
+        color = default;
+
+        if (hex.Length > 0 && hex[0] == '#')
+            hex = hex[1..];
+
+        if (hex.Length != 6)
+            return false;
+
+        if (!byte.TryParse(hex[0..2], System.Globalization.NumberStyles.HexNumber, null, out var r))
+            return false;
+        if (!byte.TryParse(hex[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g))
+            return false;
+        if (!byte.TryParse(hex[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b))
+            return false;
+
+        color = new Color32(r, g, b);
+        return true;
+    }
+
     public override string ToString()
     {
-        return $"(R:{R}, G:{G}, B:{B}, A:{A})";            
+        return $"(R:{R}, G:{G}, B:{B}, A:{A})";
     }
 }
 
