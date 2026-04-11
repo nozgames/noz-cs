@@ -121,6 +121,7 @@ internal static class JSObjectHelper
             BlendMode.Additive => "additive",
             BlendMode.Multiply => "multiply",
             BlendMode.Premultiplied => "premultiplied",
+            BlendMode.Max => "max",
             _ => "none"
         };
     }

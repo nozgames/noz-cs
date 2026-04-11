@@ -566,6 +566,21 @@ public unsafe partial class WebGPUGraphicsDriver
                     Operation = BlendOperation.Add,
                 },
             },
+            BlendMode.Max => new BlendState
+            {
+                Color = new BlendComponent
+                {
+                    SrcFactor = BlendFactor.One,
+                    DstFactor = BlendFactor.One,
+                    Operation = BlendOperation.Max,
+                },
+                Alpha = new BlendComponent
+                {
+                    SrcFactor = BlendFactor.One,
+                    DstFactor = BlendFactor.One,
+                    Operation = BlendOperation.Max,
+                },
+            },
             _ => throw new NotSupportedException($"Blend mode {mode} not supported"),
         };
     }

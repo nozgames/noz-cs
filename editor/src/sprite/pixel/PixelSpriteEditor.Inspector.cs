@@ -9,7 +9,6 @@ public partial class PixelSpriteEditor
     private static partial class WidgetIds
     {
         public static partial WidgetId BrushColor { get; }
-        public static partial WidgetId PixelsPerUnit { get; }
         public static partial WidgetId FilterDropDown { get; }
     }
 
@@ -23,26 +22,6 @@ public partial class PixelSpriteEditor
     {
         using var _ = Inspector.BeginSection("SPRITE");
         if (Inspector.IsSectionCollapsed) return;
-
-        using (Inspector.BeginProperty("Pixels Per Unit"))
-        {
-            var current = Document.PixelsPerUnitOverride ?? 32;
-            var label = Document.PixelsPerUnitOverride.HasValue ? $"{current}" : $"{current} (Default)";
-            UI.DropDown(WidgetIds.PixelsPerUnit, () =>
-            [
-                ..new[] { 8, 16, 32, 64, 128 }.Select(v => new PopupMenuItem
-                {
-                    Label = v == 32 ? "32 (Default)" : $"{v}",
-                    Handler = () =>
-                    {
-                        Undo.Record(Document);
-                        Document.PixelsPerUnitOverride = v == 32 ? null : v;
-                        Document.UpdateBounds();
-                        InvalidateComposite();
-                    }
-                })
-            ], label);
-        }
 
         using (Inspector.BeginProperty("Filter"))
         {

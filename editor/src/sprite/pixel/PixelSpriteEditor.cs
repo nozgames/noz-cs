@@ -63,7 +63,7 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     private int CurrentFrameIndex => Document.GetFrameAtTimeSlot(_currentTimeSlot);
 
-    private float CanvasPPU => Document.PixelsPerUnitOverride ?? 32f;
+    private float CanvasPPU => Document.PixelsPerUnit;
 
     private int GetMaxWorkingSize()
     {

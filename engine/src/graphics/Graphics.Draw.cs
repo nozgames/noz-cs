@@ -263,6 +263,19 @@ public static partial class Graphics
         AddTriangles(vertices, indices, order: order, bone: bone);
     }
 
+    public static void Draw(
+        Sprite sprite,
+        ReadOnlySpan<MeshVertex> vertices,
+        ReadOnlySpan<ushort> indices,
+        ushort order = 0,
+        int bone = -1)
+    {
+        if (sprite == null || sprite.Atlas == null) return;
+        SetTextureFilter(sprite.Filter);
+        SetTexture(sprite.Atlas!);
+        AddTriangles(vertices, indices, order: order, bone: bone);
+    }
+
     public static void DrawText(in ReadOnlySpan<char> text, Font font, float fontSize, int order = 0) =>
         TextRender.Draw(text, font, fontSize, order);
 

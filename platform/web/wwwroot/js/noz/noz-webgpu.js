@@ -1115,6 +1115,10 @@ export const BlendModes = {
     premultiplied: {
         color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
         alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+    },
+    max: {
+        color: { srcFactor: 'one', dstFactor: 'one', operation: 'max' },
+        alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'max' }
     }
 };
 

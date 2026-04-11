@@ -11,4 +11,5 @@ public enum BlendMode : byte
     Additive = 2,       // Additive: src*srcA + dst
     Multiply = 3,       // Multiply: src * dst
     Premultiplied = 4,  // Premultiplied alpha: src + dst*(1-srcA)
+    Max = 5,            // Max: max(src, dst) per channel
 }

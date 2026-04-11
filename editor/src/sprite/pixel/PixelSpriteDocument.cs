@@ -126,8 +126,42 @@ public partial class PixelSpriteDocument : SpriteDocument
         return new RectInt(minX, minY, maxX - minX, maxY - minY);
     }
 
+    private void SyncCanvasToConstrainedSize()
+    {
+        if (!ConstrainedSize.HasValue) return;
+        var cs = ConstrainedSize.Value;
+        if (cs == CanvasSize) return;
+
+        var offset = (cs - CanvasSize) / 2;
+
+        Root.ForEach((PixelLayer layer) =>
+        {
+            if (layer.Pixels != null)
+            {
+                var resized = PixelDataResize.Resized(layer.Pixels, cs, offset);
+                layer.Pixels.Dispose();
+                layer.Pixels = resized;
+            }
+            else
+            {
+                layer.Pixels = new PixelData<Color32>(cs.X, cs.Y);
+            }
+        });
+
+        if (SelectionMask != null)
+        {
+            var resized = PixelDataResize.Resized(SelectionMask, cs, offset);
+            SelectionMask.Dispose();
+            SelectionMask = resized;
+        }
+
+        CanvasSize = cs;
+    }
+
     protected override void UpdateContentBounds()
     {
+        SyncCanvasToConstrainedSize();
+
         var ppu = PixelsPerUnit;
         var w = CanvasSize.X;
         var h = CanvasSize.Y;
