@@ -125,7 +125,7 @@ public unsafe struct NativeArray<T> : IDisposable
         Debug.Assert(IsCreated);
         Debug.Assert(index >= 0 && index < Length, "Index is out of range.");
         if (index < Length - 1)
-            NativeMemory.Copy(Ptr + index, Ptr + index + 1, (nuint)((Length - index - 1) * sizeof(T)));
+            NativeMemory.Copy(Ptr + index + 1, Ptr + index, (nuint)((Length - index - 1) * sizeof(T)));
         Length--;
     }
 

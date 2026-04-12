@@ -96,8 +96,8 @@ public static partial class Workspace
         // In isolation mode, only sample from the active editor's document
         if (IsIsolationActive)
         {
-            if (_activeDocument is SpriteDocument activeSprite)
-                return activeSprite.GetPixelAt(worldPos);
+            if (_activeDocument != null)
+                return _activeDocument.GetPixelAt(worldPos);
             return default;
         }
 
@@ -112,12 +112,9 @@ public static partial class Workspace
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
             if (!doc.Bounds.Translate(doc.Position).Contains(worldPos)) continue;
 
-            if (doc is SpriteDocument spriteDoc)
-            {
-                var color = spriteDoc.GetPixelAt(worldPos);
-                if (color.A > 0)
-                    return color;
-            }
+            var color = doc.GetPixelAt(worldPos);
+            if (color.A > 0)
+                return color;
         }
 
         return default;

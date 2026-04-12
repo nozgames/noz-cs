@@ -45,7 +45,7 @@ internal static partial class Outliner
                 if (Workspace.ActiveEditor?.ShowOutliner ?? false)
                     Workspace.ActiveEditor.OutlinerUI();
                 else
-                    ProjectViewUI();
+                    Workspace.ProjectViewUI();
 
                 Finish();
             }

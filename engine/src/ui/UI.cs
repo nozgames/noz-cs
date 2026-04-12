@@ -480,7 +480,8 @@ public static partial class UI
         var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags()) : style;
         var font = resolved.Font ?? _defaultFont!;
         var fontSize = resolved.FontSize > 0 ? resolved.FontSize : 16f;
-        ElementTree.Text(text, font, fontSize, resolved.Color, resolved.Align, resolved.Overflow);
+        ElementTree.Text(text, font, fontSize, resolved.Color, resolved.Align, resolved.Overflow,
+            resolved.OutlineColor, resolved.OutlineWidth, resolved.OutlineSoftness);
     }
 
     #endregion

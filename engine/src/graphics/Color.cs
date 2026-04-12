@@ -30,10 +30,14 @@ public struct Color32(byte r, byte g, byte b, byte a=255)
         var srcA = b.A / 255f;
         var dstA = a.A / 255f;
         var outA = srcA + dstA * (1f - srcA);
+        if (outA <= 0f)
+            return default;
+        var rcp = 1f / outA;
+        var dstFactor = dstA * (1f - srcA);
         return new Color32(
-            (byte)(a.R + (b.R - a.R) * srcA),
-            (byte)(a.G + (b.G - a.G) * srcA),
-            (byte)(a.B + (b.B - a.B) * srcA),
+            (byte)((b.R * srcA + a.R * dstFactor) * rcp),
+            (byte)((b.G * srcA + a.G * dstFactor) * rcp),
+            (byte)((b.B * srcA + a.B * dstFactor) * rcp),
             (byte)(outA * 255f)
         );
     }

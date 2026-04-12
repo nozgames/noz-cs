@@ -104,6 +104,7 @@ public static class EditorStyle
         public const float Size = 11.0f;
         public const float LargeSize = 13.0f;
         public const float SmallSize = 9.0f;
+        public const float HugeSize = 18.0f;
 
         public static readonly ImageStyle Primary = new()
         {

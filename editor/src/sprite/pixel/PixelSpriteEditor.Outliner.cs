@@ -56,7 +56,7 @@ public partial class PixelSpriteEditor
 
     protected override Sprite GetNodeIcon(SpriteNode node) =>
         node is SpriteGroup
-            ? EditorAssets.Sprites.IconPathLayer
+            ? EditorAssets.Sprites.IconFolder
             : EditorAssets.Sprites.IconPath;
 
     public override void OutlinerUI()
@@ -73,7 +73,7 @@ public partial class PixelSpriteEditor
             {
                 if (UI.Button(WidgetIds.DeleteLayerButton, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
                     DeleteActiveLayer();
-                if (UI.Button(WidgetIds.AddGroupButton, EditorAssets.Sprites.IconPathLayer, EditorStyle.Inspector.SectionButton))
+                if (UI.Button(WidgetIds.AddGroupButton, EditorAssets.Sprites.IconFolder, EditorStyle.Inspector.SectionButton))
                     AddGroup();
                 if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
                     AddLayer();

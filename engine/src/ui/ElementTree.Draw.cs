@@ -423,6 +423,10 @@ public static partial class ElementTree
         var text = d.Text.AsReadOnlySpan();
         var fontSize = d.FontSize;
 
+        var hasOutline = d.OutlineWidth > 0;
+        if (hasOutline)
+            TextRender.SetOutline(d.OutlineColor, d.OutlineWidth, d.OutlineSoftness);
+
         switch (d.Overflow)
         {
             case TextOverflow.Wrap:
@@ -491,6 +495,9 @@ public static partial class ElementTree
                 break;
             }
         }
+
+        if (hasOutline)
+            TextRender.ClearOutline();
     }
 
     private static Vector2 GetTextOffset(ReadOnlySpan<char> text, Font font, float fontSize, in Vector2 containerSize, Align alignX, Align alignY)

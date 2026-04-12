@@ -60,6 +60,8 @@ public class PaletteDocument : Document
 
     public override void Save(StreamWriter sw)
     {
+        PaletteManager.ReloadPaletteColors();
+
         sw.WriteLine("JASC-PAL");
         sw.WriteLine("0100");
         sw.WriteLine(ColorCount.ToString());
@@ -77,17 +79,48 @@ public class PaletteDocument : Document
         }
     }
 
+    public override void Clone(Document source)
+    {
+        var src = (PaletteDocument)source;
+        ColorCount = src.ColorCount;
+        Array.Copy(src.Colors, Colors, MaxColors);
+        Array.Copy(src.ColorNames, ColorNames, MaxColors);
+    }
+
+    public override void OnUndoRedo()
+    {
+        PaletteManager.ReloadPaletteColors();
+    }
+
+    public override Color32 GetPixelAt(System.Numerics.Vector2 worldPos)
+    {
+        const int columns = 8;
+        var cellSize = 1f / columns;
+
+        var localX = worldPos.X - Position.X;
+        var localY = worldPos.Y - Position.Y;
+
+        var col = (int)((localX + 0.5f) / cellSize);
+        var row = (int)((localY + 0.5f) / cellSize);
+
+        if (col < 0 || col >= columns || row < 0) return default;
+
+        var index = row * columns + col;
+        if (index < 0 || index >= ColorCount) return default;
+
+        return (Color32)Colors[index];
+    }
+
     public override void Draw()
     {
-        var columns = 8;
+        const int columns = 8;
         var cellSize = 1f / columns;
-        var rows = (ColorCount + columns - 1) / columns;
-        var totalHeight = rows * cellSize;
 
-        Bounds = new Rect(-0.5f, -totalHeight * 0.5f, columns * cellSize, totalHeight);
+        Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
 
         using (Graphics.PushState())
         {
+            Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetTransform(Transform);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetTexture(Graphics.WhiteTexture);
@@ -97,7 +130,7 @@ public class PaletteDocument : Document
                 int col = i % columns;
                 int row = i / columns;
                 float x = -0.5f + col * cellSize;
-                float y = -totalHeight * 0.5f + row * cellSize;
+                float y = -0.5f + row * cellSize;
 
                 Graphics.SetColor(Colors[i]);
                 Graphics.Draw(x, y, cellSize, cellSize);

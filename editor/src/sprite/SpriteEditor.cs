@@ -17,7 +17,7 @@ public abstract partial class SpriteEditor(SpriteDocument document) : DocumentEd
     protected virtual void OnVisibilityChanged(SpriteNode node) { }
     protected virtual string GetNodeFallbackName(SpriteNode node) => "Node";
     protected virtual Sprite GetNodeIcon(SpriteNode node) => node is SpriteGroup
-        ? EditorAssets.Sprites.IconPathLayer
+        ? EditorAssets.Sprites.IconFolder
         : EditorAssets.Sprites.IconPath;
     protected virtual bool ReverseChildren => false;
 

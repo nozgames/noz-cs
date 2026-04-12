@@ -52,6 +52,8 @@ public static class EditorAssets
         public const string IconExpandUp = "icon_expand_up";
         public const string IconFill = "icon_fill";
         public const string IconFloodFill = "icon_flood_fill";
+        public const string IconFolder = "icon_folder";
+        public const string IconFolderOpen = "icon_folder_open";
         public const string IconFoldoutClosed = "icon_foldout_closed";
         public const string IconFoldoutOpen = "icon_foldout_open";
         public const string IconGenerating = "icon_generating";
@@ -239,6 +241,8 @@ public static class EditorAssets
         public static readonly Sprite IconExpandUp = new();
         public static readonly Sprite IconFill = new();
         public static readonly Sprite IconFloodFill = new();
+        public static readonly Sprite IconFolder = new();
+        public static readonly Sprite IconFolderOpen = new();
         public static readonly Sprite IconFoldoutClosed = new();
         public static readonly Sprite IconFoldoutOpen = new();
         public static readonly Sprite IconGenerating = new();
@@ -333,6 +337,8 @@ public static class EditorAssets
             IconExpandUp.Load(Names.IconExpandUp, atlas);
             IconFill.Load(Names.IconFill, atlas);
             IconFloodFill.Load(Names.IconFloodFill, atlas);
+            IconFolder.Load(Names.IconFolder, atlas);
+            IconFolderOpen.Load(Names.IconFolderOpen, atlas);
             IconFoldoutClosed.Load(Names.IconFoldoutClosed, atlas);
             IconFoldoutOpen.Load(Names.IconFoldoutOpen, atlas);
             IconGenerating.Load(Names.IconGenerating, atlas);
@@ -428,6 +434,8 @@ public static class EditorAssets
             IconExpandUp.Reload();
             IconFill.Reload();
             IconFloodFill.Reload();
+            IconFolder.Reload();
+            IconFolderOpen.Reload();
             IconFoldoutClosed.Reload();
             IconFoldoutOpen.Reload();
             IconGenerating.Reload();
@@ -523,6 +531,8 @@ public static class EditorAssets
             IconExpandUp.Dispose();
             IconFill.Dispose();
             IconFloodFill.Dispose();
+            IconFolder.Dispose();
+            IconFolderOpen.Dispose();
             IconFoldoutClosed.Dispose();
             IconFoldoutOpen.Dispose();
             IconGenerating.Dispose();

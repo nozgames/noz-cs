@@ -40,6 +40,9 @@ public struct TextStyle()
     public Font? Font = null;
     public ushort Order = 2;
     public TextOverflow Overflow = TextOverflow.Overflow;
+    public Color OutlineColor = Color.Transparent;
+    public float OutlineWidth = 0;
+    public float OutlineSoftness = 0;
     public Func<TextStyle, WidgetFlags, TextStyle>? Resolve;
 
     public Align AlignX { readonly get => Align.X; set => Align.X = value; }

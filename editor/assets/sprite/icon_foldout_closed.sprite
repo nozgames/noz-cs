@@ -1,5 +1,5 @@
 
-path {
+path "" {
   operation subtract
   fill #FFFFFF
   anchor 0.12445627 -0.09505669
@@ -8,7 +8,7 @@ path {
   anchor 0.0055518053 -0.17828982
 }
 
-path {
+path "" {
   fill #FFFFFF
   anchor 0.11256582 -0.053440128
   anchor -0.00039341825 0.06546435

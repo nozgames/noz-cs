@@ -53,6 +53,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public virtual void GetReferences(List<Document> references) { }
     public virtual void Draw() { }
     public virtual bool DrawThumbnail() => false;
+    public virtual Color32 GetPixelAt(Vector2 worldPos) => default;
     public virtual void Clone(Document source) { }
     public virtual void InspectorUI() { }
 

@@ -4,9 +4,9 @@
 
 namespace NoZ.Editor;
 
-internal static partial class Outliner
+public static partial class Workspace
 {
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId FolderRow { get; }
         public static partial WidgetId FileRow { get; }
@@ -31,7 +31,7 @@ internal static partial class Outliner
         public readonly List<Document> Documents = [];
     }
 
-    private static void ProjectViewUI()
+    internal static void ProjectViewUI()
     {
         _folderIndex = 0;
         _fileIndex = 0;
@@ -116,7 +116,7 @@ internal static partial class Outliner
 
     private static void FolderUI(FolderNode folder, int depth)
     {
-        var folderId = ElementId.FolderRow + _folderIndex++;
+        var folderId = WidgetIds.FolderRow + _folderIndex++;
 
         ElementTree.BeginTree();
         ref var state = ref ElementTree.BeginWidget<FolderState>(folderId);
@@ -138,8 +138,18 @@ internal static partial class Outliner
         var chevron = expanded
             ? EditorAssets.Sprites.IconFoldoutClosed
             : EditorAssets.Sprites.IconFoldoutOpen;
-        ElementTree.Image(chevron, EditorStyle.Icon.Size, ImageStretch.Uniform,
-            EditorStyle.Palette.SecondaryText, 1.0f, Align.Center);
+        ElementTree.Image(chevron, EditorStyle.Icon.Size, ImageStretch.Uniform, EditorStyle.Palette.SecondaryText, 1.0f, Align.Center);
+
+        var folderIcon = expanded
+            ? EditorAssets.Sprites.IconFolderOpen
+            : EditorAssets.Sprites.IconFolder;
+        ElementTree.Image(
+            folderIcon,
+            EditorStyle.Icon.HugeSize,
+            ImageStretch.Uniform,
+            EditorStyle.Palette.SecondaryText,
+            1.0f,
+            Align.Center);
 
         ElementTree.Text(folder.Name, UI.DefaultFont, EditorStyle.Control.TextSize,
             EditorStyle.Palette.Content, new Align2(Align.Min, Align.Center));
@@ -157,7 +167,7 @@ internal static partial class Outliner
 
     private static void FileUI(Document doc, int depth)
     {
-        var rowId = ElementId.FileRow + _fileIndex++;
+        var rowId = WidgetIds.FileRow + _fileIndex++;
 
         ElementTree.BeginTree();
         ref var _ = ref ElementTree.BeginWidget<byte>(rowId);
@@ -189,13 +199,21 @@ internal static partial class Outliner
 
         if (pressed)
         {
-            Workspace.ClearSelection();
-            Workspace.SetSelected(doc, true);
-            Workspace.FrameSelected();
+            // Auto-switch collection if the asset isn't in the current visible collection
+            if (!CollectionManager.IsDocumentVisible(doc))
+            {
+                var collection = CollectionManager.GetById(doc.CollectionId);
+                if (collection != null)
+                    SetCollection(collection.Index);
+            }
+
+            ClearSelection();
+            SetSelected(doc, true);
+            FrameSelected();
         }
     }
 
-    public static void InvalidateProjectView()
+    internal static void InvalidateProjectView()
     {
         _cachedRoot = null;
     }

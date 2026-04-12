@@ -129,6 +129,9 @@ internal struct TextElement
     public Align2 Align;
     public TextOverflow Overflow;
     public ushort Font;
+    public Color OutlineColor;
+    public float OutlineWidth;
+    public float OutlineSoftness;
 }
 
 internal struct ImageElement

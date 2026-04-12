@@ -1,5 +1,7 @@
 
-path {
+path "" {
+  translate -0.0532315 -0.064377025
+  rotate 90
   operation subtract
   fill #FFFFFF
   anchor -0.12260653 0.0864376
@@ -8,7 +10,9 @@ path {
   anchor -0.007891572 0.16585565
 }
 
-path {
+path "" {
+  translate -0.026758812 -0.037904337
+  rotate 90
   fill #FFFFFF
   anchor -0.1137823 0.042316455
   anchor 0.0009326561 -0.07239851

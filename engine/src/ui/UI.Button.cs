@@ -19,6 +19,9 @@ public struct ButtonStyle()
     public Color BorderColor = Style.Palette.Border;
     public EdgeInsets Padding = EdgeInsets.Zero;
     public Font? Font = null;
+    public Color TextOutlineColor = Color.Transparent;
+    public float TextOutlineWidth = 0;
+    public float TextOutlineSoftness = 0;
     public Func<ButtonStyle, WidgetFlags, ButtonStyle>? Resolve;
 }
 
@@ -72,7 +75,10 @@ public static partial class UI
                 s.FontSize,
                 s.ContentColor,
                 new Align2(Align.Center, Align.Center),
-                TextOverflow.Overflow);
+                TextOverflow.Overflow,
+                s.TextOutlineColor,
+                s.TextOutlineWidth,
+                s.TextOutlineSoftness);
         }
 
         ElementTree.EndTree();

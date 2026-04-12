@@ -297,7 +297,10 @@ public static unsafe partial class ElementTree
         float fontSize,
         Color color,
         Align2 align = default,
-        TextOverflow overflow = TextOverflow.Overflow)
+        TextOverflow overflow = TextOverflow.Overflow,
+        Color outlineColor = default,
+        float outlineWidth = 0,
+        float outlineSoftness = 0)
     {
         ref var e = ref BeginElement(ElementType.Text);
         ref var d = ref e.Data.Text;
@@ -307,6 +310,9 @@ public static unsafe partial class ElementTree
         d.Align = align;
         d.Overflow = overflow;
         d.Font = AddObject(font);
+        d.OutlineColor = outlineColor;
+        d.OutlineWidth = outlineWidth;
+        d.OutlineSoftness = outlineSoftness;
 
         EndElement(ElementType.Text);
 
