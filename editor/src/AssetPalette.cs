@@ -393,9 +393,6 @@ public static partial class AssetPalette
             if (_filter != null && !_filter(doc))
                 continue;
 
-            if (!CollectionManager.IsDocumentVisible(doc))
-                continue;
-
             if (!string.IsNullOrEmpty(filter) && !doc.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
                 continue;
 

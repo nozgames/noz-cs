@@ -338,7 +338,8 @@ public static unsafe partial class ElementTree
         var widgetId = FindParentWidgetId(elementIndex);
         if (widgetId == WidgetId.None) return;
 
-        _hotId = widgetId;
+        SetHot(widgetId);
+        _prevHotId = widgetId;
         state.Focused = 1;
         state.JustFocused = 1;
         state.EditText = AllocString(d.Text.AsReadOnlySpan());
