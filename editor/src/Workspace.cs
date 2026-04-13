@@ -1413,6 +1413,9 @@ public static partial class Workspace
 
     public static void UpdateDefaultState()
     {
+        if (_workspaceDragMode != WorkspaceDragMode.None)
+            return;
+
         if (Input.WasButtonPressed(InputCode.MouseLeft))
         {
             _clearSelectionOnRelease = false;
