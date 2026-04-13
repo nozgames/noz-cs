@@ -89,7 +89,25 @@ internal class KeyframeMode : EditorMode<AnimationEditor>
 
     private void HandleDragStart()
     {
-        var hitBone = Editor.Document.HitTestBone(Editor.GetBaseTransform(), Workspace.DragWorldPosition);
+        var transform = Editor.GetBaseTransform();
+        var pos = Workspace.DragWorldPosition;
+
+        Span<int> hits = stackalloc int[NoZ.Skeleton.MaxBones];
+        var hitCount = Editor.Document.HitTestBones(transform, pos, hits);
+
+        var hitBone = -1;
+        for (var i = 0; i < hitCount; i++)
+        {
+            if (Editor.IsBoneSelected(hits[i]))
+            {
+                hitBone = hits[i];
+                break;
+            }
+        }
+
+        if (hitBone < 0 && hitCount > 0)
+            hitBone = hits[0];
+
         if (hitBone >= 0)
         {
             if (!Editor.IsBoneSelected(hitBone))

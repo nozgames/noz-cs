@@ -46,7 +46,9 @@ public partial class VectorSpriteEditor
             return;
 
         _tessellateResults.Clear();
-        SpriteGroupProcessor.ProcessLayer(Document.Root, _tessellateResults);
+        if (Document.Root.Children[frameIndex] is not SpriteGroup frame)
+            return;
+        SpriteGroupProcessor.ProcessLayer(frame, _tessellateResults);
         foreach (var result in _tessellateResults)
             TessellateClipperTo(result.Contours, ref vertexOffset, ref indexOffset, tint, _onionVertices, _onionIndices, _onionSlots);
     }

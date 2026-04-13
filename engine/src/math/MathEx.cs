@@ -21,6 +21,10 @@ public static class MathEx
     public const int MB = 1024 * 1024;
     public const long GB = 1024L * 1024L * 1024L;
 
+    public static readonly Matrix3x2 Rotation90 = Matrix3x2.CreateRotation(Deg2Rad * 90.0f);
+    public static readonly Matrix3x2 Rotation180 = Matrix3x2.CreateRotation(Deg2Rad * 180.0f);
+    public static readonly Matrix3x2 Rotation270 = Matrix3x2.CreateRotation(Deg2Rad * 270.0f);
+
     // Power of 2
     public static uint NextPowerOf2(uint n)
     {

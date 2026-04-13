@@ -61,6 +61,17 @@ public partial class VectorSpriteEditor : SpriteEditor
     private int CurrentFrameIndex =>
         Document.GetFrameAtTimeSlot(_currentTimeSlot);
 
+    internal SpriteGroup ActiveRoot
+    {
+        get
+        {
+            if (!Document.IsAnimated) return Document.Root;
+            var i = CurrentFrameIndex;
+            if (i < 0 || i >= Document.Root.Children.Count) return Document.Root;
+            return Document.Root.Children[i] as SpriteGroup ?? Document.Root;
+        }
+    }
+
     public new VectorSpriteDocument Document => (VectorSpriteDocument)base.Document;
 
     public VectorSpriteEditor(VectorSpriteDocument doc) : base(doc)
@@ -843,7 +854,7 @@ public partial class VectorSpriteEditor : SpriteEditor
     internal bool HandlePathClick(Vector2 localMousePos, bool shift)
     {
         _pathHitResults.Clear();
-        Document.Root.HitTestPath(localMousePos, _pathHitResults);
+        ActiveRoot.HitTestPath(localMousePos, _pathHitResults);
 
         HitPaths.Clear();
         foreach (var p in _pathHitResults)
@@ -963,7 +974,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         {
             if (Input.IsAltDown(InputScope.All))
             {
-                var segHit = Document.Root.HitTestSegment(localMousePos, onlySelected: true);
+                var segHit = ActiveRoot.HitTestSegment(localMousePos, onlySelected: true);
                 if (segHit.HasValue)
                 {
                     EditorCursor.SetCrosshair();
@@ -971,7 +982,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                 }
             }
 
-            var hit = Document.Root.HitTestAnchor(localMousePos, onlySelected: true);
+            var hit = ActiveRoot.HitTestAnchor(localMousePos, onlySelected: true);
             if (hit.HasValue)
             {
                 _hoverPath = hit.Value.Path;

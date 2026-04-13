@@ -151,7 +151,7 @@ public partial class VectorSpriteEditor
         var vertexOffset = 0;
         var indexOffset = 0;
 
-        TessellateLayer(Document.Root, ref vertexOffset, ref indexOffset);
+        TessellateLayer(ActiveRoot, ref vertexOffset, ref indexOffset);
     }
 
     private void TessellateLayer(SpriteGroup layer, ref int vertexOffset, ref int indexOffset)

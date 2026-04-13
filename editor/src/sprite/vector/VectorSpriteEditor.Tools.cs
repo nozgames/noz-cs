@@ -105,7 +105,7 @@ public partial class VectorSpriteEditor
         }
         else
         {
-            Document.Root.ForEachEditablePath(p => p.SelectPath());
+            ActiveRoot.ForEachEditablePath(p => p.SelectPath());
             RebuildSelectedPaths();
         }
     }
@@ -246,7 +246,7 @@ public partial class VectorSpriteEditor
             // V mode or A mode with no paths: box select paths
             if (!shift)
                 Document.Root.ClearSelection();
-            Document.Root.SelectPathsInRect(localRect);
+            ActiveRoot.SelectPathsInRect(localRect);
         }
 
         RebuildSelectedPaths();

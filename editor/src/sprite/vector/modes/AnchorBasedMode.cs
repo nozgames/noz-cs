@@ -69,7 +69,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
                     return;
 
                 // Drag anchor
-                var anchorHit = Editor.Document.Root.HitTestAnchor(dragLocal, onlySelected: true);
+                var anchorHit = Editor.ActiveRoot.HitTestAnchor(dragLocal, onlySelected: true);
                 if (anchorHit.HasValue)
                 {
                     var hitPath = anchorHit.Value.Path;
@@ -91,7 +91,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
                 }
 
                 // Drag segment
-                var segHit = Editor.Document.Root.HitTestSegment(dragLocal, onlySelected: true);
+                var segHit = Editor.ActiveRoot.HitTestSegment(dragLocal, onlySelected: true);
                 if (segHit.HasValue)
                 {
                     if (OnSegmentDragStart(segHit.Value.Path, segHit.Value.ContourIndex, segHit.Value.SegmentIndex, segHit.Value.Position))
@@ -131,7 +131,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
     private bool HandleAnchorClick(Vector2 localMousePos, bool shift)
     {
         _anchorHitResults.Clear();
-        Editor.Document.Root.HitTestAnchor(localMousePos, _anchorHitResults, onlySelected: true);
+        Editor.ActiveRoot.HitTestAnchor(localMousePos, _anchorHitResults, onlySelected: true);
 
         foreach (var h in _anchorHitResults)
         {
@@ -187,7 +187,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
 
     private bool HandleAltClickInsert(Vector2 localMousePos)
     {
-        var hit = Editor.Document.Root.HitTestSegment(localMousePos, onlySelected: true);
+        var hit = Editor.ActiveRoot.HitTestSegment(localMousePos, onlySelected: true);
         if (!hit.HasValue) return false;
 
         Undo.Record(Editor.Document);
@@ -208,7 +208,7 @@ public abstract class AnchorBasedMode : EditorMode<VectorSpriteEditor>
 
     private bool HandleAltDragInsert(Vector2 dragLocal)
     {
-        var segHit = Editor.Document.Root.HitTestSegment(dragLocal, onlySelected: true);
+        var segHit = Editor.ActiveRoot.HitTestSegment(dragLocal, onlySelected: true);
         if (!segHit.HasValue) return false;
 
         Undo.Record(Editor.Document);

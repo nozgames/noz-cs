@@ -23,6 +23,7 @@ public class Animator
 
     public Skeleton Skeleton => _skeleton;
     public Animation? CurrentAnimation => _animation;
+    public int FrameIndex => (int)(Time * _animation!.FrameRate);
     public float Time => _time;
     public float NormalizedTime => _animation != null && _animation.Duration > 0 ? _time / _animation.Duration : 0f;
     public bool IsPlaying => _animation != null && (_animation.IsLooping || _time < _animation.Duration);

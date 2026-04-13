@@ -19,6 +19,17 @@ public partial class VectorSpriteDocument
         var w = RasterBounds.Size.X;
         var h = RasterBounds.Size.Y;
 
+        var sourceLayer = Root;
+        if (IsAnimated)
+        {
+            var frameIdx = GetFrameAtTimeSlot(rect.FrameIndex);
+            if (frameIdx >= 0 && frameIdx < Root.Children.Count &&
+                Root.Children[frameIdx] is SpriteGroup frame)
+            {
+                sourceLayer = frame;
+            }
+        }
+
         // Constrained sprites have a fixed rect, so we rasterize into the
         // interior only (overshoot clipped by buffer bounds) and fill the
         // padding ring with wrap or extrude. Unconstrained sprites derive
@@ -38,7 +49,7 @@ public partial class VectorSpriteDocument
                 RasterBounds.Width * invDpi,
                 RasterBounds.Height * invDpi);
 
-            RasterizeLayer(Root, image, rasterRect, sourceOffset, dpi, clipRect);
+            RasterizeLayer(sourceLayer, image, rasterRect, sourceOffset, dpi, clipRect);
 
             image.BleedColors(rasterRect);
 
@@ -64,7 +75,7 @@ public partial class VectorSpriteDocument
                 new Vector2Int(w + padding2, h + padding2));
             var sourceOffset = -RasterBounds.Position + new Vector2Int(padding, padding);
 
-            RasterizeLayer(Root, image, targetRect, sourceOffset, dpi);
+            RasterizeLayer(sourceLayer, image, targetRect, sourceOffset, dpi);
 
             image.BleedColors(targetRect);
         }
