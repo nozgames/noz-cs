@@ -323,20 +323,26 @@ public static partial class Graphics
         ref readonly var sf = ref sprite.Frames[frame];
 
         var edges = sprite.Edges;
-        var mask = sprite.SliceMask;
+        var mask = sprite.SliceMask != 0
+            ? sprite.SliceMask
+            : Sprite.CalculateSliceMask(sprite.Bounds, sprite.Edges);
 
         // UV splits proportional to edge pixel ratios
         var uv = sf.UV;
         var spriteW = (float)sprite.Size.X;
         var spriteH = (float)sprite.Size.Y;
 
-        // Scale edges from sprite pixel space to target rect space
-        var scaleX = targetRect.Width / spriteW;
-        var scaleY = targetRect.Height / spriteH;
-        var edgeL = edges.L * scaleX;
-        var edgeR = edges.R * scaleX;
-        var edgeT = edges.T * scaleY;
-        var edgeB = edges.B * scaleY;
+        // Corners stay at native pixel size. Only shrink if the target is
+        // smaller than the combined opposing edges, to avoid corner overlap.
+        var maxEdgeX = edges.L + edges.R;
+        var maxEdgeY = edges.T + edges.B;
+        var shrinkX = maxEdgeX > 0 && targetRect.Width < maxEdgeX ? targetRect.Width / maxEdgeX : 1f;
+        var shrinkY = maxEdgeY > 0 && targetRect.Height < maxEdgeY ? targetRect.Height / maxEdgeY : 1f;
+        var shrink = MathF.Min(shrinkX, shrinkY);
+        var edgeL = edges.L * shrink;
+        var edgeR = edges.R * shrink;
+        var edgeT = edges.T * shrink;
+        var edgeB = edges.B * shrink;
 
         // 4 x-positions and 4 y-positions defining the 3x3 grid
         Span<float> xs = [targetRect.Left, targetRect.Left + edgeL, targetRect.Right - edgeR, targetRect.Right];

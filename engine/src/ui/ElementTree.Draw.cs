@@ -330,6 +330,17 @@ public static partial class ElementTree
         var asset = _assets[d.ImageAsset];
         if (asset == null) return;
 
+        if (asset is Sprite slicedCheck && slicedCheck.IsSliced)
+        {
+            using var _ = Graphics.PushState();
+            Graphics.SetShader(_spriteShader);
+            Graphics.SetColor(ApplyOpacity(d.ImageColor));
+            Graphics.SetTextureFilter(TextureFilter.Linear);
+            Graphics.SetTransform(t);
+            Graphics.DrawSliced(slicedCheck, e.Rect, order: d.Order);
+            return;
+        }
+
         if (d.ImageStretch == ImageStretch.UniformToFill)
         {
             var srcSize = asset is Sprite s
@@ -359,18 +370,10 @@ public static partial class ElementTree
                     (int)MathF.Ceiling(screenBR.Y - screenTL.Y));
 
                 var offset = e.Rect.Position + (dstSize - scaledSize) * 0.5f;
-                if (sprite.IsSliced)
-                {
-                    Graphics.SetTransform(t);
-                    Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y), order: d.Order);
-                }
-                else
-                {
-                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
-                    Graphics.SetTransform(transform);
-                    Graphics.DrawFlat(sprite, order: d.Order, bone: -1);
-                }
+                offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                Graphics.SetTransform(transform);
+                Graphics.DrawFlat(sprite, order: d.Order, bone: -1);
 
                 Graphics.ClearScissor();
             }
@@ -386,19 +389,11 @@ public static partial class ElementTree
             Graphics.SetColor(ApplyOpacity(d.ImageColor));
             Graphics.SetTextureFilter(TextureFilter.Linear);
 
-            if (sprite.IsSliced)
-            {
-                Graphics.SetTransform(t);
-                Graphics.DrawSliced(sprite, e.Rect, order: d.Order);
-            }
-            else
-            {
-                var scale = new Vector2(e.Rect.Width / sprite.Bounds.Width, e.Rect.Height / sprite.Bounds.Height);
-                var offset = e.Rect.Position - new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-                var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
-                Graphics.SetTransform(transform);
-                Graphics.DrawFlat(sprite, order: d.Order, bone: -1);
-            }
+            var scale = new Vector2(e.Rect.Width / sprite.Bounds.Width, e.Rect.Height / sprite.Bounds.Height);
+            var offset = e.Rect.Position - new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+            var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+            Graphics.SetTransform(transform);
+            Graphics.DrawFlat(sprite, order: d.Order, bone: -1);
         }
         else if (asset is Texture texture)
         {
@@ -537,6 +532,17 @@ public static partial class ElementTree
         using var _oc = Graphics.PushState();
         Graphics.SetOverlayColor(d.OverlayColor);
 
+        if (asset is Sprite slicedCheck && slicedCheck.IsSliced)
+        {
+            using var _ = Graphics.PushState();
+            Graphics.SetShader(_spriteShader);
+            Graphics.SetColor(ApplyOpacity(d.Color));
+            Graphics.SetTextureFilter(TextureFilter.Linear);
+            Graphics.SetTransform(t);
+            Graphics.DrawSliced(slicedCheck, e.Rect);
+            return;
+        }
+
         var srcSize = new Vector2(d.Width, d.Height);
         var dstSize = new Vector2(
             d.Size.Width.IsFixed ? d.Size.Width.Value : (d.Size.Width.IsPercent ? e.Rect.Width * d.Size.Width.Value : e.Rect.Width),
@@ -571,18 +577,10 @@ public static partial class ElementTree
                         (int)MathF.Ceiling(screenBR.X - screenTL.X),
                         (int)MathF.Ceiling(screenBR.Y - screenTL.Y));
 
-                    if (sprite.IsSliced)
-                    {
-                        Graphics.SetTransform(t);
-                        Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y));
-                    }
-                    else
-                    {
-                        offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-                        var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
-                        Graphics.SetTransform(transform);
-                        Graphics.DrawFlat(sprite, bone: -1);
-                    }
+                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                    Graphics.SetTransform(transform);
+                    Graphics.DrawFlat(sprite, bone: -1);
 
                     Graphics.ClearScissor();
                 }
@@ -606,18 +604,10 @@ public static partial class ElementTree
                 Graphics.SetColor(ApplyOpacity(d.Color));
                 Graphics.SetTextureFilter(TextureFilter.Linear);
 
-                if (sprite.IsSliced)
-                {
-                    Graphics.SetTransform(t);
-                    Graphics.DrawSliced(sprite, new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y));
-                }
-                else
-                {
-                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
-                    Graphics.SetTransform(transform);
-                    Graphics.DrawFlat(sprite, bone: -1);
-                }
+                offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                Graphics.SetTransform(transform);
+                Graphics.DrawFlat(sprite, bone: -1);
             }
             else if (asset is Texture texture)
             {
@@ -756,6 +746,13 @@ public static partial class ElementTree
             {
                 ref var d = ref e.Data.Fill;
                 sb.Append($" color=#{(int)(d.Color.R*255):X2}{(int)(d.Color.G*255):X2}{(int)(d.Color.B*255):X2}");
+                if (d.ImageAsset > 0)
+                {                        
+                    sb.Append($" image={((Asset)_assets[d.ImageAsset]!).Name}");
+                    if (d.ImageStretch != ImageStretch.None)
+                        sb.Append($" stretch={d.ImageStretch}");
+                }
+                    
                 break;
             }
             case ElementType.Padding:
@@ -802,7 +799,7 @@ public static partial class ElementTree
             {
                 ref var d = ref e.Data.Image;
                 var asset = _assets[d.Asset];
-                if (asset != null) sb.Append($" asset={asset}");
+                if (asset != null) sb.Append($" asset={((Asset)asset).Name}");
                 break;
             }
             case ElementType.Opacity:

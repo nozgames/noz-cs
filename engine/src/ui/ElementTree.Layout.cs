@@ -346,20 +346,8 @@ public static unsafe partial class ElementTree
                 break;
             }
             case ElementType.Size:
-            {
-                var mode = e.Data.Size.Size[axis].Mode;
-                var isFit = mode == SizeMode.Fit || (mode == SizeMode.Default && layoutAxis == axis);
-                var childLayoutAxis = isFit ? layoutAxis : -1;
-                // If min/max clamping expanded beyond content fit, stretch children to fill
-                if (isFit && e.ChildCount > 0)
-                {
-                    var fitSize = FitAxis(e.FirstChild, axis, layoutAxis);
-                    if (size > fitSize)
-                        childLayoutAxis = -1;
-                }
-                LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, childLayoutAxis);
+                LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
                 break;
-            }
             case ElementType.Flex:
                 LayoutChildrenAxis(ref e, e.Rect[axis], size, axis, -1);
                 break;

@@ -34,7 +34,7 @@ public class Sprite : Asset, IImage
     public ushort SliceMask { get; private set; }
     public ushort SortOrder { get; private set; }
     public TextureFilter Filter { get; private set; } = TextureFilter.Linear;
-    public bool IsSliced => SliceMask != 0;
+    public bool IsSliced => SliceMask != 0 || !Edges.IsZero;
     public Rect UV => Frames.Length > 0 ? Frames[0].UV : Rect.Zero;
     public Texture? Atlas { get; set; }
 
