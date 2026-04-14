@@ -80,7 +80,12 @@ public static unsafe partial class ElementTree
             GetWidgetState(id).Flags &= ~flag;
     }
 
-    internal static bool IsHovered(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
+    internal static bool IsHovered(WidgetId id)
+    {
+        if (IsValidWidgetId(id))
+            return GetWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
+        return GetPrevWidgetFlags(id).HasFlag(WidgetFlags.Hovered);
+    }
     internal static bool WasPressed(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Pressed);
     internal static bool IsDown(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Down);
     internal static bool HoverChanged(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.HoverChanged);
