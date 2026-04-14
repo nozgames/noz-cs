@@ -40,13 +40,7 @@ public static partial class UI
     {
         ElementTree.BeginTree();
 
-        var flags = WidgetFlags.None;
-        if (id != 0)
-        {
-            ElementTree.BeginWidget(id);
-            flags = ElementTree.GetWidgetFlags();
-        }
-
+        var flags = id != 0 ? ElementTree.GetWidgetFlags(id) : WidgetFlags.None;
         var resolved = style.Resolve != null ? style.Resolve(style, flags) : style;
 
         if (!style.Margin.IsZero)
@@ -57,6 +51,9 @@ public static partial class UI
 
         ElementTree.BeginSize(style.Size, style.MinWidth, style.MaxWidth, style.MinHeight, style.MaxHeight);
 
+        if (id != 0)
+            ElementTree.BeginWidget(id);
+
         if (!resolved.Background.IsTransparent || resolved.BorderWidth > 0)
             ElementTree.BeginFill(resolved.Background, style.BorderRadius, resolved.BorderWidth, resolved.BorderColor, style.Order);
 
@@ -65,7 +62,7 @@ public static partial class UI
 
         if (!style.Padding.IsZero)
             ElementTree.BeginPadding(style.Padding);
-        
+
         if (axis == 0)
             ElementTree.BeginRow(style.Spacing);
         else if (axis == 1)

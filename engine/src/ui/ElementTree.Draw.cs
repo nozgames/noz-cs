@@ -532,17 +532,6 @@ public static partial class ElementTree
         using var _oc = Graphics.PushState();
         Graphics.SetOverlayColor(d.OverlayColor);
 
-        if (asset is Sprite slicedCheck && slicedCheck.IsSliced)
-        {
-            using var _ = Graphics.PushState();
-            Graphics.SetShader(_spriteShader);
-            Graphics.SetColor(ApplyOpacity(d.Color));
-            Graphics.SetTextureFilter(TextureFilter.Linear);
-            Graphics.SetTransform(t);
-            Graphics.DrawSliced(slicedCheck, e.Rect);
-            return;
-        }
-
         var srcSize = new Vector2(d.Width, d.Height);
         var dstSize = new Vector2(
             d.Size.Width.IsFixed ? d.Size.Width.Value : (d.Size.Width.IsPercent ? e.Rect.Width * d.Size.Width.Value : e.Rect.Width),
@@ -551,6 +540,17 @@ public static partial class ElementTree
         var scaledSize = scale * srcSize;
         var alignFactor = new Vector2(d.Align.X.ToFactor(), d.Align.Y.ToFactor());
         var offset = e.Rect.Position + (e.Rect.Size - scaledSize) * alignFactor;
+
+        if (asset is Sprite slicedCheck && slicedCheck.IsSliced)
+        {
+            using var _ = Graphics.PushState();
+            Graphics.SetShader(_spriteShader);
+            Graphics.SetColor(ApplyOpacity(d.Color));
+            Graphics.SetTextureFilter(TextureFilter.Linear);
+            Graphics.SetTransform(t);
+            Graphics.DrawSliced(slicedCheck, new Rect(offset.X, offset.Y, dstSize.X, dstSize.Y));
+            return;
+        }
 
         if (d.Stretch == ImageStretch.UniformToFill)
         {
