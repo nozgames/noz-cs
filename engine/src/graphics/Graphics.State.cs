@@ -209,10 +209,10 @@ public static unsafe partial class Graphics
 
     public const ushort MaxLayer = 0xFFF;
 
-    public static void SetLayer(ushort layer)
+    public static void SetLayer(int layer)
     {
         Debug.Assert((layer & MaxLayer) == layer);
-        CurrentState.SortLayer = layer;
+        CurrentState.SortLayer = (ushort)layer;
     }
 
     public static void SetTextureFilter(TextureFilter filter, int slot = 0)
