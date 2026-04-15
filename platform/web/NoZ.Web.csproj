@@ -8,6 +8,8 @@
     <RootNamespace>NoZ.Platform.Web</RootNamespace>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
     <StaticWebAssetBasePath>/</StaticWebAssetBasePath>
+    <RazorLangVersion>Latest</RazorLangVersion>
+    <GenerateMSBuildEditorConfigFile>true</GenerateMSBuildEditorConfigFile>
   </PropertyGroup>
 
   <!-- Exclude standalone app files (these are for testing, not part of the library) -->

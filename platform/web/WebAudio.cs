@@ -5,7 +5,7 @@
 using Microsoft.JSInterop;
 using NoZ.Platform;
 
-namespace noz;
+namespace NoZ;
 
 public class WebAudio : IAudioDriver
 {
