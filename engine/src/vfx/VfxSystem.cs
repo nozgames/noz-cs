@@ -282,9 +282,9 @@ public static class VfxSystem
         SimulateParticles();
     }
 
-    public static void Render() => RenderInternal();
+    public static void Draw() => DrawInternal();
 
-    private static void RenderInternal()
+    private static void DrawInternal()
     {
         if (_particleCount == 0)
             return;
