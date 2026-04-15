@@ -17,6 +17,19 @@ public static unsafe partial class ElementTree
         public Rect Rect;
         public Matrix3x2 Transform;
         public WidgetFlags Flags;
+        public Tween Tween;
+    }
+
+    private static Tween _dummyTween;
+
+    public static ref Tween GetTween(WidgetId id)
+    {
+        if (_widgets.ContainsKey(id))
+            return ref _widgets[id].Ptr->Tween;
+        if (_widgetsPrev.ContainsKey(id))
+            return ref _widgetsPrev[id].Ptr->Tween;
+        _dummyTween = default;
+        return ref _dummyTween;
     }
 
     internal static bool HasCurrentWidget => _currentWidget != 0;
