@@ -441,7 +441,7 @@ public static partial class Workspace
         if (State == WorkspaceState.Edit && ActiveEditor != null)
             ActiveEditor.Update();
 
-        VfxSystem.Render();
+        VfxSystem.Draw();
 
         PostProcess.Bloom(threshold: 1.05f, intensity: 0.5f);
     }
