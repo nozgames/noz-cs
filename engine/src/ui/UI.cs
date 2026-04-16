@@ -29,7 +29,7 @@ public static partial class UI
     public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
     public struct AutoOpacity : IDisposable { readonly void IDisposable.Dispose() => EndOpacity(); }
     public struct AutoCursor : IDisposable { readonly void IDisposable.Dispose() => EndCursor(); }
-    public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) _disabledDepth--; } }
+    public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) EndEnabled(); } }
     public struct AutoWidget : IDisposable { public readonly void Dispose() => EndWidget(); }
 
     private static Font? _defaultFont;
@@ -163,6 +163,8 @@ public static partial class UI
         if (!enabled) _disabledDepth++;
         return auto;
     }
+
+    public static void EndEnabled() => _disabledDepth--;
 
     public static bool IsDisabled() => _disabledDepth > 0;
 

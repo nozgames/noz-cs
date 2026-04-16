@@ -198,8 +198,8 @@ public static unsafe partial class ElementTree
         if (hasPrev)
             NativeMemory.Copy(_widgetsPrev[id].Ptr, state.Ptr, (nuint)stateSize);
 
-        // Changed is set fresh each frame by controls
-        state.Ptr->Flags &= ~WidgetFlags.Changed;
+        // Cleared fresh each frame; reapplied below from current scope state
+        state.Ptr->Flags &= ~(WidgetFlags.Changed | WidgetFlags.Disabled);
 
         ref var e = ref BeginElement(ElementType.Widget);
         e.Data = default;
