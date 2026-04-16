@@ -30,6 +30,7 @@ public static partial class UI
     public struct AutoOpacity : IDisposable { readonly void IDisposable.Dispose() => EndOpacity(); }
     public struct AutoCursor : IDisposable { readonly void IDisposable.Dispose() => EndCursor(); }
     public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) _disabledDepth--; } }
+    public struct AutoWidget : IDisposable { public readonly void Dispose() => EndWidget(); }
 
     private static Font? _defaultFont;
     public static Font DefaultFont => _defaultFont!;

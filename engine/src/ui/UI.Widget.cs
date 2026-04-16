@@ -24,4 +24,15 @@ public static partial class UI
         else if (WasChangeEnded())
             handler.EndChange();
     }
+
+    public static AutoWidget BeginWidget(WidgetId id, WidgetFlags flags = WidgetFlags.None)
+    {
+        ElementTree.BeginWidget(id);
+        return new AutoWidget();
+    }
+
+    public static void EndWidget()
+    {
+        ElementTree.EndWidget();
+    }
 }
