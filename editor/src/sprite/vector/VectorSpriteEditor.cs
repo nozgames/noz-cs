@@ -692,46 +692,35 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (_selectedPaths.Count == 0) return;
 
         Undo.Record(Document);
+
+        var min = new Vector2(float.MaxValue);
+        var max = new Vector2(float.MinValue);
+        foreach (var path in _selectedPaths)
+        {
+            var b = path.Bounds;
+            min = Vector2.Min(min, b.Min);
+            max = Vector2.Max(max, b.Max);
+        }
+        var sharedCenter = (min + max) * 0.5f;
+
         foreach (var path in _selectedPaths)
         {
             var oldCenter = path.LocalBounds.Center;
+            var oldTransform = path.PathTransform;
+            Matrix3x2.Invert(oldTransform, out var inverse);
 
-            if (path.HasTransform && Matrix3x2.Invert(path.PathTransform, out var inverse))
+            foreach (var contour in path.Contours)
             {
-                // Flip in world space so the result matches what the user sees
-                var oldTransform = path.PathTransform;
-                var worldCenter = path.Bounds.Center;
-
-                foreach (var contour in path.Contours)
+                for (var i = 0; i < contour.Anchors.Count; i++)
                 {
-                    for (var i = 0; i < contour.Anchors.Count; i++)
-                    {
-                        var a = contour.Anchors[i];
-                        var world = Vector2.Transform(a.Position, oldTransform);
-                        world = horizontal
-                            ? new Vector2(2 * worldCenter.X - world.X, world.Y)
-                            : new Vector2(world.X, 2 * worldCenter.Y - world.Y);
-                        a.Position = Vector2.Transform(world, inverse);
-                        a.Curve = -a.Curve;
-                        contour.Anchors[i] = a;
-                    }
-                }
-            }
-            else
-            {
-                // No transform: flip in local space (local = world)
-                var center = path.LocalBounds.Center;
-                foreach (var contour in path.Contours)
-                {
-                    for (var i = 0; i < contour.Anchors.Count; i++)
-                    {
-                        var a = contour.Anchors[i];
-                        a.Position = horizontal
-                            ? new Vector2(2 * center.X - a.Position.X, a.Position.Y)
-                            : new Vector2(a.Position.X, 2 * center.Y - a.Position.Y);
-                        a.Curve = -a.Curve;
-                        contour.Anchors[i] = a;
-                    }
+                    var a = contour.Anchors[i];
+                    var world = Vector2.Transform(a.Position, oldTransform);
+                    world = horizontal
+                        ? new Vector2(2 * sharedCenter.X - world.X, world.Y)
+                        : new Vector2(world.X, 2 * sharedCenter.Y - world.Y);
+                    a.Position = Vector2.Transform(world, inverse);
+                    a.Curve = -a.Curve;
+                    contour.Anchors[i] = a;
                 }
             }
 
@@ -740,6 +729,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             path.UpdateBounds();
             path.CompensateTranslation(oldCenter);
         }
+
         MarkDirty();
     }
 

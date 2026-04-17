@@ -26,7 +26,7 @@ public static partial class UI
     public struct AutoFlex : IDisposable { readonly void IDisposable.Dispose() => EndFlex(); }
     public struct AutoPopup : IDisposable { readonly void IDisposable.Dispose() => EndPopup(); }
     public struct AutoCollection : IDisposable { readonly void IDisposable.Dispose() => EndCollection(); }
-    public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
+    public struct AutoTransform : IDisposable { readonly void IDisposable.Dispose() => EndTransform(); }
     public struct AutoOpacity : IDisposable { readonly void IDisposable.Dispose() => EndOpacity(); }
     public struct AutoCursor : IDisposable { readonly void IDisposable.Dispose() => EndCursor(); }
     public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) EndEnabled(); } }
@@ -348,13 +348,13 @@ public static partial class UI
             Container(new ContainerStyle { Width = Size.Percent(1), Height = thickness, Background = color });
     }
 
-    public static AutoTransformed BeginTransformed(TransformStyle style)
+    public static AutoTransform BeginTransform(TransformStyle style)
     {
         ElementTree.BeginTransform(style.Origin, style.Translate, style.Rotate, style.Scale);
-        return new AutoTransformed();
+        return new AutoTransform();
     }
 
-    public static void EndTransformed() => ElementTree.EndTransform();
+    public static void EndTransform() => ElementTree.EndTransform();
 
     public static AutoOpacity BeginOpacity(float opacity)
     {
