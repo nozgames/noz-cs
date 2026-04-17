@@ -138,6 +138,11 @@ public partial class VectorSpriteEditor
         HasPathSelection = _selectedPaths.Count > 0;
         UpdateSelectionBounds();
         OnSelectionChanged(HasPathSelection);
+
+        foreach (var layer in _selectedLayers)
+            layer.ExpandAncestors();
+        foreach (var path in _selectedPaths)
+            path.ExpandAncestors();
     }
 
     private void UpdateSelectionBounds()
