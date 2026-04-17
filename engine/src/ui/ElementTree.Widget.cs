@@ -70,18 +70,21 @@ public static unsafe partial class ElementTree
     public static bool IsHot() => _hotId == _currentWidget;
     public static bool IsHot(WidgetId id) => _hotId == id;
 
+    public static WidgetFlags GetPrevWidgetFlags() =>
+        GetPrevWidgetFlags(_currentWidget);
+
     public static WidgetFlags GetPrevWidgetFlags(WidgetId id) =>
-        _widgetsPrev.ContainsKey(id)
+         id > 0 && _widgetsPrev.ContainsKey(id)
             ? Unsafe.AsRef<WidgetState>(_widgetsPrev[id].Ptr).Flags
             : WidgetFlags.None;
 
-    internal static void SetWidgetFlag(WidgetId id, WidgetFlags flag)
+    public static void SetWidgetFlag(WidgetId id, WidgetFlags flag)
     {
         if (IsValidWidgetId(id))
             GetWidgetState(id).Flags |= flag;
     }
 
-    internal static void SetWidgetFlag(WidgetId id, WidgetFlags flag, bool value)
+    public static void SetWidgetFlag(WidgetId id, WidgetFlags flag, bool value)
     {
         if (value) SetWidgetFlag(id, flag);
         else ClearWidgetFlag(id, flag);

@@ -18,6 +18,8 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId FillColorButton { get; }
         public static partial WidgetId StrokeColor { get; }
         public static partial WidgetId StrokeWidth { get; }
+        public static partial WidgetId OutlineColor { get; }
+        public static partial WidgetId OutlineSize { get; }
         public static partial WidgetId StrokeJoinRound { get; }
         public static partial WidgetId StrokeJoinMiter { get; }
         public static partial WidgetId StrokeJoinBevel { get; }
@@ -469,6 +471,15 @@ public partial class VectorSpriteEditor : SpriteEditor
         ], Strings.Number(Document.CurrentStrokeWidth), EditorAssets.Sprites.IconStrokeSize);
     }
 
+    private void OutlineSizeButtonUI()
+    {
+        UI.DropDown(WidgetIds.OutlineSize, () => [
+            ..Enumerable.Range(1, 8).Select(i =>
+                new PopupMenuItem { Label = Strings.Number(i), Handler = () => SetOutlineSize((byte)i) }
+            )
+        ], Strings.Number(Document.OutlineSize == 0 ? (byte)1 : Document.OutlineSize), EditorAssets.Sprites.IconStrokeSize);
+    }
+
 
     public void SetCurrentTimeSlot(int timeSlot)
     {
@@ -593,6 +604,23 @@ public partial class VectorSpriteEditor : SpriteEditor
             path.StrokeJoin = join;
 
         InvalidateMesh();
+    }
+
+    private void SetOutlineColor(Color32 color)
+    {
+        Document.OutlineColor = color;
+        if (Document.OutlineSize == 0 && color.A > 0)
+            Document.OutlineSize = 1;
+        InvalidateMesh();
+        Document.MarkSpriteDirty();
+    }
+
+    private void SetOutlineSize(byte size)
+    {
+        Undo.Record(Document);
+        Document.OutlineSize = size;
+        InvalidateMesh();
+        Document.MarkSpriteDirty();
     }
 
     private void CycleSpritePathOperation()
@@ -1278,9 +1306,32 @@ public partial class VectorSpriteEditor : SpriteEditor
         }
     }
 
+    private void OutlineInspectorUI()
+    {
+        using (Inspector.BeginSection("OUTLINE"))
+        {
+            if (Inspector.IsSectionCollapsed)
+                return;
+
+            using (Inspector.BeginProperty("Color"))
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
+            {
+                var newColor = EditorUI.ColorButton(WidgetIds.OutlineColor, Document.OutlineColor.ToColor());
+
+                if (UI.WasChangeStarted()) Undo.Record(Document);
+                if (UI.WasChanged()) SetOutlineColor(newColor.ToColor32());
+                if (UI.WasChangeCancelled()) Undo.Cancel();
+
+                if (newColor.A > 0)
+                    OutlineSizeButtonUI();
+            }
+        }
+    }
+
     public override void InspectorUI()
     {
         EdgesInspectorUI();
+        OutlineInspectorUI();
         PathInspectorUI();
     }
 
@@ -1328,7 +1379,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         var dpi = Document.PixelsPerUnit;
         var targetRect = new RectInt(Vector2Int.Zero, size);
         var sourceOffset = -Document.RasterBounds.Position;
-        VectorSpriteDocument.RasterizeLayer(Document.Root, pixels, targetRect, sourceOffset, dpi);
+        VectorSpriteDocument.RasterizeLayer(Document.Root, pixels, targetRect, sourceOffset, dpi, clipRect: null, outlineSource: Document);
 
         return pixels[px, py];
     }

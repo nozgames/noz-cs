@@ -40,7 +40,7 @@ public static partial class UI
     {
         ElementTree.BeginTree();
 
-        var flags = id != 0 ? ElementTree.GetPrevWidgetFlags(id) : WidgetFlags.None;
+        var flags = id != 0 ? ElementTree.GetPrevWidgetFlags(id) : ElementTree.GetWidgetFlags();
         var resolved = style.Resolve != null ? style.Resolve(style, flags) : style;
 
         if (!style.Margin.IsZero)

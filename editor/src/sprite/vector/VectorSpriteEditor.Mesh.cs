@@ -158,6 +158,8 @@ public partial class VectorSpriteEditor
     {
         _tessellateResults.Clear();
         SpriteGroupProcessor.ProcessLayer(layer, _tessellateResults);
+        if (Document.TryBuildOutlineResult(_tessellateResults, out var outline))
+            _tessellateResults.Insert(0, outline);
         foreach (var result in _tessellateResults)
             TessellateClipper(result.Contours, ref vertexOffset, ref indexOffset, result.Color.ToColor());
     }
