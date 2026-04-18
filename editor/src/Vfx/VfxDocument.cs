@@ -743,6 +743,7 @@ public class VfxDocument : Document
             else if (tk.ExpectIdentifier("drag")) { if (tk.ExpectLine(out var v)) p.Drag = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("rotation")) { if (tk.ExpectLine(out var v)) p.Rotation = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("rotationSpeed")) { if (tk.ExpectLine(out var v)) p.RotationSpeed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
+            else if (tk.ExpectIdentifier("alignToDirection")) { p.AlignToDirection = tk.ExpectBool(); }
             else if (tk.ExpectIdentifier("sprite")) { particle.SpriteRef = new DocumentRef<SpriteDocument> { Name = tk.ExpectQuotedString() ?? "" }; }
             else if (tk.ExpectIdentifier("sort")) { particle.Def.Sort = (ushort)tk.ExpectInt(); }
             else { tk.ExpectToken(out _); break; }
@@ -821,6 +822,8 @@ public class VfxDocument : Document
                 sw.WriteLine($"  rotation {FormatRange(p.Def.Rotation)}");
             if (p.Def.RotationSpeed != VfxFloatCurve.Zero)
                 sw.WriteLine($"  rotationSpeed {FormatFloatCurve(p.Def.RotationSpeed)}");
+            if (p.Def.AlignToDirection)
+                sw.WriteLine($"  alignToDirection true");
             sw.WriteLine($"  sprite \"{p.SpriteRef.Name}\"");
             if (p.Def.Sort != 0)
                 sw.WriteLine($"  sort {p.Def.Sort}");
@@ -907,6 +910,7 @@ public class VfxDocument : Document
             writer.Write(p.Rotation.Min);
             writer.Write(p.Rotation.Max);
             WriteFloatCurve(writer, p.RotationSpeed);
+            writer.Write(p.AlignToDirection);
 
             var particle = FindParticle(Emitters[i].ParticleRef);
             var spriteName = particle?.SpriteRef.Name ?? "";

@@ -47,6 +47,7 @@ public static class VfxSystem
         public float Drag;
         public ushort EmitterIndex;
         public bool WorldSpace;
+        public bool AlignToDirection;
     }
 
     private struct Emitter
@@ -317,9 +318,13 @@ public static class VfxSystem
                 var opacity = MathEx.Mix(p.OpacityStart, p.OpacityEnd, EvaluateCurve(p.OpacityCurve, t, pdef.Opacity.Bezier));
                 var col = Color.Mix(p.ColorStart, p.ColorEnd, EvaluateCurve(p.ColorCurve, t, pdef.Color.Bezier));
 
+                var drawRotation = p.Rotation;
+                if (p.AlignToDirection && p.Velocity.LengthSquared() > 0.0001f)
+                    drawRotation += MathF.Atan2(p.Velocity.Y, p.Velocity.X);
+
                 var particleTransform =
                     Matrix3x2.CreateScale(size) *
-                    Matrix3x2.CreateRotation(p.Rotation) *
+                    Matrix3x2.CreateRotation(drawRotation) *
                     Matrix3x2.CreateTranslation(p.Position);
 
                 if (!p.WorldSpace)
@@ -469,13 +474,17 @@ public static class VfxSystem
             }
         }
 
-        dir = Vector2.TransformNormal(dir, inst.Transform);
-
         ref var p = ref _particles[particleIndex];
         p.WorldSpace = def.WorldSpace;
-        p.Position = def.WorldSpace
-            ? Vector2.Transform(spawnOffset, inst.Transform)
-            : Vector2.TransformNormal(spawnOffset, inst.Transform);
+        if (def.WorldSpace)
+        {
+            dir = Vector2.TransformNormal(dir, inst.Transform);
+            p.Position = Vector2.Transform(spawnOffset, inst.Transform);
+        }
+        else
+        {
+            p.Position = spawnOffset;
+        }
 
         p.SizeStart = GetRandom(pdef.Size.Start);
         p.SizeEnd = GetRandom(pdef.Size.End);
@@ -505,6 +514,7 @@ public static class VfxSystem
         p.RotationSpeedStart = MathEx.Radians(GetRandom(pdef.RotationSpeed.Start));
         p.RotationSpeedEnd = MathEx.Radians(GetRandom(pdef.RotationSpeed.End));
         p.RotationSpeedCurve = pdef.RotationSpeed.Type;
+        p.AlignToDirection = pdef.AlignToDirection;
 
         p.EmitterIndex = (ushort)emitterIndex;
 
