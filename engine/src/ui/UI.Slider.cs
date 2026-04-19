@@ -21,7 +21,7 @@ public struct SliderStyle()
 
 public static partial class UI
 {
-    public static bool Slider(WidgetId id, ref float value, in SliderStyle style, float min = 0f, float max = 1f)
+    public static float Slider(WidgetId id, float value, in SliderStyle style, float min = 0f, float max = 1f)
     {
         var t = max > min ? MathEx.Clamp01((value - min) / (max - min)) : 0f;
         var rect = GetElementRect(id);
@@ -36,9 +36,11 @@ public static partial class UI
         ref var trackState = ref ElementTree.BeginWidget<TrackState>(id);
         ElementTree.BeginTrack(ref trackState, id, s.ThumbSize);
 
+        if (!ElementTree.HasCaptureById(id))
+            trackState.X = t;
+
         ElementTree.BeginSize(Size.Percent(1), new Size(s.Height));
 
-        // Track background
         ElementTree.BeginAlign(new Align2(Align.Min, Align.Center));
         ElementTree.BeginSize(Size.Percent(1), new Size(s.TrackHeight));
         ElementTree.BeginFill(s.TrackColor, trackRadius);
@@ -81,16 +83,12 @@ public static partial class UI
 
         newValue = Math.Clamp(newValue, min, max);
 
-        var changed = newValue != value;
-        if (changed)
-        {
-            value = newValue;
+        if (newValue != value)
             NotifyChanged(newValue);
-        }
 
-        return changed;
+        return newValue;
     }
 
-    public static bool Slider(WidgetId id, ref float value, float min = 0f, float max = 1f) =>
-        Slider(id, ref value, SliderStyle.Default, min, max);
+    public static float Slider(WidgetId id, float value, float min = 0f, float max = 1f) =>
+        Slider(id, value, SliderStyle.Default, min, max);
 }
