@@ -141,8 +141,8 @@ public unsafe partial class SDLPlatform : IPlatform
         if (joysticks != null && count > 0)
             _gamepad = SDL_OpenGamepad(joysticks[0]);
         SDL_free(joysticks);
-        if (!OperatingSystem.IsIOS())
-            SDL_StartTextInput(_window);
+        // Text input is started on demand in ShowTextbox; leaving it always on under
+        // Steam/Gamescope causes the on-screen keyboard to appear at launch.
 
         _beforeQuit = config.BeforeQuit;
     }
@@ -176,7 +176,8 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public void Shutdown()
     {
-        SDL_StopTextInput(_window);
+        if (_window != null)
+            SDL_StopTextInput(_window);
 
         if (_gamepad != null)
         {
@@ -719,9 +720,32 @@ public unsafe partial class SDLPlatform : IPlatform
             if (OperatingSystem.IsMacOS())
                 return (nint)SDL_GetPointerProperty(props, "SDL.window.cocoa.metal_view_layer"u8, nint.Zero);
 
+            if (OperatingSystem.IsLinux())
+            {
+                if (IsWayland)
+                    return (nint)SDL_GetPointerProperty(props, "SDL.window.wayland.surface"u8, nint.Zero);
+                return (nint)SDL_GetNumberProperty(props, "SDL.window.x11.window"u8, 0);
+            }
+
             return nint.Zero;
         }
     }
+
+    public nint DisplayHandle
+    {
+        get
+        {
+            if (_window == null || !OperatingSystem.IsLinux())
+                return nint.Zero;
+
+            var props = SDL_GetWindowProperties(_window);
+            var key = IsWayland ? "SDL.window.wayland.display"u8 : "SDL.window.x11.display"u8;
+            return (nint)SDL_GetPointerProperty(props, key, nint.Zero);
+        }
+    }
+
+    public bool IsWayland =>
+        OperatingSystem.IsLinux() && SDL_GetCurrentVideoDriver() == "wayland";
 
     public nint GetGraphicsProcAddress(string name)
     {

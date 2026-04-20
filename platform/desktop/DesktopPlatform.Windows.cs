@@ -8,31 +8,25 @@ namespace NoZ.Platform;
 
 public unsafe partial class SDLPlatform
 {
-    private bool _iosTextInputActive;
+    private bool _textInputActive;
 
-    public bool IsTextboxVisible => _iosTextInputActive;
+    public bool IsTextboxVisible => _textInputActive;
 
     public void ShowTextbox(Rect rect, string text, NativeTextboxStyle style)
     {
-        if (OperatingSystem.IsIOS())
+        if (_window != null && !_textInputActive)
         {
-            if (_window != null && !_iosTextInputActive)
-            {
-                SDL_StartTextInput(_window);
-                _iosTextInputActive = true;
-            }
+            SDL_StartTextInput(_window);
+            _textInputActive = true;
         }
     }
 
     public void HideTextbox()
     {
-        if (OperatingSystem.IsIOS())
+        if (_window != null && _textInputActive)
         {
-            if (_window != null && _iosTextInputActive)
-            {
-                SDL_StopTextInput(_window);
-                _iosTextInputActive = false;
-            }
+            SDL_StopTextInput(_window);
+            _textInputActive = false;
         }
     }
 
