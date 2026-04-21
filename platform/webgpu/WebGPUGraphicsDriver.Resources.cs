@@ -190,6 +190,13 @@ public unsafe partial class WebGPUGraphicsDriver
         };
     }
 
+    private int AllocTextureHandle()
+    {
+        for (int i = 2; i < _nextTextureId; i++)
+            if (_textures[i].Texture == null) return i;
+        return _nextTextureId++;
+    }
+
     public nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data, TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear, string? name = null)
     {
         var wgpuFormat = MapTextureFormat(format);
@@ -274,7 +281,7 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var sampler = _wgpu.DeviceCreateSampler(_device, &samplerDesc);
 
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         _textures[(int)handle] = new TextureInfo
         {
             Texture = texture,
@@ -460,7 +467,7 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var sampler = _wgpu.DeviceCreateSampler(_device, &samplerDesc);
 
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         _textures[(int)handle] = new TextureInfo
         {
             Texture = texture,
@@ -561,7 +568,7 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var sampler = _wgpu.DeviceCreateSampler(_device, &samplerDesc);
 
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         _textures[(int)handle] = new TextureInfo
         {
             Texture = texture,
@@ -699,7 +706,7 @@ public unsafe partial class WebGPUGraphicsDriver
         }
 
         // Allocate from shared texture handle space so RT can be used with BindTexture
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         var rtSlot = _freeRtSlotCount > 0 ? _freeRtSlots[--_freeRtSlotCount] : _nextRenderTextureSlot++;
 
         _renderTextures[rtSlot] = new RenderTextureInfo

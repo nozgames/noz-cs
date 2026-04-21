@@ -1109,6 +1109,8 @@ public static class EditorStyle
         public const float SVSize = Width - 4;
         public const float SliderWidth = Width - Padding * 2;
         public const float SliderHeight = 13;
+        public const int SwatchColumns = 8;
+        public const float SwatchCellSize = SliderWidth / SwatchColumns;
 
         public readonly static ContainerStyle Root = Popup.Root with
         {

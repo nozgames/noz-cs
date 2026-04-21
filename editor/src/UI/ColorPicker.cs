@@ -17,8 +17,6 @@ internal static partial class ColorPicker
     private const float SliderHeight = EditorStyle.ColorPicker.SliderHeight;
     private const float ThumbSize = SliderHeight - 2;
     private const float ThumbRadius = ThumbSize / 2;
-    private const float SwatchCellSize = 28;
-    private const int SwatchColumns = (int)(EditorStyle.ColorPicker.SliderWidth / SwatchCellSize);
 
     private static partial class ElementId
     {
@@ -488,14 +486,14 @@ internal static partial class ColorPicker
     {
         var container = UI.BeginContainer(id, new ContainerStyle
         {
-            Padding = EdgeInsets.All(3),
-            Background = selected ? EditorStyle.Palette.Primary : Color.Transparent,
-            BorderRadius = EditorStyle.Control.BorderRadius
+            Padding = EdgeInsets.All(1),
         });
 
-        if (!selected && UI.IsHovered())
-            UI.Container(EditorStyle.Control.HoverFill with
+        if (selected || UI.IsHovered())
+            UI.Container(new ContainerStyle()
             {
+                Background = EditorStyle.Palette.Primary,
+                BorderRadius = EditorStyle.Control.BorderRadius,
                 Margin = EdgeInsets.All(-3)
             });
 
@@ -536,9 +534,9 @@ internal static partial class ColorPicker
 
         var swatchLayout = new CollectionLayout
         {
-            ItemHeight = SwatchCellSize,
-            ItemWidth = SwatchCellSize,
-            Columns = SwatchColumns
+            ItemHeight = EditorStyle.ColorPicker.SwatchCellSize,
+            ItemWidth = EditorStyle.ColorPicker.SwatchCellSize,
+            Columns = EditorStyle.ColorPicker.SwatchColumns
         };
         using var grid = UI.BeginCollection(ElementId.SwatchGrid, swatchLayout, selectedPalette.Count, out var swatchStart, out var swatchEnd);
 
