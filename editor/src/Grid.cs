@@ -29,10 +29,11 @@ public static class Grid
         IsPixelGridVisible = pixelGridAlpha > float.Epsilon;
         SnapSpacing = IsPixelGridVisible ? pixelSize : world.FineSpacing * 0.25f;
 
-        using (Gizmos.PushState(EditorLayer.Grid))
+        using (Gizmos.PushState(EditorLayer.PixelGrid))
         {
             Graphics.SetTexture(Graphics.WhiteTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
+            Graphics.SetSortGroup(1);
 
             DrawZeroLines(camera, EditorStyle.Palette.Active.WithAlpha(EditorStyle.Workspace.GridZeroAlpha));
 

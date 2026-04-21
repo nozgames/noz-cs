@@ -38,6 +38,12 @@ public partial class VectorSpriteDocument : SpriteDocument
         Matrix3x2.Invert(Transform, out var inv);
         var local = Vector2.Transform(worldPos, inv);
 
+        if (ShowTiling && Bounds.Width > 0 && Bounds.Height > 0)
+        {
+            local.X = Bounds.X + FloorMod(local.X - Bounds.X, Bounds.Width);
+            local.Y = Bounds.Y + FloorMod(local.Y - Bounds.Y, Bounds.Height);
+        }
+
         var px = (int)((local.X - Bounds.X) / Bounds.Width * size.X);
         var py = (int)((local.Y - Bounds.Y) / Bounds.Height * size.Y);
 
@@ -51,6 +57,8 @@ public partial class VectorSpriteDocument : SpriteDocument
 
         return pixels[px, py];
     }
+
+    private static float FloorMod(float a, float b) => ((a % b) + b) % b;
 
     protected override void UpdateContentBounds()
     {

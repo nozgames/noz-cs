@@ -152,6 +152,8 @@ public partial class VectorSpriteEditor
             foreach (var path in _selectedPaths)
                 path.ExpandAncestors();
         }
+
+        InvalidateMesh();
     }
 
     private void UpdateSelectionBounds()

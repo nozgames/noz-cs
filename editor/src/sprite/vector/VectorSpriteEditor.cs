@@ -246,6 +246,8 @@ public partial class VectorSpriteEditor : SpriteEditor
         UpdateHandleCursor();
         UpdateAnimation();
 
+        Mode?.Update();
+
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
@@ -275,11 +277,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         Document.DrawBounds();
 
         Mode?.Draw();
-    }
-
-    public override void LateUpdate()
-    {
-        Mode?.Update();
     }
 
     public override void UpdateUI() { }

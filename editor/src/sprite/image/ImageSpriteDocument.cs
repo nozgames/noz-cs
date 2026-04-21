@@ -45,6 +45,8 @@ public class ImageSpriteDocument : SpriteDocument
 
     public override void Reload()
     {
+        _texture?.Dispose();
+        _texture = null;
         LoadImageSize();
         UpdateBounds();
     }

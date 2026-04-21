@@ -55,7 +55,7 @@ public class Sprite : Asset, IImage
         FrameCount = frames.Length;
     }
 
-    internal static Sprite Create(
+    public static Sprite Create(
         string name,
         RectInt bounds,
         float pixelsPerUnit,
