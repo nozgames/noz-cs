@@ -26,6 +26,7 @@ public partial class VectorSpriteEditor
 
     internal readonly List<SpritePath> _selectedPaths = new();
     private readonly List<SpriteGroup> _selectedLayers = new();
+    internal SpriteNode? _pivotNode;
     internal float SelectionRotation => _selectionRotation;
     private float _selectionRotation;
     private Rect _selectionLocalBounds;
@@ -114,10 +115,11 @@ public partial class VectorSpriteEditor
     {
         Document.Root.ClearSelection();
         Document.Root.ClearSelection();
+        _pivotNode = null;
         RebuildSelectedPaths();
     }
 
-    internal void RebuildSelectedPaths()
+    internal void RebuildSelectedPaths(bool expandAncestors = true)
     {
         _selectedPaths.Clear();
         _selectedLayers.Clear();
@@ -136,13 +138,20 @@ public partial class VectorSpriteEditor
         }
 
         HasPathSelection = _selectedPaths.Count > 0;
+
+        if (_pivotNode != null && !_pivotNode.IsSelected)
+            _pivotNode = null;
+
         UpdateSelectionBounds();
         OnSelectionChanged(HasPathSelection);
 
-        foreach (var layer in _selectedLayers)
-            layer.ExpandAncestors();
-        foreach (var path in _selectedPaths)
-            path.ExpandAncestors();
+        if (expandAncestors)
+        {
+            foreach (var layer in _selectedLayers)
+                layer.ExpandAncestors();
+            foreach (var path in _selectedPaths)
+                path.ExpandAncestors();
+        }
     }
 
     private void UpdateSelectionBounds()

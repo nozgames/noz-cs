@@ -159,8 +159,8 @@ public abstract partial class SpriteEditor
         var isActive = IsNodeActive(node);
         var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
         var bg = isSelected || isHovered ? EditorStyle.Palette.Active : Color.Transparent;
-        var borderW = isSelected || isActive ? 1f : 0f;
-        var borderC = isSelected || isActive ? EditorStyle.Palette.Active : Color.Transparent;
+        var borderW = isActive ? 1f : 0f;
+        var borderC = isActive ? EditorStyle.Palette.Active : Color.Transparent;
 
         if (dropLastChild)
             ElementTree.BeginFill(bg, borderWidth: 1, borderColor: EditorStyle.Palette.Primary);

@@ -30,6 +30,11 @@ public static partial class UI
             state.TextHash = state.PrevTextHash;
             state.SelectionStart = 0;
             state.CursorIndex = value.Length;
+
+            Application.Platform.ShowTextbox(
+                GetElementWorldRect(id),
+                value,
+                new Platform.NativeTextboxStyle { FontSize = (int)style.FontSize });
         }
 
         // Use _prevHotId to resolve style — SetHot happens after defocus check below

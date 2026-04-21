@@ -141,8 +141,10 @@ public unsafe partial class SDLPlatform : IPlatform
         if (joysticks != null && count > 0)
             _gamepad = SDL_OpenGamepad(joysticks[0]);
         SDL_free(joysticks);
-        // Text input is started on demand in ShowTextbox; leaving it always on under
-        // Steam/Gamescope causes the on-screen keyboard to appear at launch.
+        // On Linux (Steam/Gamescope) an always-on text input pops the on-screen
+        // keyboard at launch, so there it is started on demand in ShowTextbox.
+        if (!OperatingSystem.IsIOS() && !OperatingSystem.IsLinux())
+            SDL_StartTextInput(_window);
 
         _beforeQuit = config.BeforeQuit;
     }
