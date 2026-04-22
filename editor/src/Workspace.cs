@@ -22,6 +22,7 @@ public static partial class Workspace
         public static partial WidgetId CollectionButton { get; }
         public static partial WidgetId ContextMenu { get; }
         public static partial WidgetId Scene { get; }
+        public static partial WidgetId SceneViewport { get; }
         public static partial WidgetId ReferencesButton { get; }
         public static partial WidgetId SyncButton { get; }
         public static partial WidgetId InspectorSplitter { get; }
@@ -699,7 +700,11 @@ public static partial class Workspace
                 {
                     // content (center, flexible)
                     using (UI.BeginFlex())
+                    {
+                        ElementTree.BeginWidget(WidgetIds.SceneViewport, interactive: false);
                         ActiveEditor?.UpdateUI();
+                        ElementTree.EndWidget();
+                    }
 
                     // inspector (right, fixed width)
                     UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
@@ -1114,15 +1119,25 @@ public static partial class Workspace
         if (size.Y < ZoomMin) size.Y = ZoomMin;
 
         var screenSize = Application.WindowSize;
+        var viewportUI = UI.GetElementWorldRect(WidgetIds.SceneViewport);
+        Rect viewport;
+        if (viewportUI.Width > 0 && viewportUI.Height > 0 && UI.Camera != null)
+            viewport = UI.Camera.WorldToScreen(viewportUI);
+        else
+            viewport = new Rect(0, 0, screenSize.X, screenSize.Y);
+
         var baseScale = _dpi * _uiScale * _userUIScale;
 
-        // Calculate zoom needed to fit width and height, use the smaller one
-        // effectiveDpi = baseScale * zoom, so zoom = screenSize / (size * baseScale)
-        var zoomForWidth = screenSize.X / (size.X * baseScale);
-        var zoomForHeight = screenSize.Y / (size.Y * baseScale);
+        // Fit zoom to the visible viewport, not the full window — panels overlay the scene.
+        var zoomForWidth = viewport.Width / (size.X * baseScale);
+        var zoomForHeight = viewport.Height / (size.Y * baseScale);
         _zoom = Math.Clamp(MathF.Min(zoomForWidth, zoomForHeight), ZoomMin, ZoomMax);
 
         _camera.Position = center;
+        UpdateCamera();
+
+        // Shift the camera so `center` projects to the viewport center instead of the window center.
+        _camera.Position += center - _camera.ScreenToWorld(viewport.Center);
         UpdateCamera();
     }
 

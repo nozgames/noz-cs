@@ -12,6 +12,7 @@ public partial class PixelSpriteEditor : SpriteEditor
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId PencilButton { get; }
+        public static partial WidgetId BrushButton { get; }
         public static partial WidgetId EraserButton { get; }
         public static partial WidgetId ColorButton { get; }
         public static partial WidgetId EyeDropperButton { get; }
@@ -28,6 +29,7 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     public Color32 BrushColor { get; set; } = Color32.Black;
     public int BrushSize { get; set; } = 1;
+    public float BrushHardness { get; set; } = 1f;
     public bool AlphaLock { get; set; }
 
     private PixelLayer? _activeLayer;
@@ -110,7 +112,8 @@ public partial class PixelSpriteEditor : SpriteEditor
         Commands =
         [
             new Command("Exit Edit Mode", Workspace.EndEdit, [InputCode.KeyTab]),
-            new Command("Pencil", () => SetMode(new PencilMode()), [new KeyBinding(InputCode.KeyB)]),
+            new Command("Pencil", () => SetMode(new PencilMode()), [new KeyBinding(InputCode.KeyY)]),
+            new Command("Brush", () => SetMode(new BrushMode()), [new KeyBinding(InputCode.KeyB)]),
             new Command("Eraser", () => SetMode(new PixelEraserMode()), [new KeyBinding(InputCode.KeyE)]),
             new Command("Rect Select", () => SetMode(new PixelRectSelectMode()), [new KeyBinding(InputCode.KeyM)]),
             new Command("Lasso Select", () => SetMode(new PixelLassoSelectMode()), [new KeyBinding(InputCode.KeyL)]),
@@ -344,6 +347,10 @@ public partial class PixelSpriteEditor : SpriteEditor
                 SetMode(new PencilMode());
             EditorUI.Tooltip(WidgetIds.PencilButton, "Pencil");
 
+            if (FloatingToolbar.Button(WidgetIds.BrushButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is BrushMode))
+                SetMode(new BrushMode());
+            EditorUI.Tooltip(WidgetIds.BrushButton, "Brush");
+
             if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, isSelected: Mode is PixelEraserMode))
                 SetMode(new PixelEraserMode());
             EditorUI.Tooltip(WidgetIds.EraserButton, "Eraser");
@@ -452,7 +459,17 @@ public partial class PixelSpriteEditor : SpriteEditor
                 for (var x = 0; x < epr.Width; x++)
                 {
                     var src = layer.Pixels[epr.X + x, epr.Y + y];
-                    if (src.A == 0) continue;
+                    if (src.A == 0)
+                    {
+                        // Apron pixels (A=0 with RGB set) exist so bilinear filtering has a
+                        // color to interpolate toward instead of black. Preserve them into the
+                        // composite only where no opaque coverage exists yet.
+                        if ((src.R | src.G | src.B) == 0) continue;
+                        ref var apronDst = ref _compositePixels![x, y];
+                        if (apronDst.A == 0 && (apronDst.R | apronDst.G | apronDst.B) == 0)
+                            apronDst = src;
+                        continue;
+                    }
 
                     ref var dst = ref _compositePixels![x, y];
                     if (dst.A == 0)
@@ -589,6 +606,15 @@ public partial class PixelSpriteEditor : SpriteEditor
                pixel.Y >= r.Y && pixel.Y < r.Y + r.Height;
     }
 
+    public Vector2Int WrapPixelForTiling(Vector2Int pixel)
+    {
+        if (!Document.ShowTiling) return pixel;
+        var r = EditablePixelRect;
+        return new Vector2Int(
+            r.X + ((pixel.X - r.X) % r.Width + r.Width) % r.Width,
+            r.Y + ((pixel.Y - r.Y) % r.Height + r.Height) % r.Height);
+    }
+
     public void InvalidateComposite()
     {
         _lastCompositeVersion = -1;
@@ -601,10 +627,10 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     private void ToggleBrushEraser()
     {
-        if (Mode is PencilMode)
-            SetMode(new PixelEraserMode());
-        else
+        if (Mode is PixelEraserMode)
             SetMode(new PencilMode());
+        else
+            SetMode(new PixelEraserMode());
     }
 
     private void Delete()

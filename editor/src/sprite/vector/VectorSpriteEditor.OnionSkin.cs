@@ -10,6 +10,7 @@ public partial class VectorSpriteEditor
     private readonly ushort[] _onionIndices = new ushort[MaxMeshIndices];
     private readonly List<MeshSlotData> _onionSlots = new();
     private int _onionFrame = -1;
+    private int _onionMeshVersion = -1;
 
     private void DrawOnionSkin()
     {
@@ -17,7 +18,7 @@ public partial class VectorSpriteEditor
             return;
 
         var currentFi = CurrentFrameIndex;
-        if (_onionFrame != currentFi || _meshDirty)
+        if (_onionFrame != currentFi || _onionMeshVersion != _meshVersion)
         {
             var frameCount = Document.FrameCount;
             var prevFi = (currentFi - 1 + frameCount) % frameCount;
@@ -28,6 +29,7 @@ public partial class VectorSpriteEditor
 
             _onionSlots.Clear();
             _onionFrame = currentFi;
+            _onionMeshVersion = _meshVersion;
 
             var vertexOffset = 0;
             var indexOffset = 0;

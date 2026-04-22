@@ -534,6 +534,9 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
             }
         }
 
+        if (_commands.Length >= _maxDrawCommands)
+            return;
+
         ref var cmd = ref _commands.Add();
         cmd.SortKey = sortKey;
         cmd.IndexOffset = indexOffset;

@@ -24,11 +24,11 @@ public partial class VectorSpriteEditor
 
     private readonly MeshVertex[] _meshVertices = new MeshVertex[MaxMeshVertices];
     private readonly ushort[] _meshIndices = new ushort[MaxMeshIndices];
-    private bool _meshDirty = true;
     private readonly List<MeshSlotData> _meshSlots = new();
     private readonly List<LayerPathResult> _tessellateResults = new();
     private int _meshFrame = -1;
-    private int _meshVersion = -1;
+    private int _meshVersion;
+    private int _meshBuildVersion = -1;
 
     private bool TessellateClipper(PathsD paths, ref int vertexOffset, ref int indexOffset, Color color)
     {
@@ -141,11 +141,15 @@ public partial class VectorSpriteEditor
     // Layer-scoped mesh update: tessellates paths per-layer with booleans scoped to each layer
     private void UpdateMeshFromLayers()
     {
-        if (!_meshDirty && _meshFrame == CurrentFrameIndex) return;
+        if (_meshBuildVersion == _meshVersion && _meshFrame == CurrentFrameIndex) return;
 
-        _meshDirty = false;
+        // Frame-only rebuilds don't bump the version via MarkDirty, so bump it here
+        // to invalidate downstream caches (preview RT, onion skin) that watch _meshVersion.
+        if (_meshBuildVersion == _meshVersion)
+            _meshVersion++;
+
+        _meshBuildVersion = _meshVersion;
         _meshFrame = CurrentFrameIndex;
-        _meshVersion++;
         _meshSlots.Clear();
 
         var vertexOffset = 0;

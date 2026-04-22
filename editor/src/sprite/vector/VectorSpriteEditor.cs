@@ -101,11 +101,31 @@ public partial class VectorSpriteEditor : SpriteEditor
             new Command("Boolean Intersect",    BooleanIntersect,           [new KeyBinding(InputCode.KeyI, ctrl:true, shift:true)]),
             new Command("Export to PNG",        ExportToPng,                [new KeyBinding(InputCode.KeyE, ctrl:true, shift:true)]),
             new Command("Toggle Rasterization Preview", TogglePreviewRasterize, [InputCode.KeyF6]),
+            new Command("Frame Selection",      FrameSelection,             [new KeyBinding(InputCode.KeyF)]),
         ];
 
         SetMode(new TransformMode());
     }
 
+
+    private void FrameSelection()
+    {
+        if (_selectedPaths.Count == 0)
+        {
+            Workspace.FrameRect(Document.Bounds.Translate(Document.Position));
+            return;
+        }
+
+        var rot = Matrix3x2.CreateRotation(_selectionRotation);
+        var b = _selectionLocalBounds;
+        var p0 = Vector2.Transform(new Vector2(b.Left, b.Top), rot);
+        var p1 = Vector2.Transform(new Vector2(b.Right, b.Top), rot);
+        var p2 = Vector2.Transform(new Vector2(b.Right, b.Bottom), rot);
+        var p3 = Vector2.Transform(new Vector2(b.Left, b.Bottom), rot);
+        var min = Vector2.Min(Vector2.Min(p0, p1), Vector2.Min(p2, p3));
+        var max = Vector2.Max(Vector2.Max(p0, p1), Vector2.Max(p2, p3));
+        Workspace.FrameRect(Rect.FromMinMax(min, max).Translate(Document.Position));
+    }
 
     private void ExportToPng()
     {
@@ -343,9 +363,12 @@ public partial class VectorSpriteEditor : SpriteEditor
 
         FloatingToolbar.Divider();
 
-        if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
-            Document.ShowTiling = !Document.ShowTiling;
-        EditorUI.Tooltip(WidgetIds.TileButton, "Tiling Preview");
+        using (UI.BeginEnabled(Document.ConstrainedSize.HasValue))
+        {
+            if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
+                Document.ShowTiling = !Document.ShowTiling;
+            EditorUI.Tooltip(WidgetIds.TileButton, "Tiling Preview");
+        }
 
 
         if (FloatingToolbar.Button(WidgetIds.PreviewRasterizeButton, EditorAssets.Sprites.IconRasterize, isSelected: PreviewRasterize))
@@ -564,7 +587,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (_selectedPaths.Count == 0) return;
         foreach (var path in _selectedPaths)
             path.FillColor = color;
-        _meshDirty = true;
+        MarkDirty();
     }
 
     private void SetStrokeColor(Color32 color)
@@ -578,7 +601,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             path.StrokeWidth = Document.CurrentStrokeWidth;
             path.StrokeJoin = Document.CurrentStrokeJoin;
         }
-        _meshDirty = true;
+        MarkDirty();
     }
 
     private void SetStrokeWidth(byte width)
@@ -589,7 +612,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         foreach (var path in _selectedPaths)
             path.StrokeWidth = width;
 
-        InvalidateMesh();
+        MarkDirty();
     }
 
     private void SetStrokeJoin(SpriteStrokeJoin join)
@@ -600,7 +623,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         foreach (var path in _selectedPaths)
             path.StrokeJoin = join;
 
-        InvalidateMesh();
+        MarkDirty();
     }
 
     private void SetOutlineColor(Color32 color)
@@ -608,7 +631,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         Document.OutlineColor = color;
         if (Document.OutlineSize == 0 && color.A > 0)
             Document.OutlineSize = 1;
-        InvalidateMesh();
+        MarkDirty();
         Document.MarkSpriteDirty();
     }
 
@@ -616,7 +639,7 @@ public partial class VectorSpriteEditor : SpriteEditor
     {
         Undo.Record(Document);
         Document.OutlineSize = size;
-        InvalidateMesh();
+        MarkDirty();
         Document.MarkSpriteDirty();
     }
 
@@ -636,7 +659,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             foreach (var path in _selectedPaths)
                 path.Operation = newOp;
 
-            InvalidateMesh();
+            MarkDirty();
         }
         else
         {
@@ -652,7 +675,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         foreach (var path in _selectedPaths)
             path.Operation = operation;
 
-        InvalidateMesh();
+        MarkDirty();
     }
 
     private void CenterShape()
@@ -845,6 +868,8 @@ public partial class VectorSpriteEditor : SpriteEditor
 
         if (!moved)
             Undo.Cancel();
+        else
+            MarkDirty();
     }
 
     private void UpdateAnimation()
@@ -1262,10 +1287,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                     if (UI.WasChangeStarted()) Undo.Record(Document);
 
                     if (UI.WasChanged())
-                    {
                         SetFillColor(fillColor.ToColor32());
-                        _meshDirty = true;
-                    }
 
                     if (UI.WasChangeCancelled()) Undo.Cancel();
                 }

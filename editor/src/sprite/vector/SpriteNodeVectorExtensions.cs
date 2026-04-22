@@ -77,6 +77,13 @@ public static class SpriteNodeVectorExtensions
             child.ForEachEditablePath(action);
     }
 
+    public static bool IsEditable(this SpriteNode node)
+    {
+        for (var n = (SpriteNode?)node; n != null; n = n.Parent)
+            if (!n.Visible || n.Locked) return false;
+        return true;
+    }
+
     public static void CollectPathsWithSelection(this SpriteNode node, List<SpritePath> result)
     {
         if (node is SpritePath path && path.HasSelection())

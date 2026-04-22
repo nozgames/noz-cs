@@ -6,10 +6,10 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PencilMode : PixelStrokeMode
+public class BrushMode : PixelStrokeMode
 {
     protected override void PaintPixel(Vector2Int pixel)
     {
-        Editor.PaintBrush(pixel, Editor.BrushColor);
+        Editor.PaintBrushSoft(pixel, Editor.BrushColor, Editor.BrushHardness);
     }
 }
