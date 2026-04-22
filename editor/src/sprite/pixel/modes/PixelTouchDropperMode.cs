@@ -25,7 +25,7 @@ public class PixelTouchDropperMode : EditorMode<PixelSpriteEditor>
 
         var sampled = Workspace.ReadPixelAtMouse();
         if (sampled.A > 0)
-            Editor.BrushColor = sampled;
+            Editor.Document.BrushColor = sampled;
 
         if (Touch.FingerCount == 0)
             Editor.SetMode(_restoreMode ?? new PencilMode());

@@ -34,6 +34,7 @@ public static class EditorAssets
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
         public const string IconBone = "icon_bone";
+        public const string IconBrush = "icon_brush";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
         public const string IconCircleMode = "icon_circle_mode";
@@ -224,6 +225,7 @@ public static class EditorAssets
         public static readonly Sprite IconAdd = new();
         public static readonly Sprite IconAi = new();
         public static readonly Sprite IconBone = new();
+        public static readonly Sprite IconBrush = new();
         public static readonly Sprite IconCheck = new();
         public static readonly Sprite IconCircle = new();
         public static readonly Sprite IconCircleMode = new();
@@ -321,6 +323,7 @@ public static class EditorAssets
             IconAdd.Load(Names.IconAdd, atlas);
             IconAi.Load(Names.IconAi, atlas);
             IconBone.Load(Names.IconBone, atlas);
+            IconBrush.Load(Names.IconBrush, atlas);
             IconCheck.Load(Names.IconCheck, atlas);
             IconCircle.Load(Names.IconCircle, atlas);
             IconCircleMode.Load(Names.IconCircleMode, atlas);
@@ -419,6 +422,7 @@ public static class EditorAssets
             IconAdd.Reload();
             IconAi.Reload();
             IconBone.Reload();
+            IconBrush.Reload();
             IconCheck.Reload();
             IconCircle.Reload();
             IconCircleMode.Reload();
@@ -517,6 +521,7 @@ public static class EditorAssets
             IconAdd.Dispose();
             IconAi.Dispose();
             IconBone.Dispose();
+            IconBrush.Dispose();
             IconCheck.Dispose();
             IconCircle.Dispose();
             IconCircleMode.Dispose();

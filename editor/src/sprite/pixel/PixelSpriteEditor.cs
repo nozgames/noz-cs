@@ -13,8 +13,8 @@ public partial class PixelSpriteEditor : SpriteEditor
         public static partial WidgetId Root { get; }
         public static partial WidgetId LayerToggle { get; }
         public static partial WidgetId ExitEditMode { get; }
+        public static partial WidgetId IsolationToggle { get; }
         public static partial WidgetId InspectorToggle { get; }
-        public static partial WidgetId PencilButton { get; }
         public static partial WidgetId BrushButton { get; }
         public static partial WidgetId EraserButton { get; }
         public static partial WidgetId ColorButton { get; }
@@ -27,7 +27,10 @@ public partial class PixelSpriteEditor : SpriteEditor
         public static partial WidgetId AlphaLockButton { get; }
         public static partial WidgetId TilingButton { get; }
         public static partial WidgetId ShowSkeletonOverlay { get; }
-    }
+
+        public static partial WidgetId BrushPopupBrush { get; }
+        public static partial WidgetId BrushPopupPencil { get; }
+    }    
 
     private bool _showLayers = true;
     private bool _showInspector = true;
@@ -39,11 +42,13 @@ public partial class PixelSpriteEditor : SpriteEditor
     private int _currentTimeSlot;
     private bool _isPlaying;
     private float _playTimer;
+    private bool _showBrushPopup;
     private PixelLayer? _activeLayer;
 
-    public Color32 BrushColor { get; set; } = Color32.Black;
-    public int BrushSize { get; set; } = 1;
-    public float BrushHardness { get; set; } = 1f;
+    public Color32 BrushColor => Document.BrushColor;
+    public PixelBrushType BrushType => Document.BrushType;
+    public int BrushSize => Document.BrushSize;
+    public float BrushHardness => Document.BrushHardness;
     public bool AlphaLock { get; set; }
     public override bool ShowOutliner => _showLayers;
     public override bool ShowInspector => _showInspector;
@@ -114,8 +119,8 @@ public partial class PixelSpriteEditor : SpriteEditor
         Commands =
         [
             new Command("Exit Edit Mode", Workspace.EndEdit, [InputCode.KeyTab]),
-            new Command("Pencil", () => SetMode(new PencilMode()), [new KeyBinding(InputCode.KeyY)]),
-            new Command("Brush", () => SetMode(new BrushMode()), [new KeyBinding(InputCode.KeyB)]),
+            new Command("Pencil", () => SetMode(PixelBrushType.Pencil), [new KeyBinding(InputCode.KeyY)]),
+            new Command("Brush", () => SetMode(PixelBrushType.Brush), [new KeyBinding(InputCode.KeyB)]),
             new Command("Eraser", () => SetMode(new PixelEraserMode()), [new KeyBinding(InputCode.KeyE)]),
             new Command("Rect Select", () => SetMode(new PixelRectSelectMode()), [new KeyBinding(InputCode.KeyM)]),
             new Command("Lasso Select", () => SetMode(new PixelLassoSelectMode()), [new KeyBinding(InputCode.KeyL)]),
@@ -131,8 +136,8 @@ public partial class PixelSpriteEditor : SpriteEditor
             new Command("Cut", CutSelected, [new KeyBinding(InputCode.KeyX, ctrl: true)]),
             new Command("Duplicate", DuplicateSelected, [new KeyBinding(InputCode.KeyD, ctrl: true)]),
             new Command("Delete", Delete, [InputCode.KeyDelete]),
-            new Command("Increase Brush", () => BrushSize = Math.Min(BrushSize + 1, 16), [InputCode.KeyRightBracket]),
-            new Command("Decrease Brush", () => BrushSize = Math.Max(BrushSize - 1, 1), [InputCode.KeyLeftBracket]),
+            new Command("Increase Brush", IncreaseBrushSize),
+            new Command("Decrease Brush", DecreaseBrushSize, [InputCode.KeyLeftBracket]),
             new Command("Rename", BeginRename, [InputCode.KeyF2]),
             new Command("Toggle Playback",     TogglePlayback,     [InputCode.KeySpace]),
             new Command("Previous Frame",      PreviousFrame,      [InputCode.KeyQ]),
@@ -163,8 +168,6 @@ public partial class PixelSpriteEditor : SpriteEditor
         }
 
         _selectedNode = _activeLayer;
-        BrushSize = Document.BrushSize;
-        BrushColor = Document.BrushColor;
         AlphaLock = Document.AlphaLock;
         Grid.PixelsPerUnitOverride = CanvasPPU;
         SetMode(new PencilMode());
@@ -347,17 +350,17 @@ public partial class PixelSpriteEditor : SpriteEditor
 
             FloatingToolbar.Divider();
 
-            if (FloatingToolbar.Button(WidgetIds.PencilButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is PencilMode))
-                SetMode(new PencilMode());
-            EditorUI.Tooltip(WidgetIds.PencilButton, "Pencil");
+            // if (FloatingToolbar.Button(WidgetIds.PencilButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is PencilMode))
+            //     SetMode(new PencilMode());
+            // EditorUI.Tooltip(WidgetIds.PencilButton, "Pencil");
 
-            if (FloatingToolbar.Button(WidgetIds.BrushButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is BrushMode))
-                SetMode(new BrushMode());
-            EditorUI.Tooltip(WidgetIds.BrushButton, "Brush");
+            // if (FloatingToolbar.Button(WidgetIds.BrushButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is BrushMode))
+            //     SetMode(new BrushMode());
+            // EditorUI.Tooltip(WidgetIds.BrushButton, "Brush");
 
-            if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, isSelected: Mode is PixelEraserMode))
-                SetMode(new PixelEraserMode());
-            EditorUI.Tooltip(WidgetIds.EraserButton, "Eraser");
+            // if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, isSelected: Mode is PixelEraserMode))
+            //     SetMode(new PixelEraserMode());
+            // EditorUI.Tooltip(WidgetIds.EraserButton, "Eraser");
 
             if (FloatingToolbar.Button(WidgetIds.FillButton, EditorAssets.Sprites.IconFloodFill, isSelected: Mode is PixelFillMode))
                 SetMode(new PixelFillMode());
@@ -922,6 +925,25 @@ public partial class PixelSpriteEditor : SpriteEditor
         base.Dispose();
     }
 
+    private void BrushPopup()
+    {
+        if (!_showBrushPopup) return;
+        using var popup = UI.BeginPopup(WidgetIds.BrushButton, EditorStyle.PopupBelow with { AnchorRect = UI.GetElementWorldRect(WidgetIds.BrushButton) });
+        using var column = UI.BeginColumn(EditorStyle.Popup.Root with { Spacing = 4});
+ 
+        if (UI.Button(WidgetIds.BrushPopupBrush, EditorAssets.Sprites.IconBrush, EditorStyle.Button.ToggleIcon, isSelected: BrushType == PixelBrushType.Brush))
+        {
+            SetMode(PixelBrushType.Brush);
+            _showBrushPopup = false;
+        }
+
+        if (UI.Button(WidgetIds.BrushPopupPencil, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon, isSelected: BrushType == PixelBrushType.Pencil))
+        {
+            SetMode(PixelBrushType.Pencil);
+            _showBrushPopup = false;
+        }            
+    }
+
     public override void ToolbarUI()
     {
         base.ToolbarUI();
@@ -929,15 +951,34 @@ public partial class PixelSpriteEditor : SpriteEditor
         if (UI.Button(WidgetIds.LayerToggle, EditorAssets.Sprites.IconLayer, EditorStyle.Button.ToggleIcon, isSelected: _showLayers))  
             _showLayers = !_showLayers;
 
+        EditorUI.PanelSeparator();
+
         if (UI.Button(WidgetIds.ExitEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon, isSelected: true))  
             Workspace.EndEdit();
 
+        if (UI.Button(WidgetIds.IsolationToggle, EditorAssets.Sprites.IconIsolate, EditorStyle.Button.ToggleIcon, isSelected: Workspace.Isolation))  
+            Workspace.ToggleIsolation();
+
         UI.Flex();
+
+        var isPaintMode = Mode is BrushMode or PencilMode;
+        if (UI.Button(WidgetIds.BrushButton, BrushType == PixelBrushType.Brush ? EditorAssets.Sprites.IconBrush : EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon, isSelected: isPaintMode))
+        {
+            if (isPaintMode)
+                _showBrushPopup = true;
+            else
+                SetMode(PixelBrushType.Brush);
+        }
+
+        BrushPopup();            
+
+        if (UI.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, EditorStyle.Button.ToggleIcon, isSelected: Mode is PixelEraserMode))
+            SetMode(new PixelEraserMode());
 
         var color = BrushColor.ToColor();
         var newColor =  EditorUI.ColorButton(WidgetIds.BrushColor, color, style: new ColorButtonStyle { Popup = EditorStyle.PopupBelow });
         if (newColor != BrushColor)
-            BrushColor = newColor;
+            Document.BrushColor = newColor;
         EditorUI.Tooltip(WidgetIds.BrushColor, "Brush Color");
 
         EditorUI.PanelSeparator();
@@ -945,4 +986,18 @@ public partial class PixelSpriteEditor : SpriteEditor
         if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: _showInspector))  
             _showInspector = !_showInspector;
     }    
+
+    public void SetMode(PixelBrushType brushType)
+    {
+        Document.BrushType = brushType;
+        SetMode(brushType switch
+        {
+            PixelBrushType.Brush => new BrushMode(),
+            PixelBrushType.Pencil => new PencilMode(),
+            _ => throw new ArgumentOutOfRangeException(nameof(brushType), brushType, null)
+        });
+    }
+
+    private void IncreaseBrushSize() => Document.BrushSize = Math.Min(Document.BrushSize + 1, 16);  
+    private void DecreaseBrushSize() => Document.BrushSize = Math.Max(Document.BrushSize - 1, 1);
 }

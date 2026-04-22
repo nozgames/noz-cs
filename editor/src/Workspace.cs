@@ -61,7 +61,7 @@ public static partial class Workspace
     private static bool _showReferences;
     private static bool _showProject = true;
     private static bool _showInspector = true;
-    private static bool _isolationOverride;
+    private static bool _isolation;
     private static Vector2 _savedCameraPosition;
     private static float _savedCameraZoom;
     private static bool _hasSavedCamera;
@@ -137,7 +137,8 @@ public static partial class Workspace
     public static Vector2 DragWorldPosition { get; private set; }
     public static WorkspaceState State { get; private set; } = WorkspaceState.Default;
 
-    private static bool IsIsolationActive => State == WorkspaceState.Edit && !_isolationOverride;
+    private static bool IsIsolationActive => State == WorkspaceState.Edit && !_isolation;
+    public static bool Isolation => _isolation;
     public static int SelectedCount { get; private set; }
 
     // Workspace inline drag state (replacing Tool pattern)
@@ -350,7 +351,7 @@ public static partial class Workspace
         _showNames = props.GetBool("workspace", "show_names", false);
         _showProject = props.GetBool("workspace", "show_project", true);
         _showInspector = props.GetBool("workspace", "show_inspector", true);
-        _isolationOverride = props.GetBool("workspace", "isolation_override", false);
+        _isolation = props.GetBool("workspace", "isolation", false);
         _userUIScale = props.GetFloat("workspace", "ui_scale", Application.IsTablet ? 1.6f : 1f);
         _inspectorSize = props.GetFloat("workspace", "inspector_size", 300f);
         _outlinerSize = props.GetFloat("workspace", "outliner_size", 200f);
@@ -381,7 +382,7 @@ public static partial class Workspace
         props.SetBool("workspace", "show_names", _showNames);
         props.SetBool("workspace", "show_project", _showProject);
         props.SetBool("workspace", "show_inspector", _showInspector);
-        props.SetBool("workspace", "isolation_override", _isolationOverride);
+        props.SetBool("workspace", "isolation", _isolation);
         props.SetFloat("workspace", "ui_scale", UI.UserScale);
         props.SetFloat("workspace", "inspector_size", _inspectorSize);
         props.SetFloat("workspace", "outliner_size", _outlinerSize);
@@ -653,7 +654,7 @@ public static partial class Workspace
             return items;
         }
 
-        if (UI.Button(WidgetIds.IsolationButton, EditorAssets.Sprites.IconIsolate, EditorStyle.Button.ToggleIcon, isSelected: !_isolationOverride))
+        if (UI.Button(WidgetIds.IsolationButton, EditorAssets.Sprites.IconIsolate, EditorStyle.Button.ToggleIcon, isSelected: !_isolation))
             ToggleIsolation();
 
         if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon, isSelected: _showReferences))
@@ -888,9 +889,9 @@ public static partial class Workspace
         _showNames = !_showNames;
     }
 
-    private static void ToggleIsolation()
+    public static void ToggleIsolation()
     {
-        _isolationOverride = !_isolationOverride;
+        _isolation = !_isolation;
 
         if (IsIsolationActive)
         {

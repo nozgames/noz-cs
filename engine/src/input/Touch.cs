@@ -25,12 +25,12 @@ public static class Touch
     private static readonly TouchFinger[] _fingers = new TouchFinger[MaxFingers];
     private static int _fingerCount;
 
-    private static bool _mouseSimulated;
+    private enum MouseSimState { Idle, Pending, Dragging, Suppressed }
+    private static MouseSimState _mouseSimState;
     private static long _mouseSimulatedFingerId;
-    private static bool _longPressEligible;
-    private static Vector2 _longPressStartPosition;
+    private static Vector2 _mouseSimStartPosition;
     private const float LongPressDuration = 0.5f;
-    private const float LongPressMaxDrift = 20f;
+    private const float DragThreshold = 20f;
 
     // Pinch gesture (driven by SDL native events)
     private static float _pinchScale;
@@ -96,19 +96,16 @@ public static class Touch
 
     private static void CheckLongPress()
     {
-        if (!SimulateMouse || !_mouseSimulated || !_longPressEligible) return;
+        if (!SimulateMouse || _mouseSimState != MouseSimState.Pending) return;
 
         var slot = FindSlot(_mouseSimulatedFingerId);
         if (slot < 0) return;
 
         ref readonly var f = ref _fingers[slot];
         if (Time.TotalTime - f.DownTime < LongPressDuration) return;
-        if (Vector2.Distance(f.Position, _longPressStartPosition) > LongPressMaxDrift) return;
 
-        _longPressEligible = false;
-        _mouseSimulated = false;
+        _mouseSimState = MouseSimState.Suppressed;
 
-        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
         Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
         Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseRight));
         Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseRight));
@@ -127,18 +124,16 @@ public static class Touch
                 {
                     if (_fingerCount == 0)
                     {
-                        _mouseSimulated = true;
+                        _mouseSimState = MouseSimState.Pending;
                         _mouseSimulatedFingerId = evt.FingerId;
-                        _longPressEligible = true;
-                        _longPressStartPosition = evt.TouchPosition;
-                        Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
-                        Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                        _mouseSimStartPosition = evt.TouchPosition;
                     }
-                    else if (_mouseSimulated)
+                    else
                     {
-                        _mouseSimulated = false;
-                        _longPressEligible = false;
-                        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                        if (_mouseSimState == MouseSimState.Dragging)
+                            Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                        if (_mouseSimState != MouseSimState.Idle)
+                            _mouseSimState = MouseSimState.Suppressed;
                     }
                 }
 
@@ -173,12 +168,21 @@ public static class Touch
 
                 ref var f = ref _fingers[slot];
 
-                if (SimulateMouse && _mouseSimulated && evt.FingerId == _mouseSimulatedFingerId)
+                if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
                 {
-                    _mouseSimulated = false;
-                    _longPressEligible = false;
-                    Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
-                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    switch (_mouseSimState)
+                    {
+                        case MouseSimState.Pending:
+                            Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
+                            Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                            Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                            break;
+                        case MouseSimState.Dragging:
+                            Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
+                            Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                            break;
+                    }
+                    _mouseSimState = MouseSimState.Idle;
                 }
 
                 var duration = Time.TotalTime - _fingerDownTimes[slot];
@@ -227,13 +231,20 @@ public static class Touch
                 f.Position = evt.TouchPosition;
                 f.Pressure = evt.Pressure;
 
-                if (SimulateMouse && _mouseSimulated && evt.FingerId == _mouseSimulatedFingerId)
+                if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
                 {
-                    if (_longPressEligible &&
-                        Vector2.Distance(evt.TouchPosition, _longPressStartPosition) > LongPressMaxDrift)
-                        _longPressEligible = false;
-
-                    Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
+                    if (_mouseSimState == MouseSimState.Pending &&
+                        Vector2.Distance(evt.TouchPosition, _mouseSimStartPosition) > DragThreshold)
+                    {
+                        _mouseSimState = MouseSimState.Dragging;
+                        Input.ProcessEvent(PlatformEvent.MouseMove(_mouseSimStartPosition));
+                        Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                        Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
+                    }
+                    else if (_mouseSimState == MouseSimState.Dragging)
+                    {
+                        Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
+                    }
                 }
 
                 if (_twoFingerPanning)
@@ -255,12 +266,11 @@ public static class Touch
                 var slot = FindSlot(evt.FingerId);
                 if (slot < 0) break;
 
-                if (SimulateMouse && _mouseSimulated && evt.FingerId == _mouseSimulatedFingerId)
+                if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
                 {
-                    _mouseSimulated = false;
-                    _longPressEligible = false;
-                    Input.ProcessEvent(PlatformEvent.MouseMove(_fingers[slot].Position));
-                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    if (_mouseSimState == MouseSimState.Dragging)
+                        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    _mouseSimState = MouseSimState.Idle;
                 }
 
                 _fingers[slot] = default;

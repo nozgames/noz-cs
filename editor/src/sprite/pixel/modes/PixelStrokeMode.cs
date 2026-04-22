@@ -39,7 +39,7 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
             var color = Workspace.ReadPixelAtMouse();
             Input.ConsumeButton(_button);
             if (color.A > 0)
-                Editor.BrushColor = color;
+                Editor.Document.BrushColor = color;
             if (EyeDropperExitMode is { } exit)
                 Editor.SetMode(exit);
         }

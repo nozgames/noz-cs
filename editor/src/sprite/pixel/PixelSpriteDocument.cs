@@ -4,14 +4,18 @@
 
 namespace NoZ.Editor;
 
+public enum PixelBrushType { None, Brush, Pencil }
+
 public partial class PixelSpriteDocument : SpriteDocument
 {
-    protected override TextureFilter DefaultTextureFilter => TextureFilter.Point;
+    protected override TextureFilter DefaultTextureFilter => TextureFilter.Point;    
 
     public Vector2Int CanvasSize { get; set; } = new(64, 64);
     public PixelData<byte>? SelectionMask { get; set; }
     public int BrushSize { get; set; } = 1;
     public Color32 BrushColor { get; set; } = Color32.Black;
+    public PixelBrushType BrushType { get; set; } = PixelBrushType.Brush;
+    public float BrushHardness { get; set; } = 1f;
     public bool AlphaLock { get; set; }
     public string ActiveLayerName { get; set; } = "";
 
@@ -217,6 +221,8 @@ public partial class PixelSpriteDocument : SpriteDocument
         BrushSize = Math.Clamp(meta.GetInt("sprite", "brush_size", 1), 1, 16);
         var brushColor = meta.GetColor("sprite", "brush_color", Color.Black);
         BrushColor = (Color32)brushColor;
+        BrushType = (PixelBrushType)meta.GetInt("sprite", "brush_type", 0);
+        BrushHardness = meta.GetFloat("sprite", "brush_hardness", 1f);        
         AlphaLock = meta.GetBool("sprite", "alpha_lock", false);
         ActiveLayerName = meta.GetString("sprite", "active_layer", "");
     }
@@ -226,6 +232,8 @@ public partial class PixelSpriteDocument : SpriteDocument
         meta.SetInt("sprite", "brush_size", BrushSize);
         meta.SetColor("sprite", "brush_color", (Color)BrushColor);
         meta.SetBool("sprite", "alpha_lock", AlphaLock);
+        meta.SetInt("sprite", "brush_type", (int)BrushType);
+        meta.SetFloat("sprite", "brush_hardness", BrushHardness);
 
         if (!string.IsNullOrEmpty(ActiveLayerName))
             meta.SetString("sprite", "active_layer", ActiveLayerName);

@@ -22,7 +22,7 @@ public class PixelEyeDropperMode : EditorMode<PixelSpriteEditor>
             var color = Workspace.ReadPixelAtMouse();
             Input.ConsumeButton(InputCode.MouseLeft);
             if (color.A > 0)
-                Editor.BrushColor = color;
+                Editor.Document.BrushColor = color;
             Editor.SetMode(new PencilMode());
         }
     }
