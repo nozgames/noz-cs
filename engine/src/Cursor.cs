@@ -37,11 +37,21 @@ public static class Cursor
 
     public static Shader? Shader { get; set; }
 
+    public static bool Enabled { get; set; } = true;
+
     internal static SpriteCursor ActiveSpriteCursor => _spriteCursor;
     internal static SystemCursor ActiveSystemCursor => _systemCursor;
 
     public static void Set(SystemCursor cursor)
     {
+        if (!Enabled)
+        {
+            _spriteCursor = default;
+            _systemCursor = SystemCursor.None;
+            Application.Platform.SetCursor(SystemCursor.None);
+            return;
+        }
+
         _spriteCursor = default;
         _systemCursor = cursor;
         Application.Platform.SetCursor(cursor);
@@ -49,6 +59,14 @@ public static class Cursor
 
     public static void Set(SpriteCursor cursor)
     {
+        if (!Enabled)
+        {
+            _spriteCursor = default;
+            _systemCursor = SystemCursor.None;
+            Application.Platform.SetCursor(SystemCursor.None);
+            return;
+        }
+
         _spriteCursor = cursor;
         _systemCursor = SystemCursor.None;
         Application.Platform.SetCursor(SystemCursor.None);
@@ -66,6 +84,7 @@ public static class Cursor
 
     internal static void Update()
     {
+        if (!Enabled) return;
         if (Shader == null)
             return;
 

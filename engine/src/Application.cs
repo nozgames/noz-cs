@@ -23,6 +23,7 @@ public static class Application
     public static Vector2Int WindowSize => Platform.WindowSize;
     public static Vector2Int WindowPosition => Platform.WindowPosition;
     public static string AssetPath { get; private set; } = null!;
+    public static bool IsTablet { get; private set; }
 
     public static bool HasFocus => _focused;
 
@@ -66,6 +67,7 @@ public static class Application
 
         AssetPath = config.AssetPath ?? Path.Combine(Directory.GetCurrentDirectory(), "library");
         ResourceAssembly = config.ResourceAssembly;
+        IsTablet = config.IsTablet;
 
         // Allow game to load config (window size/position) before platform init
         _instance.LoadConfig(config);

@@ -39,6 +39,8 @@ public static partial class Workspace
         var root = GetOrBuildTree();
         if (root == null) return;
 
+        using var column = UI.BeginColumn();
+
         // Render each source root's children directly (skip the root node)
         foreach (var folder in root.Folders)
             FolderUI(folder, 0);

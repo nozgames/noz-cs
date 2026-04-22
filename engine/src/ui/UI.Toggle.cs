@@ -14,6 +14,7 @@ public struct ToggleStyle()
     public float CheckSize = 14;
     public Color CheckColor = Color.White;
     public Sprite? CheckSprite = null;
+    public Align2 Align = new Align2(NoZ.Align.Min, NoZ.Align.Center);
     public Func<ToggleStyle, WidgetFlags, ToggleStyle>? Resolve;
 }
 
@@ -30,6 +31,7 @@ public static partial class UI
             ? style.Resolve(style, flags)
             : style;
 
+        ElementTree.BeginAlign(s.Align);
         ElementTree.BeginSize(s.Size);
         ElementTree.BeginFill(s.Background, s.BorderRadius, s.BorderWidth, s.BorderColor);
 

@@ -29,7 +29,6 @@ internal partial class CompositeSoundEditor : DocumentEditor
     private readonly List<WaveformEditor> _layerEditors = [];
 
     public override bool ShowInspector => true;
-    public override bool ShowOutliner => true;
     public override bool RunInBackground => _playing;
 
     public new SoundDocument Document => (SoundDocument)base.Document;

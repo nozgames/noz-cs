@@ -12,7 +12,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     public const string Extension = ".sprite";
     public const float DefaultFrameRate = 12f;
 
-    private static partial class WidgetIds
+    protected static partial class WidgetIds
     {
         public static partial WidgetId PixelsPerUnit { get; }
         public static partial WidgetId FilterDropDown { get; }
@@ -21,6 +21,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         public static partial WidgetId ShowInSkeleton { get; }
         public static partial WidgetId ConstraintDropDown { get; }
         public static partial WidgetId SortOrder { get; }
+        public static partial WidgetId AnimatedToggle { get; }
     }
 
     public string? BoneName;

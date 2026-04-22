@@ -24,7 +24,6 @@ internal partial class VfxEditor : DocumentEditor
     }
 
     public override bool ShowInspector => true;
-    public override bool ShowOutliner => true;
     public override bool RunInBackground => Document.IsPlaying;
 
     public new VfxDocument Document => (VfxDocument)base.Document;

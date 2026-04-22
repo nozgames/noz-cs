@@ -28,6 +28,7 @@ public static class AtlasManager
         Update();
 
         DocumentManager.DocumentAdded += HandleDocumentAdded;
+        DocumentManager.DocumentRemoved += HandleDocumentRemoved;
     }
 
     public static void Shutdown()
@@ -47,6 +48,12 @@ public static class AtlasManager
             AddSource(sprite);
         else
             AddEditorSource(sprite);
+    }
+
+    private static void HandleDocumentRemoved(Document doc)
+    {
+        if (doc is SpriteDocument sprite)
+            RemoveSource(sprite);
     }
 
     private static string GetAtlasName(int index) => $"{EditorApplication.Config.AtlasPrefix}{index:000}.atlas";
@@ -271,18 +278,18 @@ public static class AtlasManager
 
     internal static void RemoveSource(SpriteDocument source)
     {
-        if (source.Atlas != null)
+        var atlas = source.Atlas;
+        if (atlas != null)
         {
-            source.Atlas.Remove(source);
-            source.Atlas.Update();
-            DocumentManager.QueueExport(source.Atlas, force: true);
+            atlas.Remove(source);
+            atlas.Update();
+            DocumentManager.QueueExport(atlas, force: true);
+            SyncTextureArrayLayer(atlas);
             source.Atlas = null;
-            source.ClearAtlasUVs();
         }
 
         _sources.Remove(source);
         _editorSources.Remove(source);
-        DocumentManager.QueueExport(source, force: true);
     }
 
     private static void Add(SpriteDocument source)

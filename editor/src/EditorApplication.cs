@@ -23,6 +23,7 @@ public class EditorApplicationConfig
     public Action<List<Command>>? RegisterCommands { get; init; }
     public Assembly? ResourceAssembly { get; init; }
     public IEditorStore? Store { get; init; }
+    public bool IsTablet { get; init; }
 }
 
 internal class EditorApplicationInstance : IApplication
@@ -86,6 +87,8 @@ public static partial class EditorApplication
         var clean = false;
         string? projectArg = null;
         string? editorPathArg = null;
+        var tabletArg = false;
+        var isTablet = config.IsTablet || OperatingSystem.IsIOS();
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -105,7 +108,9 @@ public static partial class EditorApplication
                 editorPathArg = args[++i];
             else if (args[i] == "--clean")
                 clean = true;
-        }
+            else if (args[i] == "--tablet")
+                isTablet = true;
+        }        
 
         // For CLI modes on Windows, attach to parent console so Console.WriteLine output is visible
         // (WinExe has no console by default; Linux/Mac don't need this)
@@ -130,6 +135,7 @@ public static partial class EditorApplication
                 Vtable = new EditorApplicationInstance(),
                 AssetPath = Path.Combine(iosPath, "library"),
                 ResourceAssembly = config.ResourceAssembly,
+                IsTablet = isTablet,
                 UI = new UIConfig()
                 {
                     DefaultFont = EditorAssets.Names.Seguisb,
@@ -146,6 +152,10 @@ public static partial class EditorApplication
                     HDR = true
                 }
             });
+
+            if (Application.IsTablet)
+                Touch.SimulateMouse = true;
+
             Application.Run();
             return;
         }
@@ -298,6 +308,7 @@ public static partial class EditorApplication
             AudioBackend = new SDLAudioDriver(),
             Vtable = new EditorApplicationInstance(),
             AssetPath = Path.Combine(EditorPath, "library"),
+            IsTablet = isTablet,
             ResourceAssembly = config.ResourceAssembly,
 
             UI = new UIConfig()
@@ -313,6 +324,9 @@ public static partial class EditorApplication
                 HDR = true
             }
         });
+
+        if (Application.IsTablet)
+            Touch.SimulateMouse = true;
 
         Application.Run();
 
@@ -392,6 +406,8 @@ public static partial class EditorApplication
         PopupMenu.Init();
         ConfirmDialog.Init();
         EditorCursor.Init();
+
+        Cursor.Enabled = !Application.IsTablet;
 
         if (Config == null)
             return;

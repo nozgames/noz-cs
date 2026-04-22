@@ -11,6 +11,9 @@ public partial class VectorSpriteEditor : SpriteEditor
     private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
+        public static partial WidgetId LayerToggle { get; }
+        public static partial WidgetId ExitEditMode { get; }
+        public static partial WidgetId InspectorToggle { get; }
         public static partial WidgetId TileButton { get; }
         public static partial WidgetId SubtractButton { get; }
         public static partial WidgetId FirstOpacity { get; }
@@ -49,16 +52,18 @@ public partial class VectorSpriteEditor : SpriteEditor
     private bool _isPlaying;
     private bool _onionSkin;
     private float _playTimer;
+    private bool _showLayers = true;
+    private bool _showInspector = true;
     private readonly int _versionOnOpen;
 
     public int CurrentTimeSlot => _currentTimeSlot;
+    public override bool ShowOutliner => _showLayers;
 
     public bool IsPlaying => _isPlaying;
 
     public static List<SpritePath> HitPaths => _hitPaths;
 
-    public override bool ShowInspector => true;
-    public override bool ShowOutliner => true;
+    public override bool ShowInspector => _showInspector;
 
     private int CurrentFrameIndex =>
         Document.GetFrameAtTimeSlot(_currentTimeSlot);
@@ -1401,5 +1406,21 @@ public partial class VectorSpriteEditor : SpriteEditor
         VectorSpriteDocument.RasterizeLayer(Document.Root, pixels, targetRect, sourceOffset, dpi, clipRect: null, outlineSource: Document);
 
         return pixels[px, py];
+    }
+
+    public override void ToolbarUI()
+    {
+        base.ToolbarUI();
+
+        if (UI.Button(WidgetIds.LayerToggle, EditorAssets.Sprites.IconLayer, EditorStyle.Button.ToggleIcon, isSelected: _showLayers))  
+            _showLayers = !_showLayers;
+
+        if (UI.Button(WidgetIds.ExitEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon, isSelected: true))  
+            Workspace.EndEdit();
+
+        UI.Flex();
+
+        if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: _showInspector))  
+            _showInspector = !_showInspector;
     }
 }

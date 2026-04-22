@@ -11,11 +11,13 @@ public partial class PixelSpriteEditor : SpriteEditor
     private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
+        public static partial WidgetId LayerToggle { get; }
+        public static partial WidgetId ExitEditMode { get; }
+        public static partial WidgetId InspectorToggle { get; }
         public static partial WidgetId PencilButton { get; }
         public static partial WidgetId BrushButton { get; }
         public static partial WidgetId EraserButton { get; }
         public static partial WidgetId ColorButton { get; }
-        public static partial WidgetId EyeDropperButton { get; }
         public static partial WidgetId RectSelectButton { get; }
         public static partial WidgetId LassoSelectButton { get; }
         public static partial WidgetId MoveButton { get; }
@@ -27,12 +29,25 @@ public partial class PixelSpriteEditor : SpriteEditor
         public static partial WidgetId ShowSkeletonOverlay { get; }
     }
 
+    private bool _showLayers = true;
+    private bool _showInspector = true;
+    private SpriteNode? _selectedNode;
+    private Texture? _canvasTexture;
+    private PixelData<Color32>? _compositePixels;
+    private int _lastCompositeVersion = -1;
+    private readonly int _versionOnOpen;
+    private int _currentTimeSlot;
+    private bool _isPlaying;
+    private float _playTimer;
+    private PixelLayer? _activeLayer;
+
     public Color32 BrushColor { get; set; } = Color32.Black;
     public int BrushSize { get; set; } = 1;
     public float BrushHardness { get; set; } = 1f;
     public bool AlphaLock { get; set; }
+    public override bool ShowOutliner => _showLayers;
+    public override bool ShowInspector => _showInspector;
 
-    private PixelLayer? _activeLayer;
     public PixelLayer? ActiveLayer
     {
         get => _activeLayer;
@@ -47,21 +62,11 @@ public partial class PixelSpriteEditor : SpriteEditor
         }
     }
 
-    private SpriteNode? _selectedNode;
     public SpriteNode? SelectedNode
     {
         get => _selectedNode;
         set => _selectedNode = value;
     }
-
-    private Texture? _canvasTexture;
-    private PixelData<Color32>? _compositePixels;
-    private int _lastCompositeVersion = -1;
-    private readonly int _versionOnOpen;
-
-    private int _currentTimeSlot;
-    private bool _isPlaying;
-    private float _playTimer;
 
     private int CurrentFrameIndex => Document.GetFrameAtTimeSlot(_currentTimeSlot);
 
@@ -99,9 +104,6 @@ public partial class PixelSpriteEditor : SpriteEditor
             return new Rect(-w / 2, -h / 2, w, h);
         }
     }
-
-    public override bool ShowInspector => true;
-    public override bool ShowOutliner => true;
 
     public new PixelSpriteDocument Document => (PixelSpriteDocument)base.Document;
 
@@ -335,11 +337,13 @@ public partial class PixelSpriteEditor : SpriteEditor
     {
         using (FloatingToolbar.Begin())
         {
+#if false            
             var color = BrushColor.ToColor();
             var newColor = FloatingToolbar.ColorButton(WidgetIds.BrushColor, color).ToColor32();
             if (newColor != BrushColor)
                 BrushColor = newColor;
             EditorUI.Tooltip(WidgetIds.BrushColor, "Brush Color");
+#endif
 
             FloatingToolbar.Divider();
 
@@ -375,12 +379,6 @@ public partial class PixelSpriteEditor : SpriteEditor
 
             FloatingToolbar.Divider();
 
-            if (FloatingToolbar.Button(WidgetIds.EyeDropperButton, EditorAssets.Sprites.IconPreview, isSelected: Mode is PixelEyeDropperMode))
-                SetMode(new PixelEyeDropperMode());
-            EditorUI.Tooltip(WidgetIds.EyeDropperButton, "Eye Dropper");
-
-            FloatingToolbar.Divider();
-
             if (FloatingToolbar.Button(WidgetIds.AlphaLockButton, EditorAssets.Sprites.IconLock, isSelected: AlphaLock))
                 AlphaLock = !AlphaLock;
             EditorUI.Tooltip(WidgetIds.AlphaLockButton, "Alpha Lock");
@@ -394,10 +392,6 @@ public partial class PixelSpriteEditor : SpriteEditor
             EditorUI.Tooltip(WidgetIds.ShowSkeletonOverlay, "Skeleton Overlay");
 
             FloatingToolbar.Divider();
-
-            if (FloatingToolbar.Button(WidgetIds.AnimatedButton, EditorAssets.Sprites.IconKeyframe, isSelected: Document.IsAnimated))
-                ToggleAnimation();
-            EditorUI.Tooltip(WidgetIds.AnimatedButton, "Animated");
 
             if (Document.IsAnimated && Document.FrameCount > 1)
             {
@@ -582,7 +576,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         }
     }
 
-    public Vector2Int WorldToPixel(Vector2 worldPos)
+    public Vector2Int WorldToPixelSnapped(Vector2 worldPos)
     {
         Matrix3x2.Invert(Document.Transform, out var invTransform);
         var local = Vector2.Transform(worldPos, invTransform);
@@ -593,6 +587,19 @@ public partial class PixelSpriteEditor : SpriteEditor
         return new Vector2Int(
             epr.X + (int)MathF.Floor(nx * epr.Width),
             epr.Y + (int)MathF.Floor(ny * epr.Height));
+    }
+
+    public Vector2 WorldToPixel(Vector2 worldPos)
+    {
+        Matrix3x2.Invert(Document.Transform, out var invTransform);
+        var local = Vector2.Transform(worldPos, invTransform);
+        var canvas = CanvasRect;
+        var epr = EditablePixelRect;
+        var nx = (local.X - canvas.X) / canvas.Width;
+        var ny = (local.Y - canvas.Y) / canvas.Height;
+        return new Vector2(
+            epr.X + nx * epr.Width,
+            epr.Y + ny * epr.Height);
     }
 
     public bool IsPixelInBounds(Vector2Int pixel) =>
@@ -914,4 +921,28 @@ public partial class PixelSpriteEditor : SpriteEditor
         DisposePreviews();
         base.Dispose();
     }
+
+    public override void ToolbarUI()
+    {
+        base.ToolbarUI();
+
+        if (UI.Button(WidgetIds.LayerToggle, EditorAssets.Sprites.IconLayer, EditorStyle.Button.ToggleIcon, isSelected: _showLayers))  
+            _showLayers = !_showLayers;
+
+        if (UI.Button(WidgetIds.ExitEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon, isSelected: true))  
+            Workspace.EndEdit();
+
+        UI.Flex();
+
+        var color = BrushColor.ToColor();
+        var newColor =  EditorUI.ColorButton(WidgetIds.BrushColor, color, style: new ColorButtonStyle { Popup = EditorStyle.PopupBelow });
+        if (newColor != BrushColor)
+            BrushColor = newColor;
+        EditorUI.Tooltip(WidgetIds.BrushColor, "Brush Color");
+
+        EditorUI.PanelSeparator();
+
+        if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: _showInspector))  
+            _showInspector = !_showInspector;
+    }    
 }

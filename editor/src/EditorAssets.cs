@@ -59,6 +59,7 @@ public static class EditorAssets
         public const string IconGenerating = "icon_generating";
         public const string IconGradientLinear = "icon_gradient_linear";
         public const string IconHidden = "icon_hidden";
+        public const string IconInfo = "icon_info";
         public const string IconIsolate = "icon_isolate";
         public const string IconKeyframe = "icon_keyframe";
         public const string IconLayer = "icon_layer";
@@ -248,6 +249,7 @@ public static class EditorAssets
         public static readonly Sprite IconGenerating = new();
         public static readonly Sprite IconGradientLinear = new();
         public static readonly Sprite IconHidden = new();
+        public static readonly Sprite IconInfo = new();
         public static readonly Sprite IconIsolate = new();
         public static readonly Sprite IconKeyframe = new();
         public static readonly Sprite IconLayer = new();
@@ -344,6 +346,7 @@ public static class EditorAssets
             IconGenerating.Load(Names.IconGenerating, atlas);
             IconGradientLinear.Load(Names.IconGradientLinear, atlas);
             IconHidden.Load(Names.IconHidden, atlas);
+            IconInfo.Load(Names.IconInfo, atlas);
             IconIsolate.Load(Names.IconIsolate, atlas);
             IconKeyframe.Load(Names.IconKeyframe, atlas);
             IconLayer.Load(Names.IconLayer, atlas);
@@ -441,6 +444,7 @@ public static class EditorAssets
             IconGenerating.Reload();
             IconGradientLinear.Reload();
             IconHidden.Reload();
+            IconInfo.Reload();
             IconIsolate.Reload();
             IconKeyframe.Reload();
             IconLayer.Reload();
@@ -538,6 +542,7 @@ public static class EditorAssets
             IconGenerating.Dispose();
             IconGradientLinear.Dispose();
             IconHidden.Dispose();
+            IconInfo.Dispose();
             IconIsolate.Dispose();
             IconKeyframe.Dispose();
             IconLayer.Dispose();

@@ -20,7 +20,6 @@ public partial class GeneratedSpriteEditor : SpriteEditor
     }
 
     public override bool ShowInspector => true;
-    public override bool ShowOutliner => false;
 
     public new GeneratedSpriteDocument Document => (GeneratedSpriteDocument)base.Document;
 

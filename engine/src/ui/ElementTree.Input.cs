@@ -11,7 +11,7 @@ public static unsafe partial class ElementTree
     private static bool _inputMousePressed;
     private static bool _inputMouseDown;
     private static WidgetId _hoveredWidget;
-    private static int _cursorOffset;
+    private static int _cursorOffset; 
 
     private static void HandlePopupAutoClose()
     {
@@ -125,8 +125,11 @@ public static unsafe partial class ElementTree
         if (_elements.Length < 2) return;
         using var _m = s_markerInput.Begin();
 
-        _inputMousePressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
-        _inputMouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
+        _inputMousePressed = 
+            Input.WasButtonPressedRaw(InputCode.MouseLeft) ||
+            Input.WasButtonPressedRaw(InputCode.Pen);
+        _inputMouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft) ||
+                         Input.IsButtonDownRaw(InputCode.Pen);            
 
         if (_captureId != 0 && !_inputMouseDown)
         {
@@ -367,7 +370,7 @@ public static unsafe partial class ElementTree
 
         Matrix3x2.Invert(e.Transform, out var inv);
         var localMouse = Vector2.Transform(MouseWorldPosition, inv);
-        var isHovered = e.Rect.Contains(localMouse);
+        var isHovered = !Application.IsTablet && e.Rect.Contains(localMouse);
         var isDeepHovered = _hoveredWidget == d.Id;
 
         if (isHovered && (_captureId == 0 || _captureId == d.Id))

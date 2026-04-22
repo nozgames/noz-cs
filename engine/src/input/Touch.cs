@@ -14,6 +14,7 @@ public struct TouchFinger
     public Vector2 StartPosition;
     public Vector2 Delta;
     public float Pressure;
+    public float DownTime;
     public bool Active;
 }
 
@@ -23,6 +24,13 @@ public static class Touch
 
     private static readonly TouchFinger[] _fingers = new TouchFinger[MaxFingers];
     private static int _fingerCount;
+
+    private static bool _mouseSimulated;
+    private static long _mouseSimulatedFingerId;
+    private static bool _longPressEligible;
+    private static Vector2 _longPressStartPosition;
+    private const float LongPressDuration = 0.5f;
+    private const float LongPressMaxDrift = 20f;
 
     // Pinch gesture (driven by SDL native events)
     private static float _pinchScale;
@@ -37,14 +45,19 @@ public static class Touch
     private const float TapMaxDistance = 20f;
     private const float DoubleTapMaxInterval = 0.3f;
 
-    // Two-finger pan gesture
+    // Two-finger pan + zoom gesture
     private static bool _twoFingerPanning;
     private static Vector2 _twoFingerCenter;
     private static Vector2 _twoFingerPrevCenter;
     private static Vector2 _twoFingerDelta;
+    private static float _twoFingerDistance;
+    private static float _twoFingerPrevDistance;
+    private static float _twoFingerScale;
 
     // Track finger down times for tap detection
     private static readonly float[] _fingerDownTimes = new float[MaxFingers];
+
+    public static bool SimulateMouse { get; set;}
 
     public static int FingerCount => _fingerCount;
     public static bool IsTouching => _fingerCount > 0;
@@ -56,10 +69,11 @@ public static class Touch
     public static bool IsPinching => _pinchActive;
     public static float PinchScale => _pinchScale;
 
-    // Two-finger pan gesture
+    // Two-finger pan + zoom gesture
     public static bool IsTwoFingerPanning => _twoFingerPanning;
     public static Vector2 TwoFingerCenter => _twoFingerCenter;
     public static Vector2 TwoFingerDelta => _twoFingerDelta;
+    public static float TwoFingerScale => _twoFingerScale;
 
     public static ReadOnlySpan<TouchFinger> Fingers => _fingers.AsSpan(0, MaxFingers);
 
@@ -72,9 +86,32 @@ public static class Touch
         _doubleTapped = false;
         _pinchScale = 1f;
         _twoFingerDelta = Vector2.Zero;
+        _twoFingerScale = 1f;
 
         for (var i = 0; i < MaxFingers; i++)
             _fingers[i].Delta = Vector2.Zero;
+
+        CheckLongPress();
+    }
+
+    private static void CheckLongPress()
+    {
+        if (!SimulateMouse || !_mouseSimulated || !_longPressEligible) return;
+
+        var slot = FindSlot(_mouseSimulatedFingerId);
+        if (slot < 0) return;
+
+        ref readonly var f = ref _fingers[slot];
+        if (Time.TotalTime - f.DownTime < LongPressDuration) return;
+        if (Vector2.Distance(f.Position, _longPressStartPosition) > LongPressMaxDrift) return;
+
+        _longPressEligible = false;
+        _mouseSimulated = false;
+
+        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+        Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
+        Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseRight));
+        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseRight));
     }
 
     public static void ProcessEvent(PlatformEvent evt)
@@ -86,21 +123,45 @@ public static class Touch
                 var slot = FindOrAllocSlot(evt.FingerId);
                 if (slot < 0) break;
 
+                if (SimulateMouse)
+                {
+                    if (_fingerCount == 0)
+                    {
+                        _mouseSimulated = true;
+                        _mouseSimulatedFingerId = evt.FingerId;
+                        _longPressEligible = true;
+                        _longPressStartPosition = evt.TouchPosition;
+                        Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
+                        Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                    }
+                    else if (_mouseSimulated)
+                    {
+                        _mouseSimulated = false;
+                        _longPressEligible = false;
+                        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    }
+                }
+
                 ref var f = ref _fingers[slot];
                 f.Id = evt.FingerId;
                 f.Position = evt.TouchPosition;
                 f.StartPosition = evt.TouchPosition;
                 f.Delta = Vector2.Zero;
                 f.Pressure = evt.Pressure;
+                f.DownTime = Time.TotalTime;
                 f.Active = true;
                 _fingerDownTimes[slot] = Time.TotalTime;
                 _fingerCount++;
 
-                if (_fingerCount >= 2 && !_twoFingerPanning)
+                if (_fingerCount >= 2)
                 {
+                    // Starting fresh, or a third+ finger joined — re-baseline so the
+                    // tracked pair's center/distance don't jump on the next move.
                     _twoFingerPanning = true;
                     _twoFingerCenter = ComputeTwoFingerCenter();
                     _twoFingerPrevCenter = _twoFingerCenter;
+                    _twoFingerDistance = ComputeTwoFingerDistance();
+                    _twoFingerPrevDistance = _twoFingerDistance;
                 }
                 break;
             }
@@ -111,6 +172,15 @@ public static class Touch
                 if (slot < 0) break;
 
                 ref var f = ref _fingers[slot];
+
+                if (SimulateMouse && _mouseSimulated && evt.FingerId == _mouseSimulatedFingerId)
+                {
+                    _mouseSimulated = false;
+                    _longPressEligible = false;
+                    Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
+                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                }
+
                 var duration = Time.TotalTime - _fingerDownTimes[slot];
                 var distance = Vector2.Distance(f.Position, f.StartPosition);
 
@@ -132,7 +202,18 @@ public static class Touch
                 _fingerCount = Math.Max(0, _fingerCount - 1);
 
                 if (_fingerCount < 2)
+                {
                     _twoFingerPanning = false;
+                }
+                else
+                {
+                    // One of the tracked pair lifted but another finger remains —
+                    // re-baseline the gesture against the new pair.
+                    _twoFingerCenter = ComputeTwoFingerCenter();
+                    _twoFingerPrevCenter = _twoFingerCenter;
+                    _twoFingerDistance = ComputeTwoFingerDistance();
+                    _twoFingerPrevDistance = _twoFingerDistance;
+                }
                 break;
             }
 
@@ -146,11 +227,25 @@ public static class Touch
                 f.Position = evt.TouchPosition;
                 f.Pressure = evt.Pressure;
 
+                if (SimulateMouse && _mouseSimulated && evt.FingerId == _mouseSimulatedFingerId)
+                {
+                    if (_longPressEligible &&
+                        Vector2.Distance(evt.TouchPosition, _longPressStartPosition) > LongPressMaxDrift)
+                        _longPressEligible = false;
+
+                    Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
+                }
+
                 if (_twoFingerPanning)
                 {
                     _twoFingerPrevCenter = _twoFingerCenter;
                     _twoFingerCenter = ComputeTwoFingerCenter();
                     _twoFingerDelta += _twoFingerCenter - _twoFingerPrevCenter;
+
+                    _twoFingerPrevDistance = _twoFingerDistance;
+                    _twoFingerDistance = ComputeTwoFingerDistance();
+                    if (_twoFingerPrevDistance >= 1f)
+                        _twoFingerScale *= _twoFingerDistance / _twoFingerPrevDistance;
                 }
                 break;
             }
@@ -160,25 +255,46 @@ public static class Touch
                 var slot = FindSlot(evt.FingerId);
                 if (slot < 0) break;
 
+                if (SimulateMouse && _mouseSimulated && evt.FingerId == _mouseSimulatedFingerId)
+                {
+                    _mouseSimulated = false;
+                    _longPressEligible = false;
+                    Input.ProcessEvent(PlatformEvent.MouseMove(_fingers[slot].Position));
+                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                }
+
                 _fingers[slot] = default;
                 _fingerCount = Math.Max(0, _fingerCount - 1);
 
                 if (_fingerCount < 2)
+                {
                     _twoFingerPanning = false;
+                }
+                else
+                {
+                    _twoFingerCenter = ComputeTwoFingerCenter();
+                    _twoFingerPrevCenter = _twoFingerCenter;
+                    _twoFingerDistance = ComputeTwoFingerDistance();
+                    _twoFingerPrevDistance = _twoFingerDistance;
+                }
                 break;
             }
 
-            // SDL3 native pinch gesture
+            // SDL3 native pinch gesture — trackpad path only. When fingers are on
+            // the screen we drive zoom from our own two-finger tracking instead.
             case PlatformEventType.PinchBegin:
+                if (_fingerCount >= 2) break;
                 _pinchActive = true;
                 _pinchScale = 1f;
                 break;
 
             case PlatformEventType.PinchUpdate:
+                if (_fingerCount >= 2) break;
                 _pinchScale = evt.PinchScale;
                 break;
 
             case PlatformEventType.PinchEnd:
+                if (_fingerCount >= 2) break;
                 _pinchActive = false;
                 _pinchScale = 1f;
                 break;
@@ -196,6 +312,21 @@ public static class Touch
             count++;
         }
         return count > 0 ? center / count : Vector2.Zero;
+    }
+
+    private static float ComputeTwoFingerDistance()
+    {
+        var first = Vector2.Zero;
+        var second = Vector2.Zero;
+        var count = 0;
+        for (var i = 0; i < MaxFingers && count < 2; i++)
+        {
+            if (!_fingers[i].Active) continue;
+            if (count == 0) first = _fingers[i].Position;
+            else second = _fingers[i].Position;
+            count++;
+        }
+        return count == 2 ? Vector2.Distance(first, second) : 0f;
     }
 
     private static int FindSlot(long fingerId)

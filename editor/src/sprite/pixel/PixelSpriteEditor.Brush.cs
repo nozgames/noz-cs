@@ -18,6 +18,51 @@ public partial class PixelSpriteEditor
 
     private static readonly BrushRun[]?[] _brushRunCache = new BrushRun[MaxBrushSize + 1][];
 
+    private PixelLayer? _softStrokeLayer;
+    private PixelData<Color32>? _softStrokeOriginal;
+    private PixelData<float>? _softStrokeCoverage;
+    private RectInt _softStrokeRect;
+    private bool _softStrokeActive;
+
+    public bool IsSoftStrokeActive => _softStrokeActive;
+
+    public void BeginSoftStroke()
+    {
+        var layer = ActiveLayer;
+        if (layer?.Pixels == null) return;
+
+        var epr = EditablePixelRect;
+        _softStrokeLayer = layer;
+        _softStrokeRect = epr;
+
+        if (_softStrokeOriginal == null
+            || _softStrokeOriginal.Width != epr.Width
+            || _softStrokeOriginal.Height != epr.Height)
+        {
+            _softStrokeOriginal?.Dispose();
+            _softStrokeCoverage?.Dispose();
+            _softStrokeOriginal = new PixelData<Color32>(epr.Width, epr.Height);
+            _softStrokeCoverage = new PixelData<float>(epr.Width, epr.Height);
+        }
+        else
+        {
+            _softStrokeCoverage!.Clear();
+        }
+
+        for (var y = 0; y < epr.Height; y++)
+            for (var x = 0; x < epr.Width; x++)
+                _softStrokeOriginal![x, y] = layer.Pixels[epr.X + x, epr.Y + y];
+
+        _softStrokeActive = true;
+    }
+
+    public void EndSoftStroke()
+    {
+        _softStrokeActive = false;
+        _softStrokeLayer = null;
+        // Buffers kept allocated for reuse on the next stroke.
+    }
+
     public static bool IsInBrush(int dx, int dy, int brushSize)
     {
         if (brushSize <= 2) return true;
@@ -83,49 +128,47 @@ public partial class PixelSpriteEditor
         InvalidateComposite();
     }
 
-    public void PaintBrushSoft(Vector2Int pixel, Color32 color, float hardness)
+    public void PaintBrushSoft(Vector2 centerPixel, Color32 color, float hardness)
     {
-        var layer = ActiveLayer;
+        var layer = _softStrokeLayer ?? ActiveLayer;
         if (layer?.Pixels == null) return;
+        if (!_softStrokeActive || _softStrokeOriginal == null || _softStrokeCoverage == null) return;
 
-        // Brush tip is a disc mask rasterized via 4×4 super-sampling per pixel. Same approach
-        // as Photoshop — a 1-px brush at full hardness covers the center pixel at ~π/4 ≈ 78%
-        // rather than snapping to a solid single pixel (that's what the Pencil tool is for).
-        //
-        // At hardness=1 the brush is a hard disc of radius nominalR; super-sampling alone
-        // produces the AA rim. At hardness<1 the fade zone opens symmetrically — hardR
-        // retreats from nominalR inward and outerR extends past it — for Photoshop-style
-        // "soft edge spills outside the preview circle" behavior.
         var h = Math.Clamp(hardness, 0f, 1f);
-        var nominalR = BrushSize * 0.5f;
-        // Floor on the fade extension so tiny brushes get a visible soft footprint at low
-        // hardness; above ~size 6 this floor stops mattering and scaling is proportional.
-        const float MinFade = 3f;
-        var fadeExtension = MathF.Max(nominalR, MinFade) * (1f - h);
-        var outerR = nominalR + fadeExtension;
-        var hardR = nominalR - fadeExtension;          // may be negative for tiny soft brushes
-        var fadeWidth = outerR - hardR;
-        var isHardMask = fadeWidth < 1e-4f;
+        var outerR = BrushSize * 0.5f;
+        var fadeWidth = 1f + outerR * (1f - h);
+        var effOuter = outerR + fadeWidth * 0.5f;
+        var hardR = MathF.Max(0f, effOuter - fadeWidth);
+        var invFade = 1f / fadeWidth;
 
-        var centerOffset = (BrushSize & 1) == 0 ? 0.5f : 0f;
-        var centerX = pixel.X + centerOffset;
-        var centerY = pixel.Y + centerOffset;
         const float ApronWidth = 2f;
-        var box = (int)MathF.Ceiling(outerR + ApronWidth);
+        var apronR = effOuter + ApronWidth;
+        var apronR2 = apronR * apronR;
+        var box = (int)MathF.Ceiling(apronR);
 
-        const int SS = 4;
-        const float SSStep = 1f / SS;
-        const float SSBase = -0.5f + SSStep * 0.5f;
-        const float SSRecip = 1f / (SS * SS);
+        var cx0 = (int)MathF.Floor(centerPixel.X);
+        var cy0 = (int)MathF.Floor(centerPixel.Y);
 
         var tiling = Document.ShowTiling;
         var rect = EditablePixelRect;
+        var epr = _softStrokeRect;
+        var cover = _softStrokeCoverage;
+        var original = _softStrokeOriginal;
 
         for (var dy = -box; dy <= box; dy++)
             for (var dx = -box; dx <= box; dx++)
             {
-                var px = pixel.X + dx;
-                var py = pixel.Y + dy;
+                // Distance is computed from the unwrapped (virtual) pixel position so that a
+                // stamp near a tiling seam still counts pixels within the disc — they just get
+                // wrapped to the opposite edge for the actual layer write.
+                var virtPx = cx0 + dx;
+                var virtPy = cy0 + dy;
+                var ox = (virtPx + 0.5f) - centerPixel.X;
+                var oy = (virtPy + 0.5f) - centerPixel.Y;
+                var d2 = ox * ox + oy * oy;
+
+                var px = virtPx;
+                var py = virtPy;
                 if (tiling)
                 {
                     px = rect.X + ((px - rect.X) % rect.Width + rect.Width) % rect.Width;
@@ -133,47 +176,53 @@ public partial class PixelSpriteEditor
                 }
                 if (!IsPixelInConstraint(new Vector2Int(px, py))) continue;
                 if (!IsPixelSelected(px, py)) continue;
-                if (AlphaLock && layer.Pixels[px, py].A == 0) continue;
 
-                var sum = 0f;
-                for (var sy = 0; sy < SS; sy++)
+                float cov;
+                if (d2 >= effOuter * effOuter)
                 {
-                    var distY = (pixel.Y + dy + SSBase + sy * SSStep) - centerY;
-                    var dy2 = distY * distY;
-                    for (var sx = 0; sx < SS; sx++)
-                    {
-                        var distX = (pixel.X + dx + SSBase + sx * SSStep) - centerX;
-                        var d = MathF.Sqrt(distX * distX + dy2);
-                        if (d >= outerR) continue;
-                        if (isHardMask || d <= hardR) { sum += 1f; continue; }
-                        var t = (outerR - d) / fadeWidth;
-                        sum += t * t * (3f - 2f * t);
-                    }
+                    cov = 0f;
                 }
-                if (sum <= 0f)
+                else
+                {
+                    var d = MathF.Sqrt(d2);
+                    if (d <= hardR) cov = 1f;
+                    else cov = (effOuter - d) * invFade;
+                }
+
+                var bx = px - epr.X;
+                var by = py - epr.Y;
+                var inBuffer = bx >= 0 && bx < epr.Width && by >= 0 && by < epr.Height;
+
+                if (cov <= 0f)
                 {
                     // Apron: seed fully-empty pixels within ApronWidth px of the brush footprint
-                    // with the brush RGB at alpha=0, so bilinear filtering doesn't interpolate
+                    // with the brush RGB at alpha=0 so bilinear filtering doesn't interpolate
                     // painted pixels against (0,0,0,0) neighbors and produce a black fringe.
                     if (color.A == 0) continue;
+                    if (d2 > apronR2) continue;
                     var empty = layer.Pixels[px, py];
                     if (empty.A != 0 || (empty.R | empty.G | empty.B) != 0) continue;
-                    var dcx = (pixel.X + dx) - centerX;
-                    var dcy = (pixel.Y + dy) - centerY;
-                    var apronR = outerR + ApronWidth;
-                    if (dcx * dcx + dcy * dcy > apronR * apronR) continue;
                     layer.Pixels.Set(px, py, new Color32(color.R, color.G, color.B, 0));
                     continue;
                 }
-                var coverage = sum * SSRecip;
 
-                var srcA = (color.A / 255f) * coverage;
+                if (AlphaLock && layer.Pixels[px, py].A == 0) continue;
+                if (!inBuffer) continue;
+
+                // Max-blend coverage accumulator: the pixel's final alpha within this stroke is
+                // the maximum coverage from any stamp, not the sum — dense sub-pixel stamps
+                // don't pile alpha above 1.0.
+                ref var slot = ref cover[bx, by];
+                if (cov <= slot) continue;
+                slot = cov;
+
+                var srcA = (color.A / 255f) * cov;
                 if (srcA <= 0f) continue;
                 var src = new Color32(color.R, color.G, color.B, (byte)(srcA * 255f + 0.5f));
                 if (src.A == 0) continue;
 
-                var dst = layer.Pixels[px, py];
-                layer.Pixels.Set(px, py, Color32.Blend(dst, src));
+                var orig = original[bx, by];
+                layer.Pixels.Set(px, py, Color32.Blend(orig, src));
             }
         InvalidateComposite();
     }
@@ -237,6 +286,62 @@ public partial class PixelSpriteEditor
 
         static bool IsInBrushSafe(int dx, int dy, int size) =>
             dx >= 0 && dx < size && dy >= 0 && dy < size && IsInBrush(dx, dy, size);
+    }
+
+    public void DrawSoftBrushOutline(Vector2 centerPixel, Color color)
+    {
+        var canvas = CanvasRect;
+        var epr = EditablePixelRect;
+        var cellW = canvas.Width / epr.Width;
+        var cellH = canvas.Height / epr.Height;
+        var cx = canvas.X + (centerPixel.X - epr.X) * cellW;
+        var cy = canvas.Y + (centerPixel.Y - epr.Y) * cellH;
+        var radiusX = BrushSize * 0.5f * cellW;
+        var radiusY = BrushSize * 0.5f * cellH;
+        var halfWidth = EditorStyle.Workspace.DocumentBoundsLineWidth * Gizmos.ZoomRefScale;
+
+        const int Segments = 48;
+        var vertCount = Segments * 4;
+        var idxCount = Segments * 6;
+        Span<MeshVertex> verts = stackalloc MeshVertex[vertCount];
+        Span<ushort> indices = stackalloc ushort[idxCount];
+
+        var angleStep = MathF.PI * 2f / Segments;
+        for (var i = 0; i < Segments; i++)
+        {
+            var a0 = i * angleStep;
+            var a1 = (i + 1) * angleStep;
+            var v0 = new Vector2(cx + MathF.Cos(a0) * radiusX, cy + MathF.Sin(a0) * radiusY);
+            var v1 = new Vector2(cx + MathF.Cos(a1) * radiusX, cy + MathF.Sin(a1) * radiusY);
+
+            var delta = v1 - v0;
+            var length = delta.Length();
+            if (length < 1e-6f) continue;
+            var dir = delta / length;
+            var perp = new Vector2(-dir.Y, dir.X);
+
+            var vi = i * 4;
+            verts[vi + 0] = new MeshVertex(v0.X - perp.X * halfWidth, v0.Y - perp.Y * halfWidth, 0, 0, Color.White);
+            verts[vi + 1] = new MeshVertex(v0.X + perp.X * halfWidth, v0.Y + perp.Y * halfWidth, 1, 0, Color.White);
+            verts[vi + 2] = new MeshVertex(v1.X + perp.X * halfWidth, v1.Y + perp.Y * halfWidth, 1, 1, Color.White);
+            verts[vi + 3] = new MeshVertex(v1.X - perp.X * halfWidth, v1.Y - perp.Y * halfWidth, 0, 1, Color.White);
+
+            var ii = i * 6;
+            indices[ii + 0] = (ushort)(vi + 0);
+            indices[ii + 1] = (ushort)(vi + 1);
+            indices[ii + 2] = (ushort)(vi + 2);
+            indices[ii + 3] = (ushort)(vi + 2);
+            indices[ii + 4] = (ushort)(vi + 3);
+            indices[ii + 5] = (ushort)(vi + 0);
+        }
+
+        using (Gizmos.PushState(EditorLayer.Tool))
+        {
+            Graphics.SetTransform(Document.Transform);
+            Graphics.SetSortGroup(6);
+            Graphics.SetColor(color);
+            Graphics.Draw(verts, indices);
+        }
     }
 
     public void DrawBrushOutline(Vector2Int pixel, Color color)

@@ -16,7 +16,7 @@ public class PixelLassoSelectMode : EditorMode<PixelSpriteEditor>
         EditorCursor.SetCrosshair();
 
         var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
+        var pixel = Editor.WorldToPixelSnapped(mouseWorld);
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {

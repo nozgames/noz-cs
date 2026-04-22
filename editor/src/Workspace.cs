@@ -17,10 +17,13 @@ public static partial class Workspace
     private static partial class WidgetIds
     {
         public static partial WidgetId Menu { get; }
+        public static partial WidgetId ProjectView { get; }
+        public static partial WidgetId ToggleEditMode { get; }
         public static partial WidgetId Toolbar { get; }
         public static partial WidgetId XrayButton { get; }
         public static partial WidgetId CollectionButton { get; }
         public static partial WidgetId ContextMenu { get; }
+        public static partial WidgetId InspectorToggle { get; }
         public static partial WidgetId Scene { get; }
         public static partial WidgetId SceneViewport { get; }
         public static partial WidgetId ReferencesButton { get; }
@@ -56,6 +59,8 @@ public static partial class Workspace
     private static bool _showGrid = true;
     private static bool _showNames;
     private static bool _showReferences;
+    private static bool _showProject = true;
+    private static bool _showInspector = true;
     private static bool _isolationOverride;
     private static Vector2 _savedCameraPosition;
     private static float _savedCameraZoom;
@@ -63,6 +68,8 @@ public static partial class Workspace
 
     private static Vector2 _mousePosition;
     private static Vector2 _mouseWorldPosition;
+    private static Vector2 _penPosition;
+    private static Vector2 _penWorldPosition;
     private static Vector2 _dragPosition;
     private static Vector2 _panPositionCamera;
     private static bool _isDragging;
@@ -83,9 +90,13 @@ public static partial class Workspace
     public static float Zoom => _zoom;
     public static bool ShowGrid => _showGrid;
     public static bool ShowNames => _showNames;
+    public static bool ShowProject => _showProject;
+    public static bool ShowInspector => _showInspector;
     public static bool ShowHidden { get; set; }
     public static Vector2 MousePosition => _mousePosition;
     public static Vector2 MouseWorldPosition => _mouseWorldPosition;
+    public static Vector2 PenPosition => _penPosition;
+    public static Vector2 PenWorldPosition => _penWorldPosition;
     public static bool IsDragging => _isDragging;
     public static bool WasDragging => _wasDragging;
     public static bool DragStarted => _dragStarted;
@@ -337,8 +348,10 @@ public static partial class Workspace
         _showFps = props.GetBool("workspace", "show_fps", false);
         _showGrid = props.GetBool("workspace", "show_grid", true);
         _showNames = props.GetBool("workspace", "show_names", false);
+        _showProject = props.GetBool("workspace", "show_project", true);
+        _showInspector = props.GetBool("workspace", "show_inspector", true);
         _isolationOverride = props.GetBool("workspace", "isolation_override", false);
-        _userUIScale = props.GetFloat("workspace", "ui_scale", 1f);
+        _userUIScale = props.GetFloat("workspace", "ui_scale", Application.IsTablet ? 1.6f : 1f);
         _inspectorSize = props.GetFloat("workspace", "inspector_size", 300f);
         _outlinerSize = props.GetFloat("workspace", "outliner_size", 200f);
         UI.UserScale = _userUIScale;
@@ -366,6 +379,8 @@ public static partial class Workspace
         props.SetBool("workspace", "show_fps", _showFps);
         props.SetBool("workspace", "show_grid", _showGrid);
         props.SetBool("workspace", "show_names", _showNames);
+        props.SetBool("workspace", "show_project", _showProject);
+        props.SetBool("workspace", "show_inspector", _showInspector);
         props.SetBool("workspace", "isolation_override", _isolationOverride);
         props.SetFloat("workspace", "ui_scale", UI.UserScale);
         props.SetFloat("workspace", "inspector_size", _inspectorSize);
@@ -597,10 +612,21 @@ public static partial class Workspace
 
     private static void ToolbarUI()
     {
+        using var cursor = UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
         using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
 
-        // if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
-        //     ;
+        if (ActiveEditor != null)
+        {
+            ActiveEditor.ToolbarUI();
+            return;
+        }
+
+        if (UI.Button(WidgetIds.ProjectView, _showProject?EditorAssets.Sprites.IconFolderOpen:EditorAssets.Sprites.IconFolder, EditorStyle.Button.ToggleIcon, isSelected: _showProject))  
+            _showProject = !_showProject;               
+
+        using (UI.BeginEnabled(SelectedCount > 0))
+            if (UI.Button(WidgetIds.ToggleEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon))  
+                BeginEdit();
 
         using (UI.BeginFlex())
             if (_showFps)
@@ -664,6 +690,11 @@ public static partial class Workspace
             text: CollectionManager.VisibleCollection?.Name ?? "None",
             icon: EditorAssets.Sprites.IconCollection,
             getItems: GetCollectionItems);
+
+        EditorUI.PanelSeparator();
+
+        if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: _showInspector))  
+            _showInspector = !_showInspector;
     }
 
     public static void UpdateUI()
@@ -688,11 +719,13 @@ public static partial class Workspace
             using (UI.BeginRow())
             {
                 // outliner (left, fixed width)
+                var outliner = false;
                 using (UI.BeginFlex())
-                    Outliner.UpdateUI();
+                    outliner = Outliner.UpdateUI();
 
-                UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
-                    EditorStyle.Inspector.Splitter, fixedPane: 1);
+                if (outliner)
+                    UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
+                        EditorStyle.Inspector.Splitter, fixedPane: 1);
 
                 // center + inspector nested in their own row so splitters don't interfere
                 using (UI.BeginFlex())
@@ -706,12 +739,15 @@ public static partial class Workspace
                         ElementTree.EndWidget();
                     }
 
-                    // inspector (right, fixed width)
-                    UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
-                        EditorStyle.Inspector.Splitter, fixedPane: 2);
+                    if (ActiveEditor?.ShowInspector ?? ShowInspector)
+                    {
+                        // inspector (right, fixed width)
+                        UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
+                            EditorStyle.Inspector.Splitter, fixedPane: 2);
 
-                    using (UI.BeginFlex())
-                        Inspector.UpdateUI();
+                        using (UI.BeginFlex())
+                            Inspector.UpdateUI();                        
+                    }
                 }
             }
         }
@@ -999,6 +1035,16 @@ public static partial class Workspace
     {
         _mousePosition = Input.MousePosition;
         _mouseWorldPosition = _camera.ScreenToWorld(_mousePosition);
+        if (Application.IsTablet)
+        {
+            _penPosition = Input.PenPosition;
+            _penWorldPosition = _camera.ScreenToWorld(_penPosition);
+        }
+        else
+        {
+            _penPosition = _mousePosition;
+            _penWorldPosition = _mouseWorldPosition;
+        }
         _dragStarted = false;
         _wasDragging = false;
 
@@ -1065,6 +1111,7 @@ public static partial class Workspace
         {
             var worldDelta = _camera.ScreenToWorld(Touch.TwoFingerDelta) - _camera.ScreenToWorld(Vector2.Zero);
             _camera.Position -= worldDelta;
+            UpdateCamera();
         }
     }
 
@@ -1073,22 +1120,39 @@ public static partial class Workspace
         var scrollDelta = Input.GetAxis(InputCode.MouseScrollY);
         if (scrollDelta > -0.5f && scrollDelta < 0.5f)
         {
-            // No scroll wheel — check for pinch gesture
-            if (Touch.IsPinching)
+            // No scroll wheel — check for a two-finger gesture.
+            // Touchscreen: unified pan+zoom from our own finger tracking.
+            // Trackpad: SDL3's native pinch recognizer, anchored at the cursor.
+            float scale;
+            Vector2 pinchScreen;
+            if (Touch.IsTwoFingerPanning)
             {
-                var pinchScreen = Touch.TwoFingerCenter;
-                var worldUnderPinch = _camera.ScreenToWorld(pinchScreen);
-
-                _zoom *= Touch.PinchScale;
-                _zoom = Math.Clamp(_zoom, ZoomMin, ZoomMax);
-
-                UpdateCamera();
-
-                var worldUnderPinchAfter = _camera.ScreenToWorld(pinchScreen);
-                _camera.Position += worldUnderPinch - worldUnderPinchAfter;
-
-                UpdateCamera();
+                scale = Touch.TwoFingerScale;
+                pinchScreen = Touch.TwoFingerCenter;
             }
+            else if (Touch.IsPinching)
+            {
+                scale = Touch.PinchScale;
+                pinchScreen = Input.MousePosition;
+            }
+            else
+            {
+                return;
+            }
+
+            if (scale == 1f) return;
+
+            var worldUnderPinch = _camera.ScreenToWorld(pinchScreen);
+
+            _zoom *= scale;
+            _zoom = Math.Clamp(_zoom, ZoomMin, ZoomMax);
+
+            UpdateCamera();
+
+            var worldUnderPinchAfter = _camera.ScreenToWorld(pinchScreen);
+            _camera.Position += worldUnderPinch - worldUnderPinchAfter;
+
+            UpdateCamera();
             return;
         }
 

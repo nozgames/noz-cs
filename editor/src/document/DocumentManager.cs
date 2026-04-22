@@ -32,6 +32,7 @@ public static class DocumentManager
     public delegate void DocumentAddedDelegate(Document doc);
 
     public static event DocumentAddedDelegate? DocumentAdded;
+    public static event DocumentAddedDelegate? DocumentRemoved;
     public static event Action<Document>? OnExported;
 
     public static void NotifyDocumentAdded(Document doc) => DocumentAdded?.Invoke(doc);
@@ -499,6 +500,7 @@ public static class DocumentManager
         AssetManifest.IsModified = true;
 
         _documents.Remove(doc);
+        DocumentRemoved?.Invoke(doc);
         doc.Dispose();
     }
 

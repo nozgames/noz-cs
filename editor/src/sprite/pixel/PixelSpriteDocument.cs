@@ -239,4 +239,22 @@ public partial class PixelSpriteDocument : SpriteDocument
         SelectionMask = null;
         base.Dispose();
     }
+
+    public override void InspectorUI()
+    {
+        base.InspectorUI();
+
+        using var section = Inspector.BeginSection("PIXEL");
+        if (Inspector.IsSectionCollapsed) return;
+
+        using (Inspector.BeginProperty("Animated"))
+        {
+            if (UI.Toggle(WidgetIds.AnimatedToggle, IsAnimated, EditorStyle.Inspector.Toggle))
+            {
+                Undo.Record(this);
+                IsAnimated = !IsAnimated;
+                MarkSpriteDirty();
+            }
+        }
+    }
 }

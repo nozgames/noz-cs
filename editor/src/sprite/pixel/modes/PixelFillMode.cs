@@ -15,7 +15,7 @@ public class PixelFillMode : EditorMode<PixelSpriteEditor>
         if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
         {
             var mouseWorld = Workspace.MouseWorldPosition;
-            var pixel = Editor.WorldToPixel(mouseWorld);
+            var pixel = Editor.WorldToPixelSnapped(mouseWorld);
             Fill(pixel);
         }
     }
@@ -66,7 +66,7 @@ public class PixelFillMode : EditorMode<PixelSpriteEditor>
     public override void Draw()
     {
         var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
+        var pixel = Editor.WorldToPixelSnapped(mouseWorld);
         if (!Editor.IsPixelInBounds(pixel)) return;
         Editor.DrawBrushOutline(pixel, new Color(0.4f, 0.8f, 1f, 0.6f));
     }

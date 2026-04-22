@@ -30,8 +30,11 @@ internal static partial class Outliner
     public static bool IsSectionCollapsed => _sectionCollapsed;
     public static bool WasHeaderPressed => _wasHeaderPressed;
 
-    public static void UpdateUI()
+    public static bool UpdateUI()
     {
+        if (!(Workspace.ActiveEditor?.ShowOutliner ?? Workspace.ShowProject))
+            return false;
+
         _nextSectionId = ElementId.Section;
         _sectionOpen = false;
 
@@ -52,6 +55,8 @@ internal static partial class Outliner
 
             UI.ScrollBar(ElementId.ScrollBar, ElementId.Scroll, EditorStyle.Inspector.ScrollBar);
         }
+
+        return true;
     }
 
     public static AutoSection BeginSection(

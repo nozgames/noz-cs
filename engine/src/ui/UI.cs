@@ -279,7 +279,7 @@ public static partial class UI
     internal static void ProcessInput()
     {
         if (Camera == null) return;
-        var mousePos = Input.MousePosition;
+        var mousePos = Input.IsButtonDownRaw(InputCode.Pen) ? Input.PenPosition : Input.MousePosition;
         var renderSize = Graphics.RenderSize;
         var windowSize = Application.WindowSize;
         if (renderSize != windowSize)

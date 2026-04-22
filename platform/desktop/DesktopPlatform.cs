@@ -32,8 +32,7 @@ public unsafe partial class SDLPlatform : IPlatform
     private bool _isMouseInWindow = true;
     private bool _isMouseCaptured;
     private Action? _beforeQuit;
-    private int _activeTouchFingers;
-    private bool _suppressMouseForTouch;
+    private bool _isTablet;
 
     public bool IsMouseInWindow => _isMouseInWindow;
     public bool IsMouseCaptured => _isMouseCaptured;
@@ -84,6 +83,8 @@ public unsafe partial class SDLPlatform : IPlatform
         {
             throw new Exception($"Failed to initialize SDL: {SDL_GetError()}");
         }
+
+        _isTablet = SDL_IsTablet();
 
         SDL_WindowFlags windowFlags = 0;
         if (config.Resizable)
@@ -212,6 +213,7 @@ public unsafe partial class SDLPlatform : IPlatform
     public bool PollEvents()
     {
         SDL_Event evt;
+
         while (SDL_PollEvent(&evt))
         {
             if (evt.Type == SDL_EventType.SDL_EVENT_QUIT)
@@ -278,6 +280,10 @@ public unsafe partial class SDLPlatform : IPlatform
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN:
             {
+                if ((ulong)evt.button.which == (ulong)SDL3.SDL_TOUCH_MOUSEID || 
+                    (ulong)evt.button.which == (ulong)SDL3.SDL_PEN_MOUSEID)
+                    break;
+
                 var code = MouseButtonToInputCode(evt.button.button);
                 if (code != InputCode.None)
                     OnEvent?.Invoke(PlatformEvent.MouseDown(code, evt.button.clicks));
@@ -286,6 +292,10 @@ public unsafe partial class SDLPlatform : IPlatform
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
             {
+                if ((ulong)evt.button.which == (ulong)SDL3.SDL_TOUCH_MOUSEID || 
+                    (ulong)evt.button.which == (ulong)SDL3.SDL_PEN_MOUSEID)
+                    break;
+
                 var code = MouseButtonToInputCode(evt.button.button);
                 if (code != InputCode.None)
                     OnEvent?.Invoke(PlatformEvent.MouseUp(code));
@@ -293,6 +303,11 @@ public unsafe partial class SDLPlatform : IPlatform
             }
 
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
+                if (_isTablet ||
+                    (ulong)evt.motion.which == (ulong)SDL3.SDL_TOUCH_MOUSEID || 
+                    (ulong)evt.motion.which == (ulong)SDL3.SDL_PEN_MOUSEID)
+                    break;           
+
                 OnEvent?.Invoke(PlatformEvent.MouseMove(new Vector2(evt.motion.x, evt.motion.y)));
                 break;
 
@@ -357,57 +372,44 @@ public unsafe partial class SDLPlatform : IPlatform
             // Touch (finger) events — SDL3 gives normalized 0..1 coordinates
             case SDL_EventType.SDL_EVENT_FINGER_DOWN:
             {
-                _activeTouchFingers++;
+                if (evt.tfinger.touchID == SDL_PEN_TOUCHID)
+                    break;
+
+                var fingerId = (long)evt.tfinger.fingerID;
                 var pos = new Vector2(evt.tfinger.x * WindowSize.X, evt.tfinger.y * WindowSize.Y);
-                OnEvent?.Invoke(PlatformEvent.TouchDown((long)evt.tfinger.fingerID, pos, evt.tfinger.pressure));
-
-                // First finger also drives mouse for UI button taps
-                if (_activeTouchFingers == 1 && !_suppressMouseForTouch)
-                {
-                    OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
-                    OnEvent?.Invoke(PlatformEvent.MouseDown(InputCode.MouseLeft));
-                }
-
-                // Second finger: cancel in-progress mouse interaction for two-finger gestures
-                if (_activeTouchFingers == 2)
-                {
-                    OnEvent?.Invoke(PlatformEvent.MouseUp(InputCode.MouseLeft));
-                    _suppressMouseForTouch = true;
-                }
+                OnEvent?.Invoke(PlatformEvent.TouchDown(fingerId, pos, evt.tfinger.pressure));
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_FINGER_UP:
             {
+                if (evt.tfinger.touchID == SDL_PEN_TOUCHID)
+                    break;
+
+                var fingerId = (long)evt.tfinger.fingerID;
                 var pos = new Vector2(evt.tfinger.x * WindowSize.X, evt.tfinger.y * WindowSize.Y);
-                // Emit mouse up before touch up so UI sees the click complete
-                if (_activeTouchFingers == 1 && !_suppressMouseForTouch)
-                {
-                    OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
-                    OnEvent?.Invoke(PlatformEvent.MouseUp(InputCode.MouseLeft));
-                }
-                OnEvent?.Invoke(PlatformEvent.TouchUp((long)evt.tfinger.fingerID, pos));
-                _activeTouchFingers = Math.Max(0, _activeTouchFingers - 1);
-                if (_activeTouchFingers == 0)
-                    _suppressMouseForTouch = false;
+                OnEvent?.Invoke(PlatformEvent.TouchUp(fingerId, pos));
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_FINGER_MOTION:
             {
+                if (evt.tfinger.touchID == SDL_PEN_TOUCHID)
+                    break;
+
+                var fingerId = (long)evt.tfinger.fingerID;
                 var pos = new Vector2(evt.tfinger.x * WindowSize.X, evt.tfinger.y * WindowSize.Y);
                 var delta = new Vector2(evt.tfinger.dx * WindowSize.X, evt.tfinger.dy * WindowSize.Y);
-                OnEvent?.Invoke(PlatformEvent.TouchMoveEvent((long)evt.tfinger.fingerID, pos, delta, evt.tfinger.pressure));
 
-                // Single finger drag also moves mouse position
-                if (_activeTouchFingers == 1 && !_suppressMouseForTouch)
-                    OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
+                OnEvent?.Invoke(PlatformEvent.TouchMoveEvent(fingerId, pos, delta, evt.tfinger.pressure));
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_FINGER_CANCELED:
             {
-                _activeTouchFingers = Math.Max(0, _activeTouchFingers - 1);
+                if (evt.tfinger.touchID == SDL_PEN_TOUCHID)
+                    break;
+
                 OnEvent?.Invoke(PlatformEvent.TouchCancelEvent((long)evt.tfinger.fingerID));
                 break;
             }
@@ -436,8 +438,6 @@ public unsafe partial class SDLPlatform : IPlatform
             {
                 var pos = new Vector2(evt.ptouch.x, evt.ptouch.y);
                 OnEvent?.Invoke(PlatformEvent.PenDownEvent(pos, 0f, evt.ptouch.eraser));
-                OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
-                OnEvent?.Invoke(PlatformEvent.MouseDown(InputCode.MouseLeft));
                 break;
             }
 
@@ -445,8 +445,6 @@ public unsafe partial class SDLPlatform : IPlatform
             {
                 var pos = new Vector2(evt.ptouch.x, evt.ptouch.y);
                 OnEvent?.Invoke(PlatformEvent.PenUpEvent(pos));
-                OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
-                OnEvent?.Invoke(PlatformEvent.MouseUp(InputCode.MouseLeft));
                 break;
             }
 
@@ -454,7 +452,6 @@ public unsafe partial class SDLPlatform : IPlatform
             {
                 var pos = new Vector2(evt.pmotion.x, evt.pmotion.y);
                 OnEvent?.Invoke(PlatformEvent.PenMoveEvent(pos, 0f));
-                OnEvent?.Invoke(PlatformEvent.MouseMove(pos));
                 break;
             }
 

@@ -1,5 +1,6 @@
 
-path {
+path "" {
+  translate -0.0004645586 0.021348104
   fill #FFFFFF
   anchor 0.22718427 -0.14715752
   anchor 0.0009291172 -0.043457236
@@ -7,7 +8,8 @@ path {
   anchor 0.0009291172 -0.24143049
 }
 
-path {
+path "" {
+  translate -0.0004645586 0.021348104
   operation subtract
   fill #FFFFFF
   anchor 0.22625515 -0.10370028
@@ -16,7 +18,7 @@ path {
   anchor 0 -0.21682785
 }
 
-path {
+path "" {
   fill #FFFFFF
   anchor 0.22625515 -0.009807814
   anchor 0 0.093892455
@@ -24,7 +26,8 @@ path {
   anchor 0 -0.104080796
 }
 
-path {
+path "" {
+  translate 0 -0.002137579
   operation subtract
   fill #FFFFFF
   anchor 0.22625515 0.03177259
@@ -33,7 +36,8 @@ path {
   anchor 0 -0.08135498
 }
 
-path {
+path "" {
+  translate 0 -0.002137579
   fill #FFFFFF
   anchor 0.22625515 0.113127574
   anchor 0 0.21682785

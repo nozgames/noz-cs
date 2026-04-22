@@ -112,7 +112,7 @@ public class PixelTransformMode : EditorMode<PixelSpriteEditor>, IActiveLayerHan
 
     private void StartMoveDrag()
     {
-        _dragStartPixel = Editor.WorldToPixel(Workspace.MouseWorldPosition);
+        _dragStartPixel = Editor.WorldToPixelSnapped(Workspace.MouseWorldPosition);
         _dragType = DragType.Move;
     }
 
@@ -150,7 +150,7 @@ public class PixelTransformMode : EditorMode<PixelSpriteEditor>, IActiveLayerHan
 
     private void UpdateMoveDrag()
     {
-        var pixel = Editor.WorldToPixel(Workspace.MouseWorldPosition);
+        var pixel = Editor.WorldToPixelSnapped(Workspace.MouseWorldPosition);
         var newOffset = new Vector2Int(
             _offset.X + pixel.X - _dragStartPixel.X,
             _offset.Y + pixel.Y - _dragStartPixel.Y);

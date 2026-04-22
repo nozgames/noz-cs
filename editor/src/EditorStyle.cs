@@ -90,6 +90,16 @@ public static class EditorStyle
         ClampToScreen = true,
     };
 
+    public static readonly PopupStyle PopupBelow = new()
+    {
+        AnchorX = Align.Max,
+        AnchorY = Align.Max,
+        PopupAlignX = Align.Max,
+        PopupAlignY = Align.Min,
+        Spacing = Control.Spacing,
+        ClampToScreen = true,
+    };
+
     public static readonly ContainerStyle Tooltip = new()
     {
         Background = Palette.Popup,
@@ -368,6 +378,11 @@ public static class EditorStyle
             Padding = EdgeInsets.All(3),
             Resolve = (s, f) =>
             {
+                if ((f & WidgetFlags.Disabled) != 0)
+                {
+                    s.ContentColor = Palette.Disabled;
+                    return s;
+                }
                 if ((f & WidgetFlags.Checked) != 0) s.Background = Palette.Canvas;
                 if ((f & WidgetFlags.Hovered) != 0) { s.BorderWidth = 1; s.BorderColor = Palette.FocusRing; }
                 return s;

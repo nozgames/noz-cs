@@ -9,11 +9,23 @@ namespace NoZ.Editor;
 public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
 {
     private Vector2Int _lastPixel = new(-1, -1);
+    private Vector2 _lastWorldPixel;
     private bool _isDrawing;
+    private InputCode _button;
 
     protected abstract void PaintPixel(Vector2Int pixel);
     protected virtual Color OutlineColor => new(1f, 1f, 1f, 0.6f);
     protected virtual EditorMode? EyeDropperExitMode => null;
+
+    protected virtual bool UsesSubPixelStroke => false;
+    protected virtual void OnSoftStrokeBegin(Vector2 worldPixel) { }
+    protected virtual void OnSoftStrokeSegment(Vector2 from, Vector2 to) { }
+    protected virtual void OnSoftStrokeEnd() { }
+
+    public PixelStrokeMode()
+    {
+        _button = Application.IsTablet ? InputCode.Pen : InputCode.MouseLeft;
+    }
 
     private bool UpdateEyeDropper()
     {
@@ -21,10 +33,11 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
             return false;
 
         EditorCursor.SetDropper();
-        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
+
+        if (Input.WasButtonPressed(_button, InputScope.All))
         {
             var color = Workspace.ReadPixelAtMouse();
-            Input.ConsumeButton(InputCode.MouseLeft);
+            Input.ConsumeButton(_button);
             if (color.A > 0)
                 Editor.BrushColor = color;
             if (EyeDropperExitMode is { } exit)
@@ -36,28 +49,29 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
 
     public override void Update()
     {
-        var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
+        var mouseWorld = Workspace.PenWorldPosition;
+        var pixel = Editor.WorldToPixelSnapped(mouseWorld);
+        var worldPixel = Editor.WorldToPixel(mouseWorld);
 
         if (UpdateEyeDropper())
             return;
 
         EditorCursor.SetCrosshair();
 
-        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
+        if (Input.WasButtonPressed(_button, InputScope.All))
         {
-            BeginStroke(pixel);
+            BeginStroke(pixel, worldPixel);
         }
         else if (_isDrawing)
         {
-            if (Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
-                ContinueStroke(pixel);
+            if (Input.IsButtonDown(_button, InputScope.All))
+                ContinueStroke(pixel, worldPixel);
             else
                 EndStroke();
         }
     }
 
-    private void BeginStroke(Vector2Int pixel)
+    private void BeginStroke(Vector2Int pixel, Vector2 worldPixel)
     {
         var layer = Editor.ActiveLayer;
         if (layer == null || layer.Pixels == null || layer.Locked || !layer.Visible) return;
@@ -65,11 +79,29 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
         Undo.Record(Editor.Document);
         _isDrawing = true;
         _lastPixel = pixel;
-        PaintPixel(pixel);
+        _lastWorldPixel = worldPixel;
+        if (UsesSubPixelStroke)
+        {
+            Editor.BeginSoftStroke();
+            OnSoftStrokeBegin(worldPixel);
+        }
+        else
+        {
+            PaintPixel(pixel);
+        }
     }
 
-    private void ContinueStroke(Vector2Int pixel)
+    private void ContinueStroke(Vector2Int pixel, Vector2 worldPixel)
     {
+        if (UsesSubPixelStroke)
+        {
+            if (worldPixel == _lastWorldPixel) return;
+            OnSoftStrokeSegment(_lastWorldPixel, worldPixel);
+            _lastWorldPixel = worldPixel;
+            _lastPixel = pixel;
+            return;
+        }
+
         if (pixel == _lastPixel) return;
         DrawLine(_lastPixel, pixel);
         _lastPixel = pixel;
@@ -77,6 +109,11 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
 
     private void EndStroke()
     {
+        if (UsesSubPixelStroke)
+        {
+            OnSoftStrokeEnd();
+            Editor.EndSoftStroke();
+        }
         _isDrawing = false;
         _lastPixel = new Vector2Int(-1, -1);
         Editor.InvalidateActiveLayerPreview();
@@ -108,8 +145,15 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
     public override void Draw()
     {
         if (!UI.IsHovered(Workspace.SceneWidgetId)) return;
-        var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
-        Editor.DrawBrushOutline(pixel, OutlineColor);
+        if (UsesSubPixelStroke)
+        {
+            var worldPixel = Editor.WorldToPixel(Workspace.PenWorldPosition);
+            Editor.DrawSoftBrushOutline(worldPixel, OutlineColor);
+        }
+        else
+        {
+            var pixel = Editor.WorldToPixelSnapped(Workspace.PenWorldPosition);
+            Editor.DrawBrushOutline(pixel, OutlineColor);
+        }
     }
 }

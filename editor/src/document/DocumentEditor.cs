@@ -44,5 +44,6 @@ public abstract class DocumentEditor(Document document) : IDisposable
 
     public virtual void InspectorUI() { }
     public virtual void OutlinerUI() { }
+    public virtual void ToolbarUI() { }
     public virtual void OpenContextMenu(WidgetId popupId) { }
 }
