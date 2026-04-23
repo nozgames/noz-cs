@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Runtime.InteropServices;
 using NoZ.Platform;
 
 namespace NoZ;
@@ -41,6 +42,7 @@ public static class Input
     private static float _scrollX;
     private static float _scrollY;
     private static string _textInput = string.Empty;
+    private static readonly List<Vector2> _penMoveSamples = new();
 
     public static void Init()
     {
@@ -89,6 +91,7 @@ public static class Input
         _scrollX = 0;
         _scrollY = 0;
         _textInput = string.Empty;
+        _penMoveSamples.Clear();
 
         for (var i = 0; i < (int)InputCode.Count; i++)
         {
@@ -210,6 +213,7 @@ public static class Input
             case PlatformEventType.PenDown:
                 HandleButtonDown(InputCode.Pen);
                 PenPosition = evt.PenPosition;
+                _penMoveSamples.Add(evt.PenPosition);
                 break;
 
             case PlatformEventType.PenUp:
@@ -218,6 +222,7 @@ public static class Input
 
             case PlatformEventType.PenMove:
                 PenPosition = evt.PenPosition;
+                _penMoveSamples.Add(evt.PenPosition);
                 break;
 
             case PlatformEventType.MouseScroll:
@@ -383,6 +388,10 @@ public static class Input
 
     public static Vector2 MousePosition { get; private set; }
     public static Vector2 PenPosition { get; private set; }
+
+    // All pen positions received this frame, in order. Used by stroke tools
+    // that need to reconstruct paths without losing intermediate samples.
+    public static ReadOnlySpan<Vector2> PenMoveSamples => CollectionsMarshal.AsSpan(_penMoveSamples);
 
     public static bool MouseInWindow => Application.Platform.IsMouseInWindow;
 

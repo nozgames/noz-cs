@@ -40,6 +40,14 @@ public partial class PixelSpriteEditor : SpriteEditor
     private Texture? _canvasTexture;
     private PixelData<Color32>? _compositePixels;
     private int _lastCompositeVersion = -1;
+
+    // Dirty-rect state for incremental compositing. Paint operations report
+    // the pixel rect they touched; CompositeCanvas only re-composites and
+    // uploads that region. Cleared after each composite.
+    // Rect coords are absolute canvas pixels (same space as layer.Pixels).
+    private RectInt _compositeDirtyRect;
+    private bool _compositeDirtyEmpty = true;
+    private bool _compositeNeedsFullRebuild = true;
     private readonly int _versionOnOpen;
     private int _currentTimeSlot;
     private bool _isPlaying;
@@ -415,17 +423,24 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     private RectInt _compositeRect;
 
+    private static int _compositeCount;
+    private static long _compositeTicks;
+    private static long _compositeIncrementalCount;
+    private static double _compositeLastLogTime;
+
     private void CompositeCanvas()
     {
         if (_lastCompositeVersion == Document.Version)
             return;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
 
         _lastCompositeVersion = Document.Version;
         Document.UpdateBounds();
 
         var epr = EditablePixelRect;
 
-        // Recreate buffers if editable region changed size
+        // Recreate buffers if editable region changed size — and force a full rebuild.
         if (_compositePixels == null || _compositeRect != epr)
         {
             _compositePixels?.Dispose();
@@ -433,36 +448,113 @@ public partial class PixelSpriteEditor : SpriteEditor
             _canvasTexture?.Dispose();
             _canvasTexture = null;
             _compositeRect = epr;
+            _compositeNeedsFullRebuild = true;
+        }
+
+        // Try the incremental path: re-composite only the pixels that were dirtied
+        // since the last composite, and upload only that sub-region to the GPU.
+        // Falls back to a full rebuild when the texture doesn't exist yet, the dirty
+        // rect can't be resolved to a valid region, or something marked full.
+        if (!_compositeNeedsFullRebuild && _canvasTexture != null && !_compositeDirtyEmpty)
+        {
+            if (TryCompositeDirty(epr))
+            {
+                _compositeDirtyEmpty = true;
+                _compositeIncrementalCount++;
+                LogCompositeStats(sw);
+                return;
+            }
         }
 
         _compositePixels.Clear();
-        CompositeChildren(Document.Root, epr);
+        CompositeChildren(Document.Root, epr, new RectInt(0, 0, epr.Width, epr.Height));
 
         var data = _compositePixels.AsByteSpan();
         if (_canvasTexture == null)
             _canvasTexture = Texture.Create(epr.Width, epr.Height, data, TextureFormat.RGBA8, TextureFilter.Point, "pixel_canvas");
         else
             _canvasTexture.Update(data);
+
+        _compositeDirtyEmpty = true;
+        _compositeNeedsFullRebuild = false;
+        LogCompositeStats(sw);
     }
 
-    private void CompositeChildren(SpriteNode parent, in RectInt epr)
+    private static void LogCompositeStats(System.Diagnostics.Stopwatch sw)
     {
+        sw.Stop();
+        _compositeTicks += sw.ElapsedTicks;
+        _compositeCount++;
+        var now = (double)System.Environment.TickCount / 1000.0;
+        if (now - _compositeLastLogTime >= 1.0)
+        {
+            var totalMs = _compositeTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            var avgMs = _compositeCount > 0 ? totalMs / _compositeCount : 0.0;
+            Console.WriteLine($"[COMP] composites/sec={_compositeCount} (incremental={_compositeIncrementalCount})  total-ms={totalMs:F1}  avg-ms={avgMs:F2}");
+            NoZ.Platform.WebGPU.WebGPUGraphicsDriver.DebugLogTextureUploads(now);
+            _compositeCount = 0;
+            _compositeIncrementalCount = 0;
+            _compositeTicks = 0;
+            _compositeLastLogTime = now;
+        }
+    }
+
+    // Re-composite and upload only the pixels inside _compositeDirtyRect.
+    // Returns false if the dirty rect can't be resolved to something valid
+    // (e.g. fully outside EPR); caller falls back to a full rebuild.
+    private bool TryCompositeDirty(in RectInt epr)
+    {
+        // Clip the dirty rect (absolute canvas pixels) against the editable region.
+        var d = _compositeDirtyRect;
+        var minX = Math.Max(d.X, epr.X);
+        var minY = Math.Max(d.Y, epr.Y);
+        var maxX = Math.Min(d.X + d.Width, epr.X + epr.Width);
+        var maxY = Math.Min(d.Y + d.Height, epr.Y + epr.Height);
+        if (minX >= maxX || minY >= maxY) return true; // empty clip — nothing to do
+
+        // Convert to composite-buffer-local coords (0..epr.W/H).
+        var localX = minX - epr.X;
+        var localY = minY - epr.Y;
+        var localW = maxX - minX;
+        var localH = maxY - minY;
+        var localRect = new RectInt(localX, localY, localW, localH);
+
+        // Clear just the dirty region in the composite buffer, then re-composite
+        // every layer's contribution inside it.
+        _compositePixels!.Clear(localRect);
+        CompositeChildren(Document.Root, epr, localRect);
+
+        // Upload only the dirty region.
+        _canvasTexture!.Update(_compositePixels.AsByteSpan(), localRect, _compositePixels.Width);
+        return true;
+    }
+
+    // localBounds is in composite-buffer-local coords (0..epr.W/H).
+    // Callers pass the full-buffer rect for a full rebuild, or a sub-rect for
+    // incremental dirty-rect compositing.
+    private void CompositeChildren(SpriteNode parent, in RectInt epr, in RectInt localBounds)
+    {
+        var y0 = localBounds.Y;
+        var y1 = localBounds.Y + localBounds.Height;
+        var x0 = localBounds.X;
+        var x1 = localBounds.X + localBounds.Width;
+
         foreach (var child in parent.Children)
         {
             if (!child.Visible) continue;
 
             if (child.IsExpandable)
             {
-                CompositeChildren(child, epr);
+                CompositeChildren(child, epr, localBounds);
                 continue;
             }
 
             if (child is not PixelLayer layer || layer.Pixels == null)
                 continue;
 
-            for (var y = 0; y < epr.Height; y++)
+            for (var y = y0; y < y1; y++)
             {
-                for (var x = 0; x < epr.Width; x++)
+                for (var x = x0; x < x1; x++)
                 {
                     var src = layer.Pixels[epr.X + x, epr.Y + y];
                     if (src.A == 0)
@@ -637,6 +729,20 @@ public partial class PixelSpriteEditor : SpriteEditor
     public void InvalidateComposite()
     {
         _lastCompositeVersion = -1;
+        _compositeNeedsFullRebuild = true;
+    }
+
+    public void InvalidateComposite(in RectInt canvasPixelRect)
+    {
+        _lastCompositeVersion = -1;
+        if (_compositeNeedsFullRebuild) return;
+        if (_compositeDirtyEmpty)
+        {
+            _compositeDirtyRect = canvasPixelRect;
+            _compositeDirtyEmpty = false;
+        }
+        else
+            _compositeDirtyRect = RectInt.Union(_compositeDirtyRect, canvasPixelRect);
     }
 
     public void InvalidateActiveLayerPreview()

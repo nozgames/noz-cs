@@ -47,6 +47,11 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
         return true;
     }
 
+    private static int _debugFrameCount;
+    private static int _debugSampleTotal;
+    private static int _debugSampleFrames;
+    private static double _debugLastLogTime;
+
     public override void Update()
     {
         var mouseWorld = Workspace.PenWorldPosition;
@@ -58,6 +63,23 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
 
         EditorCursor.SetCrosshair();
 
+        if (_isDrawing && _button == InputCode.Pen)
+        {
+            _debugFrameCount++;
+            var s = Input.PenMoveSamples.Length;
+            if (s > 0) { _debugSampleTotal += s; _debugSampleFrames++; }
+            var now = Time.TotalTime;
+            if (now - _debugLastLogTime >= 1.0)
+            {
+                var avg = _debugSampleFrames > 0 ? (double)_debugSampleTotal / _debugSampleFrames : 0;
+                Console.WriteLine($"[PEN] fps={_debugFrameCount}  frames-with-samples={_debugSampleFrames}/{_debugFrameCount}  avg-samples-per-sample-frame={avg:F1}  total-samples-this-sec={_debugSampleTotal}");
+                _debugFrameCount = 0;
+                _debugSampleTotal = 0;
+                _debugSampleFrames = 0;
+                _debugLastLogTime = now;
+            }
+        }
+
         if (Input.WasButtonPressed(_button, InputScope.All))
         {
             BeginStroke(pixel, worldPixel);
@@ -65,10 +87,32 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
         else if (_isDrawing)
         {
             if (Input.IsButtonDown(_button, InputScope.All))
-                ContinueStroke(pixel, worldPixel);
+            {
+                if (!ContinueStrokeFromPenSamples())
+                    ContinueStroke(pixel, worldPixel);
+            }
             else
                 EndStroke();
         }
+    }
+
+    // When using a pen, multiple motion samples can arrive per frame.
+    // Drain them all so fast strokes don't drop intermediate positions.
+    // Returns true if any samples were consumed.
+    private bool ContinueStrokeFromPenSamples()
+    {
+        if (_button != InputCode.Pen) return false;
+        var samples = Input.PenMoveSamples;
+        if (samples.Length == 0) return false;
+
+        foreach (var screenPos in samples)
+        {
+            var world = Workspace.Camera.ScreenToWorld(screenPos);
+            var p = Editor.WorldToPixelSnapped(world);
+            var wp = Editor.WorldToPixel(world);
+            ContinueStroke(p, wp);
+        }
+        return true;
     }
 
     private void BeginStroke(Vector2Int pixel, Vector2 worldPixel)

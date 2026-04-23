@@ -13,7 +13,27 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver
 {
-    private static readonly ProfilerCounter s_counterEndTexturePass = new("WebGPU.EndRenderTexturePass");    
+    private static readonly ProfilerCounter s_counterEndTexturePass = new("WebGPU.EndRenderTexturePass");
+
+    private static int _debugFullUpdateCount;
+    private static long _debugFullUpdateBytes;
+    private static int _debugRegionUpdateCount;
+    private static long _debugRegionUpdateBytes;
+    private static double _debugLastTexLog;
+
+    public static void DebugLogTextureUploads(double now)
+    {
+        if (now - _debugLastTexLog < 1.0) return;
+        var regMs = _debugRegionUpdateTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        var avgMs = _debugRegionUpdateCount > 0 ? regMs / _debugRegionUpdateCount : 0.0;
+        Console.WriteLine($"[TEX] full-updates={_debugFullUpdateCount} ({_debugFullUpdateBytes / 1024}KB)  region-updates={_debugRegionUpdateCount} ({_debugRegionUpdateBytes / 1024}KB)  region-total-ms={regMs:F1}  region-avg-ms={avgMs:F2}");
+        _debugFullUpdateCount = 0;
+        _debugFullUpdateBytes = 0;
+        _debugRegionUpdateCount = 0;
+        _debugRegionUpdateBytes = 0;
+        _debugRegionUpdateTicks = 0;
+        _debugLastTexLog = now;
+    }
 
     // Mesh Management
     public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex
@@ -309,6 +329,9 @@ public unsafe partial class WebGPUGraphicsDriver
             _ => 4,
         };
 
+        _debugFullUpdateCount++;
+        _debugFullUpdateBytes += (long)size.X * size.Y * bytesPerPixel;
+
         fixed (byte* dataPtr = data)
         {
             var layout = new TextureDataLayout
@@ -331,8 +354,12 @@ public unsafe partial class WebGPUGraphicsDriver
         }
     }
 
+    private static long _debugRegionUpdateTicks;
+
     public void UpdateTextureRegion(nuint handle, in RectInt region, ReadOnlySpan<byte> data, int srcWidth = -1)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
         ref var textureInfo = ref _textures[(int)handle];
 
         var bytesPerPixel = textureInfo.Format switch
@@ -342,6 +369,9 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba32float => 16,
             _ => 4,
         };
+
+        _debugRegionUpdateCount++;
+        _debugRegionUpdateBytes += (long)region.Width * region.Height * bytesPerPixel;
 
         var rowWidth = srcWidth < 0 ? region.Width : srcWidth;
 
@@ -366,14 +396,27 @@ public unsafe partial class WebGPUGraphicsDriver
                 Aspect = TextureAspect.All,
             };
 
+            // Pass only the bytes wgpu actually needs to read from the source
+            // buffer. Passing data.Length (the entire source buffer) causes
+            // wgpu-native to stage the whole thing even when uploading a small
+            // sub-region — on iOS Metal this was the dominant per-frame cost
+            // during pixel-editor strokes.
+            var bytesPerRow = (ulong)(rowWidth * bytesPerPixel);
+            var bytesNeeded = (region.Height > 0)
+                ? (ulong)(region.Height - 1) * bytesPerRow + (ulong)(region.Width * bytesPerPixel)
+                : 0UL;
+
             _wgpu.QueueWriteTexture(
                 _queue,
                 &destination,
                 dataPtr + (region.Y * rowWidth + region.X) * bytesPerPixel,
-                (nuint)data.Length,
+                (nuint)bytesNeeded,
                 &layout,
                 &copySize);
         }
+
+        sw.Stop();
+        _debugRegionUpdateTicks += sw.ElapsedTicks;
     }
 
     public void DestroyTexture(nuint handle)

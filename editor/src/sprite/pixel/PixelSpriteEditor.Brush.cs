@@ -141,7 +141,21 @@ public partial class PixelSpriteEditor
 
                 SeedApronPixel(ref slot, color);
             }
-        InvalidateComposite();
+
+        // Report the brush footprint (in absolute canvas pixel coords) so the compositor
+        // can re-composite / re-upload only this rect. Tiling wraps pixels to the opposite
+        // edge which makes the dirty region non-rectangular — fall back to full rebuild.
+        if (tiling)
+        {
+            InvalidateComposite();
+        }
+        else
+        {
+            var minX = pixel.X - offset - apronBox;
+            var minY = pixel.Y - offset - apronBox;
+            var sz = BrushSize + apronBox * 2;
+            InvalidateComposite(new RectInt(minX, minY, sz, sz));
+        }
     }
 
     // Apron: seed empty pixels around the disc with the brush RGB at alpha=0 so bilinear
@@ -252,7 +266,16 @@ public partial class PixelSpriteEditor
 
                 slot = Color32.Blend(original[bx, by], src);
             }
-        InvalidateComposite();
+
+        if (tiling)
+        {
+            InvalidateComposite();
+        }
+        else
+        {
+            var sz = box * 2 + 1;
+            InvalidateComposite(new RectInt(cx0 - box, cy0 - box, sz, sz));
+        }
     }
 
     private static BrushRun[] GetBrushRuns(int brushSize)
