@@ -738,16 +738,15 @@ public static partial class Workspace
             using (UI.BeginFlex())
             using (UI.BeginRow())
             {
-                // outliner (left, fixed width)
-                var outliner = false;
-                using (UI.BeginFlex())
-                    outliner = Outliner.UpdateUI();
+                if (ActiveEditor?.ShowOutliner ?? ShowProject)
+                {                    
+                    using (UI.BeginFlex())
+                        Outliner.UpdateUI();
 
-                if (outliner)
                     UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
                         EditorStyle.Inspector.Splitter, fixedPane: 1);
+                }
 
-                // center + inspector nested in their own row so splitters don't interfere
                 using (UI.BeginFlex())
                 using (UI.BeginRow())
                 {

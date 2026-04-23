@@ -184,8 +184,7 @@ internal unsafe struct ScrollElement
 internal unsafe struct TrackElement
 {
     public WidgetId Id;
-    public float ThumbSizeX;
-    public float ThumbSizeY;
+    public Vector2 ThumbSize;
     public TrackState* State;
 }
 

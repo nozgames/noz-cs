@@ -9,6 +9,10 @@ namespace NoZ.Editor;
 internal struct ColorButtonStyle()
 {
     public PopupStyle Popup = EditorStyle.PopupLeft;
+    public bool FillWidth = false;
+    public bool ShowAlpha = true;
+    public bool ShowHDR = false;
+    public bool ShowClose = true;
 }
 
 internal static partial class ColorPicker
@@ -75,8 +79,9 @@ internal static partial class ColorPicker
     private static bool _eyeDropperActive;
     private static bool _eyeDropperMouseWasDown;
 
-    // HDR state
     private static bool _hdr;
+    private static bool _showAlpha;
+    private static bool _showClose;
 
     // Popup
     private static PopupStyle _popupStyle;
@@ -110,12 +115,15 @@ internal static partial class ColorPicker
         _eyeDropperActive = false;
     }
 
-    internal static void Open(WidgetId id, Color color, bool hdr = false, ColorButtonStyle? style = null)
+    internal static void Open(WidgetId id, Color color, ColorButtonStyle? style = null)
     {
-        _hdr = hdr;
+        var resolved = style ?? new ColorButtonStyle();
 
-        // Extract HDR intensity from color
-        if (hdr)
+        _hdr = resolved.ShowHDR;
+        _showAlpha = resolved.ShowAlpha;    
+        _showClose = resolved.ShowClose;
+
+        if (_hdr)
         {
             var maxComponent = MathF.Max(color.R, MathF.Max(color.G, color.B));
             if (maxComponent > 1f)
@@ -209,28 +217,34 @@ internal static partial class ColorPicker
 
         using (UI.BeginColumn(EditorStyle.ColorPicker.Root))
         {
-            using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
+            if (_showAlpha || _showClose)
             {
-                if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
+                using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
                 {
-                    _savedAlpha = _alpha;
-                    _paletteMode = ColorMode.None;
-                }
+                    if (_showAlpha)
+                    {
+                        if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
+                        {
+                            _savedAlpha = _alpha;
+                            _paletteMode = ColorMode.None;
+                        }
 
-                if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
-                {
-                    _paletteMode = ColorMode.Color;
-                    if (_alpha == 0)
-                        _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
-                    _trackNeedsInit = true;
-                }
+                        if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
+                        {
+                            _paletteMode = ColorMode.Color;
+                            if (_alpha == 0)
+                                _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
+                            _trackNeedsInit = true;
+                        }                    
+                    }
 
-                UI.Flex();
-
-                if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
-                {
-                    close = true;
-                }
+                    if (_showClose)
+                    {
+                        UI.Flex();
+                        if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
+                            close = true;
+                    }
+                }                
             }
 
             Color32 color;
@@ -350,6 +364,8 @@ internal static partial class ColorPicker
 
     private static void Alpha()
     {
+        if (!_showAlpha) return;
+
         EnsureCheckerTexture();
 
         ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Alpha);

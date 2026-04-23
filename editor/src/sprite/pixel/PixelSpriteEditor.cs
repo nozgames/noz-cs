@@ -30,6 +30,8 @@ public partial class PixelSpriteEditor : SpriteEditor
 
         public static partial WidgetId BrushPopupBrush { get; }
         public static partial WidgetId BrushPopupPencil { get; }
+        public static partial WidgetId BrushSizeSlider { get; }
+        public static partial WidgetId BrushAlphaSlider { get; }
     }    
 
     private bool _showLayers = true;
@@ -170,7 +172,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         _selectedNode = _activeLayer;
         AlphaLock = Document.AlphaLock;
         Grid.PixelsPerUnitOverride = CanvasPPU;
-        SetMode(new PencilMode());
+        SetMode(Document.BrushType);
     }
 
     private PixelLayer? FindFirstLayer()
@@ -334,34 +336,41 @@ public partial class PixelSpriteEditor : SpriteEditor
         SetMode(new PencilMode());
     }
 
-    public override void UpdateUI() { }
+    public override void UpdateUI()
+    {        
+        using var column = UI.BeginColumn(new ContainerStyle { 
+            Width = EditorStyle.Control.Height,
+            Height = Size.Percent(1),
+            Margin = new EdgeInsets(16, 8, 16, 0)
+        });
+
+        UI.Flex();
+    
+        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
+        using (UI.BeginColumn(EditorStyle.SpriteEditor.BrushSlider))
+        {            
+            UI.Image(EditorAssets.Sprites.IconBrush, EditorStyle.Icon.SecondaryLarge);
+            using (UI.BeginFlex())
+                Document.BrushSize = (int)UI.VerticalSlider(WidgetIds.BrushSizeSlider, BrushSize, style: EditorStyle.Slider.Style with { Step = 1 }, min: 1, max: MaxBrushSize);
+        }
+
+        UI.Spacer(16);
+
+        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
+        using (UI.BeginColumn(EditorStyle.SpriteEditor.BrushSlider))
+        {
+            UI.Image(EditorAssets.Sprites.IconOpacity, EditorStyle.Icon.SecondaryLarge);
+            using (UI.BeginFlex())
+                Document.BrushColor = Document.BrushColor.WithAlpha((byte)UI.VerticalSlider(WidgetIds.BrushAlphaSlider, BrushColor.A, style: EditorStyle.Slider.Style with { Step = 1f }, min: 0, max: 255));
+        }
+
+        UI.Flex();
+    }
 
     public override void UpdateOverlayUI()
     {
         using (FloatingToolbar.Begin())
         {
-#if false            
-            var color = BrushColor.ToColor();
-            var newColor = FloatingToolbar.ColorButton(WidgetIds.BrushColor, color).ToColor32();
-            if (newColor != BrushColor)
-                BrushColor = newColor;
-            EditorUI.Tooltip(WidgetIds.BrushColor, "Brush Color");
-#endif
-
-            FloatingToolbar.Divider();
-
-            // if (FloatingToolbar.Button(WidgetIds.PencilButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is PencilMode))
-            //     SetMode(new PencilMode());
-            // EditorUI.Tooltip(WidgetIds.PencilButton, "Pencil");
-
-            // if (FloatingToolbar.Button(WidgetIds.BrushButton, EditorAssets.Sprites.IconEdit, isSelected: Mode is BrushMode))
-            //     SetMode(new BrushMode());
-            // EditorUI.Tooltip(WidgetIds.BrushButton, "Brush");
-
-            // if (FloatingToolbar.Button(WidgetIds.EraserButton, EditorAssets.Sprites.IconEraser, isSelected: Mode is PixelEraserMode))
-            //     SetMode(new PixelEraserMode());
-            // EditorUI.Tooltip(WidgetIds.EraserButton, "Eraser");
-
             if (FloatingToolbar.Button(WidgetIds.FillButton, EditorAssets.Sprites.IconFloodFill, isSelected: Mode is PixelFillMode))
                 SetMode(new PixelFillMode());
             EditorUI.Tooltip(WidgetIds.FillButton, "Fill");
@@ -976,7 +985,7 @@ public partial class PixelSpriteEditor : SpriteEditor
             SetMode(new PixelEraserMode());
 
         var color = BrushColor.ToColor();
-        var newColor =  EditorUI.ColorButton(WidgetIds.BrushColor, color, style: new ColorButtonStyle { Popup = EditorStyle.PopupBelow });
+        var newColor = EditorUI.ColorButton(WidgetIds.BrushColor, color, style: new ColorButtonStyle { Popup = EditorStyle.PopupBelow, ShowAlpha = false, ShowClose = false });
         if (newColor != BrushColor)
             Document.BrushColor = newColor;
         EditorUI.Tooltip(WidgetIds.BrushColor, "Brush Color");

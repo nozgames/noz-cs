@@ -26,10 +26,7 @@ public static partial class UI
         var t = max > min ? MathEx.Clamp01((value - min) / (max - min)) : 0f;
         var rect = GetElementRect(id);
         var trackWidth = rect.Width;
-
-        var flags = ElementTree.GetWidgetFlags(id);
-        var s = style.Resolve != null ? style.Resolve(style, flags) : style;
-
+        var s = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags(id)) : style;
         var trackRadius = s.BorderRadius > 0 ? s.BorderRadius : s.TrackHeight / 2;
         var thumbRadius = s.ThumbSize / 2;
 
@@ -91,4 +88,72 @@ public static partial class UI
 
     public static float Slider(WidgetId id, float value, float min = 0f, float max = 1f) =>
         Slider(id, value, SliderStyle.Default, min, max);
+
+    public static float VerticalSlider(
+        WidgetId id,
+        float value,
+        in SliderStyle style,
+        float min = 0f,
+        float max = 1f)
+    {
+        var t = 1.0f - (max > min ? MathEx.Clamp01((value - min) / (max - min)) : 0f);
+        var rect = GetElementRect(id);
+        var s = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags(id)) : style;
+        var trackRadius = s.BorderRadius > 0 ? s.BorderRadius : s.TrackHeight / 2;
+        var thumbRadius = s.ThumbSize * 0.5f;
+
+        ref var trackState = ref ElementTree.BeginWidget<TrackState>(id);
+        ElementTree.BeginTrack(ref trackState, id, 0, s.ThumbSize);
+
+        if (!ElementTree.HasCaptureById(id))
+            trackState.Y = t;
+
+        ElementTree.BeginSize(s.Height, Size.Percent(1));
+        ElementTree.BeginAlign(new Align2(Align.Center, Align.Min));
+        ElementTree.BeginSize(s.TrackHeight, Size.Percent(1));
+        ElementTree.BeginFill(s.TrackColor, trackRadius);
+        ElementTree.EndFill();
+        ElementTree.EndSize();
+        ElementTree.EndAlign();
+
+        if (rect.Height > 0)
+        {
+            var usable = rect.Height - s.ThumbSize;
+            var thumbOffset = usable * t;
+
+            // Fill bar
+            ElementTree.BeginAlign(Align.Center, Align.Max);
+            ElementTree.BeginSize(s.TrackHeight, rect.Height - (thumbOffset + thumbRadius));
+            ElementTree.BeginFill(s.FillColor, trackRadius);
+            ElementTree.EndFill();
+            ElementTree.EndSize();
+            ElementTree.EndAlign();
+
+            // Thumb
+            ElementTree.BeginAlign(Align.Center, Align.Min);
+            ElementTree.BeginMargin(EdgeInsets.Top(thumbOffset));
+            ElementTree.BeginSize(s.ThumbSize);
+            ElementTree.BeginFill(s.ThumbColor, thumbRadius);
+            ElementTree.EndFill();
+            ElementTree.EndSize();
+            ElementTree.EndMargin();
+            ElementTree.EndAlign();
+        }
+
+        ElementTree.EndSize();
+        ElementTree.EndTrack();
+        ElementTree.EndWidget();
+
+        var newValue = MathEx.Mix(max, min, trackState.Y);
+
+        if (s.Step > 0)
+            newValue = MathF.Round(newValue / s.Step) * s.Step;
+
+        newValue = Math.Clamp(newValue, min, max);
+
+        if (newValue != value)
+            NotifyChanged(newValue);
+
+        return newValue;
+    }
 }

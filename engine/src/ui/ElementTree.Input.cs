@@ -284,25 +284,25 @@ public static unsafe partial class ElementTree
         var worldRect = GetWidgetWorldRect(widgetId);
         ref var state = ref *d.State;
 
-        if (d.ThumbSizeX > 0)
+        if (d.ThumbSize.X > 0)
         {
             var trackSize = worldRect.Width;
             if (trackSize > 0)
             {
-                var usable = trackSize - d.ThumbSizeX;
+                var usable = trackSize - d.ThumbSize.X;
                 if (usable > 0)
-                    state.X = MathEx.Clamp01((MouseWorldPosition.X - worldRect.X - d.ThumbSizeX / 2) / usable);
+                    state.X = MathEx.Clamp01((MouseWorldPosition.X - worldRect.X - d.ThumbSize.X / 2) / usable);
             }
         }
 
-        if (d.ThumbSizeY > 0)
+        if (d.ThumbSize.Y > 0)
         {
             var trackSize = worldRect.Height;
             if (trackSize > 0)
             {
-                var usable = trackSize - d.ThumbSizeY;
+                var usable = trackSize - d.ThumbSize.Y;
                 if (usable > 0)
-                    state.Y = MathEx.Clamp01((MouseWorldPosition.Y - worldRect.Y - d.ThumbSizeY / 2) / usable);
+                    state.Y = MathEx.Clamp01((MouseWorldPosition.Y - worldRect.Y - d.ThumbSize.Y / 2) / usable);
             }
         }
     }

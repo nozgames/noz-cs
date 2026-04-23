@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 public partial class PixelSpriteEditor
 {
-    private const int MaxBrushSize = 16;
+    private const int MaxBrushSize = 32;
 
     private struct BrushRun
     {

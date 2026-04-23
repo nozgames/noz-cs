@@ -192,8 +192,8 @@ public static unsafe partial class ElementTree
         ref var e = ref BeginElement(ElementType.Track);
         ref var d = ref e.Data.Track;
         d.Id = id;
-        d.ThumbSizeX = thumbSizeX;
-        d.ThumbSizeY = thumbSizeY;
+        d.ThumbSize.X = thumbSizeX;
+        d.ThumbSize.Y = thumbSizeY;
         d.State = (TrackState*)Unsafe.AsPointer(ref state);
     }
 

@@ -6,14 +6,12 @@ namespace NoZ.Editor;
 
 internal static partial class EditorUI
 {
-    // --- Color Button ---
-
     private struct ColorButtonState
     {
         public Color OriginalColor;
     }
 
-    private static void DrawColorButtonContent(Color color)
+    private static void DrawColorButtonContent(Color color, bool alpha)
     {
         if (color.A == 0)
         {
@@ -61,40 +59,48 @@ internal static partial class EditorUI
             ElementTree.Fill(color.WithAlpha(1f), EditorStyle.Control.BorderRadius, 4, EditorStyle.Palette.Control);
         }
 
-        ElementTree.BeginPadding(3.9f);
-        ElementTree.BeginAlign(Align.Min, Align.Max);
+        if (alpha)
+        {
+            ElementTree.BeginPadding(3.9f);
+            ElementTree.BeginAlign(Align.Min, Align.Max);
 
-        ElementTree.BeginSize(Size.Default, 4);
-        ElementTree.Fill(Color.Black);
-        ElementTree.EndSize();
+            ElementTree.BeginSize(Size.Default, 4);
+            ElementTree.Fill(Color.Black);
+            ElementTree.EndSize();
 
-        ElementTree.BeginSize(Size.Percent(color.A), 4);
-        ElementTree.Fill(Color.White);
-        ElementTree.EndSize();
+            ElementTree.BeginSize(Size.Percent(color.A), 4);
+            ElementTree.Fill(Color.White);
+            ElementTree.EndSize();
 
-        ElementTree.EndAlign();
-        ElementTree.EndPadding();
+            ElementTree.EndAlign();
+            ElementTree.EndPadding();
+        }
     }
 
-    public static Color ColorButton(WidgetId id, Color color, bool fillWidth = false, bool hdr = false, ColorButtonStyle? style = null)
+    public static Color ColorButton(
+        WidgetId id,
+        Color color,                
+        ColorButtonStyle? style = null)
     {
+        var resolved = style ??= new ColorButtonStyle();
+
         ElementTree.BeginTree();
         ref var state = ref ElementTree.BeginWidget<ColorButtonState>(id);
         var flags = ElementTree.GetWidgetFlags();
 
-        if (fillWidth)
+        if (resolved.FillWidth)
             ElementTree.BeginSize(Size.Default, EditorStyle.Control.Height);
         else
             ElementTree.BeginSize(EditorStyle.Control.Height);
 
-        DrawColorButtonContent(color);
+        DrawColorButtonContent(color, resolved.ShowAlpha);
         ElementTree.EndTree();
 
         if (flags.HasFlag(WidgetFlags.Pressed))
         {
             state.OriginalColor = color;
             UI.SetHot(id, color);
-            ColorPicker.Open(id, color, hdr, style);
+            ColorPicker.Open(id, color, style);
         }
 
         ElementTree.SetLastWidget(id);

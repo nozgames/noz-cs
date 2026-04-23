@@ -124,6 +124,9 @@ public static class EditorStyle
         };
 
         public static readonly ImageStyle Secondary = Primary with { Color = Palette.SecondaryText };
+
+        public static readonly ImageStyle Large = Primary with { Size = LargeSize };
+        public static readonly ImageStyle SecondaryLarge = Secondary with { Size = LargeSize };    
     }
 
     // :text
@@ -1113,6 +1116,16 @@ public static class EditorStyle
             BorderWidth = 1,
             BorderColor = Palette.Primary,
             Padding = EdgeInsets.Symmetric(0, 2)
+        };
+
+        public static readonly ContainerStyle BrushSlider = new()
+        {
+            Background = Palette.Popup,
+            Width = Control.Height + 4,
+            Height = 160,
+            Padding = EdgeInsets.Symmetric(8, 2),
+            BorderRadius = Control.BorderRadius,
+            Spacing = 8
         };
     }
 
