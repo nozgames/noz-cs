@@ -20,7 +20,7 @@ public class EditorAppDelegate : UIApplicationDelegate
         EditorApplication.Run(new EditorApplicationConfig
         {
             ResourceAssembly = Assembly.GetExecutingAssembly(),
-            Store = new GitStore(GitStore.DefaultClientId),
+            Store = new RemoteStore(),
         }, []);
 
         return true;

@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ", "engine\NoZ.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.Editor", "editor\NoZ.Editor.csproj", "{B73842F2-BE87-CF2C-C3BF-3E00E53C2425}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.Editor.Program", "editor\program\NoZ.Editor.Program.csproj", "{D1A2B3C4-E5F6-7890-ABCD-EF1234567891}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.Editor.Desktop", "editor\platform\desktop\NoZ.Editor.Desktop.csproj", "{D1A2B3C4-E5F6-7890-ABCD-EF1234567891}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoZ.Desktop", "platform\desktop\NoZ.Desktop.csproj", "{BDCE94E3-224D-556E-853A-4D5DE57C38C9}"
 EndProject

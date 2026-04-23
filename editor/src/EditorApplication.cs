@@ -87,7 +87,6 @@ public static partial class EditorApplication
         var clean = false;
         string? projectArg = null;
         string? editorPathArg = null;
-        var tabletArg = false;
         var isTablet = config.IsTablet || OperatingSystem.IsIOS();
 
         for (var i = 0; i < args.Length; i++)

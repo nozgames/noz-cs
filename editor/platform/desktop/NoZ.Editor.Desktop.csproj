@@ -7,11 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <ApplicationIcon>..\res\windows\nozed.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\res\windows\nozed.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NoZ.Editor.csproj" />
+    <ProjectReference Include="..\..\NoZ.Editor.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

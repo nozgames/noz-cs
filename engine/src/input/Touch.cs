@@ -22,54 +22,60 @@ public static class Touch
 {
     public const int MaxFingers = 10;
 
-    private static readonly TouchFinger[] _fingers = new TouchFinger[MaxFingers];
-    private static int _fingerCount;
-
-    private enum MouseSimState { Idle, Pending, Dragging, Suppressed }
-    private static MouseSimState _mouseSimState;
-    private static long _mouseSimulatedFingerId;
-    private static Vector2 _mouseSimStartPosition;
+    private const float TapMaxDuration = 0.3f;
+    private const float TapMaxDistance = 20f;
+    private const float DoubleTapMaxInterval = 0.3f;
+    private const float MultiFingerTapMaxDuration = 0.5f;
+    private const float MultiFingerTapMaxDistance = 45f;
     private const float LongPressDuration = 0.5f;
     private const float DragThreshold = 20f;
 
-    // Pinch gesture (driven by SDL native events)
-    private static float _pinchScale;
-    private static bool _pinchActive;
+    private enum MouseSimState { Idle, Pending, Dragging, Suppressed }
 
-    // Tap detection
+    private static readonly TouchFinger[] _fingers = new TouchFinger[MaxFingers];
+    private static int _fingerCount;
+
+    private static MouseSimState _mouseSimState;
+    private static long _mouseSimulatedFingerId;
+    private static Vector2 _mouseSimStartPosition;
+
+    private static bool _pinchActive;
+    private static float _pinchScale = 1f;
+
     private static float _lastTapTime;
     private static Vector2 _lastTapPosition;
     private static bool _tapped;
     private static bool _doubleTapped;
-    private const float TapMaxDuration = 0.3f;
-    private const float TapMaxDistance = 20f;
-    private const float DoubleTapMaxInterval = 0.3f;
 
-    // Two-finger pan + zoom gesture
+    private static int _tapSessionMaxFingers;
+    private static float _tapSessionStartTime;
+    private static bool _tapSessionInvalid;
+    private static bool _tapSessionFired;
+    private static bool _twoFingerTapped;
+    private static bool _threeFingerTapped;
+
     private static bool _twoFingerPanning;
     private static Vector2 _twoFingerCenter;
     private static Vector2 _twoFingerPrevCenter;
     private static Vector2 _twoFingerDelta;
     private static float _twoFingerDistance;
     private static float _twoFingerPrevDistance;
-    private static float _twoFingerScale;
+    private static float _twoFingerScale = 1f;
 
-    // Track finger down times for tap detection
-    private static readonly float[] _fingerDownTimes = new float[MaxFingers];
-
-    public static bool SimulateMouse { get; set;}
+    public static bool SimulateMouse { get; set; }
 
     public static int FingerCount => _fingerCount;
     public static bool IsTouching => _fingerCount > 0;
+
     public static bool WasTapped => _tapped;
     public static bool WasDoubleTapped => _doubleTapped;
+    public static bool WasTwoFingerTapped => _twoFingerTapped;
+    public static bool WasThreeFingerTapped => _threeFingerTapped;
     public static Vector2 TapPosition => _lastTapPosition;
 
-    // Pinch gesture
     public static bool IsPinching => _pinchActive;
     public static float PinchScale => _pinchScale;
 
-    // Two-finger pan + zoom gesture
     public static bool IsTwoFingerPanning => _twoFingerPanning;
     public static Vector2 TwoFingerCenter => _twoFingerCenter;
     public static Vector2 TwoFingerDelta => _twoFingerDelta;
@@ -84,6 +90,8 @@ public static class Touch
     {
         _tapped = false;
         _doubleTapped = false;
+        _twoFingerTapped = false;
+        _threeFingerTapped = false;
         _pinchScale = 1f;
         _twoFingerDelta = Vector2.Zero;
         _twoFingerScale = 1f;
@@ -92,6 +100,205 @@ public static class Touch
             _fingers[i].Delta = Vector2.Zero;
 
         CheckLongPress();
+    }
+
+    public static void ProcessEvent(PlatformEvent evt)
+    {
+        switch (evt.Type)
+        {
+            case PlatformEventType.TouchDown:   HandleTouchDown(evt);   break;
+            case PlatformEventType.TouchUp:     HandleTouchUp(evt);     break;
+            case PlatformEventType.TouchMove:   HandleTouchMove(evt);   break;
+            case PlatformEventType.TouchCancel: HandleTouchCancel(evt); break;
+
+            // SDL3 native pinch (trackpad). When fingers are on screen we drive
+            // zoom from our own two-finger tracking instead, so ignore these.
+            case PlatformEventType.PinchBegin:
+                if (_fingerCount < 2) { _pinchActive = true; _pinchScale = 1f; }
+                break;
+            case PlatformEventType.PinchUpdate:
+                if (_fingerCount < 2) _pinchScale = evt.PinchScale;
+                break;
+            case PlatformEventType.PinchEnd:
+                if (_fingerCount < 2) { _pinchActive = false; _pinchScale = 1f; }
+                break;
+        }
+    }
+
+    private static void HandleTouchDown(in PlatformEvent evt)
+    {
+        var slot = FindOrAllocSlot(evt.FingerId);
+        if (slot < 0) return;
+
+        if (SimulateMouse)
+        {
+            if (_fingerCount == 0)
+            {
+                _mouseSimState = MouseSimState.Pending;
+                _mouseSimulatedFingerId = evt.FingerId;
+                _mouseSimStartPosition = evt.TouchPosition;
+            }
+            else
+            {
+                if (_mouseSimState == MouseSimState.Dragging)
+                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                if (_mouseSimState != MouseSimState.Idle)
+                    _mouseSimState = MouseSimState.Suppressed;
+            }
+        }
+
+        ref var f = ref _fingers[slot];
+        f.Id = evt.FingerId;
+        f.Position = evt.TouchPosition;
+        f.StartPosition = evt.TouchPosition;
+        f.Delta = Vector2.Zero;
+        f.Pressure = evt.Pressure;
+        f.DownTime = Time.TotalTime;
+        f.Active = true;
+        _fingerCount++;
+
+        if (_fingerCount == 1)
+        {
+            _tapSessionStartTime = Time.TotalTime;
+            _tapSessionMaxFingers = 1;
+            _tapSessionInvalid = false;
+            _tapSessionFired = false;
+        }
+        else if (_fingerCount > _tapSessionMaxFingers)
+        {
+            _tapSessionMaxFingers = _fingerCount;
+        }
+
+        if (_fingerCount >= 2)
+        {
+            _twoFingerPanning = true;
+            RebaselineTwoFinger();
+        }
+    }
+
+    private static void HandleTouchUp(in PlatformEvent evt)
+    {
+        var slot = FindSlot(evt.FingerId);
+        if (slot < 0) return;
+
+        ref var f = ref _fingers[slot];
+
+        if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
+        {
+            switch (_mouseSimState)
+            {
+                case MouseSimState.Pending:
+                    Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
+                    Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    break;
+                case MouseSimState.Dragging:
+                    Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
+                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    break;
+            }
+            _mouseSimState = MouseSimState.Idle;
+        }
+
+        // Single-finger tap is gated on session max==1 so the tail of a pinch
+        // or multi-finger gesture (last finger lifting) doesn't register as a tap.
+        if (_fingerCount == 1 && _tapSessionMaxFingers == 1 &&
+            Time.TotalTime - f.DownTime < TapMaxDuration &&
+            Vector2.Distance(f.Position, f.StartPosition) < TapMaxDistance)
+        {
+            if (Time.TotalTime - _lastTapTime < DoubleTapMaxInterval &&
+                Vector2.Distance(f.Position, _lastTapPosition) < TapMaxDistance)
+                _doubleTapped = true;
+
+            _tapped = true;
+            _lastTapPosition = f.Position;
+            _lastTapTime = Time.TotalTime;
+        }
+        // Multi-finger tap fires on the FIRST finger of the session lifting (not
+        // the last). Eager firing keeps rapid successive taps independent —
+        // otherwise the next tap's first finger would extend this session before
+        // it resolved.
+        else if (!_tapSessionFired && _tapSessionMaxFingers >= 2 && !_tapSessionInvalid &&
+                 _fingerCount == _tapSessionMaxFingers &&
+                 Time.TotalTime - _tapSessionStartTime < MultiFingerTapMaxDuration)
+        {
+            _tapSessionFired = true;
+            if (_tapSessionMaxFingers == 2) _twoFingerTapped = true;
+            else if (_tapSessionMaxFingers == 3) _threeFingerTapped = true;
+        }
+
+        f = default;
+        _fingerCount = Math.Max(0, _fingerCount - 1);
+
+        if (_fingerCount < 2)
+            _twoFingerPanning = false;
+        else
+            RebaselineTwoFinger();
+    }
+
+    private static void HandleTouchMove(in PlatformEvent evt)
+    {
+        var slot = FindSlot(evt.FingerId);
+        if (slot < 0) return;
+
+        ref var f = ref _fingers[slot];
+        f.Delta = evt.TouchDelta;
+        f.Position = evt.TouchPosition;
+        f.Pressure = evt.Pressure;
+
+        if (!_tapSessionInvalid &&
+            Vector2.Distance(f.Position, f.StartPosition) > MultiFingerTapMaxDistance)
+            _tapSessionInvalid = true;
+
+        if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
+        {
+            if (_mouseSimState == MouseSimState.Pending &&
+                Vector2.Distance(evt.TouchPosition, _mouseSimStartPosition) > DragThreshold)
+            {
+                _mouseSimState = MouseSimState.Dragging;
+                Input.ProcessEvent(PlatformEvent.MouseMove(_mouseSimStartPosition));
+                Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
+                Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
+            }
+            else if (_mouseSimState == MouseSimState.Dragging)
+            {
+                Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
+            }
+        }
+
+        if (_twoFingerPanning)
+        {
+            _twoFingerPrevCenter = _twoFingerCenter;
+            _twoFingerCenter = ComputeTwoFingerCenter();
+            _twoFingerDelta += _twoFingerCenter - _twoFingerPrevCenter;
+
+            _twoFingerPrevDistance = _twoFingerDistance;
+            _twoFingerDistance = ComputeTwoFingerDistance();
+            if (_twoFingerPrevDistance >= 1f)
+                _twoFingerScale *= _twoFingerDistance / _twoFingerPrevDistance;
+        }
+    }
+
+    private static void HandleTouchCancel(in PlatformEvent evt)
+    {
+        var slot = FindSlot(evt.FingerId);
+        if (slot < 0) return;
+
+        if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
+        {
+            if (_mouseSimState == MouseSimState.Dragging)
+                Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+            _mouseSimState = MouseSimState.Idle;
+        }
+
+        _fingers[slot] = default;
+        _fingerCount = Math.Max(0, _fingerCount - 1);
+        _tapSessionInvalid = true;
+
+        if (_fingerCount < 2)
+            _twoFingerPanning = false;
+        else
+            RebaselineTwoFinger();
     }
 
     private static void CheckLongPress()
@@ -105,247 +312,51 @@ public static class Touch
         if (Time.TotalTime - f.DownTime < LongPressDuration) return;
 
         _mouseSimState = MouseSimState.Suppressed;
-
         Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
         Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseRight));
         Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseRight));
     }
 
-    public static void ProcessEvent(PlatformEvent evt)
+    private static void RebaselineTwoFinger()
     {
-        switch (evt.Type)
+        _twoFingerCenter = ComputeTwoFingerCenter();
+        _twoFingerPrevCenter = _twoFingerCenter;
+        _twoFingerDistance = ComputeTwoFingerDistance();
+        _twoFingerPrevDistance = _twoFingerDistance;
+    }
+
+    private static int GetFirstTwoFingers(out Vector2 a, out Vector2 b)
+    {
+        a = b = Vector2.Zero;
+        var count = 0;
+        for (var i = 0; i < MaxFingers; i++)
         {
-            case PlatformEventType.TouchDown:
-            {
-                var slot = FindOrAllocSlot(evt.FingerId);
-                if (slot < 0) break;
-
-                if (SimulateMouse)
-                {
-                    if (_fingerCount == 0)
-                    {
-                        _mouseSimState = MouseSimState.Pending;
-                        _mouseSimulatedFingerId = evt.FingerId;
-                        _mouseSimStartPosition = evt.TouchPosition;
-                    }
-                    else
-                    {
-                        if (_mouseSimState == MouseSimState.Dragging)
-                            Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
-                        if (_mouseSimState != MouseSimState.Idle)
-                            _mouseSimState = MouseSimState.Suppressed;
-                    }
-                }
-
-                ref var f = ref _fingers[slot];
-                f.Id = evt.FingerId;
-                f.Position = evt.TouchPosition;
-                f.StartPosition = evt.TouchPosition;
-                f.Delta = Vector2.Zero;
-                f.Pressure = evt.Pressure;
-                f.DownTime = Time.TotalTime;
-                f.Active = true;
-                _fingerDownTimes[slot] = Time.TotalTime;
-                _fingerCount++;
-
-                if (_fingerCount >= 2)
-                {
-                    // Starting fresh, or a third+ finger joined — re-baseline so the
-                    // tracked pair's center/distance don't jump on the next move.
-                    _twoFingerPanning = true;
-                    _twoFingerCenter = ComputeTwoFingerCenter();
-                    _twoFingerPrevCenter = _twoFingerCenter;
-                    _twoFingerDistance = ComputeTwoFingerDistance();
-                    _twoFingerPrevDistance = _twoFingerDistance;
-                }
-                break;
-            }
-
-            case PlatformEventType.TouchUp:
-            {
-                var slot = FindSlot(evt.FingerId);
-                if (slot < 0) break;
-
-                ref var f = ref _fingers[slot];
-
-                if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
-                {
-                    switch (_mouseSimState)
-                    {
-                        case MouseSimState.Pending:
-                            Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
-                            Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
-                            Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
-                            break;
-                        case MouseSimState.Dragging:
-                            Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
-                            Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
-                            break;
-                    }
-                    _mouseSimState = MouseSimState.Idle;
-                }
-
-                var duration = Time.TotalTime - _fingerDownTimes[slot];
-                var distance = Vector2.Distance(f.Position, f.StartPosition);
-
-                // Detect tap: short duration, minimal movement, single finger
-                if (_fingerCount == 1 && duration < TapMaxDuration && distance < TapMaxDistance)
-                {
-                    var timeSinceLastTap = Time.TotalTime - _lastTapTime;
-                    var distFromLastTap = Vector2.Distance(f.Position, _lastTapPosition);
-
-                    if (timeSinceLastTap < DoubleTapMaxInterval && distFromLastTap < TapMaxDistance)
-                        _doubleTapped = true;
-
-                    _tapped = true;
-                    _lastTapPosition = f.Position;
-                    _lastTapTime = Time.TotalTime;
-                }
-
-                f = default;
-                _fingerCount = Math.Max(0, _fingerCount - 1);
-
-                if (_fingerCount < 2)
-                {
-                    _twoFingerPanning = false;
-                }
-                else
-                {
-                    // One of the tracked pair lifted but another finger remains —
-                    // re-baseline the gesture against the new pair.
-                    _twoFingerCenter = ComputeTwoFingerCenter();
-                    _twoFingerPrevCenter = _twoFingerCenter;
-                    _twoFingerDistance = ComputeTwoFingerDistance();
-                    _twoFingerPrevDistance = _twoFingerDistance;
-                }
-                break;
-            }
-
-            case PlatformEventType.TouchMove:
-            {
-                var slot = FindSlot(evt.FingerId);
-                if (slot < 0) break;
-
-                ref var f = ref _fingers[slot];
-                f.Delta = evt.TouchDelta;
-                f.Position = evt.TouchPosition;
-                f.Pressure = evt.Pressure;
-
-                if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
-                {
-                    if (_mouseSimState == MouseSimState.Pending &&
-                        Vector2.Distance(evt.TouchPosition, _mouseSimStartPosition) > DragThreshold)
-                    {
-                        _mouseSimState = MouseSimState.Dragging;
-                        Input.ProcessEvent(PlatformEvent.MouseMove(_mouseSimStartPosition));
-                        Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
-                        Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
-                    }
-                    else if (_mouseSimState == MouseSimState.Dragging)
-                    {
-                        Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
-                    }
-                }
-
-                if (_twoFingerPanning)
-                {
-                    _twoFingerPrevCenter = _twoFingerCenter;
-                    _twoFingerCenter = ComputeTwoFingerCenter();
-                    _twoFingerDelta += _twoFingerCenter - _twoFingerPrevCenter;
-
-                    _twoFingerPrevDistance = _twoFingerDistance;
-                    _twoFingerDistance = ComputeTwoFingerDistance();
-                    if (_twoFingerPrevDistance >= 1f)
-                        _twoFingerScale *= _twoFingerDistance / _twoFingerPrevDistance;
-                }
-                break;
-            }
-
-            case PlatformEventType.TouchCancel:
-            {
-                var slot = FindSlot(evt.FingerId);
-                if (slot < 0) break;
-
-                if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
-                {
-                    if (_mouseSimState == MouseSimState.Dragging)
-                        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
-                    _mouseSimState = MouseSimState.Idle;
-                }
-
-                _fingers[slot] = default;
-                _fingerCount = Math.Max(0, _fingerCount - 1);
-
-                if (_fingerCount < 2)
-                {
-                    _twoFingerPanning = false;
-                }
-                else
-                {
-                    _twoFingerCenter = ComputeTwoFingerCenter();
-                    _twoFingerPrevCenter = _twoFingerCenter;
-                    _twoFingerDistance = ComputeTwoFingerDistance();
-                    _twoFingerPrevDistance = _twoFingerDistance;
-                }
-                break;
-            }
-
-            // SDL3 native pinch gesture — trackpad path only. When fingers are on
-            // the screen we drive zoom from our own two-finger tracking instead.
-            case PlatformEventType.PinchBegin:
-                if (_fingerCount >= 2) break;
-                _pinchActive = true;
-                _pinchScale = 1f;
-                break;
-
-            case PlatformEventType.PinchUpdate:
-                if (_fingerCount >= 2) break;
-                _pinchScale = evt.PinchScale;
-                break;
-
-            case PlatformEventType.PinchEnd:
-                if (_fingerCount >= 2) break;
-                _pinchActive = false;
-                _pinchScale = 1f;
-                break;
+            if (!_fingers[i].Active) continue;
+            if (count == 0) a = _fingers[i].Position;
+            else { b = _fingers[i].Position; return 2; }
+            count++;
         }
+        return count;
     }
 
     private static Vector2 ComputeTwoFingerCenter()
     {
-        var count = 0;
-        var center = Vector2.Zero;
-        for (var i = 0; i < MaxFingers && count < 2; i++)
+        var count = GetFirstTwoFingers(out var a, out var b);
+        return count switch
         {
-            if (!_fingers[i].Active) continue;
-            center += _fingers[i].Position;
-            count++;
-        }
-        return count > 0 ? center / count : Vector2.Zero;
+            2 => (a + b) * 0.5f,
+            1 => a,
+            _ => Vector2.Zero,
+        };
     }
 
-    private static float ComputeTwoFingerDistance()
-    {
-        var first = Vector2.Zero;
-        var second = Vector2.Zero;
-        var count = 0;
-        for (var i = 0; i < MaxFingers && count < 2; i++)
-        {
-            if (!_fingers[i].Active) continue;
-            if (count == 0) first = _fingers[i].Position;
-            else second = _fingers[i].Position;
-            count++;
-        }
-        return count == 2 ? Vector2.Distance(first, second) : 0f;
-    }
+    private static float ComputeTwoFingerDistance() =>
+        GetFirstTwoFingers(out var a, out var b) == 2 ? Vector2.Distance(a, b) : 0f;
 
     private static int FindSlot(long fingerId)
     {
         for (var i = 0; i < MaxFingers; i++)
-        {
-            if (_fingers[i].Active && _fingers[i].Id == fingerId)
-                return i;
-        }
+            if (_fingers[i].Active && _fingers[i].Id == fingerId) return i;
         return -1;
     }
 
@@ -355,10 +366,7 @@ public static class Touch
         if (existing >= 0) return existing;
 
         for (var i = 0; i < MaxFingers; i++)
-        {
-            if (!_fingers[i].Active)
-                return i;
-        }
+            if (!_fingers[i].Active) return i;
         return -1;
     }
 }

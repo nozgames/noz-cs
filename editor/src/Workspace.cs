@@ -407,6 +407,11 @@ public static partial class Workspace
             if (!UI.HasHot())
                 CommandManager.ProcessShortcuts();
 
+            if (Touch.WasThreeFingerTapped)
+                Undo.DoRedo();
+            else if (Touch.WasTwoFingerTapped)
+                Undo.DoUndo();
+
             if (Touch.WasDoubleTapped)
                 BeginEdit();
 

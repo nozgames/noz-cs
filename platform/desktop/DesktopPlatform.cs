@@ -33,6 +33,7 @@ public unsafe partial class SDLPlatform : IPlatform
     private bool _isMouseCaptured;
     private Action? _beforeQuit;
     private bool _isTablet;
+    private float _eventPixelScale = 1.0f;
 
     public bool IsMouseInWindow => _isMouseInWindow;
     public bool IsMouseCaptured => _isMouseCaptured;
@@ -63,6 +64,7 @@ public unsafe partial class SDLPlatform : IPlatform
         if (_window == null) return;
         SDL_SetWindowSize(_window, width, height);
         WindowSize = new Vector2Int(width, height);
+        _eventPixelScale = SDL_GetWindowPixelDensity(_window);
     }
 
     public void SetWindowPosition(int x, int y)
@@ -132,6 +134,7 @@ public unsafe partial class SDLPlatform : IPlatform
         {
             WindowSize = new Vector2Int(config.Width, config.Height);
         }
+        _eventPixelScale = SDL_GetWindowPixelDensity(_window);
 
         _instance = this;
         SDL_AddEventWatch(&ResizeEventWatch, nint.Zero);
@@ -168,6 +171,7 @@ public unsafe partial class SDLPlatform : IPlatform
                 int w, h;
                 SDL_GetWindowSizeInPixels(_instance._window, &w, &h);
                 _instance.WindowSize = new Vector2Int(w, h);
+                _instance._eventPixelScale = SDL_GetWindowPixelDensity(_instance._window);
                 _instance.OnEvent?.Invoke(PlatformEvent.Resize(w, h));
             }
 
@@ -308,7 +312,7 @@ public unsafe partial class SDLPlatform : IPlatform
                     (ulong)evt.motion.which == (ulong)SDL3.SDL_PEN_MOUSEID)
                     break;           
 
-                OnEvent?.Invoke(PlatformEvent.MouseMove(new Vector2(evt.motion.x, evt.motion.y)));
+                OnEvent?.Invoke(PlatformEvent.MouseMove(new Vector2(evt.motion.x * _eventPixelScale, evt.motion.y * _eventPixelScale)));
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_WHEEL:
@@ -436,21 +440,21 @@ public unsafe partial class SDLPlatform : IPlatform
             // Pen (Apple Pencil / stylus) events — pen acts as a precise mouse
             case SDL_EventType.SDL_EVENT_PEN_DOWN:
             {
-                var pos = new Vector2(evt.ptouch.x, evt.ptouch.y);
+                var pos = new Vector2(evt.ptouch.x * _eventPixelScale, evt.ptouch.y * _eventPixelScale);
                 OnEvent?.Invoke(PlatformEvent.PenDownEvent(pos, 0f, evt.ptouch.eraser));
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_PEN_UP:
             {
-                var pos = new Vector2(evt.ptouch.x, evt.ptouch.y);
+                var pos = new Vector2(evt.ptouch.x * _eventPixelScale, evt.ptouch.y * _eventPixelScale);
                 OnEvent?.Invoke(PlatformEvent.PenUpEvent(pos));
                 break;
             }
 
             case SDL_EventType.SDL_EVENT_PEN_MOTION:
             {
-                var pos = new Vector2(evt.pmotion.x, evt.pmotion.y);
+                var pos = new Vector2(evt.pmotion.x * _eventPixelScale, evt.pmotion.y * _eventPixelScale);
                 OnEvent?.Invoke(PlatformEvent.PenMoveEvent(pos, 0f));
                 break;
             }
@@ -462,6 +466,7 @@ public unsafe partial class SDLPlatform : IPlatform
                 if (OperatingSystem.IsIOS())
                     SDL_GetWindowSizeInPixels(_window, &rw, &rh);
                 WindowSize = new Vector2Int(rw, rh);
+                _eventPixelScale = SDL_GetWindowPixelDensity(_window);
                 OnEvent?.Invoke(PlatformEvent.Resize(rw, rh));
                 break;
             }
