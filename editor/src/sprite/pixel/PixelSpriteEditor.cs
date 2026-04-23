@@ -1003,7 +1003,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         {
             PixelBrushType.Brush => new BrushMode(),
             PixelBrushType.Pencil => new PencilMode(),
-            _ => throw new ArgumentOutOfRangeException(nameof(brushType), brushType, null)
+            _ => new BrushMode()
         });
     }
 
