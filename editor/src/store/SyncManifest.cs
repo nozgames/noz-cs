@@ -2,6 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Collections.Concurrent;
+
 namespace NoZ.Editor;
 
 public class SyncManifest
@@ -10,7 +12,7 @@ public class SyncManifest
     public string Branch { get; set; } = "main";
     public DateTime LastSync { get; set; }
 
-    private readonly Dictionary<string, FileEntry> _files = new();
+    private readonly ConcurrentDictionary<string, FileEntry> _files = new();
 
     public struct FileEntry
     {
@@ -32,7 +34,7 @@ public class SyncManifest
     public bool TryGetEntry(string path, out FileEntry entry) =>
         _files.TryGetValue(path, out entry);
 
-    public void RemoveEntry(string path) => _files.Remove(path);
+    public void RemoveEntry(string path) => _files.TryRemove(path, out _);
 
     public IEnumerable<string> Paths => _files.Keys;
 

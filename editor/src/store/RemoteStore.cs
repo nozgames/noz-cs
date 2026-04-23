@@ -15,13 +15,9 @@ public partial class RemoteStore : IEditorStore
     private LocalStore _local = null!;
     private string _cachePath = "";
     private readonly string _manifestPath = ".noz/sync.manifest";
-    private readonly string _configPath = ".noz/remote.cfg";
 
-    private string? _host;
-    private int _port = RemoteProtocol.DefaultPort;
-    private string _hostInput = "";
-    private string _portInput = RemoteProtocol.DefaultPort.ToString();
-    private readonly bool _preconfigured;
+    private readonly string _host;
+    private readonly int _port;
 
     private HttpClient? _http;
     private ClientWebSocket? _ws;
@@ -39,8 +35,8 @@ public partial class RemoteStore : IEditorStore
     private readonly ConcurrentQueue<WriteOp> _pendingWrites = new();
     private Task? _writeLoop;
 
-    private enum SetupState { NeedConnection, Connecting, Syncing, Ready, Disconnected }
-    private SetupState _setupState = SetupState.NeedConnection;
+    private enum SetupState { Connecting, Syncing, Ready }
+    private SetupState _setupState = SetupState.Connecting;
 
     private enum WriteOpKind { Put, Delete, Move }
     private record WriteOp(WriteOpKind Kind, string Path, string? DstPath);
@@ -48,7 +44,7 @@ public partial class RemoteStore : IEditorStore
     public string Name => "Remote";
     public bool IsRemote => true;
     public bool IsReady => _setupState == SetupState.Ready;
-    public bool CanSync => !string.IsNullOrEmpty(_host);
+    public bool CanSync => true;
     public bool IsSyncing => _syncing;
     public bool RequiresAuth => false;
     public bool IsAuthenticated => true;
@@ -59,15 +55,21 @@ public partial class RemoteStore : IEditorStore
     public event Action? AuthStateChanged;
 #pragma warning restore CS0067
 
-    public RemoteStore() { }
-
     public RemoteStore(string host, int port)
     {
         _host = host;
         _port = port;
-        _hostInput = host;
-        _portInput = port.ToString();
-        _preconfigured = true;
+    }
+
+    public static string GetCachePath(string host, int port)
+    {
+        var safeHost = host.Replace(':', '_').Replace('.', '_');
+        var baseDir = OperatingSystem.IsIOS()
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "NoZEditor", "remote")
+            : Path.Combine(Path.GetTempPath(), "stope-remote-client");
+        var cacheDir = Path.Combine(baseDir, $"{safeHost}_{port}");
+        Directory.CreateDirectory(cacheDir);
+        return cacheDir;
     }
 
     public void Init(string rootPath)
@@ -75,14 +77,9 @@ public partial class RemoteStore : IEditorStore
         _cachePath = Path.GetFullPath(rootPath);
         _local = new LocalStore();
         _local.Init(rootPath);
+        _local.CreateDirectory(".noz");
         _local.FileChanged += path => FileChanged?.Invoke(path);
-        LoadConfig();
-
-        if (string.IsNullOrEmpty(_host))
-        {
-            _setupState = SetupState.NeedConnection;
-            return;
-        }
+        _manifest = SyncManifest.Load(_local, _manifestPath);
 
         BeginConnect();
     }
@@ -102,35 +99,6 @@ public partial class RemoteStore : IEditorStore
 
             switch (_setupState)
             {
-                case SetupState.NeedConnection:
-                case SetupState.Disconnected:
-                    UI.Text(_setupState == SetupState.Disconnected ? "Disconnected" : "Connect to Desktop", EditorStyle.Text.Primary);
-                    UI.Text("Enter the host and port of a desktop editor running with --remote.", EditorStyle.Text.Disabled);
-
-                    using (UI.BeginColumn(new ContainerStyle { Spacing = 8, Width = new Size(320) }))
-                    {
-                        UI.Text("Host", EditorStyle.Text.Disabled);
-                        _hostInput = UI.TextInput(WidgetIds.HostInput, _hostInput, EditorStyle.TextInput, "192.168.1.42");
-
-                        UI.Text("Port", EditorStyle.Text.Disabled);
-                        _portInput = UI.TextInput(WidgetIds.PortInput, _portInput, EditorStyle.TextInput, RemoteProtocol.DefaultPort.ToString());
-                    }
-
-                    if (UI.Button(WidgetIds.ConnectButton, "Connect", EditorStyle.Button.Primary))
-                    {
-                        if (!int.TryParse(_portInput, out var p) || p <= 0 || p > 65535)
-                            p = RemoteProtocol.DefaultPort;
-
-                        if (!string.IsNullOrWhiteSpace(_hostInput))
-                        {
-                            _host = _hostInput.Trim();
-                            _port = p;
-                            SaveConfig();
-                            BeginConnect();
-                        }
-                    }
-                    break;
-
                 case SetupState.Connecting:
                     UI.Text($"Connecting to {_host}:{_port}...", EditorStyle.Text.Primary);
                     break;
@@ -181,7 +149,7 @@ public partial class RemoteStore : IEditorStore
                     {
                         Log.Error($"Remote cache path '{_cachePath}' is the same as the server's project path. " +
                                   $"Pass --project with a different directory to isolate the client cache.");
-                        _setupState = SetupState.NeedConnection;
+                        EditorApplication.ReturnToLauncher();
                     });
                     return;
                 }
@@ -198,7 +166,7 @@ public partial class RemoteStore : IEditorStore
                 EditorApplication.RunOnMainThread(() =>
                 {
                     Log.Error($"Connect failed: {ex.Message}");
-                    _setupState = SetupState.NeedConnection;
+                    EditorApplication.ReturnToLauncher();
                 });
             }
         });
@@ -230,7 +198,7 @@ public partial class RemoteStore : IEditorStore
                 EditorApplication.RunOnMainThread(() =>
                 {
                     Log.Info("Sync cancelled.");
-                    _setupState = SetupState.NeedConnection;
+                    EditorApplication.ReturnToLauncher();
                 });
             }
             catch (Exception ex)
@@ -238,7 +206,7 @@ public partial class RemoteStore : IEditorStore
                 EditorApplication.RunOnMainThread(() =>
                 {
                     Log.Error($"Sync failed: {ex.Message}");
-                    _setupState = SetupState.NeedConnection;
+                    EditorApplication.ReturnToLauncher();
                 });
             }
         }, ct);
@@ -246,9 +214,6 @@ public partial class RemoteStore : IEditorStore
 
     private static partial class WidgetIds
     {
-        public static partial WidgetId HostInput { get; }
-        public static partial WidgetId PortInput { get; }
-        public static partial WidgetId ConnectButton { get; }
         public static partial WidgetId CancelButton { get; }
     }
 
@@ -647,41 +612,21 @@ public partial class RemoteStore : IEditorStore
         }
     }
 
-    private void LoadConfig()
-    {
-        _manifest = SyncManifest.Load(_local, _manifestPath);
-
-        if (_preconfigured)
-            return;
-
-        var full = Path.Combine(_cachePath, _configPath);
-        if (!File.Exists(full))
-            return;
-
-        var props = PropertySet.LoadFile(full);
-        if (props == null)
-            return;
-
-        var h = props.GetString("server", "host", "");
-        if (!string.IsNullOrEmpty(h)) _host = h;
-        _port = props.GetInt("server", "port", RemoteProtocol.DefaultPort);
-        _hostInput = _host ?? "";
-        _portInput = _port.ToString();
-    }
-
-    private void SaveConfig()
-    {
-        var dir = Path.Combine(_cachePath, ".noz");
-        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-        var props = new PropertySet();
-        if (_host != null) props.SetString("server", "host", _host);
-        props.SetInt("server", "port", _port);
-        props.Save(Path.Combine(_cachePath, _configPath));
-    }
-
     public void Dispose()
     {
+        // Send a close frame first so ReceiveAsync returns via
+        // MessageType.Close rather than throwing on cancellation.
+        if (_ws?.State == WebSocketState.Open)
+        {
+            try
+            {
+                using var closeCts = new CancellationTokenSource(500);
+                _ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "shutdown", closeCts.Token)
+                    .GetAwaiter().GetResult();
+            }
+            catch { }
+        }
+
         _wsCts?.Cancel();
         try { _ws?.Dispose(); } catch { }
         _http?.Dispose();

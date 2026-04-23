@@ -78,9 +78,7 @@ if (remoteConnectHost != null)
     // Auto-isolate cache from the server's project dir when --project wasn't given.
     if (projectArg == null)
     {
-        var safeHost = remoteConnectHost.Replace(':', '_').Replace('.', '_');
-        var cacheDir = Path.Combine(Path.GetTempPath(), "stope-remote-client", $"{safeHost}_{remoteConnectPort}");
-        Directory.CreateDirectory(cacheDir);
+        var cacheDir = RemoteStore.GetCachePath(remoteConnectHost, remoteConnectPort);
         Console.WriteLine($"Remote client cache: {cacheDir}");
         forwardArgs.Add("--project");
         forwardArgs.Add(cacheDir);

@@ -648,16 +648,6 @@ public static partial class Workspace
             if (UI.Button(WidgetIds.ToggleEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon))  
                 BeginEdit();
 
-        using (UI.BeginFlex())
-            if (_showFps)
-            {
-                using (UI.BeginRow(new ContainerStyle { Align = Align.Center, Width = Size.Fit, Spacing = EditorStyle.Control.Spacing }))
-                {
-                    UI.Text(Strings.Number((int)Time.AvergeFps), EditorStyle.Text.Disabled);
-                    UI.Text("fps", EditorStyle.Text.Disabled);
-                }
-            }
-
         static PopupMenuItem[] GetCollectionItems()
         {
             var items = new PopupMenuItem[CollectionManager.Collections.Count];
@@ -753,6 +743,14 @@ public static partial class Workspace
                     // content (center, flexible)
                     using (UI.BeginFlex())
                     {
+                        if (_showFps)
+                            using (UI.BeginContainer(new ContainerStyle {AlignX=Align.Max}))
+                            using (UI.BeginRow(new ContainerStyle { Align = Align.Center, Width = Size.Fit, Spacing = EditorStyle.Control.Spacing }))
+                            {
+                                UI.Text(Strings.Number((int)Time.AvergeFps), EditorStyle.Text.Disabled);
+                                UI.Text("fps", EditorStyle.Text.Disabled);
+                            }
+
                         ElementTree.BeginWidget(WidgetIds.SceneViewport, interactive: false);
                         ActiveEditor?.UpdateUI();
                         ElementTree.EndWidget();

@@ -66,6 +66,8 @@ internal class EditorApplicationInstance : IApplication
 
 public static partial class EditorApplication
 {
+    public enum AppPhase { Launching, Running }
+
     private static readonly Queue<Action> _mainThreadQueue = new();
 
     internal static EditorApplicationConfig AppConfig { get; private set; } = null!;
@@ -75,6 +77,7 @@ public static partial class EditorApplication
     public static string OutputPath { get; private set; } = null!;
     public static string EditorPath { get; private set; } = null!;
     public static string ProjectPath { get; private set; } = null!;
+    public static AppPhase Phase { get; private set; } = AppPhase.Running;
     private static bool _projectInitialized;
 
     public static void Run(EditorApplicationConfig config, string[] args)
@@ -110,6 +113,8 @@ public static partial class EditorApplication
             else if (args[i] == "--tablet")
                 isTablet = true;
         }        
+
+        _isTablet = isTablet;
 
         // For CLI modes on Windows, attach to parent console so Console.WriteLine output is visible
         // (WinExe has no console by default; Linux/Mac don't need this)
@@ -245,10 +250,20 @@ public static partial class EditorApplication
             }
         }
 
-        // When a store is provided (e.g. GitStore), skip the directory walk —
-        // the store already has the files at the project path.
-        if (config.Store == null)
+        // Desktop tablet simulation: use the project path as a sandbox and
+        // skip the editor.cfg walk — the Launcher will pick a real store.
+        // --project overrides the default temp sandbox location.
+        if (isTablet && config.Store == null)
         {
+            if (projectArg == null)
+                projectPath = Path.Combine(Path.GetTempPath(), "NoZEditor");
+            Directory.CreateDirectory(projectPath);
+            Log.Info($"Tablet mode: using sandbox project path {projectPath}");
+        }
+        else if (config.Store == null)
+        {
+            // When a store is provided (e.g. GitStore), skip the directory walk —
+            // the store already has the files at the project path.
             if (!File.Exists(Path.Combine(projectPath, "editor.cfg")))
             {
                 Log.Info("Searching for project path...");
@@ -296,11 +311,26 @@ public static partial class EditorApplication
         Profiler.Enabled = true;
 //#endif
 
+        var uiConfig = isTablet
+            ? new UIConfig()
+            {
+                DefaultFont = EditorAssets.Names.Seguisb,
+                ScaleMode = UIScaleMode.ScaleWithScreenSize,
+                ReferenceResolution = new(1920, 1080),
+                ScreenMatchMode = ScreenMatchMode.MatchWidthOrHeight,
+                MatchWidthOrHeight = 0.5f,
+            }
+            : new UIConfig()
+            {
+                DefaultFont = EditorAssets.Names.Seguisb,
+                ScaleMode = UIScaleMode.ConstantPixelSize,
+            };
+
         Application.Init(new ApplicationConfig
         {
             Title = config.Title,
-            Width = 1600,
-            Height = 900,
+            Width = isTablet ? 1920 : 1600,
+            Height = isTablet ? 1080 : 900,
             HotReload = false,
             IconPath = config.IconPath ?? "res/windows/nozed.png",
             Platform = new SDLPlatform(),
@@ -309,12 +339,7 @@ public static partial class EditorApplication
             AssetPath = Path.Combine(EditorPath, "library"),
             IsTablet = isTablet,
             ResourceAssembly = config.ResourceAssembly,
-
-            UI = new UIConfig()
-            {
-                DefaultFont = EditorAssets.Names.Seguisb,
-                ScaleMode = UIScaleMode.ConstantPixelSize,
-            },
+            UI = uiConfig,
             Graphics = new GraphicsConfig
             {
                 Driver = new WebGPUGraphicsDriver(),
@@ -339,6 +364,7 @@ public static partial class EditorApplication
     }
 
     private static bool _clean;
+    private static bool _isTablet;
 
     private static void Init(string editorPath, string projectPath, bool clean, EditorApplicationConfig config)
     {
@@ -347,8 +373,15 @@ public static partial class EditorApplication
         _clean = clean;
         _projectInitialized = false;
 
+        // Only tablet/iOS mode shows the launcher — non-tablet desktop goes
+        // straight to LocalStore with the resolved project path. When in
+        // Launching phase, the LocalStore here is a benign sentinel so
+        // downstream code (user.cfg load, PostLoad) has a valid Store; the
+        // launcher swaps in a real store via BeginProject().
+        var useLauncher = AppConfig.Store == null && (OperatingSystem.IsIOS() || _isTablet);
         Store = AppConfig.Store ?? new LocalStore();
         Store.Init(projectPath);
+        Phase = useLauncher ? AppPhase.Launching : AppPhase.Running;
 
         // Register asset/document types (static registrations, no files needed)
         Application.RegisterAssetTypes();
@@ -369,9 +402,44 @@ public static partial class EditorApplication
 
         config.RegisterDocumentTypes?.Invoke();
 
-        // If store is ready, initialize the project now
-        if (Store.IsReady)
+        // If store is ready, initialize the project now.
+        // When in Launching phase the launcher will drive BeginProject().
+        if (Phase == AppPhase.Running && Store.IsReady)
             InitProject();
+    }
+
+    public static void BeginProject(IEditorStore store, string projectPath)
+    {
+        if (Phase != AppPhase.Launching)
+        {
+            Log.Warning("BeginProject called while not in Launching phase; ignoring.");
+            return;
+        }
+
+        Store.Dispose();
+        Store = store;
+        ProjectPath = projectPath;
+        Store.Init(projectPath);
+        Phase = AppPhase.Running;
+        _projectInitialized = false;
+    }
+
+    public static void ReturnToLauncher()
+    {
+        if (Phase == AppPhase.Launching)
+            return;
+
+        if (_projectInitialized)
+        {
+            Log.Warning("ReturnToLauncher after project is fully initialized is not supported in this phase.");
+            return;
+        }
+
+        Store.Dispose();
+        var sentinel = new LocalStore();
+        sentinel.Init(ProjectPath);
+        Store = sentinel;
+        Phase = AppPhase.Launching;
     }
 
     private static void InitProject()
@@ -406,7 +474,7 @@ public static partial class EditorApplication
         ConfirmDialog.Init();
         EditorCursor.Init();
 
-        Cursor.Enabled = !Application.IsTablet;
+        //Cursor.Enabled = !Application.IsTablet;
 
         if (Config == null)
             return;
@@ -453,6 +521,13 @@ public static partial class EditorApplication
         lock (_mainThreadQueue)
             while (_mainThreadQueue.Count > 0)
                 _mainThreadQueue.Dequeue().Invoke();
+
+        // Launcher owns the screen until the user picks a project.
+        if (Phase == AppPhase.Launching)
+        {
+            ProjectLauncher.UpdateUI();
+            return;
+        }
 
         // If store isn't ready, show its setup UI and wait
         if (!Store.IsReady)

@@ -51,6 +51,16 @@ public partial class GitStore : IEditorStore
         _clientId = clientId;
     }
 
+    public static string GetDefaultCachePath()
+    {
+        var baseDir = OperatingSystem.IsIOS()
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "NoZEditor", "git")
+            : Path.Combine(Path.GetTempPath(), "stope-git-client");
+        var cacheDir = Path.Combine(baseDir, "default");
+        Directory.CreateDirectory(cacheDir);
+        return cacheDir;
+    }
+
     public void Init(string rootPath)
     {
         _cachePath = Path.GetFullPath(rootPath);

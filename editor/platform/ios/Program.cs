@@ -20,7 +20,6 @@ public class EditorAppDelegate : UIApplicationDelegate
         EditorApplication.Run(new EditorApplicationConfig
         {
             ResourceAssembly = Assembly.GetExecutingAssembly(),
-            Store = new RemoteStore(),
         }, []);
 
         return true;
