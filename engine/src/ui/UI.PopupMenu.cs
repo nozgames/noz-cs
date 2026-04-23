@@ -503,12 +503,19 @@ public static partial class UI
         }
     }
 
-    public static void OpenPopupMenu(WidgetId id, ReadOnlySpan<PopupMenuItem> items,
-        in PopupMenuStyle style, string? title = null)
+    public static void OpenPopupMenu(
+        WidgetId id,
+        ReadOnlySpan<PopupMenuItem> items,
+        in PopupMenuStyle style,
+        string? title = null)
         => PopupHelper.Open(id, items, style, title);
 
-    public static void OpenPopupMenu(WidgetId id, ReadOnlySpan<PopupMenuItem> items,
-        in PopupMenuStyle style, PopupStyle popupStyle, string? title = null)
+    public static void OpenPopupMenu(
+        WidgetId id,
+        ReadOnlySpan<PopupMenuItem> items,
+        in PopupMenuStyle style,
+        PopupStyle popupStyle,
+        string? title = null)
         => PopupHelper.Open(id, items, style, popupStyle, title);
 
     public static bool IsPopupMenuOpen(WidgetId id) => PopupHelper.IsOpen(id);

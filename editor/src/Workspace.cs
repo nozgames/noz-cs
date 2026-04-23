@@ -82,6 +82,7 @@ public static partial class Workspace
     private static Document? _activeDocument;
     private static DocumentEditor? _activeEditor;
     private static PopupMenuItem[] _workspacePopupItems = null!;
+    private static PopupMenuItem[] _hamburgerMenuItems = null!;
 
     public static Camera Camera => _camera;
     public static WidgetId SceneWidgetId => WidgetIds.Scene;
@@ -273,6 +274,7 @@ public static partial class Workspace
         var editCommand = new Command("Edit", BeginEdit, [InputCode.KeyTab], EditorAssets.Sprites.IconEdit);
         var hideCommand = new Command("Hide", HandleHide, [InputCode.KeyH], EditorAssets.Sprites.IconPreview);
         var unhideAllCommand = new Command("Unhide All", HandleUnhideAll, [new KeyBinding(InputCode.KeyH, ctrl: true)], EditorAssets.Sprites.IconPreview);
+        var settingsCommand = new Command("Settings", OpenSettings, [new KeyBinding(InputCode.KeyComma, ctrl:true)]);
 
         CommandManager.RegisterCommon([
             new Command("Save All", DocumentManager.SaveAll, [new KeyBinding(InputCode.KeyS, ctrl:true)]),
@@ -288,6 +290,7 @@ public static partial class Workspace
             new Command("Toggle Names", ToggleNames, [new KeyBinding(InputCode.KeyN, alt:true)]),
             new Command("Toggle Isolation", ToggleIsolation, [new KeyBinding(InputCode.KeySlash)]),
             new Command("Toggle FPS", ToggleFps),
+            settingsCommand,
         ]);
 
         var workspaceCommands = new List<Command>
@@ -341,6 +344,10 @@ public static partial class Workspace
             duplicateCommand.ToPopupMenuItem(),
             renameCommand.ToPopupMenuItem(),
             deleteCommand.ToPopupMenuItem()
+        ];
+
+        _hamburgerMenuItems = [
+            settingsCommand.ToPopupMenuItem(),
         ];
     }
 
@@ -619,7 +626,14 @@ public static partial class Workspace
     private static void ToolbarUI()
     {
         using var cursor = UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
-        using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
+        using var _ = UI.BeginRow(WidgetIds.Toolbar, EditorStyle.Toolbar.Root);
+
+        if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.ToggleIcon, isSelected: UI.IsPopupMenuOpen(WidgetIds.Menu)))  
+            UI.OpenPopupMenu(
+                WidgetIds.Menu,
+                _hamburgerMenuItems,
+                style: EditorStyle.ContextMenu.Style,
+                popupStyle: EditorStyle.PopupBelow with { AnchorRect = UI.GetElementWorldRect(WidgetIds.Menu) });
 
         if (ActiveEditor != null)
         {
@@ -761,6 +775,7 @@ public static partial class Workspace
         ActiveEditor?.UpdateOverlayUI();
         ColorPicker.Update();
         DrawRenameUI();
+        SettingsPopup.Update();
     }
 
     public static void LateUpdate()
@@ -1650,5 +1665,10 @@ public static partial class Workspace
     {
         foreach (var doc in DocumentManager.Documents)
             doc.IsHiddenInWorkspace = false;
+    }
+
+    private static void OpenSettings()
+    {
+        SettingsPopup.Open();
     }
 }

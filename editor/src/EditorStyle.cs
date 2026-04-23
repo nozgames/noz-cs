@@ -395,7 +395,7 @@ public static class EditorStyle
             Height = Control.Height,
             Background = Color.Transparent,
             ContentColor = Palette.Content,
-            IconSize = Control.IconSize,
+            IconSize = Icon.LargeSize,
             BorderRadius = Control.BorderRadius,
             Padding = EdgeInsets.All(3),
             Resolve = (s, f) =>
