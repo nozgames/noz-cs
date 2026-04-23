@@ -7,9 +7,6 @@ using System.Text;
 
 namespace NoZ.Editor;
 
-/// <summary>
-/// Handles initialization of new NoZ game projects
-/// </summary>
 internal static class ProjectInitializer
 {
     public static void Initialize(string projectPath, string projectName, string editorPath)

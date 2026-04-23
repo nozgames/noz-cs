@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace NoZ.Editor;
 
@@ -49,9 +50,20 @@ public partial class PixelSpriteEditor
             _softStrokeCoverage!.Clear();
         }
 
-        for (var y = 0; y < epr.Height; y++)
-            for (var x = 0; x < epr.Width; x++)
-                _softStrokeOriginal![x, y] = layer.Pixels[epr.X + x, epr.Y + y];
+        unsafe
+        {
+            var srcPtr = layer.Pixels.Ptr;
+            var dstPtr = _softStrokeOriginal!.Ptr;
+            var srcStride = layer.Pixels.Width;
+            var dstStride = _softStrokeOriginal.Width;
+            var rowBytes = (nuint)(epr.Width * sizeof(Color32));
+            for (var y = 0; y < epr.Height; y++)
+            {
+                var srcRow = srcPtr + (epr.Y + y) * srcStride + epr.X;
+                var dstRow = dstPtr + y * dstStride;
+                NativeMemory.Copy(srcRow, dstRow, rowBytes);
+            }
+        }
 
         _softStrokeActive = true;
     }
@@ -81,51 +93,65 @@ public partial class PixelSpriteEditor
         const float ApronWidth = 2f;
         var tiling = Document.ShowTiling;
         var r = EditablePixelRect;
+        var pixels = layer.Pixels;
+        var mask = Document.SelectionMask;
+        var alphaLock = AlphaLock;
         var offset = (BrushSize - 1) / 2;
         var discCenter = (BrushSize - 1) / 2.0f;
-        var apronR = BrushSize / 2.0f + ApronWidth;
+        var discR = BrushSize * 0.5f;
+        var discR2 = discR * discR;
+        var apronR = discR + ApronWidth;
         var apronR2 = apronR * apronR;
         var apronBox = (int)MathF.Ceiling(ApronWidth);
 
         for (var dy = -apronBox; dy < BrushSize + apronBox; dy++)
             for (var dx = -apronBox; dx < BrushSize + apronBox; dx++)
             {
-                var inDisc = dx >= 0 && dx < BrushSize && dy >= 0 && dy < BrushSize
-                             && IsInBrush(dx, dy, BrushSize);
-                if (!inDisc)
-                {
-                    var ddx = dx - discCenter;
-                    var ddy = dy - discCenter;
-                    if (ddx * ddx + ddy * ddy > apronR2) continue;
-                }
+                var ddx = dx - discCenter;
+                var ddy = dy - discCenter;
+                var d2 = ddx * ddx + ddy * ddy;
+                var inBox = dx >= 0 && dx < BrushSize && dy >= 0 && dy < BrushSize;
+                var inDisc = inBox && d2 <= discR2;
+                if (!inDisc && d2 > apronR2) continue;
 
                 var px = pixel.X - offset + dx;
                 var py = pixel.Y - offset + dy;
                 if (tiling)
                 {
-                    px = r.X + ((px - r.X) % r.Width + r.Width) % r.Width;
-                    py = r.Y + ((py - r.Y) % r.Height + r.Height) % r.Height;
+                    // Wrap only pixels that actually fell outside; most brush pixels sit
+                    // inside the rect and don't need the modulo at all.
+                    if ((uint)(px - r.X) >= (uint)r.Width)
+                        px = r.X + ((px - r.X) % r.Width + r.Width) % r.Width;
+                    if ((uint)(py - r.Y) >= (uint)r.Height)
+                        py = r.Y + ((py - r.Y) % r.Height + r.Height) % r.Height;
                 }
-                if (!IsPixelInConstraint(new Vector2Int(px, py))) continue;
-                if (!IsPixelSelected(px, py)) continue;
-                if (AlphaLock && layer.Pixels[px, py].A == 0) continue;
+                else if ((uint)(px - r.X) >= (uint)r.Width || (uint)(py - r.Y) >= (uint)r.Height)
+                    continue;
+
+                if (mask != null && mask[px, py] == 0) continue;
+
+                ref var slot = ref pixels[px, py];
+                if (alphaLock && slot.A == 0) continue;
 
                 if (inDisc)
                 {
-                    var dst = layer.Pixels[px, py];
-                    layer.Pixels.Set(px, py, blend && color.A < 255 ? Color32.Blend(dst, color) : color);
+                    slot = blend && color.A < 255 ? Color32.Blend(slot, color) : color;
                     continue;
                 }
 
-                // Apron: seed empty pixels around the disc with the brush RGB at alpha=0 so
-                // bilinear filtering doesn't interpolate painted pixels against (0,0,0,0)
-                // neighbors and produce a black fringe.
-                if (color.A == 0) continue;
-                var empty = layer.Pixels[px, py];
-                if (empty.A != 0 || (empty.R | empty.G | empty.B) != 0) continue;
-                layer.Pixels.Set(px, py, new Color32(color.R, color.G, color.B, 0));
+                SeedApronPixel(ref slot, color);
             }
         InvalidateComposite();
+    }
+
+    // Apron: seed empty pixels around the disc with the brush RGB at alpha=0 so bilinear
+    // filtering doesn't interpolate painted pixels against (0,0,0,0) neighbors and produce
+    // a black fringe.
+    private static void SeedApronPixel(ref Color32 slot, Color32 color)
+    {
+        if (color.A == 0) return;
+        if (slot.A != 0 || (slot.R | slot.G | slot.B) != 0) return;
+        slot = new Color32(color.R, color.G, color.B, 0);
     }
 
     public void PaintBrushSoft(Vector2 centerPixel, Color32 color, float hardness)
@@ -140,6 +166,8 @@ public partial class PixelSpriteEditor
         var effOuter = outerR + fadeWidth * 0.5f;
         var hardR = MathF.Max(0f, effOuter - fadeWidth);
         var invFade = 1f / fadeWidth;
+        var effOuter2 = effOuter * effOuter;
+        var hardR2 = hardR * hardR;
 
         const float ApronWidth = 2f;
         var apronR = effOuter + ApronWidth;
@@ -154,6 +182,9 @@ public partial class PixelSpriteEditor
         var epr = _softStrokeRect;
         var cover = _softStrokeCoverage;
         var original = _softStrokeOriginal;
+        var pixels = layer.Pixels;
+        var mask = Document.SelectionMask;
+        var alphaLock = AlphaLock;
 
         for (var dy = -box; dy <= box; dy++)
             for (var dx = -box; dx <= box; dx++)
@@ -171,58 +202,55 @@ public partial class PixelSpriteEditor
                 var py = virtPy;
                 if (tiling)
                 {
-                    px = rect.X + ((px - rect.X) % rect.Width + rect.Width) % rect.Width;
-                    py = rect.Y + ((py - rect.Y) % rect.Height + rect.Height) % rect.Height;
+                    if ((uint)(px - rect.X) >= (uint)rect.Width)
+                        px = rect.X + ((px - rect.X) % rect.Width + rect.Width) % rect.Width;
+                    if ((uint)(py - rect.Y) >= (uint)rect.Height)
+                        py = rect.Y + ((py - rect.Y) % rect.Height + rect.Height) % rect.Height;
                 }
-                if (!IsPixelInConstraint(new Vector2Int(px, py))) continue;
-                if (!IsPixelSelected(px, py)) continue;
+                else if ((uint)(px - rect.X) >= (uint)rect.Width || (uint)(py - rect.Y) >= (uint)rect.Height)
+                    continue;
 
+                if (mask != null && mask[px, py] == 0) continue;
+
+                // Squared-space coverage: pixels in the solid core (d2 <= hardR2) and fully
+                // outside (d2 >= effOuter2) skip the sqrt entirely. Only the fade ramp needs d.
                 float cov;
-                if (d2 >= effOuter * effOuter)
-                {
+                if (d2 >= effOuter2)
                     cov = 0f;
-                }
+                else if (d2 <= hardR2)
+                    cov = 1f;
                 else
-                {
-                    var d = MathF.Sqrt(d2);
-                    if (d <= hardR) cov = 1f;
-                    else cov = (effOuter - d) * invFade;
-                }
+                    cov = (effOuter - MathF.Sqrt(d2)) * invFade;
 
                 var bx = px - epr.X;
                 var by = py - epr.Y;
-                var inBuffer = bx >= 0 && bx < epr.Width && by >= 0 && by < epr.Height;
+                var inBuffer = (uint)bx < (uint)epr.Width && (uint)by < (uint)epr.Height;
+
+                ref var slot = ref pixels[px, py];
 
                 if (cov <= 0f)
                 {
-                    // Apron: seed fully-empty pixels within ApronWidth px of the brush footprint
-                    // with the brush RGB at alpha=0 so bilinear filtering doesn't interpolate
-                    // painted pixels against (0,0,0,0) neighbors and produce a black fringe.
-                    if (color.A == 0) continue;
                     if (d2 > apronR2) continue;
-                    var empty = layer.Pixels[px, py];
-                    if (empty.A != 0 || (empty.R | empty.G | empty.B) != 0) continue;
-                    layer.Pixels.Set(px, py, new Color32(color.R, color.G, color.B, 0));
+                    SeedApronPixel(ref slot, color);
                     continue;
                 }
 
-                if (AlphaLock && layer.Pixels[px, py].A == 0) continue;
+                if (alphaLock && slot.A == 0) continue;
                 if (!inBuffer) continue;
 
                 // Max-blend coverage accumulator: the pixel's final alpha within this stroke is
                 // the maximum coverage from any stamp, not the sum — dense sub-pixel stamps
                 // don't pile alpha above 1.0.
-                ref var slot = ref cover[bx, by];
-                if (cov <= slot) continue;
-                slot = cov;
+                ref var coverSlot = ref cover[bx, by];
+                if (cov <= coverSlot) continue;
+                coverSlot = cov;
 
                 var srcA = (color.A / 255f) * cov;
                 if (srcA <= 0f) continue;
                 var src = new Color32(color.R, color.G, color.B, (byte)(srcA * 255f + 0.5f));
                 if (src.A == 0) continue;
 
-                var orig = original[bx, by];
-                layer.Pixels.Set(px, py, Color32.Blend(orig, src));
+                slot = Color32.Blend(original[bx, by], src);
             }
         InvalidateComposite();
     }
