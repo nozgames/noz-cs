@@ -414,7 +414,7 @@ public class FontDocument : Document
         }
 
         // Write atlas as RGBA32
-        var atlasSpan = atlas.AsByteSpan();
+        var atlasSpan = atlas.AsReadonlySpan();
         writer.Write(atlasSpan);
 
         // Build packed glyph name buffer using Unicode character names

@@ -1004,12 +1004,12 @@ internal class AnimationDocument : Document
         return doc;
     }
 
-    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
+    public static Document? CreateNew(string? name = null, Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Animation, Extension, name, position, writer =>
+        return DocumentManager.New(AssetType.Animation, Extension, name, writer =>
         {
             writer.WriteLine("s \"\"");
-        });
+        }, position);
     }
 
     public void SetSkeleton(SkeletonDocument? skeleton)

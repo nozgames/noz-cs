@@ -15,27 +15,6 @@ public unsafe partial class WebGPUGraphicsDriver
 {
     private static readonly ProfilerCounter s_counterEndTexturePass = new("WebGPU.EndRenderTexturePass");
 
-    private static int _debugFullUpdateCount;
-    private static long _debugFullUpdateBytes;
-    private static int _debugRegionUpdateCount;
-    private static long _debugRegionUpdateBytes;
-    private static double _debugLastTexLog;
-
-    public static void DebugLogTextureUploads(double now)
-    {
-        if (now - _debugLastTexLog < 1.0) return;
-        var regMs = _debugRegionUpdateTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-        var avgMs = _debugRegionUpdateCount > 0 ? regMs / _debugRegionUpdateCount : 0.0;
-        Console.WriteLine($"[TEX] full-updates={_debugFullUpdateCount} ({_debugFullUpdateBytes / 1024}KB)  region-updates={_debugRegionUpdateCount} ({_debugRegionUpdateBytes / 1024}KB)  region-total-ms={regMs:F1}  region-avg-ms={avgMs:F2}");
-        _debugFullUpdateCount = 0;
-        _debugFullUpdateBytes = 0;
-        _debugRegionUpdateCount = 0;
-        _debugRegionUpdateBytes = 0;
-        _debugRegionUpdateTicks = 0;
-        _debugLastTexLog = now;
-    }
-
-    // Mesh Management
     public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex
     {
         var descriptor = T.GetFormatDescriptor();
@@ -329,9 +308,6 @@ public unsafe partial class WebGPUGraphicsDriver
             _ => 4,
         };
 
-        _debugFullUpdateCount++;
-        _debugFullUpdateBytes += (long)size.X * size.Y * bytesPerPixel;
-
         fixed (byte* dataPtr = data)
         {
             var layout = new TextureDataLayout
@@ -369,10 +345,7 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba32float => 16,
             _ => 4,
         };
-
-        _debugRegionUpdateCount++;
-        _debugRegionUpdateBytes += (long)region.Width * region.Height * bytesPerPixel;
-
+        
         var rowWidth = srcWidth < 0 ? region.Width : srcWidth;
 
         fixed (byte* dataPtr = data)

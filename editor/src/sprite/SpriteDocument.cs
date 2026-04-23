@@ -43,7 +43,38 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     public SpriteGroup Root { get; } = new() { Name = "Root" };
 
-    public RectInt RasterBounds { get; protected set; }
+    private RectInt _rasterBounds;
+    private Rect _bounds = new(-0.5f, -0.5f, 1f, 1f);
+    private bool _boundsDirty;
+
+    public RectInt RasterBounds
+    {
+        get
+        {
+            if (_boundsDirty) EnsureBoundsFresh();
+            return _rasterBounds;
+        }
+        protected set => _rasterBounds = value;
+    }
+
+    public override Rect Bounds
+    {
+        get
+        {
+            if (_boundsDirty) EnsureBoundsFresh();
+            return _bounds;
+        }
+        set => _bounds = value;
+    }
+
+    public void InvalidateBounds() => _boundsDirty = true;
+
+    private void EnsureBoundsFresh()
+    {
+        _boundsDirty = false;
+        UpdateContentBounds();
+        ClampToMaxSpriteSize();
+    }
     public EdgeInsets Edges { get; set; } = EdgeInsets.Zero;
 
     public int? PixelsPerUnitOverride { get; set; }
@@ -96,7 +127,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     public override Color32 GetPixelAt(Vector2 worldPos) => default;
     internal abstract void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding);
-    protected abstract void SaveContent(StreamWriter writer);
+    protected virtual void SaveContent(StreamWriter writer) { }
     protected abstract void CloneContent(SpriteDocument source);
 
     public abstract DocumentEditor CreateEditor();
@@ -159,6 +190,16 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             Factory = _ => new ImageSpriteDocument(),
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
+
+        DocumentDef<PixelSpriteDocument>.Register(new DocumentDef
+        {
+            Type = AssetType.Sprite,
+            Name = "PixelSprite",
+            Extensions = [PixelSpriteDocument.BinaryExtension],
+            Factory = _ => new PixelSpriteDocument(),
+            EditorFactory = doc => ((SpriteDocument)doc)!.CreateEditor(),
+            Icon = () => EditorAssets.Sprites.AssetIconSprite
+        });
     }
 
     private static SpriteDocument CreateFromFile(string? path)
@@ -175,7 +216,6 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
             return trimmed[5..].Trim().ToString() switch
             {
-                "raster" => new PixelSpriteDocument(),
                 "generated" => new GeneratedSpriteDocument(),
                 _ => new VectorSpriteDocument(),
             };
@@ -217,7 +257,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             BoneIndex = skel.FindBoneIndex(BoneName);
     }
 
-    private void ResolveSortOrder()
+    protected void ResolveSortOrder()
     {
         SortOrder = 0;
         if (EditorApplication.Config != null && EditorApplication.Config.TryGetSortOrder(_sortOrderId, out var def))
@@ -226,6 +266,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     public void UpdateBounds()
     {
+        _boundsDirty = false;
         UpdateContentBounds();
         ClampToMaxSpriteSize();
         MarkSpriteDirty();

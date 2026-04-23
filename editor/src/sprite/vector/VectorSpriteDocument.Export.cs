@@ -167,7 +167,7 @@ public partial class VectorSpriteDocument
 
         RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi, clipRect, this);
 
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsReadonlySpan(), outW, outH);
         using var ms = new MemoryStream();
         image.SaveAsPng(ms);
         return ms.ToArray();

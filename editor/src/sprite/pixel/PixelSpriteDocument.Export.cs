@@ -51,7 +51,7 @@ public partial class PixelSpriteDocument
         var rasterRect = new RectInt(0, 0, w, h);
         RasterizePixelLayersRecursive(Root, pixels, rasterRect, srcX, srcY, w, h);
 
-        using var image = Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), w, h);
+        using var image = Image.LoadPixelData<Rgba32>(pixels.AsReadonlySpan(), w, h);
         using var ms = new MemoryStream();
         image.SaveAsPng(ms);
         return ms.ToArray();

@@ -86,16 +86,11 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sprite, Extension, null, position, WriteNewFile);
-    }
-
-    public static void WriteNewFile(StreamWriter writer)
-    {
-        writer.WriteLine("type raster");
-        writer.WriteLine("canvas 64 64");
-        writer.WriteLine();
-        writer.WriteLine("layer \"Layer 1\" {");
-        writer.WriteLine("}");
+        return DocumentManager.New(AssetType.Sprite, BinaryExtension, null, stream =>
+        {
+            using var w = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+            WriteEmptyPixelSprite(w, 64, 64);
+        }, position);
     }
 
     public RectInt? ComputeContentBounds()

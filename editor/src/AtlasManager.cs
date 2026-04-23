@@ -249,7 +249,7 @@ public static class AtlasManager
         if (TextureArray == null || atlas.Image == null)
             return;
 
-        TextureArray.UpdateLayer(atlas.Index, atlas.Image.AsByteSpan());
+        TextureArray.UpdateLayer(atlas.Index, atlas.Image.AsReadonlySpan());
     }
 
     internal static void AddSource(SpriteDocument source)
@@ -417,7 +417,7 @@ public static class AtlasManager
         {
             var width = allAtlases[0].Image!.Width;
             var height = allAtlases[0].Image!.Height;
-            var layerData = allAtlases.Select(a => a.Image!.AsByteSpan().ToArray()).ToArray();
+            var layerData = allAtlases.Select(a => a.Image!.AsReadonlySpan().ToArray()).ToArray();
             TextureArray = Texture.CreateArray("GameSpriteAtlas", width, height, layerData);
         }
 

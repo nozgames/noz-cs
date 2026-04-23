@@ -60,7 +60,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sprite, Extension, null, position, WriteNewFile);
+        return DocumentManager.New(AssetType.Sprite, Extension, null, WriteNewFile, position);
     }
 
     public static void WriteNewFile(StreamWriter writer)
@@ -327,7 +327,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
         VectorSpriteDocument.RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi);
 
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsReadonlySpan(), outW, outH);
         using var ms = new MemoryStream();
         image.SaveAsPng(ms);
         return ms.ToArray();

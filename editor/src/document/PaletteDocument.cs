@@ -31,14 +31,14 @@ public class PaletteDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(PaletteAssetType, Extension, name, position, writer =>
+        return DocumentManager.New(PaletteAssetType, Extension, name, writer =>
         {
             writer.WriteLine("JASC-PAL");
             writer.WriteLine("0100");
             writer.WriteLine("16");
             for (int i = 0; i < 16; i++)
                 writer.WriteLine("0 0 0");
-        });
+        }, position);
     }
 
     public override void Load()

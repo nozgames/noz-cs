@@ -40,14 +40,10 @@ public partial class PixelSpriteEditor : SpriteEditor
     private Texture? _canvasTexture;
     private PixelData<Color32>? _compositePixels;
     private int _lastCompositeVersion = -1;
-
-    // Dirty-rect state for incremental compositing. Paint operations report
-    // the pixel rect they touched; CompositeCanvas only re-composites and
-    // uploads that region. Cleared after each composite.
-    // Rect coords are absolute canvas pixels (same space as layer.Pixels).
     private RectInt _compositeDirtyRect;
     private bool _compositeDirtyEmpty = true;
     private bool _compositeNeedsFullRebuild = true;
+    private RectInt _compositeRect;
     private readonly int _versionOnOpen;
     private int _currentTimeSlot;
     private bool _isPlaying;
@@ -421,12 +417,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         }
     }
 
-    private RectInt _compositeRect;
 
-    private static int _compositeCount;
-    private static long _compositeTicks;
-    private static long _compositeIncrementalCount;
-    private static double _compositeLastLogTime;
 
     private void CompositeCanvas()
     {
@@ -436,7 +427,6 @@ public partial class PixelSpriteEditor : SpriteEditor
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         _lastCompositeVersion = Document.Version;
-        Document.UpdateBounds();
 
         var epr = EditablePixelRect;
 
@@ -460,8 +450,6 @@ public partial class PixelSpriteEditor : SpriteEditor
             if (TryCompositeDirty(epr))
             {
                 _compositeDirtyEmpty = true;
-                _compositeIncrementalCount++;
-                LogCompositeStats(sw);
                 return;
             }
         }
@@ -469,7 +457,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         _compositePixels.Clear();
         CompositeChildren(Document.Root, epr, new RectInt(0, 0, epr.Width, epr.Height));
 
-        var data = _compositePixels.AsByteSpan();
+        var data = _compositePixels.AsReadonlySpan();
         if (_canvasTexture == null)
             _canvasTexture = Texture.Create(epr.Width, epr.Height, data, TextureFormat.RGBA8, TextureFilter.Point, "pixel_canvas");
         else
@@ -477,26 +465,6 @@ public partial class PixelSpriteEditor : SpriteEditor
 
         _compositeDirtyEmpty = true;
         _compositeNeedsFullRebuild = false;
-        LogCompositeStats(sw);
-    }
-
-    private static void LogCompositeStats(System.Diagnostics.Stopwatch sw)
-    {
-        sw.Stop();
-        _compositeTicks += sw.ElapsedTicks;
-        _compositeCount++;
-        var now = (double)System.Environment.TickCount / 1000.0;
-        if (now - _compositeLastLogTime >= 1.0)
-        {
-            var totalMs = _compositeTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-            var avgMs = _compositeCount > 0 ? totalMs / _compositeCount : 0.0;
-            Console.WriteLine($"[COMP] composites/sec={_compositeCount} (incremental={_compositeIncrementalCount})  total-ms={totalMs:F1}  avg-ms={avgMs:F2}");
-            NoZ.Platform.WebGPU.WebGPUGraphicsDriver.DebugLogTextureUploads(now);
-            _compositeCount = 0;
-            _compositeIncrementalCount = 0;
-            _compositeTicks = 0;
-            _compositeLastLogTime = now;
-        }
     }
 
     // Re-composite and upload only the pixels inside _compositeDirtyRect.
@@ -525,7 +493,7 @@ public partial class PixelSpriteEditor : SpriteEditor
         CompositeChildren(Document.Root, epr, localRect);
 
         // Upload only the dirty region.
-        _canvasTexture!.Update(_compositePixels.AsByteSpan(), localRect, _compositePixels.Width);
+        _canvasTexture!.Update(_compositePixels.AsReadonlySpan(), localRect, _compositePixels.Width);
         return true;
     }
 
@@ -727,6 +695,15 @@ public partial class PixelSpriteEditor : SpriteEditor
     }
 
     public void InvalidateComposite()
+    {
+        InvalidateCompositeFullRebuild();
+        Document.InvalidateBounds();
+    }
+
+    // Paint-path variant: forces a full composite rebuild without invalidating bounds.
+    // Used by brush strokes that can't report a rectangular dirty region (e.g. tiling),
+    // where bounds are refreshed once at stroke end.
+    internal void InvalidateCompositeFullRebuild()
     {
         _lastCompositeVersion = -1;
         _compositeNeedsFullRebuild = true;

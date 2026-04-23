@@ -831,9 +831,9 @@ public class SkeletonDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Skeleton, Extension, name, position, writer =>
+        return DocumentManager.New(AssetType.Skeleton, Extension, name, writer =>
         {
             writer.WriteLine("b \"root\" -1 p 0 0 r 0 l 0.1");
-        });
+        }, position);
     }
 }

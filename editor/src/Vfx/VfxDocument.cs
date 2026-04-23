@@ -507,7 +507,7 @@ public class VfxDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Vfx, Extension, name, position, writer =>
+        return DocumentManager.New(AssetType.Vfx, Extension, name, writer =>
         {
             writer.WriteLine("duration 1");
             writer.WriteLine("loop false");
@@ -526,7 +526,7 @@ public class VfxDocument : Document
             writer.WriteLine("  particle \"default.particle\"");
             writer.WriteLine("  spread 180");
             writer.WriteLine("}");
-        });
+        }, position);
     }
 
     // --- Lifecycle ---

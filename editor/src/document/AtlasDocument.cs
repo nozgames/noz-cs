@@ -156,7 +156,7 @@ internal class AtlasDocument : Document
         _texture = Texture.Create(
             _image.Width,
             _image.Height,
-            _image.AsByteSpan(),
+            _image.AsReadonlySpan(),
             TextureFormat.RGBA8,
             TextureFilter.Linear,
             Name);
@@ -439,7 +439,7 @@ internal class AtlasDocument : Document
             source.UpdateAtlasUVs(this, Rects, Padding);
 
         if (updateRect != null)
-            _texture?.Update(_image.AsByteSpan(), updateRect.Value, _image.Width);
+            _texture?.Update(_image.AsReadonlySpan(), updateRect.Value, _image.Width);
 
         // Dispose any unused pixel data
         if (pixels != null)
@@ -522,6 +522,6 @@ internal class AtlasDocument : Document
         writer.Write((byte)clamp);
         writer.Write((uint)_image.Width);
         writer.Write((uint)_image.Height);
-        writer.Write(_image.AsByteSpan());
+        writer.Write(_image.AsReadonlySpan());
     }
 }

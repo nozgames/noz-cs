@@ -210,7 +210,18 @@ public static class DocumentManager
         return name;
     }
 
-    public static Document? New(AssetType assetType, string extension, string? name, System.Numerics.Vector2? position = null, Action<StreamWriter>? writeContent = null)
+    public static Document? New(AssetType assetType, string extension, string? name, System.Numerics.Vector2? position = null) =>
+        New(assetType, extension, name, (Stream stream) => {}, position);
+
+    public static Document? New(AssetType assetType, string extension, string? name, Action<StreamWriter> writeContent, System.Numerics.Vector2? position = null) =>
+        New(assetType, extension, name, stream =>
+        {
+            using var sw = new StreamWriter(stream);
+            writeContent(sw);
+            sw.Flush();
+        }, position);
+
+    public static Document? New(AssetType assetType, string extension, string? name, Action<Stream> writeContent, System.Numerics.Vector2? position = null)
     {
         if (_sourcePaths.Count == 0)
             return null;
@@ -231,19 +242,9 @@ public static class DocumentManager
         if (!string.IsNullOrEmpty(directory))
             store.CreateDirectory(directory);
 
-        // Write file content before creating document
-        if (writeContent != null)
-        {
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms);
-            writeContent(writer);
-            writer.Flush();
-            store.WriteAllBytes(path, ms.ToArray());
-        }
-        else
-        {
-            store.WriteAllBytes(path, []);
-        }
+        using var ms = new MemoryStream();
+        writeContent?.Invoke(ms);
+        store.WriteAllBytes(path, ms.ToArray());
 
         var doc = Create(path);
         if (doc == null) return null;

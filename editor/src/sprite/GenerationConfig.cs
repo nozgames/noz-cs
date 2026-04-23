@@ -89,10 +89,10 @@ public class GenerationConfig : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetTypeGen, Extension, name, position, writer =>
+        return DocumentManager.New(AssetTypeGen, Extension, name, writer =>
         {
             writer.WriteLine("prompt \"\"");
-        });
+        }, position);
     }
 
     public override void Load()

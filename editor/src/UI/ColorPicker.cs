@@ -619,7 +619,7 @@ internal static partial class ColorPicker
             for (int x = 0; x < w; x++)
                 _checkerPixels[x, y] = (x + y) % 2 == 0 ? light : dark;
 
-        _checkerTexture = Texture.Create(w, h, _checkerPixels.AsByteSpan(),
+        _checkerTexture = Texture.Create(w, h, _checkerPixels.AsReadonlySpan(),
             TextureFormat.RGBA8, TextureFilter.Point, "EditorCheckerboard");
     }
 
@@ -634,7 +634,7 @@ internal static partial class ColorPicker
         for (int x = 0; x < w; x++)
             _huePixels[x, 0] = HsvToColor32(x / (float)w * 360f, 1f, 1f, 1f);
 
-        _hueTexture = Texture.Create(w, h, _huePixels.AsByteSpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorHueBar");
+        _hueTexture = Texture.Create(w, h, _huePixels.AsReadonlySpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorHueBar");
     }
 
     private static void EnsureSVTexture()
@@ -653,9 +653,9 @@ internal static partial class ColorPicker
         }
 
         if (_svTexture == null)
-            _svTexture = Texture.Create(size, size, _svPixels.AsByteSpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorSVGradient");
+            _svTexture = Texture.Create(size, size, _svPixels.AsReadonlySpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorSVGradient");
         else
-            _svTexture.Update(_svPixels.AsByteSpan());
+            _svTexture.Update(_svPixels.AsReadonlySpan());
 
         _svTextureHue = _hue;
     }

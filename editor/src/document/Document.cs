@@ -20,7 +20,7 @@ public abstract class Document : IDisposable, IChangeHandler
 
     public Vector2 Position { get; set; }
     public Vector2 SavedPosition { get; set; }
-    public Rect Bounds { get; set; } = new(-0.5f, -0.5f, 1f, 1f);
+    public virtual Rect Bounds { get; set; } = new(-0.5f, -0.5f, 1f, 1f);
 
     public int Version { get; private set; }
     public int SavedVersion { get; private set; }
@@ -106,11 +106,16 @@ public abstract class Document : IDisposable, IChangeHandler
         if (!CanSave)
             return;
 
-        using var ms = new MemoryStream();
-        using var sw = new StreamWriter(ms);
+        using var stream = new MemoryStream();
+        Save(stream);
+        EditorApplication.Store.WriteAllBytes(Path, stream.ToArray());
+    }
+
+    protected virtual void Save(Stream stream)
+    {
+        using var sw = new StreamWriter(stream);
         Save(sw);
         sw.Flush();
-        EditorApplication.Store.WriteAllBytes(Path, ms.ToArray());
     }
 
     void IChangeHandler.BeginChange() => OnBeginChange();

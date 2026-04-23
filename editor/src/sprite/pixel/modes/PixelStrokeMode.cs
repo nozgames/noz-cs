@@ -121,6 +121,8 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
         if (layer == null || layer.Pixels == null || layer.Locked || !layer.Visible) return;
 
         Undo.Record(Editor.Document);
+        
+        Input.CaptureMouse();
         _isDrawing = true;
         _lastPixel = pixel;
         _lastWorldPixel = worldPixel;
@@ -158,9 +160,12 @@ public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
             OnSoftStrokeEnd();
             Editor.EndSoftStroke();
         }
+        Input.ReleaseMouseCapture();
         _isDrawing = false;
         _lastPixel = new Vector2Int(-1, -1);
         Editor.InvalidateActiveLayerPreview();
+        Editor.Document.InvalidateBounds();
+        Editor.Document.MarkSpriteDirty();
     }
 
     private void DrawLine(Vector2Int from, Vector2Int to)

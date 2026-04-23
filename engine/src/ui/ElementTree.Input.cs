@@ -275,7 +275,7 @@ public static unsafe partial class ElementTree
         ref var d = ref e.Data.Track;
         var widgetId = d.Id;
 
-        if (IsDown(widgetId) && !HasCaptureById(widgetId))
+        if (WasPressed(widgetId) && !HasCaptureById(widgetId))
             SetCaptureById(widgetId);
 
         if (!HasCaptureById(widgetId))

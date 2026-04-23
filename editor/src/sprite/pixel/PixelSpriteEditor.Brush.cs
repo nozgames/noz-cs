@@ -147,7 +147,7 @@ public partial class PixelSpriteEditor
         // edge which makes the dirty region non-rectangular — fall back to full rebuild.
         if (tiling)
         {
-            InvalidateComposite();
+            InvalidateCompositeFullRebuild();
         }
         else
         {
@@ -269,7 +269,7 @@ public partial class PixelSpriteEditor
 
         if (tiling)
         {
-            InvalidateComposite();
+            InvalidateCompositeFullRebuild();
         }
         else
         {
