@@ -391,47 +391,36 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
         var layers = Editor.GetSelectedLayers();
         if (layers.Count == 0) return;
 
-        var w = Editor.Document.CanvasSize.X;
-        var h = Editor.Document.CanvasSize.Y;
-        _floatingLayers = new List<FloatingLayer>();
-
         if (!Editor.HasSelection)
         {
-            _sourceRect = new RectInt(0, 0, w, h);
-            foreach (var layer in layers)
-            {
-                var floating = new PixelData<Color32>(w, h);
-                for (var y = 0; y < h; y++)
-                    for (var x = 0; x < w; x++)
-                        floating[x, y] = layer.Pixels![x, y];
-                _floatingLayers.Add(new FloatingLayer { Layer = layer, Pixels = floating });
-            }
+            var contentBounds = Editor.GetLayerContentBounds(layers);
+            if (contentBounds == null) return;
+            Editor.ApplyRectSelection(contentBounds.Value, SelectionOp.Replace);
         }
-        else
+
+        var sb = Editor.GetSelectionBounds();
+        if (sb == null) return;
+
+        _floatingLayers = new List<FloatingLayer>();
+        var s = sb.Value;
+        _sourceRect = s;
+        foreach (var layer in layers)
         {
-            var sb = Editor.GetSelectionBounds();
-            if (sb == null) return;
+            var floating = new PixelData<Color32>(s.Width, s.Height);
+            var mask = new PixelData<byte>(s.Width, s.Height);
 
-            var s = sb.Value;
-            _sourceRect = s;
-            foreach (var layer in layers)
-            {
-                var floating = new PixelData<Color32>(s.Width, s.Height);
-                var mask = new PixelData<byte>(s.Width, s.Height);
+            for (var y = 0; y < s.Height; y++)
+                for (var x = 0; x < s.Width; x++)
+                {
+                    var sx = s.X + x;
+                    var sy = s.Y + y;
+                    if (!Editor.IsPixelInBounds(new Vector2Int(sx, sy))) continue;
+                    if (!Editor.IsPixelSelected(sx, sy)) continue;
 
-                for (var y = 0; y < s.Height; y++)
-                    for (var x = 0; x < s.Width; x++)
-                    {
-                        var sx = s.X + x;
-                        var sy = s.Y + y;
-                        if (!Editor.IsPixelInBounds(new Vector2Int(sx, sy))) continue;
-                        if (!Editor.IsPixelSelected(sx, sy)) continue;
-
-                        floating[x, y] = layer.Pixels![sx, sy];
-                        mask[x, y] = 255;
-                    }
-                _floatingLayers.Add(new FloatingLayer { Layer = layer, Pixels = floating, Mask = mask });
-            }
+                    floating[x, y] = layer.Pixels![sx, sy];
+                    mask[x, y] = 255;
+                }
+            _floatingLayers.Add(new FloatingLayer { Layer = layer, Pixels = floating, Mask = mask });
         }
 
         _offset = Vector2Int.Zero;

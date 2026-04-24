@@ -15,7 +15,7 @@ public class PixelEraserMode : PixelStrokeMode
     protected override void PaintPixel(Vector2Int pixel)
     {
         if (BrushType == PixelBrushType.Pencil)
-            Editor.PaintBrush(pixel, default, blend: false);
+            Editor.PaintBrush(pixel, default, blend: false, erase: true);
         else
             Editor.PaintBrushSoft(new Vector2(pixel.X + 0.5f, pixel.Y + 0.5f),
                 default, Editor.BrushHardness, erase: true);

@@ -119,7 +119,7 @@ public class AnchorMode : AnchorBasedMode
         var snapCorrection = Vector2.Zero; // correction in path-local space (only for ref path)
 
         // Snap: find where the reference anchor would land, snap it
-        if (Input.IsCtrlDown(InputScope.All))
+        if (Input.IsSnapModifierDown(InputScope.All))
         {
             var refSaved = _moveSaved![0];
             var refW2L = _moveWorldToLocal![0];
@@ -226,7 +226,7 @@ public class AnchorMode : AnchorBasedMode
         var desiredControlPoint = mouseLocal + _curveOffset;
         var newCurve = Vector2.Dot(desiredControlPoint - mid, perp);
 
-        if (Input.IsCtrlDown(InputScope.All))
+        if (Input.IsSnapModifierDown(InputScope.All))
         {
             var snapThreshold = len * 0.05f;
 

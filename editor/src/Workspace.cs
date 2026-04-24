@@ -561,7 +561,7 @@ public static partial class Workspace
         {
             if (!doc.IsSelected) continue;
             var newPos = doc.SavedPosition + delta;
-            if (Input.IsCtrlDown(InputScope.All))
+            if (Input.IsSnapModifierDown(InputScope.All))
                 newPos = Grid.SnapToGrid(newPos);
             doc.Position = Grid.SnapToPixelGrid(newPos);
         }

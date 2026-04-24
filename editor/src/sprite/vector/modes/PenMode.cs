@@ -97,7 +97,7 @@ public class PenMode : EditorMode<VectorSpriteEditor>
         }
 
         _snappingToGrid = false;
-        if (!_hoveringFirstPoint && !_hoveringExistingAnchor && !_hoveringSegment && Input.IsCtrlDown(InputScope.All))
+        if (!_hoveringFirstPoint && !_hoveringExistingAnchor && !_hoveringSegment && Input.IsSnapModifierDown(InputScope.All))
         {
             _snappingToGrid = true;
             _gridSnapPosition = Grid.SnapToPixelGrid(mouseLocal);

@@ -83,7 +83,7 @@ public partial class PixelEditor
         return distX * distX + distY * distY <= radius * radius;
     }
 
-    public void PaintBrush(Vector2Int pixel, Color32 color, bool blend = true)
+    public void PaintBrush(Vector2Int pixel, Color32 color, bool blend = true, bool erase = false)
     {
         var layer = ActiveLayer;
         if (layer?.Pixels == null) return;
@@ -132,11 +132,14 @@ public partial class PixelEditor
                 if (mask != null && mask[px, py] == 0) continue;
 
                 ref var slot = ref pixels[px, py];
-                if (alphaLock && slot.A == 0) continue;
+                if (alphaLock && !erase && slot.A == 0) continue;
 
                 if (inDisc)
                 {
-                    slot = blend && color.A < 255 ? Color32.Blend(slot, color) : color;
+                    var painted = blend && color.A < 255 ? Color32.Blend(slot, color) : color;
+                    slot = alphaLock && !erase
+                        ? new Color32(painted.R, painted.G, painted.B, slot.A)
+                        : painted;
                     continue;
                 }
 
@@ -253,7 +256,7 @@ public partial class PixelEditor
                     continue;
                 }
 
-                if (alphaLock && slot.A == 0) continue;
+                if (alphaLock && !erase && slot.A == 0) continue;
                 if (!inBuffer) continue;
 
                 // Max-blend coverage accumulator: the pixel's final alpha within this stroke is
@@ -277,7 +280,11 @@ public partial class PixelEditor
                 var src = new Color32(color.R, color.G, color.B, (byte)(srcA * 255f + 0.5f));
                 if (src.A == 0) continue;
 
-                slot = Color32.Blend(original[bx, by], src);
+                var dst = original[bx, by];
+                var blended = Color32.Blend(dst, src);
+                slot = alphaLock
+                    ? new Color32(blended.R, blended.G, blended.B, dst.A)
+                    : blended;
             }
 
         if (tiling)

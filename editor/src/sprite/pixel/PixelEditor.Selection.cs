@@ -152,6 +152,35 @@ public partial class PixelEditor
             CollectSelectedLayers(child);
     }
 
+    public RectInt? GetLayerContentBounds(IReadOnlyList<PixelLayer> layers)
+    {
+        var w = Document.CanvasSize.X;
+        var h = Document.CanvasSize.Y;
+        var minX = w; var minY = h;
+        var maxX = 0; var maxY = 0;
+        var hasContent = false;
+
+        foreach (var layer in layers)
+        {
+            if (layer.Pixels == null) continue;
+            for (var y = 0; y < h; y++)
+                for (var x = 0; x < w; x++)
+                {
+                    if (!IsPixelInBounds(new Vector2Int(x, y))) continue;
+                    if (layer.Pixels[x, y].A == 0) continue;
+
+                    hasContent = true;
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x >= maxX) maxX = x + 1;
+                    if (y >= maxY) maxY = y + 1;
+                }
+        }
+
+        if (!hasContent) return null;
+        return new RectInt(minX, minY, maxX - minX, maxY - minY);
+    }
+
     public void FitSelectionToContent()
     {
         if (Document.SelectionMask == null) return;

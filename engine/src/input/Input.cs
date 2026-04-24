@@ -378,6 +378,8 @@ public static class Input
     public static bool IsShiftDown(InputScope scope) => IsButtonDown(InputCode.KeyLeftShift, scope) || IsButtonDown(InputCode.KeyRightShift, scope);
     public static bool IsCtrlDown() => IsButtonDown(InputCode.KeyLeftCtrl) || IsButtonDown(InputCode.KeyRightCtrl);
     public static bool IsCtrlDown(InputScope scope) => IsButtonDown(InputCode.KeyLeftCtrl, scope) || IsButtonDown(InputCode.KeyRightCtrl, scope);
+    public static bool IsSnapModifierDown() => IsCtrlDown() || Touch.IsSnapModifier;
+    public static bool IsSnapModifierDown(InputScope scope) => IsCtrlDown(scope) || Touch.IsSnapModifier;
     public static bool IsAltDown() => IsButtonDown(InputCode.KeyLeftAlt) || IsButtonDown(InputCode.KeyRightAlt);
     public static bool IsAltDown(InputScope scope) => IsButtonDown(InputCode.KeyLeftAlt, scope) || IsButtonDown(InputCode.KeyRightAlt, scope);
     public static bool IsSuperDown() => IsButtonDown(InputCode.KeyLeftSuper) || IsButtonDown(InputCode.KeyRightSuper);

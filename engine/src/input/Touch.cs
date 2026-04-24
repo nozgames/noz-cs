@@ -30,7 +30,7 @@ public static class Touch
     private const float LongPressDuration = 0.5f;
     private const float DragThreshold = 20f;
 
-    private enum MouseSimState { Idle, Pending, Dragging, Suppressed }
+    private enum MouseSimState { Idle, Pending, Dragging, DraggingWithSnap, Suppressed }
 
     private static readonly TouchFinger[] _fingers = new TouchFinger[MaxFingers];
     private static int _fingerCount;
@@ -38,6 +38,9 @@ public static class Touch
     private static MouseSimState _mouseSimState;
     private static long _mouseSimulatedFingerId;
     private static Vector2 _mouseSimStartPosition;
+    // Keeps IsSnapModifier true for the frame where the primary finger lifts
+    // out of DraggingWithSnap, so the release-commit snaps the final position.
+    private static bool _snapModifierLatched;
 
     private static bool _pinchActive;
     private static float _pinchScale = 1f;
@@ -79,6 +82,11 @@ public static class Touch
     public static bool IsPinching => _pinchActive;
     public static float PinchScale => _pinchScale;
 
+    // A second finger landing during an active simulated drag is treated like Ctrl
+    // (engage snap) rather than starting a two-finger pan/zoom/rotate.
+    public static bool IsSnapModifier =>
+        _mouseSimState == MouseSimState.DraggingWithSnap || _snapModifierLatched;
+
     public static bool IsTwoFingerPanning => _twoFingerPanning;
     public static Vector2 TwoFingerCenter => _twoFingerCenter;
     public static Vector2 TwoFingerDelta => _twoFingerDelta;
@@ -100,6 +108,8 @@ public static class Touch
         _twoFingerDelta = Vector2.Zero;
         _twoFingerScale = 1f;
         _twoFingerRotation = 0f;
+        if (_mouseSimState != MouseSimState.DraggingWithSnap)
+            _snapModifierLatched = false;
 
         for (var i = 0; i < MaxFingers; i++)
             _fingers[i].Delta = Vector2.Zero;
@@ -143,12 +153,16 @@ public static class Touch
                 _mouseSimulatedFingerId = evt.FingerId;
                 _mouseSimStartPosition = evt.TouchPosition;
             }
-            else
+            else if (_mouseSimState == MouseSimState.Dragging)
             {
-                if (_mouseSimState == MouseSimState.Dragging)
-                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
-                if (_mouseSimState != MouseSimState.Idle)
-                    _mouseSimState = MouseSimState.Suppressed;
+                // Promote to snap modifier: keep the drag going, skip MouseUp,
+                // and suppress two-finger pan/zoom/rotate below.
+                _mouseSimState = MouseSimState.DraggingWithSnap;
+            }
+            else if (_mouseSimState != MouseSimState.Idle &&
+                     _mouseSimState != MouseSimState.DraggingWithSnap)
+            {
+                _mouseSimState = MouseSimState.Suppressed;
             }
         }
 
@@ -174,7 +188,7 @@ public static class Touch
             _tapSessionMaxFingers = _fingerCount;
         }
 
-        if (_fingerCount >= 2)
+        if (_fingerCount >= 2 && _mouseSimState != MouseSimState.DraggingWithSnap)
         {
             _twoFingerPanning = true;
             RebaselineTwoFinger();
@@ -200,6 +214,13 @@ public static class Touch
                 case MouseSimState.Dragging:
                     Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
                     Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    break;
+                case MouseSimState.DraggingWithSnap:
+                    Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
+                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    // Latch snap through this frame so the release-commit still
+                    // sees IsSnapModifier == true; cleared next BeginFrame.
+                    _snapModifierLatched = true;
                     break;
             }
             _mouseSimState = MouseSimState.Idle;
@@ -235,9 +256,14 @@ public static class Touch
         f = default;
         _fingerCount = Math.Max(0, _fingerCount - 1);
 
+        // A non-primary finger released while snap-dragging leaves only the
+        // primary finger; drop back to plain Dragging so snap disengages.
+        if (_mouseSimState == MouseSimState.DraggingWithSnap && _fingerCount == 1)
+            _mouseSimState = MouseSimState.Dragging;
+
         if (_fingerCount < 2)
             _twoFingerPanning = false;
-        else
+        else if (_mouseSimState != MouseSimState.DraggingWithSnap)
             RebaselineTwoFinger();
     }
 
@@ -265,7 +291,8 @@ public static class Touch
                 Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
                 Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
             }
-            else if (_mouseSimState == MouseSimState.Dragging)
+            else if (_mouseSimState == MouseSimState.Dragging ||
+                     _mouseSimState == MouseSimState.DraggingWithSnap)
             {
                 Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
             }
@@ -298,7 +325,8 @@ public static class Touch
 
         if (SimulateMouse && evt.FingerId == _mouseSimulatedFingerId)
         {
-            if (_mouseSimState == MouseSimState.Dragging)
+            if (_mouseSimState == MouseSimState.Dragging ||
+                _mouseSimState == MouseSimState.DraggingWithSnap)
                 Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
             _mouseSimState = MouseSimState.Idle;
         }
@@ -307,9 +335,12 @@ public static class Touch
         _fingerCount = Math.Max(0, _fingerCount - 1);
         _tapSessionInvalid = true;
 
+        if (_mouseSimState == MouseSimState.DraggingWithSnap && _fingerCount == 1)
+            _mouseSimState = MouseSimState.Dragging;
+
         if (_fingerCount < 2)
             _twoFingerPanning = false;
-        else
+        else if (_mouseSimState != MouseSimState.DraggingWithSnap)
             RebaselineTwoFinger();
     }
 
