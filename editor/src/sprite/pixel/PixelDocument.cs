@@ -205,6 +205,11 @@ public partial class PixelDocument : SpriteDocument
                 cb.Width,
                 cb.Height);
         }
+        else if (ConstrainedSize.HasValue)
+        {
+            var cs = ConstrainedSize.Value;
+            RasterBounds = new RectInt(-cs.X / 2, -cs.Y / 2, cs.X, cs.Y);
+        }
         else
         {
             RasterBounds = new RectInt(-ppu / 2, -ppu / 2, ppu, ppu);

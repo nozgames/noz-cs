@@ -161,11 +161,13 @@ public partial class PixelEditor
 
     // Apron: seed empty pixels around the disc with the brush RGB at alpha=0 so bilinear
     // filtering doesn't interpolate painted pixels against (0,0,0,0) neighbors and produce
-    // a black fringe.
+    // a black fringe. A=0 pixels are always re-seedable — their RGB only exists to support
+    // the current painted neighbors, so stale ghosts from prior strokes (e.g. post-erase
+    // residue) must be overwritten, otherwise a wrong-color halo bleeds through on repaint.
     private static void SeedApronPixel(ref Color32 slot, Color32 color)
     {
         if (color.A == 0) return;
-        if (slot.A != 0 || (slot.R | slot.G | slot.B) != 0) return;
+        if (slot.A != 0) return;
         slot = new Color32(color.R, color.G, color.B, 0);
     }
 
