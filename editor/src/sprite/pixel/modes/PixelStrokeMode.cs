@@ -13,11 +13,12 @@ public abstract class PixelStrokeMode : EditorMode<PixelEditor>
     private bool _isDrawing;
     private InputCode _button;
 
+    protected abstract PixelBrushType BrushType { get; }
     protected abstract void PaintPixel(Vector2Int pixel);
     protected virtual Color OutlineColor => new(1f, 1f, 1f, 0.6f);
     protected virtual EditorMode? EyeDropperExitMode => null;
 
-    protected virtual bool UsesSubPixelStroke => false;
+    protected bool UsesSubPixelStroke => BrushType == PixelBrushType.Brush;
     protected virtual void OnSoftStrokeBegin(Vector2 worldPixel) { }
     protected virtual void OnSoftStrokeSegment(Vector2 from, Vector2 to) { }
     protected virtual void OnSoftStrokeEnd() { }

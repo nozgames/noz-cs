@@ -1238,12 +1238,12 @@ public static partial class Workspace
             var dup = Project.Duplicate(source);
             if (dup == null)
                 continue;
+            dup.Position = source.Position + new Vector2(0.5f, 0.5f);
             SetSelected(dup, true);
         }
 
         Input.ConsumeButton(InputCode.KeyLeftCtrl);
         Input.ConsumeButton(InputCode.KeyRightCtrl);
-        BeginInlineDragMove(commitOnRelease: false);
     }
 
     private static void DeleteSelected()

@@ -166,7 +166,7 @@ public partial class PixelEditor
         slot = new Color32(color.R, color.G, color.B, 0);
     }
 
-    public void PaintBrushSoft(Vector2 centerPixel, Color32 color, float hardness)
+    public void PaintBrushSoft(Vector2 centerPixel, Color32 color, float hardness, bool erase = false)
     {
         var layer = _softStrokeLayer ?? ActiveLayer;
         if (layer?.Pixels == null) return;
@@ -242,6 +242,7 @@ public partial class PixelEditor
 
                 if (cov <= 0f)
                 {
+                    if (erase) continue;
                     if (d2 > apronR2) continue;
                     SeedApronPixel(ref slot, color);
                     continue;
@@ -256,6 +257,15 @@ public partial class PixelEditor
                 ref var coverSlot = ref cover[bx, by];
                 if (cov <= coverSlot) continue;
                 coverSlot = cov;
+
+                if (erase)
+                {
+                    // Soft erase: reduce the original pixel's alpha by the accumulated coverage.
+                    var orig = original[bx, by];
+                    var newA = (byte)(orig.A * (1f - coverSlot) + 0.5f);
+                    slot = new Color32(orig.R, orig.G, orig.B, newA);
+                    continue;
+                }
 
                 var srcA = (color.A / 255f) * cov;
                 if (srcA <= 0f) continue;

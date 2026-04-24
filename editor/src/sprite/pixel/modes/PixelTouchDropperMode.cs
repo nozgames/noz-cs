@@ -19,7 +19,7 @@ public class PixelTouchDropperMode : EditorMode<PixelEditor>
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {
-            Editor.SetMode(_restoreMode ?? new PencilMode());
+            Editor.SetMode(_restoreMode ?? new BrushMode());
             return;
         }
 
@@ -28,6 +28,6 @@ public class PixelTouchDropperMode : EditorMode<PixelEditor>
             Editor.Document.BrushColor = sampled;
 
         if (Touch.FingerCount == 0)
-            Editor.SetMode(_restoreMode ?? new PencilMode());
+            Editor.SetMode(_restoreMode ?? new BrushMode());
     }
 }

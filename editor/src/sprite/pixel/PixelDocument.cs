@@ -243,8 +243,9 @@ public partial class PixelDocument : SpriteDocument
         BrushSize = Math.Clamp(meta.GetInt("sprite", "brush_size", 1), 1, 16);
         var brushColor = meta.GetColor("sprite", "brush_color", Color.Black);
         BrushColor = (Color32)brushColor;
-        BrushType = (PixelBrushType)meta.GetInt("sprite", "brush_type", 0);
-        BrushHardness = meta.GetFloat("sprite", "brush_hardness", 1f);        
+        BrushType = (PixelBrushType)meta.GetInt("sprite", "brush_type", (int)PixelBrushType.Brush);
+        EraserType = (PixelBrushType)meta.GetInt("sprite", "eraser_type", (int)PixelBrushType.Brush);
+        BrushHardness = meta.GetFloat("sprite", "brush_hardness", 1f);
         AlphaLock = meta.GetBool("sprite", "alpha_lock", false);
         ActiveLayerName = meta.GetString("sprite", "active_layer", "");
     }
@@ -255,6 +256,7 @@ public partial class PixelDocument : SpriteDocument
         meta.SetColor("sprite", "brush_color", (Color)BrushColor);
         meta.SetBool("sprite", "alpha_lock", AlphaLock);
         meta.SetInt("sprite", "brush_type", (int)BrushType);
+        meta.SetInt("sprite", "eraser_type", (int)EraserType);
         meta.SetFloat("sprite", "brush_hardness", BrushHardness);
 
         if (!string.IsNullOrEmpty(ActiveLayerName))

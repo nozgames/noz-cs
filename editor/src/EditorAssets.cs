@@ -49,6 +49,7 @@ public static class EditorAssets
         public const string IconEdit = "icon_edit";
         public const string IconEmpty = "icon_empty";
         public const string IconEraser = "icon_eraser";
+        public const string IconEraserPencil = "icon_eraser_pencil";
         public const string IconExpandDown = "icon_expand_down";
         public const string IconExpandUp = "icon_expand_up";
         public const string IconFill = "icon_fill";
@@ -240,6 +241,7 @@ public static class EditorAssets
         public static readonly Sprite IconEdit = new();
         public static readonly Sprite IconEmpty = new();
         public static readonly Sprite IconEraser = new();
+        public static readonly Sprite IconEraserPencil = new();
         public static readonly Sprite IconExpandDown = new();
         public static readonly Sprite IconExpandUp = new();
         public static readonly Sprite IconFill = new();
@@ -338,6 +340,7 @@ public static class EditorAssets
             IconEdit.Load(Names.IconEdit, atlas);
             IconEmpty.Load(Names.IconEmpty, atlas);
             IconEraser.Load(Names.IconEraser, atlas);
+            IconEraserPencil.Load(Names.IconEraserPencil, atlas);
             IconExpandDown.Load(Names.IconExpandDown, atlas);
             IconExpandUp.Load(Names.IconExpandUp, atlas);
             IconFill.Load(Names.IconFill, atlas);
@@ -437,6 +440,7 @@ public static class EditorAssets
             IconEdit.Reload();
             IconEmpty.Reload();
             IconEraser.Reload();
+            IconEraserPencil.Reload();
             IconExpandDown.Reload();
             IconExpandUp.Reload();
             IconFill.Reload();
@@ -536,6 +540,7 @@ public static class EditorAssets
             IconEdit.Dispose();
             IconEmpty.Dispose();
             IconEraser.Dispose();
+            IconEraserPencil.Dispose();
             IconExpandDown.Dispose();
             IconExpandUp.Dispose();
             IconFill.Dispose();

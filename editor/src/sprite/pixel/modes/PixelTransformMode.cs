@@ -49,7 +49,7 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
         _scale = Vector2.One;
         Lift();
         if (_floatingLayers == null)
-            Editor.SetMode(new PencilMode());
+            Editor.SetMode(new BrushMode());
     }
 
     public override void Update()
@@ -652,7 +652,7 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
     public void OnActiveLayerChanged(PixelEditor editor)
     {
         if (IsLifted)
-            editor.SetMode(new PencilMode());
+            editor.SetMode(new BrushMode());
     }
 
     public override void OnUndoRedo()

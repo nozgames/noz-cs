@@ -8,12 +8,15 @@ namespace NoZ.Editor;
 
 public class BrushMode : PixelStrokeMode
 {
-    protected override bool UsesSubPixelStroke => true;
+    protected override PixelBrushType BrushType => Editor.Document.BrushType;
 
     protected override void PaintPixel(Vector2Int pixel)
     {
-        Editor.PaintBrushSoft(new Vector2(pixel.X + 0.5f, pixel.Y + 0.5f),
-            Editor.BrushColor, Editor.BrushHardness);
+        if (BrushType == PixelBrushType.Pencil)
+            Editor.PaintBrush(pixel, Editor.BrushColor);
+        else
+            Editor.PaintBrushSoft(new Vector2(pixel.X + 0.5f, pixel.Y + 0.5f),
+                Editor.BrushColor, Editor.BrushHardness);
     }
 
     protected override void OnSoftStrokeBegin(Vector2 worldPixel)

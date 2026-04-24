@@ -41,7 +41,7 @@ public class PixelEyeDropperMode(EditorMode previousMode) : EditorMode<PixelEdit
             Editor.Document.BrushColor = color.Value;            
 
         if (_previousMode is PixelEraserMode)
-            Editor.SetBrushMode();
+            Editor.SetBrushMode(Editor.Document.BrushType);
         else
             Editor.SetMode(_previousMode);
     }
