@@ -3,14 +3,14 @@
 //
 
 using System.Collections.Concurrent;
-using System.Net.Http;
 
 namespace NoZ.Editor;
 
-public static class DocumentManager
+public static class Project
 {
     private static readonly List<Document> _documents = [];
     private static readonly List<string> _sourcePaths = [];
+    private static readonly List<FileSystemWatcher> _watchers = [];
     private static string _outputPath = "";
     private static bool _initialized;
 
@@ -19,6 +19,8 @@ public static class DocumentManager
     private static readonly ConcurrentQueue<string> _watcherQueue = [];
     private static readonly ConcurrentQueue<string> _reloadQueue = [];
     private static bool _watching;
+
+    public static string Path { get; private set; } = "";
 
     public static IReadOnlyList<Document> Documents => _documents;
     public static int Count => _documents.Count;
@@ -40,45 +42,53 @@ public static class DocumentManager
     private static readonly Dictionary<AssetType, DocumentDef> _defsByType = new();
     private static readonly Dictionary<string, List<DocumentDef>> _defsByExtension = new();
 
-    public static void Init(string[] sourcePaths, string outputPath)
+    public static void Init(string projectPath, EditorConfig config)
     {
         _sourcePaths.Clear();
-        _sourcePaths.AddRange(sourcePaths);
-        _outputPath = outputPath;
+        _sourcePaths.AddRange(config.SourcePaths.Select(p => CombinePath(projectPath, p)));
+        _outputPath = CombinePath(projectPath, config.OutputPath);
 
-        Log.Info($"DocumentOutputPath: {outputPath}");
-        foreach (var path in sourcePaths)
+        Log.Info($"DocumentOutputPath: {_outputPath}");
+        foreach (var path in _sourcePaths)
             Log.Info($"DocumentSourcePath: {path}");
 
-        EditorApplication.Store.CreateDirectory(outputPath);
+        Directory.CreateDirectory(_outputPath);
+
+        AtlasDocument.RegisterDef();
+        ShaderDocument.RegisterDef();
+        SoundDocument.RegisterDef();
+        SpriteDocument.RegisterDef();
+        GenerationConfig.RegisterDef();
+        FontDocument.RegisterDef();
+        SkeletonDocument.RegisterDef();
+        AnimationDocument.RegisterDef();
+        VfxDocument.RegisterDef();
+        BinDocument.RegisterDef();
+        BundleDocument.RegisterDef();
+        PaletteDocument.RegisterDef();
+
+        //config.RegisterDocumentTypes?.Invoke();
 
         InitDocuments();
     }
 
-    public static void InitExports(bool clean = false)
+    public static void InitExports()
     {
-        if (clean)
-            Log.Info("Clean build requested, exporting all assets...");
-
         foreach (var doc in _documents)
-            QueueExport(doc, clean);
+            QueueExport(doc);
 
         UpdateExports();
 
-        var store = EditorApplication.Store;
-        store.FileChanged += HandleFileChange;
         foreach (var sourcePath in _sourcePaths)
-            if (store.DirectoryExists(sourcePath))
-                store.StartWatching(sourcePath);
+            if (Directory.Exists(sourcePath))
+                StartWatching(sourcePath);
 
         _watching = true;
     }
 
     public static void Shutdown()
     {
-        var store = EditorApplication.Store;
-        store.FileChanged -= HandleFileChange;
-        store.StopWatching();
+        StopWatching();
 
         _initialized = false;
         _documents.Clear();
@@ -119,7 +129,7 @@ public static class DocumentManager
 
     private static bool IsAuxiliaryFile(string path)
     {
-        var filename = Path.GetFileName(path);
+        var filename = System.IO.Path.GetFileName(path);
         foreach (var def in _defsByType.Values)
         {
             if (def.AuxiliaryExtensions == null) continue;
@@ -135,7 +145,7 @@ public static class DocumentManager
     private static string? GetAuxiliaryParentPath(string path)
     {
         var dir = GetDirectory(path);
-        var filename = Path.GetFileName(path);
+        var filename = System.IO.Path.GetFileName(path);
         foreach (var def in _defsByType.Values)
         {
             if (def.AuxiliaryExtensions == null) continue;
@@ -146,7 +156,7 @@ public static class DocumentManager
                 foreach (var primaryExt in def.Extensions)
                 {
                     var candidate = CombinePath(dir, stem + primaryExt);
-                    if (EditorApplication.Store.FileExists(candidate))
+                    if (File.Exists(candidate))
                         return candidate;
                 }
             }
@@ -156,7 +166,7 @@ public static class DocumentManager
 
     public static DocumentDef? ResolveDef(string path)
     {
-        var ext = Path.GetExtension(path);
+        var ext = System.IO.Path.GetExtension(path);
         var defs = GetDefs(ext);
         if (defs == null || defs.Count == 0)
             return null;
@@ -164,10 +174,9 @@ public static class DocumentManager
             return defs[0];
 
         var metaPath = path + ".meta";
-        var store = EditorApplication.Store;
-        if (store.FileExists(metaPath))
+        if (File.Exists(metaPath))
         {
-            var meta = PropertySetExtensions.LoadFile(store, metaPath);
+            var meta = PropertySet.LoadFile(metaPath);
             var docType = meta?.GetString("editor", "document_type", "");
             if (!string.IsNullOrEmpty(docType))
             {
@@ -234,17 +243,16 @@ public static class DocumentManager
         if (Find(assetType, canonicalName) != null)
             return null;
         var path = CombinePath(CombinePath(_sourcePaths[0], typeName), canonicalName + extension);
-        var store = EditorApplication.Store;
-        if (store.FileExists(path))
+        if (File.Exists(path))
             return null;
 
         var directory = GetDirectory(path);
         if (!string.IsNullOrEmpty(directory))
-            store.CreateDirectory(directory);
+            Directory.CreateDirectory(directory);
 
         using var ms = new MemoryStream();
         writeContent?.Invoke(ms);
-        store.WriteAllBytes(path, ms.ToArray());
+        File.WriteAllBytes(path, ms.ToArray());
 
         var doc = Create(path);
         if (doc == null) return null;
@@ -361,13 +369,12 @@ public static class DocumentManager
 
     private static IEnumerable<string> GetCompanionFiles(Document doc)
     {
-        var store = EditorApplication.Store;
         var directory = GetDirectory(doc.Path);
-        var stem = Path.GetFileNameWithoutExtension(doc.Path);
+        var stem = System.IO.Path.GetFileNameWithoutExtension(doc.Path);
         foreach (var ext in doc.Def.Extensions)
         {
             var path = CombinePath(directory, stem + ext);
-            if (store.FileExists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
+            if (File.Exists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
                 yield return path;
         }
 
@@ -376,7 +383,7 @@ public static class DocumentManager
             foreach (var auxExt in doc.Def.AuxiliaryExtensions)
             {
                 var path = CombinePath(directory, stem + auxExt);
-                if (store.FileExists(path))
+                if (File.Exists(path))
                     yield return path;
             }
         }
@@ -393,25 +400,24 @@ public static class DocumentManager
             return false;
 
         var newPath = CombinePath(directory, canonicalName + doc.Def.Extensions[0]);
-        var store = EditorApplication.Store;
-        if (store.FileExists(newPath))
+        if (File.Exists(newPath))
             return false;
 
         // Rename companion files (e.g., .png alongside .sprite)
         foreach (var companionPath in GetCompanionFiles(doc).ToList())
         {
-            var companionExt = Path.GetExtension(companionPath);
+            var companionExt = System.IO.Path.GetExtension(companionPath);
             var newCompanionPath = CombinePath(directory, canonicalName + companionExt);
-            store.MoveFile(companionPath, newCompanionPath);
+            File.Move(companionPath, newCompanionPath);
         }
 
         var oldMetaPath = doc.Path + ".meta";
         var newMetaPath = newPath + ".meta";
 
-        store.MoveFile(doc.Path, newPath);
+        File.Move(doc.Path, newPath);
 
-        if (store.FileExists(oldMetaPath))
-            store.MoveFile(oldMetaPath, newMetaPath);
+        if (File.Exists(oldMetaPath))
+            File.Move(oldMetaPath, newMetaPath);
 
         var oldName = doc.Name;
 
@@ -443,10 +449,9 @@ public static class DocumentManager
 
         // Update the meta file with the new document type
         var metaPath = path + ".meta";
-        var store = EditorApplication.Store;
-        var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
+        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
         meta.SetString("editor", "document_type", newDef.Name);
-        meta.Save(metaPath, store);
+        meta.Save(metaPath);
 
         // Remove old document
         Workspace.ClearSelection();
@@ -485,18 +490,17 @@ public static class DocumentManager
     {
         Undo.RemoveDocument(doc);
 
-        var store = EditorApplication.Store;
-
         // Delete companion files
         foreach (var companionPath in GetCompanionFiles(doc).ToList())
-            store.DeleteFile(companionPath);
+            if (File.Exists(companionPath))
+                File.Delete(companionPath);
 
-        if (store.FileExists(doc.Path))
-            store.DeleteFile(doc.Path);
+        if (File.Exists(doc.Path))
+            File.Delete(doc.Path);
 
         var metaPath = doc.Path + ".meta";
-        if (store.FileExists(metaPath))
-            store.DeleteFile(metaPath);
+        if (File.Exists(metaPath))
+            File.Delete(metaPath);
 
         AssetManifest.IsModified = true;
 
@@ -507,15 +511,14 @@ public static class DocumentManager
 
     private static void InitDocuments()
     {
-        var store = EditorApplication.Store;
         foreach (var sourcePath in _sourcePaths)
         {
-            if (!store.DirectoryExists(sourcePath))
+            if (!Directory.Exists(sourcePath))
                 continue;
 
-            foreach (var filePath in store.EnumerateFiles(sourcePath, "*.*", SearchOption.AllDirectories))
+            foreach (var filePath in Directory.EnumerateFiles(sourcePath, "*.*", SearchOption.AllDirectories))
             {
-                var ext = Path.GetExtension(filePath);
+                var ext = System.IO.Path.GetExtension(filePath);
                 if (ext == ".meta") continue;
                 if (IsAuxiliaryFile(filePath)) continue;
 
@@ -533,20 +536,20 @@ public static class DocumentManager
     public static string GetTargetPath(Document doc)
     {
         var typeName = (Asset.GetDef(doc.Def.Type)?.Name ?? doc.Def.Name).ToLowerInvariant();
-        var filename = Path.GetFileNameWithoutExtension(doc.Path);
+        var filename = System.IO.Path.GetFileNameWithoutExtension(doc.Path);
         var safeName = MakeCanonicalName(filename);
         return CombinePath(CombinePath(_outputPath, typeName), safeName);
     }
 
     private static string CombinePath(string a, string b) =>
-        Path.Combine(a, b).Replace('\\', '/');
+        System.IO.Path.Combine(a, b).Replace('\\', '/');
 
     private static string GetDirectory(string path) =>
-        (Path.GetDirectoryName(path) ?? "").Replace('\\', '/');
+        (System.IO.Path.GetDirectoryName(path) ?? "").Replace('\\', '/');
 
     public static string MakeCanonicalName(string path)
     {
-        var name = Path.GetFileNameWithoutExtension(path);
+        var name = System.IO.Path.GetFileNameWithoutExtension(path);
         return name.ToLowerInvariant()
             .Replace('/', '_')
             .Replace('.', '_')
@@ -559,8 +562,8 @@ public static class DocumentManager
     public static string? GetUniquePath(string sourcePath)
     {
         var parentPath = GetDirectory(sourcePath);
-        var fileName = Path.GetFileNameWithoutExtension(sourcePath);
-        var ext = Path.GetExtension(sourcePath);
+        var fileName = System.IO.Path.GetFileNameWithoutExtension(sourcePath);
+        var ext = System.IO.Path.GetExtension(sourcePath);
         var def = GetDef(ext);
         if (def == null) return null;
         var canonicalBase = MakeCanonicalName(fileName);
@@ -577,7 +580,7 @@ public static class DocumentManager
         {
             var candidate = CombinePath(parentPath, $"{canonicalBase}_{i}{ext}");
 
-            if (EditorApplication.Store.FileExists(candidate))
+            if (File.Exists(candidate))
                 continue;
 
             var canonicalName = MakeCanonicalName(candidate);
@@ -592,27 +595,26 @@ public static class DocumentManager
     {
         var newPath = GetUniquePath(source.Path);
         if (newPath == null) return null;
-        var newName = Path.GetFileNameWithoutExtension(newPath);
+        var newName = System.IO.Path.GetFileNameWithoutExtension(newPath);
 
-        var store = EditorApplication.Store;
         var directory = GetDirectory(newPath);
         if (!string.IsNullOrEmpty(directory))
-            store.CreateDirectory(directory);
+            Directory.CreateDirectory(directory);
 
-        store.CopyFile(source.Path, newPath);
+        File.Copy(source.Path, newPath);
 
         // Copy companion files
-        var newStem = Path.GetFileNameWithoutExtension(newPath);
+        var newStem = System.IO.Path.GetFileNameWithoutExtension(newPath);
         var newDir = GetDirectory(newPath);
         foreach (var companionPath in GetCompanionFiles(source))
         {
-            var companionExt = Path.GetExtension(companionPath);
-            store.CopyFile(companionPath, CombinePath(newDir, newStem + companionExt));
+            var companionExt = System.IO.Path.GetExtension(companionPath);
+            File.Copy(companionPath, CombinePath(newDir, newStem + companionExt));
         }
 
         var metaPath = source.Path + ".meta";
-        if (store.FileExists(metaPath))
-            store.CopyFile(metaPath, newPath + ".meta");
+        if (File.Exists(metaPath))
+            File.Copy(metaPath, newPath + ".meta");
 
         QueueExport(newPath);
         UpdateExports();
@@ -655,27 +657,26 @@ public static class DocumentManager
         if (!doc.ShouldExport) return;
         if (doc.IsQueuedForExport) return;
 
-        var store = EditorApplication.Store;
-        if (!store.FileExists(doc.Path)) return;
+        if (!File.Exists(doc.Path)) return;
 
         var targetPath = GetTargetPath(doc);
         var metaPath = doc.Path + ".meta";
 
         if (!force)
         {
-            bool targetExists = store.FileExists(targetPath);
+            bool targetExists = File.Exists(targetPath);
             if (targetExists)
             {
                 // Force export if the binary's version doesn't match the engine's expected version
                 var assetDef = Asset.GetDef(doc.Def.Type);
-                if (assetDef is { Version: > 0 } && ReadAssetVersion(store, targetPath) != assetDef.Version)
+                if (assetDef is { Version: > 0 } && ReadAssetVersion(targetPath) != assetDef.Version)
                     force = true;
 
                 if (!force)
                 {
-                    var targetTime = store.GetLastWriteTimeUtc(targetPath);
-                    var sourceTime = store.GetLastWriteTimeUtc(doc.Path);
-                    var metaTime = store.FileExists(metaPath) ? store.GetLastWriteTimeUtc(metaPath) : DateTime.MinValue;
+                    var targetTime = File.GetLastWriteTimeUtc(targetPath);
+                    var sourceTime = File.GetLastWriteTimeUtc(doc.Path);
+                    var metaTime = File.Exists(metaPath) ? File.GetLastWriteTimeUtc(metaPath) : DateTime.MinValue;
 
                     if (sourceTime <= targetTime && metaTime <= targetTime)
                         return;
@@ -697,11 +698,11 @@ public static class DocumentManager
         QueueExport(Find(def.Type, name) ?? Create(path));
     }
 
-    private static ushort ReadAssetVersion(IEditorStore store, string path)
+    private static ushort ReadAssetVersion(string path)
     {
         try
         {
-            using var stream = store.OpenRead(path);
+            using var stream = File.OpenRead(path);
             using var reader = new BinaryReader(stream);
             if (stream.Length < 12) return 0;
             reader.ReadUInt32(); // signature
@@ -718,7 +719,7 @@ public static class DocumentManager
     {
         try
         {
-            using var stream = EditorApplication.Store.OpenRead(path);
+            using var stream = File.OpenRead(path);
             return stream.Length > 0;
         }
         catch
@@ -731,8 +732,7 @@ public static class DocumentManager
     {
         try
         {
-            var store = EditorApplication.Store;
-            if (!store.FileExists(doc.Path))
+            if (!File.Exists(doc.Path))
                 return;
 
             if (_watching && !IsFileReady(doc.Path))
@@ -742,10 +742,10 @@ public static class DocumentManager
             }
 
             var metaPath = doc.Path + ".meta";
-            var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
+            var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
             var targetDir = GetTargetPath(doc);
 
-            store.CreateDirectory(GetDirectory(targetDir));
+            Directory.CreateDirectory(GetDirectory(targetDir));
 
             doc.Export(targetDir, meta);
 
@@ -763,7 +763,7 @@ public static class DocumentManager
 
     private static void HandleFileChange(string path)
     {
-        if (Path.GetExtension(path) == ".meta")
+        if (System.IO.Path.GetExtension(path) == ".meta")
         {
             _watcherQueue.Enqueue(path[..^5]);
             return;
@@ -779,67 +779,6 @@ public static class DocumentManager
 
         _watcherQueue.Enqueue(path);
         _reloadQueue.Enqueue(path);
-    }
-
-    public static async Task GenerateSpritesAsync(CancellationToken ct = default)
-    {
-        var sprites = _documents
-            .OfType<GeneratedSpriteDocument>()
-            .Where(s => !s.Generation.HasImageData)
-            .ToList();
-
-        if (sprites.Count == 0)
-            return;
-
-        Log.Info($"Generating images for {sprites.Count} sprite(s)...");
-
-        foreach (var sprite in sprites)
-        {
-            if (ct.IsCancellationRequested)
-                break;
-
-            Log.Info($"Generating '{sprite.Name}'...");
-
-            try
-            {
-                var request = sprite.BuildGenerationRequest();
-                var status = await GenerationClient.GenerateAsync(request, cancellationToken: ct);
-
-                if (status.State == GenerationState.Completed)
-                {
-                    sprite.ApplyGenerationResult(status, createTexture: false);
-                    sprite.Save();
-                    QueueExport(sprite, force: true);
-                }
-                else
-                {
-                    Log.Error($"Generation failed for '{sprite.Name}': {status.Error}");
-
-                    if (status.Error != null && (status.Error.Contains("HttpRequestException") ||
-                        status.Error.Contains("Connection refused") ||
-                        status.Error.Contains("No connection") ||
-                        status.Error.Contains("actively refused")))
-                    {
-                        var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
-                        Log.Error($"Generation server not available at {server}. Skipping remaining sprite generations.");
-                        break;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Generation error for '{sprite.Name}': {ex.Message}");
-
-                if (ex is HttpRequestException)
-                {
-                    var server = EditorApplication.Config?.GenerationServer ?? "http://127.0.0.1:7860";
-                    Log.Error($"Generation server not available at {server}. Skipping remaining sprite generations.");
-                    break;
-                }
-            }
-        }
-
-        UpdateExports();
     }
 
     public static void QueueGenerations()
@@ -884,4 +823,41 @@ public static class DocumentManager
             Export(doc);
         }
     }
+
+    private static void StartWatching(string path)
+    {
+        if (OperatingSystem.IsIOS())
+            return;
+
+        var watcher = new FileSystemWatcher(path)
+        {
+            IncludeSubdirectories = true,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
+            EnableRaisingEvents = true,
+        };
+        watcher.Changed += OnWatcherEvent;
+        watcher.Created += OnWatcherEvent;
+        watcher.Renamed += OnWatcherEvent;
+        _watchers.Add(watcher);
+    }
+
+    private static void StopWatching()
+    {
+        foreach (var watcher in _watchers)
+        {
+            watcher.EnableRaisingEvents = false;
+            watcher.Dispose();
+        }
+        _watchers.Clear();
+    }
+
+    private static string ToRelative(string absolutePath)
+    {
+        if (absolutePath.StartsWith(Path, StringComparison.OrdinalIgnoreCase))
+            return absolutePath[Path.Length..].Replace('\\', '/');
+        return absolutePath.Replace('\\', '/');
+    }
+
+    private static void OnWatcherEvent(object sender, FileSystemEventArgs e) =>
+        HandleFileChange(ToRelative(e.FullPath));
 }

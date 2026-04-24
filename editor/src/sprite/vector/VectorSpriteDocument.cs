@@ -10,7 +10,7 @@ namespace NoZ.Editor;
 public partial class VectorSpriteDocument : SpriteDocument
 {
     public static Document? CreateNew(Vector2? position = null) =>
-        DocumentManager.New(AssetType.Sprite, Extension, null, position);
+        Project.New(AssetType.Sprite, Extension, null, position);
 
     public Color32 CurrentFillColor = Color32.White;
     public Color32 CurrentStrokeColor = new(0, 0, 0, 0);

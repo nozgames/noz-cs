@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 public class LocalStore : IEditorStore
 {
-    private string _root = "";
+    private readonly string _root = "";
     private readonly List<FileSystemWatcher> _watchers = [];
 
     public string Name => "Local";
@@ -23,7 +23,7 @@ public class LocalStore : IEditorStore
     public event Action? AuthStateChanged;
 #pragma warning restore CS0067
 
-    public void Init(string rootPath)
+    public LocalStore(string rootPath)
     {
         _root = Path.GetFullPath(rootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
     }

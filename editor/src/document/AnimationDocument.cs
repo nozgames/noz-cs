@@ -104,7 +104,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonTransformsChanged(SkeletonDocument skeleton)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -127,7 +127,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonBoneAdded(SkeletonDocument skeleton, int boneIndex)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -147,7 +147,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonBoneRenamed(SkeletonDocument skeleton, int boneIndex, string oldName, string newName)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -161,7 +161,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonBoneRemoved(SkeletonDocument skeleton, int removedIndex, string removedName)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -509,7 +509,7 @@ internal class AnimationDocument : Document
             throw new Exception("Missing quoted skeleton name");
 
         SkeletonName = skeletonName;
-        Skeleton = DocumentManager.Find<SkeletonDocument>(SkeletonName);
+        Skeleton = Project.Find<SkeletonDocument>(SkeletonName);
         if (Skeleton == null)
             return;
 
@@ -653,7 +653,7 @@ internal class AnimationDocument : Document
 
     public override void PostLoad()
     {
-        Skeleton = DocumentManager.Find<SkeletonDocument>(SkeletonName ?? "");
+        Skeleton = Project.Find<SkeletonDocument>(SkeletonName ?? "");
         if (Skeleton == null)
             return;
 
@@ -999,14 +999,14 @@ internal class AnimationDocument : Document
         var contents = $"s \"{skeleton.Name}\"\n";
         EditorApplication.Store.WriteAllText(fullPath, contents);
 
-        var doc = DocumentManager.Create(fullPath) as AnimationDocument;
+        var doc = Project.Create(fullPath) as AnimationDocument;
         doc?.Load();
         return doc;
     }
 
     public static Document? CreateNew(string? name = null, Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Animation, Extension, name, writer =>
+        return Project.New(AssetType.Animation, Extension, name, writer =>
         {
             writer.WriteLine("s \"\"");
         }, position);

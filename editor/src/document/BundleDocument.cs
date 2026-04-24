@@ -110,7 +110,7 @@ public class BundleDocument : Document
             writer.Write(entry.EntryName);
             writer.Write(entry.AssetType.Value);
 
-            var doc = DocumentManager.Find(entry.AssetType, entry.AssetName);
+            var doc = Project.Find(entry.AssetType, entry.AssetName);
             if (doc == null)
             {
                 ReportError($"Asset not found: {entry.AssetType}/{entry.AssetName}");

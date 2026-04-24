@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public partial class PixelSpriteEditor
+public partial class PixelEditor
 {
     private const int PreviewCellSize = 25;
     private const int PreviewPadding = 1;

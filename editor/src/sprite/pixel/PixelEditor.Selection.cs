@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 public enum SelectionOp { Replace, Add, Subtract }
 
-public partial class PixelSpriteEditor
+public partial class PixelEditor
 {
     public bool HasSelection => Document.SelectionMask != null;
 

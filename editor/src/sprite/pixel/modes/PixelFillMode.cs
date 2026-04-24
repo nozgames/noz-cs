@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PixelFillMode : EditorMode<PixelSpriteEditor>
+public class PixelFillMode : EditorMode<PixelEditor>
 {
     // Scanline flood fill: one stack entry per matching horizontal run discovered above or
     // below the current span, instead of one queue entry per pixel. Reused across fills

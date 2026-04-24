@@ -60,7 +60,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sprite, Extension, null, WriteNewFile, position);
+        return Project.New(AssetType.Sprite, Extension, null, WriteNewFile, position);
     }
 
     public static void WriteNewFile(StreamWriter writer)
@@ -449,7 +449,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
                     ApplyGenerationResult(status);
                     Save();
                     SaveMetadata();
-                    DocumentManager.QueueExport(this, force: true);
+                    Project.QueueExport(this, force: true);
                     if (Atlas != null)
                         AtlasManager.UpdateSource(this);
                     break;

@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public partial class PixelSpriteEditor
+public partial class PixelEditor
 {
     private static partial class WidgetIds
     {

@@ -17,8 +17,12 @@ public class EditorAppDelegate : UIApplicationDelegate
 {
     public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
     {
+        var projectPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Project");
+        Directory.CreateDirectory(projectPath);
+
         EditorApplication.Run(new EditorApplicationConfig
         {
+            ProjectPath = projectPath,
             ResourceAssembly = Assembly.GetExecutingAssembly(),
         }, []);
 

@@ -31,7 +31,7 @@ public class PaletteDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(PaletteAssetType, Extension, name, writer =>
+        return Project.New(PaletteAssetType, Extension, name, writer =>
         {
             writer.WriteLine("JASC-PAL");
             writer.WriteLine("0100");

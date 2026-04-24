@@ -40,9 +40,6 @@ public static partial class Workspace
     private const float ZoomDefault = 1f;
     private const float DefaultDpi = 72f;
     private const float DragMinDistance = 5f;
-    private const float UIScaleMin = 0.5f;
-    private const float UIScaleMax = 3f;
-    private const float UIScaleStep = 0.1f;
 
     public static DocumentEditor? ActiveEditor => _activeEditor;
     public static Document? ActiveDocument => _activeDocument;
@@ -54,7 +51,6 @@ public static partial class Workspace
     private static float _outlinerSize = 200f;
     private static float _dpi = DefaultDpi;
     private static float _uiScale = 1f;
-    private static float _userUIScale = 1f;
     private static bool _showFps;
     private static bool _showGrid = true;
     private static bool _showNames;
@@ -115,9 +111,9 @@ public static partial class Workspace
         }
 
         // Sample from visible documents, front-to-back
-        for (var i = DocumentManager.Documents.Count - 1; i >= 0; i--)
+        for (var i = Project.Documents.Count - 1; i >= 0; i--)
         {
-            var doc = DocumentManager.Documents[i];
+            var doc = Project.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded) continue;
             if (doc.IsClipped) continue;
             if (!ShowHidden && !doc.IsVisible) continue;
@@ -156,25 +152,7 @@ public static partial class Workspace
 
     public static event Action<bool>? XrayModeChanged;
 
-    public static float GetUIScale() => Application.Platform.DisplayScale * _userUIScale;
-
-    public static void IncreaseUIScale()
-    {
-        _userUIScale = Math.Clamp(UI.UserScale + UIScaleStep, UIScaleMin, UIScaleMax);
-        UI.UserScale = _userUIScale;
-    }
-
-    public static void DecreaseUIScale()
-    {
-        _userUIScale = Math.Clamp(UI.UserScale - UIScaleStep, UIScaleMin, UIScaleMax);
-        UI.UserScale = _userUIScale;
-    }
-
-    public static void ResetUIScale()
-    {
-        _userUIScale = 1.2f;
-        UI.UserScale = _userUIScale;
-    }
+    public static float GetUIScale() => Application.Platform.DisplayScale * UI.UserScale;
 
     public static void Init()
     {
@@ -201,7 +179,7 @@ public static partial class Workspace
             return;
 
         var count = 0;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected)
                 continue;
@@ -222,7 +200,7 @@ public static partial class Workspace
             return;
 
         var count = 0;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected)
                 continue;
@@ -245,8 +223,8 @@ public static partial class Workspace
 
     private static void ExportAll()
     {
-        foreach (var doc in DocumentManager.Documents)
-            DocumentManager.QueueExport(doc, true);
+        foreach (var doc in Project.Documents)
+            Project.QueueExport(doc, true);
 
         AssetManifest.Generate(force: true);
     }
@@ -263,7 +241,7 @@ public static partial class Workspace
     private static void RebuildAtlas()
     {
         AtlasManager.Rebuild();
-        DocumentManager.SaveAll();
+        Project.SaveAll();
     }
 
     private static void InitCommands()
@@ -277,12 +255,12 @@ public static partial class Workspace
         var settingsCommand = new Command("Settings", OpenSettings, [new KeyBinding(InputCode.KeyComma, ctrl:true)]);
 
         CommandManager.RegisterCommon([
-            new Command("Save All", DocumentManager.SaveAll, [new KeyBinding(InputCode.KeyS, ctrl:true)]),
+            new Command("Save All", Project.SaveAll, [new KeyBinding(InputCode.KeyS, ctrl:true)]),
             new Command("Undo", () => Undo.DoUndo(), [new KeyBinding(InputCode.KeyZ, ctrl:true)]),
             new Command("Redo", () => Undo.DoRedo(), [new KeyBinding(InputCode.KeyY, ctrl:true)]),
-            new Command("Increase UI Scale", IncreaseUIScale, [new KeyBinding(InputCode.KeyEquals, ctrl:true)]),
-            new Command("Decrease UI Scale", DecreaseUIScale, [new KeyBinding(InputCode.KeyMinus, ctrl:true)]),
-            new Command("Reset UI Scale", ResetUIScale, [new KeyBinding(InputCode.Key0, ctrl:true)]),
+            new Command("Increase UI Scale", EditorApplication.IncreaseUIScale, [new KeyBinding(InputCode.KeyEquals, ctrl:true)]),
+            new Command("Decrease UI Scale", EditorApplication.DecreaseUIScale, [new KeyBinding(InputCode.KeyMinus, ctrl:true)]),
+            new Command("Reset UI Scale", EditorApplication.ResetUIScale, [new KeyBinding(InputCode.Key0, ctrl:true)]),
             new Command("Command Palette", CommandPalette.Open, [new KeyBinding(InputCode.KeyP, ctrl:true, shift:true)]),
             new Command("Asset Browser", () => AssetPalette.Open(), [new KeyBinding(InputCode.KeyP, ctrl:true)], EditorAssets.Sprites.IconSearch),
             new Command("Browse Sprites", () => AssetPalette.OpenSprites()),
@@ -327,7 +305,7 @@ public static partial class Workspace
             PopupMenuItem.Submenu("New"),
             PopupMenuItem.Submenu("Sprite", level: 1),
             PopupMenuItem.Item("Vector", () => CreateNewDocument(VectorSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
-            PopupMenuItem.Item("Pixel", () => CreateNewDocument(PixelSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
+            PopupMenuItem.Item("Pixel", () => CreateNewDocument(PixelDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
             PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle),
             PopupMenuItem.Item("Skeleton", () => CreateNewDocument(SkeletonDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.IconBone),
             PopupMenuItem.Item("Animation", () => CreateNewDocument(AnimationDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation),
@@ -359,10 +337,8 @@ public static partial class Workspace
         _showProject = props.GetBool("workspace", "show_project", true);
         _showInspector = props.GetBool("workspace", "show_inspector", true);
         _isolation = props.GetBool("workspace", "isolation", false);
-        _userUIScale = props.GetFloat("workspace", "ui_scale", Application.IsTablet ? 1.6f : 1f);
         _inspectorSize = props.GetFloat("workspace", "inspector_size", 300f);
         _outlinerSize = props.GetFloat("workspace", "outliner_size", 200f);
-        UI.UserScale = _userUIScale;
 
         // Restore camera position and zoom from visible collection
         var collection = CollectionManager.VisibleCollection;
@@ -389,17 +365,9 @@ public static partial class Workspace
         props.SetBool("workspace", "show_names", _showNames);
         props.SetBool("workspace", "show_project", _showProject);
         props.SetBool("workspace", "show_inspector", _showInspector);
-        props.SetBool("workspace", "isolation", _isolation);
-        props.SetFloat("workspace", "ui_scale", UI.UserScale);
+        props.SetBool("workspace", "isolation", _isolation);        
         props.SetFloat("workspace", "inspector_size", _inspectorSize);
         props.SetFloat("workspace", "outliner_size", _outlinerSize);
-
-        var winSize = Application.WindowSize;
-        var winPos = Application.WindowPosition;
-        props.SetInt("window", "width", winSize.X);
-        props.SetInt("window", "height", winSize.Y);
-        props.SetInt("window", "x", winPos.X);
-        props.SetInt("window", "y", winPos.Y);
     }
     
     public static void Update()
@@ -515,7 +483,7 @@ public static partial class Workspace
                     Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
                 {
                     // Cancel: restore saved positions
-                    foreach (var doc in DocumentManager.Documents)
+                    foreach (var doc in Project.Documents)
                         if (doc.IsSelected)
                             doc.Position = doc.SavedPosition;
                     Undo.Cancel();
@@ -543,7 +511,7 @@ public static partial class Workspace
         _wsMoveCommitOnRelease = commitOnRelease;
         _wsMoveStartWorld = _mouseWorldPosition;
         Undo.BeginGroup();
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc.IsSelected)
             {
@@ -558,7 +526,7 @@ public static partial class Workspace
     private static void UpdateInlineMoveDocuments()
     {
         var delta = _mouseWorldPosition - _wsMoveStartWorld;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected) continue;
             var newPos = doc.SavedPosition + delta;
@@ -595,7 +563,7 @@ public static partial class Workspace
 
     private static bool HitTestSelected(Vector2 point)
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected || !doc.Loaded || !doc.PostLoaded)
                 continue;
@@ -610,7 +578,7 @@ public static partial class Workspace
         if (!Input.IsShiftDown())
             ClearSelection();
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
@@ -783,7 +751,7 @@ public static partial class Workspace
     private static void UpdateCulling()
     {
         var cameraBounds = _camera.WorldBounds;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!CollectionManager.IsDocumentVisible(doc))
             {
@@ -806,9 +774,9 @@ public static partial class Workspace
         Graphics.PushState();
         Graphics.SetLayer(EditorLayer.Document);
 
-        for (int i = 0, c = DocumentManager.Count; i < c; i++)
+        for (int i = 0, c = Project.Count; i < c; i++)
         {
-            var doc = DocumentManager.GetAt(i);
+            var doc = Project.GetAt(i);
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
             if (doc.IsEditing || doc.IsClipped)
@@ -837,7 +805,7 @@ public static partial class Workspace
         using var _ = Gizmos.PushState(EditorLayer.Names);
         Graphics.SetColor(EditorStyle.Workspace.SelectionColor);
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.Loaded || !doc.PostLoaded || doc.IsClipped) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
@@ -865,9 +833,9 @@ public static partial class Workspace
         Graphics.SetLayer(EditorLayer.Names);
         TextRender.SetOutline(EditorStyle.Workspace.NameOutlineColor, EditorStyle.Workspace.NameOutline, 0.5f); 
 
-        for (int i = 0, c = DocumentManager.Count; i < c; i++)
+        for (int i = 0, c = Project.Count; i < c; i++)
         {
-            var doc = DocumentManager.GetAt(i);
+            var doc = Project.GetAt(i);
             if (!doc.Loaded || !doc.PostLoaded) continue;
             if (!ShowHidden && !doc.IsVisible) continue;
             if (doc.IsClipped) continue;
@@ -942,7 +910,7 @@ public static partial class Workspace
     {
         if (_renameTarget != null && !string.IsNullOrWhiteSpace(_renameCurrentText) && _renameCurrentText != _renameOriginalName)
         {
-            if (!DocumentManager.Rename(_renameTarget, _renameCurrentText))
+            if (!Project.Rename(_renameTarget, _renameCurrentText))
                 Log.Warning("rename failed");
         }
         EndRename();
@@ -1009,7 +977,7 @@ public static partial class Workspace
         if (UI.Camera == null)
             return;
 
-        var effectiveDpi = _dpi * _uiScale * _userUIScale * _zoom;
+        var effectiveDpi = _dpi * _uiScale * UI.UserScale * _zoom;
 
         var sceneWorldRect = UI.GetElementWorldRect(WidgetIds.Scene);
         var sceneScreenRect = UI.Camera!.WorldToScreen(sceneWorldRect);
@@ -1208,7 +1176,7 @@ public static partial class Workspace
         else
             viewport = new Rect(0, 0, screenSize.X, screenSize.Y);
 
-        var baseScale = _dpi * _uiScale * _userUIScale;
+        var baseScale = _dpi * _uiScale * UI.UserScale;
 
         // Fit zoom to the visible viewport, not the full window — panels overlay the scene.
         var zoomForWidth = viewport.Width / (size.X * baseScale);
@@ -1225,7 +1193,7 @@ public static partial class Workspace
 
     public static void Play()
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
             if (doc.IsSelected)
                 doc.TogglePlay();
     }
@@ -1235,13 +1203,13 @@ public static partial class Workspace
         if (SelectedCount == 0)
             return;
 
-        var selected = DocumentManager.Documents.Where(d => d.IsSelected).ToArray();
+        var selected = Project.Documents.Where(d => d.IsSelected).ToArray();
 
         ClearSelection();
 
         foreach (var source in selected)
         {
-            var dup = DocumentManager.Duplicate(source);
+            var dup = Project.Duplicate(source);
             if (dup == null)
                 continue;
             SetSelected(dup, true);
@@ -1261,7 +1229,7 @@ public static partial class Workspace
         ConfirmDialog.Show(message, () =>
         {
             var toDelete = new List<Document>();
-            foreach (var doc in DocumentManager.Documents)
+            foreach (var doc in Project.Documents)
             {
                 if (doc.IsSelected)
                     toDelete.Add(doc);
@@ -1270,7 +1238,7 @@ public static partial class Workspace
             ClearSelection();
 
             foreach (var doc in toDelete)
-                DocumentManager.Delete(doc);
+                Project.Delete(doc);
         },
         yes: "Delete",
         no: "Cancel");
@@ -1287,7 +1255,7 @@ public static partial class Workspace
         if (SelectedCount == 0) return;
 
         Rect? bounds = null;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected) continue;
             var docBounds = doc.Bounds.Translate(doc.Position);
@@ -1307,9 +1275,9 @@ public static partial class Workspace
         var fontSize = EditorStyle.Workspace.NameSize * scale;
         var padding = EditorStyle.Workspace.NamePadding * scale;
 
-        for (var i = DocumentManager.Documents.Count - 1; i >= 0; i--)
+        for (var i = Project.Documents.Count - 1; i >= 0; i--)
         {
-            var doc = DocumentManager.Documents[i];
+            var doc = Project.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded) continue;
             if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
@@ -1336,7 +1304,7 @@ public static partial class Workspace
 
     public static void ClearSelection()
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
             doc.IsSelected = false;
         SelectedCount = 0;
     }
@@ -1358,7 +1326,7 @@ public static partial class Workspace
 
     public static Document? GetFirstSelected()
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc.IsSelected)
                 return doc;
@@ -1369,7 +1337,7 @@ public static partial class Workspace
     private static void SelectAll()
     {
         ClearSelection();
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
@@ -1415,7 +1383,7 @@ public static partial class Workspace
             return;
 
         var count = 0;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected || doc.CollectionId == collection.Id)
                 continue;
@@ -1473,7 +1441,7 @@ public static partial class Workspace
             _activeDocument = null;
             State = WorkspaceState.Default;
 
-            DocumentManager.SaveAll();
+            Project.SaveAll();
             return;
         }
 
@@ -1570,11 +1538,11 @@ public static partial class Workspace
 
         if (SelectedCount == 1)
         {
-            var selectedDoc = DocumentManager.SelectedDocuments.FirstOrDefault();
+            var selectedDoc = Project.SelectedDocuments.FirstOrDefault();
             if (selectedDoc != null)
             {
                 var ext = System.IO.Path.GetExtension(selectedDoc.Path);
-                var defs = DocumentManager.GetDefs(ext);
+                var defs = Project.GetDefs(ext);
                 if (defs != null && defs.Count > 1)
                 {
                     items.Add(PopupMenuItem.Separator());
@@ -1633,10 +1601,10 @@ public static partial class Workspace
         // Remove old document from list (don't delete files)
         var position = doc.Position;
         Undo.RemoveDocument(doc);
-        DocumentManager.Remove(doc);
+        Project.Remove(doc);
 
         // Create new document from the image file
-        var newDoc = DocumentManager.Create(imagePath);
+        var newDoc = Project.Create(imagePath);
         if (newDoc != null)
         {
             newDoc.LoadMetadata();
@@ -1645,14 +1613,14 @@ public static partial class Workspace
             newDoc.PostLoad();
             newDoc.PostLoaded = true;
             newDoc.Position = Grid.SnapToPixelGrid(position);
-            DocumentManager.NotifyDocumentAdded(newDoc);
+            Project.NotifyDocumentAdded(newDoc);
             AssetManifest.IsModified = true;
         }
     }
 
     private static void HandleHide()
     {
-        foreach (var doc in DocumentManager.SelectedDocuments)
+        foreach (var doc in Project.SelectedDocuments)
             doc.IsHiddenInWorkspace = true;
 
         ClearSelection();
@@ -1660,7 +1628,7 @@ public static partial class Workspace
 
     private static void HandleUnhideAll()
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
             doc.IsHiddenInWorkspace = false;
     }
 

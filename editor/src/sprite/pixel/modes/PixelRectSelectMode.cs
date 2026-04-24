@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PixelRectSelectMode : EditorMode<PixelSpriteEditor>
+public class PixelRectSelectMode : EditorMode<PixelEditor>
 {
     private Vector2Int? _dragStart;
     private Vector2Int _dragCurrent;

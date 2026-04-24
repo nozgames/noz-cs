@@ -7,17 +7,15 @@ using System.Runtime.InteropServices;
 
 namespace NoZ.Editor;
 
-public partial class PixelSpriteEditor
+public partial class PixelEditor
 {
-    private const int MaxBrushSize = 32;
-
     private struct BrushRun
     {
         public Vector2 Start;
         public Vector2 End;
     }
 
-    private static readonly BrushRun[]?[] _brushRunCache = new BrushRun[MaxBrushSize + 1][];
+    private static readonly BrushRun[]?[] _brushRunCache = new BrushRun[PixelDocument.MaxBrushSize + 1][];
 
     private PixelLayer? _softStrokeLayer;
     private PixelData<Color32>? _softStrokeOriginal;
@@ -114,8 +112,8 @@ public partial class PixelSpriteEditor
                 var inDisc = inBox && d2 <= discR2;
                 if (!inDisc && d2 > apronR2) continue;
 
-                var px = pixel.X - offset + dx;
-                var py = pixel.Y - offset + dy;
+                var px = (int)(pixel.X - offset + dx);
+                var py = (int)(pixel.Y - offset + dy);
                 if (tiling)
                 {
                     // Wrap only pixels that actually fell outside; most brush pixels sit
@@ -151,9 +149,9 @@ public partial class PixelSpriteEditor
         }
         else
         {
-            var minX = pixel.X - offset - apronBox;
-            var minY = pixel.Y - offset - apronBox;
-            var sz = BrushSize + apronBox * 2;
+            var minX = (int)(pixel.X - offset - apronBox);
+            var minY = (int)(pixel.Y - offset - apronBox);
+            var sz = (int)(BrushSize + apronBox * 2);
             InvalidateComposite(new RectInt(minX, minY, sz, sz));
         }
     }
@@ -397,14 +395,14 @@ public partial class PixelSpriteEditor
 
     public void DrawBrushOutline(Vector2Int pixel, Color color)
     {
-        var runs = GetBrushRuns(BrushSize);
+        var runs = GetBrushRuns((int)BrushSize);
         if (runs.Length == 0) return;
 
         var canvas = CanvasRect;
         var epr = EditablePixelRect;
         var cellW = canvas.Width / epr.Width;
         var cellH = canvas.Height / epr.Height;
-        var brushOffset = (BrushSize - 1) / 2;
+        var brushOffset = ((int)BrushSize - 1) / 2;
         var originX = canvas.X + (pixel.X - epr.X - brushOffset) * cellW;
         var originY = canvas.Y + (pixel.Y - epr.Y - brushOffset) * cellH;
         var halfWidth = EditorStyle.Workspace.DocumentBoundsLineWidth * Gizmos.ZoomRefScale;

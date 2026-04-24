@@ -6,20 +6,46 @@ namespace NoZ.Editor;
 
 public enum PixelBrushType { None, Brush, Pencil }
 
-public partial class PixelSpriteDocument : SpriteDocument
+public partial class PixelDocument : SpriteDocument
 {
+    public const int MaxBrushSize = 32;
+    public const float MinBrushSize = 0.5f;
+    public static readonly float MinBrushSizeSlider = MathF.Sqrt(MinBrushSize / MaxBrushSize);
+
     protected override TextureFilter DefaultTextureFilter => TextureFilter.Point;    
+
+    private Color32 _brushColor = Color32.Black;
+    private float _brushSize = 1;
 
     public Vector2Int CanvasSize { get; set; } = new(64, 64);
     public PixelData<byte>? SelectionMask { get; set; }
-    public int BrushSize { get; set; } = 1;
-    public Color32 BrushColor { get; set; } = Color32.Black;
+
+    public float BrushSize
+    {
+        get => _brushSize;
+        set
+        {
+            _brushSize = Math.Clamp(value, MinBrushSize, MaxBrushSize);
+            IncrementVersion();
+        }
+    }
+
+    public Color32 BrushColor
+    {
+        get => _brushColor;
+        set
+        {
+            _brushColor = value;
+            IncrementVersion();
+        }
+    }
+    
     public PixelBrushType BrushType { get; set; } = PixelBrushType.Brush;
     public float BrushHardness { get; set; } = 1f;
     public bool AlphaLock { get; set; }
     public string ActiveLayerName { get; set; } = "";
 
-    public override DocumentEditor CreateEditor() => new PixelSpriteEditor(this);
+    public override DocumentEditor CreateEditor() => new PixelEditor(this);
 
     public override Color32 GetPixelAt(System.Numerics.Vector2 worldPos)
     {
@@ -86,7 +112,7 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sprite, BinaryExtension, null, stream =>
+        return Project.New(AssetType.Sprite, BinaryExtension, null, stream =>
         {
             using var w = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
             WriteEmptyPixelSprite(w, 64, 64);
@@ -202,7 +228,7 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     protected override void CloneContent(SpriteDocument source)
     {
-        if (source is not PixelSpriteDocument src) return;
+        if (source is not PixelDocument src) return;
         CanvasSize = src.CanvasSize;
 
         SelectionMask?.Dispose();
@@ -224,7 +250,7 @@ public partial class PixelSpriteDocument : SpriteDocument
 
     protected override void SaveContentMetadata(PropertySet meta)
     {
-        meta.SetInt("sprite", "brush_size", BrushSize);
+        meta.SetFloat("sprite", "brush_size", BrushSize);
         meta.SetColor("sprite", "brush_color", (Color)BrushColor);
         meta.SetBool("sprite", "alpha_lock", AlphaLock);
         meta.SetInt("sprite", "brush_type", (int)BrushType);

@@ -9,7 +9,6 @@ public interface IEditorStore : IDisposable
     string Name { get; }
     bool IsRemote { get; }
     bool IsReady { get; }
-    void Init(string rootPath);
     void UpdateUI();
     bool FileExists(string path);
     string ReadAllText(string path);

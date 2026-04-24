@@ -64,8 +64,7 @@ public partial class GitStore : IEditorStore
     public void Init(string rootPath)
     {
         _cachePath = Path.GetFullPath(rootPath);
-        _local = new LocalStore();
-        _local.Init(rootPath);
+        _local = new LocalStore(rootPath);
         _local.FileChanged += path => FileChanged?.Invoke(path);
         LoadConfig();
 

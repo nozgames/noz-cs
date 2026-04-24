@@ -56,7 +56,7 @@ internal class AtlasDocument : Document
 
     public static Document? CreateNew(string? name = null)
     {
-        return DocumentManager.New(AssetType.Atlas, Extension, name, writeContent: writer =>
+        return Project.New(AssetType.Atlas, Extension, name, writeContent: writer =>
         {
             writer.WriteLine($"w {EditorApplication.Config.AtlasSize}");
             writer.WriteLine($"h {EditorApplication.Config.AtlasSize}");
@@ -203,7 +203,7 @@ internal class AtlasDocument : Document
             if (string.IsNullOrEmpty(rect.Name))
                 continue;
 
-            var source = DocumentManager.Find<SpriteDocument>(rect.Name);
+            var source = Project.Find<SpriteDocument>(rect.Name);
 
             if (source == null)
                 continue;
@@ -351,7 +351,7 @@ internal class AtlasDocument : Document
 
         source.Atlas = this;
         source.UpdateAtlasUVs(this, Rects, Padding);
-        DocumentManager.QueueExport(source, force: true);
+        Project.QueueExport(source, force: true);
         return true;
     }
 

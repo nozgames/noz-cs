@@ -7,7 +7,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace NoZ.Editor;
 
-public partial class PixelSpriteDocument
+public partial class PixelDocument
 {
     internal override void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {

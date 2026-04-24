@@ -33,8 +33,4 @@
     <EmbeddedResource Include="src\TTF\UnicodeNames.txt" LogicalName="UnicodeNames.txt" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="src\ProjectTemplates\*.template" LogicalName="ProjectTemplates.%(Filename)%(Extension)" />
-  </ItemGroup>
-
 </Project>

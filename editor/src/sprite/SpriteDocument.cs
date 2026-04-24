@@ -191,12 +191,12 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
 
-        DocumentDef<PixelSpriteDocument>.Register(new DocumentDef
+        DocumentDef<PixelDocument>.Register(new DocumentDef
         {
             Type = AssetType.Sprite,
             Name = "PixelSprite",
-            Extensions = [PixelSpriteDocument.BinaryExtension],
-            Factory = _ => new PixelSpriteDocument(),
+            Extensions = [PixelDocument.BinaryExtension],
+            Factory = _ => new PixelDocument(),
             EditorFactory = doc => ((SpriteDocument)doc)!.CreateEditor(),
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });

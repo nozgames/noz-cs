@@ -40,7 +40,7 @@ public class EventDto
 [JsonSerializable(typeof(InfoResponseDto))]
 [JsonSerializable(typeof(EventDto))]
 [JsonSerializable(typeof(FileEntryDto))]
-internal partial class RemoteJsonContext : JsonSerializerContext;
+public partial class RemoteJsonContext : JsonSerializerContext;
 
 public static class RemoteProtocol
 {

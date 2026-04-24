@@ -3,7 +3,6 @@
 //
 
 using System.Collections.Concurrent;
-using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -75,8 +74,7 @@ public partial class RemoteStore : IEditorStore
     public void Init(string rootPath)
     {
         _cachePath = Path.GetFullPath(rootPath);
-        _local = new LocalStore();
-        _local.Init(rootPath);
+        _local = new LocalStore(rootPath);
         _local.CreateDirectory(".noz");
         _local.FileChanged += path => FileChanged?.Invoke(path);
         _manifest = SyncManifest.Load(_local, _manifestPath);
@@ -95,8 +93,8 @@ public partial class RemoteStore : IEditorStore
             Padding = new EdgeInsets(32, 32, 32, 32),
         }))
         {
-            using (UI.BeginFlex()) { }
-
+            UI.Flex();
+            
             switch (_setupState)
             {
                 case SetupState.Connecting:
@@ -529,6 +527,7 @@ public partial class RemoteStore : IEditorStore
                 delay = TimeSpan.FromSeconds(1);
                 await ReceiveLoopAsync(_ws, ct);
             }
+            catch (TaskCanceledException) { break; }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
@@ -557,7 +556,15 @@ public partial class RemoteStore : IEditorStore
             WebSocketReceiveResult result;
             do
             {
-                result = await ws.ReceiveAsync(buffer, ct);
+                try
+                {
+                    result = await ws.ReceiveAsync(buffer, ct);    
+                }
+                catch (TaskCanceledException)
+                {
+                    return;
+                }                    
+                
                 if (result.MessageType == WebSocketMessageType.Close)
                     return;
                 sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
@@ -622,7 +629,8 @@ public partial class RemoteStore : IEditorStore
             {
                 using var closeCts = new CancellationTokenSource(500);
                 _ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "shutdown", closeCts.Token)
-                    .GetAwaiter().GetResult();
+                    .GetAwaiter()
+                    .GetResult();
             }
             catch { }
         }

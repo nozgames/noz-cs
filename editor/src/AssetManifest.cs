@@ -23,7 +23,7 @@ public static class AssetManifest
         if (config.GenerateLua != null)
             GenerateLua(config);
 
-        DocumentManager.DocumentAdded += doc => { IsModified = true; };
+        Project.DocumentAdded += doc => { IsModified = true; };
     }
 
     private static string GetAssetTypeName(AssetType type)
@@ -58,7 +58,7 @@ public static class AssetManifest
         // Collect assets owned by bundles and their transitive dependencies
         var bundleOwned = new HashSet<(AssetType, string)>();
         var depQueue = new Queue<(AssetType, string)>();
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc is BundleDocument bundle)
             {
@@ -74,7 +74,7 @@ public static class AssetManifest
             if (!bundleOwned.Add(dep))
                 continue;
 
-            var depDoc = DocumentManager.Find(dep.Item1, dep.Item2);
+            var depDoc = Project.Find(dep.Item1, dep.Item2);
             if (depDoc == null)
                 continue;
 
@@ -89,14 +89,14 @@ public static class AssetManifest
 
         // Collect actual sprite names for conflict detection
         var spriteNames = new HashSet<string>();
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.ShouldExport) continue;
             if (doc.Def.Type == AssetType.Sprite)
                 spriteNames.Add(doc.Name);
         }
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.ShouldExport) continue;
 

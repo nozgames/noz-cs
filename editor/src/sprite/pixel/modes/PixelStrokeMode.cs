@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public abstract class PixelStrokeMode : EditorMode<PixelSpriteEditor>
+public abstract class PixelStrokeMode : EditorMode<PixelEditor>
 {
     private Vector2Int _lastPixel = new(-1, -1);
     private Vector2 _lastWorldPixel;

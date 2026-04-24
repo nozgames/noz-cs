@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PixelLassoSelectMode : EditorMode<PixelSpriteEditor>
+public class PixelLassoSelectMode : EditorMode<PixelEditor>
 {
     private List<Vector2Int>? _points;
     private readonly List<int> _intersections = new();

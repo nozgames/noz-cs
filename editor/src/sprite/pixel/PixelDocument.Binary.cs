@@ -6,7 +6,7 @@ using System.Text;
 
 namespace NoZ.Editor;
 
-public partial class PixelSpriteDocument
+public partial class PixelDocument
 {
     public const string BinaryExtension = ".pixel";
 

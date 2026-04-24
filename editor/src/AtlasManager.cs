@@ -27,8 +27,8 @@ public static class AtlasManager
         UpdateAssets();
         Update();
 
-        DocumentManager.DocumentAdded += HandleDocumentAdded;
-        DocumentManager.DocumentRemoved += HandleDocumentRemoved;
+        Project.DocumentAdded += HandleDocumentAdded;
+        Project.DocumentRemoved += HandleDocumentRemoved;
     }
 
     public static void Shutdown()
@@ -87,9 +87,9 @@ public static class AtlasManager
         var editorMinIndex = int.MaxValue;
         var editorMaxIndex = int.MinValue;
 
-        for (int i = 0, c = DocumentManager.Count; i < c; i++ )
+        for (int i = 0, c = Project.Count; i < c; i++ )
         {
-            var doc = DocumentManager.Get(i);
+            var doc = Project.Get(i);
             if (doc is AtlasDocument atlas)
             {
                 if (atlas.Name.StartsWith(EditorAtlasPrefix))
@@ -206,8 +206,8 @@ public static class AtlasManager
         if (source.Atlas.TryUpdate(source))
         {
             source.Atlas.Update(source, pixels);
-            DocumentManager.QueueExport(source, force: true);
-            DocumentManager.QueueExport(source.Atlas, force: true);
+            Project.QueueExport(source, force: true);
+            Project.QueueExport(source.Atlas, force: true);
             SyncTextureArrayLayer(source.Atlas);
             return;
         }
@@ -224,11 +224,11 @@ public static class AtlasManager
 
         // Update both the old atlas (to clear the old rect) and the new one
         oldAtlas.Update();
-        DocumentManager.QueueExport(oldAtlas, force: true);
+        Project.QueueExport(oldAtlas, force: true);
         if (source.Atlas != null && source.Atlas != oldAtlas)
         {
             source.Atlas.Update(source, pixels);
-            DocumentManager.QueueExport(source.Atlas, force: true);
+            Project.QueueExport(source.Atlas, force: true);
         }
 
         // If Add() created a new atlas, rebuild the entire texture array
@@ -283,7 +283,7 @@ public static class AtlasManager
         {
             atlas.Remove(source);
             atlas.Update();
-            DocumentManager.QueueExport(atlas, force: true);
+            Project.QueueExport(atlas, force: true);
             SyncTextureArrayLayer(atlas);
             source.Atlas = null;
         }
@@ -368,12 +368,12 @@ public static class AtlasManager
 
         for (int atlasIndex = _atlases.Count - 1; atlasIndex > 0; atlasIndex--)
             if (_atlases[atlasIndex].RectCount == 0)
-                DocumentManager.Delete(_atlases[atlasIndex]);
+                Project.Delete(_atlases[atlasIndex]);
 
         for (int atlasIndex = 0; atlasIndex < _atlases.Count; atlasIndex++)
             _atlases[atlasIndex].Update();
 
-        DocumentManager.SaveAll();
+        Project.SaveAll();
     }
 
     private static void RebuildEditorAtlases()
@@ -392,12 +392,12 @@ public static class AtlasManager
 
         for (int atlasIndex = _editorAtlases.Count - 1; atlasIndex > 0; atlasIndex--)
             if (_editorAtlases[atlasIndex].RectCount == 0)
-                DocumentManager.Delete(_editorAtlases[atlasIndex]);
+                Project.Delete(_editorAtlases[atlasIndex]);
 
         for (int atlasIndex = 0; atlasIndex < _editorAtlases.Count; atlasIndex++)
             _editorAtlases[atlasIndex].Update();
 
-        DocumentManager.SaveAll();
+        Project.SaveAll();
     }
 
     public static void RebuildTextureArray()

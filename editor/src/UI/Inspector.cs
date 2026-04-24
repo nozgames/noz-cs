@@ -209,7 +209,7 @@ internal static partial class Inspector
         if (!IsSectionCollapsed)
         {
             var ext = Path.GetExtension(doc.Path);
-            var defs = DocumentManager.GetDefs(ext);
+            var defs = Project.GetDefs(ext);
             if (defs != null && defs.Count > 1)
             {
                 using (BeginProperty("Type"))
@@ -218,7 +218,7 @@ internal static partial class Inspector
                         defs.Select(d => new PopupMenuItem
                         {
                             Label = d.Name,
-                            Handler = () => DocumentManager.ChangeType(doc, d)
+                            Handler = () => Project.ChangeType(doc, d)
                         }).ToArray(),
                         doc.Def.Name, doc.Def.Icon?.Invoke());
                 }
@@ -228,7 +228,7 @@ internal static partial class Inspector
             {
                 var newName = UI.TextInput(ElementId.DocumentName, doc.Name, EditorStyle.TextInput);
                 if (newName != doc.Name)
-                    DocumentManager.Rename(doc, newName);
+                    Project.Rename(doc, newName);
             }
 
             using (BeginProperty("Export"))

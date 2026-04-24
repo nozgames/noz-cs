@@ -22,4 +22,8 @@
     <IlcTrimMetadata>true</IlcTrimMetadata>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="ProjectTemplates\*.template" LogicalName="ProjectTemplates.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

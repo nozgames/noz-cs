@@ -379,7 +379,7 @@ public static partial class AssetPalette
 
         var filter = _text.Trim();
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (_filteredCount >= MaxFilteredItems)
                 break;

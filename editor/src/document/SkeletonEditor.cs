@@ -455,7 +455,7 @@ internal partial class SkeletonEditor : DocumentEditor
         }
 
         Undo.BeginGroup();
-        foreach (var doc in DocumentManager.Documents.OfType<SpriteDocument>())
+        foreach (var doc in Project.Documents.OfType<SpriteDocument>())
             if (doc.Skeleton.Value == Document)
                 Undo.Record(doc);
 

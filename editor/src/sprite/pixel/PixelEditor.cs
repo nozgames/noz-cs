@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public partial class PixelSpriteEditor : SpriteEditor
+public partial class PixelEditor : SpriteEditor
 {
     private static partial class WidgetIds
     {
@@ -53,7 +53,7 @@ public partial class PixelSpriteEditor : SpriteEditor
 
     public Color32 BrushColor => Document.BrushColor;
     public PixelBrushType BrushType => Document.BrushType;
-    public int BrushSize => Document.BrushSize;
+    public float BrushSize => Document.BrushSize;
     public float BrushHardness => Document.BrushHardness;
     public bool AlphaLock { get; set; }
     public override bool ShowOutliner => _showLayers;
@@ -116,9 +116,9 @@ public partial class PixelSpriteEditor : SpriteEditor
         }
     }
 
-    public new PixelSpriteDocument Document => (PixelSpriteDocument)base.Document;
+    public new PixelDocument Document => (PixelDocument)base.Document;
 
-    public PixelSpriteEditor(PixelSpriteDocument document) : base(document)
+    public PixelEditor(PixelDocument document) : base(document)
     {
         _versionOnOpen = document.Version;
 
@@ -131,7 +131,6 @@ public partial class PixelSpriteEditor : SpriteEditor
             new Command("Rect Select", () => SetMode(new PixelRectSelectMode()), [new KeyBinding(InputCode.KeyM)]),
             new Command("Lasso Select", () => SetMode(new PixelLassoSelectMode()), [new KeyBinding(InputCode.KeyL)]),
             new Command("Move", () => SetMode(new PixelTransformMode()), [new KeyBinding(InputCode.KeyV)]),
-            new Command("Eye Dropper", () => SetMode(new PixelEyeDropperMode()), [new KeyBinding(InputCode.KeyI)]),
             new Command("Fill", () => SetMode(new PixelFillMode()), [new KeyBinding(InputCode.KeyG)]),
             new Command("Select All", SelectAll, [new KeyBinding(InputCode.KeyA, ctrl: true)]),
             new Command("Deselect", ClearSelection, [new KeyBinding(InputCode.KeyD, ctrl: true, shift: true)]),
@@ -321,10 +320,15 @@ public partial class PixelSpriteEditor : SpriteEditor
         DrawCanvas();
         if (Document.ShowTiling) DrawTiling();
         DrawPixelGrid();
+
+        if (Input.IsButtonDown(InputCode.KeyLeftAlt, InputScope.All) && Mode is not PixelEyeDropperMode)
+            SetMode(new PixelEyeDropperMode(Mode!));
+
         if (Mode is not PixelTransformMode)
             DrawSelectionOutline();
         if (Document.ShowSkeletonOverlay)
             DrawSkeletonOverlay();
+
         DrawEdges();
         Document.DrawBounds();
         Mode?.Draw();
@@ -355,7 +359,11 @@ public partial class PixelSpriteEditor : SpriteEditor
         {            
             UI.Image(EditorAssets.Sprites.IconBrush, EditorStyle.Icon.SecondaryLarge);
             using (UI.BeginFlex())
-                Document.BrushSize = (int)UI.VerticalSlider(WidgetIds.BrushSizeSlider, BrushSize, style: EditorStyle.Slider.Style with { Step = 1 }, min: 1, max: MaxBrushSize);
+            {
+                var brushSize = MathF.Sqrt(BrushSize / PixelDocument.MaxBrushSize);
+                brushSize = UI.VerticalSlider(WidgetIds.BrushSizeSlider, brushSize, style: EditorStyle.Slider.Style with { Step = 0.001f }, min: PixelDocument.MinBrushSizeSlider, max: 1);
+                Document.BrushSize = brushSize * brushSize * PixelDocument.MaxBrushSize;
+            }                
         }
 
         UI.Spacer(16);
@@ -416,8 +424,6 @@ public partial class PixelSpriteEditor : SpriteEditor
             }
         }
     }
-
-
 
     private void CompositeCanvas()
     {

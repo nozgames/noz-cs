@@ -107,7 +107,7 @@ public class SoundDocument : Document, IWaveformSource
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sound, Extension, name, writer =>
+        return Project.New(AssetType.Sound, Extension, name, writer =>
         {
             writer.WriteLine("volume 1 1");
             writer.WriteLine("pitch 1 1");

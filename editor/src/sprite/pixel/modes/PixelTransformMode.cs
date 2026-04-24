@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PixelTransformMode : EditorMode<PixelSpriteEditor>, IActiveLayerHandler
+public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
 {
     private enum DragType { None, Move, Rotate, Scale }
 
@@ -649,7 +649,7 @@ public class PixelTransformMode : EditorMode<PixelSpriteEditor>, IActiveLayerHan
     }
 
 
-    public void OnActiveLayerChanged(PixelSpriteEditor editor)
+    public void OnActiveLayerChanged(PixelEditor editor)
     {
         if (IsLifted)
             editor.SetMode(new PencilMode());

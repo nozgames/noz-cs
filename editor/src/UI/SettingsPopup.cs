@@ -38,6 +38,7 @@ public static partial class SettingsPopup
     {
         if (!IsOpen) return;
 
+        using var cursor = UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
         using var popup = UI.BeginPopup(WidgetIds.Popup,new PopupStyle{ AutoClose = false });
         using var root = UI.BeginContainer(EditorStyle.Popup.Root with { Padding = 16, Height = Size.Fit, Width = 400 });
         using var column = UI.BeginColumn(new ContainerStyle { Spacing = 4 });
@@ -57,7 +58,7 @@ public static partial class SettingsPopup
             {
                 UI.Flex();
                 if (UI.Button(WidgetIds.DecrementUIScale, EditorAssets.Sprites.IconRemove, EditorStyle.Button.IconOnly))
-                    Workspace.DecreaseUIScale();
+                    EditorApplication.DecreaseUIScale();
 
                 using (UI.BeginRow())
                 {
@@ -66,9 +67,9 @@ public static partial class SettingsPopup
                 }
                 
                 if (UI.Button(WidgetIds.IncrementUIScale, EditorAssets.Sprites.IconAdd, EditorStyle.Button.IconOnly))
-                    Workspace.IncreaseUIScale();
+                    EditorApplication.IncreaseUIScale();
                 if (UI.Button(WidgetIds.ResetUIScale, EditorAssets.Sprites.IconRefresh, EditorStyle.Button.IconOnly))
-                    Workspace.ResetUIScale();
+                    EditorApplication.ResetUIScale();
             }
         }
 

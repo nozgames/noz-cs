@@ -3,8 +3,6 @@
 //
 
 using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using NoZ.Platform;
 using NoZ.Platform.WebGPU;
 
@@ -14,6 +12,8 @@ public class EditorApplicationConfig
 {
     public string Title { get; init; } = "NoZ Editor";
     public string? IconPath { get; init; }
+    public string? EditorPath { get; init; }
+    public string? ProjectPath { get; init; }
     public Action? RegisterAssetTypes { get; init; }
     public Action? RegisterDocumentTypes { get; init; }
     public Action? Update { get; init; }
@@ -33,8 +33,10 @@ internal class EditorApplicationInstance : IApplication
 
     public void LoadConfig(ApplicationConfig config)
     {
-        var props = PropertySetExtensions.LoadFile(EditorApplication.Store, ".noz/user.cfg");
+        var props = UserSettings.LoadPropertySet();
         if (props == null) return;
+
+        UI.UserScale = props.GetFloat("workspace", "ui_scale", EditorApplication.DefaultUIScale);
 
         var w = props.GetInt("window", "width", 0);
         var h = props.GetInt("window", "height", 0);
@@ -50,12 +52,11 @@ internal class EditorApplicationInstance : IApplication
         {
             config.X = x;
             config.Y = y;
-        }
+        }        
     }
 
     public void LoadAssets()
-    {
-        DocumentManager.UpdateExports();
+    {        
         EditorAssets.LoadAssets();
         EditorApplication.PostLoad();
     }
@@ -66,8 +67,15 @@ internal class EditorApplicationInstance : IApplication
 
 public static partial class EditorApplication
 {
+    private const float UIScaleMin = 0.5f;
+    private const float UIScaleMax = 3f;
+    private const float UIScaleStep = 0.1f;
+
     public enum AppPhase { Launching, Running }
 
+    private static bool _clean;
+    private static bool _isTablet;
+    private static bool _projectInitialized;
     private static readonly Queue<Action> _mainThreadQueue = new();
 
     internal static EditorApplicationConfig AppConfig { get; private set; } = null!;
@@ -78,15 +86,35 @@ public static partial class EditorApplication
     public static string EditorPath { get; private set; } = null!;
     public static string ProjectPath { get; private set; } = null!;
     public static AppPhase Phase { get; private set; } = AppPhase.Running;
-    private static bool _projectInitialized;
+
+    public static float DefaultUIScale => Application.IsTablet ? 1.6f : 1.2f;
+
+    public static void LoadUserSettings(PropertySet props)
+    {                
+        AppConfig.LoadUserSettings?.Invoke(props);
+    }
+
+    public static void SaveUserSettings(PropertySet props)
+    {
+        var winSize = Application.WindowSize;
+        var winPos = Application.WindowPosition;
+        props.SetInt("window", "width", winSize.X);
+        props.SetInt("window", "height", winSize.Y);
+        props.SetInt("window", "x", winPos.X);
+        props.SetInt("window", "y", winPos.Y);        
+
+        props.SetFloat("workspace", "ui_scale", UI.UserScale);
+        
+        AppConfig.SaveUserSettings?.Invoke(props);
+    }
 
     public static void Run(EditorApplicationConfig config, string[] args)
     {
+#if false        
         AppConfig = config;
         var initProject = false;
         var exportOnly = false;
         var profilerMode = false;
-        string? initProjectName = null;
         var clean = false;
         string? projectArg = null;
         string? editorPathArg = null;
@@ -94,15 +122,7 @@ public static partial class EditorApplication
 
         for (var i = 0; i < args.Length; i++)
         {
-            if (args[i] == "--init")
-            {
-                initProject = true;
-                if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
-                    initProjectName = args[++i];
-            }
-            else if (args[i] == "--export" || args[i] == "--import")
-                exportOnly = true;
-            else if (args[i] == "--profiler")
+            if (args[i] == "--profiler")
                 profilerMode = true;
             else if (args[i] == "--project" && i + 1 < args.Length)
                 projectArg = args[++i];
@@ -116,18 +136,11 @@ public static partial class EditorApplication
 
         _isTablet = isTablet;
 
-        // For CLI modes on Windows, attach to parent console so Console.WriteLine output is visible
-        // (WinExe has no console by default; Linux/Mac don't need this)
-        if ((exportOnly || initProject || config.Store != null) && OperatingSystem.IsWindows())
-            AttachConsole(-1);
-
-        // On iOS, skip filesystem walk — assets are embedded resources and
-        // the store (GitStore) provides all project files.
         if (OperatingSystem.IsIOS())
         {
             var iosPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "NoZEditor");
             Directory.CreateDirectory(iosPath);
-            Init(iosPath, projectArg ?? iosPath, clean, config);
+            //Init(iosPath, projectArg ?? iosPath, clean, config);
             Application.Init(new ApplicationConfig
             {
                 Title = config.Title,
@@ -209,47 +222,6 @@ public static partial class EditorApplication
             }
         }
 
-        var projectPath = projectArg ?? editorPath;
-
-        if (projectPath.StartsWith('.'))
-        {
-            projectPath = Path.Combine(Directory.GetCurrentDirectory(), projectPath);
-            projectPath = Path.GetFullPath(projectPath);
-        }
-
-        // Handle project initialization before normal startup
-        if (initProject)
-        {
-            try
-            {
-                var projectName = initProjectName ?? Path.GetFileName(Path.GetFullPath(projectPath));
-                ProjectInitializer.Initialize(projectPath, projectName, editorPath);
-
-                Log.Info("");
-                Log.Info("Exporting assets...");
-                Init(editorPath, projectPath, false, config);
-
-                Log.Info($"Project '{projectName}' initialized successfully at {projectPath}");
-                Log.Info("");
-                Log.Info("Next steps:");
-                Log.Info("  1. cd " + projectPath);
-                Log.Info("  2. git init");
-                Log.Info("  3. git submodule add https://github.com/nozgames/noz-cs noz");
-                Log.Info("  4. git submodule update --init --recursive");
-                Log.Info("  5. dotnet restore");
-                Log.Info("  6. dotnet build");
-                Log.Info("");
-                Log.Info("To open in the editor:");
-                Log.Info("  noz --project " + projectPath);
-                return;
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Failed to initialize project: {ex.Message}");
-                Environment.Exit(1);
-            }
-        }
-
         // Desktop tablet simulation: use the project path as a sandbox and
         // skip the editor.cfg walk — the Launcher will pick a real store.
         // --project overrides the default temp sandbox location.
@@ -295,7 +267,7 @@ public static partial class EditorApplication
             return;
         }
 
-        Init(editorPath, projectPath, clean, config);
+        Init(config);
 
         // Export-only mode: export assets and exit without launching GUI
         if (exportOnly)
@@ -361,16 +333,14 @@ public static partial class EditorApplication
 
         Shutdown();
         Application.Shutdown();
+#endif        
     }
 
-    private static bool _clean;
-    private static bool _isTablet;
 
-    private static void Init(string editorPath, string projectPath, bool clean, EditorApplicationConfig config)
+    private static void Init(EditorApplicationConfig config)
     {
-        EditorPath = editorPath;
-        ProjectPath = projectPath;
-        _clean = clean;
+        EditorPath = config.EditorPath!;
+        ProjectPath = config.ProjectPath!;
         _projectInitialized = false;
 
         // Only tablet/iOS mode shows the launcher — non-tablet desktop goes
@@ -379,28 +349,13 @@ public static partial class EditorApplication
         // downstream code (user.cfg load, PostLoad) has a valid Store; the
         // launcher swaps in a real store via BeginProject().
         var useLauncher = AppConfig.Store == null && (OperatingSystem.IsIOS() || _isTablet);
-        Store = AppConfig.Store ?? new LocalStore();
-        Store.Init(projectPath);
+        //Store = AppConfig.Store ?? new LocalStore(ProjectPath);
         Phase = useLauncher ? AppPhase.Launching : AppPhase.Running;
 
         // Register asset/document types (static registrations, no files needed)
         Application.RegisterAssetTypes();
         config.RegisterAssetTypes?.Invoke();
 
-        AtlasDocument.RegisterDef();
-        ShaderDocument.RegisterDef();
-        SoundDocument.RegisterDef();
-        SpriteDocument.RegisterDef();
-        GenerationConfig.RegisterDef();
-        FontDocument.RegisterDef();
-        SkeletonDocument.RegisterDef();
-        AnimationDocument.RegisterDef();
-        VfxDocument.RegisterDef();
-        BinDocument.RegisterDef();
-        BundleDocument.RegisterDef();
-        PaletteDocument.RegisterDef();
-
-        config.RegisterDocumentTypes?.Invoke();
 
         // If store is ready, initialize the project now.
         // When in Launching phase the launcher will drive BeginProject().
@@ -419,7 +374,7 @@ public static partial class EditorApplication
         Store.Dispose();
         Store = store;
         ProjectPath = projectPath;
-        Store.Init(projectPath);
+        //Store.Init(projectPath);
         Phase = AppPhase.Running;
         _projectInitialized = false;
     }
@@ -436,8 +391,7 @@ public static partial class EditorApplication
         }
 
         Store.Dispose();
-        var sentinel = new LocalStore();
-        sentinel.Init(ProjectPath);
+        var sentinel = new LocalStore(ProjectPath);
         Store = sentinel;
         Phase = AppPhase.Launching;
     }
@@ -455,12 +409,12 @@ public static partial class EditorApplication
         Log.Info($"OutputPath: {OutputPath}");
 
         CollectionManager.Init(Config);
-        DocumentManager.Init(Config.SourcePaths, Config.OutputPath);
+        Project.Init(ProjectPath, Config);
         PaletteManager.Init();
-        DocumentManager.LoadAll();
+        Project.LoadAll();
         PaletteManager.DiscoverPalettes();
         AtlasManager.Init();
-        DocumentManager.InitExports(_clean);
+        Project.InitExports();
         AssetManifest.Generate();
 
         _projectInitialized = true;
@@ -479,14 +433,14 @@ public static partial class EditorApplication
         if (Config == null)
             return;
 
-        DocumentManager.PostLoad();
+        Project.PostLoad();
         AtlasManager.RebuildTextureArray();
         VfxSystem.Shader = EditorAssets.Shaders.Sprite;
         Workspace.Init();
         UserSettings.Load();
 
-        DocumentManager.SaveAll();
-        DocumentManager.QueueGenerations();
+        Project.SaveAll();
+        Project.QueueGenerations();
     }
 
     private static void Shutdown()
@@ -494,7 +448,7 @@ public static partial class EditorApplication
         if (_projectInitialized)
         {
             UserSettings.Save();
-            DocumentManager.SaveAll();
+            Project.SaveAll();
 
             Workspace.Shutdown();
             ConfirmDialog.Shutdown();
@@ -502,7 +456,7 @@ public static partial class EditorApplication
             EditorStyle.Shutdown();
             CollectionManager.Shutdown();
             PaletteManager.Shutdown();
-            DocumentManager.Shutdown();
+            Project.Shutdown();
         }
 
         Store.Dispose();
@@ -542,17 +496,17 @@ public static partial class EditorApplication
             InitProject();
             if (Config != null)
             {
-                DocumentManager.UpdateExports();
+                Project.UpdateExports();
                 EditorAssets.ReloadAssets();
 
                 // Project-specific PostLoad (UI infra already initialized)
-                DocumentManager.PostLoad();
+                Project.PostLoad();
                 AtlasManager.RebuildTextureArray();
                 VfxSystem.Shader = EditorAssets.Shaders.Sprite;
                 Workspace.Init();
                 UserSettings.Load();
-                DocumentManager.SaveAll();
-                DocumentManager.QueueGenerations();
+                Project.SaveAll();
+                Project.QueueGenerations();
             }
         }
 
@@ -562,7 +516,7 @@ public static partial class EditorApplication
         if (!Application.HasFocus && !(Workspace.ActiveEditor is { RunInBackground: true}))
             Thread.Sleep(1000 / 30);
 
-        DocumentManager.UpdateExports();
+        Project.UpdateExports();
         ConfirmDialog.Update();
         CommandPalette.Update();
         AssetPalette.Update();
@@ -583,7 +537,12 @@ public static partial class EditorApplication
         Workspace.LateUpdate();
     }
 
-    [LibraryImport("kernel32.dll")]
-    [SupportedOSPlatform("windows")]
-    private static partial void AttachConsole(int dwProcessId);
+    public static void IncreaseUIScale() =>
+        UI.UserScale = Math.Clamp(UI.UserScale + UIScaleStep, UIScaleMin, UIScaleMax);
+
+    public static void DecreaseUIScale() =>
+        UI.UserScale = Math.Clamp(UI.UserScale - UIScaleStep, UIScaleMin, UIScaleMax);
+
+    public static void ResetUIScale() =>
+        UI.UserScale = DefaultUIScale;
 }

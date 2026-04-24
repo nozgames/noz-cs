@@ -51,7 +51,7 @@ public static partial class Workspace
 
     private static FolderNode GetOrBuildTree()
     {
-        var count = DocumentManager.Documents.Count;
+        var count = Project.Documents.Count;
         if (_cachedRoot != null && _cachedDocCount == count)
             return _cachedRoot;
 
@@ -64,7 +64,7 @@ public static partial class Workspace
     {
         var root = new FolderNode { Name = "" };
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             // Find which source path this document belongs to
             var relativePath = GetRelativePath(doc.Path);
@@ -106,7 +106,7 @@ public static partial class Workspace
 
     private static string? GetRelativePath(string docPath)
     {
-        foreach (var sourcePath in DocumentManager.SourcePaths)
+        foreach (var sourcePath in Project.SourcePaths)
         {
             var normalized = sourcePath.Replace('\\', '/').ToLowerInvariant().TrimEnd('/') + '/';
             var normalizedDoc = docPath.Replace('\\', '/').ToLowerInvariant();

@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public class PixelTouchDropperMode : EditorMode<PixelSpriteEditor>
+public class PixelTouchDropperMode : EditorMode<PixelEditor>
 {
     private readonly EditorMode? _restoreMode;
 
