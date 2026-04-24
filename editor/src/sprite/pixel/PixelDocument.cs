@@ -41,6 +41,7 @@ public partial class PixelDocument : SpriteDocument
     }
     
     public PixelBrushType BrushType { get; set; } = PixelBrushType.Brush;
+    public PixelBrushType EraserType { get; set; } = PixelBrushType.Brush;
     public float BrushHardness { get; set; } = 1f;
     public bool AlphaLock { get; set; }
     public string ActiveLayerName { get; set; } = "";

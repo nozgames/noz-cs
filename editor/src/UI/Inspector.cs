@@ -144,12 +144,13 @@ internal static partial class Inspector
 
         if (!_sectionCollapsed)
         {
+            ElementTree.BeginFill(EditorStyle.Palette.Panel);
             ElementTree.BeginPadding(new EdgeInsets(
                 EditorStyle.Control.Spacing,
                 EditorStyle.Control.Spacing,
                 0,
                 EditorStyle.Control.Spacing));
-            ElementTree.BeginColumn(EditorStyle.Inspector.BodyGap);
+            ElementTree.BeginColumn(EditorStyle.Inspector.BodyGap);            
         }
     }
 
@@ -173,6 +174,7 @@ internal static partial class Inspector
         {
             ElementTree.EndColumn();
             ElementTree.EndPadding();
+            ElementTree.EndFill();
         }
 
         _sectionCollapsed = false;

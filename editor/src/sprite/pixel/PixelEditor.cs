@@ -35,8 +35,9 @@ public partial class PixelEditor : SpriteEditor
         public static partial WidgetId EyeDropper { get; }
     }    
 
-    private bool _showLayers = true;
-    private bool _showInspector = true;
+    private static bool s_showLayers = true;
+    private static bool s_showInspector = true;
+
     private SpriteNode? _selectedNode;
     private Texture? _canvasTexture;
     private PixelData<Color32>? _compositePixels;
@@ -50,6 +51,7 @@ public partial class PixelEditor : SpriteEditor
     private bool _isPlaying;
     private float _playTimer;
     private bool _showBrushPopup;
+    private bool _showEraserPopup;
     private PixelLayer? _activeLayer;
 
     public Color32 BrushColor => Document.BrushColor;
@@ -57,8 +59,9 @@ public partial class PixelEditor : SpriteEditor
     public float BrushSize => Document.BrushSize;
     public float BrushHardness => Document.BrushHardness;
     public bool AlphaLock { get; set; }
-    public override bool ShowOutliner => _showLayers;
-    public override bool ShowInspector => _showInspector;
+    
+    public override bool ShowOutliner => s_showLayers;
+    public override bool ShowInspector => s_showInspector;
 
     public PixelLayer? ActiveLayer
     {
@@ -1031,31 +1034,62 @@ public partial class PixelEditor : SpriteEditor
         base.Dispose();
     }
 
+    private bool BrushButton(WidgetId id, string name, Sprite icon, bool isSelected)
+    {
+        ElementTree.BeginWidget(id);
+        ElementTree.BeginSize(100, EditorStyle.Control.Height);
+        if (isSelected || ElementTree.IsHovered())
+            ElementTree.Fill(EditorStyle.Palette.Canvas, EditorStyle.Control.BorderRadius);
+        ElementTree.BeginPadding(4);
+        ElementTree.BeginRow(4);
+        ElementTree.Image(icon, size: EditorStyle.Icon.LargeSize, align: Align.Center);
+        ElementTree.Text(name, UI.DefaultFont, EditorStyle.Text.Size, EditorStyle.Palette.Content, align: Align.Center);
+        ElementTree.EndRow();
+        ElementTree.EndPadding();
+        ElementTree.EndSize();
+
+        var pressed = ElementTree.WasPressed();
+        ElementTree.EndWidget();
+        if (pressed)
+        {
+            _showEraserPopup = false;
+            _showBrushPopup = false;
+        }            
+
+        return pressed;
+    }
+
     private void BrushPopup()
     {
         if (!_showBrushPopup) return;
-        using var popup = UI.BeginPopup(WidgetIds.BrushButton, EditorStyle.PopupBelow with { AnchorRect = UI.GetElementWorldRect(WidgetIds.BrushButton) });
+
+        using var popup = UI.BeginPopup(WidgetIds.BrushButton, EditorStyle.PopupBottomRight with { AnchorRect = UI.GetElementWorldRect(WidgetIds.BrushButton) });
         using var column = UI.BeginColumn(EditorStyle.Popup.Root with { Spacing = 4});
  
-        if (UI.Button(WidgetIds.BrushPopupBrush, EditorAssets.Sprites.IconBrush, EditorStyle.Button.ToggleIcon, isSelected: BrushType == PixelBrushType.Brush))
-        {
+        if (BrushButton(WidgetIds.BrushPopupBrush, "Round Brush", EditorAssets.Sprites.IconBrush, isSelected: BrushType == PixelBrushType.Brush))
             SetMode(PixelBrushType.Brush);
-            _showBrushPopup = false;
-        }
 
-        if (UI.Button(WidgetIds.BrushPopupPencil, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon, isSelected: BrushType == PixelBrushType.Pencil))
-        {
+        if (BrushButton(WidgetIds.BrushPopupPencil, "Pencil", EditorAssets.Sprites.IconEdit, isSelected: BrushType == PixelBrushType.Pencil))
             SetMode(PixelBrushType.Pencil);
-            _showBrushPopup = false;
-        }            
+    }
+
+    private void EraserPopup()
+    {
+        if (!_showEraserPopup) return;
+
+        using var popup = UI.BeginPopup(WidgetIds.BrushButton, EditorStyle.PopupBottomRight with { AnchorRect = UI.GetElementWorldRect(WidgetIds.BrushButton) });
+        using var column = UI.BeginColumn(EditorStyle.Popup.Root with { Spacing = 4});
+ 
+        // if (BrushButton(WidgetIds.BrushPopupEraser, "Eraser", EditorAssets.Sprites.IconEraser, isSelected: BrushType == PixelBrushType.Eraser))
+        //     SetMode(new PixelEraserMode(PixelBrushType.Eraser);
     }
 
     public override void ToolbarUI()
     {
         base.ToolbarUI();
 
-        if (UI.Button(WidgetIds.LayerToggle, EditorAssets.Sprites.IconLayer, EditorStyle.Button.ToggleIcon, isSelected: _showLayers))  
-            _showLayers = !_showLayers;
+        if (UI.Button(WidgetIds.LayerToggle, EditorAssets.Sprites.IconLayer, EditorStyle.Button.ToggleIcon, isSelected: s_showLayers))  
+            s_showLayers = !s_showLayers;
 
         EditorUI.PanelSeparator();
 
@@ -1089,9 +1123,11 @@ public partial class PixelEditor : SpriteEditor
 
         EditorUI.PanelSeparator();
 
-        if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: _showInspector))  
-            _showInspector = !_showInspector;
+        if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: s_showInspector))  
+            s_showInspector = !s_showInspector;
     }    
+
+    public void SetBrushMode() => SetMode(PixelBrushType.Brush);
 
     public void SetMode(PixelBrushType brushType)
     {
@@ -1104,6 +1140,29 @@ public partial class PixelEditor : SpriteEditor
         });
     }
 
+    public void SetEraserMode(PixelBrushType brushType)
+    {
+        Document.EraserType = brushType;
+        SetMode(brushType switch
+        {
+            PixelBrushType.Brush => new BrushMode(),
+            PixelBrushType.Pencil => new PencilMode(),
+            _ => new BrushMode()
+        });
+    }
+
     private void IncreaseBrushSize() => Document.BrushSize = Math.Min(Document.BrushSize + 1, 16);  
     private void DecreaseBrushSize() => Document.BrushSize = Math.Max(Document.BrushSize - 1, 1);
+
+    internal static void LoadUserSettings(PropertySet props)
+    {
+        s_showLayers = props.GetBool("pixel", "show_layers", false);
+        s_showInspector = props.GetBool("pixel", "show_inspector", false);
+    }
+
+    internal static void SaveUserSettings(PropertySet props)
+    {
+        props.SetBool("pixel", "show_layers", s_showLayers);
+        props.SetBool("pixel", "show_inspector", s_showInspector);
+    }
 }

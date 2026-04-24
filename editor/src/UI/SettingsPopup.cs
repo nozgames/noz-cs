@@ -12,6 +12,7 @@ public static partial class SettingsPopup
         public static partial WidgetId IncrementUIScale { get; }
         public static partial WidgetId DecrementUIScale { get; }
         public static partial WidgetId ResetUIScale { get; }
+        public static partial WidgetId ShowFPSToggle { get; }
     }
 
     private static InputScope _inputScope;
@@ -40,7 +41,7 @@ public static partial class SettingsPopup
 
         using var cursor = UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
         using var popup = UI.BeginPopup(WidgetIds.Popup,new PopupStyle{ AutoClose = false });
-        using var root = UI.BeginContainer(EditorStyle.Popup.Root with { Padding = 16, Height = Size.Fit, Width = 400 });
+        using var root = UI.BeginContainer(EditorStyle.Popup.Root with { Padding = 16, Height = Size.Fit, Width = 300 });
         using var column = UI.BeginColumn(new ContainerStyle { Spacing = 4 });
 
         using (UI.BeginRow())
@@ -52,25 +53,30 @@ public static partial class SettingsPopup
         }        
 
         using var general = Inspector.BeginSection("General");
+
         using (Inspector.BeginProperty("UI Scale"))
         {
             using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
             {
-                UI.Flex();
-                if (UI.Button(WidgetIds.DecrementUIScale, EditorAssets.Sprites.IconRemove, EditorStyle.Button.IconOnly))
-                    EditorApplication.DecreaseUIScale();
-
                 using (UI.BeginRow())
                 {
                     UI.Text(Strings.Number((int)(UI.UserScale * 100)), EditorStyle.Text.Disabled);    
                     UI.Text("%", EditorStyle.Text.Disabled);
                 }
-                
+
+                if (UI.Button(WidgetIds.DecrementUIScale, EditorAssets.Sprites.IconRemove, EditorStyle.Button.IconOnly))
+                    EditorApplication.DecreaseUIScale();
                 if (UI.Button(WidgetIds.IncrementUIScale, EditorAssets.Sprites.IconAdd, EditorStyle.Button.IconOnly))
                     EditorApplication.IncreaseUIScale();
                 if (UI.Button(WidgetIds.ResetUIScale, EditorAssets.Sprites.IconRefresh, EditorStyle.Button.IconOnly))
                     EditorApplication.ResetUIScale();
             }
+        }
+
+        using (Inspector.BeginProperty("Show FPS"))
+        {
+            if (UI.Toggle(WidgetIds.ShowFPSToggle, Workspace.ShowFps, EditorStyle.Inspector.Toggle))
+                Workspace.ToggleShowFps();
         }
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, _inputScope))

@@ -100,6 +100,16 @@ public static class EditorStyle
         ClampToScreen = true,
     };
 
+    public static readonly PopupStyle PopupBottomRight = new()
+    {
+        AnchorX = Align.Max,
+        AnchorY = Align.Max,
+        PopupAlignX = Align.Max,
+        PopupAlignY = Align.Min,
+        Spacing = Control.Spacing,
+        ClampToScreen = true,
+    };
+
     public static readonly ContainerStyle Tooltip = new()
     {
         Background = Palette.Popup,

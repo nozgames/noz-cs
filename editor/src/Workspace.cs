@@ -60,6 +60,7 @@ public static partial class Workspace
     private static bool _isolation;
     private static Vector2 _savedCameraPosition;
     private static float _savedCameraZoom;
+    private static float _savedCameraRotation;
     private static bool _hasSavedCamera;
     private static Vector2 _popupWorldPosition;
 
@@ -98,6 +99,7 @@ public static partial class Workspace
     public static bool IsDragging => _isDragging;
     public static bool WasDragging => _wasDragging;
     public static bool DragStarted => _dragStarted;
+    public static bool ShowFps => _showFps;
 
     public static Color32 ReadPixelAtMouse()
     {
@@ -158,6 +160,7 @@ public static partial class Workspace
     public static void Init()
     {
         _camera = new Camera();
+        _camera.Rotation = 0f;
         _zoom = ZoomDefault;
         _dpi = DefaultDpi;
         _uiScale = 1f;
@@ -270,7 +273,7 @@ public static partial class Workspace
             new Command("Toggle Grid", ToggleGrid, [new KeyBinding(InputCode.KeyQuote, ctrl:true)]),
             new Command("Toggle Names", ToggleNames, [new KeyBinding(InputCode.KeyN, alt:true)]),
             new Command("Toggle Isolation", ToggleIsolation, [new KeyBinding(InputCode.KeySlash)]),
-            new Command("Toggle FPS", ToggleFps),
+            new Command("Toggle FPS", ToggleShowFps),
             settingsCommand,
         ]);
 
@@ -349,6 +352,7 @@ public static partial class Workspace
         {
             _camera.Position = collection.CameraPosition;
             _zoom = collection.CameraZoom;
+            _camera.Rotation = collection.CameraRotation;
         }
 
         UpdateCamera();
@@ -361,6 +365,7 @@ public static partial class Workspace
         {
             collection.CameraPosition = _hasSavedCamera ? _savedCameraPosition : _camera.Position;
             collection.CameraZoom = _hasSavedCamera ? _savedCameraZoom : _zoom;
+            collection.CameraRotation = _hasSavedCamera ? _savedCameraRotation : _camera.Rotation;
         }
 
         props.SetBool("workspace", "show_fps", _showFps);
@@ -860,7 +865,7 @@ public static partial class Workspace
     }
 
 
-    private static void ToggleFps()
+    public static void ToggleShowFps()
     {
         _showFps = !_showFps;
     }
@@ -883,6 +888,7 @@ public static partial class Workspace
         {
             _savedCameraPosition = _camera.Position;
             _savedCameraZoom = _zoom;
+            _savedCameraRotation = _camera.Rotation;
             _hasSavedCamera = true;
         }
         else
@@ -1114,6 +1120,17 @@ public static partial class Workspace
         var scrollDelta = Input.GetAxis(InputCode.MouseScrollY);
         if (scrollDelta > -0.5f && scrollDelta < 0.5f)
         {
+            // Two-finger rotation anchored at the same midpoint as pan/zoom.
+            if (Touch.IsTwoFingerPanning && Touch.TwoFingerRotation != 0f)
+            {
+                var worldUnderCenter = _camera.ScreenToWorld(Touch.TwoFingerCenter);
+                _camera.Rotation -= Touch.TwoFingerRotation;
+                UpdateCamera();
+                var worldUnderCenterAfter = _camera.ScreenToWorld(Touch.TwoFingerCenter);
+                _camera.Position += worldUnderCenter - worldUnderCenterAfter;
+                UpdateCamera();
+            }
+
             // No scroll wheel — check for a two-finger gesture.
             // Touchscreen: unified pan+zoom from our own finger tracking.
             // Trackpad: SDL3's native pinch recognizer, anchored at the cursor.
@@ -1191,6 +1208,7 @@ public static partial class Workspace
         var zoomForHeight = viewport.Height / (size.Y * baseScale);
         _zoom = Math.Clamp(MathF.Min(zoomForWidth, zoomForHeight), ZoomMin, ZoomMax);
 
+        _camera.Rotation = 0f;
         _camera.Position = center;
         UpdateCamera();
 
@@ -1374,6 +1392,7 @@ public static partial class Workspace
         {
             current.CameraPosition = _camera.Position;
             current.CameraZoom = _zoom;
+            current.CameraRotation = _camera.Rotation;
         }
 
         CollectionManager.SetVisible(index);
@@ -1381,6 +1400,7 @@ public static partial class Workspace
         // Restore camera position and zoom from new collection
         _camera.Position = collection.CameraPosition;
         _zoom = collection.CameraZoom;
+        _camera.Rotation = collection.CameraRotation;
         UpdateCamera();
     }
 
@@ -1437,6 +1457,7 @@ public static partial class Workspace
             {
                 _camera.Position = _savedCameraPosition;
                 _zoom = _savedCameraZoom;
+                _camera.Rotation = _savedCameraRotation;
                 _hasSavedCamera = false;
                 UpdateCamera();
             }
@@ -1468,6 +1489,7 @@ public static partial class Workspace
 
         var savedPosition = _camera.Position;
         var savedZoom = _zoom;
+        var savedRotation = _camera.Rotation;
 
         _activeDocument = doc;
         _activeEditor = doc.Def.EditorFactory!(doc);
@@ -1480,6 +1502,7 @@ public static partial class Workspace
         {
             _savedCameraPosition = savedPosition;
             _savedCameraZoom = savedZoom;
+            _savedCameraRotation = savedRotation;
             _hasSavedCamera = true;
         }
     }

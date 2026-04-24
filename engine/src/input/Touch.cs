@@ -61,6 +61,9 @@ public static class Touch
     private static float _twoFingerDistance;
     private static float _twoFingerPrevDistance;
     private static float _twoFingerScale = 1f;
+    private static float _twoFingerAngle;
+    private static float _twoFingerPrevAngle;
+    private static float _twoFingerRotation;
 
     public static bool SimulateMouse { get; set; }
 
@@ -80,6 +83,7 @@ public static class Touch
     public static Vector2 TwoFingerCenter => _twoFingerCenter;
     public static Vector2 TwoFingerDelta => _twoFingerDelta;
     public static float TwoFingerScale => _twoFingerScale;
+    public static float TwoFingerRotation => _twoFingerRotation;
 
     public static ReadOnlySpan<TouchFinger> Fingers => _fingers.AsSpan(0, MaxFingers);
 
@@ -95,6 +99,7 @@ public static class Touch
         _pinchScale = 1f;
         _twoFingerDelta = Vector2.Zero;
         _twoFingerScale = 1f;
+        _twoFingerRotation = 0f;
 
         for (var i = 0; i < MaxFingers; i++)
             _fingers[i].Delta = Vector2.Zero;
@@ -276,6 +281,13 @@ public static class Touch
             _twoFingerDistance = ComputeTwoFingerDistance();
             if (_twoFingerPrevDistance >= 1f)
                 _twoFingerScale *= _twoFingerDistance / _twoFingerPrevDistance;
+
+            _twoFingerPrevAngle = _twoFingerAngle;
+            _twoFingerAngle = ComputeTwoFingerAngle();
+            var rotDelta = _twoFingerAngle - _twoFingerPrevAngle;
+            if (rotDelta > MathF.PI) rotDelta -= MathF.Tau;
+            else if (rotDelta < -MathF.PI) rotDelta += MathF.Tau;
+            _twoFingerRotation += rotDelta;
         }
     }
 
@@ -323,6 +335,8 @@ public static class Touch
         _twoFingerPrevCenter = _twoFingerCenter;
         _twoFingerDistance = ComputeTwoFingerDistance();
         _twoFingerPrevDistance = _twoFingerDistance;
+        _twoFingerAngle = ComputeTwoFingerAngle();
+        _twoFingerPrevAngle = _twoFingerAngle;
     }
 
     private static int GetFirstTwoFingers(out Vector2 a, out Vector2 b)
@@ -352,6 +366,9 @@ public static class Touch
 
     private static float ComputeTwoFingerDistance() =>
         GetFirstTwoFingers(out var a, out var b) == 2 ? Vector2.Distance(a, b) : 0f;
+
+    private static float ComputeTwoFingerAngle() =>
+        GetFirstTwoFingers(out var a, out var b) == 2 ? MathF.Atan2(b.Y - a.Y, b.X - a.X) : 0f;
 
     private static int FindSlot(long fingerId)
     {

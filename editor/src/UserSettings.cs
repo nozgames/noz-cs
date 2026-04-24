@@ -20,6 +20,7 @@ public static class UserSettings
         CollectionManager.LoadUserSettings(props);
         Workspace.LoadUserSettings(props);
         VectorSpriteEditor.LoadUserSettings(props);
+        PixelEditor.LoadUserSettings(props);
         EditorApplication.LoadUserSettings(props);
     }
 
@@ -29,6 +30,7 @@ public static class UserSettings
         Workspace.SaveUserSettings(props);
         CollectionManager.SaveUserSettings(props);
         VectorSpriteEditor.SaveUserSettings(props);
+        PixelEditor.SaveUserSettings(props);
         EditorApplication.SaveUserSettings(props);
         props.Save(System.IO.Path.Combine(Project.Path, Path));
     }

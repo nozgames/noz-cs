@@ -13,6 +13,7 @@ public class CollectionDef(string id, string name, int index)
     public int Index { get; } = index;
     public Vector2 CameraPosition { get; set; }
     public float CameraZoom { get; set; } = 1f;
+    public float CameraRotation { get; set; } = 0f;
 }
 
 public static class CollectionManager
@@ -125,6 +126,7 @@ public static class CollectionManager
             var section = $"collection.{collection.Id}";
             collection.CameraPosition = props.GetVector2(section, "camera_position", Vector2.Zero);
             collection.CameraZoom = props.GetFloat(section, "camera_zoom", 1f);
+            collection.CameraRotation = props.GetFloat(section, "camera_rotation", 0f);
         }
     }
 
@@ -140,6 +142,7 @@ public static class CollectionManager
             var section = $"collection.{collection.Id}";
             props.SetVec2(section, "camera_position", collection.CameraPosition);
             props.SetFloat(section, "camera_zoom", collection.CameraZoom);
+            props.SetFloat(section, "camera_rotation", collection.CameraRotation);
         }
     }
 }
