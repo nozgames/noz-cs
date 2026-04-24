@@ -32,6 +32,7 @@ public partial class PixelEditor : SpriteEditor
         public static partial WidgetId BrushPopupPencil { get; }
         public static partial WidgetId BrushSizeSlider { get; }
         public static partial WidgetId BrushAlphaSlider { get; }
+        public static partial WidgetId EyeDropper { get; }
     }    
 
     private bool _showLayers = true;
@@ -365,6 +366,13 @@ public partial class PixelEditor : SpriteEditor
                 Document.BrushSize = brushSize * brushSize * PixelDocument.MaxBrushSize;
             }                
         }
+
+        UI.Spacer(16);
+
+        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
+        using (UI.BeginContainer(EditorStyle.SpriteEditor.EyeDropper))
+            if (UI.Button(WidgetIds.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: Mode is PixelEyeDropperMode))
+                SetMode(new PixelEyeDropperMode(Mode!));
 
         UI.Spacer(16);
 

@@ -653,15 +653,13 @@ public static partial class Workspace
         {
             if (sync.IsSyncing)
             {
-                UI.Text("Syncing...", EditorStyle.Text.Disabled);
-            }
-            else if (AnyDocumentEditing())
-            {
-                UI.Text("Sync", EditorStyle.Text.Disabled);
+                using (UI.BeginContainer(new ContainerStyle { Width = EditorStyle.Control.Height, Height = EditorStyle.Control.Height, Padding = 3}))
+                using (UI.BeginTransform(new TransformStyle { Rotate = Time.TotalTime * 360f }))
+                    UI.Image(EditorAssets.Sprites.IconRefresh, new ImageStyle { Width = EditorStyle.Icon.LargeSize, Height = EditorStyle.Icon.LargeSize, Color = EditorStyle.Palette.Disabled, Align = Align.Center });
             }
             else
             {
-                if (UI.Button(WidgetIds.SyncButton, "Sync", EditorStyle.Button.IconOnly))
+                if (UI.Button(WidgetIds.SyncButton, EditorAssets.Sprites.IconRefresh, EditorStyle.Button.IconOnly))
                     Task.Run(() => sync.SyncAsync());
             }
         }
@@ -749,13 +747,6 @@ public static partial class Workspace
     public static void LateUpdate()
     {
         Workspace.ActiveEditor?.LateUpdate();
-    }
-
-    private static bool AnyDocumentEditing()
-    {
-        foreach (var doc in Project.Documents)
-            if (doc.IsEditing) return true;
-        return false;
     }
 
     private static void UpdateCulling()
@@ -1041,6 +1032,13 @@ public static partial class Workspace
             _penPosition = _mousePosition;
             _penWorldPosition = _mouseWorldPosition;
         }
+
+        if (Input.IsButtonDown(InputCode.Pen, InputScope.All))
+        {
+            _mouseWorldPosition = _penWorldPosition;
+            _mousePosition = _penPosition;
+        }
+
         _dragStarted = false;
         _wasDragging = false;
 

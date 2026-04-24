@@ -400,7 +400,7 @@ public static class EditorStyle
             ContentColor = Palette.Content,
             IconSize = Icon.LargeSize,
             BorderRadius = Control.BorderRadius,
-            Padding = EdgeInsets.All(3),
+            Padding = 3,
             Resolve = (s, f) =>
             {
                 if ((f & WidgetFlags.Hovered) != 0) s.Background = Palette.Active;
@@ -1126,6 +1126,15 @@ public static class EditorStyle
             Padding = EdgeInsets.Symmetric(8, 2),
             BorderRadius = Control.BorderRadius,
             Spacing = 8
+        };
+
+        public static readonly ContainerStyle EyeDropper = new()
+        {
+            Background = Palette.Popup,
+            Width = Control.Height + 4,
+            Height = Size.Fit,
+            Padding = EdgeInsets.Symmetric(2, 2),
+            BorderRadius = Control.BorderRadius,
         };
     }
 
