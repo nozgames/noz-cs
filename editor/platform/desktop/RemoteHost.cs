@@ -18,13 +18,17 @@ public static class RemoteHost
         public required string Id;
     }
 
+    private static string _root = "";
+    private static string _projectName = "";
+    private static string _serverId = "";
+    private static readonly ConcurrentDictionary<string, Client> _clients = new();
+    private static readonly ConcurrentDictionary<string, (string ClientId, DateTime When)> _recentWrites = new();
+
     public static async Task RunAsync(string projectPath, int port, CancellationToken ct)
     {
-        var root = Path.GetFullPath(projectPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var serverId = Guid.NewGuid().ToString("N");
-
-        var clients = new ConcurrentDictionary<string, Client>();
-        var recentWrites = new ConcurrentDictionary<string, (string ClientId, DateTime When)>();
+        _root = Path.GetFullPath(projectPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        _projectName = Path.GetFileName(_root);
+        _serverId = Guid.NewGuid().ToString("N");
 
         var listener = new HttpListener();
         listener.Prefixes.Add($"http://+:{port}/");
@@ -46,28 +50,29 @@ public static class RemoteHost
             boundTo = $"http://localhost:{port}/ (LOCALHOST ONLY — see message above)";
         }
 
-        var syncPaths = ResolveSyncPaths(root);
+        var syncPaths = ResolveSyncPaths();
 
         Console.WriteLine($"Stope remote file server");
-        Console.WriteLine($"  project : {root}");
+        Console.WriteLine($"  project name : {_projectName}");
+        Console.WriteLine($"  project path : {_root}");
         Console.WriteLine($"  serving : {boundTo}");
         Console.WriteLine($"  sync    : {string.Join(", ", syncPaths)}");
         Console.WriteLine($"  press Ctrl-C to stop.");
 
-        using var watcher = new FileSystemWatcher(root)
+        using var watcher = new FileSystemWatcher(_root)
         {
             IncludeSubdirectories = true,
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
             EnableRaisingEvents = true,
         };
 
-        FileSystemEventHandler onChange = (_, e) => HandleWatcherEvent(e.FullPath, RemoteProtocol.OpChanged, root, clients, recentWrites);
-        FileSystemEventHandler onCreated = (_, e) => HandleWatcherEvent(e.FullPath, RemoteProtocol.OpChanged, root, clients, recentWrites);
-        FileSystemEventHandler onDeleted = (_, e) => HandleWatcherEvent(e.FullPath, RemoteProtocol.OpDeleted, root, clients, recentWrites);
+        FileSystemEventHandler onChange = (_, e) => HandleWatcherEvent(e.FullPath, RemoteProtocol.OpChanged);
+        FileSystemEventHandler onCreated = (_, e) => HandleWatcherEvent(e.FullPath, RemoteProtocol.OpChanged);
+        FileSystemEventHandler onDeleted = (_, e) => HandleWatcherEvent(e.FullPath, RemoteProtocol.OpDeleted);
         RenamedEventHandler onRenamed = (_, e) =>
         {
-            HandleWatcherEvent(e.OldFullPath, RemoteProtocol.OpDeleted, root, clients, recentWrites);
-            HandleWatcherEvent(e.FullPath, RemoteProtocol.OpChanged, root, clients, recentWrites);
+            HandleWatcherEvent(e.OldFullPath, RemoteProtocol.OpDeleted);
+            HandleWatcherEvent(e.FullPath, RemoteProtocol.OpChanged);
         };
 
         watcher.Changed += onChange;
@@ -91,10 +96,10 @@ public static class RemoteHost
             catch (HttpListenerException) { break; }
             catch (ObjectDisposedException) { break; }
 
-            _ = Task.Run(() => HandleRequestAsync(context, root, serverId, clients, recentWrites, ct), ct);
+            _ = Task.Run(() => HandleRequestAsync(context, ct), ct);
         }
 
-        foreach (var kvp in clients)
+        foreach (var kvp in _clients)
         {
             try { kvp.Value.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None).Wait(500); } catch { }
             try { kvp.Value.Socket.Dispose(); } catch { }
@@ -104,9 +109,9 @@ public static class RemoteHost
         Console.WriteLine("Server stopped.");
     }
 
-    private static string[] ResolveSyncPaths(string root)
+    private static string[] ResolveSyncPaths()
     {
-        var cfg = Path.Combine(root, "editor.cfg");
+        var cfg = Path.Combine(_root, "editor.cfg");
         if (File.Exists(cfg))
         {
             var props = PropertySet.Load(File.ReadAllText(cfg));
@@ -120,22 +125,17 @@ public static class RemoteHost
         return ["assets"];
     }
 
-    private static void HandleWatcherEvent(
-        string absolutePath,
-        string op,
-        string root,
-        ConcurrentDictionary<string, Client> clients,
-        ConcurrentDictionary<string, (string ClientId, DateTime When)> recentWrites)
+    private static void HandleWatcherEvent(string absolutePath, string op)
     {
-        var rel = ToRelative(absolutePath, root);
+        var rel = ToRelative(absolutePath);
         if (rel == null) return;
         if (rel.StartsWith(".noz/")) return;
 
         string? excludeClientId = null;
-        if (recentWrites.TryGetValue(rel, out var hint) && (DateTime.UtcNow - hint.When).TotalMilliseconds < 2000)
+        if (_recentWrites.TryGetValue(rel, out var hint) && (DateTime.UtcNow - hint.When).TotalMilliseconds < 2000)
         {
             excludeClientId = hint.ClientId;
-            recentWrites.TryRemove(rel, out _);
+            _recentWrites.TryRemove(rel, out _);
         }
 
         long mtime = 0, size = 0;
@@ -154,7 +154,7 @@ public static class RemoteHost
         var json = JsonSerializer.Serialize(evt, RemoteJsonContext.Default.EventDto);
         var bytes = Encoding.UTF8.GetBytes(json);
 
-        foreach (var kvp in clients)
+        foreach (var kvp in _clients)
         {
             if (kvp.Key == excludeClientId) continue;
             if (kvp.Value.Socket.State != WebSocketState.Open) continue;
@@ -162,23 +162,17 @@ public static class RemoteHost
         }
     }
 
-    private static string? ToRelative(string absolutePath, string root)
+    private static string? ToRelative(string absolutePath)
     {
-        var rootWithSep = root + Path.DirectorySeparatorChar;
+        var rootWithSep = _root + Path.DirectorySeparatorChar;
         if (absolutePath.StartsWith(rootWithSep, StringComparison.OrdinalIgnoreCase))
             return absolutePath[rootWithSep.Length..].Replace('\\', '/');
-        if (string.Equals(absolutePath, root, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(absolutePath, _root, StringComparison.OrdinalIgnoreCase))
             return "";
         return null;
     }
 
-    private static async Task HandleRequestAsync(
-        HttpListenerContext context,
-        string root,
-        string serverId,
-        ConcurrentDictionary<string, Client> clients,
-        ConcurrentDictionary<string, (string ClientId, DateTime When)> recentWrites,
-        CancellationToken ct)
+    private static async Task HandleRequestAsync(HttpListenerContext context, CancellationToken ct)
     {
         try
         {
@@ -192,39 +186,39 @@ public static class RemoteHost
             switch (path)
             {
                 case "/info":
-                    await HandleInfoAsync(resp, root, serverId);
+                    await HandleInfoAsync(resp);
                     break;
 
                 case "/list":
-                    await HandleListAsync(resp, root, query?["path"] ?? "", query?["recursive"] == "1");
+                    await HandleListAsync(resp, query?["path"] ?? "", query?["recursive"] == "1");
                     break;
 
                 case "/file" when method == "HEAD":
-                    HandleFileHead(resp, root, query?["path"] ?? "");
+                    HandleFileHead(resp, query?["path"] ?? "");
                     break;
 
                 case "/file" when method == "GET":
-                    await HandleFileGetAsync(resp, root, query?["path"] ?? "");
+                    await HandleFileGetAsync(resp, query?["path"] ?? "");
                     break;
 
                 case "/file" when method == "PUT":
-                    await HandleFilePutAsync(req, resp, root, query?["path"] ?? "", clientId, recentWrites);
+                    await HandleFilePutAsync(req, resp, query?["path"] ?? "", clientId);
                     break;
 
                 case "/file" when method == "DELETE":
-                    HandleFileDelete(resp, root, query?["path"] ?? "", clientId, recentWrites);
+                    HandleFileDelete(resp, query?["path"] ?? "", clientId);
                     break;
 
                 case "/move" when method == "POST":
-                    HandleMove(resp, root, query?["src"] ?? "", query?["dst"] ?? "", clientId, recentWrites);
+                    HandleMove(resp, query?["src"] ?? "", query?["dst"] ?? "", clientId);
                     break;
 
                 case "/mkdir" when method == "POST":
-                    HandleMkdir(resp, root, query?["path"] ?? "");
+                    HandleMkdir(resp, query?["path"] ?? "");
                     break;
 
                 case "/events" when req.IsWebSocketRequest:
-                    await HandleWebSocketAsync(context, clients, ct);
+                    await HandleWebSocketAsync(context, ct);
                     return;
 
                 default:
@@ -246,20 +240,21 @@ public static class RemoteHost
         }
     }
 
-    private static async Task HandleInfoAsync(HttpListenerResponse resp, string root, string serverId)
+    private static async Task HandleInfoAsync(HttpListenerResponse resp)
     {
         var dto = new InfoResponseDto
         {
-            Root = root,
-            SyncPaths = ResolveSyncPaths(root),
-            ServerId = serverId,
+            Root = _root,
+            ProjectName = _projectName,
+            SyncPaths = ResolveSyncPaths(),
+            ServerId = _serverId,
             Protocol = RemoteProtocol.Version,
         };
         var json = JsonSerializer.Serialize(dto, RemoteJsonContext.Default.InfoResponseDto);
         await WriteJsonAsync(resp, json);
     }
 
-    private static async Task HandleListAsync(HttpListenerResponse resp, string root, string relPath, bool recursive)
+    private static async Task HandleListAsync(HttpListenerResponse resp, string relPath, bool recursive)
     {
         if (!IsSafePath(relPath))
         {
@@ -267,7 +262,7 @@ public static class RemoteHost
             return;
         }
 
-        var fullPath = string.IsNullOrEmpty(relPath) ? root : Path.Combine(root, relPath);
+        var fullPath = string.IsNullOrEmpty(relPath) ? _root : Path.Combine(_root, relPath);
         var dto = new ListResponseDto();
 
         if (Directory.Exists(fullPath))
@@ -275,7 +270,7 @@ public static class RemoteHost
             var option = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
             foreach (var file in Directory.EnumerateFiles(fullPath, "*", option))
             {
-                var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
+                var relative = Path.GetRelativePath(_root, file).Replace('\\', '/');
                 if (relative.StartsWith(".noz/")) continue;
                 var info = new FileInfo(file);
                 dto.Files.Add(new FileEntryDto
@@ -291,7 +286,7 @@ public static class RemoteHost
         await WriteJsonAsync(resp, json);
     }
 
-    private static void HandleFileHead(HttpListenerResponse resp, string root, string relPath)
+    private static void HandleFileHead(HttpListenerResponse resp, string relPath)
     {
         if (!IsSafePath(relPath) || string.IsNullOrEmpty(relPath))
         {
@@ -299,7 +294,7 @@ public static class RemoteHost
             return;
         }
 
-        var full = Path.Combine(root, relPath);
+        var full = Path.Combine(_root, relPath);
         if (!File.Exists(full))
         {
             resp.StatusCode = 404;
@@ -313,7 +308,7 @@ public static class RemoteHost
         resp.StatusCode = 200;
     }
 
-    private static async Task HandleFileGetAsync(HttpListenerResponse resp, string root, string relPath)
+    private static async Task HandleFileGetAsync(HttpListenerResponse resp, string relPath)
     {
         if (!IsSafePath(relPath) || string.IsNullOrEmpty(relPath))
         {
@@ -321,7 +316,7 @@ public static class RemoteHost
             return;
         }
 
-        var full = Path.Combine(root, relPath);
+        var full = Path.Combine(_root, relPath);
         if (!File.Exists(full))
         {
             resp.StatusCode = 404;
@@ -341,10 +336,8 @@ public static class RemoteHost
     private static async Task HandleFilePutAsync(
         HttpListenerRequest req,
         HttpListenerResponse resp,
-        string root,
         string relPath,
-        string? clientId,
-        ConcurrentDictionary<string, (string ClientId, DateTime When)> recentWrites)
+        string? clientId)
     {
         if (!IsSafePath(relPath) || string.IsNullOrEmpty(relPath))
         {
@@ -352,13 +345,13 @@ public static class RemoteHost
             return;
         }
 
-        var full = Path.Combine(root, relPath);
+        var full = Path.Combine(_root, relPath);
         var dir = Path.GetDirectoryName(full);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
         if (!string.IsNullOrEmpty(clientId))
-            recentWrites[relPath] = (clientId, DateTime.UtcNow);
+            _recentWrites[relPath] = (clientId, DateTime.UtcNow);
 
         using (var fs = File.Create(full))
             await req.InputStream.CopyToAsync(fs);
@@ -369,12 +362,7 @@ public static class RemoteHost
         resp.StatusCode = 200;
     }
 
-    private static void HandleFileDelete(
-        HttpListenerResponse resp,
-        string root,
-        string relPath,
-        string? clientId,
-        ConcurrentDictionary<string, (string ClientId, DateTime When)> recentWrites)
+    private static void HandleFileDelete(HttpListenerResponse resp, string relPath, string? clientId)
     {
         if (!IsSafePath(relPath) || string.IsNullOrEmpty(relPath))
         {
@@ -382,7 +370,7 @@ public static class RemoteHost
             return;
         }
 
-        var full = Path.Combine(root, relPath);
+        var full = Path.Combine(_root, relPath);
         if (!File.Exists(full))
         {
             resp.StatusCode = 404;
@@ -390,19 +378,13 @@ public static class RemoteHost
         }
 
         if (!string.IsNullOrEmpty(clientId))
-            recentWrites[relPath] = (clientId, DateTime.UtcNow);
+            _recentWrites[relPath] = (clientId, DateTime.UtcNow);
 
         File.Delete(full);
         resp.StatusCode = 204;
     }
 
-    private static void HandleMove(
-        HttpListenerResponse resp,
-        string root,
-        string src,
-        string dst,
-        string? clientId,
-        ConcurrentDictionary<string, (string ClientId, DateTime When)> recentWrites)
+    private static void HandleMove(HttpListenerResponse resp, string src, string dst, string? clientId)
     {
         if (!IsSafePath(src) || !IsSafePath(dst) || string.IsNullOrEmpty(src) || string.IsNullOrEmpty(dst))
         {
@@ -410,8 +392,8 @@ public static class RemoteHost
             return;
         }
 
-        var srcFull = Path.Combine(root, src);
-        var dstFull = Path.Combine(root, dst);
+        var srcFull = Path.Combine(_root, src);
+        var dstFull = Path.Combine(_root, dst);
         if (!File.Exists(srcFull))
         {
             resp.StatusCode = 404;
@@ -424,15 +406,15 @@ public static class RemoteHost
 
         if (!string.IsNullOrEmpty(clientId))
         {
-            recentWrites[src] = (clientId, DateTime.UtcNow);
-            recentWrites[dst] = (clientId, DateTime.UtcNow);
+            _recentWrites[src] = (clientId, DateTime.UtcNow);
+            _recentWrites[dst] = (clientId, DateTime.UtcNow);
         }
 
         File.Move(srcFull, dstFull);
         resp.StatusCode = 204;
     }
 
-    private static void HandleMkdir(HttpListenerResponse resp, string root, string relPath)
+    private static void HandleMkdir(HttpListenerResponse resp, string relPath)
     {
         if (!IsSafePath(relPath) || string.IsNullOrEmpty(relPath))
         {
@@ -440,19 +422,16 @@ public static class RemoteHost
             return;
         }
 
-        Directory.CreateDirectory(Path.Combine(root, relPath));
+        Directory.CreateDirectory(Path.Combine(_root, relPath));
         resp.StatusCode = 204;
     }
 
-    private static async Task HandleWebSocketAsync(
-        HttpListenerContext context,
-        ConcurrentDictionary<string, Client> clients,
-        CancellationToken ct)
+    private static async Task HandleWebSocketAsync(HttpListenerContext context, CancellationToken ct)
     {
         var wsContext = await context.AcceptWebSocketAsync(null);
         var id = Guid.NewGuid().ToString("N");
         var client = new Client { Socket = wsContext.WebSocket, Id = id };
-        clients[id] = client;
+        _clients[id] = client;
 
         var hello = JsonSerializer.Serialize(new EventDto { Op = "hello", Path = id }, RemoteJsonContext.Default.EventDto);
         var helloBytes = Encoding.UTF8.GetBytes(hello);
@@ -471,7 +450,7 @@ public static class RemoteHost
         catch { }
         finally
         {
-            clients.TryRemove(id, out _);
+            _clients.TryRemove(id, out _);
             try { wsContext.WebSocket.Dispose(); } catch { }
         }
     }

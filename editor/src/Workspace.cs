@@ -380,7 +380,7 @@ public static partial class Workspace
         UpdateState();
         UpdateCamera();
 
-        if (!CommandPalette.IsOpen && !AssetPalette.IsOpen && !ConfirmDialog.IsVisible && !UI.IsPopupMenuOpen())
+        if (!CommandPalette.IsOpen && !AssetPalette.IsOpen && !ConfirmDialog.IsVisible)
         {
             if (!UI.HasHot())
                 CommandManager.ProcessShortcuts();
@@ -648,27 +648,23 @@ public static partial class Workspace
             XrayModeChanged?.Invoke(XrayMode);
         }
 
-#if false
-        // Sync button — only visible for remote stores
-        var store = EditorApplication.Store;
-        if (store.CanSync)
+        var sync = EditorApplication.Sync;
+        if (sync != null)
         {
-            if (store.IsSyncing)
+            if (sync.IsSyncing)
             {
                 UI.Text("Syncing...", EditorStyle.Text.Disabled);
             }
-            else if (!store.IsAuthenticated && store.RequiresAuth)
+            else if (AnyDocumentEditing())
             {
-                if (UI.Button(WidgetIds.SyncButton, "Connect", EditorStyle.Button.IconOnly))
-                    Task.Run(() => store.LoginAsync());
+                UI.Text("Sync", EditorStyle.Text.Disabled);
             }
             else
             {
                 if (UI.Button(WidgetIds.SyncButton, "Sync", EditorStyle.Button.IconOnly))
-                    Task.Run(() => store.SyncAsync());
+                    Task.Run(() => sync.SyncAsync());
             }
         }
-#endif        
 
         UI.DropDown(
             WidgetIds.ContextMenu,
@@ -753,6 +749,13 @@ public static partial class Workspace
     public static void LateUpdate()
     {
         Workspace.ActiveEditor?.LateUpdate();
+    }
+
+    private static bool AnyDocumentEditing()
+    {
+        foreach (var doc in Project.Documents)
+            if (doc.IsEditing) return true;
+        return false;
     }
 
     private static void UpdateCulling()

@@ -297,6 +297,8 @@ public static partial class UI
 
     internal static void End()
     {
+        PopupHelper.Update();
+
         ElementTree.End();
 
         // Auto-clear hot if the widget wasn't built this frame

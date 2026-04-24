@@ -21,6 +21,7 @@ public class ListResponseDto
 public class InfoResponseDto
 {
     [JsonPropertyName("root")] public string Root { get; set; } = "";
+    [JsonPropertyName("projectName")] public string ProjectName { get; set; } = "";
     [JsonPropertyName("syncPaths")] public string[] SyncPaths { get; set; } = [];
     [JsonPropertyName("serverId")] public string ServerId { get; set; } = "";
     [JsonPropertyName("protocol")] public int Protocol { get; set; } = RemoteProtocol.Version;

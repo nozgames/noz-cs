@@ -402,7 +402,6 @@ public static class AtlasManager
 
     public static void RebuildTextureArray()
     {
-        // Defer disposal — current frame's render commands may still reference the old array
         _previousAtlasArray?.Dispose();
         _previousAtlasArray = TextureArray;
         TextureArray = null;
@@ -415,10 +414,17 @@ public static class AtlasManager
         var allAtlases = _atlases.Concat(_editorAtlases).Where(a => a.Image != null).ToList();
         if (allAtlases.Count > 0)
         {
-            var width = allAtlases[0].Image!.Width;
-            var height = allAtlases[0].Image!.Height;
-            var layerData = allAtlases.Select(a => a.Image!.AsReadonlySpan().ToArray()).ToArray();
-            TextureArray = Texture.CreateArray("GameSpriteAtlas", width, height, layerData);
+            var width = allAtlases[0].Image.Width;
+            var height = allAtlases[0].Image.Height;
+            var bytes = new byte[allAtlases.Count][];
+            for (int i = 0; i < allAtlases.Count; i++)
+            {
+                ref var image = ref allAtlases[i].Image;
+                var a = image.AsReadonlySpan().ToArray();
+                bytes[i] = a;
+            }                
+
+            TextureArray = Texture.CreateArray("GameSpriteAtlas", width, height, bytes);
         }
 
         // Update all sprites with the unified texture array

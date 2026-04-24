@@ -41,18 +41,18 @@ public class SyncManifest
     public bool IsLocallyModified(string path, DateTime mtime, long size)
     {
         if (!_files.TryGetValue(path, out var entry))
-            return true; // new file
+            return true;
         return mtime.Ticks != entry.ModifiedTicks || size != entry.FileSize;
     }
 
     public bool IsRemotelyModified(string path, string remoteSha)
     {
         if (!_files.TryGetValue(path, out var entry))
-            return true; // new file
+            return true;
         return entry.BlobSha != remoteSha;
     }
 
-    public void Save(IEditorStore store, string path)
+    public void Save(string absolutePath)
     {
         var props = new PropertySet();
         props.SetString("meta", "branch", Branch);
@@ -63,21 +63,19 @@ public class SyncManifest
         foreach (var (filePath, entry) in _files)
             props.SetString("files", filePath, $"{entry.BlobSha},{entry.ModifiedTicks},{entry.FileSize}");
 
-        props.Save(path);
+        props.Save(absolutePath);
     }
 
-    public static SyncManifest Load(IEditorStore store, string path)
+    public static SyncManifest Load(string absolutePath)
     {
-#if false        
         var manifest = new SyncManifest();
-        var props = PropertySetExtensions.LoadFile(store, path);
+        var props = PropertySet.LoadFile(absolutePath);
         if (props == null)
             return manifest;
 
         manifest.Branch = props.GetString("meta", "branch", "main");
-        manifest.RemoteCommitSha = props.GetString("meta", "remote_sha", "");
-        if (string.IsNullOrEmpty(manifest.RemoteCommitSha))
-            manifest.RemoteCommitSha = null;
+        var sha = props.GetString("meta", "remote_sha", "");
+        manifest.RemoteCommitSha = string.IsNullOrEmpty(sha) ? null : sha;
 
         var lastSync = props.GetString("meta", "last_sync", "");
         if (DateTime.TryParse(lastSync, out var dt))
@@ -101,8 +99,5 @@ public class SyncManifest
         }
 
         return manifest;
-#else
-        return null;
-#endif        
     }
 }

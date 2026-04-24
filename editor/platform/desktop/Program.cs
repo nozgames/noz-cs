@@ -26,7 +26,7 @@ public static class Program
                     ImportProject(editorPath!, args);
                     return;
 
-                case "remote-host":
+                case "host":
                     RunRemoteHost(args).Wait();
                     return;
 
@@ -139,45 +139,26 @@ public static class Program
     }
 
     private static void OpenProject(string editorPath, string[] args)
-    {                
-        IEditorStore? store = null;
-        string? projectArg = null;
-        string? remoteConnectHost = null;
-        var remoteConnectPort = RemoteProtocol.DefaultPort;
+    {
         var forwardArgs = new List<string>();
         var projectPath = Environment.CurrentDirectory;
+        var tablet = false;
 
         for (var i = 0; i < args.Length; i++)
         {
             if (args[i] == "--project" && i + 1 < args.Length)
                 projectPath = args[++i];
+            else if (args[i] == "--tablet")
+                tablet = true;
             else
-            {
                 forwardArgs.Add(args[i]);
-            }
         }
-
-        projectPath = Path.GetFullPath(projectPath);
-
-        // Desktop remote client (for local testing or a second machine editing a remote project)
-        // if (remoteConnectHost != null)
-        // {
-        //     store = new RemoteStore(remoteConnectHost, remoteConnectPort);
-
-        //     // Auto-isolate cache from the server's project dir when --project wasn't given.
-        //     if (projectArg == null)
-        //     {
-        //         var cacheDir = RemoteStore.GetCachePath(remoteConnectHost, remoteConnectPort);
-        //         Console.WriteLine($"Remote client cache: {cacheDir}");
-        //         forwardArgs.Add("--project");
-        //         forwardArgs.Add(cacheDir);
-        //     }
-        // }
 
         EditorApplication.Run(new EditorApplicationConfig
         {
-            ProjectPath = projectPath,
+            ProjectPath = Path.GetFullPath(projectPath),
             EditorPath = editorPath,
+            IsTablet = tablet,
         }, [.. forwardArgs]);
 
         Application.Shutdown();

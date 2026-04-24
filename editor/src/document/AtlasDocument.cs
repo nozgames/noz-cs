@@ -32,7 +32,7 @@ internal class AtlasDocument : Document
     public float PixelsPerUnit { get; private set; }
     public int Padding { get; private set; }
     public Texture Texture => _texture;
-    public PixelData<Color32>? Image => _image;
+    public ref PixelData<Color32> Image => ref _image;
     public int RectCount => _rects.Count;
     public int Index { get; internal set;  }
     public bool IsEditorOnly { get; set; }

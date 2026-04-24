@@ -232,12 +232,6 @@ public static partial class UI
                 if (!closedSubmenu)
                     Close();
             }
-        }
-
-        public static void UpdateUI()
-        {
-            if (!_visible)
-                return;
 
             Action? executed = null;
             var shouldClose = false;

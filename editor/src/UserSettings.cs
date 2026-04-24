@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 public static class UserSettings
 {
-    public const string Path = ".noz/user.cfg";
+    public const string Path = ".noz/project.cfg";
 
     public static PropertySet? LoadPropertySet() =>
         PropertySet.LoadFile(System.IO.Path.Combine(Project.Path, Path));
