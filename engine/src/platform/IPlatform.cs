@@ -78,6 +78,7 @@ public interface IPlatform
     void SetFullscreen(bool fullscreen);
     void SetVSync(bool vsync);
     void SetHighRefreshRate(bool enabled) { }
+    void SetPowerMode(PowerMode mode) { }
 
     nint WindowHandle { get; }
 

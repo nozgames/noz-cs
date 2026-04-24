@@ -25,7 +25,9 @@ public partial class PixelDocument : SpriteDocument
         get => _brushSize;
         set
         {
-            _brushSize = Math.Clamp(value, MinBrushSize, MaxBrushSize);
+            var brushSize = Math.Clamp(value, MinBrushSize, MaxBrushSize);
+            if (brushSize == _brushSize) return;
+            _brushSize = brushSize;
             IncrementVersion();
         }
     }
@@ -36,6 +38,7 @@ public partial class PixelDocument : SpriteDocument
         set
         {
             _brushColor = value;
+            if (value == _brushColor) return;
             IncrementVersion();
         }
     }

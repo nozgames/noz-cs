@@ -91,6 +91,8 @@ public static class VfxSystem
 
     public static Shader? Shader { get; set; }
 
+    public static int ActiveInstanceCount => _instanceCount;
+
     public static void Init()
     {
         _particles = new Particle[MaxParticles];

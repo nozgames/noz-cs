@@ -227,7 +227,7 @@ public static partial class EditorApplication
                 _mainThreadQueue.Dequeue().Invoke();
 
         if (!Application.HasFocus && !(Workspace.ActiveEditor is { RunInBackground: true}))
-            Thread.Sleep(1000 / 30);
+            Application.PowerMode = PowerMode.Conserve;
 
         if (Application.IsTablet && !Project.IsInitialized)
             ProjectLoader.UpdateUI();

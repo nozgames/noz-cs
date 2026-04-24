@@ -94,26 +94,29 @@ public partial class PixelEditor
         var pixels = layer.Pixels;
         var mask = Document.SelectionMask;
         var alphaLock = AlphaLock;
-        var offset = (BrushSize - 1) / 2;
-        var discCenter = (BrushSize - 1) / 2.0f;
-        var discR = BrushSize * 0.5f;
+        // Hard brush operates on whole cells: coerce to an integer ≥ 1 so the smallest
+        // slider value (0.5) still paints one pixel, and so offsets match DrawBrushOutline.
+        var size = Math.Max(1, (int)BrushSize);
+        var offset = (size - 1) / 2;
+        var discCenter = (size - 1) / 2.0f;
+        var discR = size * 0.5f;
         var discR2 = discR * discR;
         var apronR = discR + ApronWidth;
         var apronR2 = apronR * apronR;
         var apronBox = (int)MathF.Ceiling(ApronWidth);
 
-        for (var dy = -apronBox; dy < BrushSize + apronBox; dy++)
-            for (var dx = -apronBox; dx < BrushSize + apronBox; dx++)
+        for (var dy = -apronBox; dy < size + apronBox; dy++)
+            for (var dx = -apronBox; dx < size + apronBox; dx++)
             {
                 var ddx = dx - discCenter;
                 var ddy = dy - discCenter;
                 var d2 = ddx * ddx + ddy * ddy;
-                var inBox = dx >= 0 && dx < BrushSize && dy >= 0 && dy < BrushSize;
+                var inBox = dx >= 0 && dx < size && dy >= 0 && dy < size;
                 var inDisc = inBox && d2 <= discR2;
                 if (!inDisc && d2 > apronR2) continue;
 
-                var px = (int)(pixel.X - offset + dx);
-                var py = (int)(pixel.Y - offset + dy);
+                var px = pixel.X - offset + dx;
+                var py = pixel.Y - offset + dy;
                 if (tiling)
                 {
                     // Wrap only pixels that actually fell outside; most brush pixels sit
@@ -149,9 +152,9 @@ public partial class PixelEditor
         }
         else
         {
-            var minX = (int)(pixel.X - offset - apronBox);
-            var minY = (int)(pixel.Y - offset - apronBox);
-            var sz = (int)(BrushSize + apronBox * 2);
+            var minX = pixel.X - offset - apronBox;
+            var minY = pixel.Y - offset - apronBox;
+            var sz = size + apronBox * 2;
             InvalidateComposite(new RectInt(minX, minY, sz, sz));
         }
     }
@@ -405,14 +408,15 @@ public partial class PixelEditor
 
     public void DrawBrushOutline(Vector2Int pixel, Color color)
     {
-        var runs = GetBrushRuns((int)BrushSize);
+        var size = Math.Max(1, (int)BrushSize);
+        var runs = GetBrushRuns(size);
         if (runs.Length == 0) return;
 
         var canvas = CanvasRect;
         var epr = EditablePixelRect;
         var cellW = canvas.Width / epr.Width;
         var cellH = canvas.Height / epr.Height;
-        var brushOffset = ((int)BrushSize - 1) / 2;
+        var brushOffset = (size - 1) / 2;
         var originX = canvas.X + (pixel.X - epr.X - brushOffset) * cellW;
         var originY = canvas.Y + (pixel.Y - epr.Y - brushOffset) * cellH;
         var halfWidth = EditorStyle.Workspace.DocumentBoundsLineWidth * Gizmos.ZoomRefScale;

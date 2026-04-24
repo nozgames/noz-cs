@@ -12,6 +12,8 @@ namespace NoZ.Platform;
 
 public static class iOSPlatformSetup
 {
+    private static CADisplayLink? _displayLink;
+
     public static void Init()
     {
         // Redirect wgpu DllImport calls to statically linked symbols.
@@ -46,13 +48,15 @@ public static class iOSPlatformSetup
         // Tell SDL we're managing our own entry point (no SDL_main).
         SDL_SetMainReady();
 
-        // Use CADisplayLink for frame callbacks on iOS.
-        // SDL_SetiOSAnimationCallback triggers a conflicting SDL_RunApp crash
-        // when UIApplication.Main is used from .NET.
         SDLPlatform.SetupDisplayLink = callback =>
         {
-            var displayLink = CADisplayLink.Create(callback);
-            displayLink.AddToRunLoop(NSRunLoop.Main, NSRunLoopMode.Default);
+            _displayLink = CADisplayLink.Create(callback);
+            _displayLink.AddToRunLoop(NSRunLoop.Main, NSRunLoopMode.Default);
+        };
+
+        SDLPlatform.SetDisplayLinkFrameRate = fps =>
+        {
+            _displayLink?.PreferredFramesPerSecond = fps;
         };
     }
 }

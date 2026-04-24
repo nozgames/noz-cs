@@ -64,6 +64,7 @@ public partial class VectorSpriteEditor : SpriteEditor
     public static List<SpritePath> HitPaths => _hitPaths;
 
     public override bool ShowInspector => _showInspector;
+    public override PowerMode PowerMode => _isPlaying ? PowerMode.Performance : PowerMode.Balanced;
 
     private int CurrentFrameIndex =>
         Document.GetFrameAtTimeSlot(_currentTimeSlot);

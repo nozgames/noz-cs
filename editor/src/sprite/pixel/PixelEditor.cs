@@ -443,8 +443,6 @@ public partial class PixelEditor : SpriteEditor
         if (_lastCompositeVersion == Document.Version)
             return;
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
         _lastCompositeVersion = Document.Version;
 
         var epr = EditablePixelRect;

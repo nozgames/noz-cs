@@ -46,6 +46,7 @@ public static partial class Workspace
 
     private static Camera _camera = null!;
 
+    private static Vector2 _lastMousePosition;
     private static float _zoom = ZoomDefault;
     private static float _inspectorSize = 300f;
     private static float _outlinerSize = 200f;
@@ -380,6 +381,8 @@ public static partial class Workspace
     
     public static void Update()
     {
+        UpdatePowerMode();
+
         ActiveEditor?.PreUpdate();
 
         UpdateState();
@@ -423,6 +426,26 @@ public static partial class Workspace
         }
 
         UpdateCulling();
+    }
+
+    private static void UpdatePowerMode()
+    {
+        var mode = PowerMode.Balanced;
+
+        if (Input.IsButtonDownRaw(InputCode.MouseLeft) ||
+            Input.IsButtonDownRaw(InputCode.MouseRight) ||
+            Input.IsButtonDownRaw(InputCode.Pen) ||
+            _lastMousePosition != _mousePosition ||
+            Touch.IsTouching)
+            mode = PowerMode.Performance;
+
+        if (ActiveEditor != null && ActiveEditor.PowerMode > mode)
+            mode = ActiveEditor.PowerMode;
+
+        if (mode < PowerMode.Performance && VfxSystem.ActiveInstanceCount > 0)
+            mode = PowerMode.Performance;
+
+        Application.PowerMode = mode;
     }
 
     private static void DrawScene()
@@ -1026,6 +1049,7 @@ public static partial class Workspace
     
     private static void UpdateMouse()
     {
+        _lastMousePosition = _mousePosition;
         _mousePosition = Input.MousePosition;
         _mouseWorldPosition = _camera.ScreenToWorld(_mousePosition);
         if (Application.IsTablet)

@@ -13,6 +13,7 @@ public static class Application
     private static bool _running;
     private static bool _focused = true;
     private static bool _assetTypesRegistered = false;
+    private static PowerMode _powerMode = PowerMode.Performance;
 
     private static IApplication _instance = null!;
 
@@ -26,6 +27,17 @@ public static class Application
     public static bool IsTablet { get; private set; }
 
     public static bool HasFocus => _focused;
+    
+    public static PowerMode PowerMode
+    {
+        get => _powerMode;
+        set
+        {
+            if (_powerMode == value) return;
+            _powerMode = value;
+            Platform?.SetPowerMode(value);
+        }
+    }
 
     public static event Action? BeginFrame;
     public static event Action? PreFrame;

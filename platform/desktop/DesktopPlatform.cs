@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using SDL;
@@ -25,6 +26,8 @@ public unsafe partial class SDLPlatform : IPlatform
     private nint _metalLayer;
     private Action? _resizeCallback;
     private static SDLPlatform? _instance;
+    private long _targetFrameTicks;
+    private long _lastFrameTicks;
 
     private readonly SDL_Cursor*[] _cursors = new SDL_Cursor*[Enum.GetValues<SystemCursor>().Length];
     private SystemCursor _currentCursor = SystemCursor.Default;
@@ -34,9 +37,13 @@ public unsafe partial class SDLPlatform : IPlatform
     private Action? _beforeQuit;
     private bool _isTablet;
     private float _eventPixelScale = 1.0f;
-
+    private static Func<bool>? _frameCallback;
+    
     public bool IsMouseInWindow => _isMouseInWindow;
     public bool IsMouseCaptured => _isMouseCaptured;
+
+    public static Action<Action>? SetupDisplayLink { get; set; }
+    public static Action<int>? SetDisplayLinkFrameRate { get; set; }
 
     public Vector2Int WindowSize { get; private set; }
 
@@ -235,10 +242,25 @@ public unsafe partial class SDLPlatform : IPlatform
     {
     }
 
-    private static Func<bool>? _frameCallback;
 
-    /// Set by iOSPlatformSetup to wire up a CADisplayLink for the frame loop.
-    public static Action<Action>? SetupDisplayLink { get; set; }
+    private void LimitFrameRate()
+    {
+        if (_targetFrameTicks > 0)
+        {
+            var now = Stopwatch.GetTimestamp();
+            var remaining = _targetFrameTicks - (now - _lastFrameTicks);
+            if (remaining > 0)
+            {
+                // Sleep for the whole millisecond portion, spin for the sub-ms tail.
+                var sleepMs = (int)((remaining * 1000) / Stopwatch.Frequency) - 1;
+                if (sleepMs > 0)
+                    Thread.Sleep(sleepMs);
+                while (Stopwatch.GetTimestamp() - _lastFrameTicks < _targetFrameTicks)
+                    Thread.SpinWait(64);
+            }
+        }
+        _lastFrameTicks = Stopwatch.GetTimestamp();
+    }
 
     public void RunLoop(Func<bool> frameCallback)
     {
@@ -248,10 +270,25 @@ public unsafe partial class SDLPlatform : IPlatform
             SetupDisplayLink(() => _frameCallback?.Invoke());
             // UIApplication.Main owns the run loop on iOS — just return.
         }
-        else
         {
-            while (frameCallback()) { }
+            while (frameCallback())
+                LimitFrameRate();
         }
+    }
+
+    public void SetPowerMode(PowerMode mode)
+    {
+        var fps = mode switch
+        {
+            PowerMode.Conserve => 30,
+            PowerMode.Balanced => 60,
+            _ => 0
+        };
+
+        if (OperatingSystem.IsIOS() && SetDisplayLinkFrameRate != null)
+            SetDisplayLinkFrameRate(fps);
+        else
+            _targetFrameTicks = fps > 0 ? Stopwatch.Frequency / fps : 0;
     }
 
     private void ProcessEvent(SDL_Event evt)
