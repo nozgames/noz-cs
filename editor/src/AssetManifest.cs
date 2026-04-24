@@ -118,7 +118,7 @@ public static class AssetManifest
 
     private static void GenerateCs(EditorConfig config)
     {
-        var path = config.GenerateCs!;
+        var path = Path.Combine(Project.Path, config.GenerateCs!);
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
@@ -362,7 +362,7 @@ public static class AssetManifest
 
     private static void GenerateLua(EditorConfig config)
     {
-        var path = config.GenerateLua!;
+        var path = Path.Combine(Project.Path, config.GenerateLua!);
         var className = config.LuaClass;
 
         var dir = Path.GetDirectoryName(path);

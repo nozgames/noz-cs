@@ -4,6 +4,7 @@
 
 using System.Reflection;
 using Foundation;
+using NoZ;
 using NoZ.Editor;
 using NoZ.Platform;
 using UIKit;
@@ -23,6 +24,8 @@ public class EditorAppDelegate : UIApplicationDelegate
         EditorApplication.Run(new EditorApplicationConfig
         {
             ProjectPath = projectPath,
+            EditorPath = AppContext.BaseDirectory,
+            IsTablet = true,
             ResourceAssembly = Assembly.GetExecutingAssembly(),
         }, []);
 

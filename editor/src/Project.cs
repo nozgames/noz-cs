@@ -44,6 +44,7 @@ public static class Project
 
     public static void Init(string projectPath, EditorConfig config)
     {
+        Path = projectPath.Replace('\\', '/');
         _sourcePaths.Clear();
         _sourcePaths.AddRange(config.SourcePaths.Select(p => CombinePath(projectPath, p)));
         _outputPath = CombinePath(projectPath, config.OutputPath);
@@ -197,7 +198,7 @@ public static class Project
         if (def == null)
             return null;
 
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
+        var normalizedPath = path.Replace('\\', '/');
         var doc = def.Factory(normalizedPath);
         doc.Def = def;
         doc.Path = normalizedPath;
@@ -421,7 +422,7 @@ public static class Project
 
         var oldName = doc.Name;
 
-        doc.Path = newPath.Replace('\\', '/').ToLowerInvariant();
+        doc.Path = newPath.Replace('\\', '/');
         doc.Name = canonicalName;
         doc.IncrementVersion();
 
