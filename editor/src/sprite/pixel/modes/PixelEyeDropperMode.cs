@@ -4,13 +4,14 @@
 
 namespace NoZ.Editor;
 
-public class PixelEyeDropperMode(EditorMode previousMode) : EditorMode<PixelEditor>
+public class PixelEyeDropperMode(EditorMode previousMode, bool altMode=false) : EditorMode<PixelEditor>
 {
     private readonly EditorMode _previousMode = previousMode;
+    private readonly bool _altMode = altMode;
 
     public override void Update()
     {
-        if (!Application.IsTablet && !Input.IsButtonDown(InputCode.KeyLeftAlt, InputScope.All))
+        if (_altMode && !Input.IsButtonDown(InputCode.KeyLeftAlt, InputScope.All))
         {
             Finish();
             return;
@@ -38,7 +39,7 @@ public class PixelEyeDropperMode(EditorMode previousMode) : EditorMode<PixelEdit
     public void Finish(Color32? color = null)
     {
         if (color.HasValue && color.Value.A > 0)
-            Editor.Document.BrushColor = color.Value;            
+            Editor.Document.BrushColor = color.Value.WithAlpha(Editor.Document.BrushColor.A);
 
         if (_previousMode is PixelEraserMode)
             Editor.SetBrushMode(Editor.Document.BrushType);

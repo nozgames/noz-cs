@@ -78,6 +78,7 @@ public static unsafe partial class ElementTree
                 ClosePopups = true;
                 _inputMousePressed = false;
                 Input.ConsumeButton(InputCode.MouseLeft);
+                Input.ConsumeButton(InputCode.Pen);
             }
         }
     }
@@ -128,8 +129,9 @@ public static unsafe partial class ElementTree
         _inputMousePressed = 
             Input.WasButtonPressedRaw(InputCode.MouseLeft) ||
             Input.WasButtonPressedRaw(InputCode.Pen);
-        _inputMouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft) ||
-                         Input.IsButtonDownRaw(InputCode.Pen);            
+        _inputMouseDown =
+            Input.IsButtonDownRaw(InputCode.MouseLeft) ||
+            Input.IsButtonDownRaw(InputCode.Pen);            
 
         if (_captureId != 0 && !_inputMouseDown)
         {
@@ -382,7 +384,10 @@ public static unsafe partial class ElementTree
         {
             state.Flags |= WidgetFlags.Pressed;
             if (d.IsInteractive)
+            {
                 Input.ConsumeButton(InputCode.MouseLeft);
+                Input.ConsumeButton(InputCode.Pen);
+            }                
         }
 
         if (isCaptured ? _inputMouseDown : (isDeepHovered && _inputMouseDown && _captureId == 0))

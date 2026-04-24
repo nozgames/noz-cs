@@ -35,6 +35,8 @@ public partial class PixelEditor : SpriteEditor
         public static partial WidgetId BrushSizeSlider { get; }
         public static partial WidgetId BrushAlphaSlider { get; }
         public static partial WidgetId EyeDropper { get; }
+        public static partial WidgetId Undo { get; }
+        public static partial WidgetId Redo { get; }
     }    
 
     private static bool s_showLayers = true;
@@ -328,7 +330,7 @@ public partial class PixelEditor : SpriteEditor
         DrawPixelGrid();
 
         if (Input.IsButtonDown(InputCode.KeyLeftAlt, InputScope.All) && Mode is not PixelEyeDropperMode)
-            SetMode(new PixelEyeDropperMode(Mode!));
+            SetMode(new PixelEyeDropperMode(Mode!, altMode: true));
 
         if (Mode is not PixelTransformMode)
             DrawSelectionOutline();
@@ -355,7 +357,8 @@ public partial class PixelEditor : SpriteEditor
         using var column = UI.BeginColumn(new ContainerStyle { 
             Width = EditorStyle.Control.Height,
             Height = Size.Percent(1),
-            Margin = new EdgeInsets(16, 8, 16, 0)
+            Margin = new EdgeInsets(16, 8, 16, 0),
+            Spacing = 8
         });
 
         UI.Flex();
@@ -372,14 +375,10 @@ public partial class PixelEditor : SpriteEditor
             }                
         }
 
-        UI.Spacer(16);
-
         using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
         using (UI.BeginContainer(EditorStyle.SpriteEditor.EyeDropper))
             if (UI.Button(WidgetIds.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: Mode is PixelEyeDropperMode))
                 SetMode(new PixelEyeDropperMode(Mode!));
-
-        UI.Spacer(16);
 
         using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
         using (UI.BeginColumn(EditorStyle.SpriteEditor.BrushSlider))
@@ -388,54 +387,28 @@ public partial class PixelEditor : SpriteEditor
             using (UI.BeginFlex())
                 Document.BrushColor = Document.BrushColor.WithAlpha((byte)UI.VerticalSlider(WidgetIds.BrushAlphaSlider, BrushColor.A, style: EditorStyle.Slider.Style with { Step = 1f }, min: 0, max: 255));
         }
+        
+        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
+        using (UI.BeginContainer(EditorStyle.SpriteEditor.EyeDropper))
+            if (UI.Button(WidgetIds.Undo, EditorAssets.Sprites.IconUndo, EditorStyle.Button.ToggleIcon))
+                Undo.DoUndo();
+
+        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
+        using (UI.BeginContainer(EditorStyle.SpriteEditor.EyeDropper))
+            if (UI.Button(WidgetIds.Redo, EditorAssets.Sprites.IconRedo, EditorStyle.Button.ToggleIcon))
+                Undo.DoRedo();
 
         UI.Flex();
     }
 
     public override void UpdateOverlayUI()
     {
-        using (FloatingToolbar.Begin())
-        {
-            if (FloatingToolbar.Button(WidgetIds.FillButton, EditorAssets.Sprites.IconFloodFill, isSelected: Mode is PixelFillMode))
-                SetMode(new PixelFillMode());
-            EditorUI.Tooltip(WidgetIds.FillButton, "Fill");
-
-            FloatingToolbar.Divider();
-
-            if (FloatingToolbar.Button(WidgetIds.RectSelectButton, EditorAssets.Sprites.IconSelect, isSelected: Mode is PixelRectSelectMode))
-                SetMode(new PixelRectSelectMode());
-            EditorUI.Tooltip(WidgetIds.RectSelectButton, "Rectangle Select");
-
-            if (FloatingToolbar.Button(WidgetIds.LassoSelectButton, EditorAssets.Sprites.IconSelect, isSelected: Mode is PixelLassoSelectMode))
-                SetMode(new PixelLassoSelectMode());
-            EditorUI.Tooltip(WidgetIds.LassoSelectButton, "Lasso Select");
-
-            if (FloatingToolbar.Button(WidgetIds.MoveButton, EditorAssets.Sprites.IconMove, isSelected: Mode is PixelTransformMode))
-                SetMode(new PixelTransformMode());
-            EditorUI.Tooltip(WidgetIds.MoveButton, "Move");
-
-            FloatingToolbar.Divider();
-
-            if (FloatingToolbar.Button(WidgetIds.AlphaLockButton, EditorAssets.Sprites.IconLock, isSelected: AlphaLock))
-                AlphaLock = !AlphaLock;
-            EditorUI.Tooltip(WidgetIds.AlphaLockButton, "Alpha Lock");
-
-            if (FloatingToolbar.Button(WidgetIds.TilingButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
-                Document.ShowTiling = !Document.ShowTiling;
-            EditorUI.Tooltip(WidgetIds.TilingButton, "Tiling Preview");
-
-            if (FloatingToolbar.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, isSelected: Document.ShowSkeletonOverlay))
-                Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
-            EditorUI.Tooltip(WidgetIds.ShowSkeletonOverlay, "Skeleton Overlay");
-
-            FloatingToolbar.Divider();
-
-            if (Document.IsAnimated && Document.FrameCount > 1)
+        if (Document.IsAnimated)
+            using (FloatingToolbar.Begin())
             {
                 FloatingToolbar.Row();
                 DopeSheetUI();
             }
-        }
     }
 
     private void CompositeCanvas()
@@ -1102,6 +1075,34 @@ public partial class PixelEditor : SpriteEditor
         if (UI.Button(WidgetIds.IsolationToggle, EditorAssets.Sprites.IconIsolate, EditorStyle.Button.ToggleIcon, isSelected: Workspace.Isolation))  
             Workspace.ToggleIsolation();
 
+        EditorUI.PanelSeparator();
+
+        if (UI.Button(WidgetIds.RectSelectButton, EditorAssets.Sprites.IconSelect, EditorStyle.Button.ToggleIcon, isSelected: Mode is PixelRectSelectMode))
+            SetMode(new PixelRectSelectMode());
+        EditorUI.Tooltip(WidgetIds.RectSelectButton, "Rectangle Select");
+
+        if (UI.Button(WidgetIds.LassoSelectButton, EditorAssets.Sprites.IconSelect, EditorStyle.Button.ToggleIcon, isSelected: Mode is PixelLassoSelectMode))
+            SetMode(new PixelLassoSelectMode());
+        EditorUI.Tooltip(WidgetIds.LassoSelectButton, "Lasso Select");
+
+        if (UI.Button(WidgetIds.MoveButton, EditorAssets.Sprites.IconMove, EditorStyle.Button.ToggleIcon, isSelected: Mode is PixelTransformMode))
+            SetMode(new PixelTransformMode());
+        EditorUI.Tooltip(WidgetIds.MoveButton, "Move");
+
+        EditorUI.PanelSeparator();
+
+        if (UI.Button(WidgetIds.AlphaLockButton, EditorAssets.Sprites.IconLock, EditorStyle.Button.ToggleIcon, isSelected: AlphaLock))
+            AlphaLock = !AlphaLock;
+        EditorUI.Tooltip(WidgetIds.AlphaLockButton, "Alpha Lock");
+
+        if (UI.Button(WidgetIds.TilingButton, EditorAssets.Sprites.IconTiling, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowTiling))
+            Document.ShowTiling = !Document.ShowTiling;
+        EditorUI.Tooltip(WidgetIds.TilingButton, "Tiling Preview");
+
+        if (UI.Button(WidgetIds.ShowSkeletonOverlay, EditorAssets.Sprites.IconBone, EditorStyle.Button.ToggleIcon, isSelected: Document.ShowSkeletonOverlay))
+            Document.ShowSkeletonOverlay = !Document.ShowSkeletonOverlay;
+        EditorUI.Tooltip(WidgetIds.ShowSkeletonOverlay, "Skeleton Overlay");
+
         UI.Flex();
 
         var isPaintMode = Mode is BrushMode;
@@ -1125,6 +1126,9 @@ public partial class PixelEditor : SpriteEditor
         }
 
         EraserPopup();
+
+        if (UI.Button(WidgetIds.FillButton, EditorAssets.Sprites.IconFloodFill, EditorStyle.Button.ToggleIcon, isSelected: Mode is PixelFillMode))
+            SetMode(new PixelFillMode());
 
         var color = BrushColor.ToColor();
         var newColor = EditorUI.ColorButton(WidgetIds.BrushColor, color, style: new ColorButtonStyle { Popup = EditorStyle.PopupBelow, ShowAlpha = false, ShowClose = false });

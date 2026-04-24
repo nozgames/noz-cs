@@ -664,9 +664,6 @@ public static partial class Workspace
             return items;
         }
 
-        if (UI.Button(WidgetIds.IsolationButton, EditorAssets.Sprites.IconIsolate, EditorStyle.Button.ToggleIcon, isSelected: !_isolation))
-            ToggleIsolation();
-
         if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon, isSelected: _showReferences))
             _showReferences = !_showReferences;
 
