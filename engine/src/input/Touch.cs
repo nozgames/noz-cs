@@ -113,8 +113,6 @@ public static class Touch
 
         for (var i = 0; i < MaxFingers; i++)
             _fingers[i].Delta = Vector2.Zero;
-
-        CheckLongPress();
     }
 
     public static void ProcessEvent(PlatformEvent evt)
@@ -207,9 +205,20 @@ public static class Touch
             switch (_mouseSimState)
             {
                 case MouseSimState.Pending:
+                    // Resolve tap vs. long-press at release time. If the finger was
+                    // held past the long-press duration and never moved far enough
+                    // to promote to Dragging, treat it as a right-click; otherwise
+                    // it's a normal left-click tap. Deferring the decision to touch-up
+                    // lets "press, pause, drag" still commit to a drag — any movement
+                    // past the drag threshold during the hold promotes to Dragging.
+                    var heldTime = Time.TotalTime - f.DownTime;
+                    var moved = Vector2.Distance(f.Position, f.StartPosition);
+                    var button = (heldTime >= LongPressDuration && moved < DragThreshold)
+                        ? InputCode.MouseRight
+                        : InputCode.MouseLeft;
                     Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
-                    Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
-                    Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseLeft));
+                    Input.ProcessEvent(PlatformEvent.MouseDown(button));
+                    Input.ProcessEvent(PlatformEvent.MouseUp(button));
                     break;
                 case MouseSimState.Dragging:
                     Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
@@ -286,10 +295,12 @@ public static class Touch
             if (_mouseSimState == MouseSimState.Pending &&
                 Vector2.Distance(evt.TouchPosition, _mouseSimStartPosition) > DragThreshold)
             {
+                // Leave MousePosition at the start point for this frame so UI
+                // hit-testing fires WasPressed on the originally-touched widget.
+                // The next TouchMove (or TouchUp) advances MousePosition to current.
                 _mouseSimState = MouseSimState.Dragging;
                 Input.ProcessEvent(PlatformEvent.MouseMove(_mouseSimStartPosition));
                 Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseLeft));
-                Input.ProcessEvent(PlatformEvent.MouseMove(evt.TouchPosition));
             }
             else if (_mouseSimState == MouseSimState.Dragging ||
                      _mouseSimState == MouseSimState.DraggingWithSnap)
@@ -342,22 +353,6 @@ public static class Touch
             _twoFingerPanning = false;
         else if (_mouseSimState != MouseSimState.DraggingWithSnap)
             RebaselineTwoFinger();
-    }
-
-    private static void CheckLongPress()
-    {
-        if (!SimulateMouse || _mouseSimState != MouseSimState.Pending) return;
-
-        var slot = FindSlot(_mouseSimulatedFingerId);
-        if (slot < 0) return;
-
-        ref readonly var f = ref _fingers[slot];
-        if (Time.TotalTime - f.DownTime < LongPressDuration) return;
-
-        _mouseSimState = MouseSimState.Suppressed;
-        Input.ProcessEvent(PlatformEvent.MouseMove(f.Position));
-        Input.ProcessEvent(PlatformEvent.MouseDown(InputCode.MouseRight));
-        Input.ProcessEvent(PlatformEvent.MouseUp(InputCode.MouseRight));
     }
 
     private static void RebaselineTwoFinger()

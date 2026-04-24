@@ -126,12 +126,12 @@ public static unsafe partial class ElementTree
         if (_elements.Length < 2) return;
         using var _m = s_markerInput.Begin();
 
-        _inputMousePressed = 
+        _inputMousePressed =
             Input.WasButtonPressedRaw(InputCode.MouseLeft) ||
             Input.WasButtonPressedRaw(InputCode.Pen);
         _inputMouseDown =
             Input.IsButtonDownRaw(InputCode.MouseLeft) ||
-            Input.IsButtonDownRaw(InputCode.Pen);            
+            Input.IsButtonDownRaw(InputCode.Pen);
 
         if (_captureId != 0 && !_inputMouseDown)
         {
@@ -387,7 +387,7 @@ public static unsafe partial class ElementTree
             {
                 Input.ConsumeButton(InputCode.MouseLeft);
                 Input.ConsumeButton(InputCode.Pen);
-            }                
+            }
         }
 
         if (isCaptured ? _inputMouseDown : (isDeepHovered && _inputMouseDown && _captureId == 0))
