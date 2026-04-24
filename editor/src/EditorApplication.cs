@@ -73,14 +73,12 @@ public static partial class EditorApplication
 
     public enum AppPhase { Launching, Running }
 
-    private static bool _clean;
-    private static bool _isTablet;
     private static bool _projectInitialized;
     private static readonly Queue<Action> _mainThreadQueue = new();
 
     internal static EditorApplicationConfig AppConfig { get; private set; } = null!;
 
-    public static IEditorStore Store { get; private set; } = null!;
+    //public static IEditorStore Store { get; private set; } = null!;
     public static EditorConfig Config { get; private set; } = null!;
     public static string OutputPath { get; private set; } = null!;
     public static string EditorPath { get; private set; } = null!;
@@ -110,8 +108,49 @@ public static partial class EditorApplication
 
     public static void Run(EditorApplicationConfig config, string[] args)
     {
+        Init(config);
+
+        Application.Init(new ApplicationConfig
+        {
+            Title = config.Title,
+            Width = 1920,
+            Height = 1080,
+            HotReload = false,
+            IconPath = config.IconPath ?? "res/windows/nozed.png",
+            Platform = new SDLPlatform(),
+            AudioBackend = new SDLAudioDriver(),
+            Vtable = new EditorApplicationInstance(),
+            AssetPath = Path.Combine(EditorPath, "library"),
+            IsTablet = config.IsTablet,
+            ResourceAssembly = config.ResourceAssembly,
+            UI = new UIConfig()
+            {
+                DefaultFont = EditorAssets.Names.Seguisb,
+                ScaleMode = UIScaleMode.ConstantPixelSize,
+            },
+            Graphics = new GraphicsConfig
+            {
+                Driver = new WebGPUGraphicsDriver(),
+                PixelsPerUnit = Config?.PixelsPerUnit ?? 256,
+                Vsync = true,
+                HDR = true
+            }
+        });
+
+        Touch.SimulateMouse = Application.IsTablet;
+
+        Application.Run();
+
+        // On iOS, Run() returns immediately — CADisplayLink drives frames.
+        // Shutdown will be called when the app terminates.
+        if (OperatingSystem.IsIOS())
+            return;
+
+        Shutdown();
+        Application.Shutdown();
+
+
 #if false        
-        AppConfig = config;
         var initProject = false;
         var exportOnly = false;
         var profilerMode = false;
@@ -339,6 +378,7 @@ public static partial class EditorApplication
 
     private static void Init(EditorApplicationConfig config)
     {
+        AppConfig = config;
         EditorPath = config.EditorPath!;
         ProjectPath = config.ProjectPath!;
         _projectInitialized = false;
@@ -348,19 +388,15 @@ public static partial class EditorApplication
         // Launching phase, the LocalStore here is a benign sentinel so
         // downstream code (user.cfg load, PostLoad) has a valid Store; the
         // launcher swaps in a real store via BeginProject().
-        var useLauncher = AppConfig.Store == null && (OperatingSystem.IsIOS() || _isTablet);
-        //Store = AppConfig.Store ?? new LocalStore(ProjectPath);
-        Phase = useLauncher ? AppPhase.Launching : AppPhase.Running;
+        // var useLauncher = AppConfig.Store == null && (OperatingSystem.IsIOS() || _isTablet);
+        // //Store = AppConfig.Store ?? new LocalStore(ProjectPath);
+        // Phase = useLauncher ? AppPhase.Launching : AppPhase.Running;
 
         // Register asset/document types (static registrations, no files needed)
         Application.RegisterAssetTypes();
         config.RegisterAssetTypes?.Invoke();
 
-
-        // If store is ready, initialize the project now.
-        // When in Launching phase the launcher will drive BeginProject().
-        if (Phase == AppPhase.Running && Store.IsReady)
-            InitProject();
+        LoadProject(config.ProjectPath!);
     }
 
     public static void BeginProject(IEditorStore store, string projectPath)
@@ -370,11 +406,8 @@ public static partial class EditorApplication
             Log.Warning("BeginProject called while not in Launching phase; ignoring.");
             return;
         }
-
-        Store.Dispose();
-        Store = store;
+        
         ProjectPath = projectPath;
-        //Store.Init(projectPath);
         Phase = AppPhase.Running;
         _projectInitialized = false;
     }
@@ -390,15 +423,12 @@ public static partial class EditorApplication
             return;
         }
 
-        Store.Dispose();
-        var sentinel = new LocalStore(ProjectPath);
-        Store = sentinel;
         Phase = AppPhase.Launching;
     }
 
-    private static void InitProject()
+    private static void LoadProject(string projectPath)
     {
-        Config = EditorConfig.Load("editor.cfg")!;
+        Config = EditorConfig.Load(Path.Combine(projectPath, "editor.cfg"))!;
         if (Config == null)
         {
             Log.Warning("editor.cfg not found");
@@ -459,8 +489,6 @@ public static partial class EditorApplication
             Project.Shutdown();
         }
 
-        Store.Dispose();
-        Store = null!;
         Config = null!;
     }
 
@@ -483,17 +511,10 @@ public static partial class EditorApplication
             return;
         }
 
-        // If store isn't ready, show its setup UI and wait
-        if (!Store.IsReady)
-        {
-            Store.UpdateUI();
-            return;
-        }
-
         // First frame after store becomes ready — initialize the project
         if (!_projectInitialized)
         {
-            InitProject();
+            //LoadProject(con)
             if (Config != null)
             {
                 Project.UpdateExports();

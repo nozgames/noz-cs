@@ -41,7 +41,7 @@ public static class Program
         }
         else
         {
-            OpenProject(args);
+            OpenProject(editorPath, args);
         }
 
     }
@@ -138,7 +138,7 @@ public static class Program
         await RemoteHost.RunAsync(Path.GetFullPath(projectPath), remotePort, cts.Token);
     }
 
-    private static void OpenProject(string[] args)
+    private static void OpenProject(string editorPath, string[] args)
     {                
         IEditorStore? store = null;
         string? projectArg = null;
@@ -174,7 +174,8 @@ public static class Program
 
         EditorApplication.Run(new EditorApplicationConfig
         {
-            Store = store,
+            ProjectPath = projectPath,
+            EditorPath = editorPath,
         }, forwardArgs.ToArray());
     }
 

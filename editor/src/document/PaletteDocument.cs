@@ -140,11 +140,10 @@ public class PaletteDocument : Document
 
     private void ParsePalFile()
     {
-        var store = EditorApplication.Store;
-        if (!store.FileExists(Path))
+        if (!File.Exists(Path))
             return;
 
-        var lines = store.ReadAllText(Path).Split('\n');
+        var lines = File.ReadAllText(Path).Split('\n');
         if (lines.Length < 3) return;
 
         if (lines[0].Trim() != "JASC-PAL") return;

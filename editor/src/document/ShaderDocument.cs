@@ -53,11 +53,11 @@ public class ShaderDocument : Document
 
     private void ImportWgsl(string outputPath, ShaderFlags flags)
     {
-        var wgslSource = EditorApplication.Store.ReadAllText(Path);
+        var wgslSource = File.ReadAllText(Path);
         var bindings = ParseWgslBindings(wgslSource);
         var vertexHash = ComputeVertexInputHash(wgslSource);
 
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Shader, Shader.Version);
 
         var sourceBytes = Encoding.UTF8.GetBytes(wgslSource);

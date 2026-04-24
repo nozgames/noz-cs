@@ -276,7 +276,7 @@ public class SoundDocument : Document, IWaveformSource
 
         var pcmData = ConvertToPcm(processed, BitsPerSample);
 
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Sound, Sound.Version);
         writer.Write(SampleRate);
         writer.Write(ChannelCount);
@@ -298,7 +298,7 @@ public class SoundDocument : Document, IWaveformSource
         var sampleRate = GetCompositeSampleRate();
         var pcmData = ConvertToPcm(mixed, 16);
 
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Sound, Sound.Version);
         writer.Write(sampleRate);
         writer.Write(1); // mono
@@ -362,7 +362,7 @@ public class SoundDocument : Document, IWaveformSource
 
     private void LoadSoundFile()
     {
-        var text = EditorApplication.Store.ReadAllText(Path);
+        var text = File.ReadAllText(Path);
         var tokenizer = new Tokenizer(text);
 
         Layers.Clear();
@@ -859,7 +859,7 @@ public class SoundDocument : Document, IWaveformSource
 
     private void LoadWavSamples()
     {
-        using var fileStream = EditorApplication.Store.OpenRead(Path);
+        using var fileStream = File.OpenRead(Path);
         using var reader = new BinaryReader(fileStream);
 
         var riff = Encoding.ASCII.GetString(reader.ReadBytes(4));

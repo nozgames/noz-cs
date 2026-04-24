@@ -97,8 +97,7 @@ public class GenerationConfig : Document
 
     public override void Load()
     {
-        var contents = EditorApplication.Store.ReadAllText(Path);
-        var tk = new Tokenizer(contents);
+        var tk = new Tokenizer(File.ReadAllText(Path));
         Parse(ref tk);
         Loaded = true;
     }

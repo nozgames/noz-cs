@@ -74,9 +74,8 @@ public abstract class Document : IDisposable, IChangeHandler
 
     public void SaveMetadata()
     {
-        var store = EditorApplication.Store;
         var metaPath = Path + ".meta";
-        var props = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
+        var props = PropertySet.LoadFile(metaPath) ?? new PropertySet();
 
         props.SetVec2("editor", "position", Position);
         if (!string.IsNullOrEmpty(CollectionId))
@@ -84,13 +83,12 @@ public abstract class Document : IDisposable, IChangeHandler
         if (!ShouldExport)
             props.SetBool("editor", "export", false);
         SaveMetadata(props);
-        props.Save(metaPath, store);
+        props.Save(metaPath);
     }
 
     public void LoadMetadata()
     {
-        var store = EditorApplication.Store;
-        var props = PropertySetExtensions.LoadFile(store, Path + ".meta") ?? new PropertySet();
+        var props = PropertySet.LoadFile(Path + ".meta") ?? new PropertySet();
 
         Position = Grid.SnapToPixelGrid(props.GetVector2("editor", "position", default));
         var collectionId = props.GetString("editor", "collection", "");
@@ -108,7 +106,7 @@ public abstract class Document : IDisposable, IChangeHandler
 
         using var stream = new MemoryStream();
         Save(stream);
-        EditorApplication.Store.WriteAllBytes(Path, stream.ToArray());
+        File.WriteAllBytes(Path, stream.ToArray());
     }
 
     protected virtual void Save(Stream stream)

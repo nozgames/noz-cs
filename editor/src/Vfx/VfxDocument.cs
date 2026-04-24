@@ -687,7 +687,7 @@ public class VfxDocument : Document
 
     private void ParseVfxFile()
     {
-        var content = EditorApplication.Store.ReadAllText(Path);
+        var content = File.ReadAllText(Path);
         var tk = new Tokenizer(content);
         Emitters.Clear();
         Particles.Clear();
@@ -864,7 +864,7 @@ public class VfxDocument : Document
         // BuildVfx resolves sprites, so just reuse the built asset's emitter defs
         var emitterDefs = _vfx?.EmitterDefs ?? [];
 
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Vfx, Vfx.Version);
 
         var bounds = CalculateBounds(emitterDefs);

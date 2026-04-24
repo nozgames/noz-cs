@@ -204,10 +204,10 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     private static SpriteDocument CreateFromFile(string? path)
     {
-        if (path == null || !EditorApplication.Store.FileExists(path))
+        if (path == null || !File.Exists(path))
             return new VectorSpriteDocument();
 
-        var content = EditorApplication.Store.ReadAllText(path);
+        var content = File.ReadAllText(path);
         foreach (var line in content.AsSpan().EnumerateLines())
         {
             var trimmed = line.Trim();
@@ -226,7 +226,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     public override void Load()
     {
-        var contents = EditorApplication.Store.ReadAllText(Path);
+        var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
         UpdateBounds();
@@ -240,7 +240,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         BoneName = null;
         IsAnimated = false;
         Root.Clear();
-        var contents = EditorApplication.Store.ReadAllText(Path);
+        var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
         Load(ref tk);
 

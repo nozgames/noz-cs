@@ -12,7 +12,7 @@ public partial class GeneratedSpriteDocument
 {
     internal override void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
-        if (ImageFilePath != null && EditorApplication.Store.FileExists(ImageFilePath))
+        if (ImageFilePath != null && File.Exists(ImageFilePath))
         {
             RasterizeImageFile(image, rect, padding);
             return;
@@ -48,7 +48,7 @@ public partial class GeneratedSpriteDocument
     {
         if (ImageFilePath == null) return;
 
-        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(EditorApplication.Store.OpenRead(ImageFilePath));
+        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(File.OpenRead(ImageFilePath));
         var srcW = srcImage.Width;
         var srcH = srcImage.Height;
         var dstW = RasterBounds.Width;

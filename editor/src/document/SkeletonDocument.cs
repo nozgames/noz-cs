@@ -114,7 +114,7 @@ public class SkeletonDocument : Document
 
     public override void Load()
     {
-        var contents = EditorApplication.Store.ReadAllText(Path);
+        var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
 
         while (!tk.IsEOF)
@@ -735,7 +735,7 @@ public class SkeletonDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
 
         writer.WriteAssetHeader(AssetType.Skeleton, 2, 0);
         writer.Write((byte)BoneCount);
@@ -771,7 +771,7 @@ public class SkeletonDocument : Document
         if (!fullPath.EndsWith(".skel", StringComparison.OrdinalIgnoreCase))
             fullPath += ".skel";
 
-        EditorApplication.Store.WriteAllText(fullPath, defaultSkel);
+        File.WriteAllText(fullPath, defaultSkel);
 
         var doc = Project.Create(fullPath) as SkeletonDocument;
         doc?.Load();

@@ -25,7 +25,7 @@ public abstract partial class SpriteDocument
             return;
         }
 
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
 
         writer.Write((ushort)PixelsPerUnit);

@@ -26,7 +26,7 @@ public partial class PixelDocument
 
     public override void Load()
     {
-        using var stream = EditorApplication.Store.OpenRead(Path);
+        using var stream = File.OpenRead(Path);
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: false);
 
         ReadBinaryHeader(reader);
@@ -44,7 +44,7 @@ public partial class PixelDocument
         IsAnimated = false;
         Root.Clear();
 
-        using (var stream = EditorApplication.Store.OpenRead(Path))
+        using (var stream = File.OpenRead(Path))
         using (var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: false))
         {
             ReadBinaryHeader(reader);

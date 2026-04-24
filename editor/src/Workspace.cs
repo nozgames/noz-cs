@@ -643,6 +643,7 @@ public static partial class Workspace
             XrayModeChanged?.Invoke(XrayMode);
         }
 
+#if false
         // Sync button — only visible for remote stores
         var store = EditorApplication.Store;
         if (store.CanSync)
@@ -662,6 +663,7 @@ public static partial class Workspace
                     Task.Run(() => store.SyncAsync());
             }
         }
+#endif        
 
         UI.DropDown(
             WidgetIds.ContextMenu,
@@ -1567,24 +1569,22 @@ public static partial class Workspace
     {
         if (doc.Def == newDef) return;
 
-        var dir = System.IO.Path.GetDirectoryName(doc.Path) ?? "";
-        var stem = System.IO.Path.GetFileNameWithoutExtension(doc.Path);
-
-        var store = EditorApplication.Store;
+        var dir = Path.GetDirectoryName(doc.Path) ?? "";
+        var stem = Path.GetFileNameWithoutExtension(doc.Path);
 
         // Delete old companion file (the type-specific file, not the image)
         var oldExt = doc.Def.Extensions[0];
-        var oldCompanion = System.IO.Path.Combine(dir, stem + oldExt);
-        if (store.FileExists(oldCompanion))
-            store.DeleteFile(oldCompanion);
+        var oldCompanion = Path.Combine(dir, stem + oldExt);
+        if (File.Exists(oldCompanion))
+            File.Delete(oldCompanion);
 
         // Find the image file
         string? imagePath = null;
         string[] imageExts = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
         foreach (var imgExt in imageExts)
         {
-            var imgPath = System.IO.Path.Combine(dir, stem + imgExt);
-            if (store.FileExists(imgPath))
+            var imgPath = Path.Combine(dir, stem + imgExt);
+            if (File.Exists(imgPath))
             {
                 imagePath = imgPath;
                 break;
@@ -1594,9 +1594,9 @@ public static partial class Workspace
 
         // Write document_type to meta on the image file
         var metaPath = imagePath + ".meta";
-        var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
+        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
         meta.SetString("editor", "document_type", newDef.Name);
-        meta.Save(metaPath, store);
+        meta.Save(metaPath);
 
         // Remove old document from list (don't delete files)
         var position = doc.Position;
