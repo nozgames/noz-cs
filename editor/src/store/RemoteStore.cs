@@ -54,10 +54,25 @@ public partial class RemoteStore : IEditorStore
     public event Action? AuthStateChanged;
 #pragma warning restore CS0067
 
-    public RemoteStore(string host, int port)
+    private RemoteStore(string host, int port)
     {
         _host = host;
         _port = port;
+    }
+
+    public static RemoteStore? Create(PropertySet props)
+    {
+        var host = props.GetString("remote", "host", "");        
+        var port = props.GetInt("remote", "port", 0);
+        return Create(host, port);
+    }
+
+    public static RemoteStore? Create(string host, int port)
+    {
+        if (string.IsNullOrEmpty(host) || port == 0)
+            return null;
+
+        return new RemoteStore(host, port);
     }
 
     public static string GetCachePath(string host, int port)

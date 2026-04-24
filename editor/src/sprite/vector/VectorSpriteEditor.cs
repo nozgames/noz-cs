@@ -233,7 +233,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                 level: 1, enabled: () => multiPath),
         };
 
-        PopupMenu.Open(WidgetIds.ContextMenu, items.ToArray());
+        UI.OpenPopupMenu(WidgetIds.ContextMenu, items.ToArray(), EditorStyle.ContextMenu.Style);
     }
 
     private void GroupSelected()

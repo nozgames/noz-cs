@@ -28,4 +28,10 @@ public class EditorAppDelegate : UIApplicationDelegate
 
         return true;
     }
+
+    public override void WillTerminate(UIApplication application)
+    {
+        base.WillTerminate(application);
+        Application.Shutdown();     
+    }
 }

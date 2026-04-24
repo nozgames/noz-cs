@@ -366,7 +366,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
             try
             {
-                var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
+                var tmpDir = System.IO.Path.Combine(Project.Path, "tmp");
                 Directory.CreateDirectory(tmpDir);
                 File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), gen.Job.ImageData);
             }

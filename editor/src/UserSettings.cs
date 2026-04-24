@@ -9,7 +9,7 @@ public static class UserSettings
     public const string Path = ".noz/user.cfg";
 
     public static PropertySet? LoadPropertySet() =>
-        PropertySet.LoadFile(System.IO.Path.Combine(EditorApplication.ProjectPath, Path));
+        PropertySet.LoadFile(System.IO.Path.Combine(Project.Path, Path));
 
     public static void Load()
     {
@@ -30,6 +30,6 @@ public static class UserSettings
         CollectionManager.SaveUserSettings(props);
         VectorSpriteEditor.SaveUserSettings(props);
         EditorApplication.SaveUserSettings(props);
-        props.Save(System.IO.Path.Combine(EditorApplication.ProjectPath, Path));
+        props.Save(System.IO.Path.Combine(Project.Path, Path));
     }
 }

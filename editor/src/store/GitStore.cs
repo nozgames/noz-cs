@@ -46,7 +46,7 @@ public partial class GitStore : IEditorStore
     public event Action? SyncCompleted;
     public event Action? AuthStateChanged;
 
-    public GitStore(string clientId)
+    public GitStore(string clientId, PropertySet props)
     {
         _clientId = clientId;
     }

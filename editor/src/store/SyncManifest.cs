@@ -63,11 +63,12 @@ public class SyncManifest
         foreach (var (filePath, entry) in _files)
             props.SetString("files", filePath, $"{entry.BlobSha},{entry.ModifiedTicks},{entry.FileSize}");
 
-        props.Save(path, store);
+        props.Save(path);
     }
 
     public static SyncManifest Load(IEditorStore store, string path)
     {
+#if false        
         var manifest = new SyncManifest();
         var props = PropertySetExtensions.LoadFile(store, path);
         if (props == null)
@@ -100,5 +101,8 @@ public class SyncManifest
         }
 
         return manifest;
+#else
+        return null;
+#endif        
     }
 }

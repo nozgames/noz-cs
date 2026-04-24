@@ -58,7 +58,7 @@ public static class Program
                 projectPath = args[++i];
             else if (args[i] == "--clean")
                 clean = true;
-        }
+        }        
 
         var configProps = PropertySet.LoadFile(Path.Combine(projectPath, "editor.cfg"));
         if (configProps == null)
@@ -157,26 +157,30 @@ public static class Program
             }
         }
 
-        // Desktop remote client (for local testing or a second machine editing a remote project)
-        if (remoteConnectHost != null)
-        {
-            store = new RemoteStore(remoteConnectHost, remoteConnectPort);
+        projectPath = Path.GetFullPath(projectPath);
 
-            // Auto-isolate cache from the server's project dir when --project wasn't given.
-            if (projectArg == null)
-            {
-                var cacheDir = RemoteStore.GetCachePath(remoteConnectHost, remoteConnectPort);
-                Console.WriteLine($"Remote client cache: {cacheDir}");
-                forwardArgs.Add("--project");
-                forwardArgs.Add(cacheDir);
-            }
-        }
+        // Desktop remote client (for local testing or a second machine editing a remote project)
+        // if (remoteConnectHost != null)
+        // {
+        //     store = new RemoteStore(remoteConnectHost, remoteConnectPort);
+
+        //     // Auto-isolate cache from the server's project dir when --project wasn't given.
+        //     if (projectArg == null)
+        //     {
+        //         var cacheDir = RemoteStore.GetCachePath(remoteConnectHost, remoteConnectPort);
+        //         Console.WriteLine($"Remote client cache: {cacheDir}");
+        //         forwardArgs.Add("--project");
+        //         forwardArgs.Add(cacheDir);
+        //     }
+        // }
 
         EditorApplication.Run(new EditorApplicationConfig
         {
             ProjectPath = projectPath,
             EditorPath = editorPath,
-        }, forwardArgs.ToArray());
+        }, [.. forwardArgs]);
+
+        Application.Shutdown();
     }
 
     private static string? FindEditorPath()

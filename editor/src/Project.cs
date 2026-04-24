@@ -21,7 +21,7 @@ public static class Project
     private static bool _watching;
 
     public static string Path { get; private set; } = "";
-
+    public static bool IsInitialized => _initialized;
     public static IReadOnlyList<Document> Documents => _documents;
     public static int Count => _documents.Count;
     public static Document GetAt(int index) => _documents[index];
@@ -779,20 +779,6 @@ public static class Project
 
         _watcherQueue.Enqueue(path);
         _reloadQueue.Enqueue(path);
-    }
-
-    public static void QueueGenerations()
-    {
-        var sprites = _documents
-            .OfType<GeneratedSpriteDocument>()
-            .Where(s => !s.Generation.HasImageData)
-            .ToList();
-
-        if (sprites.Count == 0)
-            return;
-
-        foreach (var sprite in sprites)
-            sprite.GenerateAsync();
     }
 
     public static void UpdateExports()

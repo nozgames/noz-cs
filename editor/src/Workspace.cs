@@ -61,6 +61,7 @@ public static partial class Workspace
     private static Vector2 _savedCameraPosition;
     private static float _savedCameraZoom;
     private static bool _hasSavedCamera;
+    private static Vector2 _popupWorldPosition;
 
     private static Vector2 _mousePosition;
     private static Vector2 _mouseWorldPosition;
@@ -162,6 +163,8 @@ public static partial class Workspace
         _uiScale = 1f;
         _showGrid = true;
         _pendingState = WorkspaceState.Default;
+    
+        Cursor.Enabled = !Application.IsTablet;
 
         InitCommands();
         UpdateCamera();
@@ -304,15 +307,15 @@ public static partial class Workspace
         _workspacePopupItems = [        
             PopupMenuItem.Submenu("New"),
             PopupMenuItem.Submenu("Sprite", level: 1),
-            PopupMenuItem.Item("Vector", () => CreateNewDocument(VectorSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
-            PopupMenuItem.Item("Pixel", () => CreateNewDocument(PixelDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
-            PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle),
-            PopupMenuItem.Item("Skeleton", () => CreateNewDocument(SkeletonDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.IconBone),
-            PopupMenuItem.Item("Animation", () => CreateNewDocument(AnimationDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation),
-            PopupMenuItem.Item("VFX", () => CreateNewDocument(VfxDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx),
-            PopupMenuItem.Item("Sound", () => CreateNewDocument(SoundDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSound),
-            PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1),
-            PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle),
+            PopupMenuItem.Item("Vector", () => CreateNewDocument(VectorSpriteDocument.CreateNew(_popupWorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
+            PopupMenuItem.Item("Pixel", () => CreateNewDocument(PixelDocument.CreateNew(_popupWorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
+            PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(_popupWorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle),
+            PopupMenuItem.Item("Skeleton", () => CreateNewDocument(SkeletonDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.IconBone),
+            PopupMenuItem.Item("Animation", () => CreateNewDocument(AnimationDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation),
+            PopupMenuItem.Item("VFX", () => CreateNewDocument(VfxDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx),
+            PopupMenuItem.Item("Sound", () => CreateNewDocument(SoundDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSound),
+            PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: _popupWorldPosition)), level: 1),
+            PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle),
             PopupMenuItem.Separator(),
             PopupMenuItem.Submenu("Move to Collection", showChecked: true, showIcons: false),
             ..CollectionManager.Collections.Select(c =>
@@ -377,7 +380,7 @@ public static partial class Workspace
         UpdateState();
         UpdateCamera();
 
-        if (!CommandPalette.IsOpen && !AssetPalette.IsOpen && !PopupMenu.IsVisible && !ConfirmDialog.IsVisible)
+        if (!CommandPalette.IsOpen && !AssetPalette.IsOpen && !ConfirmDialog.IsVisible && !UI.IsPopupMenuOpen())
         {
             if (!UI.HasHot())
                 CommandManager.ProcessShortcuts();
@@ -615,6 +618,8 @@ public static partial class Workspace
         using (UI.BeginEnabled(SelectedCount > 0))
             if (UI.Button(WidgetIds.ToggleEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon))  
                 BeginEdit();
+
+        UI.Flex();
 
         static PopupMenuItem[] GetCollectionItems()
         {
@@ -1560,9 +1565,11 @@ public static partial class Workspace
                     }
                 }
             }
-        }
+        }        
 
-        PopupMenu.Open(WidgetIds.ContextMenu, items.ToArray(), title: "Asset");
+        _popupWorldPosition = MouseWorldPosition;
+
+        UI.OpenPopupMenu(WidgetIds.ContextMenu, items.ToArray(), EditorStyle.ContextMenu.Style, title: "Asset");
     }
 
     private static void ConvertDocumentType(Document doc, DocumentDef newDef)

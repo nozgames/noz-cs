@@ -484,7 +484,7 @@ public class FontDocument : Document
             AssetType.Font,
             Name,
             useRegistry: false,
-            libraryPath: EditorApplication.OutputPath) as Font;
+            libraryPath: Project.OutputPath) as Font;
 
         if (_font?.AtlasTexture != null)
         {

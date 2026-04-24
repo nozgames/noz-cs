@@ -183,6 +183,7 @@ public static partial class UI
         }
 
         public static bool IsOpen(WidgetId id) => _visible && _id == id;
+        public static bool IsOpen() => _visible;
 
         private static bool UpdateSubmenuHover(int level, int targetIndex)
         {
@@ -519,5 +520,6 @@ public static partial class UI
         => PopupHelper.Open(id, items, style, popupStyle, title);
 
     public static bool IsPopupMenuOpen(WidgetId id) => PopupHelper.IsOpen(id);
+    public static bool IsPopupMenuOpen() => PopupHelper.IsOpen();
     public static void ClosePopupMenu() => PopupHelper.Close();
 }

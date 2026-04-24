@@ -26,63 +26,62 @@ public class EditorApplicationConfig
     public bool IsTablet { get; init; }
 }
 
-internal class EditorApplicationInstance : IApplication
-{
-    public void Update() => EditorApplication.Update();
-    public void LateUpdate() => EditorApplication.LateUpdate();
-
-    public void LoadConfig(ApplicationConfig config)
-    {
-        var props = UserSettings.LoadPropertySet();
-        if (props == null) return;
-
-        UI.UserScale = props.GetFloat("workspace", "ui_scale", EditorApplication.DefaultUIScale);
-
-        var w = props.GetInt("window", "width", 0);
-        var h = props.GetInt("window", "height", 0);
-        if (w > 100 && h > 100)
-        {
-            config.Width = w;
-            config.Height = h;
-        }
-
-        var x = props.GetInt("window", "x", int.MinValue);
-        var y = props.GetInt("window", "y", int.MinValue);
-        if (x != int.MinValue && y != int.MinValue)
-        {
-            config.X = x;
-            config.Y = y;
-        }        
-    }
-
-    public void LoadAssets()
-    {        
-        EditorAssets.LoadAssets();
-        EditorApplication.PostLoad();
-    }
-
-    public void UnloadAssets() => EditorAssets.UnloadAssets();
-    public void ReloadAssets() => EditorAssets.ReloadAssets();
-}
-
 public static partial class EditorApplication
 {
     private const float UIScaleMin = 0.5f;
     private const float UIScaleMax = 3f;
     private const float UIScaleStep = 0.1f;
 
+    private class EditorApplicationInstance : IApplication
+    {
+        public void Update() => EditorApplication.Update();
+        public void LateUpdate() => EditorApplication.LateUpdate();
+        public void LoadAssets() => EditorAssets.LoadAssets();
+        public void UnloadAssets() => EditorAssets.UnloadAssets();
+        public void ReloadAssets() => EditorAssets.ReloadAssets();
+        public void Shutdown() => EditorApplication.Shutdown();
+        
+        public void LoadConfig(ApplicationConfig config)
+        {
+            var props = UserSettings.LoadPropertySet();
+            if (props == null) return;
+
+            UI.UserScale = props.GetFloat("workspace", "ui_scale", EditorApplication.DefaultUIScale);
+
+            var w = props.GetInt("window", "width", 0);
+            var h = props.GetInt("window", "height", 0);
+            if (w > 100 && h > 100)
+            {
+                config.Width = w;
+                config.Height = h;
+            }
+
+            var x = props.GetInt("window", "x", int.MinValue);
+            var y = props.GetInt("window", "y", int.MinValue);
+            if (x != int.MinValue && y != int.MinValue)
+            {
+                config.X = x;
+                config.Y = y;
+            }
+
+            var remoteKind = props.GetString("remote", "kind", "");
+            if (remoteKind == "git")
+                _remote = new GitStore(GitStore.DefaultClientId, props);
+            else if (remoteKind == "network")
+                _remote = RemoteStore.Create(props);
+        }
+    }
+
     public enum AppPhase { Launching, Running }
 
-    private static bool _projectInitialized;
+    private static IEditorStore? _remote;
+
     private static readonly Queue<Action> _mainThreadQueue = new();
 
     internal static EditorApplicationConfig AppConfig { get; private set; } = null!;
 
-    //public static IEditorStore Store { get; private set; } = null!;
     public static EditorConfig Config { get; private set; } = null!;
-    public static string OutputPath { get; private set; } = null!;
     public static string EditorPath { get; private set; } = null!;
-    public static string ProjectPath { get; private set; } = null!;
     public static AppPhase Phase { get; private set; } = AppPhase.Running;
 
     public static float DefaultUIScale => Application.IsTablet ? 1.6f : 1.2f;
@@ -136,19 +135,15 @@ public static partial class EditorApplication
                 HDR = true
             }
         });
+        
+        if (config.ProjectPath != null)
+            LoadProject(config.ProjectPath!);
+        else
+            ProjectLoader.Init();
 
         Touch.SimulateMouse = Application.IsTablet;
 
         Application.Run();
-
-        // On iOS, Run() returns immediately — CADisplayLink drives frames.
-        // Shutdown will be called when the app terminates.
-        if (OperatingSystem.IsIOS())
-            return;
-
-        Shutdown();
-        Application.Shutdown();
-
 
 #if false        
         var initProject = false;
@@ -380,23 +375,9 @@ public static partial class EditorApplication
     {
         AppConfig = config;
         EditorPath = config.EditorPath!;
-        ProjectPath = config.ProjectPath!;
-        _projectInitialized = false;
 
-        // Only tablet/iOS mode shows the launcher — non-tablet desktop goes
-        // straight to LocalStore with the resolved project path. When in
-        // Launching phase, the LocalStore here is a benign sentinel so
-        // downstream code (user.cfg load, PostLoad) has a valid Store; the
-        // launcher swaps in a real store via BeginProject().
-        // var useLauncher = AppConfig.Store == null && (OperatingSystem.IsIOS() || _isTablet);
-        // //Store = AppConfig.Store ?? new LocalStore(ProjectPath);
-        // Phase = useLauncher ? AppPhase.Launching : AppPhase.Running;
-
-        // Register asset/document types (static registrations, no files needed)
         Application.RegisterAssetTypes();
-        config.RegisterAssetTypes?.Invoke();
-
-        LoadProject(config.ProjectPath!);
+        config.RegisterAssetTypes?.Invoke();        
     }
 
     public static void BeginProject(IEditorStore store, string projectPath)
@@ -407,9 +388,7 @@ public static partial class EditorApplication
             return;
         }
         
-        ProjectPath = projectPath;
         Phase = AppPhase.Running;
-        _projectInitialized = false;
     }
 
     public static void ReturnToLauncher()
@@ -417,13 +396,13 @@ public static partial class EditorApplication
         if (Phase == AppPhase.Launching)
             return;
 
-        if (_projectInitialized)
-        {
-            Log.Warning("ReturnToLauncher after project is fully initialized is not supported in this phase.");
-            return;
-        }
+        // if (_projectInitialized)
+        // {
+        //     Log.Warning("ReturnToLauncher after project is fully initialized is not supported in this phase.");
+        //     return;
+        // }
 
-        Phase = AppPhase.Launching;
+        // Phase = AppPhase.Launching;
     }
 
     private static void LoadProject(string projectPath)
@@ -435,11 +414,8 @@ public static partial class EditorApplication
             return;
         }
 
-        OutputPath = Config.OutputPath;
-        Log.Info($"OutputPath: {OutputPath}");
-
         CollectionManager.Init(Config);
-        Project.Init(ProjectPath, Config);
+        Project.Init(projectPath, Config);
         PaletteManager.Init();
         Project.LoadAll();
         PaletteManager.DiscoverPalettes();
@@ -447,19 +423,10 @@ public static partial class EditorApplication
         Project.InitExports();
         AssetManifest.Generate();
 
-        _projectInitialized = true;
-    }
-
-    internal static void PostLoad()
-    {
-        // UI infrastructure — always init so the store can draw its setup UI
         EditorStyle.Init();
-        PopupMenu.Init();
         ConfirmDialog.Init();
         EditorCursor.Init();
-
-        //Cursor.Enabled = !Application.IsTablet;
-
+        
         if (Config == null)
             return;
 
@@ -470,24 +437,19 @@ public static partial class EditorApplication
         UserSettings.Load();
 
         Project.SaveAll();
-        Project.QueueGenerations();
     }
 
-    private static void Shutdown()
+    public static void Shutdown()
     {
-        if (_projectInitialized)
-        {
-            UserSettings.Save();
-            Project.SaveAll();
+        UserSettings.Save();
+        Project.SaveAll();
 
-            Workspace.Shutdown();
-            ConfirmDialog.Shutdown();
-            PopupMenu.Shutdown();
-            EditorStyle.Shutdown();
-            CollectionManager.Shutdown();
-            PaletteManager.Shutdown();
-            Project.Shutdown();
-        }
+        Workspace.Shutdown();
+        ConfirmDialog.Shutdown();
+        EditorStyle.Shutdown();
+        CollectionManager.Shutdown();
+        PaletteManager.Shutdown();
+        Project.Shutdown();
 
         Config = null!;
     }
@@ -505,31 +467,33 @@ public static partial class EditorApplication
                 _mainThreadQueue.Dequeue().Invoke();
 
         // Launcher owns the screen until the user picks a project.
-        if (Phase == AppPhase.Launching)
+        if (!Project.IsInitialized)
         {
-            ProjectLauncher.UpdateUI();
+            ProjectLoader.UpdateUI();   
             return;
         }
 
-        // First frame after store becomes ready — initialize the project
-        if (!_projectInitialized)
-        {
-            //LoadProject(con)
-            if (Config != null)
-            {
-                Project.UpdateExports();
-                EditorAssets.ReloadAssets();
+        if (Phase == AppPhase.Launching)
+            return;
 
-                // Project-specific PostLoad (UI infra already initialized)
-                Project.PostLoad();
-                AtlasManager.RebuildTextureArray();
-                VfxSystem.Shader = EditorAssets.Shaders.Sprite;
-                Workspace.Init();
-                UserSettings.Load();
-                Project.SaveAll();
-                Project.QueueGenerations();
-            }
-        }
+        // First frame after store becomes ready — initialize the project
+        // if (!_projectInitialized)
+        // {
+        //     //LoadProject(con)
+        //     if (Config != null)
+        //     {
+        //         Project.UpdateExports();
+        //         EditorAssets.ReloadAssets();
+
+        //         // Project-specific PostLoad (UI infra already initialized)
+        //         Project.PostLoad();
+        //         AtlasManager.RebuildTextureArray();
+        //         VfxSystem.Shader = EditorAssets.Shaders.Sprite;
+        //         Workspace.Init();
+        //         UserSettings.Load();
+        //         Project.SaveAll();
+        //     }
+        // }
 
         if (Config == null)
             return;
@@ -541,12 +505,10 @@ public static partial class EditorApplication
         ConfirmDialog.Update();
         CommandPalette.Update();
         AssetPalette.Update();
-        PopupMenu.Update();
         Workspace.Update();
         AppConfig.Update?.Invoke();
 
         Workspace.UpdateUI();
-        PopupMenu.UpdateUI();
         CommandPalette.UpdateUI();
         AssetPalette.UpdateUI();
         ConfirmDialog.UpdateUI();

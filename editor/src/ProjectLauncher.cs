@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public static partial class ProjectLauncher
+public static partial class ProjectLoader
 {
     public enum Kind { Git, Networked }
 
@@ -12,6 +12,10 @@ public static partial class ProjectLauncher
     private static string _hostInput = "";
     private static string _portInput = RemoteProtocol.DefaultPort.ToString();
     private static string _errorMessage = "";
+
+    public static void Init()
+    {        
+    }
 
     public static void UpdateUI()
     {
@@ -100,8 +104,8 @@ public static partial class ProjectLauncher
 
     private static void OpenGit()
     {
-        var cachePath = GitStore.GetDefaultCachePath();
-        EditorApplication.BeginProject(new GitStore(GitStore.DefaultClientId), cachePath);
+        //var cachePath = GitStore.GetDefaultCachePath();
+        //EditorApplication.BeginProject(new GitStore(GitStore.DefaultClientId), cachePath);
     }
 
     private static void OpenNetworked()
@@ -116,8 +120,8 @@ public static partial class ProjectLauncher
         if (!int.TryParse(_portInput, out var port) || port <= 0 || port > 65535)
             port = RemoteProtocol.DefaultPort;
 
-        var cachePath = RemoteStore.GetCachePath(host, port);
-        EditorApplication.BeginProject(new RemoteStore(host, port), cachePath);
+        //var cachePath = RemoteStore.GetCachePath(host, port);
+        //EditorApplication.BeginProject(new RemoteStore(host, port), cachePath);
     }
 
     private static partial class WidgetIds
