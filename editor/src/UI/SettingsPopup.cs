@@ -13,6 +13,8 @@ public static partial class SettingsPopup
         public static partial WidgetId DecrementUIScale { get; }
         public static partial WidgetId ResetUIScale { get; }
         public static partial WidgetId ShowFPSToggle { get; }
+        public static partial WidgetId ShowNamesToggle { get; }
+        public static partial WidgetId ShowGridToggle { get; }  
     }
 
     private static InputScope _inputScope;
@@ -77,6 +79,18 @@ public static partial class SettingsPopup
         {
             if (UI.Toggle(WidgetIds.ShowFPSToggle, Workspace.ShowFps, EditorStyle.Inspector.Toggle))
                 Workspace.ToggleShowFps();
+        }
+
+        using (Inspector.BeginProperty("Show Names"))
+        {
+            if (UI.Toggle(WidgetIds.ShowNamesToggle, Workspace.ShowNames, EditorStyle.Inspector.Toggle))
+                Workspace.ToggleShowNames();
+        }
+
+        using (Inspector.BeginProperty("Show Grid"))
+        {
+            if (UI.Toggle(WidgetIds.ShowGridToggle, Workspace.ShowGrid, EditorStyle.Inspector.Toggle))
+                Workspace.ToggleShowGrid();
         }
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, _inputScope))

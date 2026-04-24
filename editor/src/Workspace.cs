@@ -271,8 +271,8 @@ public static partial class Workspace
             new Command("Command Palette", CommandPalette.Open, [new KeyBinding(InputCode.KeyP, ctrl:true, shift:true)]),
             new Command("Asset Browser", () => AssetPalette.Open(), [new KeyBinding(InputCode.KeyP, ctrl:true)], EditorAssets.Sprites.IconSearch),
             new Command("Browse Sprites", () => AssetPalette.OpenSprites()),
-            new Command("Toggle Grid", ToggleGrid, [new KeyBinding(InputCode.KeyQuote, ctrl:true)]),
-            new Command("Toggle Names", ToggleNames, [new KeyBinding(InputCode.KeyN, alt:true)]),
+            new Command("Toggle Grid", ToggleShowGrid, [new KeyBinding(InputCode.KeyQuote, ctrl:true)]),
+            new Command("Toggle Names", ToggleShowNames, [new KeyBinding(InputCode.KeyN, alt:true)]),
             new Command("Toggle Isolation", ToggleIsolation, [new KeyBinding(InputCode.KeySlash)]),
             new Command("Toggle FPS", ToggleShowFps),
             settingsCommand,
@@ -890,12 +890,12 @@ public static partial class Workspace
         _showFps = !_showFps;
     }
 
-    private static void ToggleGrid()
+    public static void ToggleShowGrid()
     {
         _showGrid = !_showGrid;
     }
 
-    private static void ToggleNames()
+    public static void ToggleShowNames()
     {
         _showNames = !_showNames;
     }
