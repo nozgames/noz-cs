@@ -10,8 +10,7 @@ namespace NoZ.Editor;
 
 internal struct AtlasSpriteRect
 {
-    public string Name;
-    public SpriteDocument? Source;
+    public SpriteDocument? Source; // null = freed slot, available for reclaim
     public RectInt Rect;
     public ushort FrameIndex;
     public ushort Layer;
@@ -55,6 +54,7 @@ public static class AtlasManager
     {
         Project.DocumentAdded += OnDocumentAdded;
         Project.DocumentRemoved += OnDocumentRemoved;
+        Project.DocumentRenamed += OnDocumentRenamed;
         Project.OnExported += OnExported;
 
         foreach (var doc in Project.Documents)
@@ -134,10 +134,26 @@ public static class AtlasManager
         {
             if (rects[i].Source != sprite) continue;
             rects[i].Source = null;
-            rects[i].Name = "";
             freed = true;
         }
         return freed;
+    }
+
+    private static void OnDocumentRenamed(Document doc, string oldName)
+    {
+        if (doc is not SpriteDocument sprite) return;
+        var group = GroupOf(sprite);
+        if (!HasRectsForSource(group, sprite)) return;
+        group.UploadPending = true;
+        group.ExportPending = true;
+        Update();
+    }
+
+    private static bool HasRectsForSource(Group group, SpriteDocument sprite)
+    {
+        foreach (var rect in group.Rects)
+            if (rect.Source == sprite) return true;
+        return false;
     }
 
     private static void OnExported(Document doc)
@@ -255,15 +271,11 @@ public static class AtlasManager
             if (rect.FrameIndex >= frameCount)
             {
                 rect.Source = null;
-                rect.Name = "";
                 continue;
             }
             var size = sprite.GetFrameAtlasSize(rect.FrameIndex);
             if (size.X == 0 || size.Y == 0 || size.X > rect.Rect.Width || size.Y > rect.Rect.Height)
-            {
                 rect.Source = null;
-                rect.Name = "";
-            }
         }
 
         return AllocateSpriteIncremental(group, sprite);
@@ -304,7 +316,6 @@ public static class AtlasManager
 
         ref var slot = ref rects[bestIndex];
         slot.Source = sprite;
-        slot.Name = sprite.Name;
         slot.FrameIndex = frameIndex;
         return true;
     }
@@ -317,7 +328,6 @@ public static class AtlasManager
             {
                 group.Rects.Add(new AtlasSpriteRect
                 {
-                    Name = sprite.Name,
                     Source = sprite,
                     Rect = rect,
                     FrameIndex = frameIndex,
@@ -341,7 +351,6 @@ public static class AtlasManager
 
         group.Rects.Add(new AtlasSpriteRect
         {
-            Name = sprite.Name,
             Source = sprite,
             Rect = rect,
             FrameIndex = frameIndex,
@@ -446,11 +455,12 @@ public static class AtlasManager
         foreach (var rect in group.Rects)
         {
             if (rect.Source == null) continue;
-            if (!frameLists.TryGetValue(rect.Name, out var entry))
+            var name = rect.Source.Name;
+            if (!frameLists.TryGetValue(name, out var entry))
             {
                 entry = (rect.Layer, new List<Atlas.Frame>());
-                frameLists[rect.Name] = entry;
-                orderedNames.Add(rect.Name);
+                frameLists[name] = entry;
+                orderedNames.Add(name);
             }
 
             while (entry.Frames.Count <= rect.FrameIndex)

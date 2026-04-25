@@ -35,6 +35,7 @@ public static class Project
 
     public static event DocumentAddedDelegate? DocumentAdded;
     public static event DocumentAddedDelegate? DocumentRemoved;
+    public static event Action<Document, string>? DocumentRenamed;
     public static event Action<Document>? OnExported;
 
     public static void NotifyDocumentAdded(Document doc) => DocumentAdded?.Invoke(doc);
@@ -419,10 +420,14 @@ public static class Project
             File.Move(oldMetaPath, newMetaPath);
 
         var oldName = doc.Name;
+        var oldTargetPath = GetTargetPath(doc);
 
         doc.Path = newPath.Replace('\\', '/');
         doc.Name = canonicalName;
         doc.IncrementVersion();
+
+        if (File.Exists(oldTargetPath))
+            File.Delete(oldTargetPath);
 
         foreach (var other in _documents)
         {
@@ -430,6 +435,7 @@ public static class Project
             other.OnRenamed(doc, oldName, canonicalName);
         }
 
+        DocumentRenamed?.Invoke(doc, oldName);
         AssetManifest.IsModified = true;
 
         return true;
