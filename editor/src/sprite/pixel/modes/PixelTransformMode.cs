@@ -38,6 +38,7 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
 
     // Scale drag
     private SpritePathHandle _scaleHandle;
+    private Vector2 _scalePivotLocal;
     private Vector2 _scalePivotSel;
     private Vector2 _scaleMouseStartSel;
     private bool _scaleConstrainX;
@@ -132,8 +133,9 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
         _scaleConstrainY = _scaleHandle is SpritePathHandle.ScaleLeft or SpritePathHandle.ScaleRight;
 
         var selRect = GetSelectionRectLocal();
+        _scalePivotLocal = GetOppositePivotLocal(_scaleHandle, selRect);
         var invRot = Matrix3x2.CreateRotation(-_rotation, selRect.Center);
-        _scalePivotSel = Vector2.Transform(GetOppositePivotLocal(_scaleHandle, selRect), invRot);
+        _scalePivotSel = Vector2.Transform(_scalePivotLocal, invRot);
         _scaleMouseStartSel = Vector2.Transform(mouseLocal, invRot);
         _dragType = DragType.Scale;
     }
@@ -260,18 +262,9 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
 
     private Matrix3x2 GetPixelToLocalTransform()
     {
-        var canvas = Editor.CanvasRect;
-        var epr = Editor.EditablePixelRect;
-        var cellW = canvas.Width / epr.Width;
-        var cellH = canvas.Height / epr.Height;
-
         var selRect = GetSelectionRectLocal();
-        var center = selRect.Center;
-
-        return Matrix3x2.CreateTranslation(-center)
-             * Matrix3x2.CreateScale(_scale)
-             * Matrix3x2.CreateRotation(_rotation)
-             * Matrix3x2.CreateTranslation(center);
+        return Matrix3x2.CreateScale(_scale, _scalePivotLocal)
+             * Matrix3x2.CreateRotation(_rotation, selRect.Center);
     }
 
     // --- Handle system ---
@@ -509,11 +502,20 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
         var cx = w * 0.5f;
         var cy = h * 0.5f;
 
+        // Convert _scalePivotLocal (document-local coords) into source-rect pixel coords (pre-offset).
+        var canvas = Editor.CanvasRect;
+        var epr = Editor.EditablePixelRect;
+        var cellW = canvas.Width / epr.Width;
+        var cellH = canvas.Height / epr.Height;
+        var selRect = GetSelectionRectLocal();
+        var pivotPixels = new Vector2(
+            (_scalePivotLocal.X - selRect.X) / cellW + _offset.X,
+            (_scalePivotLocal.Y - selRect.Y) / cellH + _offset.Y);
+
         // Forward transform: source pixel -> destination pixel (in source-rect-local coords)
-        var fwd = Matrix3x2.CreateTranslation(-cx, -cy)
-                * Matrix3x2.CreateScale(_scale)
-                * Matrix3x2.CreateRotation(_rotation)
-                * Matrix3x2.CreateTranslation(cx + _offset.X, cy + _offset.Y);
+        var fwd = Matrix3x2.CreateScale(_scale, pivotPixels)
+                * Matrix3x2.CreateRotation(_rotation, new Vector2(cx, cy))
+                * Matrix3x2.CreateTranslation(_offset.X, _offset.Y);
 
         Matrix3x2.Invert(fwd, out var inv);
 
@@ -671,13 +673,10 @@ public class PixelTransformMode : EditorMode<PixelEditor>, IActiveLayerHandler
         var cellH = canvas.Height / epr.Height;
 
         var selRect = GetSelectionRectLocal();
-        var center = selRect.Center;
 
         // Build the transform for rotated/scaled pixel rendering
-        var pixelTransform = Matrix3x2.CreateTranslation(-center)
-                           * Matrix3x2.CreateScale(_scale)
-                           * Matrix3x2.CreateRotation(_rotation)
-                           * Matrix3x2.CreateTranslation(center);
+        var pixelTransform = Matrix3x2.CreateScale(_scale, _scalePivotLocal)
+                           * Matrix3x2.CreateRotation(_rotation, selRect.Center);
 
         // Draw floating pixels when they've been cleared from canvas
         if (_isFloating)

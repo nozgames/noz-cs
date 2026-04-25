@@ -112,25 +112,6 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         }
     }
 
-    public Rect AtlasUV
-    {
-        get
-        {
-            if (AtlasManager.TryGetEntry(this, out var rects, out _) && rects.Length > 0)
-            {
-                var atlasSize = (float)EditorApplication.Config.AtlasSize;
-                var padding = EditorApplication.Config.AtlasPadding;
-                var r = rects[0].Rect;
-                var u = (r.Left + padding) / atlasSize;
-                var v = (r.Top + padding) / atlasSize;
-                var s = u + RasterBounds.Size.X / atlasSize;
-                var t = v + RasterBounds.Size.Y / atlasSize;
-                return Rect.FromMinMax(u, v, s, t);
-            }
-            return Rect.Zero;
-        }
-    }
-
     public Sprite? Sprite
     {
         get

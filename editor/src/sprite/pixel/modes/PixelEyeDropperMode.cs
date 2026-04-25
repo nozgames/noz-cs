@@ -6,10 +6,25 @@ namespace NoZ.Editor;
 
 public enum PixelEyeDropperTrigger { Click, AltHold, TouchHold }
 
-public class PixelEyeDropperMode(EditorMode previousMode, PixelEyeDropperTrigger trigger = PixelEyeDropperTrigger.Click) : EditorMode<PixelEditor>
+public class PixelEyeDropperMode : EditorMode<PixelEditor>
 {
-    private readonly EditorMode _previousMode = previousMode;
-    private readonly PixelEyeDropperTrigger _trigger = trigger;
+    private readonly EditorMode _previousMode;
+    private readonly PixelEyeDropperTrigger _trigger;
+
+    public PixelEyeDropperMode(EditorMode previousMode, PixelEyeDropperTrigger trigger = PixelEyeDropperTrigger.Click)
+    {
+        _previousMode = previousMode;
+        _trigger = trigger;
+
+        // Click trigger is typically activated by a UI button press in the same frame.
+        // Consume the press so this mode's own WasButtonPressed check doesn't immediately
+        // pick a color at the toolbar's position and exit.
+        if (trigger == PixelEyeDropperTrigger.Click)
+        {
+            Input.ConsumeButton(InputCode.MouseLeft);
+            Input.ConsumeButton(InputCode.Pen);
+        }
+    }
 
     public override void Update()
     {
@@ -23,7 +38,15 @@ public class PixelEyeDropperMode(EditorMode previousMode, PixelEyeDropperTrigger
 
         if (_trigger == PixelEyeDropperTrigger.TouchHold)
         {
-            var live = Workspace.ReadPixelAtMouse();
+            // Touch long-press fires before mouse simulation kicks in, so MouseWorldPosition
+            // is stale. Sample at the actual finger position instead.
+            var live = default(Color32);
+            foreach (var f in Touch.Fingers)
+            {
+                if (!f.Active) continue;
+                live = Workspace.ReadPixelAt(Workspace.Camera.ScreenToWorld(f.Position));
+                break;
+            }
             if (live.A > 0)
                 Editor.Document.BrushColor = live.WithAlpha(Editor.Document.BrushColor.A);
 

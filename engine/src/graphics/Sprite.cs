@@ -126,7 +126,9 @@ public class Sprite : Asset, IImage
 
     internal void ResolveFrames()
     {
-        if (Atlas == null || _frameOffsets.Length == 0)
+        if (_frameOffsets.Length == 0) return;
+
+        if (Atlas == null)
         {
             Frames = [];
             AtlasIndex = 0;

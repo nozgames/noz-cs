@@ -208,7 +208,11 @@ public static class Grid
         return MathF.Round(angle / angleStep) * angleStep;
     }
 
-    private readonly struct GridLevels(float fineSpacing, float fineAlpha, float coarseSpacing, float coarseAlpha)
+    private readonly struct GridLevels(
+        float fineSpacing,
+        float fineAlpha,
+        float coarseSpacing,
+        float coarseAlpha)
     {
         public readonly float FineSpacing = fineSpacing;
         public readonly float FineAlpha = fineAlpha;

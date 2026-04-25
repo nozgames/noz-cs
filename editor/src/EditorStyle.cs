@@ -174,8 +174,8 @@ public static class EditorStyle
         public const float NameSize = 0.25f;
         public const float NamePadding = 0.26f;
         public const float NameOutline = 0.15f;
-        public const float GridAlpha = 0.4f;
-        public const float GridZeroAlpha = 0.5f;
+        public const float GridAlpha = 0.8f;
+        public const float GridZeroAlpha = 1.0f;
         public const float Padding = 16f;
     }
 

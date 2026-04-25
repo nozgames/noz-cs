@@ -114,6 +114,29 @@ public partial class PixelDocument : SpriteDocument
         }
     }
 
+    public static Color32 BlendOverWithApron(Color32 dst, Color32 src)
+    {
+        if (src.A == 0)
+        {
+            if ((src.R | src.G | src.B) == 0) return dst;
+            if (dst.A == 0 && (dst.R | dst.G | dst.B) == 0) return src;
+            return dst;
+        }
+
+        if (dst.A == 0) return src;
+
+        var sa = src.A / 255f;
+        var da = dst.A / 255f;
+        var outA = sa + da * (1f - sa);
+        if (outA <= 0f) return dst;
+        var invOutA = 1f / outA;
+        return new Color32(
+            (byte)((src.R * sa + dst.R * da * (1f - sa)) * invOutA),
+            (byte)((src.G * sa + dst.G * da * (1f - sa)) * invOutA),
+            (byte)((src.B * sa + dst.B * da * (1f - sa)) * invOutA),
+            (byte)(outA * 255f));
+    }
+
     public static Document? CreateNew(System.Numerics.Vector2? position = null)
     {
         return Project.New(AssetType.Sprite, BinaryExtension, null, stream =>

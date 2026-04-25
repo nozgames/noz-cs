@@ -781,10 +781,6 @@ public static class Project
         _reloadQueue.Enqueue(path);
     }
 
-    /// <summary>
-    /// Called by RemoteSync after a file was pulled from the host. Replays the same logic
-    /// the FileSystemWatcher would on a local edit so re-export and document reload happen.
-    /// </summary>
     public static void NotifyFilePulled(string relativePath) =>
         HandleFileChange(relativePath.Replace('\\', '/'));
 
@@ -816,8 +812,6 @@ public static class Project
             Export(doc);
         }
 
-        // If any sprite was exported in this pass, also write the atlas binary
-        // so the on-disk atlas stays coherent with the on-disk sprites.
         AtlasManager.ExportIfNeeded();
     }
 

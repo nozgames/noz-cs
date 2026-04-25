@@ -101,10 +101,10 @@ public static partial class Workspace
     public static bool DragStarted => _dragStarted;
     public static bool ShowFps => _showFps;
 
-    public static Color32 ReadPixelAtMouse()
-    {
-        var worldPos = MouseWorldPosition;
+    public static Color32 ReadPixelAtMouse() => ReadPixelAt(MouseWorldPosition);
 
+    public static Color32 ReadPixelAt(Vector2 worldPos)
+    {
         // In isolation mode, only sample from the active editor's document
         if (IsIsolationActive)
         {

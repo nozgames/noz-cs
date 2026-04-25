@@ -289,6 +289,48 @@ public partial class PixelEditor : SpriteEditor
         InvalidateComposite();
     }
 
+    private bool CanMergeDown()
+    {
+        if (Document.IsAnimated) return false;
+        if (_activeLayer == null || _activeLayer.Pixels == null) return false;
+        return GetMergeDownTarget(_activeLayer) != null;
+    }
+
+    private static PixelLayer? GetMergeDownTarget(PixelLayer src)
+    {
+        var parent = src.Parent;
+        if (parent == null) return null;
+        var idx = parent.Children.IndexOf(src);
+        if (idx <= 0) return null;
+        if (parent.Children[idx - 1] is PixelLayer target && target.Pixels != null)
+            return target;
+        return null;
+    }
+
+    public void MergeDownActiveLayer()
+    {
+        var src = _activeLayer;
+        if (src == null || src.Pixels == null) return;
+        var target = GetMergeDownTarget(src);
+        if (target == null || target.Pixels == null) return;
+
+        Undo.Record(Document);
+
+        var w = Document.CanvasSize.X;
+        var h = Document.CanvasSize.Y;
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+                target.Pixels[x, y] = PixelDocument.BlendOverWithApron(target.Pixels[x, y], src.Pixels[x, y]);
+
+        src.RemoveFromParent();
+        _activeLayer = target;
+        _selectedNode = target;
+        target.IsSelected = true;
+        Document.ActiveLayerName = target.Name;
+        target.InvalidatePreview();
+        InvalidateComposite();
+    }
+
     private static PixelLayer? FindNextLeafLayer(SpriteNode root, PixelLayer skip)
     {
         PixelLayer? result = null;

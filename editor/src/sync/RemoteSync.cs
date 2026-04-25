@@ -144,8 +144,6 @@ public class RemoteSync : IProjectSync
             _manifest.SetEntry(path, serverMtime.ToString(), info.LastWriteTimeUtc.Ticks, info.Length);
         });
 
-        // Replay the FileSystemWatcher path for each pulled file so editor docs reload
-        // and re-export queues update — needed on iOS where the OS watcher is disabled.
         foreach (var (path, _, _) in toDownload)
             Project.NotifyFilePulled(path);
 

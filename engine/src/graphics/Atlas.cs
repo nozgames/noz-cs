@@ -100,6 +100,15 @@ public class Atlas : Asset
                 TrimSize = new Vector2Int(sx, sy),
             };
         }
+
+        NotifyDependentSprites();
+    }
+
+    private void NotifyDependentSprites()
+    {
+        foreach (var asset in GetAllOfType(AssetType.Sprite))
+            if (asset is Sprite sprite && ReferenceEquals(sprite.Atlas, this))
+                sprite.ResolveFrames();
     }
 
     private static Atlas? Load(Stream stream, string name)
@@ -115,10 +124,6 @@ public class Atlas : Asset
         RegisterDef(new AssetDef(AssetType.Atlas, "Atlas", typeof(Atlas), Load, Version));
     }
 
-    /// <summary>
-    /// Editor-only: build a single-layer Atlas as a render target wrapper. The caller
-    /// controls UVs externally (typically by passing them into Sprite.Create directly).
-    /// </summary>
     public static Atlas CreatePreview(string name, int width, int height, byte[] layerData)
     {
         var atlas = new Atlas(name)
@@ -139,18 +144,6 @@ public class Atlas : Asset
     {
         if (Handle == nuint.Zero) return;
         Graphics.Driver.UpdateTextureLayer(Handle, layer, data);
-    }
-
-    public override void Reload()
-    {
-        base.Reload();
-
-        // Sprites cache resolved frames at load — re-resolve them now that the atlas changed.
-        foreach (var asset in GetAllOfType(AssetType.Sprite))
-        {
-            if (asset is Sprite sprite && ReferenceEquals(sprite.Atlas, this))
-                sprite.ResolveFrames();
-        }
     }
 
     public override void Dispose()

@@ -12,6 +12,7 @@ public partial class PixelEditor
         public static partial WidgetId AddLayerButton { get; }
         public static partial WidgetId AddGroupButton { get; }
         public static partial WidgetId DeleteLayerButton { get; }
+        public static partial WidgetId ContextMenu { get; }
     }
 
     protected override bool ReverseChildren => true;
@@ -43,6 +44,30 @@ public partial class PixelEditor
             ActiveLayer = layer;
 
         _selectedNode = node;
+    }
+
+    protected override void OnNodeRightClicked(SpriteNode node, bool isHovered)
+    {
+        if (!node.IsSelected)
+        {
+            Document.Root.ClearSelection();
+            ClearSelection();
+            node.IsSelected = true;
+            if (node is PixelLayer pl)
+                ActiveLayer = pl;
+            _selectedNode = node;
+        }
+        OpenContextMenu(WidgetIds.ContextMenu);
+    }
+
+    public override void OpenContextMenu(WidgetId popupId)
+    {
+        var items = new List<PopupMenuItem>
+        {
+            PopupMenuItem.Item("Merge Down", MergeDownActiveLayer,
+                enabled: () => CanMergeDown()),
+        };
+        UI.OpenPopupMenu(popupId, items.ToArray(), EditorStyle.ContextMenu.Style);
     }
 
     protected override void OnOutlinerChanged() => InvalidateComposite();
