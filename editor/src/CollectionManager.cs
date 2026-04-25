@@ -127,6 +127,9 @@ public static class CollectionManager
             collection.CameraPosition = props.GetVector2(section, "camera_position", Vector2.Zero);
             collection.CameraZoom = props.GetFloat(section, "camera_zoom", 1f);
             collection.CameraRotation = props.GetFloat(section, "camera_rotation", 0f);
+
+            if (!Application.IsTablet)
+                collection.CameraRotation = 0.0f;
         }
     }
 

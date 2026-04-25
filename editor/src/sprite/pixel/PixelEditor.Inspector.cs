@@ -10,12 +10,41 @@ public partial class PixelEditor
     {
         public static partial WidgetId BrushColor { get; }
         public static partial WidgetId FilterDropDown { get; }
+        public static partial WidgetId TileXToggle { get; }
+        public static partial WidgetId TileYToggle { get; }
     }
 
     public override void InspectorUI()
     {
         SpriteInspectorUI();
         EdgesInspectorUI();
+        TilingInspectorUI();
+    }
+
+    private void TilingInspectorUI()
+    {
+        if (!Document.ShowTiling) return;
+
+        using var _ = Inspector.BeginSection("TILING");
+        if (Inspector.IsSectionCollapsed) return;
+
+        using (Inspector.BeginProperty("Tile X"))
+        {
+            if (UI.Toggle(WidgetIds.TileXToggle, Document.TileX, EditorStyle.Inspector.Toggle))
+            {
+                Undo.Record(Document);
+                Document.TileX = !Document.TileX;
+            }
+        }
+
+        using (Inspector.BeginProperty("Tile Y"))
+        {
+            if (UI.Toggle(WidgetIds.TileYToggle, Document.TileY, EditorStyle.Inspector.Toggle))
+            {
+                Undo.Record(Document);
+                Document.TileY = !Document.TileY;
+            }
+        }
     }
 
     private void SpriteInspectorUI()

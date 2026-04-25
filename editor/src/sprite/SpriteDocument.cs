@@ -91,6 +91,8 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     public bool ShowInSkeleton { get; set; }
     public bool ShowTiling { get; set; }
+    public bool TileX { get; set; } = true;
+    public bool TileY { get; set; } = true;
     public bool ShowSkeletonOverlay { get; set; }
     public Vector2Int? ConstrainedSize { get; set; }
 
@@ -432,6 +434,8 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     {
         ShowInSkeleton = meta.GetBool("sprite", "show_in_skeleton", false);
         ShowTiling = meta.GetBool("sprite", "show_tiling", false);
+        TileX = meta.GetBool("sprite", "tile_x", true);
+        TileY = meta.GetBool("sprite", "tile_y", true);
         ShowSkeletonOverlay = meta.GetBool("sprite", "show_skeleton_overlay", false);
         ConstrainedSize = ParseConstrainedSize(meta.GetString("sprite", "constrained_size", ""));
 
@@ -467,6 +471,8 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     {
         meta.SetBool("sprite", "show_in_skeleton", ShowInSkeleton);
         meta.SetBool("sprite", "show_tiling", ShowTiling);
+        meta.SetBool("sprite", "tile_x", TileX);
+        meta.SetBool("sprite", "tile_y", TileY);
         meta.SetBool("sprite", "show_skeleton_overlay", ShowSkeletonOverlay);
 
         if (ConstrainedSize.HasValue)

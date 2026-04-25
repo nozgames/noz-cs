@@ -552,19 +552,84 @@ public partial class PixelEditor : SpriteEditor
         }
     }
 
+    private (bool x, bool y) GetTileMirror()
+    {
+        if (!Document.ShowTiling) return (false, false);
+        var rb = Document.RasterBounds;
+        if (rb.Width <= 0 || rb.Height <= 0) return (false, false);
+        var mirrorX = Document.TileX && (rb.X >= 0 || rb.X + rb.Width <= 0);
+        var mirrorY = Document.TileY && (rb.Y >= 0 || rb.Y + rb.Height <= 0);
+        return (mirrorX, mirrorY);
+    }
+
+    private (Rect rect, Rect uv) GetTileBox()
+    {
+        var canvas = CanvasRect;
+        var fullUv = new Rect(0, 0, 1, 1);
+
+        if (!Document.ShowTiling || Document.ConstrainedSize.HasValue)
+            return (canvas, fullUv);
+
+        if (!Document.TileX && !Document.TileY)
+            return (canvas, fullUv);
+
+        var rb = Document.RasterBounds;
+        if (rb.Width <= 0 || rb.Height <= 0)
+            return (canvas, fullUv);
+
+        var hp = 0;
+        if (Document.TileX)
+            hp = Math.Max(hp, Math.Max(Math.Abs(rb.X), Math.Abs(rb.X + rb.Width)));
+        if (Document.TileY)
+            hp = Math.Max(hp, Math.Max(Math.Abs(rb.Y), Math.Abs(rb.Y + rb.Height)));
+        if (hp <= 0)
+            return (canvas, fullUv);
+
+        var hw = hp / CanvasPPU;
+        var rect = new Rect(-hw, -hw, 2 * hw, 2 * hw);
+
+        var epr = EditablePixelRect;
+        var u = (float)hp / epr.Width;
+        var v = (float)hp / epr.Height;
+        var uv = new Rect(0.5f - u, 0.5f - v, 2 * u, 2 * v);
+
+        return (rect, uv);
+    }
+
+    private void DrawTileFlipped(in Rect tileRect, in Rect uv, float sx, float sy)
+    {
+        var cx = tileRect.X + tileRect.Width * 0.5f;
+        var cy = tileRect.Y + tileRect.Height * 0.5f;
+        var flip = Matrix3x2.CreateTranslation(-cx, -cy)
+                 * Matrix3x2.CreateScale(sx, sy)
+                 * Matrix3x2.CreateTranslation(cx, cy);
+        Graphics.SetTransform(flip * Document.Transform);
+        Graphics.Draw(tileRect, uv, order: Document.SortOrder);
+    }
+
+    private void DrawTileWithMirrors(in Rect tileRect, in Rect uv, bool mirrorX, bool mirrorY)
+    {
+        Graphics.SetTransform(Document.Transform);
+        Graphics.Draw(tileRect, uv, order: Document.SortOrder);
+        if (mirrorX) DrawTileFlipped(tileRect, uv, -1f,  1f);
+        if (mirrorY) DrawTileFlipped(tileRect, uv,  1f, -1f);
+        if (mirrorX && mirrorY) DrawTileFlipped(tileRect, uv, -1f, -1f);
+    }
+
     private void DrawCanvas()
     {
         if (_canvasTexture == null) return;
 
+        var box = GetTileBox();
+        var mirror = GetTileMirror();
         using (Graphics.PushState())
         {
-            Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(_canvasTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetTextureFilter(Document.TextureFilterOverride ?? TextureFilter.Point);
             Graphics.SetColor(Color.White);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
-            Graphics.Draw(CanvasRect, order: Document.SortOrder);
+            DrawTileWithMirrors(box.rect, box.uv, mirror.x, mirror.y);
         }
     }
 
@@ -572,27 +637,32 @@ public partial class PixelEditor : SpriteEditor
     {
         if (_canvasTexture == null) return;
 
-        var canvas = CanvasRect;
+        var box = GetTileBox();
+        var mirror = GetTileMirror();
+        var dxMin = Document.TileX ? -2 : 0;
+        var dxMax = Document.TileX ?  2 : 0;
+        var dyMin = Document.TileY ? -2 : 0;
+        var dyMax = Document.TileY ?  2 : 0;
+
         using (Graphics.PushState())
         {
-            Graphics.SetTransform(Document.Transform);
             Graphics.SetTexture(_canvasTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
             Graphics.SetTextureFilter(Document.TextureFilterOverride ?? TextureFilter.Point);
             Graphics.SetColor(Color.White);
             Graphics.SetLayer(EditorLayer.DocumentEditor);
 
-            for (var dy = -2; dy <= 2; dy++)
+            for (var dy = dyMin; dy <= dyMax; dy++)
             {
-                for (var dx = -2; dx <= 2; dx++)
+                for (var dx = dxMin; dx <= dxMax; dx++)
                 {
                     if (dx == 0 && dy == 0) continue;
                     var tileRect = new Rect(
-                        canvas.X + dx * canvas.Width,
-                        canvas.Y + dy * canvas.Height,
-                        canvas.Width,
-                        canvas.Height);
-                    Graphics.Draw(tileRect, order: Document.SortOrder);
+                        box.rect.X + dx * box.rect.Width,
+                        box.rect.Y + dy * box.rect.Height,
+                        box.rect.Width,
+                        box.rect.Height);
+                    DrawTileWithMirrors(tileRect, box.uv, mirror.x, mirror.y);
                 }
             }
         }
