@@ -270,6 +270,7 @@ public unsafe partial class SDLPlatform : IPlatform
             SetupDisplayLink(() => _frameCallback?.Invoke());
             // UIApplication.Main owns the run loop on iOS — just return.
         }
+        else
         {
             while (frameCallback())
                 LimitFrameRate();

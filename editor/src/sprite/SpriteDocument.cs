@@ -398,8 +398,9 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetColor(tint ?? Color.White);
 
-            var boneIndex = BoneIndex >= 0 ? BoneIndex : 0;
-            var transform = bindPose[boneIndex] * animatedPose[boneIndex] * baseTransform;
+            var transform = BoneIndex >= 0 && BoneIndex < bindPose.Length
+                ? bindPose[BoneIndex] * animatedPose[BoneIndex] * baseTransform
+                : baseTransform;
             Graphics.SetTextureFilter(TextureFilter);
             Graphics.SetTransform(transform);
             Graphics.Draw(sprite, SortOrder, frame: frame);
