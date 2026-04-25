@@ -159,7 +159,7 @@ public partial class VectorSpriteEditor : SpriteEditor
     {
         ClearSelection();
 
-        if (Document.Version != _versionOnOpen && Document.Atlas != null)
+        if (Document.Version != _versionOnOpen)
             AtlasManager.UpdateSource(Document);
 
         base.Dispose();

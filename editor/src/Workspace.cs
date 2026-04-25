@@ -92,7 +92,6 @@ public static partial class Workspace
     public static bool ShowNames => _showNames;
     public static bool ShowProject => _showProject;
     public static bool ShowInspector => _showInspector;
-    public static bool ShowHidden { get; set; }
     public static Vector2 MousePosition => _mousePosition;
     public static Vector2 MouseWorldPosition => _mouseWorldPosition;
     public static Vector2 PenPosition => _penPosition;
@@ -120,8 +119,6 @@ public static partial class Workspace
             var doc = Project.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded) continue;
             if (doc.IsClipped) continue;
-            if (!ShowHidden && !doc.IsVisible) continue;
-            if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
             if (!doc.Bounds.Translate(doc.Position).Contains(worldPos)) continue;
 
@@ -247,7 +244,9 @@ public static partial class Workspace
 
     private static void RebuildAtlas()
     {
-        AtlasManager.Rebuild();
+        // Force a fresh pack of all sprites; export pass will write the binary if dirty.
+        AtlasManager.MarkAllDirty();
+        AtlasManager.Update();
         Project.SaveAll();
     }
 
@@ -257,8 +256,6 @@ public static partial class Workspace
         var deleteCommand = new Command("Delete", DeleteSelected, [InputCode.KeyX, InputCode.KeyDelete], EditorAssets.Sprites.IconDelete);
         var duplicateCommand = new Command("Duplicate", DuplicateSelected, [new KeyBinding(InputCode.KeyD, ctrl: true)], EditorAssets.Sprites.IconDuplicate);
         var editCommand = new Command("Edit", BeginEdit, [InputCode.KeyTab], EditorAssets.Sprites.IconEdit);
-        var hideCommand = new Command("Hide", HandleHide, [InputCode.KeyH], EditorAssets.Sprites.IconPreview);
-        var unhideAllCommand = new Command("Unhide All", HandleUnhideAll, [new KeyBinding(InputCode.KeyH, ctrl: true)], EditorAssets.Sprites.IconPreview);
         var settingsCommand = new Command("Settings", OpenSettings, [new KeyBinding(InputCode.KeyComma, ctrl:true)]);
 
         CommandManager.RegisterCommon([
@@ -284,8 +281,6 @@ public static partial class Workspace
             renameCommand,
             deleteCommand,
             duplicateCommand,
-            hideCommand,
-            unhideAllCommand,
             new("Select All", SelectAll, [new KeyBinding(InputCode.KeyA)]),
             new("Frame", FrameSelected, [new KeyBinding(InputCode.KeyF)]),
             new("Generate Selected", GenerateSelected, [new KeyBinding(InputCode.KeyG, ctrl:true)]),
@@ -293,7 +288,6 @@ public static partial class Workspace
             new("Export All", ExportAll),
             new("Generate Manifest", GenerateManifest),
             new("Play/Stop", Play, [new KeyBinding(InputCode.KeySpace)]),
-            new("Show/Hide Hidden Assets", ToggleShowHidden),
             new("Rebuild Atlas", RebuildAtlas),
         };
 
@@ -807,10 +801,6 @@ public static partial class Workspace
                 continue;
             if (doc.IsEditing || doc.IsClipped)
                 continue;
-            if (!ShowHidden && !doc.IsVisible)
-                continue;
-            if (doc.IsHiddenInWorkspace)
-                continue;
             if (!CollectionManager.IsDocumentVisible(doc))
                 continue;
 
@@ -863,9 +853,7 @@ public static partial class Workspace
         {
             var doc = Project.GetAt(i);
             if (!doc.Loaded || !doc.PostLoaded) continue;
-            if (!ShowHidden && !doc.IsVisible) continue;
             if (doc.IsClipped) continue;
-            if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
             if (doc == renamingDoc) continue;
             if (doc.IsEditing) continue;
@@ -1326,7 +1314,6 @@ public static partial class Workspace
         {
             var doc = Project.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded) continue;
-            if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
 
             var hitBounds = doc.Bounds.Translate(doc.Position).Contains(point);
@@ -1388,17 +1375,10 @@ public static partial class Workspace
         {
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
-            if (!doc.IsVisible && !ShowHidden)
-                continue;
             if (!CollectionManager.IsDocumentVisible(doc))
                 continue;
             SetSelected(doc, true);
         }
-    }
-
-    private static void ToggleShowHidden()
-    {
-        ShowHidden = !ShowHidden;
     }
 
     private static void SetCollection(int index)
@@ -1677,20 +1657,6 @@ public static partial class Workspace
             Project.NotifyDocumentAdded(newDoc);
             AssetManifest.IsModified = true;
         }
-    }
-
-    private static void HandleHide()
-    {
-        foreach (var doc in Project.SelectedDocuments)
-            doc.IsHiddenInWorkspace = true;
-
-        ClearSelection();
-    }
-
-    private static void HandleUnhideAll()
-    {
-        foreach (var doc in Project.Documents)
-            doc.IsHiddenInWorkspace = false;
     }
 
     private static void OpenSettings()

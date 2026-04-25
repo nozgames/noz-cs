@@ -13,7 +13,7 @@ public partial class PixelEditor
     private const int PreviewCellsPerRow = PreviewAtlasSize / PreviewCellSize;
     private const int MaxPreviewSlots = PreviewCellsPerRow * PreviewCellsPerRow;
 
-    private Texture? _previewAtlas;
+    private Atlas? _previewAtlas;
     private readonly byte[] _previewAtlasData = new byte[PreviewAtlasSize * PreviewAtlasSize * 4];
     private readonly List<Sprite> _previewSprites = [];
     private readonly List<int> _slotGenerations = [];
@@ -62,10 +62,10 @@ public partial class PixelEditor
             return;
 
         Array.Clear(_previewAtlasData);
-        _previewAtlas = Texture.CreateArray(
+        _previewAtlas = Atlas.CreatePreview(
             "preview_atlas",
             PreviewAtlasSize, PreviewAtlasSize,
-            [_previewAtlasData]);
+            _previewAtlasData);
     }
 
     private void EnsurePreviewSprite(int slot)

@@ -108,7 +108,9 @@ public static class AssetManifest
             if (doc is BundleDocument { IsRemote: true })
                 continue;
 
-
+            // Atlas assets are produced by AtlasManager, not from documents.
+            if (doc.Def.Type == AssetType.Atlas)
+                continue;
 
             entries.Add((doc.Def.Type, doc));
         }
@@ -153,7 +155,10 @@ public static class AssetManifest
             .Select(g => new { Key = g.Key, Docs = g.Select(e => e.Doc).ToList() })
             .ToList();
 
-        var hasAtlases = documentsByType.Any(g => g.Key == AssetType.Atlas);
+        // We emit a single Atlas asset whenever there are exported sprites.
+        var hasSprites = documentsByType.Any(g => g.Key == AssetType.Sprite);
+        var atlasName = AtlasManager.GameAtlasName;
+        var atlasPascal = ToPascalCase(atlasName);
 
         // Names class (deduplicated since different types can share names)
         writer.WriteLine("    public static class Names");
@@ -161,6 +166,7 @@ public static class AssetManifest
         var uniqueNames = documentsByType
             .SelectMany(g => g.Docs)
             .Select(d => d.Name)
+            .Concat(hasSprites ? new[] { atlasName } : Enumerable.Empty<string>())
             .Distinct()
             .OrderBy(n => n);
         foreach (var name in uniqueNames)
@@ -182,6 +188,31 @@ public static class AssetManifest
                 var constName = ToCSharpIdentifier(so.Id);
                 writer.WriteLine($"        public const ushort {constName} = {so.SortOrder};");
             }
+            writer.WriteLine("    }");
+        }
+
+        // Synthesized Atlases group (single atlas asset shared by all sprites)
+        if (hasSprites)
+        {
+            writer.WriteLine();
+            writer.WriteLine("    public static class Atlases");
+            writer.WriteLine("    {");
+            writer.WriteLine($"        public static readonly Atlas {atlasPascal} = new();");
+            writer.WriteLine();
+            writer.WriteLine("        public static void Load()");
+            writer.WriteLine("        {");
+            writer.WriteLine($"            {atlasPascal}.Load(Names.{atlasPascal});");
+            writer.WriteLine("        }");
+            writer.WriteLine();
+            writer.WriteLine("        public static void Reload()");
+            writer.WriteLine("        {");
+            writer.WriteLine($"            {atlasPascal}.Reload();");
+            writer.WriteLine("        }");
+            writer.WriteLine();
+            writer.WriteLine("        public static void Unload()");
+            writer.WriteLine("        {");
+            writer.WriteLine($"            {atlasPascal}.Dispose();");
+            writer.WriteLine("        }");
             writer.WriteLine("    }");
         }
 
@@ -209,7 +240,7 @@ public static class AssetManifest
             writer.WriteLine();
             var isSprite = group.Key == AssetType.Sprite;
             writer.WriteLine(isSprite
-                ? "        public static void Load(Texture atlas)"
+                ? "        public static void Load(Atlas atlas)"
                 : "        public static void Load()");
             writer.WriteLine("        {");
             foreach (var doc in orderedDocs)
@@ -290,35 +321,22 @@ public static class AssetManifest
             writer.WriteLine("    }");
         }
 
-        // AtlasArray field if we have atlases
-        if (hasAtlases)
-        {
-            writer.WriteLine();
-            writer.WriteLine("    public static Texture? AtlasArray { get; private set; }");
-        }
-
         // LoadAssets method
         writer.WriteLine();
         writer.WriteLine("    public static void LoadAssets()");
         writer.WriteLine("    {");
 
-        // Load atlases first and create texture array before sprites
-        if (hasAtlases)
+        if (hasSprites)
         {
-            var atlasGroup = documentsByType.First(g => g.Key == AssetType.Atlas);
-            var atlasNames = atlasGroup.Docs.OrderBy(d => d.Name).Select(d => $"Atlases.{ToPascalCase(d.Name)}").ToList();
-
             writer.WriteLine("        Atlases.Load();");
-            writer.WriteLine($"        AtlasArray = Texture.CreateArray(\"SpriteAtlas\", {string.Join(", ", atlasNames)});");
             writer.WriteLine();
         }
 
         foreach (var group in documentsByType)
         {
-            if (hasAtlases && group.Key == AssetType.Atlas) continue; // already loaded above
             var pluralName = Pluralize(GetAssetTypeName(group.Key));
-            if (hasAtlases && group.Key == AssetType.Sprite)
-                writer.WriteLine($"        {pluralName}.Load(AtlasArray!);");
+            if (hasSprites && group.Key == AssetType.Sprite)
+                writer.WriteLine($"        {pluralName}.Load(Atlases.{atlasPascal});");
             else
                 writer.WriteLine($"        {pluralName}.Load();");
         }
@@ -329,6 +347,8 @@ public static class AssetManifest
         writer.WriteLine();
         writer.WriteLine("    public static void ReloadAssets()");
         writer.WriteLine("    {");
+        if (hasSprites)
+            writer.WriteLine("        Atlases.Reload();");
         foreach (var group in documentsByType)
         {
             var pluralName = Pluralize(GetAssetTypeName(group.Key));
@@ -340,19 +360,13 @@ public static class AssetManifest
         writer.WriteLine();
         writer.WriteLine("    public static void UnloadAssets()");
         writer.WriteLine("    {");
-
-        // Dispose AtlasArray first
-        if (hasAtlases)
-        {
-            writer.WriteLine("        AtlasArray?.Dispose();");
-            writer.WriteLine("        AtlasArray = null;");
-        }
-
         foreach (var group in documentsByType)
         {
             var pluralName = Pluralize(GetAssetTypeName(group.Key));
             writer.WriteLine($"        {pluralName}.Unload();");
         }
+        if (hasSprites)
+            writer.WriteLine("        Atlases.Unload();");
         writer.WriteLine("    }");
 
         writer.WriteLine("}");

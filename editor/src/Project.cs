@@ -55,7 +55,6 @@ public static class Project
 
         Directory.CreateDirectory(_outputPath);
 
-        AtlasDocument.RegisterDef();
         ShaderDocument.RegisterDef();
         SoundDocument.RegisterDef();
         SpriteDocument.RegisterDef();
@@ -354,9 +353,7 @@ public static class Project
             if (!doc.IsModified)
                 continue;
 
-            if (doc.IsVisible)
-                count++;
-
+            count++;
             doc.SilentExport = true;
             doc.Save();
             doc.SaveMetadata();
@@ -644,7 +641,7 @@ public static class Project
         }
 
         // Ensure the atlas is rebuilt with the duplicate's rasterized pixels
-        if (doc is SpriteDocument { Atlas: not null } sprite)
+        if (doc is SpriteDocument sprite)
             AtlasManager.UpdateSource(sprite);
 
         doc.Position = source.Position;
@@ -784,6 +781,13 @@ public static class Project
         _reloadQueue.Enqueue(path);
     }
 
+    /// <summary>
+    /// Called by RemoteSync after a file was pulled from the host. Replays the same logic
+    /// the FileSystemWatcher would on a local edit so re-export and document reload happen.
+    /// </summary>
+    public static void NotifyFilePulled(string relativePath) =>
+        HandleFileChange(relativePath.Replace('\\', '/'));
+
     public static void UpdateExports()
     {
         while (_reloadQueue.TryDequeue(out var path))
@@ -811,6 +815,10 @@ public static class Project
             if (doc.IsDisposed) continue;
             Export(doc);
         }
+
+        // If any sprite was exported in this pass, also write the atlas binary
+        // so the on-disk atlas stays coherent with the on-disk sprites.
+        AtlasManager.ExportIfNeeded();
     }
 
     private static void StartWatching(string path)

@@ -27,10 +27,8 @@ public abstract class Document : IDisposable, IChangeHandler
 
     public Matrix3x2 Transform => Matrix3x2.CreateTranslation(Position);
     
-    public bool IsHiddenInWorkspace { get; set; }
     public bool IsQueuedForExport { get; internal set; }
     public bool IsDisposed { get; private set; }
-    public bool IsVisible { get; set; } = true;
     public bool IsSelected { get; set; }
     public bool IsEditing { get; set; }
     public bool IsModified => Version != SavedVersion;

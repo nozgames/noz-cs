@@ -29,7 +29,6 @@ public static class EditorAssets
         public const string CursorPen = "cursor_pen";
         public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
-        public const string EditorSprites000 = "editor_sprites000";
         public const string GizmoHandle = "gizmo_handle";
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
@@ -112,6 +111,7 @@ public static class EditorAssets
         public const string PpUpsample = "pp_upsample";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
+        public const string Sprites = "sprites";
         public const string Square = "square";
         public const string Star = "star";
         public const string Text = "text";
@@ -121,21 +121,21 @@ public static class EditorAssets
 
     public static class Atlases
     {
-        public static readonly Atlas EditorSprites000 = new();
+        public static readonly Atlas Sprites = new();
 
         public static void Load()
         {
-            EditorSprites000.Load(Names.EditorSprites000);
+            Sprites.Load(Names.Sprites);
         }
 
         public static void Reload()
         {
-            EditorSprites000.Reload();
+            Sprites.Reload();
         }
 
         public static void Unload()
         {
-            EditorSprites000.Dispose();
+            Sprites.Dispose();
         }
     }
 
@@ -304,7 +304,7 @@ public static class EditorAssets
         public static readonly Sprite Square = new();
         public static readonly Sprite Star = new();
 
-        public static void Load(Texture atlas)
+        public static void Load(Atlas atlas)
         {
             AssetIconAnimation.Load(Names.AssetIconAnimation, atlas);
             AssetIconAtlas.Load(Names.AssetIconAtlas, atlas);
@@ -611,16 +611,13 @@ public static class EditorAssets
         }
     }
 
-    public static Texture? AtlasArray { get; private set; }
-
     public static void LoadAssets()
     {
         Atlases.Load();
-        AtlasArray = Texture.CreateArray("SpriteAtlas", Atlases.EditorSprites000);
 
         Fonts.Load();
         Shaders.Load();
-        Sprites.Load(AtlasArray!);
+        Sprites.Load(Atlases.Sprites);
     }
 
     public static void ReloadAssets()
@@ -633,11 +630,9 @@ public static class EditorAssets
 
     public static void UnloadAssets()
     {
-        AtlasArray?.Dispose();
-        AtlasArray = null;
-        Atlases.Unload();
         Fonts.Unload();
         Shaders.Unload();
         Sprites.Unload();
+        Atlases.Unload();
     }
 }

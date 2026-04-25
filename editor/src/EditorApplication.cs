@@ -186,7 +186,7 @@ public static partial class EditorApplication
         EditorCursor.Init();
         
         Project.PostLoad();
-        AtlasManager.RebuildTextureArray();
+        AtlasManager.Update();
         VfxSystem.Shader = EditorAssets.Shaders.Sprite;
         Workspace.Init();
         UserSettings.Load();

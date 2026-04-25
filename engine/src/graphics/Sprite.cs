@@ -18,7 +18,7 @@ public class Sprite : Asset, IImage
     float IImage.ImageWidth => Bounds.Width;
     float IImage.ImageHeight => Bounds.Height;
 
-    public const ushort Version = 12;
+    public const ushort Version = 13;
     public const int MaxFrames = 64;
 
     public RectInt Bounds { get; private set; }
@@ -36,23 +36,18 @@ public class Sprite : Asset, IImage
     public TextureFilter Filter { get; private set; } = TextureFilter.Linear;
     public bool IsSliced => SliceMask != 0 || !Edges.IsZero;
     public Rect UV => Frames.Length > 0 ? Frames[0].UV : Rect.Zero;
-    public Texture? Atlas { get; set; }
+    public Atlas? Atlas { get; set; }
+
+    private Vector2Int[] _frameOffsets = [];
 
     private Sprite(string name) : base(AssetType.Sprite, name) { }
     public Sprite() : base(AssetType.Sprite) { }
 
-    public void Load(string name, Texture atlas)
+    public void Load(string name, Atlas atlas)
     {
+        Atlas = atlas;
         Load(name);
-        Atlas = atlas;
-    }
-
-    public void UpdateAtlas(Texture? atlas, int atlasIndex, SpriteFrame[] frames)
-    {
-        Atlas = atlas;
-        AtlasIndex = atlasIndex;
-        Frames = frames;
-        FrameCount = frames.Length;
+        ResolveFrames();
     }
 
     public static Sprite Create(
@@ -65,14 +60,14 @@ public class Sprite : Asset, IImage
         EdgeInsets edges = default,
         ushort sliceMask = 0,
         int atlasIndex = 0,
-        Texture? atlas = null,
+        Atlas? atlas = null,
         TextureFilter filter = TextureFilter.Linear)
     {
         return new Sprite(name)
         {
             Bounds = bounds,
             FrameCount = frames.Length,
-            AtlasIndex = (ushort)atlasIndex,
+            AtlasIndex = atlasIndex,
             Atlas = atlas,
             PixelsPerUnit = pixelsPerUnit,
             PixelsPerUnitInv = 1.0f / pixelsPerUnit,
@@ -88,7 +83,6 @@ public class Sprite : Asset, IImage
     protected override void Load(BinaryReader reader)
     {
         var ppu = (int)reader.ReadUInt16();
-        var atlasIndex = reader.ReadUInt16();
         var l = reader.ReadInt16();
         var t = reader.ReadInt16();
         var r = reader.ReadInt16();
@@ -96,7 +90,6 @@ public class Sprite : Asset, IImage
         var sortOrder = reader.ReadUInt16();
         var boneIndex = (int)reader.ReadByte();
 
-        // 9-slice
         var et = reader.ReadInt16();
         var el = reader.ReadInt16();
         var eb = reader.ReadInt16();
@@ -104,44 +97,66 @@ public class Sprite : Asset, IImage
         var edges = new EdgeInsets(et, el, eb, er);
         var sliceMask = reader.ReadUInt16();
 
-        // frames
         var frameCount = reader.ReadUInt16();
         var frameRate = reader.ReadByte();
-        var frames = new SpriteFrame[frameCount];
+        var offsets = new Vector2Int[frameCount];
         for (int i = 0; i < frameCount; i++)
         {
-            var ul = reader.ReadSingle();
-            var ut = reader.ReadSingle();
-            var ur = reader.ReadSingle();
-            var ub = reader.ReadSingle();
-            var offsetX = reader.ReadInt16();
-            var offsetY = reader.ReadInt16();
-            var sizeX = reader.ReadInt16();
-            var sizeY = reader.ReadInt16();
-
-            frames[i] = new SpriteFrame(
-                Rect.FromMinMax(ul, ut, ur, ub),
-                new Vector2Int(offsetX, offsetY),
-                new Vector2Int(sizeX, sizeY));
+            var ox = reader.ReadInt16();
+            var oy = reader.ReadInt16();
+            offsets[i] = new Vector2Int(ox, oy);
         }
 
-        // Filter (added in v12)
-        var filter = TextureFilter.Linear;
-        if (reader.BaseStream.Position < reader.BaseStream.Length)
-            filter = (TextureFilter)reader.ReadByte();
+        var filter = (TextureFilter)reader.ReadByte();
 
         Bounds = RectInt.FromMinMax(l, t, r, b);
         FrameCount = frameCount;
-        AtlasIndex = atlasIndex;
-        BoneIndex = boneIndex == 255 ? -1 : (int)boneIndex;
+        BoneIndex = boneIndex == 255 ? -1 : boneIndex;
         PixelsPerUnit = ppu;
         PixelsPerUnitInv = 1.0f / ppu;
         FrameRate = frameRate;
-        Frames = frames;
+        _frameOffsets = offsets;
         Edges = edges;
         SliceMask = sliceMask;
         SortOrder = sortOrder;
         Filter = filter;
+
+        ResolveFrames();
+    }
+
+    internal void ResolveFrames()
+    {
+        if (Atlas == null || _frameOffsets.Length == 0)
+        {
+            Frames = [];
+            AtlasIndex = 0;
+            return;
+        }
+
+        if (!Atlas.TryGetEntry(Id, out var entry))
+        {
+            Log.Error($"Sprite '{Name}' not found in atlas '{Atlas.Name}'");
+            Frames = [];
+            AtlasIndex = 0;
+            return;
+        }
+
+        AtlasIndex = entry.Layer;
+        var atlasFrames = Atlas.GetFrames(entry);
+        var resolved = new SpriteFrame[_frameOffsets.Length];
+        for (int i = 0; i < _frameOffsets.Length; i++)
+        {
+            var atlasFrame = i < atlasFrames.Length ? atlasFrames[i] : default;
+            resolved[i] = new SpriteFrame(atlasFrame.UV, _frameOffsets[i], atlasFrame.TrimSize);
+        }
+        Frames = resolved;
+    }
+
+    public override void Reload()
+    {
+        if (string.IsNullOrEmpty(Name)) return;
+        Dispose();
+        Load(Name);
     }
 
     private static Asset Load(Stream stream, string name)

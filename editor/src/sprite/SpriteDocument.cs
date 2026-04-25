@@ -26,7 +26,6 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
     public string? BoneName;
     private string? _sortOrderId;
-    private readonly List<Rect> _atlasUV = [];
     private Sprite? _sprite;
     private Texture? _standaloneTexture;
     public float Depth;
@@ -97,7 +96,6 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
     public Vector2Int? ConstrainedSize { get; set; }
 
     public ushort AtlasFrameCount => (ushort)TotalTimeSlots;
-    internal AtlasDocument? Atlas { get; set; }
 
     public DocumentRef<SkeletonDocument> Skeleton;
     public int BoneIndex { get; private set; } = -1;
@@ -114,7 +112,24 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         }
     }
 
-    public Rect AtlasUV => GetAtlasUV(0);
+    public Rect AtlasUV
+    {
+        get
+        {
+            if (AtlasManager.TryGetEntry(this, out var rects, out _) && rects.Length > 0)
+            {
+                var atlasSize = (float)EditorApplication.Config.AtlasSize;
+                var padding = EditorApplication.Config.AtlasPadding;
+                var r = rects[0].Rect;
+                var u = (r.Left + padding) / atlasSize;
+                var v = (r.Top + padding) / atlasSize;
+                var s = u + RasterBounds.Size.X / atlasSize;
+                var t = v + RasterBounds.Size.Y / atlasSize;
+                return Rect.FromMinMax(u, v, s, t);
+            }
+            return Rect.Zero;
+        }
+    }
 
     public Sprite? Sprite
     {
@@ -391,7 +406,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         var sprite = Sprite;
         if (sprite == null)
         {
-            Log.Info($"[SKEL DEBUG] '{Name}': Sprite is null, Atlas={Atlas?.Name ?? "NULL"}");
+            Log.Info($"[SKEL DEBUG] '{Name}': Sprite is null");
             return;
         }
 
@@ -516,8 +531,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
                         Undo.Record(this);
                         PixelsPerUnitOverride = v == EditorApplication.Config.PixelsPerUnit ? null : v;
                         UpdateBounds();
-                        if (Atlas != null)
-                            AtlasManager.UpdateSource(this);
+                        AtlasManager.UpdateSource(this);
                         AssetManifest.IsModified = true;
                     }
                 })
@@ -577,8 +591,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
                         Undo.Record(this);
                         ConstrainedSize = s.Size;
                         UpdateBounds();
-                        if (Atlas != null)
-                            AtlasManager.UpdateSource(this);
+                        AtlasManager.UpdateSource(this);
                         AssetManifest.IsModified = true;
                     }}),
                 new PopupMenuItem { Label = "Auto", Handler = () =>
@@ -586,8 +599,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
                     Undo.Record(this);
                     ConstrainedSize = null;
                     UpdateBounds();
-                    if (Atlas != null)
-                        AtlasManager.UpdateSource(this);
+                    AtlasManager.UpdateSource(this);
                     AssetManifest.IsModified = true;
                 }}
             ], constraintLabel, EditorAssets.Sprites.IconConstraint);
@@ -683,75 +695,31 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         ResolveBone();
     }
 
-    internal void ClearAtlasUVs()
-    {
-        _atlasUV.Clear();
-        MarkSpriteDirty();
-    }
-
-    internal void UpdateAtlasUVs(AtlasDocument atlas, ReadOnlySpan<AtlasSpriteRect> allRects, int padding)
-    {
-        ClearAtlasUVs();
-        int uvIndex = 0;
-        var ts = (float)EditorApplication.Config.AtlasSize;
-
-        var totalSlots = (ushort)TotalTimeSlots;
-
-        Span<int> frameToRect = totalSlots <= 64 ? stackalloc int[totalSlots] : new int[totalSlots];
-        frameToRect.Fill(-1);
-        for (int i = 0; i < allRects.Length; i++)
-        {
-            if (allRects[i].Source == this && allRects[i].FrameIndex < totalSlots)
-                frameToRect[allRects[i].FrameIndex] = i;
-        }
-
-        for (ushort frameIndex = 0; frameIndex < totalSlots; frameIndex++)
-        {
-            var rectIndex = frameToRect[frameIndex];
-            if (rectIndex == -1) return;
-
-            ref readonly var rect = ref allRects[rectIndex];
-
-            var u = (rect.Rect.Left + padding) / ts;
-            var v = (rect.Rect.Top + padding) / ts;
-            var s = u + RasterBounds.Size.X / ts;
-            var t = v + RasterBounds.Size.Y / ts;
-            SetAtlasUV(uvIndex++, Rect.FromMinMax(u, v, s, t));
-        }
-    }
-
-    internal void SetAtlasUV(int slotIndex, Rect uv)
-    {
-        while (_atlasUV.Count <= slotIndex)
-            _atlasUV.Add(Rect.Zero);
-        _atlasUV[slotIndex] = uv;
-        MarkSpriteDirty();
-    }
-
-    internal Rect GetAtlasUV(int slotIndex) =>
-        slotIndex < _atlasUV.Count ? _atlasUV[slotIndex] : Rect.Zero;
-
     private void UpdateSprite()
     {
-        if (Atlas == null)
+        if (!AtlasManager.TryGetEntry(this, out var rects, out var layer))
         {
             _sprite = null;
             return;
         }
 
+        var atlasAsset = ShouldExport ? AtlasManager.GameAtlas : AtlasManager.EditorAtlas;
+        var atlasSize = (float)EditorApplication.Config.AtlasSize;
+        var padding = EditorApplication.Config.AtlasPadding;
+
         var totalSlots = TotalTimeSlots;
         var frames = new NoZ.SpriteFrame[totalSlots];
-
         for (int frameIndex = 0; frameIndex < totalSlots; frameIndex++)
         {
-            var uv = GetAtlasUV(frameIndex);
-            if (uv == Rect.Zero)
-            {
-                _sprite = null;
-                return;
-            }
-
-            frames[frameIndex] = new NoZ.SpriteFrame(uv, RasterBounds.Position, RasterBounds.Size);
+            var rect = frameIndex < rects.Length ? rects[frameIndex].Rect : default;
+            var u = (rect.Left + padding) / atlasSize;
+            var v = (rect.Top + padding) / atlasSize;
+            var s = u + RasterBounds.Size.X / atlasSize;
+            var t = v + RasterBounds.Size.Y / atlasSize;
+            frames[frameIndex] = new NoZ.SpriteFrame(
+                Rect.FromMinMax(u, v, s, t),
+                RasterBounds.Position,
+                RasterBounds.Size);
         }
 
         var ppu = PixelsPerUnit;
@@ -770,8 +738,8 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
             frameRate: 12.0f,
             edges: pixelEdges,
             sliceMask: Sprite.CalculateSliceMask(RasterBounds, pixelEdges),
-            atlasIndex: Atlas?.Index ?? 0,
-            atlas: AtlasManager.TextureArray,
+            atlasIndex: layer,
+            atlas: atlasAsset,
             filter: TextureFilter);
     }
 
@@ -783,29 +751,10 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         _standaloneTexture = null;
     }
 
-    internal void UpdateSpriteAtlas(Texture? atlas)
-    {
-        if (_sprite == null || Atlas == null) return;
-
-        var totalSlots = TotalTimeSlots;
-        var frames = new NoZ.SpriteFrame[totalSlots];
-        for (int frameIndex = 0; frameIndex < totalSlots; frameIndex++)
-        {
-            var uv = GetAtlasUV(frameIndex);
-            if (uv == Rect.Zero) return;
-            frames[frameIndex] = new NoZ.SpriteFrame(uv, RasterBounds.Position, RasterBounds.Size);
-        }
-
-        _sprite.UpdateAtlas(atlas, Atlas.Index, frames);
-    }
-
     public override void OnUndoRedo()
     {
         UpdateBounds();
-
-        if (!IsEditing && Atlas != null)
-            AtlasManager.UpdateSource(this);
-
+        if (!IsEditing) AtlasManager.MarkDirty(this);
         base.OnUndoRedo();
     }
 

@@ -201,6 +201,15 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
+    public static void SetTexture(Atlas? atlas, int slot = 0)
+    {
+        Debug.Assert(slot is >= 0 and < MaxTextures);
+        var handle = atlas?.Handle ?? nuint.Zero;
+        if (CurrentState.Textures[slot] == handle) return;
+        CurrentState.Textures[slot] = handle;
+        _batchStateDirty = true;
+    }
+
     public static void SetSortGroup(int group)
     {
         Debug.Assert((group & 0xFFFF) == group);

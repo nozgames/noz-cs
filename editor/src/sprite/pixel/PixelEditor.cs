@@ -1073,7 +1073,7 @@ public partial class PixelEditor : SpriteEditor
         Document.AlphaLock = AlphaLock;
         Grid.PixelsPerUnitOverride = null;
 
-        if (Document.Version != _versionOnOpen && Document.Atlas != null)
+        if (Document.Version != _versionOnOpen)
             AtlasManager.UpdateSource(Document);
 
         _canvasTexture?.Dispose();

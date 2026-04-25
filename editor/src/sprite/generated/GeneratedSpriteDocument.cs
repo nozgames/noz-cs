@@ -450,8 +450,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
                     Save();
                     SaveMetadata();
                     Project.QueueExport(this, force: true);
-                    if (Atlas != null)
-                        AtlasManager.UpdateSource(this);
+                    AtlasManager.UpdateSource(this);
                     break;
 
                 case GenerationState.Failed:
