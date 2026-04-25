@@ -59,6 +59,7 @@ public static class Project
         ShaderDocument.RegisterDef();
         SoundDocument.RegisterDef();
         SpriteDocument.RegisterDef();
+        SpriteInstanceDocument.RegisterDef();
         GenerationConfig.RegisterDef();
         FontDocument.RegisterDef();
         SkeletonDocument.RegisterDef();
@@ -627,6 +628,7 @@ public static class Project
         // Only do it manually if the export didn't get to it (e.g. skipped by timestamp).
         if (!doc.PostLoaded)
         {
+            doc.Loaded = true;
             doc.Load();
             doc.LoadMetadata();
             doc.PostLoad();

@@ -1609,8 +1609,17 @@ public static partial class Workspace
                             isChecked: () => selectedDoc.Def == targetDef));
                     }
                 }
+
+                if (selectedDoc is SpriteDocument sprite)
+                {
+                    items.Add(PopupMenuItem.Separator());
+                    items.Add(PopupMenuItem.Item(
+                        "Create Instance",
+                        () => CreateNewDocument(SpriteInstanceDocument.CreateNew(sprite, _popupWorldPosition)),
+                        icon: EditorAssets.Sprites.AssetIconSprite));
+                }
             }
-        }        
+        }
 
         _popupWorldPosition = MouseWorldPosition;
 

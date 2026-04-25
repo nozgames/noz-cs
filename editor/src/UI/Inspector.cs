@@ -233,14 +233,17 @@ internal static partial class Inspector
                     Project.Rename(doc, newName);
             }
 
-            using (BeginProperty("Export"))
+            if (doc.CanExport)
             {
-                var shouldExport = doc.ShouldExport;
-                if (UI.Toggle(ElementId.DocumentExport, shouldExport, EditorStyle.Inspector.Toggle))
+                using (BeginProperty("Export"))
                 {
-                    Undo.Record(doc);
-                    doc.ShouldExport = !shouldExport;
-                    AssetManifest.IsModified = true;
+                    var shouldExport = doc.ShouldExport;
+                    if (UI.Toggle(ElementId.DocumentExport, shouldExport, EditorStyle.Inspector.Toggle))
+                    {
+                        Undo.Record(doc);
+                        doc.ShouldExport = !shouldExport;
+                        AssetManifest.IsModified = true;
+                    }
                 }
             }
         }

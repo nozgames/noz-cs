@@ -4,20 +4,33 @@
 
 namespace NoZ.Editor;
 
-public class PixelEyeDropperMode(EditorMode previousMode, bool altMode=false) : EditorMode<PixelEditor>
+public enum PixelEyeDropperTrigger { Click, AltHold, TouchHold }
+
+public class PixelEyeDropperMode(EditorMode previousMode, PixelEyeDropperTrigger trigger = PixelEyeDropperTrigger.Click) : EditorMode<PixelEditor>
 {
     private readonly EditorMode _previousMode = previousMode;
-    private readonly bool _altMode = altMode;
+    private readonly PixelEyeDropperTrigger _trigger = trigger;
 
     public override void Update()
     {
-        if (_altMode && !Input.IsButtonDown(InputCode.KeyLeftAlt, InputScope.All))
+        if (_trigger == PixelEyeDropperTrigger.AltHold && !Input.IsAltDown(InputScope.All))
         {
             Finish();
             return;
-        }            
+        }
 
         EditorCursor.SetDropper();
+
+        if (_trigger == PixelEyeDropperTrigger.TouchHold)
+        {
+            var live = Workspace.ReadPixelAtMouse();
+            if (live.A > 0)
+                Editor.Document.BrushColor = live.WithAlpha(Editor.Document.BrushColor.A);
+
+            if (Touch.FingerCount == 0)
+                Editor.SetMode(_previousMode);
+            return;
+        }
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All) ||
             Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))

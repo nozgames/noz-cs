@@ -39,6 +39,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public bool PostLoaded { get; set; }
     public bool ShouldExport { get; set; } = true;
     public bool SilentExport { get; set; }
+    public virtual bool CanExport => true;
 
     internal UndoStack UndoHistory => _undoHistory ??= new UndoStack(64);
 
@@ -93,7 +94,7 @@ public abstract class Document : IDisposable, IChangeHandler
         Position = Grid.SnapToPixelGrid(props.GetVector2("editor", "position", default));
         var collectionId = props.GetString("editor", "collection", "");
         CollectionId = CollectionManager.GetIdOrDefault(collectionId);
-        ShouldExport = props.GetBool("editor", "export", true);
+        ShouldExport = CanExport && props.GetBool("editor", "export", true);
         LoadMetadata(props);
     }
 

@@ -98,6 +98,29 @@ public static class Touch
     public static TouchFinger GetFinger(int index) =>
         index >= 0 && index < MaxFingers ? _fingers[index] : default;
 
+    public static bool IsLongPressActive
+    {
+        get
+        {
+            if (_fingerCount != 1 || _mouseSimState != MouseSimState.Pending)
+                return false;
+            for (var i = 0; i < MaxFingers; i++)
+            {
+                ref var f = ref _fingers[i];
+                if (!f.Active) continue;
+                return Time.TotalTime - f.DownTime >= LongPressDuration
+                    && Vector2.Distance(f.Position, f.StartPosition) < DragThreshold;
+            }
+            return false;
+        }
+    }
+
+    public static void ConsumeLongPress()
+    {
+        if (_mouseSimState == MouseSimState.Pending)
+            _mouseSimState = MouseSimState.Suppressed;
+    }
+
     public static void BeginFrame()
     {
         _tapped = false;

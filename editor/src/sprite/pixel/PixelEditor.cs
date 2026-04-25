@@ -330,7 +330,12 @@ public partial class PixelEditor : SpriteEditor
         DrawPixelGrid();
 
         if (Input.IsButtonDown(InputCode.KeyLeftAlt, InputScope.All) && Mode is not PixelEyeDropperMode)
-            SetMode(new PixelEyeDropperMode(Mode!, altMode: true));
+            SetMode(new PixelEyeDropperMode(Mode!, PixelEyeDropperTrigger.AltHold));
+        else if (Touch.IsLongPressActive && Mode is not PixelEyeDropperMode)
+        {
+            Touch.ConsumeLongPress();
+            SetMode(new PixelEyeDropperMode(Mode!, PixelEyeDropperTrigger.TouchHold));
+        }
 
         if (Mode is not PixelTransformMode)
             DrawSelectionOutline();
@@ -1114,6 +1119,9 @@ public partial class PixelEditor : SpriteEditor
 
         if (BrushButton(WidgetIds.BrushPopupPencil, "Pencil", EditorAssets.Sprites.IconEdit, isSelected: BrushType == PixelBrushType.Pencil))
             SetBrushMode(PixelBrushType.Pencil);
+
+        if (UI.IsClosed())
+            _showBrushPopup = false;
     }
 
     private void EraserPopup()
@@ -1128,6 +1136,9 @@ public partial class PixelEditor : SpriteEditor
 
         if (BrushButton(WidgetIds.EraserPopupPencil, "Pencil Eraser", EditorAssets.Sprites.IconEraserPencil, isSelected: Document.EraserType == PixelBrushType.Pencil))
             SetEraserMode(PixelBrushType.Pencil);
+
+        if (UI.IsClosed())
+            _showEraserPopup = false;
     }
 
     public override void ToolbarUI()
