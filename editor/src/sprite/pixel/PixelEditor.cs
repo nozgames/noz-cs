@@ -375,8 +375,17 @@ public partial class PixelEditor : SpriteEditor
             SetMode(new PixelEyeDropperMode(Mode!, PixelEyeDropperTrigger.AltHold));
         else if (Touch.IsLongPressActive && Mode is not PixelEyeDropperMode)
         {
-            Touch.ConsumeLongPress();
-            SetMode(new PixelEyeDropperMode(Mode!, PixelEyeDropperTrigger.TouchHold));
+            var sceneRect = UI.GetElementWorldRect(Workspace.SceneWidgetId);
+            foreach (var f in Touch.Fingers)
+            {
+                if (!f.Active) continue;
+                if (sceneRect.Contains(f.Position))
+                {
+                    Touch.ConsumeLongPress();
+                    SetMode(new PixelEyeDropperMode(Mode!, PixelEyeDropperTrigger.TouchHold));
+                }
+                break;
+            }
         }
 
         if (Mode is not PixelTransformMode)

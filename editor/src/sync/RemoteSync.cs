@@ -37,7 +37,15 @@ public class RemoteSync : IProjectSync
 
     public static async Task<RemoteSync> ConnectAsync(string host, int port, string cacheBaseDir, CancellationToken ct = default)
     {
-        var http = new HttpClient { BaseAddress = new Uri($"http://{host}:{port}/") };
+        var handler = new SocketsHttpHandler
+        {
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+        };
+        var http = new HttpClient(handler, disposeHandler: true)
+        {
+            BaseAddress = new Uri($"http://{host}:{port}/"),
+            Timeout = TimeSpan.FromSeconds(30),
+        };
         InfoResponseDto info;
         try
         {
@@ -107,16 +115,22 @@ public class RemoteSync : IProjectSync
     private async Task PullAsync(CancellationToken ct)
     {
         var toDownload = new List<(string Path, long Mtime, long Size)>();
+        var serverPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var cfgEntry = await HeadAsync("editor.cfg", ct);
-        if (cfgEntry != null && (_manifest.IsRemotelyModified("editor.cfg", cfgEntry.Value.Mtime.ToString()) || !File.Exists(Absolute("editor.cfg"))))
-            toDownload.Add(("editor.cfg", cfgEntry.Value.Mtime, cfgEntry.Value.Size));
+        if (cfgEntry != null)
+        {
+            serverPaths.Add("editor.cfg");
+            if (_manifest.IsRemotelyModified("editor.cfg", cfgEntry.Value.Mtime.ToString()) || !File.Exists(Absolute("editor.cfg")))
+                toDownload.Add(("editor.cfg", cfgEntry.Value.Mtime, cfgEntry.Value.Size));
+        }
 
         foreach (var syncPath in _syncPaths)
         {
             var list = await ListAsync(syncPath, recursive: true, ct);
             foreach (var entry in list.Files)
             {
+                serverPaths.Add(entry.Path);
                 if (!_manifest.IsRemotelyModified(entry.Path, entry.MtimeTicks.ToString()) && File.Exists(Absolute(entry.Path)))
                     continue;
                 toDownload.Add((entry.Path, entry.MtimeTicks, entry.Size));
@@ -149,6 +163,37 @@ public class RemoteSync : IProjectSync
 
         if (toDownload.Count > 0)
             Log.Info($"Pulled {toDownload.Count} file(s).");
+
+        var pruned = 0;
+        foreach (var path in _manifest.Paths.ToArray())
+        {
+            if (!IsUnderSyncPath(path)) continue;
+            if (serverPaths.Contains(path)) continue;
+
+            var abs = Absolute(path);
+            if (File.Exists(abs))
+            {
+                try { File.Delete(abs); }
+                catch (Exception ex) { Log.Warning($"Failed to prune '{path}': {ex.Message}"); continue; }
+            }
+            _manifest.RemoveEntry(path);
+            pruned++;
+        }
+
+        if (pruned > 0)
+            Log.Info($"Pruned {pruned} file(s).");
+    }
+
+    private bool IsUnderSyncPath(string relativePath)
+    {
+        if (relativePath == "editor.cfg") return true;
+        foreach (var sp in _syncPaths)
+        {
+            var prefix = sp.TrimEnd('/') + "/";
+            if (relativePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private async Task PushAsync(CancellationToken ct)

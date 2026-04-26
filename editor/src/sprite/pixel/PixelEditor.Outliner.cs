@@ -62,12 +62,54 @@ public partial class PixelEditor
 
     public override void OpenContextMenu(WidgetId popupId)
     {
+        var anchor = _selectedNode;
+        var hideLabel = anchor != null && anchor.Visible ? "Hide" : "Show";
+        var hideIcon = anchor != null && anchor.Visible
+            ? EditorAssets.Sprites.IconHidden
+            : EditorAssets.Sprites.IconPreview;
+        var lockLabel = anchor != null && anchor.Locked ? "Unlock" : "Lock";
+        var lockIcon = anchor != null && anchor.Locked
+            ? EditorAssets.Sprites.IconUnlock
+            : EditorAssets.Sprites.IconLock;
+
         var items = new List<PopupMenuItem>
         {
+            PopupMenuItem.Item(hideLabel, ToggleSelectedVisibility,
+                enabled: () => _selectedNode != null, icon: hideIcon),
+            PopupMenuItem.Item(lockLabel, ToggleSelectedLock,
+                enabled: () => _selectedNode != null, icon: lockIcon),
+            PopupMenuItem.Separator(),
             PopupMenuItem.Item("Merge Down", MergeDownActiveLayer,
                 enabled: () => CanMergeDown()),
         };
         UI.OpenPopupMenu(popupId, items.ToArray(), EditorStyle.ContextMenu.Style);
+    }
+
+    private void ToggleSelectedVisibility()
+    {
+        if (_selectedNode == null) return;
+        Undo.Record(Document);
+        var target = !_selectedNode.Visible;
+        var nodes = new List<SpriteNode>();
+        Document.Root.Collect<SpriteNode>(nodes, n => n.IsSelected);
+        foreach (var node in nodes)
+        {
+            node.Visible = target;
+            OnVisibilityChanged(node);
+        }
+        OnOutlinerChanged();
+    }
+
+    private void ToggleSelectedLock()
+    {
+        if (_selectedNode == null) return;
+        Undo.Record(Document);
+        var target = !_selectedNode.Locked;
+        var nodes = new List<SpriteNode>();
+        Document.Root.Collect<SpriteNode>(nodes, n => n.IsSelected);
+        foreach (var node in nodes)
+            node.Locked = target;
+        OnOutlinerChanged();
     }
 
     protected override void OnOutlinerChanged() => InvalidateComposite();
