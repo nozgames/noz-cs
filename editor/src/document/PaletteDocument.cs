@@ -31,14 +31,14 @@ public class PaletteDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(PaletteAssetType, Extension, name, position, writer =>
+        return Project.New(PaletteAssetType, Extension, name, writer =>
         {
             writer.WriteLine("JASC-PAL");
             writer.WriteLine("0100");
             writer.WriteLine("16");
             for (int i = 0; i < 16; i++)
                 writer.WriteLine("0 0 0");
-        });
+        }, position);
     }
 
     public override void Load()
@@ -140,11 +140,10 @@ public class PaletteDocument : Document
 
     private void ParsePalFile()
     {
-        var store = EditorApplication.Store;
-        if (!store.FileExists(Path))
+        if (!File.Exists(Path))
             return;
 
-        var lines = store.ReadAllText(Path).Split('\n');
+        var lines = File.ReadAllText(Path).Split('\n');
         if (lines.Length < 3) return;
 
         if (lines[0].Trim() != "JASC-PAL") return;

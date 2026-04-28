@@ -84,16 +84,16 @@ public partial class GeneratedSpriteDocument
                         ImageFilePath = System.IO.Path.Combine(dir, stem + ".png");
                     }
 
-                    if (!EditorApplication.Store.FileExists(ImageFilePath))
-                        EditorApplication.Store.WriteAllBytes(ImageFilePath, gen.Job.ImageData);
+                    if (!File.Exists(ImageFilePath))
+                        File.WriteAllBytes(ImageFilePath, gen.Job.ImageData);
                 }
             }
             else
                 break;
         }
 
-        if (!gen.Job.HasImageData && ImageFilePath != null && EditorApplication.Store.FileExists(ImageFilePath))
-            gen.Job.ImageData = EditorApplication.Store.ReadAllBytes(ImageFilePath);
+        if (!gen.Job.HasImageData && ImageFilePath != null && File.Exists(ImageFilePath))
+            gen.Job.ImageData = File.ReadAllBytes(ImageFilePath);
     }
 
     private void SaveGeneration(StreamWriter writer)
@@ -109,6 +109,6 @@ public partial class GeneratedSpriteDocument
         if (!string.IsNullOrEmpty(gen.Config.Name))
             writer.WriteLine($"style \"{gen.Config.Name}\"");
         if (gen.Job.HasImageData && ImageFilePath != null)
-            EditorApplication.Store.WriteAllBytes(ImageFilePath, gen.Job.ImageData!);
+            File.WriteAllBytes(ImageFilePath, gen.Job.ImageData!);
     }
 }

@@ -248,6 +248,10 @@ public class PropertySet
 
     public void Save(string path)
     {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
         using var writer = new StreamWriter(path);
         SaveTo(writer);
     }

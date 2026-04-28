@@ -56,6 +56,10 @@ public partial class VectorSpriteDocument
                 break;
             else if (tk.ExpectIdentifier("hold"))
                 group.Hold = tk.ExpectInt();
+            else if (tk.ExpectIdentifier("visible"))
+                group.Visible = tk.ExpectBool();
+            else if (tk.ExpectIdentifier("locked"))
+                group.Locked = tk.ExpectBool();
             else if (tk.ExpectIdentifier("group"))
                 ParseGroup(ref tk, group);
             else if (tk.ExpectIdentifier("path"))
@@ -192,6 +196,14 @@ public partial class VectorSpriteDocument
             {
                 path.Hold = tk.ExpectInt();
             }
+            else if (tk.ExpectIdentifier("visible"))
+            {
+                path.Visible = tk.ExpectBool();
+            }
+            else if (tk.ExpectIdentifier("locked"))
+            {
+                path.Locked = tk.ExpectBool();
+            }
             else
                 break;
         }
@@ -211,6 +223,11 @@ public partial class VectorSpriteDocument
 
         if (path.Hold > 0)
             writer.WriteLine($"{propIndent}hold {path.Hold}");
+
+        if (!path.Visible)
+            writer.WriteLine($"{propIndent}visible false");
+        if (path.Locked)
+            writer.WriteLine($"{propIndent}locked true");
 
         if (path.HasTransform)
         {
@@ -264,6 +281,11 @@ public partial class VectorSpriteDocument
 
         if (group.Hold > 0)
             writer.WriteLine($"{propIndent}hold {group.Hold}");
+
+        if (!group.Visible)
+            writer.WriteLine($"{propIndent}visible false");
+        if (group.Locked)
+            writer.WriteLine($"{propIndent}locked true");
 
         foreach (var child in group.Children)
         {

@@ -14,6 +14,7 @@ public abstract class DocumentEditor(Document document) : IDisposable
     public virtual bool ShowInspector => false;
     public virtual bool ShowOutliner => false;
     public virtual bool RunInBackground => false;
+    public virtual PowerMode PowerMode => PowerMode.Balanced;
 
     public void SetMode(EditorMode? mode)
     {
@@ -44,5 +45,6 @@ public abstract class DocumentEditor(Document document) : IDisposable
 
     public virtual void InspectorUI() { }
     public virtual void OutlinerUI() { }
+    public virtual void ToolbarUI() { }
     public virtual void OpenContextMenu(WidgetId popupId) { }
 }

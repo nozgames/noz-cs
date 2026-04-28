@@ -31,7 +31,7 @@ internal static partial class EditorUI
     {
         var items = new List<PopupMenuItem>();
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc is not SkeletonDocument skeleton || skeleton.BoneCount == 0)
                 continue;

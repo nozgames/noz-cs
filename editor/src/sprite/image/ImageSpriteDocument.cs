@@ -45,16 +45,18 @@ public class ImageSpriteDocument : SpriteDocument
 
     public override void Reload()
     {
+        _texture?.Dispose();
+        _texture = null;
         LoadImageSize();
         UpdateBounds();
     }
 
     private void LoadImageSize()
     {
-        if (!EditorApplication.Store.FileExists(Path))
+        if (!File.Exists(Path))
             return;
 
-        var info = Image.Identify(EditorApplication.Store.OpenRead(Path));
+        var info = Image.Identify(File.OpenRead(Path));
         if (info == null)
             return;
 
@@ -171,12 +173,12 @@ public class ImageSpriteDocument : SpriteDocument
 
     private void EnsurePreviewTexture()
     {
-        if (_texture != null || !EditorApplication.Store.FileExists(Path))
+        if (_texture != null || !File.Exists(Path))
             return;
 
         try
         {
-            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(EditorApplication.Store.OpenRead(Path));
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(File.OpenRead(Path));
             _texture = CreateTextureFromImage(srcImage, Name + "_preview");
         }
         catch (Exception ex)
@@ -187,9 +189,9 @@ public class ImageSpriteDocument : SpriteDocument
 
     internal override void RasterizeCore(PixelData<Color32> image, in AtlasSpriteRect rect, int padding)
     {
-        if (!EditorApplication.Store.FileExists(Path)) return;
+        if (!File.Exists(Path)) return;
 
-        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(EditorApplication.Store.OpenRead(Path));
+        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(File.OpenRead(Path));
         var srcW = srcImage.Width;
         var srcH = srcImage.Height;
         var dstW = RasterBounds.Width;

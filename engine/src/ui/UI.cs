@@ -26,10 +26,11 @@ public static partial class UI
     public struct AutoFlex : IDisposable { readonly void IDisposable.Dispose() => EndFlex(); }
     public struct AutoPopup : IDisposable { readonly void IDisposable.Dispose() => EndPopup(); }
     public struct AutoCollection : IDisposable { readonly void IDisposable.Dispose() => EndCollection(); }
-    public struct AutoTransformed : IDisposable { readonly void IDisposable.Dispose() => EndTransformed(); }
+    public struct AutoTransform : IDisposable { readonly void IDisposable.Dispose() => EndTransform(); }
     public struct AutoOpacity : IDisposable { readonly void IDisposable.Dispose() => EndOpacity(); }
     public struct AutoCursor : IDisposable { readonly void IDisposable.Dispose() => EndCursor(); }
-    public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) _disabledDepth--; } }
+    public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) EndEnabled(); } }
+    public struct AutoWidget : IDisposable { public readonly void Dispose() => EndWidget(); }
 
     private static Font? _defaultFont;
     public static Font DefaultFont => _defaultFont!;
@@ -163,6 +164,8 @@ public static partial class UI
         return auto;
     }
 
+    public static void EndEnabled() => _disabledDepth--;
+
     public static bool IsDisabled() => _disabledDepth > 0;
 
     public static void SetCapture(WidgetId id) => ElementTree.SetCaptureById(id);
@@ -276,7 +279,7 @@ public static partial class UI
     internal static void ProcessInput()
     {
         if (Camera == null) return;
-        var mousePos = Input.MousePosition;
+        var mousePos = Input.IsButtonDownRaw(InputCode.Pen) ? Input.PenPosition : Input.MousePosition;
         var renderSize = Graphics.RenderSize;
         var windowSize = Application.WindowSize;
         if (renderSize != windowSize)
@@ -294,6 +297,8 @@ public static partial class UI
 
     internal static void End()
     {
+        PopupHelper.Update();
+
         ElementTree.End();
 
         // Auto-clear hot if the widget wasn't built this frame
@@ -345,13 +350,13 @@ public static partial class UI
             Container(new ContainerStyle { Width = Size.Percent(1), Height = thickness, Background = color });
     }
 
-    public static AutoTransformed BeginTransformed(TransformStyle style)
+    public static AutoTransform BeginTransform(TransformStyle style)
     {
         ElementTree.BeginTransform(style.Origin, style.Translate, style.Rotate, style.Scale);
-        return new AutoTransformed();
+        return new AutoTransform();
     }
 
-    public static void EndTransformed() => ElementTree.EndTransform();
+    public static void EndTransform() => ElementTree.EndTransform();
 
     public static AutoOpacity BeginOpacity(float opacity)
     {

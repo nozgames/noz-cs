@@ -161,6 +161,7 @@ public struct VfxParticleDef
     public VfxFloatCurve Opacity;
     public VfxRange Rotation;
     public VfxFloatCurve RotationSpeed;
+    public bool AlignToDirection;
     public Sprite? Sprite;
     public ushort Sort;
 }
@@ -180,7 +181,7 @@ public struct VfxEmitterDef
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 9;
+    internal const ushort Version = 10;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -227,6 +228,7 @@ public class Vfx : Asset
             p.Drag = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.Rotation = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.RotationSpeed = ReadFloatCurve(reader);
+            p.AlignToDirection = reader.ReadBoolean();
 
             var spriteNameLen = reader.ReadInt32();
             if (spriteNameLen > 0)

@@ -46,4 +46,5 @@ public class ApplicationConfig
     public bool HotReload { get; init; } = true;
     public bool Profiler { get; init; } = false;
     public Assembly? ResourceAssembly { get; init; }
+    public bool IsTablet { get; init; }
 }

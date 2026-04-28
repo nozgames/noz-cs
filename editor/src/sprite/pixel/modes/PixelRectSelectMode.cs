@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PixelRectSelectMode : EditorMode<PixelSpriteEditor>
+public class PixelRectSelectMode : EditorMode<PixelEditor>
 {
     private Vector2Int? _dragStart;
     private Vector2Int _dragCurrent;
@@ -16,7 +16,7 @@ public class PixelRectSelectMode : EditorMode<PixelSpriteEditor>
         EditorCursor.SetCrosshair();
 
         var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
+        var pixel = Editor.WorldToPixelSnapped(mouseWorld);
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {

@@ -60,7 +60,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
     public static Document? CreateNew(Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Sprite, Extension, null, position, WriteNewFile);
+        return Project.New(AssetType.Sprite, Extension, null, WriteNewFile, position);
     }
 
     public static void WriteNewFile(StreamWriter writer)
@@ -327,7 +327,7 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
         VectorSpriteDocument.RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi);
 
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsReadonlySpan(), outW, outH);
         using var ms = new MemoryStream();
         image.SaveAsPng(ms);
         return ms.ToArray();
@@ -366,9 +366,9 @@ public partial class GeneratedSpriteDocument : SpriteDocument
 
             try
             {
-                var tmpDir = System.IO.Path.Combine(EditorApplication.ProjectPath, "tmp");
-                EditorApplication.Store.CreateDirectory(tmpDir);
-                EditorApplication.Store.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), gen.Job.ImageData);
+                var tmpDir = System.IO.Path.Combine(Project.Path, "tmp");
+                Directory.CreateDirectory(tmpDir);
+                File.WriteAllBytes(System.IO.Path.Combine(tmpDir, $"{Name}_gen.png"), gen.Job.ImageData);
             }
             catch { }
 
@@ -449,9 +449,8 @@ public partial class GeneratedSpriteDocument : SpriteDocument
                     ApplyGenerationResult(status);
                     Save();
                     SaveMetadata();
-                    DocumentManager.QueueExport(this, force: true);
-                    if (Atlas != null)
-                        AtlasManager.UpdateSource(this);
+                    Project.QueueExport(this, force: true);
+                    AtlasManager.UpdateSource(this);
                     break;
 
                 case GenerationState.Failed:

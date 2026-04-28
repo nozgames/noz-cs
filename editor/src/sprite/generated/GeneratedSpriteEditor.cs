@@ -20,7 +20,6 @@ public partial class GeneratedSpriteEditor : SpriteEditor
     }
 
     public override bool ShowInspector => true;
-    public override bool ShowOutliner => false;
 
     public new GeneratedSpriteDocument Document => (GeneratedSpriteDocument)base.Document;
 
@@ -150,7 +149,7 @@ public partial class GeneratedSpriteEditor : SpriteEditor
                         {
                             PopupMenuItem.Item("None", () => SetStyle(null))
                         };
-                        foreach (var doc in DocumentManager.Documents)
+                        foreach (var doc in Project.Documents)
                         {
                             if (doc is GenerationConfig styleDoc)
                                 items.Add(PopupMenuItem.Item(styleDoc.Name, () => SetStyle(styleDoc)));

@@ -77,6 +77,13 @@ public static class SpriteNodeVectorExtensions
             child.ForEachEditablePath(action);
     }
 
+    public static bool IsEditable(this SpriteNode node)
+    {
+        for (var n = (SpriteNode?)node; n != null; n = n.Parent)
+            if (!n.Visible || n.Locked) return false;
+        return true;
+    }
+
     public static void CollectPathsWithSelection(this SpriteNode node, List<SpritePath> result)
     {
         if (node is SpritePath path && path.HasSelection())
@@ -150,7 +157,7 @@ public static class SpriteNodeVectorExtensions
     {
         static void Recursive(SpriteNode node, Vector2 point, bool onlySelected, HashSet<SpritePath>? exclude, ref AnchorHitResult? best)
         {
-            if (!node.Visible) return;
+            if (!node.Visible || node.Locked) return;
             if (node is SpritePath path)
             {
                 if (onlySelected && !path.IsSelected) return;
@@ -174,7 +181,7 @@ public static class SpriteNodeVectorExtensions
     {
         static int Recursive(SpriteNode node, Vector2 point, List<AnchorHitResult> results, bool onlySelected)
         {
-            if (!node.Visible) return 0;
+            if (!node.Visible || node.Locked) return 0;
             var count = 0;
 
             if (node is SpritePath path)
@@ -201,7 +208,7 @@ public static class SpriteNodeVectorExtensions
     {
         static void Recursive(SpriteNode node, Vector2 point, bool onlySelected, ref SegmentHitResult? best, ref float bestDistSqr)
         {
-            if (!node.Visible) return;
+            if (!node.Visible || node.Locked) return;
 
             if (node is SpritePath path)
             {
@@ -229,7 +236,7 @@ public static class SpriteNodeVectorExtensions
     {
         static SpritePath? Recursive(SpriteNode node, Vector2 point)
         {
-            if (!node.Visible) return null;
+            if (!node.Visible || node.Locked) return null;
 
             if (node is SpritePath path)
                 return HitTestPathWithStroke(path, point) ? path : null;
@@ -251,7 +258,7 @@ public static class SpriteNodeVectorExtensions
     {
         static int Recursive(SpriteNode node, Vector2 point, List<SpritePath> results)
         {
-            if (!node.Visible) return 0;
+            if (!node.Visible || node.Locked) return 0;
             var count = 0;
 
             if (node is SpritePath path)

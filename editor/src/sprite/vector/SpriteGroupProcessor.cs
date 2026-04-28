@@ -55,6 +55,7 @@ internal static class SpriteGroupProcessor
             }
 
             if (child is not SpritePath path) continue;
+            if (!path.Visible) continue;
             if (path.TotalAnchorCount < 3) continue;
 
             // Subtract: retroactively cut from all already-emitted results below

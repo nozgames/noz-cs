@@ -341,6 +341,6 @@ public static class MathEx
 
     public static float Random01() => (float)Random.Shared.NextDouble();
     public static float RandomSNorm() => RandomRange(-1f, 1f);
-    public static float RandomSign() => ((int)Random01()) * 2 - 1;
+    public static float RandomSign() => ((int)(Random01() + 0.5f)) * 2 - 1;
     public static float RandomSNormRange(float min, float max) => RandomRange(min, max) * RandomSign();
 }

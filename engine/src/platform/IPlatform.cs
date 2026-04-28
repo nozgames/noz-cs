@@ -78,8 +78,16 @@ public interface IPlatform
     void SetFullscreen(bool fullscreen);
     void SetVSync(bool vsync);
     void SetHighRefreshRate(bool enabled) { }
+    void SetPowerMode(PowerMode mode) { }
 
     nint WindowHandle { get; }
+
+    // Linux: wl_display* (Wayland) or X11 Display*. Zero elsewhere.
+    nint DisplayHandle => nint.Zero;
+
+    // Linux: true under Wayland, false under X11. Meaningless on other platforms.
+    bool IsWayland => false;
+
     nint GetGraphicsProcAddress(string name);
 
     Stream? OpenAssetStream(AssetType type, string name, string extension, string? libraryPath = null) => null;

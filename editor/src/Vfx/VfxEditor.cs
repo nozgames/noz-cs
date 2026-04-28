@@ -24,8 +24,8 @@ internal partial class VfxEditor : DocumentEditor
     }
 
     public override bool ShowInspector => true;
-    public override bool ShowOutliner => true;
     public override bool RunInBackground => Document.IsPlaying;
+    public override PowerMode PowerMode => Document.IsPlaying ? PowerMode.Performance : PowerMode.Balanced;
 
     public new VfxDocument Document => (VfxDocument)base.Document;
 

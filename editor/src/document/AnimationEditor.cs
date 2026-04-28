@@ -41,6 +41,7 @@ internal partial class AnimationEditor : DocumentEditor
 
     public new AnimationDocument Document => (AnimationDocument)base.Document;
     public override bool ShowInspector => true;
+    public override PowerMode PowerMode => _state == AnimationEditorState.Play ? PowerMode.Performance : PowerMode.Balanced;
 
     public AnimationEditor(AnimationDocument document) : base(document)
     {

@@ -2,8 +2,8 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
-using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using NoZ.Platform;
 
 namespace NoZ;
@@ -42,6 +42,7 @@ public static class Input
     private static float _scrollX;
     private static float _scrollY;
     private static string _textInput = string.Empty;
+    private static readonly List<Vector2> _penMoveSamples = new();
 
     public static void Init()
     {
@@ -90,6 +91,7 @@ public static class Input
         _scrollX = 0;
         _scrollY = 0;
         _textInput = string.Empty;
+        _penMoveSamples.Clear();
 
         for (var i = 0; i < (int)InputCode.Count; i++)
         {
@@ -138,32 +140,39 @@ public static class Input
         }
     }
 
+    private static void HandleButtonDown(InputCode code)
+    {
+        ref var btn = ref Buttons[(int)code];
+        btn.Physical = true;
+        if (btn.Consumed)
+            return;
+
+        if (!btn.Logical)
+            btn.Pressed = true;
+        
+        btn.Logical = true;
+    }
+
+    private static void HandleButtonUp(InputCode code)
+    {
+        ref var btn = ref Buttons[(int)code];
+        btn.Physical = false;
+        btn.Logical = false;
+        btn.Released = true;
+    }
+
     public static void ProcessEvent(PlatformEvent evt)
     {
         switch (evt.Type)
         {
             case PlatformEventType.KeyDown:
                 if (evt.KeyCode != InputCode.None)
-                {
-                    ref var btn = ref Buttons[(int)evt.KeyCode];
-                    btn.Physical = true;
-                    if (!btn.Consumed)
-                    {
-                        if (!btn.Logical)
-                            btn.Pressed = true;
-                        btn.Logical = true;
-                    }
-                }
+                    HandleButtonDown(evt.KeyCode);
                 break;
 
             case PlatformEventType.KeyUp:
                 if (evt.KeyCode != InputCode.None)
-                {
-                    ref var btn = ref Buttons[(int)evt.KeyCode];
-                    btn.Physical = false;
-                    btn.Logical = false;
-                    btn.Released = true;
-                }
+                    HandleButtonUp(evt.KeyCode);
                 break;
 
             case PlatformEventType.TextInput:
@@ -173,16 +182,7 @@ public static class Input
 
             case PlatformEventType.MouseButtonDown:
                 if (evt.MouseButton != InputCode.None)
-                {
-                    ref var btn = ref Buttons[(int)evt.MouseButton];
-                    btn.Physical = true;
-                    if (!btn.Consumed)
-                    {
-                        if (!btn.Logical)
-                            btn.Pressed = true;
-                        btn.Logical = true;
-                    }
-                }
+                    HandleButtonDown(evt.MouseButton);
 
                 if (evt.ClickCount == 2 &&
                     evt.MouseButton == InputCode.MouseLeft &&
@@ -192,12 +192,7 @@ public static class Input
 
             case PlatformEventType.MouseButtonUp:
                 if (evt.MouseButton != InputCode.None)
-                {
-                    ref var btn = ref Buttons[(int)evt.MouseButton];
-                    btn.Physical = false;
-                    btn.Logical = false;
-                    btn.Released = true;
-                }
+                    HandleButtonUp(evt.MouseButton);
 
                 Buttons[(int)InputCode.MouseLeftDoubleClick].Logical = false;
 
@@ -216,11 +211,18 @@ public static class Input
                 break;
 
             case PlatformEventType.PenDown:
-                IsPenDown = true;
+                HandleButtonDown(InputCode.Pen);
+                PenPosition = evt.PenPosition;
+                _penMoveSamples.Add(evt.PenPosition);
                 break;
 
             case PlatformEventType.PenUp:
-                IsPenDown = false;
+                HandleButtonUp(InputCode.Pen);
+                break;
+
+            case PlatformEventType.PenMove:
+                PenPosition = evt.PenPosition;
+                _penMoveSamples.Add(evt.PenPosition);
                 break;
 
             case PlatformEventType.MouseScroll:
@@ -376,6 +378,8 @@ public static class Input
     public static bool IsShiftDown(InputScope scope) => IsButtonDown(InputCode.KeyLeftShift, scope) || IsButtonDown(InputCode.KeyRightShift, scope);
     public static bool IsCtrlDown() => IsButtonDown(InputCode.KeyLeftCtrl) || IsButtonDown(InputCode.KeyRightCtrl);
     public static bool IsCtrlDown(InputScope scope) => IsButtonDown(InputCode.KeyLeftCtrl, scope) || IsButtonDown(InputCode.KeyRightCtrl, scope);
+    public static bool IsSnapModifierDown() => IsCtrlDown() || Touch.IsSnapModifier;
+    public static bool IsSnapModifierDown(InputScope scope) => IsCtrlDown(scope) || Touch.IsSnapModifier;
     public static bool IsAltDown() => IsButtonDown(InputCode.KeyLeftAlt) || IsButtonDown(InputCode.KeyRightAlt);
     public static bool IsAltDown(InputScope scope) => IsButtonDown(InputCode.KeyLeftAlt, scope) || IsButtonDown(InputCode.KeyRightAlt, scope);
     public static bool IsSuperDown() => IsButtonDown(InputCode.KeyLeftSuper) || IsButtonDown(InputCode.KeyRightSuper);
@@ -384,9 +388,13 @@ public static class Input
     public static string GetTextInput() => _scopeStack.Count == 0 ? _textInput : string.Empty;
     public static string GetTextInput(InputScope scope) => CheckScope(scope) ? _textInput : string.Empty;
 
-    public static bool IsPenDown { get; private set; }
-
     public static Vector2 MousePosition { get; private set; }
+    public static Vector2 PenPosition { get; private set; }
+
+    // All pen positions received this frame, in order. Used by stroke tools
+    // that need to reconstruct paths without losing intermediate samples.
+    public static ReadOnlySpan<Vector2> PenMoveSamples => CollectionsMarshal.AsSpan(_penMoveSamples);
+
     public static bool MouseInWindow => Application.Platform.IsMouseInWindow;
 
     public static bool IsMouseCaptured => Application.Platform.IsMouseCaptured;

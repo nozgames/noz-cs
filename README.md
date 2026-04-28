@@ -53,7 +53,7 @@ git submodule update --init --recursive
 dotnet build noz/editor
 
 # 5. Initialize the game project structure
-dotnet run --project noz/editor/program/NoZ.Editor.Program.csproj -- --init --project
+dotnet run --project noz/editor/platform/NoZ.Editor.Desktop.csproj -- --init --project
 
 # 6. Restore NuGet packages and build the project
 dotnet restore

@@ -19,22 +19,14 @@ public abstract partial class SpriteEditor
         public static partial WidgetId EdgeRight { get; }
     }
 
-    private EditorMode? _preEdgeEditMode;
-
     public bool IsEditingEdges => Mode is EdgeEditMode;
 
     public void ToggleEdgeEditMode()
     {
         if (IsEditingEdges)
-        {
-            _preEdgeEditMode = null;
             ExitEdgeEditMode();
-        }
         else
-        {
-            _preEdgeEditMode = Mode;
             SetMode(new EdgeEditMode());
-        }
     }
 
     protected virtual void ExitEdgeEditMode()

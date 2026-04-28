@@ -144,12 +144,13 @@ internal static partial class Inspector
 
         if (!_sectionCollapsed)
         {
+            ElementTree.BeginFill(EditorStyle.Palette.Panel);
             ElementTree.BeginPadding(new EdgeInsets(
                 EditorStyle.Control.Spacing,
                 EditorStyle.Control.Spacing,
                 0,
                 EditorStyle.Control.Spacing));
-            ElementTree.BeginColumn(EditorStyle.Inspector.BodyGap);
+            ElementTree.BeginColumn(EditorStyle.Inspector.BodyGap);            
         }
     }
 
@@ -173,6 +174,7 @@ internal static partial class Inspector
         {
             ElementTree.EndColumn();
             ElementTree.EndPadding();
+            ElementTree.EndFill();
         }
 
         _sectionCollapsed = false;
@@ -209,7 +211,7 @@ internal static partial class Inspector
         if (!IsSectionCollapsed)
         {
             var ext = Path.GetExtension(doc.Path);
-            var defs = DocumentManager.GetDefs(ext);
+            var defs = Project.GetDefs(ext);
             if (defs != null && defs.Count > 1)
             {
                 using (BeginProperty("Type"))
@@ -218,7 +220,7 @@ internal static partial class Inspector
                         defs.Select(d => new PopupMenuItem
                         {
                             Label = d.Name,
-                            Handler = () => DocumentManager.ChangeType(doc, d)
+                            Handler = () => Project.ChangeType(doc, d)
                         }).ToArray(),
                         doc.Def.Name, doc.Def.Icon?.Invoke());
                 }
@@ -228,17 +230,20 @@ internal static partial class Inspector
             {
                 var newName = UI.TextInput(ElementId.DocumentName, doc.Name, EditorStyle.TextInput);
                 if (newName != doc.Name)
-                    DocumentManager.Rename(doc, newName);
+                    Project.Rename(doc, newName);
             }
 
-            using (BeginProperty("Export"))
+            if (doc.CanExport)
             {
-                var shouldExport = doc.ShouldExport;
-                if (UI.Toggle(ElementId.DocumentExport, shouldExport, EditorStyle.Inspector.Toggle))
+                using (BeginProperty("Export"))
                 {
-                    Undo.Record(doc);
-                    doc.ShouldExport = !shouldExport;
-                    AssetManifest.IsModified = true;
+                    var shouldExport = doc.ShouldExport;
+                    if (UI.Toggle(ElementId.DocumentExport, shouldExport, EditorStyle.Inspector.Toggle))
+                    {
+                        Undo.Record(doc);
+                        doc.ShouldExport = !shouldExport;
+                        AssetManifest.IsModified = true;
+                    }
                 }
             }
         }

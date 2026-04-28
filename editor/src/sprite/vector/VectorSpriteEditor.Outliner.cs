@@ -21,6 +21,8 @@ public partial class VectorSpriteEditor
     protected override void OnNodeClicked(SpriteNode node) =>
         HandleOutlinerClick(node);
 
+    protected override bool IsNodeActive(SpriteNode node) => node == _pivotNode;
+
     protected override void OnOutlinerChanged() => MarkDirty();
 
     protected override void OnVisibilityChanged(SpriteNode node)
@@ -42,7 +44,8 @@ public partial class VectorSpriteEditor
                 p.SelectPath();
             else if (node is SpriteGroup l)
                 l.IsSelected = true;
-            RebuildSelectedPaths();
+            _pivotNode = node;
+            RebuildSelectedPaths(expandAncestors: false);
         }
 
         OpenContextMenu(WidgetIds.ContextMenu);
@@ -96,66 +99,117 @@ public partial class VectorSpriteEditor
         var shift = Input.IsShiftDown(InputScope.All);
         var ctrl = Input.IsCtrlDown(InputScope.All);
 
-        if (node is SpriteGroup group)
-        {
-            // Group selection is mutually exclusive with path selection
-            if (ctrl)
-            {
-                if (group.IsSelected)
-                {
-                    if (_selectedLayers.Count > 1)
-                        group.IsSelected = false;
-                }
-                else
-                {
-                    Document.Root.ClearSelection();
-                    group.IsSelected = true;
-                }
-            }
-            else if (shift)
-            {
-                // Clear paths but keep other group selections
-                foreach (var p in _selectedPaths)
-                    p.ClearSelection();
-                group.IsSelected = true;
-            }
-            else
-            {
-                Document.Root.ClearSelection();
-                group.IsSelected = true;
-            }
+        if (ctrl)
+            CtrlToggleNode(node);
+        else if (shift && _pivotNode != null)
+            ShiftRangeSelect(_pivotNode, node);
+        else
+            SingleSelect(node);
 
-            RebuildSelectedPaths();
+        RebuildSelectedPaths(expandAncestors: false);
+    }
+
+    private void SingleSelect(SpriteNode node)
+    {
+        Document.Root.ClearSelection();
+        SetNodeSelected(node, true);
+        _pivotNode = node;
+    }
+
+    private void CtrlToggleNode(SpriteNode node)
+    {
+        if (node.IsSelected)
+        {
+            var ownListCount = node is SpriteGroup ? _selectedLayers.Count : _selectedPaths.Count;
+            if (ownListCount <= 1) return;
+
+            SetNodeSelected(node, false);
+            if (_pivotNode == node)
+                _pivotNode = FirstSelectedOfType(node);
             return;
         }
 
-        if (node is SpritePath path)
+        // Adding a node of a different type clears the other type to preserve mutual exclusion.
+        if (!SameSelectionType(node, null))
+            Document.Root.ClearSelection();
+
+        SetNodeSelected(node, true);
+        _pivotNode = node;
+    }
+
+    private void ShiftRangeSelect(SpriteNode pivot, SpriteNode clicked)
+    {
+        var visible = new List<SpriteNode>();
+        CollectVisibleNodes(Document.Root, visible);
+
+        var pivotIdx = visible.IndexOf(pivot);
+        var clickedIdx = visible.IndexOf(clicked);
+        if (pivotIdx < 0 || clickedIdx < 0)
         {
-            // Path selection is mutually exclusive with group selection
+            SingleSelect(clicked);
+            return;
+        }
+
+        Document.Root.ClearSelection();
+
+        var lo = Math.Min(pivotIdx, clickedIdx);
+        var hi = Math.Max(pivotIdx, clickedIdx);
+        var clickedIsGroup = clicked is SpriteGroup;
+        for (var i = lo; i <= hi; i++)
+        {
+            var n = visible[i];
+            if ((n is SpriteGroup) == clickedIsGroup)
+                SetNodeSelected(n, true);
+        }
+        // Pivot stays put.
+    }
+
+    private static void SetNodeSelected(SpriteNode node, bool selected)
+    {
+        if (node is SpritePath p)
+        {
+            if (selected) p.SelectPath();
+            else p.DeselectPath();
+        }
+        else
+        {
+            node.IsSelected = selected;
+        }
+    }
+
+    // When `other` is null, checks against the currently selected type (any).
+    private bool SameSelectionType(SpriteNode a, SpriteNode? other)
+    {
+        var aIsGroup = a is SpriteGroup;
+        if (other != null)
+            return aIsGroup == (other is SpriteGroup);
+
+        if (_selectedLayers.Count > 0) return aIsGroup;
+        if (_selectedPaths.Count > 0) return !aIsGroup;
+        return true;
+    }
+
+    private SpriteNode? FirstSelectedOfType(SpriteNode like)
+    {
+        // Caches may be stale mid-click; walk them for a still-selected node.
+        if (like is SpriteGroup)
+        {
             foreach (var g in _selectedLayers)
-                g.IsSelected = false;
+                if (g.IsSelected) return g;
+            return null;
+        }
+        foreach (var p in _selectedPaths)
+            if (p.IsSelected) return p;
+        return null;
+    }
 
-            if (ctrl)
-            {
-                if (path.IsSelected)
-                {
-                    if (_selectedPaths.Count > 1)
-                        path.DeselectPath();
-                }
-                else
-                    path.SelectPath();
-            }
-            else if (shift)
-            {
-                path.SelectPath();
-            }
-            else
-            {
-                Document.Root.ClearSelection();
-                path.SelectPath();
-            }
-
-            RebuildSelectedPaths();
+    private static void CollectVisibleNodes(SpriteNode root, List<SpriteNode> outList)
+    {
+        foreach (var child in root.Children)
+        {
+            outList.Add(child);
+            if (child.IsExpandable && child.Expanded)
+                CollectVisibleNodes(child, outList);
         }
     }
 

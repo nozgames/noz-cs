@@ -182,7 +182,7 @@ public class TransformMode : EditorMode<VectorSpriteEditor>
         var localDelta = Vector2.TransformNormal(delta, _invDocTransform);
         _snapType = SnapType.None;
 
-        if (Input.IsCtrlDown(InputScope.All))
+        if (Input.IsSnapModifierDown(InputScope.All))
         {
             var candidateDocLocal = _transformState.Centroid + localDelta;
             var snappedDocLocal = SnapHelper.Snap(
@@ -207,7 +207,7 @@ public class TransformMode : EditorMode<VectorSpriteEditor>
         var currentAngle = MathF.Atan2(dir.Y, dir.X);
         var angle = currentAngle - _rotateStartAngle;
 
-        if (Input.IsCtrlDown(InputScope.All))
+        if (Input.IsSnapModifierDown(InputScope.All))
         {
             var snap = MathF.PI / 12f; // 15 degrees
             angle = MathF.Round(angle / snap) * snap;

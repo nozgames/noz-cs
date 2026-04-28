@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace NoZ;
@@ -127,13 +128,13 @@ public readonly struct Color24(byte r, byte g, byte b) : IEquatable<Color24>
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Color(float r, float g, float b, float a)
+public struct Color(float r, float g, float b, float a)
     : IEquatable<Color>
 {
-    public readonly float R = r;
-    public readonly float G = g;
-    public readonly float B = b;
-    public readonly float A = a;
+    public float R = r;
+    public float G = g;
+    public float B = b;
+    public float A = a;
 
     public bool IsTransparent => A <= 0f;
     public bool IsOpaque => A >= 1f;
@@ -167,6 +168,7 @@ public readonly struct Color(float r, float g, float b, float a)
 
     public Color ToLinear() => this; // Placeholder for gamma correction
 
+    public Vector4 ToVector4() => new(R, G, B, A);
     public Color32 ToColor32() => new(
         (byte)(R * 255f),
         (byte)(G * 255f),

@@ -39,6 +39,7 @@ internal partial class VfxEditor
         public static partial WidgetId ParticleDrag { get; }
         public static partial WidgetId ParticleRotation { get; }
         public static partial WidgetId ParticleRotationSpeed { get; }
+        public static partial WidgetId ParticleAlignToDirection { get; }
 
         // Addable section buttons
         public static partial WidgetId AddSize { get; }
@@ -471,6 +472,15 @@ internal partial class VfxEditor
                 particle.Def.Rotation = rotation;
                 Document.ApplyChanges();
             }
+
+            using (Inspector.BeginProperty("Align to Direction"))
+            {
+                if (UI.Toggle(FieldId.ParticleAlignToDirection, particle.Def.AlignToDirection, EditorStyle.Inspector.Toggle))
+                {
+                    particle.Def.AlignToDirection = !particle.Def.AlignToDirection;
+                    Document.ApplyChanges();
+                }
+            }
             EndAddableSection();
         }
 
@@ -877,7 +887,7 @@ internal partial class VfxEditor
 
     private static bool ColorInput(WidgetId id, ref Color color)
     {
-        color = EditorUI.ColorButton(id, color, fillWidth: true, hdr: true);
+        color = EditorUI.ColorButton(id, color, new ColorButtonStyle() with { FillWidth = true });
         return UI.WasChanged();
     }
 

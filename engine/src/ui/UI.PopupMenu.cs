@@ -183,6 +183,7 @@ public static partial class UI
         }
 
         public static bool IsOpen(WidgetId id) => _visible && _id == id;
+        public static bool IsOpen() => _visible;
 
         private static bool UpdateSubmenuHover(int level, int targetIndex)
         {
@@ -231,12 +232,6 @@ public static partial class UI
                 if (!closedSubmenu)
                     Close();
             }
-        }
-
-        public static void UpdateUI()
-        {
-            if (!_visible)
-                return;
 
             Action? executed = null;
             var shouldClose = false;
@@ -503,14 +498,22 @@ public static partial class UI
         }
     }
 
-    public static void OpenPopupMenu(WidgetId id, ReadOnlySpan<PopupMenuItem> items,
-        in PopupMenuStyle style, string? title = null)
+    public static void OpenPopupMenu(
+        WidgetId id,
+        ReadOnlySpan<PopupMenuItem> items,
+        in PopupMenuStyle style,
+        string? title = null)
         => PopupHelper.Open(id, items, style, title);
 
-    public static void OpenPopupMenu(WidgetId id, ReadOnlySpan<PopupMenuItem> items,
-        in PopupMenuStyle style, PopupStyle popupStyle, string? title = null)
+    public static void OpenPopupMenu(
+        WidgetId id,
+        ReadOnlySpan<PopupMenuItem> items,
+        in PopupMenuStyle style,
+        PopupStyle popupStyle,
+        string? title = null)
         => PopupHelper.Open(id, items, style, popupStyle, title);
 
     public static bool IsPopupMenuOpen(WidgetId id) => PopupHelper.IsOpen(id);
+    public static bool IsPopupMenuOpen() => PopupHelper.IsOpen();
     public static void ClosePopupMenu() => PopupHelper.Close();
 }

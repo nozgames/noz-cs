@@ -126,8 +126,8 @@ public static unsafe partial class Graphics
 
         var view = camera.ViewMatrix;
         var projection = new Matrix4x4(
-            view.M11, view.M12, 0, view.M31,
-            -view.M21, -view.M22, 0, -view.M32,
+            view.M11, view.M21, 0, view.M31,
+            -view.M12, -view.M22, 0, -view.M32,
             0, 0, 1, 0,
             0, 0, 0, 1
         );
@@ -196,6 +196,15 @@ public static unsafe partial class Graphics
     {
         Debug.Assert(slot is >= 0 and < MaxTextures);
         var handle = texture?.Handle ?? nuint.Zero;
+        if (CurrentState.Textures[slot] == handle) return;
+        CurrentState.Textures[slot] = handle;
+        _batchStateDirty = true;
+    }
+
+    public static void SetTexture(Atlas? atlas, int slot = 0)
+    {
+        Debug.Assert(slot is >= 0 and < MaxTextures);
+        var handle = atlas?.Handle ?? nuint.Zero;
         if (CurrentState.Textures[slot] == handle) return;
         CurrentState.Textures[slot] = handle;
         _batchStateDirty = true;

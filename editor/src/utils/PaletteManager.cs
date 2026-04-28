@@ -55,7 +55,7 @@ public static class PaletteManager
         _palettes.Clear();
         _paletteIdMap.Clear();
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc is not PaletteDocument palDoc) continue;
 

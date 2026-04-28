@@ -23,6 +23,6 @@ public static class DocumentDef<T> where T : Document
     public static void Register(DocumentDef def)
     {
         Def = def;
-        DocumentManager.RegisterDef(def);
+        Project.RegisterDef(def);
     }
 }

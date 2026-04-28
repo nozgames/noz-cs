@@ -11,7 +11,7 @@ public static unsafe partial class ElementTree
     private static bool _inputMousePressed;
     private static bool _inputMouseDown;
     private static WidgetId _hoveredWidget;
-    private static int _cursorOffset;
+    private static int _cursorOffset; 
 
     private static void HandlePopupAutoClose()
     {
@@ -78,6 +78,7 @@ public static unsafe partial class ElementTree
                 ClosePopups = true;
                 _inputMousePressed = false;
                 Input.ConsumeButton(InputCode.MouseLeft);
+                Input.ConsumeButton(InputCode.Pen);
             }
         }
     }
@@ -125,8 +126,12 @@ public static unsafe partial class ElementTree
         if (_elements.Length < 2) return;
         using var _m = s_markerInput.Begin();
 
-        _inputMousePressed = Input.WasButtonPressedRaw(InputCode.MouseLeft);
-        _inputMouseDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
+        _inputMousePressed =
+            Input.WasButtonPressedRaw(InputCode.MouseLeft) ||
+            Input.WasButtonPressedRaw(InputCode.Pen);
+        _inputMouseDown =
+            Input.IsButtonDownRaw(InputCode.MouseLeft) ||
+            Input.IsButtonDownRaw(InputCode.Pen);
 
         if (_captureId != 0 && !_inputMouseDown)
         {
@@ -272,7 +277,7 @@ public static unsafe partial class ElementTree
         ref var d = ref e.Data.Track;
         var widgetId = d.Id;
 
-        if (IsDown(widgetId) && !HasCaptureById(widgetId))
+        if (WasPressed(widgetId) && !HasCaptureById(widgetId))
             SetCaptureById(widgetId);
 
         if (!HasCaptureById(widgetId))
@@ -281,25 +286,25 @@ public static unsafe partial class ElementTree
         var worldRect = GetWidgetWorldRect(widgetId);
         ref var state = ref *d.State;
 
-        if (d.ThumbSizeX > 0)
+        if (d.ThumbSize.X > 0)
         {
             var trackSize = worldRect.Width;
             if (trackSize > 0)
             {
-                var usable = trackSize - d.ThumbSizeX;
+                var usable = trackSize - d.ThumbSize.X;
                 if (usable > 0)
-                    state.X = MathEx.Clamp01((MouseWorldPosition.X - worldRect.X - d.ThumbSizeX / 2) / usable);
+                    state.X = MathEx.Clamp01((MouseWorldPosition.X - worldRect.X - d.ThumbSize.X / 2) / usable);
             }
         }
 
-        if (d.ThumbSizeY > 0)
+        if (d.ThumbSize.Y > 0)
         {
             var trackSize = worldRect.Height;
             if (trackSize > 0)
             {
-                var usable = trackSize - d.ThumbSizeY;
+                var usable = trackSize - d.ThumbSize.Y;
                 if (usable > 0)
-                    state.Y = MathEx.Clamp01((MouseWorldPosition.Y - worldRect.Y - d.ThumbSizeY / 2) / usable);
+                    state.Y = MathEx.Clamp01((MouseWorldPosition.Y - worldRect.Y - d.ThumbSize.Y / 2) / usable);
             }
         }
     }
@@ -367,7 +372,7 @@ public static unsafe partial class ElementTree
 
         Matrix3x2.Invert(e.Transform, out var inv);
         var localMouse = Vector2.Transform(MouseWorldPosition, inv);
-        var isHovered = e.Rect.Contains(localMouse);
+        var isHovered = !Application.IsTablet && e.Rect.Contains(localMouse);
         var isDeepHovered = _hoveredWidget == d.Id;
 
         if (isHovered && (_captureId == 0 || _captureId == d.Id))
@@ -379,7 +384,10 @@ public static unsafe partial class ElementTree
         {
             state.Flags |= WidgetFlags.Pressed;
             if (d.IsInteractive)
+            {
                 Input.ConsumeButton(InputCode.MouseLeft);
+                Input.ConsumeButton(InputCode.Pen);
+            }
         }
 
         if (isCaptured ? _inputMouseDown : (isDeepHovered && _inputMouseDown && _captureId == 0))

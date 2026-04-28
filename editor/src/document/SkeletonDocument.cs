@@ -114,7 +114,7 @@ public class SkeletonDocument : Document
 
     public override void Load()
     {
-        var contents = EditorApplication.Store.ReadAllText(Path);
+        var contents = File.ReadAllText(Path);
         var tk = new Tokenizer(contents);
 
         while (!tk.IsEOF)
@@ -735,7 +735,7 @@ public class SkeletonDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
 
         writer.WriteAssetHeader(AssetType.Skeleton, 2, 0);
         writer.Write((byte)BoneCount);
@@ -771,20 +771,20 @@ public class SkeletonDocument : Document
         if (!fullPath.EndsWith(".skel", StringComparison.OrdinalIgnoreCase))
             fullPath += ".skel";
 
-        EditorApplication.Store.WriteAllText(fullPath, defaultSkel);
+        File.WriteAllText(fullPath, defaultSkel);
 
-        var doc = DocumentManager.Create(fullPath) as SkeletonDocument;
+        var doc = Project.Create(fullPath) as SkeletonDocument;
         doc?.Load();
         return doc;
     }
 
     public void UpdateSprites()
     {
-        for (int i=0; i<DocumentManager.Documents.Count; i++)
-            (DocumentManager.Documents[i] as SpriteDocument)?.PostLoad();
+        for (int i=0; i<Project.Documents.Count; i++)
+            (Project.Documents[i] as SpriteDocument)?.PostLoad();
 
         Attachments.Clear();
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc is ISkeletonAttachment attachment && attachment.ShouldShowInSkeleton(this))
                 Attachments.Add(attachment);
@@ -793,7 +793,7 @@ public class SkeletonDocument : Document
 
     public void NotifyBoneRenamed(int boneIndex, string oldName, string newName)
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc is SpriteDocument sprite && sprite.Skeleton.Value == this && sprite.BoneName == oldName)
                 sprite.BoneName = newName;
@@ -831,9 +831,9 @@ public class SkeletonDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Skeleton, Extension, name, position, writer =>
+        return Project.New(AssetType.Skeleton, Extension, name, writer =>
         {
             writer.WriteLine("b \"root\" -1 p 0 0 r 0 l 0.1");
-        });
+        }, position);
     }
 }

@@ -427,8 +427,50 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     private Surface* CreateLinuxSurface()
     {
-        // TODO: Implement X11/Wayland surface creation
-        throw new NotImplementedException("Linux surface creation not yet implemented");
+        var display = _config.Platform.DisplayHandle;
+        var window = _config.Platform.WindowHandle;
+
+        if (display == nint.Zero || window == nint.Zero)
+            throw new Exception("Failed to get native display/window handles from platform");
+
+        if (_config.Platform.IsWayland)
+        {
+            var waylandDesc = new SurfaceDescriptorFromWaylandSurface
+            {
+                Chain = new ChainedStruct
+                {
+                    SType = SType.SurfaceDescriptorFromWaylandSurface,
+                },
+                Display = (void*)display,
+                Surface = (void*)window,
+            };
+
+            var surfaceDesc = new SurfaceDescriptor
+            {
+                NextInChain = (ChainedStruct*)(&waylandDesc),
+            };
+
+            return _wgpu.InstanceCreateSurface(_instance, &surfaceDesc);
+        }
+        else
+        {
+            var xlibDesc = new SurfaceDescriptorFromXlibWindow
+            {
+                Chain = new ChainedStruct
+                {
+                    SType = SType.SurfaceDescriptorFromXlibWindow,
+                },
+                Display = (void*)display,
+                Window = (ulong)window,
+            };
+
+            var surfaceDesc = new SurfaceDescriptor
+            {
+                NextInChain = (ChainedStruct*)(&xlibDesc),
+            };
+
+            return _wgpu.InstanceCreateSurface(_instance, &surfaceDesc);
+        }
     }
 
     private Surface* CreateAppleSurface()

@@ -6,5 +6,5 @@ namespace NoZ.Editor;
 
 public interface IActiveLayerHandler
 {
-    void OnActiveLayerChanged(PixelSpriteEditor editor);
+    void OnActiveLayerChanged(PixelEditor editor);
 }

@@ -118,6 +118,8 @@ public abstract partial class SpriteEditor
     {
         _outlinerRows.Clear();
 
+        ElementTree.BeginColumn();
+
         if (ReverseChildren)
         {
             for (var i = root.Children.Count - 1; i >= 0; i--)
@@ -128,6 +130,8 @@ public abstract partial class SpriteEditor
             foreach (var child in root.Children)
                 OutlinerNodeUI(child, 0);
         }
+
+        ElementTree.EndColumn();
     }
 
     private void OutlinerNodeUI(SpriteNode node, int depth)
@@ -155,8 +159,8 @@ public abstract partial class SpriteEditor
         var isActive = IsNodeActive(node);
         var isHovered = !_outlinerDragging && UI.IsHovered(rowId);
         var bg = isSelected || isHovered ? EditorStyle.Palette.Active : Color.Transparent;
-        var borderW = isSelected || isActive ? 1f : 0f;
-        var borderC = isSelected || isActive ? EditorStyle.Palette.Active : Color.Transparent;
+        var borderW = isActive ? 1f : 0f;
+        var borderC = isActive ? EditorStyle.Palette.Active : Color.Transparent;
 
         if (dropLastChild)
             ElementTree.BeginFill(bg, borderWidth: 1, borderColor: EditorStyle.Palette.Primary);
@@ -389,27 +393,33 @@ public abstract partial class SpriteEditor
     {
         _dropTargetIndex = -1;
         var mouseWorld = UI.MouseWorldPosition;
-        var closestDist = float.MaxValue;
-        var closestRow = -1;
+        var firstIdx = -1;
+        var lastIdx = -1;
 
         for (var i = 0; i < _outlinerRows.Count; i++)
         {
             var row = _outlinerRows[i];
+            var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
+            if (rect.Width <= 0) continue;
+
             if (_dragNodes.Contains(row.Node))
             {
-                var srcRect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
-                if (srcRect.Width > 0 && mouseWorld.Y >= srcRect.Y && mouseWorld.Y <= srcRect.Bottom)
+                // Hovering over the dragged item itself — show the no-op line at its
+                // current position (same visual the neighbours normalize to).
+                if (mouseWorld.Y >= rect.Y && mouseWorld.Y < rect.Bottom)
                 {
-                    closestRow = -1;
-                    break;
+                    _dropTargetIndex = row.Index;
+                    _dropZone = DropZone.Before;
+                    NormalizeDropBefore(i, row);
+                    return;
                 }
                 continue;
             }
 
-            var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
-            if (rect.Width <= 0) continue;
+            if (firstIdx < 0) firstIdx = i;
+            lastIdx = i;
 
-            if (mouseWorld.Y >= rect.Y && mouseWorld.Y <= rect.Bottom)
+            if (mouseWorld.Y >= rect.Y && mouseWorld.Y < rect.Bottom)
             {
                 _dropTargetIndex = row.Index;
                 var relY = (mouseWorld.Y - rect.Y) / rect.Height;
@@ -426,19 +436,26 @@ public abstract partial class SpriteEditor
                 }
 
                 NormalizeDropBefore(i, row);
-                break;
-            }
-
-            var dist = mouseWorld.Y < rect.Y ? rect.Y - mouseWorld.Y : mouseWorld.Y - rect.Bottom;
-            if (dist < closestDist)
-            {
-                closestDist = dist;
-                closestRow = i;
+                return;
             }
         }
 
-        if (_dropTargetIndex < 0 && closestRow >= 0)
-            FindDropTargetFallback(closestRow, mouseWorld);
+        // Above first row or below last row: pin to the nearest end.
+        if (firstIdx < 0) return;
+        var firstRect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + _outlinerRows[firstIdx].Index);
+        if (mouseWorld.Y < firstRect.Y)
+        {
+            var row = _outlinerRows[firstIdx];
+            _dropTargetIndex = row.Index;
+            _dropZone = DropZone.Before;
+            NormalizeDropBefore(firstIdx, row);
+        }
+        else
+        {
+            var row = _outlinerRows[lastIdx];
+            _dropTargetIndex = row.Index;
+            _dropZone = row.Node.IsExpandable ? DropZone.LastChild : DropZone.After;
+        }
     }
 
     private void NormalizeDropBefore(int rowIndex, OutlinerRowInfo row)
@@ -461,30 +478,6 @@ public abstract partial class SpriteEditor
         {
             _dropTargetIndex = prevRow.Index;
             _dropZone = DropZone.FirstChild;
-        }
-    }
-
-    private void FindDropTargetFallback(int closestRow, Vector2 mouseWorld)
-    {
-        var row = _outlinerRows[closestRow];
-        var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
-
-        if (mouseWorld.Y > rect.Bottom)
-        {
-            for (var j = _outlinerRows.Count - 1; j >= 0; j--)
-            {
-                if (_outlinerRows[j].Depth == 0 && !_dragNodes.Contains(_outlinerRows[j].Node))
-                {
-                    _dropTargetIndex = _outlinerRows[j].Index;
-                    _dropZone = DropZone.After;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            _dropTargetIndex = row.Index;
-            _dropZone = mouseWorld.Y < rect.Y + rect.Height * 0.5f ? DropZone.Before : DropZone.After;
         }
     }
 

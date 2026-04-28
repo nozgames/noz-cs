@@ -49,7 +49,7 @@ public partial class VectorSpriteDocument
                 RasterBounds.Width * invDpi,
                 RasterBounds.Height * invDpi);
 
-            RasterizeLayer(sourceLayer, image, rasterRect, sourceOffset, dpi, clipRect);
+            RasterizeLayer(sourceLayer, image, rasterRect, sourceOffset, dpi, clipRect, this);
 
             image.BleedColors(rasterRect);
 
@@ -75,7 +75,7 @@ public partial class VectorSpriteDocument
                 new Vector2Int(w + padding2, h + padding2));
             var sourceOffset = -RasterBounds.Position + new Vector2Int(padding, padding);
 
-            RasterizeLayer(sourceLayer, image, targetRect, sourceOffset, dpi);
+            RasterizeLayer(sourceLayer, image, targetRect, sourceOffset, dpi, clipRect: null, outlineSource: this);
 
             image.BleedColors(targetRect);
         }
@@ -87,10 +87,14 @@ public partial class VectorSpriteDocument
         RectInt targetRect,
         Vector2Int sourceOffset,
         int dpi,
-        Rect? clipRect = null)
+        Rect? clipRect = null,
+        VectorSpriteDocument? outlineSource = null)
     {
         var results = new List<LayerPathResult>();
         SpriteGroupProcessor.ProcessLayer(layer, results);
+
+        if (outlineSource != null && outlineSource.TryBuildOutlineResult(results, out var outline))
+            results.Insert(0, outline);
 
         PathsD? clipPaths = null;
         if (clipRect.HasValue)
@@ -161,9 +165,9 @@ public partial class VectorSpriteDocument
                 RasterBounds.Height * invDpi);
         }
 
-        RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi, clipRect);
+        RasterizeLayer(Root, pixels, targetRect, sourceOffset, scaledDpi, clipRect, this);
 
-        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsByteSpan(), outW, outH);
+        using var image = SixLabors.ImageSharp.Image.LoadPixelData<Rgba32>(pixels.AsReadonlySpan(), outW, outH);
         using var ms = new MemoryStream();
         image.SaveAsPng(ms);
         return ms.ToArray();

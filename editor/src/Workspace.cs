@@ -17,11 +17,15 @@ public static partial class Workspace
     private static partial class WidgetIds
     {
         public static partial WidgetId Menu { get; }
+        public static partial WidgetId ProjectView { get; }
+        public static partial WidgetId ToggleEditMode { get; }
         public static partial WidgetId Toolbar { get; }
         public static partial WidgetId XrayButton { get; }
         public static partial WidgetId CollectionButton { get; }
         public static partial WidgetId ContextMenu { get; }
+        public static partial WidgetId InspectorToggle { get; }
         public static partial WidgetId Scene { get; }
+        public static partial WidgetId SceneViewport { get; }
         public static partial WidgetId ReferencesButton { get; }
         public static partial WidgetId SyncButton { get; }
         public static partial WidgetId InspectorSplitter { get; }
@@ -36,32 +40,35 @@ public static partial class Workspace
     private const float ZoomDefault = 1f;
     private const float DefaultDpi = 72f;
     private const float DragMinDistance = 5f;
-    private const float UIScaleMin = 0.5f;
-    private const float UIScaleMax = 3f;
-    private const float UIScaleStep = 0.1f;
 
     public static DocumentEditor? ActiveEditor => _activeEditor;
     public static Document? ActiveDocument => _activeDocument;
 
     private static Camera _camera = null!;
 
+    private static Vector2 _lastMousePosition;
     private static float _zoom = ZoomDefault;
     private static float _inspectorSize = 300f;
     private static float _outlinerSize = 200f;
     private static float _dpi = DefaultDpi;
     private static float _uiScale = 1f;
-    private static float _userUIScale = 1f;
     private static bool _showFps;
     private static bool _showGrid = true;
     private static bool _showNames;
     private static bool _showReferences;
-    private static bool _isolationOverride;
+    private static bool _showProject = true;
+    private static bool _showInspector = true;
+    private static bool _isolation;
     private static Vector2 _savedCameraPosition;
     private static float _savedCameraZoom;
+    private static float _savedCameraRotation;
     private static bool _hasSavedCamera;
+    private static Vector2 _popupWorldPosition;
 
     private static Vector2 _mousePosition;
     private static Vector2 _mouseWorldPosition;
+    private static Vector2 _penPosition;
+    private static Vector2 _penWorldPosition;
     private static Vector2 _dragPosition;
     private static Vector2 _panPositionCamera;
     private static bool _isDragging;
@@ -74,6 +81,7 @@ public static partial class Workspace
     private static Document? _activeDocument;
     private static DocumentEditor? _activeEditor;
     private static PopupMenuItem[] _workspacePopupItems = null!;
+    private static PopupMenuItem[] _hamburgerMenuItems = null!;
 
     public static Camera Camera => _camera;
     public static WidgetId SceneWidgetId => WidgetIds.Scene;
@@ -82,17 +90,21 @@ public static partial class Workspace
     public static float Zoom => _zoom;
     public static bool ShowGrid => _showGrid;
     public static bool ShowNames => _showNames;
-    public static bool ShowHidden { get; set; }
+    public static bool ShowProject => _showProject;
+    public static bool ShowInspector => _showInspector;
     public static Vector2 MousePosition => _mousePosition;
     public static Vector2 MouseWorldPosition => _mouseWorldPosition;
+    public static Vector2 PenPosition => _penPosition;
+    public static Vector2 PenWorldPosition => _penWorldPosition;
     public static bool IsDragging => _isDragging;
     public static bool WasDragging => _wasDragging;
     public static bool DragStarted => _dragStarted;
+    public static bool ShowFps => _showFps;
 
-    public static Color32 ReadPixelAtMouse()
+    public static Color32 ReadPixelAtMouse() => ReadPixelAt(MouseWorldPosition);
+
+    public static Color32 ReadPixelAt(Vector2 worldPos)
     {
-        var worldPos = MouseWorldPosition;
-
         // In isolation mode, only sample from the active editor's document
         if (IsIsolationActive)
         {
@@ -102,13 +114,11 @@ public static partial class Workspace
         }
 
         // Sample from visible documents, front-to-back
-        for (var i = DocumentManager.Documents.Count - 1; i >= 0; i--)
+        for (var i = Project.Documents.Count - 1; i >= 0; i--)
         {
-            var doc = DocumentManager.Documents[i];
+            var doc = Project.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded) continue;
             if (doc.IsClipped) continue;
-            if (!ShowHidden && !doc.IsVisible) continue;
-            if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
             if (!doc.Bounds.Translate(doc.Position).Contains(worldPos)) continue;
 
@@ -125,7 +135,8 @@ public static partial class Workspace
     public static Vector2 DragWorldPosition { get; private set; }
     public static WorkspaceState State { get; private set; } = WorkspaceState.Default;
 
-    private static bool IsIsolationActive => State == WorkspaceState.Edit && !_isolationOverride;
+    private static bool IsIsolationActive => State == WorkspaceState.Edit && !_isolation;
+    public static bool Isolation => _isolation;
     public static int SelectedCount { get; private set; }
 
     // Workspace inline drag state (replacing Tool pattern)
@@ -142,34 +153,19 @@ public static partial class Workspace
 
     public static event Action<bool>? XrayModeChanged;
 
-    public static float GetUIScale() => Application.Platform.DisplayScale * _userUIScale;
-
-    public static void IncreaseUIScale()
-    {
-        _userUIScale = Math.Clamp(UI.UserScale + UIScaleStep, UIScaleMin, UIScaleMax);
-        UI.UserScale = _userUIScale;
-    }
-
-    public static void DecreaseUIScale()
-    {
-        _userUIScale = Math.Clamp(UI.UserScale - UIScaleStep, UIScaleMin, UIScaleMax);
-        UI.UserScale = _userUIScale;
-    }
-
-    public static void ResetUIScale()
-    {
-        _userUIScale = 1.2f;
-        UI.UserScale = _userUIScale;
-    }
+    public static float GetUIScale() => Application.Platform.DisplayScale * UI.UserScale;
 
     public static void Init()
     {
         _camera = new Camera();
+        _camera.Rotation = 0f;
         _zoom = ZoomDefault;
         _dpi = DefaultDpi;
         _uiScale = 1f;
         _showGrid = true;
         _pendingState = WorkspaceState.Default;
+    
+        Cursor.Enabled = !Application.IsTablet;
 
         InitCommands();
         UpdateCamera();
@@ -187,7 +183,7 @@ public static partial class Workspace
             return;
 
         var count = 0;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected)
                 continue;
@@ -208,7 +204,7 @@ public static partial class Workspace
             return;
 
         var count = 0;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected)
                 continue;
@@ -231,8 +227,8 @@ public static partial class Workspace
 
     private static void ExportAll()
     {
-        foreach (var doc in DocumentManager.Documents)
-            DocumentManager.QueueExport(doc, true);
+        foreach (var doc in Project.Documents)
+            Project.QueueExport(doc, true);
 
         AssetManifest.Generate(force: true);
     }
@@ -248,8 +244,10 @@ public static partial class Workspace
 
     private static void RebuildAtlas()
     {
-        AtlasManager.Rebuild();
-        DocumentManager.SaveAll();
+        // Force a fresh pack of all sprites; export pass will write the binary if dirty.
+        AtlasManager.MarkAllDirty();
+        AtlasManager.Update();
+        Project.SaveAll();
     }
 
     private static void InitCommands()
@@ -258,23 +256,23 @@ public static partial class Workspace
         var deleteCommand = new Command("Delete", DeleteSelected, [InputCode.KeyX, InputCode.KeyDelete], EditorAssets.Sprites.IconDelete);
         var duplicateCommand = new Command("Duplicate", DuplicateSelected, [new KeyBinding(InputCode.KeyD, ctrl: true)], EditorAssets.Sprites.IconDuplicate);
         var editCommand = new Command("Edit", BeginEdit, [InputCode.KeyTab], EditorAssets.Sprites.IconEdit);
-        var hideCommand = new Command("Hide", HandleHide, [InputCode.KeyH], EditorAssets.Sprites.IconPreview);
-        var unhideAllCommand = new Command("Unhide All", HandleUnhideAll, [new KeyBinding(InputCode.KeyH, ctrl: true)], EditorAssets.Sprites.IconPreview);
+        var settingsCommand = new Command("Settings", OpenSettings, [new KeyBinding(InputCode.KeyComma, ctrl:true)]);
 
         CommandManager.RegisterCommon([
-            new Command("Save All", DocumentManager.SaveAll, [new KeyBinding(InputCode.KeyS, ctrl:true)]),
+            new Command("Save All", Project.SaveAll, [new KeyBinding(InputCode.KeyS, ctrl:true)]),
             new Command("Undo", () => Undo.DoUndo(), [new KeyBinding(InputCode.KeyZ, ctrl:true)]),
             new Command("Redo", () => Undo.DoRedo(), [new KeyBinding(InputCode.KeyY, ctrl:true)]),
-            new Command("Increase UI Scale", IncreaseUIScale, [new KeyBinding(InputCode.KeyEquals, ctrl:true)]),
-            new Command("Decrease UI Scale", DecreaseUIScale, [new KeyBinding(InputCode.KeyMinus, ctrl:true)]),
-            new Command("Reset UI Scale", ResetUIScale, [new KeyBinding(InputCode.Key0, ctrl:true)]),
+            new Command("Increase UI Scale", EditorApplication.IncreaseUIScale, [new KeyBinding(InputCode.KeyEquals, ctrl:true)]),
+            new Command("Decrease UI Scale", EditorApplication.DecreaseUIScale, [new KeyBinding(InputCode.KeyMinus, ctrl:true)]),
+            new Command("Reset UI Scale", EditorApplication.ResetUIScale, [new KeyBinding(InputCode.Key0, ctrl:true)]),
             new Command("Command Palette", CommandPalette.Open, [new KeyBinding(InputCode.KeyP, ctrl:true, shift:true)]),
             new Command("Asset Browser", () => AssetPalette.Open(), [new KeyBinding(InputCode.KeyP, ctrl:true)], EditorAssets.Sprites.IconSearch),
             new Command("Browse Sprites", () => AssetPalette.OpenSprites()),
-            new Command("Toggle Grid", ToggleGrid, [new KeyBinding(InputCode.KeyQuote, ctrl:true)]),
-            new Command("Toggle Names", ToggleNames, [new KeyBinding(InputCode.KeyN, alt:true)]),
+            new Command("Toggle Grid", ToggleShowGrid, [new KeyBinding(InputCode.KeyQuote, ctrl:true)]),
+            new Command("Toggle Names", ToggleShowNames, [new KeyBinding(InputCode.KeyN, alt:true)]),
             new Command("Toggle Isolation", ToggleIsolation, [new KeyBinding(InputCode.KeySlash)]),
-            new Command("Toggle FPS", ToggleFps),
+            new Command("Toggle FPS", ToggleShowFps),
+            settingsCommand,
         ]);
 
         var workspaceCommands = new List<Command>
@@ -283,8 +281,6 @@ public static partial class Workspace
             renameCommand,
             deleteCommand,
             duplicateCommand,
-            hideCommand,
-            unhideAllCommand,
             new("Select All", SelectAll, [new KeyBinding(InputCode.KeyA)]),
             new("Frame", FrameSelected, [new KeyBinding(InputCode.KeyF)]),
             new("Generate Selected", GenerateSelected, [new KeyBinding(InputCode.KeyG, ctrl:true)]),
@@ -292,7 +288,6 @@ public static partial class Workspace
             new("Export All", ExportAll),
             new("Generate Manifest", GenerateManifest),
             new("Play/Stop", Play, [new KeyBinding(InputCode.KeySpace)]),
-            new("Show/Hide Hidden Assets", ToggleShowHidden),
             new("Rebuild Atlas", RebuildAtlas),
         };
 
@@ -310,15 +305,15 @@ public static partial class Workspace
         _workspacePopupItems = [        
             PopupMenuItem.Submenu("New"),
             PopupMenuItem.Submenu("Sprite", level: 1),
-            PopupMenuItem.Item("Vector", () => CreateNewDocument(VectorSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
-            PopupMenuItem.Item("Pixel", () => CreateNewDocument(PixelSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
-            PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(PopupMenu.WorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle),
-            PopupMenuItem.Item("Skeleton", () => CreateNewDocument(SkeletonDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.IconBone),
-            PopupMenuItem.Item("Animation", () => CreateNewDocument(AnimationDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation),
-            PopupMenuItem.Item("VFX", () => CreateNewDocument(VfxDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx),
-            PopupMenuItem.Item("Sound", () => CreateNewDocument(SoundDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSound),
-            PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: PopupMenu.WorldPosition)), level: 1),
-            PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: PopupMenu.WorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle),
+            PopupMenuItem.Item("Vector", () => CreateNewDocument(VectorSpriteDocument.CreateNew(_popupWorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
+            PopupMenuItem.Item("Pixel", () => CreateNewDocument(PixelDocument.CreateNew(_popupWorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconSprite),
+            PopupMenuItem.Item("Generated", () => CreateNewDocument(GeneratedSpriteDocument.CreateNew(_popupWorldPosition)), level: 2, icon: EditorAssets.Sprites.AssetIconGenstyle),
+            PopupMenuItem.Item("Skeleton", () => CreateNewDocument(SkeletonDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.IconBone),
+            PopupMenuItem.Item("Animation", () => CreateNewDocument(AnimationDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconAnimation),
+            PopupMenuItem.Item("VFX", () => CreateNewDocument(VfxDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx),
+            PopupMenuItem.Item("Sound", () => CreateNewDocument(SoundDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSound),
+            PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: _popupWorldPosition)), level: 1),
+            PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle),
             PopupMenuItem.Separator(),
             PopupMenuItem.Submenu("Move to Collection", showChecked: true, showIcons: false),
             ..CollectionManager.Collections.Select(c =>
@@ -329,6 +324,10 @@ public static partial class Workspace
             renameCommand.ToPopupMenuItem(),
             deleteCommand.ToPopupMenuItem()
         ];
+
+        _hamburgerMenuItems = [
+            settingsCommand.ToPopupMenuItem(),
+        ];
     }
 
     public static void LoadUserSettings(PropertySet props)
@@ -336,11 +335,11 @@ public static partial class Workspace
         _showFps = props.GetBool("workspace", "show_fps", false);
         _showGrid = props.GetBool("workspace", "show_grid", true);
         _showNames = props.GetBool("workspace", "show_names", false);
-        _isolationOverride = props.GetBool("workspace", "isolation_override", false);
-        _userUIScale = props.GetFloat("workspace", "ui_scale", 1f);
+        _showProject = props.GetBool("workspace", "show_project", true);
+        _showInspector = props.GetBool("workspace", "show_inspector", true);
+        _isolation = props.GetBool("workspace", "isolation", false);
         _inspectorSize = props.GetFloat("workspace", "inspector_size", 300f);
         _outlinerSize = props.GetFloat("workspace", "outliner_size", 200f);
-        UI.UserScale = _userUIScale;
 
         // Restore camera position and zoom from visible collection
         var collection = CollectionManager.VisibleCollection;
@@ -348,6 +347,7 @@ public static partial class Workspace
         {
             _camera.Position = collection.CameraPosition;
             _zoom = collection.CameraZoom;
+            _camera.Rotation = collection.CameraRotation;
         }
 
         UpdateCamera();
@@ -360,35 +360,37 @@ public static partial class Workspace
         {
             collection.CameraPosition = _hasSavedCamera ? _savedCameraPosition : _camera.Position;
             collection.CameraZoom = _hasSavedCamera ? _savedCameraZoom : _zoom;
+            collection.CameraRotation = _hasSavedCamera ? _savedCameraRotation : _camera.Rotation;
         }
 
         props.SetBool("workspace", "show_fps", _showFps);
         props.SetBool("workspace", "show_grid", _showGrid);
         props.SetBool("workspace", "show_names", _showNames);
-        props.SetBool("workspace", "isolation_override", _isolationOverride);
-        props.SetFloat("workspace", "ui_scale", UI.UserScale);
+        props.SetBool("workspace", "show_project", _showProject);
+        props.SetBool("workspace", "show_inspector", _showInspector);
+        props.SetBool("workspace", "isolation", _isolation);        
         props.SetFloat("workspace", "inspector_size", _inspectorSize);
         props.SetFloat("workspace", "outliner_size", _outlinerSize);
-
-        var winSize = Application.WindowSize;
-        var winPos = Application.WindowPosition;
-        props.SetInt("window", "width", winSize.X);
-        props.SetInt("window", "height", winSize.Y);
-        props.SetInt("window", "x", winPos.X);
-        props.SetInt("window", "y", winPos.Y);
     }
     
     public static void Update()
     {
+        UpdatePowerMode();
+
         ActiveEditor?.PreUpdate();
 
         UpdateState();
         UpdateCamera();
 
-        if (!CommandPalette.IsOpen && !AssetPalette.IsOpen && !PopupMenu.IsVisible && !ConfirmDialog.IsVisible)
+        if (!CommandPalette.IsOpen && !AssetPalette.IsOpen && !ConfirmDialog.IsVisible)
         {
             if (!UI.HasHot())
                 CommandManager.ProcessShortcuts();
+
+            if (Touch.WasThreeFingerTapped)
+                Undo.DoRedo();
+            else if (Touch.WasTwoFingerTapped)
+                Undo.DoUndo();
 
             if (Touch.WasDoubleTapped)
                 BeginEdit();
@@ -418,6 +420,26 @@ public static partial class Workspace
         }
 
         UpdateCulling();
+    }
+
+    private static void UpdatePowerMode()
+    {
+        var mode = PowerMode.Balanced;
+
+        if (Input.IsButtonDownRaw(InputCode.MouseLeft) ||
+            Input.IsButtonDownRaw(InputCode.MouseRight) ||
+            Input.IsButtonDownRaw(InputCode.Pen) ||
+            _lastMousePosition != _mousePosition ||
+            Touch.IsTouching)
+            mode = PowerMode.Performance;
+
+        if (ActiveEditor != null && ActiveEditor.PowerMode > mode)
+            mode = ActiveEditor.PowerMode;
+
+        if (mode < PowerMode.Performance && VfxSystem.ActiveInstanceCount > 0)
+            mode = PowerMode.Performance;
+
+        Application.PowerMode = mode;
     }
 
     private static void DrawScene()
@@ -486,7 +508,7 @@ public static partial class Workspace
                     Input.WasButtonPressed(InputCode.MouseRight, InputScope.All))
                 {
                     // Cancel: restore saved positions
-                    foreach (var doc in DocumentManager.Documents)
+                    foreach (var doc in Project.Documents)
                         if (doc.IsSelected)
                             doc.Position = doc.SavedPosition;
                     Undo.Cancel();
@@ -514,7 +536,7 @@ public static partial class Workspace
         _wsMoveCommitOnRelease = commitOnRelease;
         _wsMoveStartWorld = _mouseWorldPosition;
         Undo.BeginGroup();
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc.IsSelected)
             {
@@ -529,11 +551,11 @@ public static partial class Workspace
     private static void UpdateInlineMoveDocuments()
     {
         var delta = _mouseWorldPosition - _wsMoveStartWorld;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected) continue;
             var newPos = doc.SavedPosition + delta;
-            if (Input.IsCtrlDown(InputScope.All))
+            if (Input.IsSnapModifierDown(InputScope.All))
                 newPos = Grid.SnapToGrid(newPos);
             doc.Position = Grid.SnapToPixelGrid(newPos);
         }
@@ -566,7 +588,7 @@ public static partial class Workspace
 
     private static bool HitTestSelected(Vector2 point)
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected || !doc.Loaded || !doc.PostLoaded)
                 continue;
@@ -581,7 +603,7 @@ public static partial class Workspace
         if (!Input.IsShiftDown())
             ClearSelection();
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
@@ -596,20 +618,30 @@ public static partial class Workspace
 
     private static void ToolbarUI()
     {
-        using var _ = UI.BeginRow(EditorStyle.Toolbar.Root);
+        using var cursor = UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
+        using var _ = UI.BeginRow(WidgetIds.Toolbar, EditorStyle.Toolbar.Root);
 
-        // if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.IconOnly))
-        //     ;
+        if (UI.Button(WidgetIds.Menu, EditorAssets.Sprites.IconMenu, EditorStyle.Button.ToggleIcon, isSelected: UI.IsPopupMenuOpen(WidgetIds.Menu)))  
+            UI.OpenPopupMenu(
+                WidgetIds.Menu,
+                _hamburgerMenuItems,
+                style: EditorStyle.ContextMenu.Style,
+                popupStyle: EditorStyle.PopupBelow with { AnchorRect = UI.GetElementWorldRect(WidgetIds.Menu) });
 
-        using (UI.BeginFlex())
-            if (_showFps)
-            {
-                using (UI.BeginRow(new ContainerStyle { Align = Align.Center, Width = Size.Fit, Spacing = EditorStyle.Control.Spacing }))
-                {
-                    UI.Text(Strings.Number((int)Time.AvergeFps), EditorStyle.Text.Disabled);
-                    UI.Text("fps", EditorStyle.Text.Disabled);
-                }
-            }
+        if (ActiveEditor != null)
+        {
+            ActiveEditor.ToolbarUI();
+            return;
+        }
+
+        if (UI.Button(WidgetIds.ProjectView, _showProject?EditorAssets.Sprites.IconFolderOpen:EditorAssets.Sprites.IconFolder, EditorStyle.Button.ToggleIcon, isSelected: _showProject))  
+            _showProject = !_showProject;               
+
+        using (UI.BeginEnabled(SelectedCount > 0))
+            if (UI.Button(WidgetIds.ToggleEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon))  
+                BeginEdit();
+
+        UI.Flex();
 
         static PopupMenuItem[] GetCollectionItems()
         {
@@ -626,9 +658,6 @@ public static partial class Workspace
             return items;
         }
 
-        if (UI.Button(WidgetIds.IsolationButton, EditorAssets.Sprites.IconIsolate, EditorStyle.Button.ToggleIcon, isSelected: !_isolationOverride))
-            ToggleIsolation();
-
         if (UI.Button(WidgetIds.ReferencesButton, EditorAssets.Sprites.IconConnected, EditorStyle.Button.ToggleIcon, isSelected: _showReferences))
             _showReferences = !_showReferences;
 
@@ -638,23 +667,19 @@ public static partial class Workspace
             XrayModeChanged?.Invoke(XrayMode);
         }
 
-        // Sync button — only visible for remote stores
-        var store = EditorApplication.Store;
-        if (store.CanSync)
+        var sync = EditorApplication.Sync;
+        if (sync != null)
         {
-            if (store.IsSyncing)
+            if (sync.IsSyncing)
             {
-                UI.Text("Syncing...", EditorStyle.Text.Disabled);
-            }
-            else if (!store.IsAuthenticated && store.RequiresAuth)
-            {
-                if (UI.Button(WidgetIds.SyncButton, "Connect", EditorStyle.Button.IconOnly))
-                    Task.Run(() => store.LoginAsync());
+                using (UI.BeginContainer(new ContainerStyle { Width = EditorStyle.Control.Height, Height = EditorStyle.Control.Height, Padding = 3}))
+                using (UI.BeginTransform(new TransformStyle { Rotate = Time.TotalTime * 360f }))
+                    UI.Image(EditorAssets.Sprites.IconRefresh, new ImageStyle { Width = EditorStyle.Icon.LargeSize, Height = EditorStyle.Icon.LargeSize, Color = EditorStyle.Palette.Disabled, Align = Align.Center });
             }
             else
             {
-                if (UI.Button(WidgetIds.SyncButton, "Sync", EditorStyle.Button.IconOnly))
-                    Task.Run(() => store.SyncAsync());
+                if (UI.Button(WidgetIds.SyncButton, EditorAssets.Sprites.IconRefresh, EditorStyle.Button.IconOnly))
+                    Task.Run(() => sync.SyncAsync());
             }
         }
 
@@ -663,6 +688,11 @@ public static partial class Workspace
             text: CollectionManager.VisibleCollection?.Name ?? "None",
             icon: EditorAssets.Sprites.IconCollection,
             getItems: GetCollectionItems);
+
+        EditorUI.PanelSeparator();
+
+        if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: _showInspector))  
+            _showInspector = !_showInspector;
     }
 
     public static void UpdateUI()
@@ -686,27 +716,43 @@ public static partial class Workspace
             using (UI.BeginFlex())
             using (UI.BeginRow())
             {
-                // outliner (left, fixed width)
-                using (UI.BeginFlex())
-                    Outliner.UpdateUI();
+                if (ActiveEditor?.ShowOutliner ?? ShowProject)
+                {                    
+                    using (UI.BeginFlex())
+                        Outliner.UpdateUI();
 
-                UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
-                    EditorStyle.Inspector.Splitter, fixedPane: 1);
+                    UI.FlexSplitter(WidgetIds.OutlinerSplitter, ref _outlinerSize,
+                        EditorStyle.Inspector.Splitter, fixedPane: 1);
+                }
 
-                // center + inspector nested in their own row so splitters don't interfere
                 using (UI.BeginFlex())
                 using (UI.BeginRow())
                 {
                     // content (center, flexible)
                     using (UI.BeginFlex())
+                    {
+                        if (_showFps)
+                            using (UI.BeginContainer(new ContainerStyle {AlignX=Align.Max}))
+                            using (UI.BeginRow(new ContainerStyle { Align = Align.Center, Width = Size.Fit, Spacing = EditorStyle.Control.Spacing }))
+                            {
+                                UI.Text(Strings.Number((int)Time.AvergeFps), EditorStyle.Text.Disabled);
+                                UI.Text("fps", EditorStyle.Text.Disabled);
+                            }
+
+                        ElementTree.BeginWidget(WidgetIds.SceneViewport, interactive: false);
                         ActiveEditor?.UpdateUI();
+                        ElementTree.EndWidget();
+                    }
 
-                    // inspector (right, fixed width)
-                    UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
-                        EditorStyle.Inspector.Splitter, fixedPane: 2);
+                    if (ActiveEditor?.ShowInspector ?? ShowInspector)
+                    {
+                        // inspector (right, fixed width)
+                        UI.FlexSplitter(WidgetIds.InspectorSplitter, ref _inspectorSize,
+                            EditorStyle.Inspector.Splitter, fixedPane: 2);
 
-                    using (UI.BeginFlex())
-                        Inspector.UpdateUI();
+                        using (UI.BeginFlex())
+                            Inspector.UpdateUI();                        
+                    }
                 }
             }
         }
@@ -714,6 +760,7 @@ public static partial class Workspace
         ActiveEditor?.UpdateOverlayUI();
         ColorPicker.Update();
         DrawRenameUI();
+        SettingsPopup.Update();
     }
 
     public static void LateUpdate()
@@ -724,7 +771,7 @@ public static partial class Workspace
     private static void UpdateCulling()
     {
         var cameraBounds = _camera.WorldBounds;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!CollectionManager.IsDocumentVisible(doc))
             {
@@ -747,16 +794,12 @@ public static partial class Workspace
         Graphics.PushState();
         Graphics.SetLayer(EditorLayer.Document);
 
-        for (int i = 0, c = DocumentManager.Count; i < c; i++)
+        for (int i = 0, c = Project.Count; i < c; i++)
         {
-            var doc = DocumentManager.GetAt(i);
+            var doc = Project.GetAt(i);
             if (!doc.Loaded || !doc.PostLoaded)
                 continue;
             if (doc.IsEditing || doc.IsClipped)
-                continue;
-            if (!ShowHidden && !doc.IsVisible)
-                continue;
-            if (doc.IsHiddenInWorkspace)
                 continue;
             if (!CollectionManager.IsDocumentVisible(doc))
                 continue;
@@ -778,7 +821,7 @@ public static partial class Workspace
         using var _ = Gizmos.PushState(EditorLayer.Names);
         Graphics.SetColor(EditorStyle.Workspace.SelectionColor);
 
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.Loaded || !doc.PostLoaded || doc.IsClipped) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
@@ -806,13 +849,11 @@ public static partial class Workspace
         Graphics.SetLayer(EditorLayer.Names);
         TextRender.SetOutline(EditorStyle.Workspace.NameOutlineColor, EditorStyle.Workspace.NameOutline, 0.5f); 
 
-        for (int i = 0, c = DocumentManager.Count; i < c; i++)
+        for (int i = 0, c = Project.Count; i < c; i++)
         {
-            var doc = DocumentManager.GetAt(i);
+            var doc = Project.GetAt(i);
             if (!doc.Loaded || !doc.PostLoaded) continue;
-            if (!ShowHidden && !doc.IsVisible) continue;
             if (doc.IsClipped) continue;
-            if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
             if (doc == renamingDoc) continue;
             if (doc.IsEditing) continue;
@@ -832,29 +873,30 @@ public static partial class Workspace
     }
 
 
-    private static void ToggleFps()
+    public static void ToggleShowFps()
     {
         _showFps = !_showFps;
     }
 
-    private static void ToggleGrid()
+    public static void ToggleShowGrid()
     {
         _showGrid = !_showGrid;
     }
 
-    private static void ToggleNames()
+    public static void ToggleShowNames()
     {
         _showNames = !_showNames;
     }
 
-    private static void ToggleIsolation()
+    public static void ToggleIsolation()
     {
-        _isolationOverride = !_isolationOverride;
+        _isolation = !_isolation;
 
         if (IsIsolationActive)
         {
             _savedCameraPosition = _camera.Position;
             _savedCameraZoom = _zoom;
+            _savedCameraRotation = _camera.Rotation;
             _hasSavedCamera = true;
         }
         else
@@ -883,7 +925,7 @@ public static partial class Workspace
     {
         if (_renameTarget != null && !string.IsNullOrWhiteSpace(_renameCurrentText) && _renameCurrentText != _renameOriginalName)
         {
-            if (!DocumentManager.Rename(_renameTarget, _renameCurrentText))
+            if (!Project.Rename(_renameTarget, _renameCurrentText))
                 Log.Warning("rename failed");
         }
         EndRename();
@@ -950,7 +992,7 @@ public static partial class Workspace
         if (UI.Camera == null)
             return;
 
-        var effectiveDpi = _dpi * _uiScale * _userUIScale * _zoom;
+        var effectiveDpi = _dpi * _uiScale * UI.UserScale * _zoom;
 
         var sceneWorldRect = UI.GetElementWorldRect(WidgetIds.Scene);
         var sceneScreenRect = UI.Camera!.WorldToScreen(sceneWorldRect);
@@ -992,8 +1034,26 @@ public static partial class Workspace
     
     private static void UpdateMouse()
     {
+        _lastMousePosition = _mousePosition;
         _mousePosition = Input.MousePosition;
         _mouseWorldPosition = _camera.ScreenToWorld(_mousePosition);
+        if (Application.IsTablet)
+        {
+            _penPosition = Input.PenPosition;
+            _penWorldPosition = _camera.ScreenToWorld(_penPosition);
+        }
+        else
+        {
+            _penPosition = _mousePosition;
+            _penWorldPosition = _mouseWorldPosition;
+        }
+
+        if (Input.IsButtonDown(InputCode.Pen, InputScope.All))
+        {
+            _mouseWorldPosition = _penWorldPosition;
+            _mousePosition = _penPosition;
+        }
+
         _dragStarted = false;
         _wasDragging = false;
 
@@ -1060,6 +1120,7 @@ public static partial class Workspace
         {
             var worldDelta = _camera.ScreenToWorld(Touch.TwoFingerDelta) - _camera.ScreenToWorld(Vector2.Zero);
             _camera.Position -= worldDelta;
+            UpdateCamera();
         }
     }
 
@@ -1068,22 +1129,50 @@ public static partial class Workspace
         var scrollDelta = Input.GetAxis(InputCode.MouseScrollY);
         if (scrollDelta > -0.5f && scrollDelta < 0.5f)
         {
-            // No scroll wheel — check for pinch gesture
-            if (Touch.IsPinching)
+            // Two-finger rotation anchored at the same midpoint as pan/zoom.
+            if (Touch.IsTwoFingerPanning && Touch.TwoFingerRotation != 0f)
             {
-                var pinchScreen = Touch.TwoFingerCenter;
-                var worldUnderPinch = _camera.ScreenToWorld(pinchScreen);
-
-                _zoom *= Touch.PinchScale;
-                _zoom = Math.Clamp(_zoom, ZoomMin, ZoomMax);
-
+                var worldUnderCenter = _camera.ScreenToWorld(Touch.TwoFingerCenter);
+                _camera.Rotation -= Touch.TwoFingerRotation;
                 UpdateCamera();
-
-                var worldUnderPinchAfter = _camera.ScreenToWorld(pinchScreen);
-                _camera.Position += worldUnderPinch - worldUnderPinchAfter;
-
+                var worldUnderCenterAfter = _camera.ScreenToWorld(Touch.TwoFingerCenter);
+                _camera.Position += worldUnderCenter - worldUnderCenterAfter;
                 UpdateCamera();
             }
+
+            // No scroll wheel — check for a two-finger gesture.
+            // Touchscreen: unified pan+zoom from our own finger tracking.
+            // Trackpad: SDL3's native pinch recognizer, anchored at the cursor.
+            float scale;
+            Vector2 pinchScreen;
+            if (Touch.IsTwoFingerPanning)
+            {
+                scale = Touch.TwoFingerScale;
+                pinchScreen = Touch.TwoFingerCenter;
+            }
+            else if (Touch.IsPinching)
+            {
+                scale = Touch.PinchScale;
+                pinchScreen = Input.MousePosition;
+            }
+            else
+            {
+                return;
+            }
+
+            if (scale == 1f) return;
+
+            var worldUnderPinch = _camera.ScreenToWorld(pinchScreen);
+
+            _zoom *= scale;
+            _zoom = Math.Clamp(_zoom, ZoomMin, ZoomMax);
+
+            UpdateCamera();
+
+            var worldUnderPinchAfter = _camera.ScreenToWorld(pinchScreen);
+            _camera.Position += worldUnderPinch - worldUnderPinchAfter;
+
+            UpdateCamera();
             return;
         }
 
@@ -1114,21 +1203,32 @@ public static partial class Workspace
         if (size.Y < ZoomMin) size.Y = ZoomMin;
 
         var screenSize = Application.WindowSize;
-        var baseScale = _dpi * _uiScale * _userUIScale;
+        var viewportUI = UI.GetElementWorldRect(WidgetIds.SceneViewport);
+        Rect viewport;
+        if (viewportUI.Width > 0 && viewportUI.Height > 0 && UI.Camera != null)
+            viewport = UI.Camera.WorldToScreen(viewportUI);
+        else
+            viewport = new Rect(0, 0, screenSize.X, screenSize.Y);
 
-        // Calculate zoom needed to fit width and height, use the smaller one
-        // effectiveDpi = baseScale * zoom, so zoom = screenSize / (size * baseScale)
-        var zoomForWidth = screenSize.X / (size.X * baseScale);
-        var zoomForHeight = screenSize.Y / (size.Y * baseScale);
+        var baseScale = _dpi * _uiScale * UI.UserScale;
+
+        // Fit zoom to the visible viewport, not the full window — panels overlay the scene.
+        var zoomForWidth = viewport.Width / (size.X * baseScale);
+        var zoomForHeight = viewport.Height / (size.Y * baseScale);
         _zoom = Math.Clamp(MathF.Min(zoomForWidth, zoomForHeight), ZoomMin, ZoomMax);
 
+        _camera.Rotation = 0f;
         _camera.Position = center;
+        UpdateCamera();
+
+        // Shift the camera so `center` projects to the viewport center instead of the window center.
+        _camera.Position += center - _camera.ScreenToWorld(viewport.Center);
         UpdateCamera();
     }
 
     public static void Play()
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
             if (doc.IsSelected)
                 doc.TogglePlay();
     }
@@ -1138,21 +1238,21 @@ public static partial class Workspace
         if (SelectedCount == 0)
             return;
 
-        var selected = DocumentManager.Documents.Where(d => d.IsSelected).ToArray();
+        var selected = Project.Documents.Where(d => d.IsSelected).ToArray();
 
         ClearSelection();
 
         foreach (var source in selected)
         {
-            var dup = DocumentManager.Duplicate(source);
+            var dup = Project.Duplicate(source);
             if (dup == null)
                 continue;
+            dup.Position = source.Position + new Vector2(0.5f, 0.5f);
             SetSelected(dup, true);
         }
 
         Input.ConsumeButton(InputCode.KeyLeftCtrl);
         Input.ConsumeButton(InputCode.KeyRightCtrl);
-        BeginInlineDragMove(commitOnRelease: false);
     }
 
     private static void DeleteSelected()
@@ -1164,7 +1264,7 @@ public static partial class Workspace
         ConfirmDialog.Show(message, () =>
         {
             var toDelete = new List<Document>();
-            foreach (var doc in DocumentManager.Documents)
+            foreach (var doc in Project.Documents)
             {
                 if (doc.IsSelected)
                     toDelete.Add(doc);
@@ -1173,7 +1273,7 @@ public static partial class Workspace
             ClearSelection();
 
             foreach (var doc in toDelete)
-                DocumentManager.Delete(doc);
+                Project.Delete(doc);
         },
         yes: "Delete",
         no: "Cancel");
@@ -1190,7 +1290,7 @@ public static partial class Workspace
         if (SelectedCount == 0) return;
 
         Rect? bounds = null;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected) continue;
             var docBounds = doc.Bounds.Translate(doc.Position);
@@ -1210,11 +1310,10 @@ public static partial class Workspace
         var fontSize = EditorStyle.Workspace.NameSize * scale;
         var padding = EditorStyle.Workspace.NamePadding * scale;
 
-        for (var i = DocumentManager.Documents.Count - 1; i >= 0; i--)
+        for (var i = Project.Documents.Count - 1; i >= 0; i--)
         {
-            var doc = DocumentManager.Documents[i];
+            var doc = Project.Documents[i];
             if (!doc.Loaded || !doc.PostLoaded) continue;
-            if (doc.IsHiddenInWorkspace) continue;
             if (!CollectionManager.IsDocumentVisible(doc)) continue;
 
             var hitBounds = doc.Bounds.Translate(doc.Position).Contains(point);
@@ -1239,7 +1338,7 @@ public static partial class Workspace
 
     public static void ClearSelection()
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
             doc.IsSelected = false;
         SelectedCount = 0;
     }
@@ -1261,7 +1360,7 @@ public static partial class Workspace
 
     public static Document? GetFirstSelected()
     {
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (doc.IsSelected)
                 return doc;
@@ -1272,21 +1371,14 @@ public static partial class Workspace
     private static void SelectAll()
     {
         ClearSelection();
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.Loaded || !doc.PostLoaded)
-                continue;
-            if (!doc.IsVisible && !ShowHidden)
                 continue;
             if (!CollectionManager.IsDocumentVisible(doc))
                 continue;
             SetSelected(doc, true);
         }
-    }
-
-    private static void ToggleShowHidden()
-    {
-        ShowHidden = !ShowHidden;
     }
 
     private static void SetCollection(int index)
@@ -1301,6 +1393,7 @@ public static partial class Workspace
         {
             current.CameraPosition = _camera.Position;
             current.CameraZoom = _zoom;
+            current.CameraRotation = _camera.Rotation;
         }
 
         CollectionManager.SetVisible(index);
@@ -1308,6 +1401,7 @@ public static partial class Workspace
         // Restore camera position and zoom from new collection
         _camera.Position = collection.CameraPosition;
         _zoom = collection.CameraZoom;
+        _camera.Rotation = collection.CameraRotation;
         UpdateCamera();
     }
 
@@ -1318,7 +1412,7 @@ public static partial class Workspace
             return;
 
         var count = 0;
-        foreach (var doc in DocumentManager.Documents)
+        foreach (var doc in Project.Documents)
         {
             if (!doc.IsSelected || doc.CollectionId == collection.Id)
                 continue;
@@ -1364,6 +1458,7 @@ public static partial class Workspace
             {
                 _camera.Position = _savedCameraPosition;
                 _zoom = _savedCameraZoom;
+                _camera.Rotation = _savedCameraRotation;
                 _hasSavedCamera = false;
                 UpdateCamera();
             }
@@ -1376,7 +1471,7 @@ public static partial class Workspace
             _activeDocument = null;
             State = WorkspaceState.Default;
 
-            DocumentManager.SaveAll();
+            Project.SaveAll();
             return;
         }
 
@@ -1395,6 +1490,7 @@ public static partial class Workspace
 
         var savedPosition = _camera.Position;
         var savedZoom = _zoom;
+        var savedRotation = _camera.Rotation;
 
         _activeDocument = doc;
         _activeEditor = doc.Def.EditorFactory!(doc);
@@ -1407,6 +1503,7 @@ public static partial class Workspace
         {
             _savedCameraPosition = savedPosition;
             _savedCameraZoom = savedZoom;
+            _savedCameraRotation = savedRotation;
             _hasSavedCamera = true;
         }
     }
@@ -1473,11 +1570,11 @@ public static partial class Workspace
 
         if (SelectedCount == 1)
         {
-            var selectedDoc = DocumentManager.SelectedDocuments.FirstOrDefault();
+            var selectedDoc = Project.SelectedDocuments.FirstOrDefault();
             if (selectedDoc != null)
             {
                 var ext = System.IO.Path.GetExtension(selectedDoc.Path);
-                var defs = DocumentManager.GetDefs(ext);
+                var defs = Project.GetDefs(ext);
                 if (defs != null && defs.Count > 1)
                 {
                     items.Add(PopupMenuItem.Separator());
@@ -1492,34 +1589,43 @@ public static partial class Workspace
                             isChecked: () => selectedDoc.Def == targetDef));
                     }
                 }
+
+                if (selectedDoc is SpriteDocument sprite)
+                {
+                    items.Add(PopupMenuItem.Separator());
+                    items.Add(PopupMenuItem.Item(
+                        "Create Instance",
+                        () => CreateNewDocument(SpriteInstanceDocument.CreateNew(sprite, _popupWorldPosition)),
+                        icon: EditorAssets.Sprites.AssetIconSprite));
+                }
             }
         }
 
-        PopupMenu.Open(WidgetIds.ContextMenu, items.ToArray(), title: "Asset");
+        _popupWorldPosition = MouseWorldPosition;
+
+        UI.OpenPopupMenu(WidgetIds.ContextMenu, items.ToArray(), EditorStyle.ContextMenu.Style, title: "Asset");
     }
 
     private static void ConvertDocumentType(Document doc, DocumentDef newDef)
     {
         if (doc.Def == newDef) return;
 
-        var dir = System.IO.Path.GetDirectoryName(doc.Path) ?? "";
-        var stem = System.IO.Path.GetFileNameWithoutExtension(doc.Path);
-
-        var store = EditorApplication.Store;
+        var dir = Path.GetDirectoryName(doc.Path) ?? "";
+        var stem = Path.GetFileNameWithoutExtension(doc.Path);
 
         // Delete old companion file (the type-specific file, not the image)
         var oldExt = doc.Def.Extensions[0];
-        var oldCompanion = System.IO.Path.Combine(dir, stem + oldExt);
-        if (store.FileExists(oldCompanion))
-            store.DeleteFile(oldCompanion);
+        var oldCompanion = Path.Combine(dir, stem + oldExt);
+        if (File.Exists(oldCompanion))
+            File.Delete(oldCompanion);
 
         // Find the image file
         string? imagePath = null;
         string[] imageExts = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
         foreach (var imgExt in imageExts)
         {
-            var imgPath = System.IO.Path.Combine(dir, stem + imgExt);
-            if (store.FileExists(imgPath))
+            var imgPath = Path.Combine(dir, stem + imgExt);
+            if (File.Exists(imgPath))
             {
                 imagePath = imgPath;
                 break;
@@ -1529,17 +1635,17 @@ public static partial class Workspace
 
         // Write document_type to meta on the image file
         var metaPath = imagePath + ".meta";
-        var meta = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
+        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
         meta.SetString("editor", "document_type", newDef.Name);
-        meta.Save(metaPath, store);
+        meta.Save(metaPath);
 
         // Remove old document from list (don't delete files)
         var position = doc.Position;
         Undo.RemoveDocument(doc);
-        DocumentManager.Remove(doc);
+        Project.Remove(doc);
 
         // Create new document from the image file
-        var newDoc = DocumentManager.Create(imagePath);
+        var newDoc = Project.Create(imagePath);
         if (newDoc != null)
         {
             newDoc.LoadMetadata();
@@ -1548,22 +1654,13 @@ public static partial class Workspace
             newDoc.PostLoad();
             newDoc.PostLoaded = true;
             newDoc.Position = Grid.SnapToPixelGrid(position);
-            DocumentManager.NotifyDocumentAdded(newDoc);
+            Project.NotifyDocumentAdded(newDoc);
             AssetManifest.IsModified = true;
         }
     }
 
-    private static void HandleHide()
+    private static void OpenSettings()
     {
-        foreach (var doc in DocumentManager.SelectedDocuments)
-            doc.IsHiddenInWorkspace = true;
-
-        ClearSelection();
-    }
-
-    private static void HandleUnhideAll()
-    {
-        foreach (var doc in DocumentManager.Documents)
-            doc.IsHiddenInWorkspace = false;
+        SettingsPopup.Open();
     }
 }

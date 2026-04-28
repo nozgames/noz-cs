@@ -29,11 +29,11 @@ public static class EditorAssets
         public const string CursorPen = "cursor_pen";
         public const string CursorRotate = "cursor_rotate";
         public const string CursorScale = "cursor_scale";
-        public const string EditorSprites000 = "editor_sprites000";
         public const string GizmoHandle = "gizmo_handle";
         public const string IconAdd = "icon_add";
         public const string IconAi = "icon_ai";
         public const string IconBone = "icon_bone";
+        public const string IconBrush = "icon_brush";
         public const string IconCheck = "icon_check";
         public const string IconCircle = "icon_circle";
         public const string IconCircleMode = "icon_circle_mode";
@@ -48,6 +48,7 @@ public static class EditorAssets
         public const string IconEdit = "icon_edit";
         public const string IconEmpty = "icon_empty";
         public const string IconEraser = "icon_eraser";
+        public const string IconEraserPencil = "icon_eraser_pencil";
         public const string IconExpandDown = "icon_expand_down";
         public const string IconExpandUp = "icon_expand_up";
         public const string IconFill = "icon_fill";
@@ -59,6 +60,7 @@ public static class EditorAssets
         public const string IconGenerating = "icon_generating";
         public const string IconGradientLinear = "icon_gradient_linear";
         public const string IconHidden = "icon_hidden";
+        public const string IconInfo = "icon_info";
         public const string IconIsolate = "icon_isolate";
         public const string IconKeyframe = "icon_keyframe";
         public const string IconLayer = "icon_layer";
@@ -84,6 +86,7 @@ public static class EditorAssets
         public const string IconRandomRange = "icon_random_range";
         public const string IconRasterize = "icon_rasterize";
         public const string IconRectMode = "icon_rect_mode";
+        public const string IconRedo = "icon_redo";
         public const string IconRefresh = "icon_refresh";
         public const string IconRemove = "icon_remove";
         public const string IconRootMotion = "icon_root_motion";
@@ -100,6 +103,7 @@ public static class EditorAssets
         public const string IconSubmenu = "icon_submenu";
         public const string IconSubtract = "icon_subtract";
         public const string IconTiling = "icon_tiling";
+        public const string IconUndo = "icon_undo";
         public const string IconUnlock = "icon_unlock";
         public const string IconXray = "icon_xray";
         public const string PpComposite = "pp_composite";
@@ -107,6 +111,7 @@ public static class EditorAssets
         public const string PpUpsample = "pp_upsample";
         public const string Seguisb = "seguisb";
         public const string Sprite = "sprite";
+        public const string Sprites = "sprites";
         public const string Square = "square";
         public const string Star = "star";
         public const string Text = "text";
@@ -116,21 +121,21 @@ public static class EditorAssets
 
     public static class Atlases
     {
-        public static readonly Atlas EditorSprites000 = new();
+        public static readonly Atlas Sprites = new();
 
         public static void Load()
         {
-            EditorSprites000.Load(Names.EditorSprites000);
+            Sprites.Load(Names.Sprites);
         }
 
         public static void Reload()
         {
-            EditorSprites000.Reload();
+            Sprites.Reload();
         }
 
         public static void Unload()
         {
-            EditorSprites000.Dispose();
+            Sprites.Dispose();
         }
     }
 
@@ -223,6 +228,7 @@ public static class EditorAssets
         public static readonly Sprite IconAdd = new();
         public static readonly Sprite IconAi = new();
         public static readonly Sprite IconBone = new();
+        public static readonly Sprite IconBrush = new();
         public static readonly Sprite IconCheck = new();
         public static readonly Sprite IconCircle = new();
         public static readonly Sprite IconCircleMode = new();
@@ -237,6 +243,7 @@ public static class EditorAssets
         public static readonly Sprite IconEdit = new();
         public static readonly Sprite IconEmpty = new();
         public static readonly Sprite IconEraser = new();
+        public static readonly Sprite IconEraserPencil = new();
         public static readonly Sprite IconExpandDown = new();
         public static readonly Sprite IconExpandUp = new();
         public static readonly Sprite IconFill = new();
@@ -248,6 +255,7 @@ public static class EditorAssets
         public static readonly Sprite IconGenerating = new();
         public static readonly Sprite IconGradientLinear = new();
         public static readonly Sprite IconHidden = new();
+        public static readonly Sprite IconInfo = new();
         public static readonly Sprite IconIsolate = new();
         public static readonly Sprite IconKeyframe = new();
         public static readonly Sprite IconLayer = new();
@@ -273,6 +281,7 @@ public static class EditorAssets
         public static readonly Sprite IconRandomRange = new();
         public static readonly Sprite IconRasterize = new();
         public static readonly Sprite IconRectMode = new();
+        public static readonly Sprite IconRedo = new();
         public static readonly Sprite IconRefresh = new();
         public static readonly Sprite IconRemove = new();
         public static readonly Sprite IconRootMotion = new();
@@ -289,12 +298,13 @@ public static class EditorAssets
         public static readonly Sprite IconSubmenu = new();
         public static readonly Sprite IconSubtract = new();
         public static readonly Sprite IconTiling = new();
+        public static readonly Sprite IconUndo = new();
         public static readonly Sprite IconUnlock = new();
         public static readonly Sprite IconXray = new();
         public static readonly Sprite Square = new();
         public static readonly Sprite Star = new();
 
-        public static void Load(Texture atlas)
+        public static void Load(Atlas atlas)
         {
             AssetIconAnimation.Load(Names.AssetIconAnimation, atlas);
             AssetIconAtlas.Load(Names.AssetIconAtlas, atlas);
@@ -319,6 +329,7 @@ public static class EditorAssets
             IconAdd.Load(Names.IconAdd, atlas);
             IconAi.Load(Names.IconAi, atlas);
             IconBone.Load(Names.IconBone, atlas);
+            IconBrush.Load(Names.IconBrush, atlas);
             IconCheck.Load(Names.IconCheck, atlas);
             IconCircle.Load(Names.IconCircle, atlas);
             IconCircleMode.Load(Names.IconCircleMode, atlas);
@@ -333,6 +344,7 @@ public static class EditorAssets
             IconEdit.Load(Names.IconEdit, atlas);
             IconEmpty.Load(Names.IconEmpty, atlas);
             IconEraser.Load(Names.IconEraser, atlas);
+            IconEraserPencil.Load(Names.IconEraserPencil, atlas);
             IconExpandDown.Load(Names.IconExpandDown, atlas);
             IconExpandUp.Load(Names.IconExpandUp, atlas);
             IconFill.Load(Names.IconFill, atlas);
@@ -344,6 +356,7 @@ public static class EditorAssets
             IconGenerating.Load(Names.IconGenerating, atlas);
             IconGradientLinear.Load(Names.IconGradientLinear, atlas);
             IconHidden.Load(Names.IconHidden, atlas);
+            IconInfo.Load(Names.IconInfo, atlas);
             IconIsolate.Load(Names.IconIsolate, atlas);
             IconKeyframe.Load(Names.IconKeyframe, atlas);
             IconLayer.Load(Names.IconLayer, atlas);
@@ -369,6 +382,7 @@ public static class EditorAssets
             IconRandomRange.Load(Names.IconRandomRange, atlas);
             IconRasterize.Load(Names.IconRasterize, atlas);
             IconRectMode.Load(Names.IconRectMode, atlas);
+            IconRedo.Load(Names.IconRedo, atlas);
             IconRefresh.Load(Names.IconRefresh, atlas);
             IconRemove.Load(Names.IconRemove, atlas);
             IconRootMotion.Load(Names.IconRootMotion, atlas);
@@ -385,6 +399,7 @@ public static class EditorAssets
             IconSubmenu.Load(Names.IconSubmenu, atlas);
             IconSubtract.Load(Names.IconSubtract, atlas);
             IconTiling.Load(Names.IconTiling, atlas);
+            IconUndo.Load(Names.IconUndo, atlas);
             IconUnlock.Load(Names.IconUnlock, atlas);
             IconXray.Load(Names.IconXray, atlas);
             Square.Load(Names.Square, atlas);
@@ -416,6 +431,7 @@ public static class EditorAssets
             IconAdd.Reload();
             IconAi.Reload();
             IconBone.Reload();
+            IconBrush.Reload();
             IconCheck.Reload();
             IconCircle.Reload();
             IconCircleMode.Reload();
@@ -430,6 +446,7 @@ public static class EditorAssets
             IconEdit.Reload();
             IconEmpty.Reload();
             IconEraser.Reload();
+            IconEraserPencil.Reload();
             IconExpandDown.Reload();
             IconExpandUp.Reload();
             IconFill.Reload();
@@ -441,6 +458,7 @@ public static class EditorAssets
             IconGenerating.Reload();
             IconGradientLinear.Reload();
             IconHidden.Reload();
+            IconInfo.Reload();
             IconIsolate.Reload();
             IconKeyframe.Reload();
             IconLayer.Reload();
@@ -466,6 +484,7 @@ public static class EditorAssets
             IconRandomRange.Reload();
             IconRasterize.Reload();
             IconRectMode.Reload();
+            IconRedo.Reload();
             IconRefresh.Reload();
             IconRemove.Reload();
             IconRootMotion.Reload();
@@ -482,6 +501,7 @@ public static class EditorAssets
             IconSubmenu.Reload();
             IconSubtract.Reload();
             IconTiling.Reload();
+            IconUndo.Reload();
             IconUnlock.Reload();
             IconXray.Reload();
             Square.Reload();
@@ -513,6 +533,7 @@ public static class EditorAssets
             IconAdd.Dispose();
             IconAi.Dispose();
             IconBone.Dispose();
+            IconBrush.Dispose();
             IconCheck.Dispose();
             IconCircle.Dispose();
             IconCircleMode.Dispose();
@@ -527,6 +548,7 @@ public static class EditorAssets
             IconEdit.Dispose();
             IconEmpty.Dispose();
             IconEraser.Dispose();
+            IconEraserPencil.Dispose();
             IconExpandDown.Dispose();
             IconExpandUp.Dispose();
             IconFill.Dispose();
@@ -538,6 +560,7 @@ public static class EditorAssets
             IconGenerating.Dispose();
             IconGradientLinear.Dispose();
             IconHidden.Dispose();
+            IconInfo.Dispose();
             IconIsolate.Dispose();
             IconKeyframe.Dispose();
             IconLayer.Dispose();
@@ -563,6 +586,7 @@ public static class EditorAssets
             IconRandomRange.Dispose();
             IconRasterize.Dispose();
             IconRectMode.Dispose();
+            IconRedo.Dispose();
             IconRefresh.Dispose();
             IconRemove.Dispose();
             IconRootMotion.Dispose();
@@ -579,6 +603,7 @@ public static class EditorAssets
             IconSubmenu.Dispose();
             IconSubtract.Dispose();
             IconTiling.Dispose();
+            IconUndo.Dispose();
             IconUnlock.Dispose();
             IconXray.Dispose();
             Square.Dispose();
@@ -586,16 +611,13 @@ public static class EditorAssets
         }
     }
 
-    public static Texture? AtlasArray { get; private set; }
-
     public static void LoadAssets()
     {
         Atlases.Load();
-        AtlasArray = Texture.CreateArray("SpriteAtlas", Atlases.EditorSprites000);
 
         Fonts.Load();
         Shaders.Load();
-        Sprites.Load(AtlasArray!);
+        Sprites.Load(Atlases.Sprites);
     }
 
     public static void ReloadAssets()
@@ -608,11 +630,9 @@ public static class EditorAssets
 
     public static void UnloadAssets()
     {
-        AtlasArray?.Dispose();
-        AtlasArray = null;
-        Atlases.Unload();
         Fonts.Unload();
         Shaders.Unload();
         Sprites.Unload();
+        Atlases.Unload();
     }
 }

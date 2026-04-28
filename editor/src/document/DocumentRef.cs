@@ -22,7 +22,7 @@ public struct DocumentRef<T> where T : Document
 
     public void Resolve()
     {
-        Value = string.IsNullOrEmpty(Name) ? null : DocumentManager.Find<T>(Name);
+        Value = string.IsNullOrEmpty(Name) ? null : Project.Find<T>(Name);
     }
 
     public bool TryRename(string oldName, string newName)

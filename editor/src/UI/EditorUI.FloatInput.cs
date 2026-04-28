@@ -11,7 +11,7 @@ internal static partial class EditorUI
         public float StartValue;
         public float StartMouseX;
         public byte Active;
-        public byte PenInitiated;
+
     }
 
     private const float ScrubDeadzone = 3f;
@@ -75,7 +75,6 @@ internal static partial class EditorUI
                     state.Active = 1;
                     state.StartValue = value;
                     state.StartMouseX = UI.MouseWorldPosition.X;
-                    state.PenInitiated = Input.IsPenDown ? (byte)1 : (byte)0;
                     ElementTree.SetCapture();
                 }
                 break;
@@ -102,11 +101,6 @@ internal static partial class EditorUI
                 var delta = UI.MouseWorldPosition.X - state.StartMouseX;
 
                 var precise = Input.IsShiftDown();
-                if (state.PenInitiated != 0)
-                    precise |= Touch.FingerCount >= 1;
-                else
-                    precise |= Touch.FingerCount >= 2;
-
                 var activeStep = precise ? fineStep : step;
                 var pixelsPerStep = precise ? ScrubPixelsPerStepFine : ScrubPixelsPerStep;
                 var newValue = state.StartValue + (delta / pixelsPerStep) * activeStep;

@@ -19,6 +19,8 @@ public enum WidgetFlags : ushort
     HoverChanged = 1 << 8,
     Disabled = 1 << 9,
     Checked = 1 << 10,
+    User1 = 1 << 11,
+    User2 = 1 << 12,
 }
 
 public struct EditableTextState

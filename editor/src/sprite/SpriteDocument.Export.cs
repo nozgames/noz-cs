@@ -19,17 +19,10 @@ public abstract partial class SpriteDocument
 
         var frameCount = (ushort)TotalTimeSlots;
 
-        if (Atlas == null)
-        {
-            Log.Error($"Sprite '{Name}' has no atlas — cannot export");
-            return;
-        }
-
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Sprite, Sprite.Version, 0);
 
         writer.Write((ushort)PixelsPerUnit);
-        writer.Write((ushort)(Atlas.Index));
         writer.Write((short)RasterBounds.Left);
         writer.Write((short)RasterBounds.Top);
         writer.Write((short)RasterBounds.Right);
@@ -52,22 +45,12 @@ public abstract partial class SpriteDocument
         writer.Write((byte)DefaultFrameRate);
         for (ushort frameIndex = 0; frameIndex < frameCount; frameIndex++)
         {
-            var uv = GetAtlasUV(frameIndex);
-            WriteMesh(writer, uv, RasterBounds);
+            // Per-frame offset is sprite metadata; UV/size live in the atlas.
+            // RasterBounds is currently the same for all frames, so use its X/Y as offset.
+            writer.Write((short)RasterBounds.X);
+            writer.Write((short)RasterBounds.Y);
         }
 
         writer.Write((byte)TextureFilter);
-    }
-
-    private static void WriteMesh(BinaryWriter writer, Rect uv, RectInt bounds)
-    {
-        writer.Write(uv.Left);
-        writer.Write(uv.Top);
-        writer.Write(uv.Right);
-        writer.Write(uv.Bottom);
-        writer.Write((short)bounds.X);
-        writer.Write((short)bounds.Y);
-        writer.Write((short)bounds.Width);
-        writer.Write((short)bounds.Height);
     }
 }

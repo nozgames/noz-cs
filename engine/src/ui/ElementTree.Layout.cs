@@ -68,10 +68,15 @@ public static unsafe partial class ElementTree
 
             case ElementType.Collection:
             {
-                if (axis == 0) return 0;
                 ref var d = ref e.Data.Collection;
                 var cols = Math.Max(1, d.Columns);
                 var totalItems = d.VirtualCount > 0 ? d.VirtualCount : e.ChildCount;
+                if (axis == 0)
+                {
+                    if (d.ItemWidth <= 0) return 0;
+                    var usedCols = Math.Min(cols, Math.Max(1, totalItems));
+                    return usedCols * d.ItemWidth + Math.Max(0, usedCols - 1) * d.Spacing;
+                }
                 var rowCount = (totalItems + cols - 1) / cols;
                 return rowCount * d.ItemHeight + Math.Max(0, rowCount - 1) * d.Spacing;
             }

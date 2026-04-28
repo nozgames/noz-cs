@@ -26,6 +26,7 @@ public partial class VectorSpriteEditor
 
     internal readonly List<SpritePath> _selectedPaths = new();
     private readonly List<SpriteGroup> _selectedLayers = new();
+    internal SpriteNode? _pivotNode;
     internal float SelectionRotation => _selectionRotation;
     private float _selectionRotation;
     private Rect _selectionLocalBounds;
@@ -101,7 +102,8 @@ public partial class VectorSpriteEditor
         if (CurrentMode != SpriteEditMode.Transform && _selectedPaths.Count > 0)
         {
             foreach (var path in _selectedPaths)
-                path.SelectAll();
+                if (path.IsEditable())
+                    path.SelectAll();
         }
         else
         {
@@ -114,10 +116,11 @@ public partial class VectorSpriteEditor
     {
         Document.Root.ClearSelection();
         Document.Root.ClearSelection();
+        _pivotNode = null;
         RebuildSelectedPaths();
     }
 
-    internal void RebuildSelectedPaths()
+    internal void RebuildSelectedPaths(bool expandAncestors = true)
     {
         _selectedPaths.Clear();
         _selectedLayers.Clear();
@@ -136,8 +139,22 @@ public partial class VectorSpriteEditor
         }
 
         HasPathSelection = _selectedPaths.Count > 0;
+
+        if (_pivotNode != null && !_pivotNode.IsSelected)
+            _pivotNode = null;
+
         UpdateSelectionBounds();
         OnSelectionChanged(HasPathSelection);
+
+        if (expandAncestors)
+        {
+            foreach (var layer in _selectedLayers)
+                layer.ExpandAncestors();
+            foreach (var path in _selectedPaths)
+                path.ExpandAncestors();
+        }
+
+        MarkDirty();
     }
 
     private void UpdateSelectionBounds()
@@ -267,11 +284,9 @@ public partial class VectorSpriteEditor
         }
     }
 
-    private void InvalidateMesh() => _meshDirty = true;
-
     internal void MarkDirty()
     {
-        InvalidateMesh();
+        _meshVersion++;
         Document.UpdateBounds();
     }
 
@@ -449,15 +464,49 @@ public partial class VectorSpriteEditor
     private static void DrawContourSegment(SpriteContour contour, int segmentIndex, Matrix3x2 localTransform, float width, ushort order = 0)
     {
         var samples = contour.GetSegmentSamples(segmentIndex);
-        var prev = Vector2.Transform(contour.Anchors[segmentIndex].Position, localTransform);
-        foreach (var sample in samples)
-        {
-            var transformed = Vector2.Transform(sample, localTransform);
-            Gizmos.DrawLine(prev, transformed, width, order: order);
-            prev = transformed;
-        }
         var nextIdx = (segmentIndex + 1) % contour.Anchors.Count;
-        Gizmos.DrawLine(prev, Vector2.Transform(contour.Anchors[nextIdx].Position, localTransform), width, order: order);
+        var lineCount = samples.Length + 1;
+
+        Span<MeshVertex> verts = stackalloc MeshVertex[lineCount * 4];
+        Span<ushort> indices = stackalloc ushort[lineCount * 6];
+
+        var halfWidth = width * Gizmos.ZoomRefScale;
+        var vertexCount = 0;
+        var indexCount = 0;
+
+        var prev = Vector2.Transform(contour.Anchors[segmentIndex].Position, localTransform);
+        for (var i = 0; i < lineCount; i++)
+        {
+            var next = i < samples.Length
+                ? Vector2.Transform(samples[i], localTransform)
+                : Vector2.Transform(contour.Anchors[nextIdx].Position, localTransform);
+
+            var delta = next - prev;
+            var length = delta.Length();
+            if (length >= 0.0001f)
+            {
+                var dir = delta / length;
+                var perp = new Vector2(-dir.Y, dir.X) * halfWidth;
+
+                var baseVertex = (ushort)vertexCount;
+                verts[vertexCount++] = new MeshVertex(prev.X - perp.X, prev.Y - perp.Y, 0, 0, Color.White);
+                verts[vertexCount++] = new MeshVertex(prev.X + perp.X, prev.Y + perp.Y, 0, 0, Color.White);
+                verts[vertexCount++] = new MeshVertex(next.X + perp.X, next.Y + perp.Y, 0, 0, Color.White);
+                verts[vertexCount++] = new MeshVertex(next.X - perp.X, next.Y - perp.Y, 0, 0, Color.White);
+
+                indices[indexCount++] = baseVertex;
+                indices[indexCount++] = (ushort)(baseVertex + 1);
+                indices[indexCount++] = (ushort)(baseVertex + 2);
+                indices[indexCount++] = (ushort)(baseVertex + 2);
+                indices[indexCount++] = (ushort)(baseVertex + 3);
+                indices[indexCount++] = baseVertex;
+            }
+
+            prev = next;
+        }
+
+        if (indexCount > 0)
+            Graphics.Draw(verts[..vertexCount], indices[..indexCount], order);
     }
 
     private void DrawPathAnchors(SpritePath path, Matrix3x2 localTransform, Matrix3x2 docTransform, bool selectedOnly = false)

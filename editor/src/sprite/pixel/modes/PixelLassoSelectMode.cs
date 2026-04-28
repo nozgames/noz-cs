@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PixelLassoSelectMode : EditorMode<PixelSpriteEditor>
+public class PixelLassoSelectMode : EditorMode<PixelEditor>
 {
     private List<Vector2Int>? _points;
     private readonly List<int> _intersections = new();
@@ -16,7 +16,7 @@ public class PixelLassoSelectMode : EditorMode<PixelSpriteEditor>
         EditorCursor.SetCrosshair();
 
         var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
+        var pixel = Editor.WorldToPixelSnapped(mouseWorld);
 
         if (Input.WasButtonPressed(InputCode.KeyEscape, InputScope.All))
         {

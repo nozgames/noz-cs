@@ -13,9 +13,8 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver
 {
-    private static readonly ProfilerCounter s_counterEndTexturePass = new("WebGPU.EndRenderTexturePass");    
+    private static readonly ProfilerCounter s_counterEndTexturePass = new("WebGPU.EndRenderTexturePass");
 
-    // Mesh Management
     public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex
     {
         var descriptor = T.GetFormatDescriptor();
@@ -190,6 +189,13 @@ public unsafe partial class WebGPUGraphicsDriver
         };
     }
 
+    private int AllocTextureHandle()
+    {
+        for (int i = 2; i < _nextTextureId; i++)
+            if (_textures[i].Texture == null) return i;
+        return _nextTextureId++;
+    }
+
     public nuint CreateTexture(int width, int height, ReadOnlySpan<byte> data, TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear, string? name = null)
     {
         var wgpuFormat = MapTextureFormat(format);
@@ -274,7 +280,7 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var sampler = _wgpu.DeviceCreateSampler(_device, &samplerDesc);
 
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         _textures[(int)handle] = new TextureInfo
         {
             Texture = texture,
@@ -324,8 +330,12 @@ public unsafe partial class WebGPUGraphicsDriver
         }
     }
 
+    private static long _debugRegionUpdateTicks;
+
     public void UpdateTextureRegion(nuint handle, in RectInt region, ReadOnlySpan<byte> data, int srcWidth = -1)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
         ref var textureInfo = ref _textures[(int)handle];
 
         var bytesPerPixel = textureInfo.Format switch
@@ -335,7 +345,7 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba32float => 16,
             _ => 4,
         };
-
+        
         var rowWidth = srcWidth < 0 ? region.Width : srcWidth;
 
         fixed (byte* dataPtr = data)
@@ -359,14 +369,27 @@ public unsafe partial class WebGPUGraphicsDriver
                 Aspect = TextureAspect.All,
             };
 
+            // Pass only the bytes wgpu actually needs to read from the source
+            // buffer. Passing data.Length (the entire source buffer) causes
+            // wgpu-native to stage the whole thing even when uploading a small
+            // sub-region — on iOS Metal this was the dominant per-frame cost
+            // during pixel-editor strokes.
+            var bytesPerRow = (ulong)(rowWidth * bytesPerPixel);
+            var bytesNeeded = (region.Height > 0)
+                ? (ulong)(region.Height - 1) * bytesPerRow + (ulong)(region.Width * bytesPerPixel)
+                : 0UL;
+
             _wgpu.QueueWriteTexture(
                 _queue,
                 &destination,
                 dataPtr + (region.Y * rowWidth + region.X) * bytesPerPixel,
-                (nuint)data.Length,
+                (nuint)bytesNeeded,
                 &layout,
                 &copySize);
         }
+
+        sw.Stop();
+        _debugRegionUpdateTicks += sw.ElapsedTicks;
     }
 
     public void DestroyTexture(nuint handle)
@@ -460,7 +483,7 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var sampler = _wgpu.DeviceCreateSampler(_device, &samplerDesc);
 
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         _textures[(int)handle] = new TextureInfo
         {
             Texture = texture,
@@ -561,7 +584,7 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var sampler = _wgpu.DeviceCreateSampler(_device, &samplerDesc);
 
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         _textures[(int)handle] = new TextureInfo
         {
             Texture = texture,
@@ -699,7 +722,7 @@ public unsafe partial class WebGPUGraphicsDriver
         }
 
         // Allocate from shared texture handle space so RT can be used with BindTexture
-        var handle = (nuint)_nextTextureId++;
+        var handle = (nuint)AllocTextureHandle();
         var rtSlot = _freeRtSlotCount > 0 ? _freeRtSlots[--_freeRtSlotCount] : _nextRenderTextureSlot++;
 
         _renderTextures[rtSlot] = new RenderTextureInfo

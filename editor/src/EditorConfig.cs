@@ -172,12 +172,11 @@ public class EditorConfig
 
     public static EditorConfig? Load(string path)
     {
-        var store = EditorApplication.Store;
-        if (!store.FileExists(path)) return null;
+        if (!File.Exists(path)) return null;
 
         Log.Info($"Loading Config: {path}");
 
-        var props = PropertySetExtensions.LoadFile(store, path);
+        var props = PropertySet.LoadFile(path);
         if (props == null)
             return null;
 

@@ -60,6 +60,16 @@ public abstract class SpriteNode : IDisposable
 
     public void RemoveFromParent() => Parent?.Remove(this);
 
+    public void ExpandAncestors()
+    {
+        var p = Parent;
+        while (p != null)
+        {
+            p.Expanded = true;
+            p = p.Parent;
+        }
+    }
+
     public void RemoveAt(int index)
     {
         Children[index].Parent = null;

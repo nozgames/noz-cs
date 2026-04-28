@@ -6,109 +6,39 @@ using System.Numerics;
 
 namespace NoZ.Editor;
 
-public class PixelEraserMode : EditorMode<PixelSpriteEditor>
+public class PixelEraserMode : PixelStrokeMode
 {
-    private Vector2Int _lastPixel = new(-1, -1);
-    private bool _isErasing;
+    protected override PixelBrushType BrushType => Editor.Document.EraserType;
+    protected override Color OutlineColor => new(1f, 0.4f, 0.4f, 0.6f);
+    protected override EditorMode? EyeDropperExitMode => new BrushMode();
 
-    private bool UpdateEyeDropper()
+    protected override void PaintPixel(Vector2Int pixel)
     {
-        if (!Input.IsAltDown(InputScope.All) || _isErasing)
-            return false;
+        if (BrushType == PixelBrushType.Pencil)
+            Editor.PaintBrush(pixel, default, blend: false, erase: true);
+        else
+            Editor.PaintBrushSoft(new Vector2(pixel.X + 0.5f, pixel.Y + 0.5f),
+                default, Editor.BrushHardness, erase: true);
+    }
 
-        EditorCursor.SetDropper();
-        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
+    protected override void OnSoftStrokeBegin(Vector2 worldPixel)
+    {
+        Editor.PaintBrushSoft(worldPixel, default, Editor.BrushHardness, erase: true);
+    }
+
+    protected override void OnSoftStrokeSegment(Vector2 from, Vector2 to)
+    {
+        var spacing = MathF.Max(0.25f, Editor.BrushSize * 0.1f);
+        var delta = to - from;
+        var dist = delta.Length();
+        if (dist <= 0f) return;
+
+        var steps = (int)MathF.Ceiling(dist / spacing);
+        var hardness = Editor.BrushHardness;
+        for (var i = 1; i <= steps; i++)
         {
-            var color = Workspace.ReadPixelAtMouse();
-            Input.ConsumeButton(InputCode.MouseLeft);
-            if (color.A > 0)
-                Editor.BrushColor = color;
-            Editor.SetMode(new PencilMode());
+            var t = (float)i / steps;
+            Editor.PaintBrushSoft(from + delta * t, default, hardness, erase: true);
         }
-
-        return true;
-    }
-
-    public override void Update()
-    {
-        var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
-
-        if (UpdateEyeDropper())
-            return;
-
-        EditorCursor.SetCrosshair();
-
-        if (Input.WasButtonPressed(InputCode.MouseLeft, InputScope.All))
-        {
-            BeginStroke(pixel);
-        }
-        else if (_isErasing)
-        {
-            if (Input.IsButtonDown(InputCode.MouseLeft, InputScope.All))
-                ContinueStroke(pixel);
-            else
-                EndStroke();
-        }
-    }
-
-    private void BeginStroke(Vector2Int pixel)
-    {
-        var layer = Editor.ActiveLayer;
-        if (layer == null || layer.Pixels == null || layer.Locked || !layer.Visible) return;
-
-        Undo.Record(Editor.Document);
-        _isErasing = true;
-        _lastPixel = pixel;
-        ErasePixel(pixel);
-    }
-
-    private void ContinueStroke(Vector2Int pixel)
-    {
-        if (pixel == _lastPixel) return;
-        DrawLine(_lastPixel, pixel);
-        _lastPixel = pixel;
-    }
-
-    private void EndStroke()
-    {
-        _isErasing = false;
-        _lastPixel = new Vector2Int(-1, -1);
-        Editor.InvalidateActiveLayerPreview();
-    }
-
-    private void ErasePixel(Vector2Int pixel)
-    {
-        if (!Editor.IsPixelInBounds(pixel)) return;
-        Editor.PaintBrush(pixel, default, blend: false);
-    }
-
-    private void DrawLine(Vector2Int from, Vector2Int to)
-    {
-        var dx = Math.Abs(to.X - from.X);
-        var dy = Math.Abs(to.Y - from.Y);
-        var sx = from.X < to.X ? 1 : -1;
-        var sy = from.Y < to.Y ? 1 : -1;
-        var err = dx - dy;
-
-        var x = from.X;
-        var y = from.Y;
-
-        while (true)
-        {
-            ErasePixel(new Vector2Int(x, y));
-            if (x == to.X && y == to.Y) break;
-            var e2 = 2 * err;
-            if (e2 > -dy) { err -= dy; x += sx; }
-            if (e2 < dx) { err += dx; y += sy; }
-        }
-    }
-
-    public override void Draw()
-    {
-        var mouseWorld = Workspace.MouseWorldPosition;
-        var pixel = Editor.WorldToPixel(mouseWorld);
-        if (!Editor.IsPixelInBounds(pixel)) return;
-        Editor.DrawBrushOutline(pixel, new Color(1f, 0.4f, 0.4f, 0.6f));
     }
 }

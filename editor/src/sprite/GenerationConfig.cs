@@ -89,16 +89,15 @@ public class GenerationConfig : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetTypeGen, Extension, name, position, writer =>
+        return Project.New(AssetTypeGen, Extension, name, writer =>
         {
             writer.WriteLine("prompt \"\"");
-        });
+        }, position);
     }
 
     public override void Load()
     {
-        var contents = EditorApplication.Store.ReadAllText(Path);
-        var tk = new Tokenizer(contents);
+        var tk = new Tokenizer(File.ReadAllText(Path));
         Parse(ref tk);
         Loaded = true;
     }

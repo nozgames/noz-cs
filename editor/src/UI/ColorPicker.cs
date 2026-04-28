@@ -9,6 +9,10 @@ namespace NoZ.Editor;
 internal struct ColorButtonStyle()
 {
     public PopupStyle Popup = EditorStyle.PopupLeft;
+    public bool FillWidth = false;
+    public bool ShowAlpha = true;
+    public bool ShowHDR = false;
+    public bool ShowClose = true;
 }
 
 internal static partial class ColorPicker
@@ -17,8 +21,6 @@ internal static partial class ColorPicker
     private const float SliderHeight = EditorStyle.ColorPicker.SliderHeight;
     private const float ThumbSize = SliderHeight - 2;
     private const float ThumbRadius = ThumbSize / 2;
-    private const float SwatchCellSize = 28;
-    private const int SwatchColumns = (int)(EditorStyle.ColorPicker.SliderWidth / SwatchCellSize);
 
     private static partial class ElementId
     {
@@ -77,8 +79,9 @@ internal static partial class ColorPicker
     private static bool _eyeDropperActive;
     private static bool _eyeDropperMouseWasDown;
 
-    // HDR state
     private static bool _hdr;
+    private static bool _showAlpha;
+    private static bool _showClose;
 
     // Popup
     private static PopupStyle _popupStyle;
@@ -112,12 +115,15 @@ internal static partial class ColorPicker
         _eyeDropperActive = false;
     }
 
-    internal static void Open(WidgetId id, Color color, bool hdr = false, ColorButtonStyle? style = null)
+    internal static void Open(WidgetId id, Color color, ColorButtonStyle? style = null)
     {
-        _hdr = hdr;
+        var resolved = style ?? new ColorButtonStyle();
 
-        // Extract HDR intensity from color
-        if (hdr)
+        _hdr = resolved.ShowHDR;
+        _showAlpha = resolved.ShowAlpha;    
+        _showClose = resolved.ShowClose;
+
+        if (_hdr)
         {
             var maxComponent = MathF.Max(color.R, MathF.Max(color.G, color.B));
             if (maxComponent > 1f)
@@ -211,28 +217,34 @@ internal static partial class ColorPicker
 
         using (UI.BeginColumn(EditorStyle.ColorPicker.Root))
         {
-            using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
+            if (_showAlpha || _showClose)
             {
-                if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
+                using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
                 {
-                    _savedAlpha = _alpha;
-                    _paletteMode = ColorMode.None;
-                }
+                    if (_showAlpha)
+                    {
+                        if (UI.Button(ElementId.ModeNone, EditorAssets.Sprites.IconNofill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.None))
+                        {
+                            _savedAlpha = _alpha;
+                            _paletteMode = ColorMode.None;
+                        }
 
-                if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
-                {
-                    _paletteMode = ColorMode.Color;
-                    if (_alpha == 0)
-                        _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
-                    _trackNeedsInit = true;
-                }
+                        if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
+                        {
+                            _paletteMode = ColorMode.Color;
+                            if (_alpha == 0)
+                                _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
+                            _trackNeedsInit = true;
+                        }                    
+                    }
 
-                UI.Flex();
-
-                if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
-                {
-                    close = true;
-                }
+                    if (_showClose)
+                    {
+                        UI.Flex();
+                        if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
+                            close = true;
+                    }
+                }                
             }
 
             Color32 color;
@@ -352,6 +364,8 @@ internal static partial class ColorPicker
 
     private static void Alpha()
     {
+        if (!_showAlpha) return;
+
         EnsureCheckerTexture();
 
         ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Alpha);
@@ -488,14 +502,14 @@ internal static partial class ColorPicker
     {
         var container = UI.BeginContainer(id, new ContainerStyle
         {
-            Padding = EdgeInsets.All(3),
-            Background = selected ? EditorStyle.Palette.Primary : Color.Transparent,
-            BorderRadius = EditorStyle.Control.BorderRadius
+            Padding = EdgeInsets.All(1),
         });
 
-        if (!selected && UI.IsHovered())
-            UI.Container(EditorStyle.Control.HoverFill with
+        if (selected || UI.IsHovered())
+            UI.Container(new ContainerStyle()
             {
+                Background = EditorStyle.Palette.Primary,
+                BorderRadius = EditorStyle.Control.BorderRadius,
                 Margin = EdgeInsets.All(-3)
             });
 
@@ -536,9 +550,9 @@ internal static partial class ColorPicker
 
         var swatchLayout = new CollectionLayout
         {
-            ItemHeight = SwatchCellSize,
-            ItemWidth = SwatchCellSize,
-            Columns = SwatchColumns
+            ItemHeight = EditorStyle.ColorPicker.SwatchCellSize,
+            ItemWidth = EditorStyle.ColorPicker.SwatchCellSize,
+            Columns = EditorStyle.ColorPicker.SwatchColumns
         };
         using var grid = UI.BeginCollection(ElementId.SwatchGrid, swatchLayout, selectedPalette.Count, out var swatchStart, out var swatchEnd);
 
@@ -605,7 +619,7 @@ internal static partial class ColorPicker
             for (int x = 0; x < w; x++)
                 _checkerPixels[x, y] = (x + y) % 2 == 0 ? light : dark;
 
-        _checkerTexture = Texture.Create(w, h, _checkerPixels.AsByteSpan(),
+        _checkerTexture = Texture.Create(w, h, _checkerPixels.AsReadonlySpan(),
             TextureFormat.RGBA8, TextureFilter.Point, "EditorCheckerboard");
     }
 
@@ -620,7 +634,7 @@ internal static partial class ColorPicker
         for (int x = 0; x < w; x++)
             _huePixels[x, 0] = HsvToColor32(x / (float)w * 360f, 1f, 1f, 1f);
 
-        _hueTexture = Texture.Create(w, h, _huePixels.AsByteSpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorHueBar");
+        _hueTexture = Texture.Create(w, h, _huePixels.AsReadonlySpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorHueBar");
     }
 
     private static void EnsureSVTexture()
@@ -639,9 +653,9 @@ internal static partial class ColorPicker
         }
 
         if (_svTexture == null)
-            _svTexture = Texture.Create(size, size, _svPixels.AsByteSpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorSVGradient");
+            _svTexture = Texture.Create(size, size, _svPixels.AsReadonlySpan(), TextureFormat.RGBA8, TextureFilter.Linear, "EditorSVGradient");
         else
-            _svTexture.Update(_svPixels.AsByteSpan());
+            _svTexture.Update(_svPixels.AsReadonlySpan());
 
         _svTextureHue = _hue;
     }

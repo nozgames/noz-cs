@@ -90,6 +90,26 @@ public static class EditorStyle
         ClampToScreen = true,
     };
 
+    public static readonly PopupStyle PopupBelow = new()
+    {
+        AnchorX = Align.Max,
+        AnchorY = Align.Max,
+        PopupAlignX = Align.Max,
+        PopupAlignY = Align.Min,
+        Spacing = Control.Spacing,
+        ClampToScreen = true,
+    };
+
+    public static readonly PopupStyle PopupBottomRight = new()
+    {
+        AnchorX = Align.Max,
+        AnchorY = Align.Max,
+        PopupAlignX = Align.Max,
+        PopupAlignY = Align.Min,
+        Spacing = Control.Spacing,
+        ClampToScreen = true,
+    };
+
     public static readonly ContainerStyle Tooltip = new()
     {
         Background = Palette.Popup,
@@ -114,6 +134,9 @@ public static class EditorStyle
         };
 
         public static readonly ImageStyle Secondary = Primary with { Color = Palette.SecondaryText };
+
+        public static readonly ImageStyle Large = Primary with { Size = LargeSize };
+        public static readonly ImageStyle SecondaryLarge = Secondary with { Size = LargeSize };    
     }
 
     // :text
@@ -151,8 +174,8 @@ public static class EditorStyle
         public const float NameSize = 0.25f;
         public const float NamePadding = 0.26f;
         public const float NameOutline = 0.15f;
-        public const float GridAlpha = 0.4f;
-        public const float GridZeroAlpha = 0.5f;
+        public const float GridAlpha = 0.8f;
+        public const float GridZeroAlpha = 1.0f;
         public const float Padding = 16f;
     }
 
@@ -368,6 +391,11 @@ public static class EditorStyle
             Padding = EdgeInsets.All(3),
             Resolve = (s, f) =>
             {
+                if ((f & WidgetFlags.Disabled) != 0)
+                {
+                    s.ContentColor = Palette.Disabled;
+                    return s;
+                }
                 if ((f & WidgetFlags.Checked) != 0) s.Background = Palette.Canvas;
                 if ((f & WidgetFlags.Hovered) != 0) { s.BorderWidth = 1; s.BorderColor = Palette.FocusRing; }
                 return s;
@@ -380,9 +408,9 @@ public static class EditorStyle
             Height = Control.Height,
             Background = Color.Transparent,
             ContentColor = Palette.Content,
-            IconSize = Control.IconSize,
+            IconSize = Icon.LargeSize,
             BorderRadius = Control.BorderRadius,
-            Padding = EdgeInsets.All(3),
+            Padding = 3,
             Resolve = (s, f) =>
             {
                 if ((f & WidgetFlags.Hovered) != 0) s.Background = Palette.Active;
@@ -1099,6 +1127,25 @@ public static class EditorStyle
             BorderColor = Palette.Primary,
             Padding = EdgeInsets.Symmetric(0, 2)
         };
+
+        public static readonly ContainerStyle BrushSlider = new()
+        {
+            Background = Palette.Popup,
+            Width = Control.Height + 4,
+            Height = 160,
+            Padding = EdgeInsets.Symmetric(8, 2),
+            BorderRadius = Control.BorderRadius,
+            Spacing = 8
+        };
+
+        public static readonly ContainerStyle EyeDropper = new()
+        {
+            Background = Palette.Popup,
+            Width = Control.Height + 4,
+            Height = Size.Fit,
+            Padding = EdgeInsets.Symmetric(2, 2),
+            BorderRadius = Control.BorderRadius,
+        };
     }
 
     // :colorpicker
@@ -1109,6 +1156,8 @@ public static class EditorStyle
         public const float SVSize = Width - 4;
         public const float SliderWidth = Width - Padding * 2;
         public const float SliderHeight = 13;
+        public const int SwatchColumns = 8;
+        public const float SwatchCellSize = SliderWidth / SwatchColumns;
 
         public readonly static ContainerStyle Root = Popup.Root with
         {

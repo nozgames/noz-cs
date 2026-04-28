@@ -11,6 +11,9 @@ public partial class VectorSpriteEditor : SpriteEditor
     private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
+        public static partial WidgetId LayerToggle { get; }
+        public static partial WidgetId ExitEditMode { get; }
+        public static partial WidgetId InspectorToggle { get; }
         public static partial WidgetId TileButton { get; }
         public static partial WidgetId SubtractButton { get; }
         public static partial WidgetId FirstOpacity { get; }
@@ -18,6 +21,8 @@ public partial class VectorSpriteEditor : SpriteEditor
         public static partial WidgetId FillColorButton { get; }
         public static partial WidgetId StrokeColor { get; }
         public static partial WidgetId StrokeWidth { get; }
+        public static partial WidgetId OutlineColor { get; }
+        public static partial WidgetId OutlineSize { get; }
         public static partial WidgetId StrokeJoinRound { get; }
         public static partial WidgetId StrokeJoinMiter { get; }
         public static partial WidgetId StrokeJoinBevel { get; }
@@ -47,16 +52,19 @@ public partial class VectorSpriteEditor : SpriteEditor
     private bool _isPlaying;
     private bool _onionSkin;
     private float _playTimer;
+    private bool _showLayers = true;
+    private bool _showInspector = true;
     private readonly int _versionOnOpen;
 
     public int CurrentTimeSlot => _currentTimeSlot;
+    public override bool ShowOutliner => _showLayers;
 
     public bool IsPlaying => _isPlaying;
 
     public static List<SpritePath> HitPaths => _hitPaths;
 
-    public override bool ShowInspector => true;
-    public override bool ShowOutliner => true;
+    public override bool ShowInspector => _showInspector;
+    public override PowerMode PowerMode => _isPlaying ? PowerMode.Performance : PowerMode.Balanced;
 
     private int CurrentFrameIndex =>
         Document.GetFrameAtTimeSlot(_currentTimeSlot);
@@ -99,11 +107,31 @@ public partial class VectorSpriteEditor : SpriteEditor
             new Command("Boolean Intersect",    BooleanIntersect,           [new KeyBinding(InputCode.KeyI, ctrl:true, shift:true)]),
             new Command("Export to PNG",        ExportToPng,                [new KeyBinding(InputCode.KeyE, ctrl:true, shift:true)]),
             new Command("Toggle Rasterization Preview", TogglePreviewRasterize, [InputCode.KeyF6]),
+            new Command("Frame Selection",      FrameSelection,             [new KeyBinding(InputCode.KeyF)]),
         ];
 
         SetMode(new TransformMode());
     }
 
+
+    private void FrameSelection()
+    {
+        if (_selectedPaths.Count == 0)
+        {
+            Workspace.FrameRect(Document.Bounds.Translate(Document.Position));
+            return;
+        }
+
+        var rot = Matrix3x2.CreateRotation(_selectionRotation);
+        var b = _selectionLocalBounds;
+        var p0 = Vector2.Transform(new Vector2(b.Left, b.Top), rot);
+        var p1 = Vector2.Transform(new Vector2(b.Right, b.Top), rot);
+        var p2 = Vector2.Transform(new Vector2(b.Right, b.Bottom), rot);
+        var p3 = Vector2.Transform(new Vector2(b.Left, b.Bottom), rot);
+        var min = Vector2.Min(Vector2.Min(p0, p1), Vector2.Min(p2, p3));
+        var max = Vector2.Max(Vector2.Max(p0, p1), Vector2.Max(p2, p3));
+        Workspace.FrameRect(Rect.FromMinMax(min, max).Translate(Document.Position));
+    }
 
     private void ExportToPng()
     {
@@ -131,7 +159,7 @@ public partial class VectorSpriteEditor : SpriteEditor
     {
         ClearSelection();
 
-        if (Document.Version != _versionOnOpen && Document.Atlas != null)
+        if (Document.Version != _versionOnOpen)
             AtlasManager.UpdateSource(Document);
 
         base.Dispose();
@@ -206,7 +234,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                 level: 1, enabled: () => multiPath),
         };
 
-        PopupMenu.Open(WidgetIds.ContextMenu, items.ToArray());
+        UI.OpenPopupMenu(WidgetIds.ContextMenu, items.ToArray(), EditorStyle.ContextMenu.Style);
     }
 
     private void GroupSelected()
@@ -244,6 +272,8 @@ public partial class VectorSpriteEditor : SpriteEditor
         UpdateHandleCursor();
         UpdateAnimation();
 
+        Mode?.Update();
+
         using (Gizmos.PushState(EditorLayer.DocumentEditor))
         {
             Graphics.SetTransform(Document.Transform);
@@ -273,11 +303,6 @@ public partial class VectorSpriteEditor : SpriteEditor
         Document.DrawBounds();
 
         Mode?.Draw();
-    }
-
-    public override void LateUpdate()
-    {
-        Mode?.Update();
     }
 
     public override void UpdateUI() { }
@@ -344,9 +369,12 @@ public partial class VectorSpriteEditor : SpriteEditor
 
         FloatingToolbar.Divider();
 
-        if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
-            Document.ShowTiling = !Document.ShowTiling;
-        EditorUI.Tooltip(WidgetIds.TileButton, "Tiling Preview");
+        using (UI.BeginEnabled(Document.ConstrainedSize.HasValue))
+        {
+            if (FloatingToolbar.Button(WidgetIds.TileButton, EditorAssets.Sprites.IconTiling, isSelected: Document.ShowTiling))
+                Document.ShowTiling = !Document.ShowTiling;
+            EditorUI.Tooltip(WidgetIds.TileButton, "Tiling Preview");
+        }
 
 
         if (FloatingToolbar.Button(WidgetIds.PreviewRasterizeButton, EditorAssets.Sprites.IconRasterize, isSelected: PreviewRasterize))
@@ -469,6 +497,15 @@ public partial class VectorSpriteEditor : SpriteEditor
         ], Strings.Number(Document.CurrentStrokeWidth), EditorAssets.Sprites.IconStrokeSize);
     }
 
+    private void OutlineSizeButtonUI()
+    {
+        UI.DropDown(WidgetIds.OutlineSize, () => [
+            ..Enumerable.Range(1, 8).Select(i =>
+                new PopupMenuItem { Label = Strings.Number(i), Handler = () => SetOutlineSize((byte)i) }
+            )
+        ], Strings.Number(Document.OutlineSize == 0 ? (byte)1 : Document.OutlineSize), EditorAssets.Sprites.IconStrokeSize);
+    }
+
 
     public void SetCurrentTimeSlot(int timeSlot)
     {
@@ -556,7 +593,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (_selectedPaths.Count == 0) return;
         foreach (var path in _selectedPaths)
             path.FillColor = color;
-        _meshDirty = true;
+        MarkDirty();
     }
 
     private void SetStrokeColor(Color32 color)
@@ -570,7 +607,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             path.StrokeWidth = Document.CurrentStrokeWidth;
             path.StrokeJoin = Document.CurrentStrokeJoin;
         }
-        _meshDirty = true;
+        MarkDirty();
     }
 
     private void SetStrokeWidth(byte width)
@@ -581,7 +618,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         foreach (var path in _selectedPaths)
             path.StrokeWidth = width;
 
-        InvalidateMesh();
+        MarkDirty();
     }
 
     private void SetStrokeJoin(SpriteStrokeJoin join)
@@ -592,7 +629,24 @@ public partial class VectorSpriteEditor : SpriteEditor
         foreach (var path in _selectedPaths)
             path.StrokeJoin = join;
 
-        InvalidateMesh();
+        MarkDirty();
+    }
+
+    private void SetOutlineColor(Color32 color)
+    {
+        Document.OutlineColor = color;
+        if (Document.OutlineSize == 0 && color.A > 0)
+            Document.OutlineSize = 1;
+        MarkDirty();
+        Document.MarkSpriteDirty();
+    }
+
+    private void SetOutlineSize(byte size)
+    {
+        Undo.Record(Document);
+        Document.OutlineSize = size;
+        MarkDirty();
+        Document.MarkSpriteDirty();
     }
 
     private void CycleSpritePathOperation()
@@ -611,7 +665,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             foreach (var path in _selectedPaths)
                 path.Operation = newOp;
 
-            InvalidateMesh();
+            MarkDirty();
         }
         else
         {
@@ -627,7 +681,7 @@ public partial class VectorSpriteEditor : SpriteEditor
         foreach (var path in _selectedPaths)
             path.Operation = operation;
 
-        InvalidateMesh();
+        MarkDirty();
     }
 
     private void CenterShape()
@@ -692,46 +746,35 @@ public partial class VectorSpriteEditor : SpriteEditor
         if (_selectedPaths.Count == 0) return;
 
         Undo.Record(Document);
+
+        var min = new Vector2(float.MaxValue);
+        var max = new Vector2(float.MinValue);
+        foreach (var path in _selectedPaths)
+        {
+            var b = path.Bounds;
+            min = Vector2.Min(min, b.Min);
+            max = Vector2.Max(max, b.Max);
+        }
+        var sharedCenter = (min + max) * 0.5f;
+
         foreach (var path in _selectedPaths)
         {
             var oldCenter = path.LocalBounds.Center;
+            var oldTransform = path.PathTransform;
+            Matrix3x2.Invert(oldTransform, out var inverse);
 
-            if (path.HasTransform && Matrix3x2.Invert(path.PathTransform, out var inverse))
+            foreach (var contour in path.Contours)
             {
-                // Flip in world space so the result matches what the user sees
-                var oldTransform = path.PathTransform;
-                var worldCenter = path.Bounds.Center;
-
-                foreach (var contour in path.Contours)
+                for (var i = 0; i < contour.Anchors.Count; i++)
                 {
-                    for (var i = 0; i < contour.Anchors.Count; i++)
-                    {
-                        var a = contour.Anchors[i];
-                        var world = Vector2.Transform(a.Position, oldTransform);
-                        world = horizontal
-                            ? new Vector2(2 * worldCenter.X - world.X, world.Y)
-                            : new Vector2(world.X, 2 * worldCenter.Y - world.Y);
-                        a.Position = Vector2.Transform(world, inverse);
-                        a.Curve = -a.Curve;
-                        contour.Anchors[i] = a;
-                    }
-                }
-            }
-            else
-            {
-                // No transform: flip in local space (local = world)
-                var center = path.LocalBounds.Center;
-                foreach (var contour in path.Contours)
-                {
-                    for (var i = 0; i < contour.Anchors.Count; i++)
-                    {
-                        var a = contour.Anchors[i];
-                        a.Position = horizontal
-                            ? new Vector2(2 * center.X - a.Position.X, a.Position.Y)
-                            : new Vector2(a.Position.X, 2 * center.Y - a.Position.Y);
-                        a.Curve = -a.Curve;
-                        contour.Anchors[i] = a;
-                    }
+                    var a = contour.Anchors[i];
+                    var world = Vector2.Transform(a.Position, oldTransform);
+                    world = horizontal
+                        ? new Vector2(2 * sharedCenter.X - world.X, world.Y)
+                        : new Vector2(world.X, 2 * sharedCenter.Y - world.Y);
+                    a.Position = Vector2.Transform(world, inverse);
+                    a.Curve = -a.Curve;
+                    contour.Anchors[i] = a;
                 }
             }
 
@@ -740,6 +783,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             path.UpdateBounds();
             path.CompensateTranslation(oldCenter);
         }
+
         MarkDirty();
     }
 
@@ -830,6 +874,8 @@ public partial class VectorSpriteEditor : SpriteEditor
 
         if (!moved)
             Undo.Cancel();
+        else
+            MarkDirty();
     }
 
     private void UpdateAnimation()
@@ -1247,10 +1293,7 @@ public partial class VectorSpriteEditor : SpriteEditor
                     if (UI.WasChangeStarted()) Undo.Record(Document);
 
                     if (UI.WasChanged())
-                    {
                         SetFillColor(fillColor.ToColor32());
-                        _meshDirty = true;
-                    }
 
                     if (UI.WasChangeCancelled()) Undo.Cancel();
                 }
@@ -1288,9 +1331,32 @@ public partial class VectorSpriteEditor : SpriteEditor
         }
     }
 
+    private void OutlineInspectorUI()
+    {
+        using (Inspector.BeginSection("OUTLINE"))
+        {
+            if (Inspector.IsSectionCollapsed)
+                return;
+
+            using (Inspector.BeginProperty("Color"))
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
+            {
+                var newColor = EditorUI.ColorButton(WidgetIds.OutlineColor, Document.OutlineColor.ToColor());
+
+                if (UI.WasChangeStarted()) Undo.Record(Document);
+                if (UI.WasChanged()) SetOutlineColor(newColor.ToColor32());
+                if (UI.WasChangeCancelled()) Undo.Cancel();
+
+                if (newColor.A > 0)
+                    OutlineSizeButtonUI();
+            }
+        }
+    }
+
     public override void InspectorUI()
     {
         EdgesInspectorUI();
+        OutlineInspectorUI();
         PathInspectorUI();
     }
 
@@ -1338,8 +1404,24 @@ public partial class VectorSpriteEditor : SpriteEditor
         var dpi = Document.PixelsPerUnit;
         var targetRect = new RectInt(Vector2Int.Zero, size);
         var sourceOffset = -Document.RasterBounds.Position;
-        VectorSpriteDocument.RasterizeLayer(Document.Root, pixels, targetRect, sourceOffset, dpi);
+        VectorSpriteDocument.RasterizeLayer(Document.Root, pixels, targetRect, sourceOffset, dpi, clipRect: null, outlineSource: Document);
 
         return pixels[px, py];
+    }
+
+    public override void ToolbarUI()
+    {
+        base.ToolbarUI();
+
+        if (UI.Button(WidgetIds.LayerToggle, EditorAssets.Sprites.IconLayer, EditorStyle.Button.ToggleIcon, isSelected: _showLayers))  
+            _showLayers = !_showLayers;
+
+        if (UI.Button(WidgetIds.ExitEditMode, EditorAssets.Sprites.IconEdit, EditorStyle.Button.ToggleIcon, isSelected: true))  
+            Workspace.EndEdit();
+
+        UI.Flex();
+
+        if (UI.Button(WidgetIds.InspectorToggle, EditorAssets.Sprites.IconInfo, EditorStyle.Button.ToggleIcon, isSelected: _showInspector))  
+            _showInspector = !_showInspector;
     }
 }

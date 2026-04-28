@@ -29,7 +29,6 @@ internal partial class PaletteEditor : DocumentEditor
     public new PaletteDocument Document => (PaletteDocument)base.Document;
 
     public override bool ShowInspector => _selectedColorIndex >= 0;
-    public override bool ShowOutliner => true;
 
     private int _selectedColorIndex = -1;
     private int _hoveredColorIndex = -1;

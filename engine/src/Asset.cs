@@ -57,6 +57,23 @@ public class Asset : IDisposable {
         _registry[(type, name)] = this;
     }
 
+    public void LoadFromStream(Stream stream, string name)
+    {
+        Name = name;
+        Id = StringId.Get(name);
+        var type = Def.Type;
+
+        if (!ValidateAssetHeader(stream, type))
+        {
+            Log.Error($"Invalid asset header: {type}/{name}");
+            return;
+        }
+        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+        Load(reader);
+
+        _registry[(type, name)] = this;
+    }
+
     public static Asset? Load(AssetType type, string name, bool useRegistry=true, string? libraryPath = null)
     {
         if (useRegistry && _registry.TryGetValue((type, name), out var cached))
@@ -110,6 +127,13 @@ public class Asset : IDisposable {
                 return asset as T;
 
         return null;
+    }
+
+    public static IEnumerable<Asset> GetAllOfType(AssetType type)
+    {
+        foreach (var asset in _registry.Values)
+            if (asset.Def.Type == type)
+                yield return asset;
     }
 
     private static Stream? LoadAssetStream(string assetName, AssetType assetType, string? libraryPath = null)

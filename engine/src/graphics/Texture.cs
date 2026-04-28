@@ -55,6 +55,31 @@ public class Texture : Asset, IImage
         return texture;
     }
 
+    public static Texture Create(
+        int width,
+        int height,
+        TextureFormat format = TextureFormat.RGBA8,
+        TextureFilter filter = TextureFilter.Linear,
+        string name = "")
+    {
+        var bpp = GetBytesPerPixel(format);
+        var size = width * height * bpp;
+        var nativeData = new NativeArray<byte>(size, size);
+
+        var texture = new Texture(name, false)
+        {
+            Width = width,
+            Height = height,
+            Format = format,
+            Filter = filter,
+            Clamp = TextureClamp.Clamp,
+            Data = nativeData
+        };
+        texture.Upload();
+        texture.Register();
+        return texture;
+    }
+
     public static Texture CreateFromRenderTexture(RenderTexture rt, string name = "")
     {
         var texture = new Texture(name, false)
@@ -98,35 +123,6 @@ public class Texture : Asset, IImage
         Handle = Graphics.Driver.CreateTexture(Width, Height, Data, Format, Filter, name: Name);
     }
 
-    public static Texture? CreateArray(string name, params Atlas?[] atlases)
-    {
-        var validAtlases = atlases.Where(a => a != null).ToArray();
-        if (validAtlases.Length == 0)
-            return null;
-
-        var first = validAtlases[0]!;
-        var width = first.Width;
-        var height = first.Height;
-        var format = first.Format;
-        var filter = first.Filter;
-
-        var layerData = validAtlases.Select(a => a!.Data).ToArray();
-        var handle = Graphics.Driver.CreateTextureArray(width, height, layerData, format, filter, name);
-
-        var texture = new Texture(name, true)
-        {
-            Width = width,
-            Height = height,
-            Format = format,
-            Filter = filter,
-            Clamp = TextureClamp.Clamp,
-            Handle = handle
-        };
-
-        texture.Register();
-        return texture;
-    }
-
     public static Texture? CreateArray(string name, int width, int height, byte[][] layerData,
         TextureFormat format = TextureFormat.RGBA8, TextureFilter filter = TextureFilter.Linear)
     {
@@ -161,6 +157,13 @@ public class Texture : Asset, IImage
         if (Handle == nuint.Zero)
             return;
         Graphics.Driver.UpdateTextureRegion(Handle, region, data, srcWidth);
+    }
+
+    public void Update(in RectInt region)
+    {
+        if (Handle == nuint.Zero)
+            return;
+        Graphics.Driver.UpdateTextureRegion(Handle, region, Data, Width);
     }
 
     public void UpdateLayer(int layer, ReadOnlySpan<byte> data)
@@ -213,6 +216,8 @@ public class Texture : Asset, IImage
 
     private static int GetBytesPerPixel(TextureFormat format) => format switch
     {
+        TextureFormat.RGBA32F => 16,
+        TextureFormat.RGBA16F => 8,
         TextureFormat.RGBA8 => 4,
         TextureFormat.RGB8 => 3,
         TextureFormat.RG8 => 2,

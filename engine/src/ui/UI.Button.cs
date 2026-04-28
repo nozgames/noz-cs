@@ -13,6 +13,7 @@ public struct ButtonStyle()
     public float MinWidth = 0;
     public BackgroundStyle Background = Style.Palette.Background;
     public Color ContentColor = Style.Palette.Content;
+    public Color OverlayColor = Color.Transparent;  
     public float FontSize = Style.Widget.FontSize;
     public float IconSize = Style.Widget.IconSize;
     public float Spacing = Style.Widget.Spacing;
@@ -69,7 +70,8 @@ public static partial class UI
                 ImageStretch.Uniform,
                 s.ContentColor,
                 1.0f,
-                new Align2(Align.Min, Align.Center));
+                new Align2(Align.Min, Align.Center),
+                overlayColor: s.OverlayColor);
         }
 
         if (text != null)

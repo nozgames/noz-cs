@@ -24,6 +24,9 @@ public struct RectInt(int x, int y, int width, int height)
     public readonly int Top => Y;
     public readonly int Bottom => Y + Height;
 
+    public readonly Vector2Int Min => new(X, Y);
+    public readonly Vector2Int Max => new(X + Width, Y + Height);
+
     public readonly Vector2Int Position => new(X, Y);
     public readonly Vector2Int Size => new(Width, Height);
 

@@ -23,7 +23,6 @@ internal static partial class Outliner
 
     private static WidgetId _nextSectionId;
     private static bool _sectionCollapsed;
-    private static bool _sectionActive;
     private static bool _wasHeaderPressed;
     private static bool _sectionOpen;
 
@@ -35,23 +34,22 @@ internal static partial class Outliner
         _nextSectionId = ElementId.Section;
         _sectionOpen = false;
 
-        using (UI.BeginRow(ElementId.Root, EditorStyle.Inspector.Root))
+        using var row = UI.BeginRow(ElementId.Root, EditorStyle.Inspector.Root);
+
+        using (UI.BeginFlex())
+        using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))            
+        using (UI.BeginScrollable(ElementId.Scroll))
+        using (UI.BeginColumn(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
         {
-            using (UI.BeginFlex())
-            using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))            
-            using (UI.BeginScrollable(ElementId.Scroll))
-            using (UI.BeginColumn(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
-            {
-                if (Workspace.ActiveEditor?.ShowOutliner ?? false)
-                    Workspace.ActiveEditor.OutlinerUI();
-                else
-                    Workspace.ProjectViewUI();
+            if (Workspace.ActiveEditor?.ShowOutliner ?? false)
+                Workspace.ActiveEditor.OutlinerUI();
+            else
+                Workspace.ProjectViewUI();
 
-                Finish();
-            }
-
-            UI.ScrollBar(ElementId.ScrollBar, ElementId.Scroll, EditorStyle.Inspector.ScrollBar);
+            Finish();
         }
+
+        UI.ScrollBar(ElementId.ScrollBar, ElementId.Scroll, EditorStyle.Inspector.ScrollBar);
     }
 
     public static AutoSection BeginSection(
@@ -93,7 +91,6 @@ internal static partial class Outliner
         bool collapsible)
     {
         var sectionId = _nextSectionId++;
-        _sectionActive = isActive;
 
         ElementTree.BeginColumn();
 
@@ -177,7 +174,6 @@ internal static partial class Outliner
 
         ElementTree.EndColumn();
 
-        _sectionActive = false;
         _sectionOpen = false;
     }
 }

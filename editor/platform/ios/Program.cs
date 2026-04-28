@@ -4,6 +4,7 @@
 
 using System.Reflection;
 using Foundation;
+using NoZ;
 using NoZ.Editor;
 using NoZ.Platform;
 using UIKit;
@@ -17,12 +18,23 @@ public class EditorAppDelegate : UIApplicationDelegate
 {
     public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
     {
+        var projectPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Projects");
+        Directory.CreateDirectory(projectPath);
+
         EditorApplication.Run(new EditorApplicationConfig
         {
+            ProjectPath = projectPath,
+            EditorPath = AppContext.BaseDirectory,
+            IsTablet = true,
             ResourceAssembly = Assembly.GetExecutingAssembly(),
-            Store = new GitStore(GitStore.DefaultClientId),
         }, []);
 
         return true;
+    }
+
+    public override void WillTerminate(UIApplication application)
+    {
+        base.WillTerminate(application);
+        Application.Shutdown();     
     }
 }

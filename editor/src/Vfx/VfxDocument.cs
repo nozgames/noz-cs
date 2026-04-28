@@ -507,7 +507,7 @@ public class VfxDocument : Document
 
     public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Vfx, Extension, name, position, writer =>
+        return Project.New(AssetType.Vfx, Extension, name, writer =>
         {
             writer.WriteLine("duration 1");
             writer.WriteLine("loop false");
@@ -526,7 +526,7 @@ public class VfxDocument : Document
             writer.WriteLine("  particle \"default.particle\"");
             writer.WriteLine("  spread 180");
             writer.WriteLine("}");
-        });
+        }, position);
     }
 
     // --- Lifecycle ---
@@ -687,7 +687,7 @@ public class VfxDocument : Document
 
     private void ParseVfxFile()
     {
-        var content = EditorApplication.Store.ReadAllText(Path);
+        var content = File.ReadAllText(Path);
         var tk = new Tokenizer(content);
         Emitters.Clear();
         Particles.Clear();
@@ -743,6 +743,7 @@ public class VfxDocument : Document
             else if (tk.ExpectIdentifier("drag")) { if (tk.ExpectLine(out var v)) p.Drag = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("rotation")) { if (tk.ExpectLine(out var v)) p.Rotation = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("rotationSpeed")) { if (tk.ExpectLine(out var v)) p.RotationSpeed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
+            else if (tk.ExpectIdentifier("alignToDirection")) { p.AlignToDirection = tk.ExpectBool(); }
             else if (tk.ExpectIdentifier("sprite")) { particle.SpriteRef = new DocumentRef<SpriteDocument> { Name = tk.ExpectQuotedString() ?? "" }; }
             else if (tk.ExpectIdentifier("sort")) { particle.Def.Sort = (ushort)tk.ExpectInt(); }
             else { tk.ExpectToken(out _); break; }
@@ -821,6 +822,8 @@ public class VfxDocument : Document
                 sw.WriteLine($"  rotation {FormatRange(p.Def.Rotation)}");
             if (p.Def.RotationSpeed != VfxFloatCurve.Zero)
                 sw.WriteLine($"  rotationSpeed {FormatFloatCurve(p.Def.RotationSpeed)}");
+            if (p.Def.AlignToDirection)
+                sw.WriteLine($"  alignToDirection true");
             sw.WriteLine($"  sprite \"{p.SpriteRef.Name}\"");
             if (p.Def.Sort != 0)
                 sw.WriteLine($"  sort {p.Def.Sort}");
@@ -861,7 +864,7 @@ public class VfxDocument : Document
         // BuildVfx resolves sprites, so just reuse the built asset's emitter defs
         var emitterDefs = _vfx?.EmitterDefs ?? [];
 
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
         writer.WriteAssetHeader(AssetType.Vfx, Vfx.Version);
 
         var bounds = CalculateBounds(emitterDefs);
@@ -907,6 +910,7 @@ public class VfxDocument : Document
             writer.Write(p.Rotation.Min);
             writer.Write(p.Rotation.Max);
             WriteFloatCurve(writer, p.RotationSpeed);
+            writer.Write(p.AlignToDirection);
 
             var particle = FindParticle(Emitters[i].ParticleRef);
             var spriteName = particle?.SpriteRef.Name ?? "";

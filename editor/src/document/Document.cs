@@ -20,17 +20,15 @@ public abstract class Document : IDisposable, IChangeHandler
 
     public Vector2 Position { get; set; }
     public Vector2 SavedPosition { get; set; }
-    public Rect Bounds { get; set; } = new(-0.5f, -0.5f, 1f, 1f);
+    public virtual Rect Bounds { get; set; } = new(-0.5f, -0.5f, 1f, 1f);
 
     public int Version { get; private set; }
     public int SavedVersion { get; private set; }
 
     public Matrix3x2 Transform => Matrix3x2.CreateTranslation(Position);
     
-    public bool IsHiddenInWorkspace { get; set; }
     public bool IsQueuedForExport { get; internal set; }
     public bool IsDisposed { get; private set; }
-    public bool IsVisible { get; set; } = true;
     public bool IsSelected { get; set; }
     public bool IsEditing { get; set; }
     public bool IsModified => Version != SavedVersion;
@@ -39,6 +37,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public bool PostLoaded { get; set; }
     public bool ShouldExport { get; set; } = true;
     public bool SilentExport { get; set; }
+    public virtual bool CanExport => true;
 
     internal UndoStack UndoHistory => _undoHistory ??= new UndoStack(64);
 
@@ -74,9 +73,8 @@ public abstract class Document : IDisposable, IChangeHandler
 
     public void SaveMetadata()
     {
-        var store = EditorApplication.Store;
         var metaPath = Path + ".meta";
-        var props = PropertySetExtensions.LoadFile(store, metaPath) ?? new PropertySet();
+        var props = PropertySet.LoadFile(metaPath) ?? new PropertySet();
 
         props.SetVec2("editor", "position", Position);
         if (!string.IsNullOrEmpty(CollectionId))
@@ -84,18 +82,17 @@ public abstract class Document : IDisposable, IChangeHandler
         if (!ShouldExport)
             props.SetBool("editor", "export", false);
         SaveMetadata(props);
-        props.Save(metaPath, store);
+        props.Save(metaPath);
     }
 
     public void LoadMetadata()
     {
-        var store = EditorApplication.Store;
-        var props = PropertySetExtensions.LoadFile(store, Path + ".meta") ?? new PropertySet();
+        var props = PropertySet.LoadFile(Path + ".meta") ?? new PropertySet();
 
         Position = Grid.SnapToPixelGrid(props.GetVector2("editor", "position", default));
         var collectionId = props.GetString("editor", "collection", "");
         CollectionId = CollectionManager.GetIdOrDefault(collectionId);
-        ShouldExport = props.GetBool("editor", "export", true);
+        ShouldExport = CanExport && props.GetBool("editor", "export", true);
         LoadMetadata(props);
     }
 
@@ -106,11 +103,16 @@ public abstract class Document : IDisposable, IChangeHandler
         if (!CanSave)
             return;
 
-        using var ms = new MemoryStream();
-        using var sw = new StreamWriter(ms);
+        using var stream = new MemoryStream();
+        Save(stream);
+        File.WriteAllBytes(Path, stream.ToArray());
+    }
+
+    protected virtual void Save(Stream stream)
+    {
+        using var sw = new StreamWriter(stream);
         Save(sw);
         sw.Flush();
-        EditorApplication.Store.WriteAllBytes(Path, ms.ToArray());
     }
 
     void IChangeHandler.BeginChange() => OnBeginChange();

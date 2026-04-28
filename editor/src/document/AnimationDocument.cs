@@ -104,7 +104,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonTransformsChanged(SkeletonDocument skeleton)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -127,7 +127,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonBoneAdded(SkeletonDocument skeleton, int boneIndex)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -147,7 +147,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonBoneRenamed(SkeletonDocument skeleton, int boneIndex, string oldName, string newName)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -161,7 +161,7 @@ internal class AnimationDocument : Document
 
     private static void OnSkeletonBoneRemoved(SkeletonDocument skeleton, int removedIndex, string removedName)
     {
-        foreach (var doc in DocumentManager.Documents.OfType<AnimationDocument>())
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
         {
             if (doc.Skeleton != skeleton)
                 continue;
@@ -475,8 +475,7 @@ internal class AnimationDocument : Document
     public override void Load()
     {
         FrameCount = 0;
-        var contents = EditorApplication.Store.ReadAllText(Path);
-        var tk = new Tokenizer(contents);
+        var tk = new Tokenizer(File.ReadAllText(Path));
 
         var boneMap = new int[NoZ.Skeleton.MaxBones];
         for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
@@ -509,7 +508,7 @@ internal class AnimationDocument : Document
             throw new Exception("Missing quoted skeleton name");
 
         SkeletonName = skeletonName;
-        Skeleton = DocumentManager.Find<SkeletonDocument>(SkeletonName);
+        Skeleton = Project.Find<SkeletonDocument>(SkeletonName);
         if (Skeleton == null)
             return;
 
@@ -653,7 +652,7 @@ internal class AnimationDocument : Document
 
     public override void PostLoad()
     {
-        Skeleton = DocumentManager.Find<SkeletonDocument>(SkeletonName ?? "");
+        Skeleton = Project.Find<SkeletonDocument>(SkeletonName ?? "");
         if (Skeleton == null)
             return;
 
@@ -910,7 +909,7 @@ internal class AnimationDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {           
-        using var writer = new BinaryWriter(EditorApplication.Store.OpenWrite(outputPath));
+        using var writer = new BinaryWriter(File.OpenWrite(outputPath));
 
         writer.WriteAssetHeader(AssetType.Animation, 1);
 
@@ -997,19 +996,19 @@ internal class AnimationDocument : Document
             fullPath += ".anim";
 
         var contents = $"s \"{skeleton.Name}\"\n";
-        EditorApplication.Store.WriteAllText(fullPath, contents);
+        File.WriteAllText(fullPath, contents);
 
-        var doc = DocumentManager.Create(fullPath) as AnimationDocument;
+        var doc = Project.Create(fullPath) as AnimationDocument;
         doc?.Load();
         return doc;
     }
 
-    public static Document? CreateNew(string? name = null, System.Numerics.Vector2? position = null)
+    public static Document? CreateNew(string? name = null, Vector2? position = null)
     {
-        return DocumentManager.New(AssetType.Animation, Extension, name, position, writer =>
+        return Project.New(AssetType.Animation, Extension, name, writer =>
         {
             writer.WriteLine("s \"\"");
-        });
+        }, position);
     }
 
     public void SetSkeleton(SkeletonDocument? skeleton)
