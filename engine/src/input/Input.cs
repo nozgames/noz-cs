@@ -44,6 +44,8 @@ public static class Input
     private static string _textInput = string.Empty;
     private static readonly List<Vector2> _penMoveSamples = new();
 
+    public static bool IsGamePad { get; private set;}
+
     public static void Init()
     {
     }
@@ -191,6 +193,7 @@ public static class Input
                 break;
 
             case PlatformEventType.MouseButtonUp:
+                IsGamePad = false;
                 if (evt.MouseButton != InputCode.None)
                     HandleButtonUp(evt.MouseButton);
 
@@ -207,6 +210,7 @@ public static class Input
                 break;
 
             case PlatformEventType.MouseMove:
+                IsGamePad = false;
                 MousePosition = evt.MousePosition;
                 break;
 
@@ -226,11 +230,13 @@ public static class Input
                 break;
 
             case PlatformEventType.MouseScroll:
+                IsGamePad = false;
                 _scrollX = evt.ScrollX;
                 _scrollY = evt.ScrollY;
                 break;
 
             case PlatformEventType.GamepadButtonDown:
+                IsGamePad = true;
                 if (evt.GamepadButton != InputCode.None)
                 {
                     ref var btn = ref Buttons[(int)evt.GamepadButton];
@@ -242,6 +248,7 @@ public static class Input
                 break;
 
             case PlatformEventType.GamepadButtonUp:
+                IsGamePad = true;
                 if (evt.GamepadButton != InputCode.None)
                 {
                     ref var btn = ref Buttons[(int)evt.GamepadButton];
@@ -252,6 +259,7 @@ public static class Input
                 break;
 
             case PlatformEventType.GamepadAxis:
+                IsGamePad = true;
                 if (evt.GamepadAxis != InputCode.None)
                 {
                     AxisState[(int)evt.GamepadAxis] = evt.AxisValue;
