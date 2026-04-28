@@ -151,7 +151,7 @@ public static class Physics
         return false;
     }
 
-    public static bool Raycast(Collider collider, Matrix3x2 transform, Vector2 start, Vector2 end, out RaycastResult result)
+    public static bool Raycast(Collider collider, Matrix3x2 transform, Vector2 start, Vector2 end, out CastResult result)
     {
         var direction = end - start;
         var distance = direction.Length();
@@ -164,7 +164,7 @@ public static class Physics
         return Raycast(collider, transform, start, direction / distance, distance, out result);
     }
 
-    public static bool Raycast(Collider collider, Matrix3x2 transform, Vector2 origin, Vector2 direction, float distance, out RaycastResult result)
+    public static bool Raycast(Collider collider, Matrix3x2 transform, Vector2 origin, Vector2 direction, float distance, out CastResult result)
     {
         result = default;
         result.Fraction = 1.0f;
@@ -202,7 +202,7 @@ public static class Physics
         return result.Fraction < 1.0f;
     }
 
-    public static bool CircleCast(Collider collider, Matrix3x2 transform, Vector2 start, Vector2 end, float radius, out RaycastResult result)
+    public static bool CircleCast(Collider collider, Matrix3x2 transform, Vector2 start, Vector2 end, float radius, out CastResult result)
     {
         var direction = end - start;
         var distance = direction.Length();
@@ -215,7 +215,7 @@ public static class Physics
         return CircleCast(collider, transform, start, direction / distance, distance, radius, out result);
     }
 
-    public static bool CircleCast(Collider collider, Matrix3x2 transform, Vector2 origin, Vector2 direction, float distance, float radius, out RaycastResult result)
+    public static bool CircleCast(Collider collider, Matrix3x2 transform, Vector2 origin, Vector2 direction, float distance, float radius, out CastResult result)
     {
         result = default;
         result.Fraction = 1.0f;
@@ -301,5 +301,87 @@ public static class Physics
         }
 
         return false;
+    }
+
+    public static bool RaycastPlane(
+        Vector2 rayStart,
+        Vector2 rayEnd,
+        Vector2 planeOrigin,
+        Vector2 planeNormal,
+        out CastResult result)
+    {
+        result = default;
+
+        Vector2 segment = rayEnd - rayStart;
+        float denom = Vector2.Dot(segment, planeNormal);
+
+        // Segment is parallel to the plane
+        if (Math.Abs(denom) < 1e-6f)
+            return false;
+
+        // Fraction along the segment [0, 1]
+        float fraction = Vector2.Dot(planeOrigin - rayStart, planeNormal) / denom;
+
+        // Intersection is outside the segment
+        if (fraction < 0f || fraction > 1f)
+            return false;
+
+        Vector2 hitPoint = rayStart + segment * fraction;
+
+        result.Point = hitPoint;
+        result.Fraction = fraction;
+        result.Distance = Vector2.Distance(rayStart, hitPoint);
+        result.Normal = denom < 0f ? planeNormal : -planeNormal;
+
+        return true;
+    }
+
+    public static bool CircleCastPlane(
+        Vector2 origin,
+        Vector2 target,
+        float radius,
+        Vector2 planeOrigin,
+        Vector2 planeNormal,
+        out CastResult result)
+    {
+        result = default;
+
+        Vector2 segment = target - origin;
+        float denom = Vector2.Dot(segment, planeNormal);
+
+        if (Math.Abs(denom) < 1e-6f)
+            return false;
+
+        // Signed distance from the start center to the original plane.
+        // Its sign tells us which side of the plane the circle is on,
+        // so we know which way to offset (Minkowski-expand) the plane.
+        float startDist = Vector2.Dot(origin - planeOrigin, planeNormal);
+        float side = startDist >= 0f ? 1f : -1f;
+
+        // Offset the plane outward by `radius` along the side the circle is on.
+        // Now solve a point-vs-plane intersection against this expanded plane.
+        Vector2 expandedOrigin = planeOrigin + planeNormal * (radius * side);
+
+        float fraction = Vector2.Dot(expandedOrigin - origin, planeNormal) / denom;
+
+        // Initial overlap → clamp to 0 instead of rejecting
+        if (fraction < 0f)
+        {
+            if (Math.Abs(startDist) > radius)
+                return false; // moving away and not overlapping
+            fraction = 0f;
+        }
+
+        if (fraction > 1f)
+            return false;
+
+        Vector2 centerAtHit = origin + segment * fraction;
+
+        result.Point = centerAtHit - planeNormal * (radius * side); // contact point on original plane
+        result.Fraction = fraction;
+        result.Distance = Vector2.Distance(origin, centerAtHit);
+        result.Normal = planeNormal * side;
+
+        return true;
     }
 }
