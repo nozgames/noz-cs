@@ -399,7 +399,8 @@ public static class Project
         if (string.IsNullOrEmpty(directory))
             return false;
 
-        var newPath = CombinePath(directory, canonicalName + doc.Def.Extensions[0]);
+        var currentExt = System.IO.Path.GetExtension(doc.Path);
+        var newPath = CombinePath(directory, canonicalName + currentExt);
         if (File.Exists(newPath))
             return false;
 
