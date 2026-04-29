@@ -158,7 +158,7 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         IsAnimated = false;
     }
 
-    public bool ShouldShowInSkeleton(SkeletonDocument skeleton) => ShowInSkeleton;
+    public bool ShouldShowInSkeleton(SkeletonDocument skeleton) => ShowInSkeleton && Skeleton.Value == skeleton;
 
     public void DrawSkinned(
         ReadOnlySpan<Matrix3x2> bindPose,
@@ -730,6 +730,13 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
         _sprite = null;
         _standaloneTexture?.Dispose();
         _standaloneTexture = null;
+    }
+
+    public override void OnRenamed(Document doc, string oldName, string newName)
+    {
+        if (doc is not SkeletonDocument) return;
+        if (Skeleton.TryRename(oldName, newName))
+            IncrementVersion();
     }
 
     public override void OnUndoRedo()
