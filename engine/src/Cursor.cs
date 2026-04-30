@@ -76,7 +76,7 @@ public static class Cursor
     }
 
     public static void Set(Sprite sprite) => Set(new SpriteCursor(sprite));
-    public static void Set(Sprite sprite, float rotation) => Set(new SpriteCursor(sprite, rotation));
+    public static void Set(Sprite sprite, float rotation) => Set(new SpriteCursor(sprite, rotation: rotation));
 
     public static void SetDefault() => Set(SystemCursor.Default);
     public static void SetCrosshair() => Set(SystemCursor.Crosshair);

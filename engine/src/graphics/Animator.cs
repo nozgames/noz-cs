@@ -67,7 +67,7 @@ public class Animator
     {
         if (_animation == null || blendDuration <= 0f)
         {
-            Play(animation, normalizedTime);
+            Play(animation, normalizedTime, speed: speed);
             return;
         }
 

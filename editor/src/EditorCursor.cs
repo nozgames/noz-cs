@@ -17,7 +17,7 @@ internal static class EditorCursor
     public static void SetArrow() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
     public static void SetMove() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorMove));
     public static void SetScale() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorScale));
-    public static void SetScale(float rotation) => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorScale, rotation));
+    public static void SetScale(float rotation) => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorScale, rotation: rotation));
 
     public static void SetScale(SpritePathHandle handle, float selectionRotation)
     {
@@ -33,7 +33,7 @@ internal static class EditorCursor
     }
 
     public static void SetRotate() => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorRotate));
-    public static void SetRotate(float rotation) => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorRotate, rotation));
+    public static void SetRotate(float rotation) => SetSprite(new SpriteCursor(EditorAssets.Sprites.CursorRotate, rotation: rotation));
 
     public static void SetRotate(SpritePathHandle handle, float selectionRotation)
     {
