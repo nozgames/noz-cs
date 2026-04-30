@@ -74,11 +74,20 @@ public partial class PixelDocument
             if (child is not PixelLayer layer || layer.Pixels == null)
                 continue;
 
+            var layerW = layer.Pixels.Width;
+            var layerH = layer.Pixels.Height;
+
             for (var y = 0; y < h; y++)
             {
+                var sy = srcY + y;
+                if ((uint)sy >= (uint)layerH) continue;
+
                 for (var x = 0; x < w; x++)
                 {
-                    var src = layer.Pixels[srcX + x, srcY + y];
+                    var sx = srcX + x;
+                    if ((uint)sx >= (uint)layerW) continue;
+
+                    var src = layer.Pixels[sx, sy];
                     if (src.A == 0) continue;
 
                     var dx = rasterRect.X + x;

@@ -235,7 +235,8 @@ public partial class PixelDocument : SpriteDocument
         }
         else
         {
-            RasterBounds = new RectInt(-ppu / 2, -ppu / 2, ppu, ppu);
+            var defaultSize = Math.Min(ppu, Math.Min(w, h));
+            RasterBounds = new RectInt(-defaultSize / 2, -defaultSize / 2, defaultSize, defaultSize);
             Bounds = new Rect(-0.5f, -0.5f, 1f, 1f);
             return;
         }

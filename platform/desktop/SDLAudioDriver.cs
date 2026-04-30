@@ -2,6 +2,7 @@
 //  NoZ - Copyright(c) 2026 NoZ Games, LLC
 //
 
+using System.Runtime.InteropServices;
 using System.Threading;
 using SDL;
 using static SDL.SDL3;
@@ -14,8 +15,6 @@ public unsafe class SDLAudioDriver : IAudioDriver
     private const int SampleRate = 44100;
     private const int Channels = 2;
     private const int BufferSamples = 1024;
-    private const int TargetQueuedMs = 250;
-    private const int RefillIntervalMs = 30;
 
     private SDL_AudioDeviceID _device;
     private SDL_AudioStream* _stream;
@@ -34,8 +33,7 @@ public unsafe class SDLAudioDriver : IAudioDriver
 
     private readonly float[] _mixBuffer = new float[BufferSamples * Channels];
 
-    private Thread? _mixerThread;
-    private volatile bool _mixerRunning;
+    private static SDLAudioDriver? _instance;
 
     public float MasterVolume
     {
@@ -67,38 +65,21 @@ public unsafe class SDLAudioDriver : IAudioDriver
             channels = Channels
         };
 
-        _stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, null, nint.Zero);
+        _instance = this;
+        _stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, &AudioCallback, nint.Zero);
         if (_stream == null)
             throw new Exception($"Failed to open audio device: {SDL_GetError()}");
 
         _device = SDL_GetAudioStreamDevice(_stream);
+        SDL_ResumeAudioStreamDevice(_stream);
 
         for (var i = 0; i < MaxSources; i++)
             _sources[i] = new AudioSource();
-
-        // Pre-fill the stream so playback starts with a full queue (~TargetQueuedMs of lookahead).
-        var bufferMs = BufferSamples * 1000 / SampleRate;
-        var prefillBuffers = Math.Max(1, TargetQueuedMs / Math.Max(1, bufferMs));
-        for (var i = 0; i < prefillBuffers; i++)
-            MixAndPushOneBuffer();
-
-        SDL_ResumeAudioStreamDevice(_stream);
-
-        _mixerRunning = true;
-        _mixerThread = new Thread(MixerLoop)
-        {
-            IsBackground = true,
-            Name = "NoZ Audio Mixer",
-            Priority = ThreadPriority.AboveNormal,
-        };
-        _mixerThread.Start();
     }
 
     public void Shutdown()
     {
-        _mixerRunning = false;
-        _mixerThread?.Join();
-        _mixerThread = null;
+        _instance = null;
 
         if (_stream != null)
         {
@@ -254,29 +235,22 @@ public unsafe class SDLAudioDriver : IAudioDriver
         return ((uint)(handle & 0xFFFFFFFF), (uint)(handle >> 32));
     }
 
-    private void MixerLoop()
+    [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
+    private static void AudioCallback(nint userdata, SDL_AudioStream* stream, int additionalAmount, int totalAmount)
     {
-        var bytesPerFrame = Channels * sizeof(float);
-        var targetQueuedBytes = (SampleRate * TargetQueuedMs / 1000) * bytesPerFrame;
-
-        while (_mixerRunning)
-        {
-            var queued = (int)SDL_GetAudioStreamQueued(_stream);
-            while (queued < targetQueuedBytes && _mixerRunning)
-            {
-                MixAndPushOneBuffer();
-                queued += BufferSamples * bytesPerFrame;
-            }
-            Thread.Sleep(RefillIntervalMs);
-        }
+        if (_instance == null) return;
+        _instance.MixAudio(stream, additionalAmount);
     }
 
-    private void MixAndPushOneBuffer()
+    private void MixAudio(SDL_AudioStream* stream, int bytesNeeded)
     {
-        var samplesNeeded = BufferSamples * Channels;
+        var samplesNeeded = bytesNeeded / sizeof(float);
+        if (samplesNeeded > _mixBuffer.Length)
+            samplesNeeded = _mixBuffer.Length;
+
         Array.Clear(_mixBuffer, 0, samplesNeeded);
 
-        var framesNeeded = BufferSamples;
+        var framesNeeded = samplesNeeded / Channels;
         var masterVol = _masterVolume;
         var soundVol = _soundVolume * masterVol;
         var musicVol = _musicVolume * masterVol;
@@ -309,7 +283,7 @@ public unsafe class SDLAudioDriver : IAudioDriver
 
         fixed (float* buffer = _mixBuffer)
         {
-            SDL_PutAudioStreamData(_stream, (nint)buffer, samplesNeeded * sizeof(float));
+            SDL_PutAudioStreamData(stream, (nint)buffer, samplesNeeded * sizeof(float));
         }
     }
 
