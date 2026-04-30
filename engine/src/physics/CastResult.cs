@@ -6,7 +6,7 @@ using System.Numerics;
 
 namespace NoZ;
 
-public struct RaycastResult
+public struct CastResult
 {
     public Vector2 Point;
     public Vector2 Normal;

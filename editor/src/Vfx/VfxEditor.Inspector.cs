@@ -887,7 +887,7 @@ internal partial class VfxEditor
 
     private static bool ColorInput(WidgetId id, ref Color color)
     {
-        color = EditorUI.ColorButton(id, color, new ColorButtonStyle() with { FillWidth = true });
+        color = EditorUI.ColorButton(id, color, new ColorButtonStyle() with { FillWidth = true, ShowHDR = true });
         return UI.WasChanged();
     }
 

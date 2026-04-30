@@ -8,23 +8,23 @@ namespace NoZ;
 
 public static class Physics
 {
-    public static bool OverlapPoint(
-        in Vector2 v0,
-        in Vector2 v1,
-        in Vector2 v2,
+    public static bool OverlapPointTriangle(
         in Vector2 point,
+        in Vector2 tri0,
+        in Vector2 tri1,
+        in Vector2 tri2,
         out Vector2 barycentric)
     {
         barycentric = default;
 
-        var area = (v1.X - v0.X) * (v2.Y - v0.Y) - (v2.X - v0.X) * (v1.Y - v0.Y);
+        var area = (tri1.X - tri0.X) * (tri2.Y - tri0.Y) - (tri2.X - tri0.X) * (tri1.Y - tri0.Y);
 
         if (MathF.Abs(area) < 1e-6f)
             return false;
 
         var invArea = 1.0f / area;
-        var s = ((v2.Y - v0.Y) * (point.X - v0.X) + (v0.X - v2.X) * (point.Y - v0.Y)) * invArea;
-        var t = ((v0.Y - v1.Y) * (point.X - v0.X) + (v1.X - v0.X) * (point.Y - v0.Y)) * invArea;
+        var s = ((tri2.Y - tri0.Y) * (point.X - tri0.X) + (tri0.X - tri2.X) * (point.Y - tri0.Y)) * invArea;
+        var t = ((tri0.Y - tri1.Y) * (point.X - tri0.X) + (tri1.X - tri0.X) * (point.Y - tri0.Y)) * invArea;
 
         if (s >= 0 && t >= 0 && (s + t) <= 1)
         {
@@ -35,7 +35,7 @@ public static class Physics
         return false;
     }
 
-    public static bool OverlapLine(
+    public static bool OverlapLineLine(
         in Vector2 l0Start,
         in Vector2 l0End,
         in Vector2 l1Start,
@@ -107,199 +107,160 @@ public static class Physics
         return true;
     }
 
-    public static bool OverlapPoint(Collider collider, Matrix3x2 transform, Vector2 point)
-    {
-        var points = collider.Points;
-        if (points.Length == 0)
-            return false;
-
-        Span<Vector2> transformed = stackalloc Vector2[points.Length];
-        for (var i = 0; i < points.Length; i++)
-            transformed[i] = Vector2.Transform(points[i], transform);
-
-        return OverlapPoint(transformed, point);
-    }
-
-    public static bool OverlapBounds(Collider collider, Matrix3x2 transform, Rect bounds)
-    {
-        Span<Vector2> corners = stackalloc Vector2[4];
-        corners[0] = new Vector2(bounds.MinX, bounds.MinY);
-        corners[1] = new Vector2(bounds.MaxX, bounds.MinY);
-        corners[2] = new Vector2(bounds.MaxX, bounds.MaxY);
-        corners[3] = new Vector2(bounds.MinX, bounds.MaxY);
-
-        for (var i = 0; i < 4; i++)
-        {
-            if (OverlapPoint(collider, transform, corners[i]))
-                return true;
-        }
-
-        var points = collider.Points;
-        if (points.Length == 0)
-            return false;
-
-        var v1 = Vector2.Transform(points[points.Length - 1], transform);
-        for (var i = 0; i < points.Length; i++)
-        {
-            var v2 = Vector2.Transform(points[i], transform);
-            if (IntersectsLine(bounds, v1, v2))
-                return true;
-
-            v1 = v2;
-        }
-
-        return false;
-    }
-
-    public static bool Raycast(Collider collider, Matrix3x2 transform, Vector2 start, Vector2 end, out RaycastResult result)
-    {
-        var direction = end - start;
-        var distance = direction.Length();
-        if (distance < MathEx.Epsilon)
-        {
-            result = default;
-            return false;
-        }
-
-        return Raycast(collider, transform, start, direction / distance, distance, out result);
-    }
-
-    public static bool Raycast(Collider collider, Matrix3x2 transform, Vector2 origin, Vector2 direction, float distance, out RaycastResult result)
+    public static bool CastRayPlane(
+        Vector2 rayStart,
+        Vector2 rayEnd,
+        Vector2 planeOrigin,
+        Vector2 planeNormal,
+        out CastResult result)
     {
         result = default;
-        result.Fraction = 1.0f;
 
-        var rayEnd = origin + direction * distance;
-        var points = collider.Points;
+        Vector2 segment = rayEnd - rayStart;
+        float denom = Vector2.Dot(segment, planeNormal);
 
-        if (points.Length == 0)
+        // Segment is parallel to the plane
+        if (Math.Abs(denom) < 1e-6f)
             return false;
 
-        var v1 = Vector2.Transform(points[points.Length - 1], transform);
-        for (var i = 0; i < points.Length; i++)
-        {
-            var v2 = Vector2.Transform(points[i], transform);
+        // Fraction along the segment [0, 1]
+        float fraction = Vector2.Dot(planeOrigin - rayStart, planeNormal) / denom;
 
-            if (OverlapLine(origin, rayEnd, v1, v2, out var intersection))
-            {
-                var overlapDistance = Vector2.Distance(intersection, origin);
-                var fraction = overlapDistance / distance;
-
-                if (fraction < result.Fraction)
-                {
-                    result.Point = intersection;
-                    result.Fraction = fraction;
-                    result.Distance = overlapDistance;
-
-                    var edge = v2 - v1;
-                    result.Normal = Vector2.Normalize(new Vector2(-edge.Y, edge.X));
-                }
-            }
-
-            v1 = v2;
-        }
-
-        return result.Fraction < 1.0f;
-    }
-
-    public static bool CircleCast(Collider collider, Matrix3x2 transform, Vector2 start, Vector2 end, float radius, out RaycastResult result)
-    {
-        var direction = end - start;
-        var distance = direction.Length();
-        if (distance < MathEx.Epsilon)
-        {
-            result = default;
+        // Intersection is outside the segment
+        if (fraction < 0f || fraction > 1f)
             return false;
-        }
 
-        return CircleCast(collider, transform, start, direction / distance, distance, radius, out result);
+        Vector2 hitPoint = rayStart + segment * fraction;
+
+        result.Point = hitPoint;
+        result.Fraction = fraction;
+        result.Distance = Vector2.Distance(rayStart, hitPoint);
+        result.Normal = denom < 0f ? planeNormal : -planeNormal;
+
+        return true;
     }
 
-    public static bool CircleCast(Collider collider, Matrix3x2 transform, Vector2 origin, Vector2 direction, float distance, float radius, out RaycastResult result)
+    public static bool CastCirclePlane(
+        Vector2 origin,
+        Vector2 target,
+        float radius,
+        Vector2 planeOrigin,
+        Vector2 planeNormal,
+        out CastResult result)
     {
         result = default;
-        result.Fraction = 1.0f;
 
-        var points = collider.Points;
-        if (points.Length == 0)
+        Vector2 segment = target - origin;
+        float denom = Vector2.Dot(segment, planeNormal);
+
+        if (Math.Abs(denom) < 1e-6f)
             return false;
 
-        var v1 = Vector2.Transform(points[points.Length - 1], transform);
-        for (var i = 0; i < points.Length; i++)
+        // Signed distance from the start center to the original plane.
+        // Its sign tells us which side of the plane the circle is on,
+        // so we know which way to offset (Minkowski-expand) the plane.
+        float startDist = Vector2.Dot(origin - planeOrigin, planeNormal);
+        float side = startDist >= 0f ? 1f : -1f;
+
+        // Offset the plane outward by `radius` along the side the circle is on.
+        // Now solve a point-vs-plane intersection against this expanded plane.
+        Vector2 expandedOrigin = planeOrigin + planeNormal * (radius * side);
+
+        float fraction = Vector2.Dot(expandedOrigin - origin, planeNormal) / denom;
+
+        // Initial overlap → clamp to 0 instead of rejecting
+        if (fraction < 0f)
         {
-            var v2 = Vector2.Transform(points[i], transform);
-
-            var edge = v2 - v1;
-            var edgeNormal = Vector2.Normalize(new Vector2(edge.Y, -edge.X));
-
-            var v1Offset = v1 + edgeNormal * radius;
-            var v2Offset = v2 + edgeNormal * radius;
-
-            var rayEnd = origin + direction * distance;
-            if (OverlapLine(origin, rayEnd, v1Offset, v2Offset, out var intersection))
-            {
-                var overlapDistance = Vector2.Distance(intersection, origin);
-                var fraction = overlapDistance / distance;
-
-                if (fraction < result.Fraction)
-                {
-                    result.Point = intersection - edgeNormal * radius;
-                    result.Fraction = fraction;
-                    result.Distance = overlapDistance;
-                    result.Normal = edgeNormal;
-                }
-            }
-
-            // Test ray against circle at vertex v1 (handles rounded corners)
-            var toVertex = origin - v1;
-            var a = Vector2.Dot(direction, direction);
-            var b = 2.0f * Vector2.Dot(toVertex, direction);
-            var c = Vector2.Dot(toVertex, toVertex) - radius * radius;
-            var discriminant = b * b - 4.0f * a * c;
-
-            if (discriminant >= 0.0f)
-            {
-                var sqrtDisc = MathF.Sqrt(discriminant);
-                var t = (-b - sqrtDisc) / (2.0f * a);
-
-                if (t >= 0.0f && t <= distance)
-                {
-                    var fraction = t / distance;
-                    if (fraction < result.Fraction)
-                    {
-                        var hitPoint = origin + direction * t;
-                        result.Point = v1;
-                        result.Fraction = fraction;
-                        result.Distance = t;
-                        result.Normal = Vector2.Normalize(hitPoint - v1);
-                    }
-                }
-            }
-
-            v1 = v2;
+            if (Math.Abs(startDist) > radius)
+                return false; // moving away and not overlapping
+            fraction = 0f;
         }
 
-        return result.Fraction < 1.0f;
+        if (fraction > 1f)
+            return false;
+
+        Vector2 centerAtHit = origin + segment * fraction;
+
+        result.Point = centerAtHit - planeNormal * (radius * side); // contact point on original plane
+        result.Fraction = fraction;
+        result.Distance = Vector2.Distance(origin, centerAtHit);
+        result.Normal = planeNormal * side;
+
+        return true;
     }
 
-    private static bool IntersectsLine(Rect bounds, Vector2 lineStart, Vector2 lineEnd)
+    public static bool CastCircleCircle(
+        Vector2 position,
+        Vector2 direction,
+        float distance,
+        Vector2 target,
+        float targetRadius,
+        out CastResult result)
     {
-        if (bounds.Contains(lineStart) || bounds.Contains(lineEnd))
+        const float Epsilon = 1e-6f;
+        
+        Vector2 m = position - target;       // from target to ray origin
+        float r = targetRadius;
+        float rSq = r * r;
+        
+        float mDotDir = Vector2.Dot(m, direction);
+        float mSq = Vector2.Dot(m, m);
+        float c = mSq - rSq;
+        
+        // Already inside the target — resolve at t=0 by pushing out along m
+        if (c < 0f)
+        {
+            float mLen = MathF.Sqrt(mSq);
+            Vector2 normal = mLen > Epsilon ? m / mLen : Vector2.UnitY;
+            result = new CastResult
+            {
+                Point = target + normal * r,
+                Normal = normal,
+                Distance = 0f,
+                Fraction = 0f,
+            };
             return true;
-
-        Span<Vector2> corners = stackalloc Vector2[4];
-        corners[0] = bounds.TopLeft;
-        corners[1] = bounds.TopRight;
-        corners[2] = bounds.BottomRight;
-        corners[3] = bounds.BottomLeft;
-
-        for (var i = 0; i < 4; i++)
-        {
-            var next = (i + 1) % 4;
-            if (OverlapLine(lineStart, lineEnd, corners[i], corners[next], out _))
-                return true;
         }
-
-        return false;
+        
+        // Origin is outside and ray points away from target — no hit
+        if (mDotDir >= 0f)
+        {
+            result = default;
+            return false;
+        }
+        
+        // Discriminant of the quadratic |position + t*direction - target|² = r²
+        // With direction normalized, the quadratic coefficient a = 1, so this simplifies.
+        float discriminant = mDotDir * mDotDir - c;
+        if (discriminant < 0f)
+        {
+            result = default;
+            return false;
+        }
+        
+        float t = -mDotDir - MathF.Sqrt(discriminant);
+        
+        // Hit happens beyond the cast distance
+        if (t > distance)
+        {
+            result = default;
+            return false;
+        }
+        
+        if (t < 0f) t = 0f;
+        
+        Vector2 hitPoint = position + direction * t;
+        Vector2 n = hitPoint - target;
+        float nLen = n.Length();
+        Vector2 hitNormal = nLen > Epsilon ? n / nLen : Vector2.UnitY;
+        
+        result = new CastResult
+        {
+            Point = hitPoint,
+            Normal = hitNormal,
+            Distance = t,
+            Fraction = distance > Epsilon ? t / distance : 0f,
+        };
+        return true;
     }
 }

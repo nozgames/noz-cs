@@ -20,9 +20,10 @@ public enum SystemCursor
     Text,
 }
 
-public readonly struct SpriteCursor(Sprite sprite, float rotation = 0, Vector2 hotspot = default)
+public readonly struct SpriteCursor(Sprite sprite, float scale = 1.0f, float rotation = 0, Vector2 hotspot = default)
 {
     public readonly Sprite Sprite = sprite;
+    public readonly float Scale = scale;
     public readonly float Rotation = rotation;
     public readonly Vector2 Hotspot = hotspot;
 }
@@ -36,6 +37,8 @@ public static class Cursor
     private static readonly Camera _camera = new() { FlipY = false };
 
     public static Shader? Shader { get; set; }
+
+    public static Vector2? PositionOverride { get; set; }
 
     public static bool Enabled { get; set; } = true;
 
@@ -94,6 +97,10 @@ public static class Cursor
         _camera.SetExtents(new Rect(0, 0, Graphics.RenderSize.X, Graphics.RenderSize.Y));
         _camera.Update();
 
+        var position = PositionOverride ?? Input.MousePosition;
+        position -= _spriteCursor.Hotspot * Scale * _spriteCursor.Scale;
+        PositionOverride = null;
+
         using var _ = Graphics.PushState();
         Graphics.SetCamera(_camera);
         Graphics.SetShader(Shader);
@@ -101,9 +108,9 @@ public static class Cursor
         Graphics.SetBlendMode(BlendMode.Alpha);
         Graphics.SetColor(Color.White);
         Graphics.SetTransform(
-            Matrix3x2.CreateScale(sprite.PixelsPerUnit * Scale) *
+            Matrix3x2.CreateScale(sprite.PixelsPerUnit * Scale * _spriteCursor.Scale) *
             Matrix3x2.CreateRotation(_spriteCursor.Rotation) *
-            Matrix3x2.CreateTranslation(Input.MousePosition - _spriteCursor.Hotspot * Scale));
+            Matrix3x2.CreateTranslation(position));
         Graphics.DrawFlat(sprite);
     }
 }

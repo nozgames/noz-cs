@@ -32,7 +32,7 @@ public static class Time
     internal static void Init()
     {
         _startTicks = Stopwatch.GetTimestamp();
-        _lastFrameTicks = _startTicks;
+        _lastFrameTicks = 0;
         DeltaTime = 0;
         UnscaledDeltaTime = 0;
         TotalTime = 0;
@@ -43,6 +43,8 @@ public static class Time
     internal static void Update()
     {
         var currentTicks = Stopwatch.GetTimestamp();
+        if (_lastFrameTicks == 0)
+            _lastFrameTicks = currentTicks;
         UnscaledDeltaTime = (float)(currentTicks - _lastFrameTicks) / Stopwatch.Frequency;
         _lastFrameTicks = currentTicks;
 

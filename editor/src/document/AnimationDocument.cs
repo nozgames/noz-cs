@@ -766,6 +766,14 @@ internal class AnimationDocument : Document
         }
     }
 
+    public override void OnRenamed(Document doc, string oldName, string newName)
+    {
+        if (doc is not SkeletonDocument) return;
+        if (!string.Equals(SkeletonName, oldName, StringComparison.OrdinalIgnoreCase)) return;
+        SkeletonName = newName;
+        IncrementVersion();
+    }
+
     public override void OnUndoRedo()
     {
         UpdateSkeleton();

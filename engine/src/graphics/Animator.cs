@@ -20,6 +20,7 @@ public class Animator
     private float _blendFromTime;
     private float _blendDuration;
     private float _blendElapsed;
+    private float _speed;
 
     public Skeleton Skeleton => _skeleton;
     public Animation? CurrentAnimation => _animation;
@@ -36,6 +37,7 @@ public class Animator
         _boneTransforms = new Matrix3x2[skeleton.BoneCount];
         _poseA = new AnimationTransform[skeleton.BoneCount];
         _poseB = new AnimationTransform[skeleton.BoneCount];
+        _speed = 1.0f;
 
         for (var i = 0; i < skeleton.BoneCount; i++)
         {
@@ -51,16 +53,17 @@ public class Animator
         }
     }
 
-    public void Play(Animation animation, float normalizedTime = 0f)
+    public void Play(Animation animation, float normalizedTime = 0f, float speed = 1.0f)
     {
         _animation = animation;
+        _speed = speed;
         _time = normalizedTime * animation.Duration;
         _blendFromAnimation = null;
         _blendElapsed = 0f;
         _blendDuration = 0f;
     }
 
-    public void CrossFade(Animation animation, float blendDuration, float normalizedTime = 0f)
+    public void CrossFade(Animation animation, float blendDuration, float normalizedTime = 0f, float speed = 1.0f)
     {
         if (_animation == null || blendDuration <= 0f)
         {
@@ -68,6 +71,7 @@ public class Animator
             return;
         }
 
+        _speed = speed;
         _blendFromAnimation = _animation;
         _blendFromTime = _time;
         _blendDuration = blendDuration;
@@ -84,7 +88,7 @@ public class Animator
         if (_animation == null)
             return;
 
-        _time += dt;
+        _time += dt * _speed;
 
         if (_animation.IsLooping)
             _time %= _animation.Duration;

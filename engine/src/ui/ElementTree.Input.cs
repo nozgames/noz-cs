@@ -160,8 +160,9 @@ public static unsafe partial class ElementTree
             {
                 Cursor.Set(new SpriteCursor(
                     (Sprite)_assets[cd.AssetIndex]!,
-                    cd.Rotation,
-                    new Vector2(cd.HotspotX, cd.HotspotY)));
+                    scale: 1.0f,
+                    rotation: cd.Rotation,
+                    hotspot:new Vector2(cd.HotspotX, cd.HotspotY)));
             }
             else
                 Cursor.Set(cd.SystemCursor);
