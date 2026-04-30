@@ -64,6 +64,7 @@ public static partial class Workspace
     private static float _savedCameraRotation;
     private static bool _hasSavedCamera;
     private static Vector2 _popupWorldPosition;
+    private static float _powerModeTimer;
 
     private static Vector2 _mousePosition;
     private static Vector2 _mouseWorldPosition;
@@ -439,6 +440,25 @@ public static partial class Workspace
         if (mode < PowerMode.Performance && VfxSystem.ActiveInstanceCount > 0)
             mode = PowerMode.Performance;
 
+        if (mode == Application.PowerMode)
+            return;
+
+        if (mode < Application.PowerMode)
+        {
+            if (_powerModeTimer <= 0)
+            {
+                _powerModeTimer = 1.0f;
+                return;
+            }                    
+            else
+            {
+                _powerModeTimer -= Time.DeltaTime;
+                if (_powerModeTimer > 0)
+                    return;
+            }
+        }
+
+        _powerModeTimer = 0.0f;
         Application.PowerMode = mode;
     }
 
