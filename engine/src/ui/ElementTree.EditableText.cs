@@ -351,6 +351,11 @@ public static unsafe partial class ElementTree
         _editableTextHelper.Clear();
         var initialText = new string(state.EditText.AsReadOnlySpan());
         _editableTextHelper.Record(initialText, 0, initialText.Length);
+
+        Application.Platform.ShowTextbox(
+            e.Rect,
+            new string(d.Text.AsReadOnlySpan()),
+            new Platform.NativeTextboxStyle { FontSize = (int)d.FontSize });
     }
 
     private static WidgetId FindParentWidgetId(int elementIndex)
