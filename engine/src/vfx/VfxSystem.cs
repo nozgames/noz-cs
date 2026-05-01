@@ -48,6 +48,7 @@ public static class VfxSystem
         public ushort EmitterIndex;
         public bool WorldSpace;
         public bool AlignToDirection;
+        public float SpawnAngle;
     }
 
     private struct Emitter
@@ -321,8 +322,12 @@ public static class VfxSystem
                 var col = Color.Mix(p.ColorStart, p.ColorEnd, EvaluateCurve(p.ColorCurve, t, pdef.Color.Bezier));
 
                 var drawRotation = p.Rotation;
-                if (p.AlignToDirection && p.Velocity.LengthSquared() > 0.0001f)
-                    drawRotation += MathF.Atan2(p.Velocity.Y, p.Velocity.X);
+                if (p.AlignToDirection)
+                {
+                    drawRotation += p.Velocity.LengthSquared() > 0.0001f
+                        ? MathF.Atan2(p.Velocity.Y, p.Velocity.X)
+                        : p.SpawnAngle;
+                }
 
                 var particleTransform =
                     Matrix3x2.CreateScale(size) *
@@ -487,6 +492,8 @@ public static class VfxSystem
         {
             p.Position = spawnOffset;
         }
+
+        p.SpawnAngle = MathF.Atan2(dir.Y, dir.X);
 
         p.SizeStart = GetRandom(pdef.Size.Start);
         p.SizeEnd = GetRandom(pdef.Size.End);
