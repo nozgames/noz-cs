@@ -711,7 +711,7 @@ internal partial class AnimationEditor : DocumentEditor
     private void DrawBones()
     {
         if (!_showSkeleton) return;
-        if (Document.Skeleton == null) return; 
+        if (Document.Skeleton == null) return;
 
         for (var boneIndex = 0; boneIndex < Document.Skeleton.BoneCount; boneIndex++)
         {
@@ -724,6 +724,40 @@ internal partial class AnimationEditor : DocumentEditor
             Graphics.SetSortGroup((ushort)(animationBone.IsSelected ? 2 : 1));
             Gizmos.DrawBone(p0, p1, selected: animationBone.IsSelected);
         }
+    }
+
+    private void DrawBoneNames()
+    {
+        if (!Workspace.ShowNames) return;
+        if (Document.Skeleton == null) return;
+
+        TextRender.SetOutline(EditorStyle.Workspace.NameOutlineColor, EditorStyle.Workspace.NameOutline, 0.2f);
+
+        using (Graphics.PushState())
+        {
+            var font = EditorAssets.Fonts.Seguisb;
+            Graphics.SetLayer(EditorLayer.Names);
+
+            var fontSize = EditorStyle.Workspace.NameSize * Gizmos.ZoomRefScale;
+
+            for (var i = 0; i < Document.Skeleton.BoneCount; i++)
+            {
+                var bone = Document.Skeleton.Bones[i];
+                var animationBone = Document.Bones[i];
+                var boneTransform = Document.LocalToWorld[i];
+                var p0 = Vector2.Transform(Vector2.Zero, boneTransform);
+                var p1 = Vector2.Transform(new Vector2(bone.Length, 0), boneTransform);
+                var center = (p0 + p1) * 0.5f + Document.Position;
+
+                var textSize = TextRender.Measure(bone.Name, font, fontSize);
+                var textOffset = new Vector2(center.X - textSize.X * 0.5f, center.Y - textSize.Y * 0.5f);
+                Graphics.SetTransform(Matrix3x2.CreateTranslation(textOffset));
+                Graphics.SetColor(animationBone.IsSelected ? EditorStyle.Workspace.SelectionColor : EditorStyle.Workspace.NameColor);
+                TextRender.Draw(bone.Name, font, fontSize, order: (ushort)(animationBone.IsSelected ? 1 : 0));
+            }
+        }
+
+        TextRender.ClearOutline();
     }
 
     private void DrawEditor()
@@ -742,6 +776,7 @@ internal partial class AnimationEditor : DocumentEditor
             DrawBones();
             Graphics.SetSortGroup(0);
             Document.DrawSprites();
+            DrawBoneNames();
         }
     }
 

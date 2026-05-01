@@ -277,6 +277,44 @@ public static class AssetManifest
             writer.WriteLine("    }");
         }
 
+        // Bones class — index constants per skeleton bone
+        var skeletonGroup = documentsByType.FirstOrDefault(g => g.Key == AssetType.Skeleton);
+        if (skeletonGroup != null && skeletonGroup.Docs.Count > 0)
+        {
+            var skeletons = skeletonGroup.Docs
+                .OrderBy(d => d.Name)
+                .Cast<SkeletonDocument>()
+                .ToList();
+
+            foreach (var skel in skeletons)
+            {
+                if (!skel.Loaded)
+                    skel.Load();
+            }
+
+            var skeletonsWithBones = skeletons.Where(s => s.BoneCount > 0).ToList();
+            if (skeletonsWithBones.Count > 0)
+            {
+                writer.WriteLine();
+                writer.WriteLine("    public static class Bones");
+                writer.WriteLine("    {");
+                for (var s = 0; s < skeletonsWithBones.Count; s++)
+                {
+                    var skel = skeletonsWithBones[s];
+                    if (s > 0) writer.WriteLine();
+                    writer.WriteLine($"        public static class {ToPascalCase(skel.Name)}");
+                    writer.WriteLine("        {");
+                    for (var i = 0; i < skel.BoneCount; i++)
+                    {
+                        var boneName = ToPascalCase(skel.Bones[i].Name);
+                        writer.WriteLine($"            public const int {boneName} = {i};");
+                    }
+                    writer.WriteLine("        }");
+                }
+                writer.WriteLine("    }");
+            }
+        }
+
         // Palettes class with expanded colors
         var palettes = PaletteManager.Palettes;
         if (palettes.Count > 0)
