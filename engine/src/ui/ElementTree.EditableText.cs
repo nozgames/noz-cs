@@ -358,6 +358,42 @@ public static unsafe partial class ElementTree
             new Platform.NativeTextboxStyle { FontSize = (int)d.FontSize });
     }
 
+    internal static void SyncTextboxToFocus()
+    {
+        var focusedIdx = FindFocusedEditableText(0);
+        if (focusedIdx < 0)
+        {
+            Application.Platform.HideTextbox();
+            return;
+        }
+
+        ref var e = ref GetElement(focusedIdx);
+        ref var d = ref e.Data.EditableText;
+        Application.Platform.ShowTextbox(
+            e.Rect,
+            new string(d.Text.AsReadOnlySpan()),
+            new Platform.NativeTextboxStyle { FontSize = (int)d.FontSize });
+    }
+
+    private static int FindFocusedEditableText(int index)
+    {
+        ref var e = ref GetElement(index);
+        if (e.Type == ElementType.EditableText && e.Data.EditableText.State != null)
+        {
+            ref var state = ref *e.Data.EditableText.State;
+            if (state.Focused != 0) return index;
+        }
+        var childIndex = (int)e.FirstChild;
+        for (int i = 0; i < e.ChildCount; i++)
+        {
+            ref var child = ref GetElement(childIndex);
+            var found = FindFocusedEditableText(childIndex);
+            if (found >= 0) return found;
+            childIndex = child.NextSibling;
+        }
+        return -1;
+    }
+
     private static WidgetId FindParentWidgetId(int elementIndex)
     {
         var current = elementIndex;

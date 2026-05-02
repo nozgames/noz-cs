@@ -467,6 +467,8 @@ public class SkeletonDocument : Document
         Span<BoneHitResult> hits = stackalloc BoneHitResult[Skeleton.MaxBones * 3];
         var hitCount = 0;
 
+        // Joints take priority over bone bodies: collect all joint hits first,
+        // and only fall through to body hits if no joint was hit anywhere.
         for (var boneIndex = BoneCount - 1; boneIndex >= 0; boneIndex--)
         {
             var bone = Bones[boneIndex];
@@ -478,9 +480,19 @@ public class SkeletonDocument : Document
 
             if (Gizmos.HitTestJoint(tailPos, worldPos))
                 hits[hitCount++] = new BoneHitResult { BoneIndex = boneIndex, HitType = BoneHitType.Tail };
+        }
 
-            if (Gizmos.HitTestBone(headPos, tailPos, worldPos))
-                hits[hitCount++] = new BoneHitResult { BoneIndex = boneIndex, HitType = BoneHitType.Bone };
+        if (hitCount == 0)
+        {
+            for (var boneIndex = BoneCount - 1; boneIndex >= 0; boneIndex--)
+            {
+                var bone = Bones[boneIndex];
+                var headPos = bone.HeadWorld + Position;
+                var tailPos = bone.TailWorld + Position;
+
+                if (Gizmos.HitTestBone(headPos, tailPos, worldPos))
+                    hits[hitCount++] = new BoneHitResult { BoneIndex = boneIndex, HitType = BoneHitType.Bone };
+            }
         }
 
         if (hitCount == 0)

@@ -150,6 +150,11 @@ public static unsafe partial class ElementTree
         if (_tabNavigationTarget >= 0)
             FocusEditableText(_tabNavigationTarget);
 
+        // Reconcile platform textbox to whichever EditableText (if any) ended up focused —
+        // inline Show/Hide calls during tree traversal are order-dependent and can race
+        // (e.g. focus-enter on the new field calls Show, then defocus of the old field calls Hide).
+        SyncTextboxToFocus();
+
         HandleScrollableInput();
 
         if (_cursorOffset >= 0)
