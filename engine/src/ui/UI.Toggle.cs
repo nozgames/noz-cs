@@ -50,8 +50,9 @@ public static partial class UI
             SetHot(id, value ? 1 : 0);
             NotifyChanged(value ? 0 : 1);
             ClearHot();
+            value = !value;
         }
 
-        return pressed;
+        return value;
     }
 }
