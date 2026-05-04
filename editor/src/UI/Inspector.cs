@@ -237,12 +237,14 @@ internal static partial class Inspector
             {
                 using (BeginProperty("Export"))
                 {
-                    var shouldExport = doc.ShouldExport;
-                    if (UI.Toggle(ElementId.DocumentExport, shouldExport, EditorStyle.Inspector.Toggle))
+                    var shouldExport = UI.Toggle(ElementId.DocumentExport, doc.ShouldExport, EditorStyle.Inspector.Toggle);
+                    if (UI.WasChanged())
                     {
                         Undo.Record(doc);
-                        doc.ShouldExport = !shouldExport;
+                        doc.ShouldExport = shouldExport;
                         AssetManifest.IsModified = true;
+                        if (doc is SpriteDocument sprite)
+                            AtlasManager.OnExportChanged(sprite);
                     }
                 }
             }

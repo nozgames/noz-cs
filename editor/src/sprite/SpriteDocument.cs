@@ -659,10 +659,11 @@ public abstract partial class SpriteDocument : Document, ISkeletonAttachment
 
             using (Inspector.BeginProperty("Show In Skeleton"))
             {
-                if (UI.Toggle(WidgetIds.ShowInSkeleton, ShowInSkeleton, EditorStyle.Inspector.Toggle))
+                var showInSkeleton = UI.Toggle(WidgetIds.ShowInSkeleton, ShowInSkeleton, EditorStyle.Inspector.Toggle);
+                if (UI.WasChanged())
                 {
                     Undo.Record(this);
-                    ShowInSkeleton = !ShowInSkeleton;
+                    ShowInSkeleton = showInSkeleton;
                     Skeleton.Value?.UpdateSprites();
                 }
             }

@@ -79,8 +79,7 @@ public abstract class Document : IDisposable, IChangeHandler
         props.SetVec2("editor", "position", Position);
         if (!string.IsNullOrEmpty(CollectionId))
             props.SetString("editor", "collection", CollectionId);
-        if (!ShouldExport)
-            props.SetBool("editor", "export", false);
+        props.SetBool("editor", "export", ShouldExport);
         SaveMetadata(props);
         props.Save(metaPath);
     }

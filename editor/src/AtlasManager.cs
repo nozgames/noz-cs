@@ -149,6 +149,43 @@ public static class AtlasManager
         Update();
     }
 
+    public static void OnExportChanged(SpriteDocument sprite)
+    {
+        var newGroup = GroupOf(sprite);
+        var oldGroup = newGroup == _game ? _editor : _game;
+
+        if (newGroup.Sources.Contains(sprite))
+            return;
+
+        if (oldGroup.Sources.Remove(sprite))
+        {
+            if (FreeRectsFor(oldGroup, sprite))
+            {
+                oldGroup.UploadPending = true;
+                if (oldGroup == _game) oldGroup.ExportPending = true;
+            }
+        }
+
+        newGroup.Sources.Add(sprite);
+        if (newGroup.NeedsFullRepack || newGroup.Layers.Count == 0)
+        {
+            newGroup.NeedsFullRepack = true;
+        }
+        else
+        {
+            sprite.UpdateBounds();
+            if (!AllocateSpriteIncremental(newGroup, sprite))
+                newGroup.NeedsFullRepack = true;
+            else
+                newGroup.SpritesToRasterize.Add(sprite);
+        }
+        newGroup.UploadPending = true;
+        if (newGroup == _game) newGroup.ExportPending = true;
+
+        sprite.MarkSpriteDirty();
+        Update();
+    }
+
     private static bool HasRectsForSource(Group group, SpriteDocument sprite)
     {
         foreach (var rect in group.Rects)
