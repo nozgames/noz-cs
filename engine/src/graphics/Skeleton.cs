@@ -31,13 +31,24 @@ public struct Bone
     public float Radius;
 }
 
+public struct SkeletonState
+{
+    public string Name;
+    public int Index;
+    public int InitialValue;
+}
+
 public class Skeleton : Asset
 {
     public const int MaxBones = 64;
+    public const int MaxStates = 16;
 
     public int BoneCount { get; private set; }
     public Bone[] Bones { get; private set; } = [];
     public NativeArray<Matrix3x2> BindPoses { get; private set; }
+
+    public int StateCount { get; private set; }
+    public SkeletonState[] States { get; private set; } = [];
 
     private Skeleton(string name) : base(AssetType.Skeleton, name)
     {
@@ -78,6 +89,19 @@ public class Skeleton : Asset
                 bone.Radius = reader.ReadSingle();
             }
         }
+
+        if (reader.BaseStream.Position < reader.BaseStream.Length)
+        {
+            var stateCount = reader.ReadByte();
+            StateCount = stateCount;
+            States = new SkeletonState[stateCount];
+            for (var i = 0; i < stateCount; i++)
+            {
+                States[i].Name = reader.ReadString();
+                States[i].Index = i;
+                States[i].InitialValue = reader.ReadInt32();
+            }
+        }
     }
 
     private static Skeleton? Load(Stream stream, string name)
@@ -100,15 +124,24 @@ public class Skeleton : Asset
     public int GetBoneIndex(string name)
     {
         for (var i = 0; i < BoneCount; i++)
-        {
             if (Bones[i].Name == name)
                 return i;
-        }
+
         return 0;
     }
 
-    public ref Bone GetBone(int boneIndex)
+    public ref Bone GetBone(int boneIndex) =>
+        ref Bones[boneIndex];
+
+    public int GetStateIndex(string name)
     {
-        return ref Bones[boneIndex];
+        for (var i = 0; i < StateCount; i++)
+            if (States[i].Name == name)
+                return i;
+
+        return -1;
     }
+
+    public ref SkeletonState GetState(int stateIndex) =>
+        ref States[stateIndex];
 }

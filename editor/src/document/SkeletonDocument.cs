@@ -36,6 +36,13 @@ public class BoneData
     }
 }
 
+public class StateData
+{
+    public string Name = "";
+    public int Index;
+    public int InitialValue;
+}
+
 public enum BoneHitType
 {
     None,
@@ -81,6 +88,9 @@ public class SkeletonDocument : Document
     public int SelectedTailCount;
     public int SelectedBoneCount => int.Max(SelectedHeadCount, SelectedTailCount);
 
+    public readonly StateData[] States = new StateData[Skeleton.MaxStates];
+    public int StateCount;
+
     public bool CurrentConnected = true;
 
     public static event Action<SkeletonDocument, int, string, string>? BoneRenamed;
@@ -88,10 +98,16 @@ public class SkeletonDocument : Document
     public static event Action<SkeletonDocument, int>? BoneAdded;
     public static event Action<SkeletonDocument>? TransformsChanged;
 
+    public static event Action<SkeletonDocument, int>? StateAdded;
+    public static event Action<SkeletonDocument, int, string>? StateRemoved;
+    public static event Action<SkeletonDocument, int, string, string>? StateRenamed;
+
     public SkeletonDocument()
     {
         for (var i = 0; i < Skeleton.MaxBones; i++)
             Bones[i] = new BoneData();
+        for (var i = 0; i < Skeleton.MaxStates; i++)
+            States[i] = new StateData();
     }
 
     public static void RegisterDef()
@@ -123,6 +139,10 @@ public class SkeletonDocument : Document
             {
                 ParseBone(ref tk);
             }
+            else if (tk.ExpectIdentifier("s"))
+            {
+                ParseState(ref tk);
+            }
             else
             {
                 break;
@@ -131,6 +151,20 @@ public class SkeletonDocument : Document
 
         UpdateTransforms();
         Loaded = true;
+    }
+
+    private void ParseState(ref Tokenizer tk)
+    {
+        if (!tk.ExpectQuotedString(out var stateName))
+            throw new Exception("Expected state name as quoted string");
+
+        if (!tk.ExpectInt(out var initialValue))
+            throw new Exception("Expected state initial value");
+
+        var s = States[StateCount++];
+        s.Name = stateName;
+        s.Index = StateCount - 1;
+        s.InitialValue = initialValue;
     }
 
     private void ParseBone(ref Tokenizer tk)
@@ -231,6 +265,13 @@ public class SkeletonDocument : Document
                 envelope,
                 colorStr));
         }
+
+        for (var i = 0; i < StateCount; i++)
+        {
+            var s = States[i];
+            writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "s \"{0}\" {1}", s.Name, s.InitialValue));
+        }
     }
 
     public override void PostLoad()
@@ -278,6 +319,14 @@ public class SkeletonDocument : Document
 
         Attachments.Clear();
         Attachments.AddRange(src.Attachments);
+
+        StateCount = src.StateCount;
+        for (var i = 0; i < src.StateCount; i++)
+        {
+            States[i].Name = src.States[i].Name;
+            States[i].Index = src.States[i].Index;
+            States[i].InitialValue = src.States[i].InitialValue;
+        }
     }
 
     public void UpdateTransforms()
@@ -624,6 +673,45 @@ public class SkeletonDocument : Document
         return boneName;
     }
 
+    public int FindStateIndex(string name)
+    {
+        for (var i = 0; i < StateCount; i++)
+            if (States[i].Name == name)
+                return i;
+        return -1;
+    }
+
+    public string GetUniqueStateName()
+    {
+        var name = "State";
+        var postfix = 2;
+
+        while (FindStateIndex(name) != -1)
+        {
+            name = $"State{postfix++}";
+        }
+
+        return name;
+    }
+
+    public void RemoveState(int stateIndex)
+    {
+        if (stateIndex < 0 || stateIndex >= StateCount)
+            return;
+
+        for (var i = stateIndex; i < StateCount - 1; i++)
+        {
+            States[i].Name = States[i + 1].Name;
+            States[i].Index = i;
+            States[i].InitialValue = States[i + 1].InitialValue;
+        }
+
+        StateCount--;
+        States[StateCount].Name = "";
+        States[StateCount].Index = 0;
+        States[StateCount].InitialValue = 0;
+    }
+
     public int GetBoneSide(int boneIndex)
     {
         var name = Bones[boneIndex].Name;
@@ -749,7 +837,7 @@ public class SkeletonDocument : Document
     {
         using var writer = new BinaryWriter(File.OpenWrite(outputPath));
 
-        writer.WriteAssetHeader(AssetType.Skeleton, 2, 0);
+        writer.WriteAssetHeader(AssetType.Skeleton, 3, 0);
         writer.Write((byte)BoneCount);
 
         for (var i = 0; i < BoneCount; i++)
@@ -772,6 +860,13 @@ public class SkeletonDocument : Document
             writer.Write(w.M32);
 
             writer.Write(bone.Radius);
+        }
+
+        writer.Write((byte)StateCount);
+        for (var i = 0; i < StateCount; i++)
+        {
+            writer.Write(States[i].Name);
+            writer.Write(States[i].InitialValue);
         }
     }
 
@@ -831,6 +926,21 @@ public class SkeletonDocument : Document
     {
         TransformsChanged?.Invoke(this);
         UpdateSprites();
+    }
+
+    public void NotifyStateAdded(int stateIndex)
+    {
+        StateAdded?.Invoke(this, stateIndex);
+    }
+
+    public void NotifyStateRemoved(int removedIndex, string removedName)
+    {
+        StateRemoved?.Invoke(this, removedIndex, removedName);
+    }
+
+    public void NotifyStateRenamed(int stateIndex, string oldName, string newName)
+    {
+        StateRenamed?.Invoke(this, stateIndex, oldName, newName);
     }
 
     public override void Dispose()

@@ -196,6 +196,17 @@ public class Animator
         return ref _boneTransforms[boneIndex];
     }
 
+    public int GetState(int stateIndex)
+    {
+        if (_animation == null || stateIndex < 0 || stateIndex >= _animation.StateCount)
+        {
+            if (stateIndex < 0 || stateIndex >= _skeleton.StateCount) return 0;
+            return _skeleton.States[stateIndex].InitialValue;
+        }
+
+        return _animation.GetStateValue(stateIndex, FrameIndex);
+    }
+
     public void SetBoneModifier(int boneIndex, AnimationTransform value)
     {
         if (_boneModifiers == null)

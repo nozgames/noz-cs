@@ -18,6 +18,11 @@ internal partial class SkeletonEditor : DocumentEditor
         public static partial WidgetId PreviewButton { get; }
         public static partial WidgetId ConnectedButton { get; }
         public static partial WidgetId BoneColor { get; }
+        public static partial WidgetId StatesAdd { get; }
+        public static partial WidgetId StateRow { get; }
+        public static partial WidgetId StateName { get; }
+        public static partial WidgetId StateValue { get; }
+        public static partial WidgetId StateDelete { get; }
     }
 
     private struct SavedBone
@@ -114,9 +119,15 @@ internal partial class SkeletonEditor : DocumentEditor
         Document.IncrementVersion();
     }
 
-    public override bool ShowInspector => Document.SelectedBoneCount == 1;
+    public override bool ShowInspector => true;
 
     public override void InspectorUI()
+    {
+        InspectorBoneSection();
+        InspectorStatesSection();
+    }
+
+    private void InspectorBoneSection()
     {
         var selectedBone = -1;
         for (var i = 0; i < Document.BoneCount; i++)
@@ -132,16 +143,111 @@ internal partial class SkeletonEditor : DocumentEditor
 
         var bone = Document.Bones[selectedBone];
 
-        using (Inspector.BeginProperty("Bone"))
-            UI.Text(bone.Name);
-
-        using (Inspector.BeginProperty("Color"))
+        using (Inspector.BeginSection("Bone"))
         {
-            var color = EditorUI.ColorButton(ElementId.BoneColor, bone.Color);
-            if (UI.WasChangeStarted()) Undo.Record(Document);
-            if (UI.WasChanged()) bone.Color = color;
-            if (UI.WasChangeCancelled()) Undo.Cancel();
+            if (Inspector.IsSectionCollapsed) return;
+
+            using (Inspector.BeginProperty("Name"))
+                UI.Text(bone.Name);
+
+            using (Inspector.BeginProperty("Color"))
+            {
+                var color = EditorUI.ColorButton(ElementId.BoneColor, bone.Color);
+                if (UI.WasChangeStarted()) Undo.Record(Document);
+                if (UI.WasChanged()) bone.Color = color;
+                if (UI.WasChangeCancelled()) Undo.Cancel();
+            }
         }
+    }
+
+    private void InspectorStatesSection()
+    {
+        using (Inspector.BeginSection("States", content: StatesAddButton))
+        {
+            if (Inspector.IsSectionCollapsed) return;
+
+            for (var i = 0; i < Document.StateCount; i++)
+                DrawStateRow(i);
+        }
+    }
+
+    private void StatesAddButton()
+    {
+        ElementTree.BeginAlign(Align.Min, Align.Center);
+        if (UI.Button(ElementId.StatesAdd, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+            AddState();
+        ElementTree.EndAlign();
+    }
+
+    private void DrawStateRow(int i)
+    {
+        var state = Document.States[i];
+        var rowId = ElementId.StateRow + i;
+
+        using (UI.BeginRow(rowId, EditorStyle.Inspector.Row))
+        {
+            var hovered = UI.IsHovered(rowId);
+
+            using (UI.BeginFlex(0.5f))
+            {
+                var newName = UI.TextInput(ElementId.StateName + i, state.Name, EditorStyle.Inspector.TextBox);
+                if (UI.WasChangeStarted()) Undo.Record(Document);
+                if (UI.WasChanged() && newName != state.Name)
+                {
+                    var oldName = state.Name;
+                    state.Name = newName;
+                    Document.NotifyStateRenamed(i, oldName, newName);
+                    Document.IncrementVersion();
+                }
+                if (UI.WasChangeCancelled()) Undo.Cancel();
+            }
+
+            using (UI.BeginFlex(0.5f))
+            {
+                var valText = state.InitialValue.ToString();
+                var newText = UI.TextInput(ElementId.StateValue + i, valText, EditorStyle.Inspector.TextBox, "0");
+                if (UI.WasChangeStarted()) Undo.Record(Document);
+                if (UI.WasChanged() && newText != valText && int.TryParse(newText, out var parsed))
+                {
+                    state.InitialValue = parsed;
+                    Document.IncrementVersion();
+                }
+                if (UI.WasChangeCancelled()) Undo.Cancel();
+            }
+
+            if (hovered)
+            {
+                if (UI.Button(ElementId.StateDelete + i, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
+                    RemoveState(i);
+            }
+            else
+                UI.Spacer(EditorStyle.Icon.Size);
+        }
+    }
+
+    private void AddState()
+    {
+        if (Document.StateCount >= Skeleton.MaxStates) return;
+
+        Undo.Record(Document);
+        var idx = Document.StateCount++;
+        var s = Document.States[idx];
+        s.Index = idx;
+        s.Name = Document.GetUniqueStateName();
+        s.InitialValue = 0;
+        Document.NotifyStateAdded(idx);
+        Document.IncrementVersion();
+    }
+
+    private void RemoveState(int idx)
+    {
+        if (idx < 0 || idx >= Document.StateCount) return;
+
+        Undo.Record(Document);
+        var name = Document.States[idx].Name;
+        Document.RemoveState(idx);
+        Document.NotifyStateRemoved(idx, name);
+        Document.IncrementVersion();
     }
 
     public override void UpdateUI()

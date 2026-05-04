@@ -26,7 +26,8 @@ internal partial class AnimationEditor : DocumentEditor
         public static partial WidgetId SkeletonButton { get; }
         public static partial WidgetId ShowSkeletonButton { get; }
         public static partial WidgetId MirrorButton { get; }
-        public static partial WidgetId FirstFrame { get; }        
+        public static partial WidgetId FirstFrame { get; }
+        public static partial WidgetId FrameStateValue { get; }
     }
 
     private AnimationEditorState _state = AnimationEditorState.Default;
@@ -134,6 +135,39 @@ internal partial class AnimationEditor : DocumentEditor
         {
             using (Inspector.BeginProperty("Skeleton"))
                 SkeletonButtonUI();
+        }
+
+        if (Document.Skeleton != null && Document.Skeleton.StateCount > 0 && Document.FrameCount > 0)
+            InspectorFrameStatesSection();
+    }
+
+    private void InspectorFrameStatesSection()
+    {
+        var frameIndex = Math.Clamp(Document.CurrentFrame, 0, Document.FrameCount - 1);
+        var title = $"States (Frame {frameIndex})";
+
+        using (Inspector.BeginSection(title))
+        {
+            if (Inspector.IsSectionCollapsed) return;
+
+            var frame = Document.Frames[frameIndex];
+            for (var s = 0; s < Document.Skeleton!.StateCount; s++)
+            {
+                var skelState = Document.Skeleton.States[s];
+                using (Inspector.BeginProperty(skelState.Name))
+                {
+                    var current = frame.StateValues[s].ToString();
+                    var newText = UI.TextInput(WidgetIds.FrameStateValue + s, current,
+                                               EditorStyle.Inspector.TextBox, "0");
+                    if (UI.WasChangeStarted()) Undo.Record(Document);
+                    if (UI.WasChanged() && newText != current && int.TryParse(newText, out var parsed))
+                    {
+                        frame.StateValues[s] = parsed;
+                        Document.IncrementVersion();
+                    }
+                    if (UI.WasChangeCancelled()) Undo.Cancel();
+                }
+            }
         }
     }
 

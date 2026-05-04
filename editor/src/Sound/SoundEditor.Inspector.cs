@@ -193,15 +193,15 @@ internal partial class SoundEditor
         using (Inspector.BeginSection("NORMALIZE"))
         {
             if (Inspector.IsSectionCollapsed) return;
-
-            var enabled = Document.NormalizeTarget > 0f;
-
+            
             using (Inspector.BeginProperty("Enable"))
             {
-                if (UI.Toggle(FieldId.NormalizeToggle, enabled, EditorStyle.Inspector.Toggle))
+                var normalize = Document.NormalizeTarget > 0f;
+                normalize = UI.Toggle(FieldId.NormalizeToggle, normalize, EditorStyle.Inspector.Toggle);
+                if (UI.WasChanged())
                 {
                     Undo.Record(Document);
-                    Document.NormalizeTarget = enabled ? 0f : 0.9f;
+                    Document.NormalizeTarget = normalize ? 0.9f : 0f;
                     Document.ApplyChanges();
                 }
             }

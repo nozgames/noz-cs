@@ -24,8 +24,6 @@ public struct AnimationFrame
 {
     public byte Transform0;
     public byte Transform1;
-    public byte Event;
-    public byte Padding0;
     public float Fraction0;
     public float Fraction1;
 }
@@ -68,6 +66,9 @@ public class Animation : Asset
     public AnimationBone[] Bones { get; private set; } = [];
     public AnimationTransform[] Transforms { get; private set; } = [];
     public AnimationFrame[] Frames { get; private set; } = [];
+
+    public int StateCount { get; private set; }
+    public int[] StateValues { get; private set; } = [];
 
     public bool IsLooping => (Flags & AnimationFlags.Looping) != 0;
 
@@ -114,7 +115,6 @@ public class Animation : Asset
 
         for (var i = 0; i < frameCount; i++)
         {
-            Frames[i].Event = reader.ReadByte();
             Frames[i].Transform0 = reader.ReadByte();
             Frames[i].Transform1 = reader.ReadByte();
             Frames[i].Fraction0 = reader.ReadSingle();
@@ -123,6 +123,22 @@ public class Animation : Asset
 
         if (frameCount > 0)
             Frames[frameCount] = Frames[frameCount - 1];
+
+        if (reader.BaseStream.Position < reader.BaseStream.Length)
+        {
+            StateCount = reader.ReadInt32();
+            StateValues = new int[StateCount * frameCount];
+            for (var s = 0; s < StateCount; s++)
+                for (var f = 0; f < frameCount; f++)
+                    StateValues[s * frameCount + f] = reader.ReadInt32();
+        }
+    }
+
+    public int GetStateValue(int stateIndex, int frameIndex)
+    {
+        if (stateIndex < 0 || stateIndex >= StateCount || FrameCount == 0) return 0;
+        var f = Math.Clamp(frameIndex, 0, FrameCount - 1);
+        return StateValues[stateIndex * FrameCount + f];
     }
 
     private static Animation? Load(Stream stream, string name)
@@ -139,7 +155,6 @@ public class Animation : Asset
         int frameCount,
         int frameRate,
         AnimationTransform[] transforms,
-        AnimationEvent[]? events,
         AnimationFlags flags)
     {
         var animation = new Animation(name)
@@ -155,8 +170,6 @@ public class Animation : Asset
         };
         animation.Duration = frameCount * animation.FrameRateInv;
 
-        var boneStride = animation.BoneCount;
-
         for (var frameIndex = 0; frameIndex < frameCount; frameIndex++)
         {
             ref var frame = ref animation.Frames[frameIndex];
@@ -164,19 +177,6 @@ public class Animation : Asset
             frame.Transform1 = (byte)(frameIndex + 1);
             frame.Fraction0 = 0f;
             frame.Fraction1 = 1f;
-            frame.Event = 0;
-
-            if (events != null)
-            {
-                for (var eventIndex = 0; eventIndex < events.Length; eventIndex++)
-                {
-                    if (events[eventIndex].Frame == frameIndex)
-                    {
-                        frame.Event = events[eventIndex].Id;
-                        break;
-                    }
-                }
-            }
         }
 
         if ((flags & AnimationFlags.Looping) != 0)
@@ -189,23 +189,6 @@ public class Animation : Asset
         return animation;
     }
 
-    public void AddEvent(int frame, byte eventId)
-    {
-        if (frame < 0 || frame >= FrameCount)
-            return;
-        Frames[frame].Event = eventId;
-    }
-
-    public void AddEvents(AnimationEvent[] events)
-    {
-        foreach (var e in events)
-        {
-            if (e.Frame < 0 || e.Frame >= FrameCount)
-                continue;
-            Frames[e.Frame].Event = e.Id;
-        }
-    }
-
     public ref AnimationTransform GetTransform(int boneIndex, int transformIndex)
     {
         return ref Transforms[transformIndex * BoneCount + boneIndex];
@@ -215,10 +198,4 @@ public class Animation : Asset
     {
         return ref Frames[Math.Clamp(frameIndex, 0, FrameCount)];
     }
-}
-
-public struct AnimationEvent
-{
-    public int Frame;
-    public byte Id;
 }

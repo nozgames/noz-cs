@@ -313,6 +313,28 @@ public static class AssetManifest
                 }
                 writer.WriteLine("    }");
             }
+
+            var skeletonsWithStates = skeletons.Where(s => s.StateCount > 0).ToList();
+            if (skeletonsWithStates.Count > 0)
+            {
+                writer.WriteLine();
+                writer.WriteLine("    public static class SkeletonStates");
+                writer.WriteLine("    {");
+                for (var s = 0; s < skeletonsWithStates.Count; s++)
+                {
+                    var skel = skeletonsWithStates[s];
+                    if (s > 0) writer.WriteLine();
+                    writer.WriteLine($"        public static class {ToPascalCase(skel.Name)}");
+                    writer.WriteLine("        {");
+                    for (var i = 0; i < skel.StateCount; i++)
+                    {
+                        var stateName = ToPascalCase(skel.States[i].Name);
+                        writer.WriteLine($"            public const int {stateName} = {i};");
+                    }
+                    writer.WriteLine("        }");
+                }
+                writer.WriteLine("    }");
+            }
         }
 
         // Palettes class with expanded colors

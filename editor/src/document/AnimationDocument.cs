@@ -31,7 +31,7 @@ public class AnimationBoneData
 public class AnimationFrameData
 {
     public BoneTransform[] Transforms = new BoneTransform[Skeleton.MaxBones];
-    public string? EventName;
+    public int[] StateValues = new int[Skeleton.MaxStates];
     public int Hold;
 
     public AnimationFrameData()
@@ -62,6 +62,7 @@ internal class AnimationDocument : Document
     public int FrameCount;
     public int CurrentFrame;
     public int BoneCount;
+    public int StateCount;
     public int SelectedBoneCount;
     public AnimationFlags Flags;
 
@@ -100,6 +101,55 @@ internal class AnimationDocument : Document
         SkeletonDocument.BoneRemoved += OnSkeletonBoneRemoved;
         SkeletonDocument.BoneAdded += OnSkeletonBoneAdded;
         SkeletonDocument.TransformsChanged += OnSkeletonTransformsChanged;
+        SkeletonDocument.StateAdded += OnSkeletonStateAdded;
+        SkeletonDocument.StateRemoved += OnSkeletonStateRemoved;
+        SkeletonDocument.StateRenamed += OnSkeletonStateRenamed;
+    }
+
+    private static void OnSkeletonStateAdded(SkeletonDocument skeleton, int stateIndex)
+    {
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
+        {
+            if (doc.Skeleton != skeleton)
+                continue;
+
+            var initial = skeleton.States[stateIndex].InitialValue;
+            for (var f = 0; f < doc.FrameCount; f++)
+                doc.Frames[f].StateValues[stateIndex] = initial;
+
+            doc.StateCount = skeleton.StateCount;
+            doc.IncrementVersion();
+        }
+    }
+
+    private static void OnSkeletonStateRemoved(SkeletonDocument skeleton, int removedIndex, string removedName)
+    {
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
+        {
+            if (doc.Skeleton != skeleton)
+                continue;
+
+            for (var f = 0; f < doc.FrameCount; f++)
+            {
+                for (var s = removedIndex; s < doc.StateCount - 1; s++)
+                    doc.Frames[f].StateValues[s] = doc.Frames[f].StateValues[s + 1];
+                if (doc.StateCount > 0)
+                    doc.Frames[f].StateValues[doc.StateCount - 1] = 0;
+            }
+
+            doc.StateCount = skeleton.StateCount;
+            doc.IncrementVersion();
+        }
+    }
+
+    private static void OnSkeletonStateRenamed(SkeletonDocument skeleton, int stateIndex, string oldName, string newName)
+    {
+        foreach (var doc in Project.Documents.OfType<AnimationDocument>())
+        {
+            if (doc.Skeleton != skeleton)
+                continue;
+            doc.IncrementVersion();
+        }
     }
 
     private static void OnSkeletonTransformsChanged(SkeletonDocument skeleton)
@@ -394,19 +444,21 @@ internal class AnimationDocument : Document
         for (var frameIndex = FrameCount - 1; frameIndex > insertAt; frameIndex--)
         {
             Frames[frameIndex].Hold = Frames[frameIndex - 1].Hold;
-            Frames[frameIndex].EventName = Frames[frameIndex - 1].EventName;
             for (var boneIndex = 0; boneIndex < NoZ.Skeleton.MaxBones; boneIndex++)
                 Frames[frameIndex].Transforms[boneIndex] = Frames[frameIndex - 1].Transforms[boneIndex];
+            for (var s = 0; s < StateCount; s++)
+                Frames[frameIndex].StateValues[s] = Frames[frameIndex - 1].StateValues[s];
         }
 
         if (copyFrame >= 0 && Skeleton != null)
         {
             for (var j = 0; j < Skeleton.BoneCount; j++)
                 GetFrameTransform(j, insertAt) = GetFrameTransform(j, copyFrame);
+            for (var s = 0; s < StateCount; s++)
+                Frames[insertAt].StateValues[s] = Frames[copyFrame].StateValues[s];
         }
 
         Frames[insertAt].Hold = 0;
-        Frames[insertAt].EventName = null;
 
         return insertAt;
     }
@@ -419,9 +471,10 @@ internal class AnimationDocument : Document
         for (var i = frameIndex; i < FrameCount - 1; i++)
         {
             Frames[i].Hold = Frames[i + 1].Hold;
-            Frames[i].EventName = Frames[i + 1].EventName;
             for (var boneIndex = 0; boneIndex < NoZ.Skeleton.MaxBones; boneIndex++)
                 Frames[i].Transforms[boneIndex] = Frames[i + 1].Transforms[boneIndex];
+            for (var s = 0; s < StateCount; s++)
+                Frames[i].StateValues[s] = Frames[i + 1].StateValues[s];
         }
 
         FrameCount--;
@@ -526,10 +579,15 @@ internal class AnimationDocument : Document
         }
 
         BoneCount = Skeleton.BoneCount;
+        StateCount = Skeleton.StateCount;
 
         for (var frameIndex = 0; frameIndex < MaxFrames; frameIndex++)
+        {
             for (var boneIndex = 0; boneIndex < NoZ.Skeleton.MaxBones; boneIndex++)
                 Frames[frameIndex].Transforms[boneIndex] = BoneTransform.Identity;
+            for (var s = 0; s < StateCount; s++)
+                Frames[frameIndex].StateValues[s] = Skeleton.States[s].InitialValue;
+        }
 
         var boneIndex2 = 0;
         while (!tk.IsEOF)
@@ -564,9 +622,9 @@ internal class AnimationDocument : Document
             {
                 boneIndex = ParseFrameBone(ref tk, boneMap);
             }
-            else if (tk.ExpectIdentifier("event"))
+            else if (tk.ExpectIdentifier("state"))
             {
-                ParseFrameEvent(ref tk, frameIndex);
+                ParseFrameState(ref tk, frameIndex);
             }
             else if (tk.ExpectIdentifier("rotation"))
             {
@@ -599,12 +657,18 @@ internal class AnimationDocument : Document
         return boneMap[boneIndex];
     }
 
-    private void ParseFrameEvent(ref Tokenizer tk, int frameIndex)
+    private void ParseFrameState(ref Tokenizer tk, int frameIndex)
     {
-        if (!tk.ExpectQuotedString(out var eventName))
-            throw new Exception("Expected event name");
+        if (!tk.ExpectQuotedString(out var stateName))
+            throw new Exception("Expected state name");
+        if (!tk.ExpectInt(out var value))
+            throw new Exception("Expected state value");
 
-        Frames[frameIndex].EventName = eventName;
+        if (Skeleton == null) return;
+        var idx = Skeleton.FindStateIndex(stateName);
+        if (idx < 0) return;
+
+        Frames[frameIndex].StateValues[idx] = value;
     }
 
     private void ParseFramePosition(ref Tokenizer tk, int boneIndex, int frameIndex)
@@ -687,10 +751,16 @@ internal class AnimationDocument : Document
 
             if (f.Hold > 0)
                 line += string.Format(CultureInfo.InvariantCulture, " hold {0}", f.Hold);
-            if (!string.IsNullOrEmpty(f.EventName))
-                line += string.Format(CultureInfo.InvariantCulture, " event \"{0}\"", f.EventName);
 
             writer.WriteLine(line);
+
+            for (var s = 0; s < Skeleton.StateCount; s++)
+            {
+                var v = f.StateValues[s];
+                if (v == Skeleton.States[s].InitialValue) continue;
+                writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "state \"{0}\" {1}", Skeleton.States[s].Name, v));
+            }
 
             for (var boneIndex = 0; boneIndex < Skeleton.BoneCount; boneIndex++)
             {
@@ -736,6 +806,7 @@ internal class AnimationDocument : Document
         FrameCount = src.FrameCount;
         CurrentFrame = src.CurrentFrame;
         BoneCount = src.BoneCount;
+        StateCount = src.StateCount;
         SelectedBoneCount = src.SelectedBoneCount;
         Flags = src.Flags;
 
@@ -754,9 +825,10 @@ internal class AnimationDocument : Document
         for (var i = 0; i < FrameCount; i++)
         {
             Frames[i].Hold = src.Frames[i].Hold;
-            Frames[i].EventName = src.Frames[i].EventName;
             for (var j = 0; j < BoneCount; j++)
                 Frames[i].Transforms[j] = src.Frames[i].Transforms[j];
+            for (var s = 0; s < StateCount; s++)
+                Frames[i].StateValues[s] = src.Frames[i].StateValues[s];
         }
 
         if (Skeleton != null)
@@ -916,10 +988,10 @@ internal class AnimationDocument : Document
     }
 
     public override void Export(string outputPath, PropertySet meta)
-    {           
+    {
         using var writer = new BinaryWriter(File.OpenWrite(outputPath));
 
-        writer.WriteAssetHeader(AssetType.Animation, 1);
+        writer.WriteAssetHeader(AssetType.Animation, 2);
 
         if (Skeleton == null)
         {
@@ -963,7 +1035,6 @@ internal class AnimationDocument : Document
         for (var frameIndex = 0; frameIndex < FrameCount; frameIndex++)
         {
             var fd = Frames[frameIndex];
-            byte eventId = 0; // TODO: resolve event document to ID
 
             var transform0 = (byte)frameIndex;
             var transform1 = IsLooping
@@ -972,7 +1043,6 @@ internal class AnimationDocument : Document
 
             if (fd.Hold == 0)
             {
-                writer.Write(eventId);
                 writer.Write(transform0);
                 writer.Write(transform1);
                 writer.Write(0f); // fraction0
@@ -986,13 +1056,23 @@ internal class AnimationDocument : Document
             {
                 var fraction1 = (float)(holdIndex + 1) / holdCount;
 
-                writer.Write(holdIndex == 0 ? eventId : (byte)0);
                 writer.Write(transform0);
                 writer.Write(transform1);
                 writer.Write(fraction0);
                 writer.Write(fraction1);
 
                 fraction0 = fraction1;
+            }
+        }
+
+        writer.Write(Skeleton.StateCount);
+        for (var s = 0; s < Skeleton.StateCount; s++)
+        {
+            for (var frameIndex = 0; frameIndex < FrameCount; frameIndex++)
+            {
+                var holdCount = Frames[frameIndex].Hold + 1;
+                for (var h = 0; h < holdCount; h++)
+                    writer.Write(Frames[frameIndex].StateValues[s]);
             }
         }
     }
@@ -1024,6 +1104,7 @@ internal class AnimationDocument : Document
         Skeleton = skeleton;
         SkeletonName = skeleton?.Name;
         BoneCount = 0;
+        StateCount = 0;
         for (var i = 0; i < NoZ.Skeleton.MaxBones; i++)
         {
             Bones[i].Name = "";
@@ -1038,6 +1119,11 @@ internal class AnimationDocument : Document
                 Bones[i].Name = bone.Name;
                 Bones[i].Index = i;
             }
+
+            StateCount = skeleton.StateCount;
+            for (var f = 0; f < FrameCount; f++)
+                for (var s = 0; s < StateCount; s++)
+                    Frames[f].StateValues[s] = skeleton.States[s].InitialValue;
         }
         UpdateTransforms();
         UpdateBounds();
