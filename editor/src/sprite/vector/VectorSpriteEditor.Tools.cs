@@ -391,11 +391,11 @@ public partial class VectorSpriteEditor
         {
             Undo.Record(Document);
             Document.Root.ClearSelection();
-            Document.Root.ClearSelection();
 
             var nodes = nodeData.PasteAsNodes();
+            var target = ActiveRoot;
             for (var i = nodes.Count - 1; i >= 0; i--)
-                Document.Root.Insert(0, nodes[i]);
+                target.Insert(0, nodes[i]);
 
             MarkDirty();
             RebuildSelectedPaths();
@@ -409,8 +409,9 @@ public partial class VectorSpriteEditor
         Document.Root.ClearSelection();
 
         var newPaths = clipboardData.PasteAsPaths();
+        var pathTarget = ActiveRoot;
         for (var i = newPaths.Count - 1; i >= 0; i--)
-            Document.Root.Insert(0, newPaths[i]);
+            pathTarget.Insert(0, newPaths[i]);
 
         MarkDirty();
         RebuildSelectedPaths();

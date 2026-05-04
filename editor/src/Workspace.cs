@@ -171,6 +171,10 @@ public static partial class Workspace
         InitCommands();
         UpdateCamera();
 
+        Project.DocumentAdded += _ => InvalidateProjectView();
+        Project.DocumentRemoved += _ => InvalidateProjectView();
+        Project.DocumentRenamed += (_, _) => InvalidateProjectView();
+
         Graphics.ClearColor = EditorStyle.Workspace.FillColor;
     }
 

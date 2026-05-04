@@ -20,8 +20,6 @@ public static partial class Workspace
     private static int _folderIndex;
     private static int _fileIndex;
 
-    // Cached tree, rebuilt when document count changes
-    private static int _cachedDocCount;
     private static FolderNode? _cachedRoot;
 
     private class FolderNode
@@ -51,12 +49,7 @@ public static partial class Workspace
 
     private static FolderNode GetOrBuildTree()
     {
-        var count = Project.Documents.Count;
-        if (_cachedRoot != null && _cachedDocCount == count)
-            return _cachedRoot;
-
-        _cachedDocCount = count;
-        _cachedRoot = BuildTree();
+        _cachedRoot ??= BuildTree();
         return _cachedRoot;
     }
 

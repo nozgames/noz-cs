@@ -193,7 +193,7 @@ public partial class VectorSpriteEditor : SpriteEditor
             PopupMenuItem.Item("Copy", CopySelected, new KeyBinding(InputCode.KeyC, ctrl: true),
                 enabled: () => hasPath && vMode),
             PopupMenuItem.Item("Paste", PasteSelected, new KeyBinding(InputCode.KeyV, ctrl: true),
-                enabled: () => Clipboard.Get<PathClipboardData>() != null),
+                enabled: () => Clipboard.Get<PathClipboardData>() != null || Clipboard.Get<SpriteClipboardData>() != null),
             PopupMenuItem.Item("Duplicate", DuplicateSelected, new KeyBinding(InputCode.KeyD, ctrl: true),
                 enabled: () => hasPath && vMode),
             PopupMenuItem.Item("Delete", DeleteSelected, InputCode.KeyX,
