@@ -110,6 +110,15 @@ public partial class VectorSpriteDocument : SpriteDocument
         var rMinY = SnapFloor(bounds.Y * dpi);
         var rMaxX = SnapCeil(bounds.Right * dpi);
         var rMaxY = SnapCeil(bounds.Bottom * dpi);
+
+        if (HasOutline)
+        {
+            rMinX -= OutlineSize;
+            rMinY -= OutlineSize;
+            rMaxX += OutlineSize;
+            rMaxY += OutlineSize;
+        }
+
         RasterBounds = new RectInt(rMinX, rMinY, rMaxX - rMinX, rMaxY - rMinY);
 
         Bounds = bounds;
@@ -194,7 +203,12 @@ public partial class VectorSpriteDocument : SpriteDocument
             precision: SpriteGroupProcessor.ClipperPrecision);
         if (inflated.Count == 0) return false;
 
-        outline = new LayerPathResult(inflated, OutlineColor, false);
+        var ring = Clipper.BooleanOp(ClipType.Difference,
+            inflated, union, FillRule.NonZero,
+            precision: SpriteGroupProcessor.ClipperPrecision);
+        if (ring.Count == 0) return false;
+
+        outline = new LayerPathResult(ring, OutlineColor, false);
         return true;
     }
 }
