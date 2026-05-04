@@ -68,6 +68,7 @@ public static class Project
         BinDocument.RegisterDef();
         BundleDocument.RegisterDef();
         PaletteDocument.RegisterDef();
+        SceneDocument.RegisterDef();
 
         //config.RegisterDocumentTypes?.Invoke();
 

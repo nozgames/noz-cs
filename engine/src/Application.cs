@@ -151,6 +151,7 @@ public static class Application
         Vfx.RegisterDef();
         Bin.RegisterDef();
         AssetBundle.RegisterDef();
+        Scene.RegisterDef();
     }
 
     public static void Run()

@@ -29,6 +29,14 @@ public static class AssetManifest
     private static string GetAssetTypeName(AssetType type)
         => Asset.GetDef(type)?.Name ?? type.ToString();
 
+    // Lower = loaded earlier. Vfx and Scene reference sprites at Load time, so they must load after.
+    private static int GetLoadPriority(AssetType type)
+    {
+        if (type == AssetType.Vfx) return 99;
+        if (type == AssetType.Scene) return 100;
+        return 0;
+    }
+
     private static string GetAssetTypeExpr(AssetType type)
     {
         var def = Asset.GetDef(type);
@@ -151,7 +159,8 @@ public static class AssetManifest
         writer.WriteLine("{");
         var documentsByType = manifestEntries
             .GroupBy(e => e.Type)
-            .OrderBy(g => g.Key.ToString())
+            .OrderBy(g => GetLoadPriority(g.Key))
+            .ThenBy(g => g.Key.ToString())
             .Select(g => new { Key = g.Key, Docs = g.Select(e => e.Doc).ToList() })
             .ToList();
 
@@ -455,7 +464,8 @@ public static class AssetManifest
         var manifestEntries = GetManifestEntries();
         var documentsByType = manifestEntries
             .GroupBy(e => e.Type)
-            .OrderBy(g => g.Key.ToString())
+            .OrderBy(g => GetLoadPriority(g.Key))
+            .ThenBy(g => g.Key.ToString())
             .Select(g => new { Key = g.Key, Docs = g.Select(e => e.Doc).ToList() })
             .ToList();
 

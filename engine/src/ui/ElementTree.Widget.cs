@@ -104,7 +104,12 @@ public static unsafe partial class ElementTree
     }
     internal static bool WasPressed(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Pressed);
     internal static bool IsDown(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.Down);
-    internal static bool HoverChanged(WidgetId id) => GetWidgetFlags(id).HasFlag(WidgetFlags.HoverChanged);
+    internal static bool HoverChanged(WidgetId id)
+    {
+        if (IsValidWidgetId(id))
+            return GetWidgetFlags(id).HasFlag(WidgetFlags.HoverChanged);
+        return GetPrevWidgetFlags(id).HasFlag(WidgetFlags.HoverChanged);
+    }
 
     internal static bool IsParentRow() => GetElement(_stack[^1]).Type == ElementType.Row;
     internal static bool IsParentColumn() => GetElement(_stack[^1]).Type == ElementType.Column;
