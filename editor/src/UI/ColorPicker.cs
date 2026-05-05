@@ -25,6 +25,8 @@ internal static partial class ColorPicker
     private static partial class ElementId
     {
         public static partial WidgetId Hue { get; }
+        public static partial WidgetId Saturation { get; }
+        public static partial WidgetId Value { get; }
         public static partial WidgetId Alpha { get; }
         public static partial WidgetId Close { get; }
         public static partial WidgetId SaturationAndValue { get; }
@@ -35,12 +37,17 @@ internal static partial class ColorPicker
         public static partial WidgetId ColorPickerPaletteItem { get; }
         public static partial WidgetId Intensity { get; }
         public static partial WidgetId EyeDropper { get; }
+        public static partial WidgetId PaletteToggle { get; }
         public static partial WidgetId Popup { get; }
         public static partial WidgetId SwatchGrid { get; }
         public static partial WidgetId Hex { get; }
         public static partial WidgetId InputR { get; }
         public static partial WidgetId InputG { get; }
         public static partial WidgetId InputB { get; }
+        public static partial WidgetId InputH { get; }
+        public static partial WidgetId InputS { get; }
+        public static partial WidgetId InputV { get; }
+        public static partial WidgetId InputA { get; }
     }
 
     private enum ColorMode
@@ -72,8 +79,8 @@ internal static partial class ColorPicker
 
     private static ColorMode _paletteMode = ColorMode.None;
     private static float _savedAlpha;
-    private static bool _trackNeedsInit;
     private static int _selectedPaletteIndex;
+    private static bool _paletteView;
 
     // Eyedropper state
     private static bool _eyeDropperActive;
@@ -106,13 +113,31 @@ internal static partial class ColorPicker
             RgbToHsv(color, out _hue, out _sat, out _val);
             _alpha = color.A / 255f;
             InvalidateSVTexture();
-            _trackNeedsInit = true;
 
             if (_paletteMode == ColorMode.None)
                 _paletteMode = ColorMode.Color;
+
+            if (_paletteView && !IsColorInCurrentPalette(color))
+                _paletteView = false;
         }
 
         _eyeDropperActive = false;
+    }
+
+    private static bool IsColorInCurrentPalette(Color32 color)
+    {
+        var palettes = PaletteManager.Palettes;
+        if (palettes.Count == 0 || _selectedPaletteIndex < 0 || _selectedPaletteIndex >= palettes.Count)
+            return false;
+
+        var palette = palettes[_selectedPaletteIndex];
+        for (int i = 0; i < palette.Count; i++)
+        {
+            var swatch = palette.Colors[i].ToColor32();
+            if (swatch.A > 0 && swatch.R == color.R && swatch.G == color.G && swatch.B == color.B)
+                return true;
+        }
+        return false;
     }
 
     internal static void Open(WidgetId id, Color color, ColorButtonStyle? style = null)
@@ -146,7 +171,6 @@ internal static partial class ColorPicker
         _popupId = id;
         _originalColor = c32;
         _prevColor = c32;
-        _trackNeedsInit = true;
         UI.SetHot<Color32>(id, c32);
         RgbToHsv(c32, out _hue, out _sat, out _val);
         _alpha = c32.A / 255f;
@@ -217,7 +241,9 @@ internal static partial class ColorPicker
 
         using (UI.BeginColumn(EditorStyle.ColorPicker.Root))
         {
-            if (_showAlpha || _showClose)
+            var inColorMode = _paletteMode == ColorMode.Color;
+
+            if (_showAlpha || _showClose || inColorMode)
             {
                 using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
                 {
@@ -227,15 +253,32 @@ internal static partial class ColorPicker
                         {
                             _savedAlpha = _alpha;
                             _paletteMode = ColorMode.None;
+                            UI.ClosePopupMenu();
                         }
 
-                        if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: _paletteMode == ColorMode.Color))
+                        if (UI.Button(ElementId.ModeColor, EditorAssets.Sprites.IconFill, EditorStyle.Button.ToggleIcon, isSelected: inColorMode && !_paletteView))
                         {
                             _paletteMode = ColorMode.Color;
+                            _paletteView = false;
                             if (_alpha == 0)
                                 _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
-                            _trackNeedsInit = true;
-                        }                    
+                            UI.ClosePopupMenu();
+                        }
+                    }
+
+                    if (inColorMode)
+                    {
+                        if (UI.Button(ElementId.PaletteToggle, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon, isSelected: _paletteView))
+                        {
+                            _paletteView = true;
+                            UI.ClosePopupMenu();
+                        }
+
+                        if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
+                        {
+                            _eyeDropperActive = !_eyeDropperActive;
+                            _eyeDropperMouseWasDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
+                        }
                     }
 
                     if (_showClose)
@@ -244,22 +287,33 @@ internal static partial class ColorPicker
                         if (UI.Button(ElementId.Close, EditorAssets.Sprites.IconClose, EditorStyle.Button.IconOnly))
                             close = true;
                     }
-                }                
+                }
             }
 
             Color32 color;
 
-            if (_paletteMode == ColorMode.Color)
+            if (inColorMode)
             {
-                SaturationAndValue();
-                Hue();
+                if (_paletteView)
+                {
+                    PaletteContent();
+                }
+                else
+                {
+                    SaturationAndValue();
+                    Hue();
+                    Saturation();
+                    Value();
+                }
+
                 Alpha();
                 if (_hdr)
                     Intensity();
-                _trackNeedsInit = false;
+
                 color = HsvToColor32(_hue, _sat, _val, _alpha);
-                HexAndRgbRow(ref color);
-                PaletteUI();
+
+                if (!_paletteView)
+                    HexAndRgbRow(ref color);
             }
             else
             {
@@ -304,15 +358,15 @@ internal static partial class ColorPicker
         ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.SaturationAndValue);
         ElementTree.BeginTrack(ref trackState, ElementId.SaturationAndValue, 1, 1);
 
-        if (_trackNeedsInit)
-        {
-            trackState.X = _sat;
-            trackState.Y = 1 - _val;
-        }
-        else
+        if (UI.HasCapture(ElementId.SaturationAndValue))
         {
             _sat = trackState.X;
             _val = 1 - trackState.Y;
+        }
+        else
+        {
+            trackState.X = _sat;
+            trackState.Y = 1 - _val;
         }
 
         using (UI.BeginContainer(EditorStyle.ColorPicker.SaturationAndValue))
@@ -334,32 +388,130 @@ internal static partial class ColorPicker
     {
         EnsureHueTexture();
 
-        ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Hue);
-        ElementTree.BeginTrack(ref trackState, ElementId.Hue, ThumbSize);
-
-        if (_trackNeedsInit)
-            trackState.X = _hue / 360f;
-        else
+        using (UI.BeginRow(EditorStyle.ColorPicker.SliderRow))
         {
-            var newHue = trackState.X * 360f;
-            if (newHue != _hue)
+            ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Hue);
+            ElementTree.BeginTrack(ref trackState, ElementId.Hue, ThumbSize);
+
+            if (UI.HasCapture(ElementId.Hue))
             {
-                _hue = newHue;
+                var newHue = trackState.X * 360f;
+                if (newHue != _hue)
+                {
+                    _hue = newHue;
+                    InvalidateSVTexture();
+                }
+            }
+            else
+            {
+                trackState.X = _hue / 360f;
+            }
+
+            using (UI.BeginContainer(EditorStyle.ColorPicker.Slider))
+            {
+                if (_hueTexture != null)
+                    UI.Image(_hueTexture, EditorStyle.ColorPicker.SliderImage);
+
+                var color = HsvToColor(_hue, 1f, 1f);
+                SliderThumb(_hue / 360f, color, Color.Black);
+            }
+
+            ElementTree.EndTrack();
+            ElementTree.EndWidget();
+
+            int hueInt = (int)MathF.Round(_hue);
+            if (UI.NumberInput(ElementId.InputH, ref hueInt, EditorStyle.ColorPicker.ChannelInput, min: 0, max: 360))
+            {
+                _hue = hueInt;
                 InvalidateSVTexture();
             }
         }
+    }
 
-        using (UI.BeginContainer(EditorStyle.ColorPicker.Slider))
+    private static void Saturation()
+    {
+        using (UI.BeginRow(EditorStyle.ColorPicker.SliderRow))
         {
-            if (_hueTexture != null)
-                UI.Image(_hueTexture, EditorStyle.ColorPicker.SliderImage);
+            ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Saturation);
+            ElementTree.BeginTrack(ref trackState, ElementId.Saturation, ThumbSize);
 
-            var color = HsvToColor(_hue, 1f, 1f);
-            SliderThumb(_hue / 360f, color, Color.Black);
+            if (UI.HasCapture(ElementId.Saturation))
+                _sat = trackState.X;
+            else
+                trackState.X = _sat;
+
+            var lowColor = HsvToColor(_hue, 0f, _val);
+            var highColor = HsvToColor(_hue, 1f, _val);
+
+            using (UI.BeginContainer(new ContainerStyle
+            {
+                Width = EditorStyle.ColorPicker.SliderTrackWidth,
+                Height = SliderHeight,
+                AlignY = Align.Center,
+                Background = new BackgroundStyle
+                {
+                    Color = lowColor,
+                    GradientColor = highColor,
+                    GradientAngle = 0
+                },
+                BorderRadius = EditorStyle.ColorPicker.SliderImage.BorderRadius,
+                Clip = true,
+            }))
+            {
+                var thumbColor = HsvToColor(_hue, _sat, _val);
+                SliderThumb(_sat, thumbColor, Color.Black);
+            }
+
+            ElementTree.EndTrack();
+            ElementTree.EndWidget();
+
+            int satInt = (int)MathF.Round(_sat * 255f);
+            if (UI.NumberInput(ElementId.InputS, ref satInt, EditorStyle.ColorPicker.ChannelInput, min: 0, max: 255))
+                _sat = satInt / 255f;
         }
+    }
 
-        ElementTree.EndTrack();
-        ElementTree.EndWidget();
+    private static void Value()
+    {
+        using (UI.BeginRow(EditorStyle.ColorPicker.SliderRow))
+        {
+            ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Value);
+            ElementTree.BeginTrack(ref trackState, ElementId.Value, ThumbSize);
+
+            if (UI.HasCapture(ElementId.Value))
+                _val = trackState.X;
+            else
+                trackState.X = _val;
+
+            var lowColor = HsvToColor(_hue, _sat, 0f);
+            var highColor = HsvToColor(_hue, _sat, 1f);
+
+            using (UI.BeginContainer(new ContainerStyle
+            {
+                Width = EditorStyle.ColorPicker.SliderTrackWidth,
+                Height = SliderHeight,
+                AlignY = Align.Center,
+                Background = new BackgroundStyle
+                {
+                    Color = lowColor,
+                    GradientColor = highColor,
+                    GradientAngle = 0
+                },
+                BorderRadius = EditorStyle.ColorPicker.SliderImage.BorderRadius,
+                Clip = true,
+            }))
+            {
+                var thumbColor = HsvToColor(_hue, _sat, _val);
+                SliderThumb(_val, thumbColor, Color.Black);
+            }
+
+            ElementTree.EndTrack();
+            ElementTree.EndWidget();
+
+            int valInt = (int)MathF.Round(_val * 255f);
+            if (UI.NumberInput(ElementId.InputV, ref valInt, EditorStyle.ColorPicker.ChannelInput, min: 0, max: 255))
+                _val = valInt / 255f;
+        }
     }
 
     private static void Alpha()
@@ -368,27 +520,34 @@ internal static partial class ColorPicker
 
         EnsureCheckerTexture();
 
-        ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Alpha);
-        ElementTree.BeginTrack(ref trackState, ElementId.Alpha, ThumbSize);
-
-        if (_trackNeedsInit)
-            trackState.X = _alpha;
-        else
-            _alpha = trackState.X;
-
-        using (UI.BeginContainer(EditorStyle.ColorPicker.Slider))
+        using (UI.BeginRow(EditorStyle.ColorPicker.SliderRow))
         {
-            if (_checkerTexture != null)
-                UI.Image(_checkerTexture, EditorStyle.ColorPicker.SliderImage);
+            ref var trackState = ref ElementTree.BeginWidget<TrackState>(ElementId.Alpha);
+            ElementTree.BeginTrack(ref trackState, ElementId.Alpha, ThumbSize);
 
-            SliderThumb(
-                _alpha,
-                Color.Mix(Color.Black, Color.White, _alpha),
-                Color.Mix(Color.White, Color.Black, _alpha));
+            if (UI.HasCapture(ElementId.Alpha))
+                _alpha = trackState.X;
+            else
+                trackState.X = _alpha;
+
+            using (UI.BeginContainer(EditorStyle.ColorPicker.Slider))
+            {
+                if (_checkerTexture != null)
+                    UI.Image(_checkerTexture, EditorStyle.ColorPicker.SliderImage);
+
+                SliderThumb(
+                    _alpha,
+                    Color.Mix(Color.Black, Color.White, _alpha),
+                    Color.Mix(Color.White, Color.Black, _alpha));
+            }
+
+            ElementTree.EndTrack();
+            ElementTree.EndWidget();
+
+            int alphaInt = (int)MathF.Round(_alpha * 255f);
+            if (UI.NumberInput(ElementId.InputA, ref alphaInt, EditorStyle.ColorPicker.ChannelInput, min: 0, max: 255))
+                _alpha = alphaInt / 255f;
         }
-
-        ElementTree.EndTrack();
-        ElementTree.EndWidget();
     }
 
     private static void Intensity()
@@ -398,10 +557,10 @@ internal static partial class ColorPicker
 
         // Map intensity 0..10 to track 0..1
         const float maxIntensity = 10f;
-        if (_trackNeedsInit)
-            trackState.X = _intensity / maxIntensity;
-        else
+        if (UI.HasCapture(ElementId.Intensity))
             _intensity = trackState.X * maxIntensity;
+        else
+            trackState.X = _intensity / maxIntensity;
 
         var baseColor = HsvToColor(_hue, _sat, _val);
         var maxFactor = MathF.Pow(2f, maxIntensity);
@@ -450,7 +609,6 @@ internal static partial class ColorPicker
                 {
                     RgbToHsv(parsed, out _hue, out _sat, out _val);
                     InvalidateSVTexture();
-                    _trackNeedsInit = true;
                     color = new Color32(parsed.R, parsed.G, parsed.B, color.A);
                 }
             }
@@ -461,7 +619,6 @@ internal static partial class ColorPicker
             {
                 RgbToHsv(new Color32((byte)r, (byte)g, (byte)b), out _hue, out _sat, out _val);
                 InvalidateSVTexture();
-                _trackNeedsInit = true;
                 color = new Color32((byte)r, color.G, color.B, color.A);
             }
 
@@ -469,7 +626,6 @@ internal static partial class ColorPicker
             {
                 RgbToHsv(new Color32((byte)r, (byte)g, (byte)b), out _hue, out _sat, out _val);
                 InvalidateSVTexture();
-                _trackNeedsInit = true;
                 color = new Color32(color.R, (byte)g, color.B, color.A);
             }
 
@@ -477,7 +633,6 @@ internal static partial class ColorPicker
             {
                 RgbToHsv(new Color32((byte)r, (byte)g, (byte)b), out _hue, out _sat, out _val);
                 InvalidateSVTexture();
-                _trackNeedsInit = true;
                 color = new Color32(color.R, color.G, (byte)b, color.A);
             }
         }
@@ -485,7 +640,7 @@ internal static partial class ColorPicker
 
     private static void SliderThumb(float t, Color color, Color borderColor)
     {
-        var travel = EditorStyle.ColorPicker.SliderWidth - ThumbSize;
+        var travel = EditorStyle.ColorPicker.SliderTrackWidth - ThumbSize;
 
         UI.Container(new ContainerStyle
         {
@@ -516,7 +671,7 @@ internal static partial class ColorPicker
         return container;
     }
 
-    private static void PaletteUI()
+    private static void PaletteContent()
     {
         var palettes = PaletteManager.Palettes;
         if (palettes.Count == 0) return;
@@ -526,25 +681,16 @@ internal static partial class ColorPicker
 
         var selectedPalette = palettes[_selectedPaletteIndex];
 
-        using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
+        UI.DropDown(ElementId.PaletteDropDown, () =>
         {
-            if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
+            var items = new PopupMenuItem[palettes.Count];
+            for (int i = 0; i < palettes.Count; i++)
             {
-                _eyeDropperActive = !_eyeDropperActive;
-                _eyeDropperMouseWasDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
+                var index = i;
+                items[i] = PopupMenuItem.Item(palettes[i].Label, () => _selectedPaletteIndex = index);
             }
-
-            UI.DropDown(ElementId.PaletteDropDown, () =>
-            {
-                var items = new PopupMenuItem[palettes.Count];
-                for (int i = 0; i < palettes.Count; i++)
-                {
-                    var index = i;
-                    items[i] = PopupMenuItem.Item(palettes[i].Label, () => _selectedPaletteIndex = index);
-                }
-                return items;
-            }, text: selectedPalette.Label);
-        }
+            return items;
+        }, text: selectedPalette.Label);
 
         var nextPaletteItemId = ElementId.ColorPickerPaletteItem;
 
@@ -578,7 +724,6 @@ internal static partial class ColorPicker
                     RgbToHsv(c32, out _hue, out _sat, out _val);
                     _alpha = c32.A / 255f;
                     InvalidateSVTexture();
-                    _trackNeedsInit = true;
                 }
             }
         }

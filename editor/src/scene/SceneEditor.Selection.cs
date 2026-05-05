@@ -11,10 +11,12 @@ public partial class SceneEditor
     private readonly List<SceneNode> _selectedNodes = [];
     private Rect _selectionLocalBounds;
     private float _selectionRotation;
+    private SceneNode? _selectionPivot;
 
     public IReadOnlyList<SceneNode> SelectedNodes => _selectedNodes;
     public float SelectionRotation => _selectionRotation;
     public Rect SelectionLocalBounds => _selectionLocalBounds;
+    internal SceneNode? SelectionPivot => _selectionPivot;
 
     internal void RebuildSelection()
     {
@@ -24,7 +26,20 @@ public partial class SceneEditor
             if (n.IsSelected)
                 _selectedNodes.Add(n);
         });
+        if (_selectionPivot != null && !IsInDocument(_selectionPivot))
+            _selectionPivot = null;
         UpdateSelectionBounds();
+    }
+
+    private bool IsInDocument(SceneNode node)
+    {
+        var n = node;
+        while (n != null)
+        {
+            if (n == Document.Root) return true;
+            n = n.Parent;
+        }
+        return false;
     }
 
     internal void ClearSelection()
@@ -32,6 +47,7 @@ public partial class SceneEditor
         Document.Root.ClearSelection();
         _selectedNodes.Clear();
         _selectionLocalBounds = default;
+        _selectionPivot = null;
     }
 
     internal void SelectAll()
@@ -39,6 +55,7 @@ public partial class SceneEditor
         Document.Root.ClearSelection();
         foreach (var child in Document.Root.Children)
             child.IsSelected = true;
+        _selectionPivot = null;
         RebuildSelection();
     }
 
@@ -47,13 +64,41 @@ public partial class SceneEditor
         Document.Root.ClearSelection();
         node.IsSelected = true;
         node.ExpandAncestors();
+        _selectionPivot = node;
         RebuildSelection();
     }
 
     private void ToggleSelected(SceneNode node)
     {
         node.IsSelected = !node.IsSelected;
+        _selectionPivot = node;
         RebuildSelection();
+    }
+
+    internal bool ApplyOutlinerRange(SceneNode pivot, SceneNode clicked, bool union)
+    {
+        var pivotIdx = -1;
+        var clickIdx = -1;
+        for (var i = 0; i < _outlinerRows.Count; i++)
+        {
+            if (_outlinerRows[i].Node == pivot) pivotIdx = i;
+            if (_outlinerRows[i].Node == clicked) clickIdx = i;
+        }
+        if (pivotIdx < 0 || clickIdx < 0)
+            return false;
+
+        var lo = Math.Min(pivotIdx, clickIdx);
+        var hi = Math.Max(pivotIdx, clickIdx);
+
+        if (!union)
+            Document.Root.ClearSelection();
+
+        for (var i = lo; i <= hi; i++)
+            _outlinerRows[i].Node.IsSelected = true;
+
+        RebuildSelection();
+        _selectionPivot = pivot;
+        return true;
     }
 
     private static bool IsAncestorOfAnySelected(SceneNode node)
@@ -364,25 +409,21 @@ public partial class SceneEditor
         };
     }
 
-    internal void HandleClick(Vector2 worldPos, bool shift)
+    internal void HandleClick(Vector2 worldPos, bool shift, bool ctrl)
     {
         var hit = HitTestNodes(worldPos);
 
         if (hit == null)
         {
-            if (!shift)
+            if (!shift && !ctrl)
                 ClearSelection();
             return;
         }
 
-        if (shift)
-        {
+        if (shift || ctrl)
             ToggleSelected(hit);
-        }
         else
-        {
             SelectOnly(hit);
-        }
     }
 
     internal void CommitBoxSelect(Rect selectionBounds)
@@ -401,6 +442,7 @@ public partial class SceneEditor
             if (boxLocal.Intersects(aabb))
                 n.IsSelected = true;
         });
+        _selectionPivot = null;
         RebuildSelection();
     }
 

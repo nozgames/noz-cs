@@ -55,6 +55,8 @@ public partial class SceneEditor
     private bool _outlinerDragging;
     private readonly List<SceneNode> _dragNodes = [];
     private SceneNode? _deferredClickNode;
+    private SceneNode? _pendingRangeClickNode;
+    private bool _pendingRangeUnion;
     private Vector2 _dragStartPos;
     private int _dropTargetIndex = -1;
     private DropZone _dropZone;
@@ -66,13 +68,18 @@ public partial class SceneEditor
         void AddButton()
         {
             ElementTree.BeginAlign(Align.Min, Align.Center);
-            if (UI.Button(WidgetIds.AddButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+            using (UI.BeginRow(EditorStyle.Control.Spacing))
             {
-                AssetPalette.OpenSprites(onPicked: doc =>
+                if (UI.Button(WidgetIds.AddGroupButton, EditorAssets.Sprites.IconFolder, EditorStyle.Inspector.SectionButton))
+                    AddGroupInstance();
+                if (UI.Button(WidgetIds.AddButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
                 {
-                    if (doc is SpriteDocument sd)
-                        AddSpriteInstance(sd);
-                });
+                    AssetPalette.OpenSprites(onPicked: doc =>
+                    {
+                        if (doc is SpriteDocument sd)
+                            AddSpriteInstance(sd);
+                    });
+                }
             }
             ElementTree.EndAlign();
         }
@@ -82,8 +89,21 @@ public partial class SceneEditor
             DrawNodeTree(Document.Root);
         }
 
+        ProcessPendingRangeClick();
         UpdateOutlinerDrag();
         HandleRenameInput();
+    }
+
+    private void ProcessPendingRangeClick()
+    {
+        if (_pendingRangeClickNode == null) return;
+        var clicked = _pendingRangeClickNode;
+        var union = _pendingRangeUnion;
+        _pendingRangeClickNode = null;
+
+        var pivot = _selectionPivot;
+        if (pivot == null || !ApplyOutlinerRange(pivot, clicked, union))
+            ToggleSelected(clicked);
     }
 
     private void AddSpriteInstance(SpriteDocument spriteDoc)
@@ -107,6 +127,25 @@ public partial class SceneEditor
         Document.Root.ClearSelection();
         node.IsSelected = true;
         node.ExpandAncestors();
+        RebuildSelection();
+    }
+
+    private void AddGroupInstance()
+    {
+        Undo.Record(Document);
+
+        var group = new SceneGroup { Name = "Group" };
+
+        SceneGroup parent = Document.Root;
+        if (_selectedNodes.Count == 1 && _selectedNodes[0] is SceneGroup g)
+            parent = g;
+
+        parent.Add(group);
+        parent.Expanded = true;
+
+        Document.Root.ClearSelection();
+        group.IsSelected = true;
+        group.ExpandAncestors();
         RebuildSelection();
     }
 
@@ -269,21 +308,35 @@ public partial class SceneEditor
             var shift = Input.IsShiftDown(InputScope.All);
             var ctrl = Input.IsCtrlDown(InputScope.All);
 
-            if (node.IsSelected && !shift && !ctrl)
+            if (shift)
+            {
+                _pendingRangeClickNode = node;
+                _pendingRangeUnion = ctrl;
+                _deferredClickNode = null;
+            }
+            else if (ctrl)
+            {
+                ToggleSelected(node);
+                _deferredClickNode = null;
+            }
+            else if (node.IsSelected)
             {
                 _deferredClickNode = node;
             }
             else
             {
-                if (shift || ctrl)
-                    ToggleSelected(node);
-                else
-                    SelectOnly(node);
+                SelectOnly(node);
                 _deferredClickNode = null;
             }
 
             _dragNodes.Clear();
-            _dragNodes.Add(node);
+            if (node.IsSelected)
+            {
+                foreach (var sel in EffectiveSelection())
+                    _dragNodes.Add(sel);
+            }
+            if (_dragNodes.Count == 0)
+                _dragNodes.Add(node);
             _dragStartPos = Input.MousePosition;
         }
 

@@ -1156,6 +1156,8 @@ public static class EditorStyle
         public const float SVSize = Width - 4;
         public const float SliderWidth = Width - Padding * 2;
         public const float SliderHeight = 13;
+        public const float ChannelInputWidth = 32;
+        public const float SliderTrackWidth = SliderWidth - ChannelInputWidth - Control.Spacing;
         public const int SwatchColumns = 8;
         public const float SwatchCellSize = SliderWidth / SwatchColumns;
 
@@ -1178,7 +1180,9 @@ public static class EditorStyle
 
         public readonly static ContainerStyle Slider = new()
         {
+            Width = SliderTrackWidth,
             Height = SliderHeight,
+            AlignY = Align.Center,
             Clip = true,
         };
 
@@ -1195,6 +1199,17 @@ public static class EditorStyle
         public readonly static TextInputStyle RgbInput = HexInput with
         {
             Width = 36,
+        };
+
+        public readonly static ContainerStyle SliderRow = new()
+        {
+            Height = 20,
+            Spacing = Control.Spacing,
+        };
+
+        public readonly static TextInputStyle ChannelInput = HexInput with
+        {
+            Width = ChannelInputWidth,
         };
     }
 

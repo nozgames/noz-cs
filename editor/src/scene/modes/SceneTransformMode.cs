@@ -92,7 +92,8 @@ public class SceneTransformMode : EditorMode<SceneEditor>
         if (Input.WasButtonReleased(InputCode.MouseLeft) && !Workspace.WasDragging)
         {
             var shift = Input.IsShiftDown(InputScope.All);
-            Editor.HandleClick(Workspace.MouseWorldPosition - Editor.Document.Position, shift);
+            var ctrl = Input.IsCtrlDown(InputScope.All);
+            Editor.HandleClick(Workspace.MouseWorldPosition - Editor.Document.Position, shift, ctrl);
         }
     }
 

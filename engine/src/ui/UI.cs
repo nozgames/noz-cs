@@ -31,6 +31,7 @@ public static partial class UI
     public struct AutoCursor : IDisposable { readonly void IDisposable.Dispose() => EndCursor(); }
     public struct AutoEnabled : IDisposable { internal bool WasDisabled; public readonly void Dispose() { if (WasDisabled) EndEnabled(); } }
     public struct AutoWidget : IDisposable { public readonly void Dispose() => EndWidget(); }
+    public struct AutoAlign : IDisposable { public readonly void Dispose() => EndAlign(); }
 
     private static Font? _defaultFont;
     public static Font DefaultFont => _defaultFont!;
@@ -510,6 +511,19 @@ public static partial class UI
 
     #endregion
 
+    public static AutoAlign BeginAlign(Align alignX, Align alignY)
+    {
+        ElementTree.BeginAlign(alignX, alignY);
+        return new AutoAlign();
+    }
+
+    public static AutoAlign BeginAlign(Align align)
+    {
+        ElementTree.BeginAlign(align);
+        return new AutoAlign();
+    }
+
+    public static void EndAlign() => ElementTree.EndAlign();
 
     public static Rect WorldToSceneLocal(Camera camera, WidgetId sceneElementId, Rect worldRect)
     {

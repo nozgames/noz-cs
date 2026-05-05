@@ -147,14 +147,14 @@ public static unsafe partial class ElementTree
 
     public static void EndCursor() => EndElement(ElementType.Cursor);
 
-    public static int BeginTransform(Vector2 pivot, Vector2 translate, float rotate, Vector2 scale)
-    {
+    public static int BeginTransform(Vector2? pivot = null, Vector2? translate = null, float rotate = 0.0f, Vector2? scale = null)
+    {        
         ref var e = ref BeginElement(ElementType.Transform);
         ref var d = ref e.Data.Transform;
-        d.Pivot = pivot;
-        d.Translate = translate;
+        d.Pivot = pivot ?? new Vector2(0.5f, 0.5f);
+        d.Translate = translate ?? Vector2.Zero;
         d.Rotate = rotate;
-        d.Scale = scale;
+        d.Scale = scale ?? Vector2.One;
         return e.Index;
     }
 

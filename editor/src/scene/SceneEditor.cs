@@ -12,6 +12,7 @@ public partial class SceneEditor : DocumentEditor
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId AddButton { get; }
+        public static partial WidgetId AddGroupButton { get; }
         public static partial WidgetId InspectorToggle { get; }
         public static partial WidgetId LayerToggle { get; }
         public static partial WidgetId ExitEditMode { get; }
@@ -129,8 +130,31 @@ public partial class SceneEditor : DocumentEditor
 
     public override void InspectorUI()
     {
-        if (SelectedNodes.Count != 1)
+        if (SelectedNodes.Count == 0)
             return;
+
+        if (SelectedNodes.Count > 1)
+        {
+            using (Inspector.BeginSection($"MULTI ({SelectedNodes.Count})"))
+            {
+                if (Inspector.IsSectionCollapsed)
+                    return;
+
+                using (Inspector.BeginProperty("Color"))
+                {
+                    var newColor = EditorUI.ColorButton(WidgetIds.InspectorColor, SelectedNodes[0].Color.ToColor());
+                    if (UI.WasChangeStarted()) Undo.Record(Document);
+                    if (UI.WasChanged())
+                    {
+                        var c32 = newColor.ToColor32();
+                        foreach (var n in SelectedNodes)
+                            n.Color = c32;
+                    }
+                    if (UI.WasChangeCancelled()) Undo.Cancel();
+                }
+            }
+            return;
+        }
 
         var node = SelectedNodes[0];
 
