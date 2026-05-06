@@ -144,6 +144,7 @@ internal struct ImageElement
     public Color OverlayColor;
     public float Width;
     public float Height;
+    public Rect UV;
     public ushort Asset;
 }
 

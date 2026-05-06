@@ -129,7 +129,7 @@ public partial class VectorSpriteEditor
 
     private void DrawPreviewQuad(Matrix3x2 transform)
     {
-        if (!_previewRT.IsValid) return;
+        if (_previewRT == null) return;
         if (_renderedSize.X <= 0 || _renderedSize.Y <= 0) return;
 
         using (Graphics.PushState())

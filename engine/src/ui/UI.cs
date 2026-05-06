@@ -401,10 +401,12 @@ public static partial class UI
     public static AutoCollection BeginCollection(WidgetId scrollId, in CollectionLayout layout,
         int totalCount, out int start, out int end)
     {
-        var columns = Math.Max(1, layout.Columns);
+        var scrollRect = GetElementRect(scrollId);
+        var virtColumns = ElementTree.ResolveCollectionColumns(
+            layout.Columns, layout.ItemWidth, layout.Spacing, scrollRect.Width);
         var rowHeight = layout.ItemHeight + layout.Spacing;
         var scrollOffset = GetScrollOffset(scrollId);
-        var viewportHeight = GetElementRect(scrollId).Height;
+        var viewportHeight = scrollRect.Height;
 
         if (totalCount <= 0 || rowHeight <= 0)
         {
@@ -418,17 +420,17 @@ public static partial class UI
         }
         else
         {
-            var totalRows = (totalCount + columns - 1) / columns;
+            var totalRows = (totalCount + virtColumns - 1) / virtColumns;
             var startRow = Math.Max(0, (int)(scrollOffset / rowHeight) - 1);
             var visibleRows = (int)Math.Ceiling(viewportHeight / rowHeight) + 2;
             var endRow = Math.Min(totalRows, startRow + visibleRows);
-            start = startRow * columns;
-            end = Math.Min(totalCount, endRow * columns);
+            start = startRow * virtColumns;
+            end = Math.Min(totalCount, endRow * virtColumns);
         }
 
         ElementTree.BeginCollection(
             layout.Spacing,
-            columns,
+            layout.Columns,
             layout.ItemWidth,
             layout.ItemHeight,
             totalCount, start);

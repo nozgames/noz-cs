@@ -8,8 +8,8 @@ namespace NoZ;
 
 public static class PostProcess
 {    
-    private static RenderTexture _sceneRT;
-    private static RenderTexture _currentRT;
+    private static RenderTexture? _sceneRT;
+    private static RenderTexture? _currentRT;
     private static bool _active;
     private static int _width;
     private static int _height;
@@ -35,12 +35,12 @@ public static class PostProcess
         _active = false;
     }
 
-    internal static RenderTexture TakeResult()
+    internal static RenderTexture? TakeResult()
     {
         var result = _currentRT;
         _active = false;
-        _sceneRT = default;
-        _currentRT = default;
+        _sceneRT = null;
+        _currentRT = null;
         return result;
     }
 
@@ -52,18 +52,18 @@ public static class PostProcess
 
     public static void BeginBlit(Shader shader, int width, int height)
     {
-        if (!_sceneRT.IsValid) return;
+        if (_sceneRT == null) return;
+        if (_currentRT == null) return;
 
         Graphics.EndPass();
 
-        var source = _currentRT;
         var dest = RenderTexturePool.Acquire(width, height);
 
         Graphics.BeginPass(dest, Color.Transparent);
         UpdateCamera(width, height);
         Graphics.SetShader(shader);
         Graphics.SetBlendMode(BlendMode.None);
-        Graphics.SetTexture(source.Handle, slot: 0);
+        Graphics.SetTexture(_currentRT.Handle, slot: 0);
         Graphics.SetTextureFilter(TextureFilter.Linear, slot: 0);
         Graphics.SetTransform(Matrix3x2.Identity);
 
@@ -74,12 +74,14 @@ public static class PostProcess
     public static void EndBlit()
     {
         if (!_active) return;
+        if (_currentRT == null) return;
         Graphics.Draw(0, 0, _currentRT.Width, _currentRT.Height);
     }
 
     public static void Bloom(float threshold = 0.8f, float intensity = 1.2f, int mipLevels = 5)
     {
-        if (!_sceneRT.IsValid || Application.IsResizing) return;
+        if (_sceneRT == null || Application.IsResizing) return;
+        if (_currentRT == null) return;    
 
         _downsampleShader ??= Asset.Load(AssetType.Shader, "pp_downsample") as Shader;
         _upsampleShader ??= Asset.Load(AssetType.Shader, "pp_upsample") as Shader;
@@ -129,11 +131,11 @@ public static class PostProcess
         }
 
         // Composite onto original
-            Graphics.SetUniform("composite_params", intensity);
-            BeginBlit(_compositeShader);
-            Graphics.SetTexture(original.Handle, slot: 2);
-            Graphics.SetTextureFilter(TextureFilter.Linear, slot: 2);
-            EndBlit();
+        Graphics.SetUniform("composite_params", intensity);
+        BeginBlit(_compositeShader);
+        Graphics.SetTexture(original.Handle, slot: 2);
+        Graphics.SetTextureFilter(TextureFilter.Linear, slot: 2);
+        EndBlit();
     }
 
     private static void UpdateCamera(int width, int height)

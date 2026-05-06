@@ -102,12 +102,9 @@ public static partial class Graphics
         AddQuad(p0, p1, p2, p3, new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), order: order, bone: bone);
     }
 
-    /// <summary>
-    /// Draws a render texture as a textured quad between topLeft and bottomRight.
-    /// </summary>
     public static void Draw(RenderTexture rt, Vector2 topLeft, Vector2 bottomRight, ushort order = 0)
     {
-        if (!rt.IsValid) return;
+        if (rt == null) return;
 
         using var _ = PushState();
         SetTextureFilter(TextureFilter.Point);

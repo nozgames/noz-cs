@@ -88,7 +88,7 @@ public static partial class ElementTree
                 }
                 else if (!d.Color.IsTransparent || d.BorderWidth > 0)
                 {
-                    DrawTexturedRect(e.Rect, t, null, ApplyOpacity(d.Color), d.Radius, d.BorderWidth, ApplyOpacity(d.BorderColor), order: d.Order);
+                    DrawTexturedRect(e.Rect, t, null, new Rect(0,0,1,1), ApplyOpacity(d.Color), d.Radius, d.BorderWidth, ApplyOpacity(d.BorderColor), order: d.Order);
                 }
 
                 if (d.HasImage)
@@ -146,20 +146,21 @@ public static partial class ElementTree
     private static void DrawTexturedRect(
         in Rect rect,
         in Matrix3x2 transform,
-        Texture? texture,
+        ITexture? texture,
+        Rect uv,
         Color color,
         BorderRadius borderRadius = default,
         float borderWidth = 0,
         Color borderColor = default,
         ushort order = 0)
     {
-        DrawTexturedRect(rect, transform, texture, color, new Rect(0, 0, 1, 1), borderRadius, borderWidth, borderColor, order);
+        DrawTexturedRect(rect, transform, texture, color, uv, borderRadius, borderWidth, borderColor, order);
     }
 
     private static void DrawTexturedRect(
         in Rect rect,
         in Matrix3x2 transform,
-        Texture? texture,
+        ITexture? texture,
         Color color,
         in Rect uvRect,
         BorderRadius borderRadius = default,
@@ -377,7 +378,7 @@ public static partial class ElementTree
 
                 Graphics.ClearScissor();
             }
-            else if (asset is Texture texture)
+            else if (asset is ITexture texture)
             {
                 DrawTexturedRect(e.Rect, t, texture, ApplyOpacity(d.ImageColor), uvRect, order: d.Order);
             }
@@ -395,9 +396,9 @@ public static partial class ElementTree
             Graphics.SetTransform(transform);
             Graphics.DrawFlat(sprite, order: d.Order, bone: -1);
         }
-        else if (asset is Texture texture)
+        else if (asset is ITexture texture)
         {
-            DrawTexturedRect(e.Rect, t, texture, ApplyOpacity(d.ImageColor), order: d.Order);
+            DrawTexturedRect(e.Rect, t, texture, new Rect(0,0,1,1), ApplyOpacity(d.ImageColor), order: d.Order);
         }
     }
 
@@ -561,32 +562,36 @@ public static partial class ElementTree
 
             if (asset is Sprite sprite)
             {
-                {
-                    using var _ = Graphics.PushState();
-                    Graphics.SetShader(_spriteShader);
-                    Graphics.SetColor(ApplyOpacity(d.Color));
-                    Graphics.SetTextureFilter(TextureFilter.Linear);
+                using var _ = Graphics.PushState();
+                Graphics.SetShader(_spriteShader);
+                Graphics.SetColor(ApplyOpacity(d.Color));
+                Graphics.SetTextureFilter(TextureFilter.Linear);
 
-                    // For sprites, use scissor clipping since sprite meshes have baked UVs
-                    var clipTopLeft = Vector2.Transform(e.Rect.Position, t);
-                    var clipBottomRight = Vector2.Transform(e.Rect.Position + dstSize, t);
-                    var screenTL = UI.Camera!.WorldToScreen(clipTopLeft);
-                    var screenBR = UI.Camera!.WorldToScreen(clipBottomRight);
-                    Graphics.SetScissor(
-                        (int)screenTL.X, (int)screenTL.Y,
-                        (int)MathF.Ceiling(screenBR.X - screenTL.X),
-                        (int)MathF.Ceiling(screenBR.Y - screenTL.Y));
+                // For sprites, use scissor clipping since sprite meshes have baked UVs
+                var clipTopLeft = Vector2.Transform(e.Rect.Position, t);
+                var clipBottomRight = Vector2.Transform(e.Rect.Position + dstSize, t);
+                var screenTL = UI.Camera!.WorldToScreen(clipTopLeft);
+                var screenBR = UI.Camera!.WorldToScreen(clipBottomRight);
+                Graphics.SetScissor(
+                    (int)screenTL.X, (int)screenTL.Y,
+                    (int)MathF.Ceiling(screenBR.X - screenTL.X),
+                    (int)MathF.Ceiling(screenBR.Y - screenTL.Y));
 
-                    offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
-                    var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
-                    Graphics.SetTransform(transform);
-                    Graphics.DrawFlat(sprite, bone: -1);
+                offset -= new Vector2(sprite.Bounds.X, sprite.Bounds.Y) * scale;
+                var transform = Matrix3x2.CreateScale(scale * sprite.PixelsPerUnit) * Matrix3x2.CreateTranslation(offset) * t;
+                Graphics.SetTransform(transform);
+                Graphics.DrawFlat(sprite, bone: -1);
 
-                    Graphics.ClearScissor();
-                }
+                Graphics.ClearScissor();
             }
-            else if (asset is Texture texture)
+            else if (asset is ITexture texture)
             {
+                uvRect = new Rect(
+                    d.UV.X + uvRect.X * d.UV.Width,
+                    d.UV.Y + uvRect.Y * d.UV.Height,
+                    uvRect.Width * d.UV.Width,
+                    uvRect.Height * d.UV.Height);
+
                 DrawTexturedRect(
                     new Rect(e.Rect.X, e.Rect.Y, dstSize.X, dstSize.Y),
                     t,
@@ -609,12 +614,13 @@ public static partial class ElementTree
                 Graphics.SetTransform(transform);
                 Graphics.DrawFlat(sprite, bone: -1);
             }
-            else if (asset is Texture texture)
+            else if (asset is ITexture texture)
             {
                 DrawTexturedRect(
                     new Rect(offset.X, offset.Y, scaledSize.X, scaledSize.Y),
                     t,
                     texture,
+                    d.UV,
                     ApplyOpacity(d.Color));
             }
         }
@@ -669,7 +675,7 @@ public static partial class ElementTree
 
         // PostProcess.Shader() calls during draw() end/begin RT passes internally.
         // If post-processing happened, take the final result; otherwise end normally.
-        RenderTexture blitRT;
+        RenderTexture? blitRT;
         if (PostProcess.IsActive)
         {
             Graphics.EndPass();
@@ -680,6 +686,8 @@ public static partial class ElementTree
             Graphics.EndPass();
             blitRT = rt;
         }
+
+        if (null == blitRT) return;
 
         Graphics.SetCamera(UI.Camera);
 

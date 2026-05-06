@@ -192,7 +192,7 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
-    public static void SetTexture(Texture? texture, int slot = 0)
+    public static void SetTexture(ITexture? texture, int slot = 0)
     {
         Debug.Assert(slot is >= 0 and < MaxTextures);
         var handle = texture?.Handle ?? nuint.Zero;

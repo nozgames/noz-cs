@@ -6,11 +6,14 @@ using System.Runtime.CompilerServices;
 
 namespace NoZ;
 
-public class Texture : Asset, IImage
+public interface ITexture : IImage
 {
-    float IImage.ImageWidth => Width;
-    float IImage.ImageHeight => Height;
+    public nuint Handle { get; }
+    public TextureFilter Filter { get; }
+}
 
+public class Texture : Asset, ITexture
+{
     internal const ushort Version = 1;
 
     public int Width { get; private set; }
@@ -21,11 +24,21 @@ public class Texture : Asset, IImage
     public NativeArray<byte> Data { get; private set; }
     public bool IsArray { get; private set; }
 
-    private bool _ownsRenderTexture;
+    float IImage.ImageWidth => Width;
+    float IImage.ImageHeight => Height;
+    nuint ITexture.Handle => this.Handle;
 
     private Texture(string name, bool isArray) : base(AssetType.Texture, name)
     {
         IsArray = isArray;
+    }
+
+    protected Texture(nuint handle, int width, int height, TextureFormat format) : base(AssetType.Texture)
+    {
+        Width = width;
+        Height = height;
+        Format = format;
+        Handle = handle;
     }
 
     public Texture() : base(AssetType.Texture) { }
@@ -76,19 +89,6 @@ public class Texture : Asset, IImage
             Data = nativeData
         };
         texture.Upload();
-        texture.Register();
-        return texture;
-    }
-
-    public static Texture CreateFromRenderTexture(RenderTexture rt, string name = "")
-    {
-        var texture = new Texture(name, false)
-        {
-            Width = rt.Width,
-            Height = rt.Height,
-        };
-        texture.Handle = rt.Handle;
-        texture._ownsRenderTexture = true;
         texture.Register();
         return texture;
     }
@@ -204,10 +204,7 @@ public class Texture : Asset, IImage
 
         if (Handle != nuint.Zero)
         {
-            if (_ownsRenderTexture)
-                Graphics.Driver.DestroyRenderTexture(Handle);
-            else
-                Graphics.Driver.DestroyTexture(Handle);
+            Graphics.Driver.DestroyTexture(Handle);
             Handle = nuint.Zero;
         }
 

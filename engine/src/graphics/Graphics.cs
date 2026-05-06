@@ -83,7 +83,7 @@ public static unsafe partial class Graphics
     private static State[] _stateStack = null!;
     private static int _stateStackDepth = 0;
     private static bool _batchStateDirty = true;
-    private static RenderTexture _internalRT;
+    private static RenderTexture? _internalRT;
     private static readonly Camera _blitCamera = new();
     private static Shader? _blitShader;
     
@@ -110,7 +110,7 @@ public static unsafe partial class Graphics
     private static RenderPass _currentPass;
     private static byte _rtPassIndex;
     private static Matrix4x4[] _passProjections = new Matrix4x4[MaxRenderPasses];
-    private static RenderTexture _activeRenderTexture;
+    private static RenderTexture? _activeRenderTexture;
     private static int _rtPassCount;
     private static (nuint Handle, Color ClearColor)[] _rtPasses = new (nuint, Color)[MaxRenderPasses];
     private static NativeArray<float> _boneData;
@@ -236,10 +236,10 @@ public static unsafe partial class Graphics
 
     public static void BeginPass(RenderTexture rt, Color clearColor)
     {
-        if (!rt.IsValid)
+        if (rt == null)
             throw new InvalidOperationException("Cannot begin pass with invalid render texture");
 
-        if (_activeRenderTexture.IsValid)
+        if (_activeRenderTexture != null)
             throw new InvalidOperationException("Cannot nest render texture passes - call EndPass first");
 
         PushState();
@@ -256,11 +256,11 @@ public static unsafe partial class Graphics
 
     public static void EndPass()
     {
-        if (!_activeRenderTexture.IsValid)
+        if (_activeRenderTexture == null)
             throw new InvalidOperationException("No render texture pass is active - call BeginPass first");
 
         _currentPass = RenderPass.Scene;
-        _activeRenderTexture = default;
+        _activeRenderTexture = null;
 
         PopState();
         _batchStateDirty = true;
@@ -271,7 +271,7 @@ public static unsafe partial class Graphics
         using (s_markerExecuteCommands.Begin())
             ExecuteCommands();
 
-        if (_internalRT.IsValid)
+        if (_internalRT != null)
             BlitInternalRT();
 
         AfterEndFrame?.Invoke();
@@ -284,7 +284,9 @@ public static unsafe partial class Graphics
     private static void BlitInternalRT()
     {
         var savedRT = _internalRT;
-        _internalRT = default;
+        _internalRT = null;
+        if (savedRT == null) return;
+
         var savedScale = RenderScale;
         RenderScale = 1.0f;
         RenderSize = Application.WindowSize;
@@ -384,7 +386,7 @@ public static unsafe partial class Graphics
             ScissorEnabled = CurrentState.ScissorEnabled,
             Scissor = CurrentState.Scissor,
             Mesh = CurrentState.Mesh.Handle,
-            RenderTextureHandle = _activeRenderTexture.Handle,
+            RenderTextureHandle = _activeRenderTexture?.Handle ?? 0,
             ClearColor = CurrentState.ClearColor
         };
 
@@ -612,7 +614,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
     {
         if (currentRT == 0)
         {
-            if (_internalRT.IsValid)
+            if (_internalRT != null)
             {
                 using (s_markerEndRenderTexturePass.Begin())
                     Driver.EndRenderTexturePass();
@@ -635,7 +637,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         // If no commands, just clear the target and return early
         if (_commands.Length == 0)
         {
-            if (_internalRT.IsValid)
+            if (_internalRT != null)
             {
                 Driver.BeginRenderTexturePass(_internalRT.Handle, ClearColor);
                 Driver.EndRenderTexturePass();
@@ -700,7 +702,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
                 {
                     if (!scenePassStarted)
                     {
-                        if (_internalRT.IsValid)
+                        if (_internalRT != null)
                             Driver.BeginRenderTexturePass(_internalRT.Handle, ClearColor);
                         else
                             Driver.BeginScenePass(ClearColor);
@@ -708,7 +710,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
                     }
                     else
                     {
-                        if (_internalRT.IsValid)
+                        if (_internalRT != null)
                             Driver.ResumeRenderTexturePass(_internalRT.Handle);
                         else
                             Driver.ResumeScenePass();

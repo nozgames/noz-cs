@@ -73,7 +73,7 @@ public static unsafe partial class ElementTree
                 var totalItems = d.VirtualCount > 0 ? d.VirtualCount : e.ChildCount;
                 if (axis == 0)
                 {
-                    if (d.ItemWidth <= 0) return 0;
+                    if (d.ItemWidth <= 0 || d.Columns <= 0) return 0;
                     var usedCols = Math.Min(cols, Math.Max(1, totalItems));
                     return usedCols * d.ItemWidth + Math.Max(0, usedCols - 1) * d.Spacing;
                 }
@@ -304,7 +304,7 @@ public static unsafe partial class ElementTree
                 }
                 else
                 {
-                    var cols = Math.Max(1, d.Columns);
+                    var cols = ResolveCollectionColumns(d.Columns, d.ItemWidth, d.Spacing, e.Rect.Width);
                     var totalItems = d.VirtualCount > 0 ? d.VirtualCount : e.ChildCount;
                     var rowCount = (totalItems + cols - 1) / cols;
                     size = rowCount * d.ItemHeight + Math.Max(0, rowCount - 1) * d.Spacing;
@@ -412,10 +412,18 @@ public static unsafe partial class ElementTree
             ApplyScrollOffset(ref e, state.Offset);
     }
 
+    internal static int ResolveCollectionColumns(int columns, float itemWidth, float spacing, float containerWidth)
+    {
+        if (itemWidth <= 0 || containerWidth <= 0)
+            return Math.Max(1, columns);
+        var maxFit = Math.Max(1, (int)((containerWidth + spacing) / (itemWidth + spacing)));
+        return columns <= 0 ? maxFit : Math.Min(columns, maxFit);
+    }
+
     private static void LayoutCollectionAxis(ref Element e, int axis)
     {
         ref var d = ref e.Data.Collection;
-        var columns = Math.Max(1, d.Columns);
+        var columns = ResolveCollectionColumns(d.Columns, d.ItemWidth, d.Spacing, e.Rect.Width);
         var itemWidth = d.ItemWidth > 0 ? d.ItemWidth
             : (e.Rect.Width - Math.Max(0, columns - 1) * d.Spacing) / columns;
 

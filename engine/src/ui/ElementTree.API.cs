@@ -339,6 +339,37 @@ public static unsafe partial class ElementTree
         d.Width = image.ImageWidth;
         d.Height = image.ImageHeight;
         d.Asset = AddObject(image);
+        d.UV = new Rect(0, 0, 1, 1);
+        EndElement(ElementType.Image);
+        return e.Index;
+    }
+
+    public static int Image(
+        ITexture image,
+        Rect rect,
+        Size2 size = default,
+        ImageStretch stretch = ImageStretch.Uniform,
+        Color color = default,
+        float scale = 1.0f,
+        Align2 align = default,
+        Color overlayColor = default)
+    {
+        ref var e = ref BeginElement(ElementType.Image);
+        ref var d = ref e.Data.Image;
+        d.Size = size;
+        d.Stretch = stretch;
+        d.Align = align;
+        d.Scale = scale;
+        d.Color = color.IsTransparent ? Color.White : color;
+        d.OverlayColor = overlayColor;
+        d.Width = image.ImageWidth;
+        d.Height = image.ImageHeight;
+        d.UV = new Rect(
+            rect.X / image.ImageWidth,
+            rect.Y / image.ImageHeight,
+            (rect.X + rect.Width) / image.ImageWidth,
+            (rect.Y + rect.Height) / image.ImageHeight);
+        d.Asset = AddObject(image);
         EndElement(ElementType.Image);
         return e.Index;
     }

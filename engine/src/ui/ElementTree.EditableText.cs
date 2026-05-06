@@ -723,7 +723,7 @@ public static unsafe partial class ElementTree
                 var x1 = MeasureTextWidth(text[..selEnd], font, fontSize);
                 var selY = e.Rect.Y + (e.Rect.Height - lineHeight) * 0.5f;
                 var selRect = new Rect(e.Rect.X + x0, selY, x1 - x0, lineHeight);
-                DrawTexturedRect(selRect, t, null, ApplyOpacity(d.SelectionColor));
+                DrawTexturedRect(selRect, t, null, new Rect(0,0,1,1), ApplyOpacity(d.SelectionColor));
             }
         }
 
@@ -778,7 +778,7 @@ public static unsafe partial class ElementTree
             }
 
             var cursorRect = new Rect(e.Rect.X + cursorX, e.Rect.Y + cursorY, 1.5f, lineHeight);
-            DrawTexturedRect(cursorRect, t, null, ApplyOpacity(d.CursorColor));
+            DrawTexturedRect(cursorRect, t, null, new Rect(0,0,1,1), ApplyOpacity(d.CursorColor));
         }
     }
 
@@ -818,7 +818,7 @@ public static unsafe partial class ElementTree
             var y = i * lineHeight + leadingOffset;
 
             var selRect = new Rect(e.Rect.X + x0, e.Rect.Y + y, x1 - x0, lineHeight);
-            DrawTexturedRect(selRect, e.Transform, null, ApplyOpacity(d.SelectionColor));
+            DrawTexturedRect(selRect, e.Transform, null, new Rect(0,0,1,1), ApplyOpacity(d.SelectionColor));
         }
     }
 
