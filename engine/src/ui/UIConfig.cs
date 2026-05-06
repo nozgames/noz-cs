@@ -7,7 +7,8 @@ namespace NoZ;
 public enum UIScaleMode
 {
     ConstantPixelSize,
-    ScaleWithScreenSize
+    ScaleWithScreenSize,
+    ConstantAspectRatio,
 }
 
 public enum ScreenMatchMode

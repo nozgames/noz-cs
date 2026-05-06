@@ -64,6 +64,9 @@ public static partial class UI
                     (int)(screenSize.Y / displayScale / UserScale)
                 );
 
+            case UIScaleMode.ConstantAspectRatio:
+                return ReferenceResolution ?? Config.ReferenceResolution;
+
             case UIScaleMode.ScaleWithScreenSize:
             default:
                 var refRes = ReferenceResolution ?? Config.ReferenceResolution;
@@ -239,36 +242,56 @@ public static partial class UI
         var sw = screenSize.X;
         var sh = screenSize.Y;
 
-        if (rw > 0 && rh > 0)
-        {
-            var aspectRef = rw / rh;
-            var aspectScreen = sw / sh;
-
-            if (aspectScreen >= aspectRef)
-            {
-                _size.Y = rh;
-                _size.X = rh * aspectScreen;
-            }
-            else
-            {
-                _size.X = rw;
-                _size.Y = rw / aspectScreen;
-            }
-        }
-        else if (rw > 0)
+        var mode = ScaleMode ?? Config.ScaleMode;
+        if (mode == UIScaleMode.ConstantAspectRatio && rw > 0 && rh > 0)
         {
             _size.X = rw;
-            _size.Y = rw * (sh / sw);
-        }
-        else if (rh > 0)
-        {
             _size.Y = rh;
-            _size.X = rh * (sw / sh);
+
+            var aspectRef = rw / rh;
+            var aspectScreen = sw / sh;
+            float vpW, vpH;
+            if (aspectScreen >= aspectRef) { vpH = sh; vpW = sh * aspectRef; }
+            else                           { vpW = sw; vpH = sw / aspectRef; }
+            var vpX = (sw - vpW) * 0.5f;
+            var vpY = (sh - vpH) * 0.5f;
+            Camera!.Viewport = new Rect(vpX, vpY, vpW, vpH);
         }
         else
         {
-            _size.X = sw;
-            _size.Y = sh;
+            Camera!.Viewport = default;
+
+            if (rw > 0 && rh > 0)
+            {
+                var aspectRef = rw / rh;
+                var aspectScreen = sw / sh;
+
+                if (aspectScreen >= aspectRef)
+                {
+                    _size.Y = rh;
+                    _size.X = rh * aspectScreen;
+                }
+                else
+                {
+                    _size.X = rw;
+                    _size.Y = rw / aspectScreen;
+                }
+            }
+            else if (rw > 0)
+            {
+                _size.X = rw;
+                _size.Y = rw * (sh / sw);
+            }
+            else if (rh > 0)
+            {
+                _size.Y = rh;
+                _size.X = rh * (sw / sh);
+            }
+            else
+            {
+                _size.X = sw;
+                _size.Y = sh;
+            }
         }
 
         Camera!.SetExtents(new Rect(0, 0, _size.X, _size.Y));
