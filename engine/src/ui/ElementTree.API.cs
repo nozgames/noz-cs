@@ -346,7 +346,7 @@ public static unsafe partial class ElementTree
 
     public static int Image(
         ITexture image,
-        Rect rect,
+        Rect sourceRect,
         Size2 size = default,
         ImageStretch stretch = ImageStretch.Uniform,
         Color color = default,
@@ -365,10 +365,10 @@ public static unsafe partial class ElementTree
         d.Width = image.ImageWidth;
         d.Height = image.ImageHeight;
         d.UV = new Rect(
-            rect.X / image.ImageWidth,
-            rect.Y / image.ImageHeight,
-            (rect.X + rect.Width) / image.ImageWidth,
-            (rect.Y + rect.Height) / image.ImageHeight);
+            sourceRect.X / image.ImageWidth,
+            sourceRect.Y / image.ImageHeight,
+            (sourceRect.X + sourceRect.Width) / image.ImageWidth,
+            (sourceRect.Y + sourceRect.Height) / image.ImageHeight);
         d.Asset = AddObject(image);
         EndElement(ElementType.Image);
         return e.Index;

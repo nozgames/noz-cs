@@ -506,6 +506,13 @@ public static partial class UI
         ElementTree.Image(image, resolved.Size, resolved.Stretch, resolved.Color, resolved.Scale, resolved.Align, resolved.OverlayColor);
     }
 
+    public static void Image(ITexture? image, Rect sourceRect, in ImageStyle style)
+    {
+        if (image == null) return;
+        var resolved = style.Resolve != null ? style.Resolve(style, ElementTree.GetWidgetFlags()) : style;
+        ElementTree.Image(image, sourceRect, resolved.Size, resolved.Stretch, resolved.Color, resolved.Scale, resolved.Align, resolved.OverlayColor);
+    }
+
     public static void Image(Sprite? sprite) => Image((IImage?)sprite);
     public static void Image(Sprite? sprite, in ImageStyle style) => Image((IImage?)sprite, in style);
     public static void Image(Texture texture) => Image((IImage)texture);
