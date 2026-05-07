@@ -266,19 +266,19 @@ internal static partial class ColorPicker
                         }
                     }
 
-                    if (inColorMode)
+                    if (UI.Button(ElementId.PaletteToggle, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon, isSelected: inColorMode && _paletteView))
                     {
-                        if (UI.Button(ElementId.PaletteToggle, EditorAssets.Sprites.IconPalette, EditorStyle.Button.ToggleIcon, isSelected: _paletteView))
-                        {
-                            _paletteView = true;
-                            UI.ClosePopupMenu();
-                        }
+                        _paletteMode = ColorMode.Color;
+                        _paletteView = true;
+                        if (_alpha == 0)
+                            _alpha = _savedAlpha > 0 ? _savedAlpha : 1;
+                        UI.ClosePopupMenu();
+                    }
 
-                        if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
-                        {
-                            _eyeDropperActive = !_eyeDropperActive;
-                            _eyeDropperMouseWasDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
-                        }
+                    if (UI.Button(ElementId.EyeDropper, EditorAssets.Sprites.CursorDropper, EditorStyle.Button.ToggleIcon, isSelected: _eyeDropperActive))
+                    {
+                        _eyeDropperActive = !_eyeDropperActive;
+                        _eyeDropperMouseWasDown = Input.IsButtonDownRaw(InputCode.MouseLeft);
                     }
 
                     if (_showClose)
