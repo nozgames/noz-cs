@@ -276,10 +276,20 @@ public static partial class Graphics
     public static void DrawText(in ReadOnlySpan<char> text, Font font, float fontSize, int order = 0) =>
         TextRender.Draw(text, font, fontSize, order);
 
+    public static void DrawText(in ReadOnlySpan<char> text, Font font, float fontSize, Color outlineColor, float outlineWidth, float outlineSoftness, int order = 0)
+    {
+        TextRender.SetOutline(outlineColor, outlineWidth, outlineSoftness);
+        TextRender.Draw(text, font, fontSize, order);
+        TextRender.ClearOutline();
+    }        
+
     public static void DrawText(in ReadOnlySpan<char> text, float fontSize, int order = 0) =>
         TextRender.Draw(text, UI.DefaultFont, fontSize, order);
 
-    public static void DrawText(in ReadOnlySpan<char> text, Font font, float fontSize, Rect rect, TextOverflow overflow, int order = 0)
+    public static void DrawText(in ReadOnlySpan<char> text, Font font, float fontSize, Rect rect, TextOverflow overflow, int order = 0) =>
+        DrawText(text, font, fontSize, rect, overflow, Color.Transparent, 0, 0, order);
+
+    public static void DrawText(in ReadOnlySpan<char> text, Font font, float fontSize, Rect rect, TextOverflow overflow, Color outlineColor, float outlineWidth, float outlineSoftness, int order = 0)
     {
         switch (overflow)
         {
