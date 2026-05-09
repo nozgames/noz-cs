@@ -175,11 +175,8 @@ internal partial class VfxEditor
 
             using (Inspector.BeginProperty("WorldSpace"))
             {
-                if (UI.Toggle(FieldId.EmitterWorldSpace, worldSpace, EditorStyle.Inspector.Toggle))
-                {
-                    worldSpace = !worldSpace;
-                    changed = true;
-                }
+                worldSpace = UI.Toggle(FieldId.EmitterWorldSpace, worldSpace, EditorStyle.Inspector.Toggle);
+                changed = changed || UI.WasChanged();
             }
 
             // Particle dropdown
