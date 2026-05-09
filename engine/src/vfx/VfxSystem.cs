@@ -49,6 +49,8 @@ public static class VfxSystem
         public bool WorldSpace;
         public bool AlignToDirection;
         public float SpawnAngle;
+        public VfxFrameMode FrameMode;
+        public int FixedFrame;
     }
 
     private struct Emitter
@@ -343,7 +345,9 @@ public static class VfxSystem
                 Graphics.SetOverlayColor(instance.OverlayColor);
                 Graphics.SetSortGroup((int)instance.Depth);
                 Graphics.SetTransform(particleTransform);
-                var frame = Math.Min((int)(t * pdef.Sprite.FrameCount), pdef.Sprite.FrameCount - 1);
+                var frame = p.FrameMode == VfxFrameMode.Random
+                    ? Math.Min(p.FixedFrame, pdef.Sprite.FrameCount - 1)
+                    : Math.Min((int)(t * pdef.Sprite.FrameCount), pdef.Sprite.FrameCount - 1);
                 Graphics.Draw(pdef.Sprite, pdef.Sort, frame: frame);
             }
         }
@@ -514,7 +518,7 @@ public static class VfxSystem
         p.ColorCurve = pdef.Color.Type;
 
         p.Lifetime = GetRandom(pdef.Duration);
-        p.Elapsed = 0f;
+        p.Elapsed = -Time.DeltaTime;
 
         p.Gravity = GetRandom(pdef.Gravity);
         p.Drag = GetRandom(pdef.Drag);
@@ -524,6 +528,11 @@ public static class VfxSystem
         p.RotationSpeedEnd = MathEx.Radians(GetRandom(pdef.RotationSpeed.End));
         p.RotationSpeedCurve = pdef.RotationSpeed.Type;
         p.AlignToDirection = pdef.AlignToDirection;
+
+        p.FrameMode = pdef.FrameMode;
+        p.FixedFrame = (pdef.FrameMode == VfxFrameMode.Random && pdef.Sprite != null && pdef.Sprite.FrameCount > 0)
+            ? Random.Shared.Next(pdef.Sprite.FrameCount)
+            : 0;
 
         p.EmitterIndex = (ushort)emitterIndex;
 
@@ -652,8 +661,6 @@ public static class VfxSystem
         emitter.InvDuration = emitter.Duration > 0f ? 1f / emitter.Duration : 0f;
     }
 
-    // --- Curve evaluation ---
-
     internal static float EvaluateCurve(VfxCurveType curve, float t)
     {
         t = Math.Clamp(t, 0f, 1f);
@@ -679,18 +686,12 @@ public static class VfxSystem
         return EvaluateCurve(curve, t);
     }
 
-    // Evaluates a cubic bezier curve at normalized time x.
-    // 4 Y control points at fixed X positions: P0=(0, 0), P1=(0.33, y1), P2=(0.66, y2), P3=(1, y3).
-    // y0 is implicitly 0. This allows bell curves (y3=0), ramps, and arbitrary shapes.
-    // Syntax: bezier(y1, y2, y3) — 3 values, or bezier(y0, y1, y2, y3) — 4 values.
     private static float EvaluateCubicBezier(float x, float y0, float y1, float y2, float y3)
     {
         x = Math.Clamp(x, 0f, 1f);
         var omt = 1f - x;
         return omt * omt * omt * y0 + 3f * omt * omt * x * y1 + 3f * omt * x * x * y2 + x * x * x * y3;
     }
-
-    // --- Random helpers ---
 
     private static float GetRandom(VfxRange range)
     {

@@ -126,6 +126,12 @@ public enum VfxSpawnShape : byte
     Box = 2,
 }
 
+public enum VfxFrameMode : byte
+{
+    Time = 0,
+    Random = 1,
+}
+
 public struct VfxSpawnCircle
 {
     public float Radius;
@@ -162,6 +168,7 @@ public struct VfxParticleDef
     public VfxRange Rotation;
     public VfxFloatCurve RotationSpeed;
     public bool AlignToDirection;
+    public VfxFrameMode FrameMode;
     public Sprite? Sprite;
     public ushort Sort;
 }
@@ -181,7 +188,7 @@ public struct VfxEmitterDef
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 10;
+    internal const ushort Version = 11;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -229,6 +236,7 @@ public class Vfx : Asset
             p.Rotation = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.RotationSpeed = ReadFloatCurve(reader);
             p.AlignToDirection = reader.ReadBoolean();
+            p.FrameMode = (VfxFrameMode)reader.ReadByte();
 
             var spriteNameLen = reader.ReadInt32();
             if (spriteNameLen > 0)

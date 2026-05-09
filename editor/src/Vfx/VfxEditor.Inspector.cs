@@ -40,6 +40,7 @@ internal partial class VfxEditor
         public static partial WidgetId ParticleRotation { get; }
         public static partial WidgetId ParticleRotationSpeed { get; }
         public static partial WidgetId ParticleAlignToDirection { get; }
+        public static partial WidgetId ParticleFrameMode { get; }
 
         // Addable section buttons
         public static partial WidgetId AddSize { get; }
@@ -345,6 +346,15 @@ internal partial class VfxEditor
 
     // --- Particle Inspector ---
 
+    private static readonly (string Name, VfxFrameMode Mode)[] FrameModeOptions =
+    [
+        ("Time", VfxFrameMode.Time),
+        ("Random", VfxFrameMode.Random),
+    ];
+
+    private static bool _frameModeChanged;
+    private static VfxFrameMode _frameModeNewValue;
+
     private void ParticleInspectorUI(VfxDocParticle particle)
     {
         using (Inspector.BeginSection("PARTICLE"))
@@ -367,6 +377,32 @@ internal partial class VfxEditor
                         particle.SpriteRef = newRef;
                         Document.ApplyChanges();
                     }
+                }
+
+                using (Inspector.BeginProperty("Frame"))
+                {
+                    if (_frameModeChanged)
+                    {
+                        _frameModeChanged = false;
+                        Undo.Record(Document);
+                        particle.Def.FrameMode = _frameModeNewValue;
+                        Document.ApplyChanges();
+                    }
+
+                    UI.DropDown(FieldId.ParticleFrameMode, () =>
+                    {
+                        var items = new PopupMenuItem[FrameModeOptions.Length];
+                        for (var i = 0; i < FrameModeOptions.Length; i++)
+                        {
+                            var opt = FrameModeOptions[i];
+                            items[i] = PopupMenuItem.Item(opt.Name, () =>
+                            {
+                                _frameModeChanged = true;
+                                _frameModeNewValue = opt.Mode;
+                            });
+                        }
+                        return items;
+                    }, text: particle.Def.FrameMode.ToString());
                 }
 
                 using (Inspector.BeginProperty("Sort"))
@@ -475,9 +511,10 @@ internal partial class VfxEditor
 
             using (Inspector.BeginProperty("Align to Direction"))
             {
-                if (UI.Toggle(FieldId.ParticleAlignToDirection, particle.Def.AlignToDirection, EditorStyle.Inspector.Toggle))
+                var alignToDirection = UI.Toggle(FieldId.ParticleAlignToDirection, particle.Def.AlignToDirection, EditorStyle.Inspector.Toggle);
+                if (alignToDirection != particle.Def.AlignToDirection)
                 {
-                    particle.Def.AlignToDirection = !particle.Def.AlignToDirection;
+                    particle.Def.AlignToDirection = alignToDirection;
                     Document.ApplyChanges();
                 }
             }
