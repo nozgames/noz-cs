@@ -518,7 +518,7 @@ public static class VfxSystem
         p.ColorCurve = pdef.Color.Type;
 
         p.Lifetime = GetRandom(pdef.Duration);
-        p.Elapsed = -Time.DeltaTime;
+        p.Elapsed = 0;
 
         p.Gravity = GetRandom(pdef.Gravity);
         p.Drag = GetRandom(pdef.Drag);
