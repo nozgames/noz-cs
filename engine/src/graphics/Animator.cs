@@ -26,6 +26,7 @@ public class Animator
     public Animation? CurrentAnimation => _animation;
     public int FrameIndex => (int)(Time * _animation!.FrameRate);
     public float Time => _time;
+    public float Speed => _speed;
     public float NormalizedTime => _animation != null && _animation.Duration > 0 ? _time / _animation.Duration : 0f;
     public bool IsPlaying => _animation != null && (_animation.IsLooping || _time < _animation.Duration);
     public bool IsBlending => _blendFromAnimation != null && _blendElapsed < _blendDuration;
