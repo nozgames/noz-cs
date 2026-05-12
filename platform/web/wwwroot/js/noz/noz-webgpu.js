@@ -490,7 +490,7 @@ export function createRenderPipeline(descriptor) {
 
     // Build target - only include blend if it's defined (null/undefined means no blending)
     const target = {
-        format: descriptor.targetFormat || presentFormat,
+        format: formatMap[descriptor.targetFormat] || descriptor.targetFormat || presentFormat,
         writeMask: GPUColorWrite.ALL
     };
     if (blend) {

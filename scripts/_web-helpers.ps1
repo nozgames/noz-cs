@@ -1,8 +1,8 @@
-# Internal helpers for web build scripts — dot-sourced, not called directly.
+﻿# Internal helpers for web build scripts - dot-sourced, not called directly.
 
 function Get-WebProject {
     $proj = Get-Item "platform/web/*.csproj" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $proj) { throw "No .csproj found in platform/web/ — run from your project root" }
+    if (-not $proj) { throw "No .csproj found in platform/web/ - run from your project root" }
     return $proj
 }
 

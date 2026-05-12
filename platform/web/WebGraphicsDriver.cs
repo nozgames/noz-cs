@@ -95,6 +95,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public bool ScissorEnabled;
         public RectInt Scissor;
         public int CurrentPassSampleCount;
+        public string CurrentPassFormat;
         public int CurrentPipelineId;
         public int CurrentBindGroupId;
         public int LastBoundJsMeshId;
@@ -115,6 +116,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             ScissorEnabled = false;
             Scissor = default;
             CurrentPassSampleCount = 0;
+            CurrentPassFormat = "";
             CurrentPipelineId = 0;
             CurrentBindGroupId = 0;
             LastBoundJsMeshId = 0;
@@ -176,16 +178,18 @@ public class WebGraphicsDriver : IGraphicsDriver
         public BlendMode BlendMode;
         public int VertexStride;
         public int MsaaSamples;
+        public string ColorFormat;
 
         public bool Equals(PsoKey other) =>
             ShaderHandle == other.ShaderHandle &&
             BlendMode == other.BlendMode &&
             VertexStride == other.VertexStride &&
-            MsaaSamples == other.MsaaSamples;
+            MsaaSamples == other.MsaaSamples &&
+            ColorFormat == other.ColorFormat;
 
         public override bool Equals(object? obj) => obj is PsoKey other && Equals(other);
 
-        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples);
+        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat);
     }
 
     public void Init(GraphicsDriverConfig config)
@@ -465,7 +469,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             TextureFormat.R8 => WebGPUTextureFormat.R8,
             TextureFormat.RG8 => WebGPUTextureFormat.RGBA8, // Fallback
             TextureFormat.RGBA32F => WebGPUTextureFormat.RGBA32F,
-            TextureFormat.BGRA8 => WebGPUTextureFormat.BGRA8,
+            TextureFormat.BGRA8 => WebGPUTextureFormat.RGBA8, // bgra8unorm not supported for device textures in browsers
             TextureFormat.RGBA16F => WebGPUTextureFormat.RGBA16F,
             _ => WebGPUTextureFormat.RGBA8
         };
@@ -925,7 +929,8 @@ public class WebGraphicsDriver : IGraphicsDriver
             ShaderHandle = shaderHandle,
             BlendMode = blendMode,
             VertexStride = vertexStride,
-            MsaaSamples = _state.CurrentPassSampleCount
+            MsaaSamples = _state.CurrentPassSampleCount,
+            ColorFormat = _state.CurrentPassFormat
         };
 
         if (shader.PsoCache.TryGetValue(key, out var pipelineId))
@@ -940,7 +945,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             mesh.Descriptor,
             blendMode,
             _state.CurrentPassSampleCount,
-            _surfaceFormat,
+            _state.CurrentPassFormat,
             $"{shader.Name}_{blendMode}_{vertexStride}b_{key.MsaaSamples}x"
         );
 
@@ -1211,6 +1216,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         // Reset all cached state — new render pass encoder needs everything rebound
         _state.Reset();
         _state.CurrentPassSampleCount = 1;
+        _state.CurrentPassFormat = _surfaceFormat;
         _currentGlobalsIndex = -1;
 
         _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
@@ -1237,6 +1243,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         // Reset all cached state — new render pass encoder needs everything rebound
         _state.Reset();
         _state.CurrentPassSampleCount = 1;
+        _state.CurrentPassFormat = _surfaceFormat;
         _currentGlobalsIndex = -1;
 
         _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
@@ -1324,6 +1331,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         // Reset all cached state — new render pass encoder needs everything rebound
         _state.Reset();
         _state.CurrentPassSampleCount = rt.SampleCount;
+        _state.CurrentPassFormat = rt.Format;
         _currentGlobalsIndex = -1;
 
         WebGPUInterop.BeginRenderTexturePass(rt.JsTextureId, clearColor.R, clearColor.G, clearColor.B, clearColor.A);
@@ -1343,6 +1351,7 @@ public class WebGraphicsDriver : IGraphicsDriver
 
         _state.Reset();
         _state.CurrentPassSampleCount = rt.SampleCount;
+        _state.CurrentPassFormat = rt.Format;
         _currentGlobalsIndex = -1;
 
         _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(

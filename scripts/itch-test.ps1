@@ -26,4 +26,4 @@ Write-Host "`nServing at: http://localhost:$Port/html/test/" -ForegroundColor Cy
 Write-Host "Simulates itch.io hosting at https://html.itch.zone/html/<id>/" -ForegroundColor Gray
 Write-Host "Press Ctrl+C to stop`n" -ForegroundColor Yellow
 
-python -m http.server $Port --directory $TempDir 2>$null
+uv run python -m http.server $Port --directory $TempDir 2>$null
