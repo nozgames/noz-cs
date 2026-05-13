@@ -347,17 +347,15 @@ public class VfxDocument : Document
 
             var dirCount = BuildDirectionSamples(ref e, directions);
 
-            gravities[0] = new Vector2(p.Gravity.Min.X, p.Gravity.Min.Y);
-            gravities[1] = new Vector2(p.Gravity.Min.X, p.Gravity.Max.Y);
-            gravities[2] = new Vector2(p.Gravity.Max.X, p.Gravity.Min.Y);
-            gravities[3] = new Vector2(p.Gravity.Max.X, p.Gravity.Max.Y);
+            gravities[0] = VfxSystem.GravityDirection * p.Gravity.Min;
+            gravities[1] = VfxSystem.GravityDirection * p.Gravity.Max;
 
             const float dt = 1f / 60f;
             var steps = (int)MathF.Ceiling(lifetime / dt);
 
             for (var d = 0; d < dirCount; d++)
             {
-                for (var g = 0; g < 4; g++)
+                for (var g = 0; g < 2; g++)
                 {
                     SimulateTrajectory(
                         directions[d], speedStart, speedEnd, speedCurve, speedBezier,
@@ -739,7 +737,7 @@ public class VfxDocument : Document
             else if (tk.ExpectIdentifier("speed")) { if (tk.ExpectLine(out var v)) p.Speed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
             else if (tk.ExpectIdentifier("color")) { if (tk.ExpectLine(out var v)) p.Color = ParseColorCurve(v, VfxColorCurve.White); }
             else if (tk.ExpectIdentifier("opacity")) { if (tk.ExpectLine(out var v)) p.Opacity = ParseFloatCurve(v, VfxFloatCurve.One); }
-            else if (tk.ExpectIdentifier("gravity")) { if (tk.ExpectLine(out var v)) p.Gravity = ParseVec2(v, VfxVec2Range.Zero); }
+            else if (tk.ExpectIdentifier("gravity")) { if (tk.ExpectLine(out var v)) p.Gravity = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("drag")) { if (tk.ExpectLine(out var v)) p.Drag = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("rotation")) { if (tk.ExpectLine(out var v)) p.Rotation = ParseFloat(v, VfxRange.Zero); }
             else if (tk.ExpectIdentifier("rotationSpeed")) { if (tk.ExpectLine(out var v)) p.RotationSpeed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
@@ -820,8 +818,8 @@ public class VfxDocument : Document
                 sw.WriteLine($"  color {FormatColorCurve(p.Def.Color)}");
             if (p.Def.Opacity != VfxFloatCurve.One)
                 sw.WriteLine($"  opacity {FormatFloatCurve(p.Def.Opacity)}");
-            if (p.Def.Gravity != VfxVec2Range.Zero)
-                sw.WriteLine($"  gravity {FormatVec2Range(p.Def.Gravity)}");
+            if (p.Def.Gravity != VfxRange.Zero)
+                sw.WriteLine($"  gravity {FormatRange(p.Def.Gravity)}");
             if (p.Def.Drag != VfxRange.Zero)
                 sw.WriteLine($"  drag {FormatRange(p.Def.Drag)}");
             if (p.Def.Rotation != VfxRange.Zero)
@@ -909,10 +907,8 @@ public class VfxDocument : Document
             WriteFloatCurve(writer, p.Speed);
             WriteColorCurve(writer, p.Color);
             WriteFloatCurve(writer, p.Opacity);
-            writer.Write(p.Gravity.Min.X);
-            writer.Write(p.Gravity.Min.Y);
-            writer.Write(p.Gravity.Max.X);
-            writer.Write(p.Gravity.Max.Y);
+            writer.Write(p.Gravity.Min);
+            writer.Write(p.Gravity.Max);
             writer.Write(p.Drag.Min);
             writer.Write(p.Drag.Max);
             writer.Write(p.Rotation.Min);

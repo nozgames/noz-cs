@@ -158,7 +158,7 @@ public struct VfxSpawnDef
 
 public struct VfxParticleDef
 {
-    public VfxVec2Range Gravity;
+    public VfxRange Gravity;
     public VfxRange Duration;
     public VfxRange Drag;
     public VfxFloatCurve Size;
@@ -188,7 +188,7 @@ public struct VfxEmitterDef
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 11;
+    internal const ushort Version = 12;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -229,9 +229,7 @@ public class Vfx : Asset
             p.Speed = ReadFloatCurve(reader);
             p.Color = ReadColorCurve(reader);
             p.Opacity = ReadFloatCurve(reader);
-            p.Gravity = new VfxVec2Range(
-                new Vector2(reader.ReadSingle(), reader.ReadSingle()),
-                new Vector2(reader.ReadSingle(), reader.ReadSingle()));
+            p.Gravity = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.Drag = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.Rotation = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.RotationSpeed = ReadFloatCurve(reader);

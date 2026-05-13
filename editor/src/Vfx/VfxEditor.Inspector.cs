@@ -121,7 +121,7 @@ internal partial class VfxEditor
 
             case VfxSelectionType.Emitter:
                 if (selectedIndex >= 0 && selectedIndex < Document.Emitters.Count)
-                    EmitterInspectorUI(Document.Emitters[selectedIndex]);
+                    EmitterInspectorUI(Document.Emitters[selectedIndex], selectedIndex);
                 break;
 
             case VfxSelectionType.Particle:
@@ -157,7 +157,7 @@ internal partial class VfxEditor
         }
     }
 
-    private void EmitterInspectorUI(VfxDocEmitter emitter)
+    private void EmitterInspectorUI(VfxDocEmitter emitter, int index)
     {
         using (Inspector.BeginSection("EMITTER"))
         {
@@ -213,7 +213,7 @@ internal partial class VfxEditor
         using (Inspector.BeginSection("SPAWN"))
         {
             if (!Inspector.IsSectionCollapsed)
-                SpawnDefFields(emitter);
+                SpawnDefFields(emitter, index);
         }
 
         using (Inspector.BeginSection("DIRECTION"))
@@ -225,11 +225,11 @@ internal partial class VfxEditor
                 var radial = emitter.Def.Radial;
 
                 using (Inspector.BeginProperty("Direction"))
-                    direction = FloatInput(FieldId.EmitterDirection, direction);
+                    direction = FloatInput(FieldId.EmitterDirection + index * 4, direction);
                 using (Inspector.BeginProperty("Spread"))
-                    spread = FloatInput(FieldId.EmitterSpread, spread);
+                    spread = FloatInput(FieldId.EmitterSpread + index * 4, spread);
                 using (Inspector.BeginProperty("Radial"))
-                    radial = FloatInput(FieldId.EmitterRadial, radial);
+                    radial = FloatInput(FieldId.EmitterRadial + index * 4, radial);
                 if (direction != emitter.Def.Direction || spread != emitter.Def.Spread || radial != emitter.Def.Radial)
                 {
                     emitter.Def.Direction = direction;
@@ -254,7 +254,7 @@ internal partial class VfxEditor
     private static VfxSpawnShape _spawnShapeNewValue;
     private static WidgetId _spawnShapeChangedId;
 
-    private void SpawnDefFields(VfxDocEmitter emitter)
+    private void SpawnDefFields(VfxDocEmitter emitter, int index)
     {
         var spawn = emitter.Def.Spawn;
         var changed = false;
@@ -295,8 +295,8 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty("Offset"))
         using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
         {
-            spawn.Offset.X = FloatInput(FieldId.EmitterSpawnOffset, spawn.Offset.X);
-            spawn.Offset.Y = FloatInput(FieldId.EmitterSpawnOffset + 2, spawn.Offset.Y);
+            spawn.Offset.X = FloatInput(FieldId.EmitterSpawnOffset + index * 4, spawn.Offset.X);
+            spawn.Offset.Y = FloatInput(FieldId.EmitterSpawnOffset + 2 + index * 4, spawn.Offset.Y);
         }
 
         // Shape-specific fields
@@ -304,26 +304,26 @@ internal partial class VfxEditor
         {
             case VfxSpawnShape.Circle:
                 using (Inspector.BeginProperty("Radius"))
-                    spawn.Circle.Radius = FloatInput(FieldId.EmitterSpawnRadius, spawn.Circle.Radius);
+                    spawn.Circle.Radius = FloatInput(FieldId.EmitterSpawnRadius + index * 4, spawn.Circle.Radius);
                 using (Inspector.BeginProperty("Inner Radius"))
-                    spawn.Circle.InnerRadius = FloatInput(FieldId.EmitterSpawnInnerRadius, spawn.Circle.InnerRadius);
+                    spawn.Circle.InnerRadius = FloatInput(FieldId.EmitterSpawnInnerRadius + index * 4, spawn.Circle.InnerRadius);
                 break;
 
             case VfxSpawnShape.Box:
                 using (Inspector.BeginProperty("Size"))
                 using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
                 {
-                    spawn.Box.Size.X = FloatInput(FieldId.EmitterSpawnSize, spawn.Box.Size.X);
-                    spawn.Box.Size.Y = FloatInput(FieldId.EmitterSpawnSize + 2, spawn.Box.Size.Y);
+                    spawn.Box.Size.X = FloatInput(FieldId.EmitterSpawnSize + index * 4, spawn.Box.Size.X);
+                    spawn.Box.Size.Y = FloatInput(FieldId.EmitterSpawnSize + 2 + index * 4, spawn.Box.Size.Y);
                 }
                 using (Inspector.BeginProperty("Inner Size"))
                 using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
                 {
-                    spawn.Box.InnerSize.X = FloatInput(FieldId.EmitterSpawnInnerSize, spawn.Box.InnerSize.X);
-                    spawn.Box.InnerSize.Y = FloatInput(FieldId.EmitterSpawnInnerSize + 2, spawn.Box.InnerSize.Y);
+                    spawn.Box.InnerSize.X = FloatInput(FieldId.EmitterSpawnInnerSize + index * 4, spawn.Box.InnerSize.X);
+                    spawn.Box.InnerSize.Y = FloatInput(FieldId.EmitterSpawnInnerSize + 2 + index * 4, spawn.Box.InnerSize.Y);
                 }
                 using (Inspector.BeginProperty("Rotation"))
-                    spawn.Box.Rotation = FloatInput(FieldId.EmitterSpawnRotation, spawn.Box.Rotation);
+                    spawn.Box.Rotation = FloatInput(FieldId.EmitterSpawnRotation + index * 4, spawn.Box.Rotation);
                 break;
         }
 
@@ -469,12 +469,12 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("GRAVITY", particle.Def.Gravity != VfxVec2Range.Zero, FieldId.SectionGravity, FieldId.AddGravity, FieldId.RemoveGravity,
-            () => { particle.Def.Gravity = new VfxVec2Range(new(0, 10), new(0, 10)); },
-            () => { particle.Def.Gravity = VfxVec2Range.Zero; }))
+        if (AddableSection("GRAVITY", particle.Def.Gravity != VfxRange.Zero, FieldId.SectionGravity, FieldId.AddGravity, FieldId.RemoveGravity,
+            () => { particle.Def.Gravity = new VfxRange(10, 10); },
+            () => { particle.Def.Gravity = VfxRange.Zero; }))
         {
             var gravity = particle.Def.Gravity;
-            if (Vec2RangeField(FieldId.ParticleGravity, "Gravity", ref gravity))
+            if (RangeField(FieldId.ParticleGravity, "Gravity", ref gravity))
             {
                 particle.Def.Gravity = gravity;
                 Document.ApplyChanges();

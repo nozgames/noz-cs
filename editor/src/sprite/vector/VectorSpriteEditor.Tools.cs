@@ -345,6 +345,26 @@ public partial class VectorSpriteEditor
 
     private void DuplicateSelected()
     {
+        if (HasLayerSelection)
+        {
+            Undo.Record(Document);
+            for (var i = _selectedLayers.Count - 1; i >= 0; i--)
+            {
+                var layer = _selectedLayers[i];
+                var parent = layer.Parent;
+                if (parent == null) continue;
+
+                var insertIndex = parent.Children.IndexOf(layer);
+                var clone = (SpriteGroup)layer.Clone();
+                layer.IsSelected = false;
+                clone.IsSelected = true;
+                parent.Insert(insertIndex, clone);
+            }
+            MarkDirty();
+            RebuildSelectedPaths();
+            return;
+        }
+
         if (_selectedPaths.Count == 0) return;
 
         Undo.Record(Document);
@@ -393,7 +413,7 @@ public partial class VectorSpriteEditor
             Document.Root.ClearSelection();
 
             var nodes = nodeData.PasteAsNodes();
-            var target = ActiveRoot;
+            var target = HasLayerSelection ? (_selectedLayers[0].Parent ?? ActiveRoot) : ActiveRoot;
             for (var i = nodes.Count - 1; i >= 0; i--)
                 target.Insert(0, nodes[i]);
 

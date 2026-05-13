@@ -21,6 +21,8 @@ public static class VfxSystem
     private const int MaxEmitters = 2024;
     private const int MaxInstances = 256;
 
+    public static Vector2 GravityDirection = new Vector2(0f, 1f);
+
     private struct Particle
     {
         public Vector2 Position;
@@ -43,7 +45,7 @@ public static class VfxSystem
         public float Lifetime;
         public float Elapsed;
         public float Rotation;
-        public Vector2 Gravity;
+        public float Gravity;
         public float Drag;
         public ushort EmitterIndex;
         public bool WorldSpace;
@@ -440,7 +442,7 @@ public static class VfxSystem
                 ? Vector2.Normalize(p.Velocity) * currentSpeed
                 : p.Velocity;
 
-            vel += p.Gravity * dt;
+            vel += GravityDirection * p.Gravity * dt;
             vel *= 1f - p.Drag * dt;
 
             p.Position += vel * dt;
