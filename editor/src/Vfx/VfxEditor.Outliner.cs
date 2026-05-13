@@ -241,12 +241,7 @@ internal partial class VfxEditor
         {
             var newName = MakeUniqueName(src.Name, Document.Particles.Select(p => p.Name));
             particleNameMap[src.Name] = newName;
-            Document.Particles.Add(new VfxDocParticle
-            {
-                Name = newName,
-                Def = src.Def,
-                SpriteRef = src.SpriteRef,
-            });
+            Document.Particles.Add(VfxDocParticle.Clone(src, newName));
             Document.ToggleParticle(Document.Particles.Count - 1);
         }
 
@@ -258,12 +253,9 @@ internal partial class VfxEditor
             if (copiedParticleNames.Contains(particleRef))
                 particleRef = particleNameMap.GetValueOrDefault(particleRef, particleRef);
 
-            Document.Emitters.Add(new VfxDocEmitter
-            {
-                Name = MakeUniqueName(src.Name, Document.Emitters.Select(e => e.Name)),
-                Def = src.Def,
-                ParticleRef = particleRef,
-            });
+            Document.Emitters.Add(VfxDocEmitter.Clone(src,
+                newName: MakeUniqueName(src.Name, Document.Emitters.Select(e => e.Name)),
+                newParticleRef: particleRef));
             Document.ToggleEmitter(Document.Emitters.Count - 1);
         }
 
@@ -302,12 +294,7 @@ internal partial class VfxEditor
             if (Document.Particles.Count >= 32) break; // MaxParticles
             var newName = MakeUniqueName(pData.Name, Document.Particles.Select(p => p.Name));
             particleNameMap[pData.Name] = newName;
-            Document.Particles.Add(new VfxDocParticle
-            {
-                Name = newName,
-                Def = pData.Def,
-                SpriteRef = pData.SpriteRef,
-            });
+            Document.Particles.Add(VfxDocParticle.Clone(pData, newName));
             Document.ToggleParticle(Document.Particles.Count - 1);
         }
 
@@ -321,12 +308,9 @@ internal partial class VfxEditor
             else if (Document.FindParticle(particleRef) == null)
                 particleRef = "";
 
-            Document.Emitters.Add(new VfxDocEmitter
-            {
-                Name = MakeUniqueName(eData.Name, Document.Emitters.Select(e => e.Name)),
-                Def = eData.Def,
-                ParticleRef = particleRef,
-            });
+            Document.Emitters.Add(VfxDocEmitter.Clone(eData,
+                newName: MakeUniqueName(eData.Name, Document.Emitters.Select(e => e.Name)),
+                newParticleRef: particleRef));
             Document.ToggleEmitter(Document.Emitters.Count - 1);
         }
 

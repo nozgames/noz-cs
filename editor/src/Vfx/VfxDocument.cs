@@ -8,18 +8,145 @@ namespace NoZ.Editor;
 
 public enum VfxSelectionType { None, Vfx, Emitter, Particle }
 
+public struct VfxDocFloatCurve
+{
+    public VfxRange Start;
+    public VfxRange End;
+    public VfxCurveType EaseInType;
+    public VfxCurveType EaseOutType;
+    public float WindowBegin;
+    public float WindowEnd;
+
+    public static readonly VfxDocFloatCurve Zero = new() { Start = VfxRange.Zero, End = VfxRange.Zero, WindowEnd = 1f };
+    public static readonly VfxDocFloatCurve One = new() { Start = VfxRange.One, End = VfxRange.One, WindowEnd = 1f };
+
+    public VfxFloatCurve Bake()
+    {
+        var c = new VfxFloatCurve { Start = Start, End = End };
+        for (var i = 0; i < VfxCurveLut.Samples; i++)
+        {
+            var t = i / (float)(VfxCurveLut.Samples - 1);
+            c.Lut[i] = VfxDocument.SampleAuthored(EaseInType, EaseOutType, WindowBegin, WindowEnd, t);
+        }
+        return c;
+    }
+
+    public static bool operator ==(VfxDocFloatCurve a, VfxDocFloatCurve b) =>
+        a.Start == b.Start && a.End == b.End
+        && a.EaseInType == b.EaseInType && a.EaseOutType == b.EaseOutType
+        && a.WindowBegin == b.WindowBegin && a.WindowEnd == b.WindowEnd;
+    public static bool operator !=(VfxDocFloatCurve a, VfxDocFloatCurve b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxDocFloatCurve c && this == c;
+    public override int GetHashCode() => HashCode.Combine(Start, End, EaseInType, EaseOutType, WindowBegin, WindowEnd);
+}
+
+public struct VfxDocColorCurve
+{
+    public VfxColorRange Start;
+    public VfxColorRange End;
+    public VfxCurveType EaseInType;
+    public VfxCurveType EaseOutType;
+    public float WindowBegin;
+    public float WindowEnd;
+
+    public static readonly VfxDocColorCurve White = new() { Start = VfxColorRange.White, End = VfxColorRange.White, WindowEnd = 1f };
+
+    public VfxColorCurve Bake()
+    {
+        var c = new VfxColorCurve { Start = Start, End = End };
+        for (var i = 0; i < VfxCurveLut.Samples; i++)
+        {
+            var t = i / (float)(VfxCurveLut.Samples - 1);
+            c.Lut[i] = VfxDocument.SampleAuthored(EaseInType, EaseOutType, WindowBegin, WindowEnd, t);
+        }
+        return c;
+    }
+
+    public static bool operator ==(VfxDocColorCurve a, VfxDocColorCurve b) =>
+        a.Start == b.Start && a.End == b.End
+        && a.EaseInType == b.EaseInType && a.EaseOutType == b.EaseOutType
+        && a.WindowBegin == b.WindowBegin && a.WindowEnd == b.WindowEnd;
+    public static bool operator !=(VfxDocColorCurve a, VfxDocColorCurve b) => !(a == b);
+    public override bool Equals(object? obj) => obj is VfxDocColorCurve c && this == c;
+    public override int GetHashCode() => HashCode.Combine(Start, End, EaseInType, EaseOutType, WindowBegin, WindowEnd);
+}
+
 public class VfxDocParticle
 {
     public string Name = "";
-    public VfxParticleDef Def;
+    public VfxRange Duration;
+    public VfxDocFloatCurve Size;
+    public VfxDocFloatCurve Speed;
+    public VfxDocColorCurve Color;
+    public VfxDocFloatCurve Opacity;
+    public VfxDocFloatCurve Gravity;
+    public VfxRange Rotation;
+    public VfxDocFloatCurve RotationSpeed;
+    public bool AlignToDirection;
+    public VfxFrameMode FrameMode;
+    public ushort Sort;
     public DocumentRef<SpriteDocument> SpriteRef;
+
+    public VfxParticleDef BakeDef() => new()
+    {
+        Gravity = Gravity.Bake(),
+        Duration = Duration,
+        Size = Size.Bake(),
+        Speed = Speed.Bake(),
+        Color = Color.Bake(),
+        Opacity = Opacity.Bake(),
+        Rotation = Rotation,
+        RotationSpeed = RotationSpeed.Bake(),
+        AlignToDirection = AlignToDirection,
+        FrameMode = FrameMode,
+        Sprite = SpriteRef.Value?.Sprite,
+        Sort = Sort,
+    };
+
+    public static VfxDocParticle Clone(VfxDocParticle src, string? newName = null) => new()
+    {
+        Name = newName ?? src.Name,
+        Duration = src.Duration, Size = src.Size, Speed = src.Speed, Color = src.Color,
+        Opacity = src.Opacity, Gravity = src.Gravity, Rotation = src.Rotation,
+        RotationSpeed = src.RotationSpeed, AlignToDirection = src.AlignToDirection,
+        FrameMode = src.FrameMode, Sort = src.Sort,
+        SpriteRef = src.SpriteRef,
+    };
 }
 
 public class VfxDocEmitter
 {
     public string Name = "";
-    public VfxEmitterDef Def;
+    public VfxDocFloatCurve Rate;
+    public VfxIntRange Burst;
+    public VfxRange Duration;
+    public VfxSpawnDef Spawn;
+    public float Direction;
+    public float Spread;
+    public float Radial;
+    public bool WorldSpace;
     public string ParticleRef = "";
+
+    public VfxEmitterDef BakeDef(VfxParticleDef particle) => new()
+    {
+        Rate = Rate.Bake(),
+        Burst = Burst,
+        Duration = Duration,
+        Spawn = Spawn,
+        Direction = Direction,
+        Spread = Spread,
+        Radial = Radial,
+        WorldSpace = WorldSpace,
+        Particle = particle,
+    };
+
+    public static VfxDocEmitter Clone(VfxDocEmitter src, string? newName = null, string? newParticleRef = null) => new()
+    {
+        Name = newName ?? src.Name,
+        Rate = src.Rate, Burst = src.Burst, Duration = src.Duration, Spawn = src.Spawn,
+        Direction = src.Direction, Spread = src.Spread, Radial = src.Radial, WorldSpace = src.WorldSpace,
+        ParticleRef = newParticleRef ?? src.ParticleRef,
+    };
 }
 
 public class VfxDocument : Document
@@ -153,11 +280,8 @@ public class VfxDocument : Document
         var emitter = new VfxDocEmitter
         {
             Name = name,
-            Def = new VfxEmitterDef
-            {
-                Rate = new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(10, 10), End = new VfxRange(10, 10) },
-                Duration = VfxRange.One,
-            },
+            Rate = new VfxDocFloatCurve { Start = new VfxRange(10, 10), End = new VfxRange(10, 10), WindowEnd = 1f },
+            Duration = VfxRange.One,
             ParticleRef = Particles.Count > 0 ? Particles[0].Name : ""
         };
 
@@ -191,10 +315,7 @@ public class VfxDocument : Document
         var particle = new VfxDocParticle
         {
             Name = name,
-            Def = new VfxParticleDef
-            {
-                Duration = new VfxRange(0.5f, 1.0f),
-            }
+            Duration = new VfxRange(0.5f, 1.0f),
         };
 
         Particles.Add(particle);
@@ -275,25 +396,17 @@ public class VfxDocument : Document
 
     private void BuildVfx()
     {
-        // Resolve sprite refs for all particles
+        // Resolve sprite refs so BakeDef can pick them up.
         foreach (var p in Particles)
-        {
             if (p.SpriteRef.HasValue && !p.SpriteRef.IsResolved)
                 p.SpriteRef.Resolve();
-
-            p.Def.Sprite = p.SpriteRef.Value?.Sprite;
-        }
 
         var emitterDefs = new VfxEmitterDef[Emitters.Count];
         for (var i = 0; i < Emitters.Count; i++)
         {
-            emitterDefs[i] = Emitters[i].Def;
-
             var particle = FindParticle(Emitters[i].ParticleRef);
-            if (particle != null)
-            {
-                emitterDefs[i].Particle = particle.Def;
-            }
+            var particleDef = particle != null ? particle.BakeDef() : default;
+            emitterDefs[i] = Emitters[i].BakeDef(particleDef);
         }
 
         _vfx = new Vfx(Name)
@@ -316,7 +429,6 @@ public class VfxDocument : Document
         var maxY = float.MinValue;
 
         Span<Vector2> directions = stackalloc Vector2[16];
-        Span<Vector2> gravities = stackalloc Vector2[4];
 
         for (var i = 0; i < emitterDefs.Length; i++)
         {
@@ -341,27 +453,26 @@ public class VfxDocument : Document
 
             var speedStart = p.Speed.Start.Max;
             var speedEnd = p.Speed.End.Max;
-            var speedCurve = p.Speed.Type;
-            var speedBezier = p.Speed.Bezier;
-            var drag = p.Drag.Min;
 
             var dirCount = BuildDirectionSamples(ref e, directions);
-
-            gravities[0] = VfxSystem.GravityDirection * p.Gravity.Min;
-            gravities[1] = VfxSystem.GravityDirection * p.Gravity.Max;
 
             const float dt = 1f / 60f;
             var steps = (int)MathF.Ceiling(lifetime / dt);
 
+            // Simulate gravity extremes so bounds cover the widest range
+            // (handles signed gravity, e.g. negative for upward drift).
             for (var d = 0; d < dirCount; d++)
             {
-                for (var g = 0; g < 2; g++)
-                {
-                    SimulateTrajectory(
-                        directions[d], speedStart, speedEnd, speedCurve, speedBezier,
-                        gravities[g], drag, lifetime, dt, steps, halfSize,
-                        ref spawnMin, ref spawnMax, ref minX, ref minY, ref maxX, ref maxY);
-                }
+                SimulateTrajectory(
+                    directions[d], speedStart, speedEnd, ref p.Speed.Lut,
+                    p.Gravity.Start.Min, p.Gravity.End.Min, ref p.Gravity.Lut,
+                    lifetime, dt, steps, halfSize,
+                    ref spawnMin, ref spawnMax, ref minX, ref minY, ref maxX, ref maxY);
+                SimulateTrajectory(
+                    directions[d], speedStart, speedEnd, ref p.Speed.Lut,
+                    p.Gravity.Start.Max, p.Gravity.End.Max, ref p.Gravity.Lut,
+                    lifetime, dt, steps, halfSize,
+                    ref spawnMin, ref spawnMax, ref minX, ref minY, ref maxX, ref maxY);
             }
         }
 
@@ -379,31 +490,32 @@ public class VfxDocument : Document
 
     private static void SimulateTrajectory(
         Vector2 dir, float speedStart, float speedEnd,
-        VfxCurveType speedCurve, Vector4 speedBezier,
-        Vector2 gravity, float drag, float lifetime,
+        ref VfxCurveLut speedLut,
+        float gravityStart, float gravityEnd,
+        ref VfxCurveLut gravityLut,
+        float lifetime,
         float dt, int steps, float halfSize,
         ref Vector2 spawnMin, ref Vector2 spawnMax,
         ref float minX, ref float minY, ref float maxX, ref float maxY)
     {
         var pos = Vector2.Zero;
-        var vel = dir * speedStart;
+        var gravityVel = Vector2.Zero;
+        var gravityDir = VfxSystem.GravityDirection;
 
         for (var step = 1; step <= steps; step++)
         {
             var elapsed = step * dt;
             var t = MathF.Min(elapsed / lifetime, 1f);
 
-            var curveT = VfxSystem.EvaluateCurve(speedCurve, t, speedBezier);
-            var currentSpeed = MathEx.Mix(speedStart, speedEnd, curveT);
+            var speedCurveT = VfxSystem.EvaluateCurve(ref speedLut, t);
+            var gravityCurveT = VfxSystem.EvaluateCurve(ref gravityLut, t);
+            var speedNow = MathEx.Mix(speedStart, speedEnd, speedCurveT);
+            var gravityNow = MathEx.Mix(gravityStart, gravityEnd, gravityCurveT);
 
-            var velLen = vel.Length();
-            if (velLen > 0.0001f)
-                vel = Vector2.Normalize(vel) * currentSpeed;
+            gravityVel += gravityDir * gravityNow * dt;
+            var totalVel = dir * speedNow + gravityVel;
 
-            vel += gravity * dt;
-            vel *= MathF.Max(0f, 1f - drag * dt);
-
-            pos += vel * dt;
+            pos += totalVel * dt;
 
             // Track extremes offset by spawn area bounds
             minX = MathF.Min(minX, spawnMin.X + pos.X - halfSize);
@@ -560,13 +672,8 @@ public class VfxDocument : Document
         if (doc is not SpriteDocument) return;
         var changed = false;
         foreach (var p in Particles)
-        {
             if (p.SpriteRef.TryRename(oldName, newName))
-            {
-                p.Def.Sprite = p.SpriteRef.Value?.Sprite;
                 changed = true;
-            }
-        }
         if (changed)
             IncrementVersion();
     }
@@ -671,11 +778,11 @@ public class VfxDocument : Document
 
         Emitters.Clear();
         foreach (var e in src.Emitters)
-            Emitters.Add(new VfxDocEmitter { Name = e.Name, Def = e.Def, ParticleRef = e.ParticleRef });
+            Emitters.Add(VfxDocEmitter.Clone(e));
 
         Particles.Clear();
         foreach (var p in src.Particles)
-            Particles.Add(new VfxDocParticle { Name = p.Name, Def = p.Def, SpriteRef = p.SpriteRef });
+            Particles.Add(VfxDocParticle.Clone(p));
     }
 
     public override void OnUndoRedo()
@@ -722,25 +829,23 @@ public class VfxDocument : Document
         var name = tk.ExpectQuotedString() ?? $"particle{Particles.Count}";
         tk.ExpectDelimiter('{');
 
-        var particle = new VfxDocParticle { Name = name, SpriteRef = new DocumentRef<SpriteDocument> { Name = "square" } };
-        ref var p = ref particle.Def;
+        var p = new VfxDocParticle { Name = name, SpriteRef = new DocumentRef<SpriteDocument> { Name = "square" } };
         p.Duration = VfxRange.One;
-        p.Size = VfxFloatCurve.One;
-        p.Opacity = VfxFloatCurve.One;
-        p.Color = VfxColorCurve.White;
+        p.Size = VfxDocFloatCurve.One;
+        p.Opacity = VfxDocFloatCurve.One;
+        p.Color = VfxDocColorCurve.White;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectDelimiter('}')) break;
             else if (tk.ExpectIdentifier("duration")) { if (tk.ExpectLine(out var v)) p.Duration = ParseFloat(v, VfxRange.One); }
-            else if (tk.ExpectIdentifier("size")) { if (tk.ExpectLine(out var v)) p.Size = ParseFloatCurve(v, VfxFloatCurve.One); }
-            else if (tk.ExpectIdentifier("speed")) { if (tk.ExpectLine(out var v)) p.Speed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
-            else if (tk.ExpectIdentifier("color")) { if (tk.ExpectLine(out var v)) p.Color = ParseColorCurve(v, VfxColorCurve.White); }
-            else if (tk.ExpectIdentifier("opacity")) { if (tk.ExpectLine(out var v)) p.Opacity = ParseFloatCurve(v, VfxFloatCurve.One); }
-            else if (tk.ExpectIdentifier("gravity")) { if (tk.ExpectLine(out var v)) p.Gravity = ParseFloat(v, VfxRange.Zero); }
-            else if (tk.ExpectIdentifier("drag")) { if (tk.ExpectLine(out var v)) p.Drag = ParseFloat(v, VfxRange.Zero); }
+            else if (tk.ExpectIdentifier("size")) { if (tk.ExpectLine(out var v)) p.Size = ParseFloatCurve(v, VfxDocFloatCurve.One); }
+            else if (tk.ExpectIdentifier("speed")) { if (tk.ExpectLine(out var v)) p.Speed = ParseFloatCurve(v, VfxDocFloatCurve.Zero); }
+            else if (tk.ExpectIdentifier("color")) { if (tk.ExpectLine(out var v)) p.Color = ParseColorCurve(v, VfxDocColorCurve.White); }
+            else if (tk.ExpectIdentifier("opacity")) { if (tk.ExpectLine(out var v)) p.Opacity = ParseFloatCurve(v, VfxDocFloatCurve.One); }
+            else if (tk.ExpectIdentifier("gravity")) { if (tk.ExpectLine(out var v)) p.Gravity = ParseFloatCurve(v, VfxDocFloatCurve.Zero); }
             else if (tk.ExpectIdentifier("rotation")) { if (tk.ExpectLine(out var v)) p.Rotation = ParseFloat(v, VfxRange.Zero); }
-            else if (tk.ExpectIdentifier("rotationSpeed")) { if (tk.ExpectLine(out var v)) p.RotationSpeed = ParseFloatCurve(v, VfxFloatCurve.Zero); }
+            else if (tk.ExpectIdentifier("rotationSpeed")) { if (tk.ExpectLine(out var v)) p.RotationSpeed = ParseFloatCurve(v, VfxDocFloatCurve.Zero); }
             else if (tk.ExpectIdentifier("alignToDirection")) { p.AlignToDirection = tk.ExpectBool(); }
             else if (tk.ExpectIdentifier("frame"))
             {
@@ -748,12 +853,12 @@ public class VfxDocument : Document
                     p.FrameMode = mode.Equals("random", StringComparison.OrdinalIgnoreCase)
                         ? VfxFrameMode.Random : VfxFrameMode.Time;
             }
-            else if (tk.ExpectIdentifier("sprite")) { particle.SpriteRef = new DocumentRef<SpriteDocument> { Name = tk.ExpectQuotedString() ?? "" }; }
-            else if (tk.ExpectIdentifier("sort")) { particle.Def.Sort = (ushort)tk.ExpectInt(); }
+            else if (tk.ExpectIdentifier("sprite")) { p.SpriteRef = new DocumentRef<SpriteDocument> { Name = tk.ExpectQuotedString() ?? "" }; }
+            else if (tk.ExpectIdentifier("sort")) { p.Sort = (ushort)tk.ExpectInt(); }
             else { tk.ExpectToken(out _); break; }
         }
 
-        Particles.Add(particle);
+        Particles.Add(p);
     }
 
     private void ParseEmitterBlock(ref Tokenizer tk)
@@ -761,15 +866,14 @@ public class VfxDocument : Document
         var name = tk.ExpectQuotedString() ?? $"emitter{Emitters.Count}";
         tk.ExpectDelimiter('{');
 
-        var emitter = new VfxDocEmitter { Name = name };
-        ref var e = ref emitter.Def;
+        var e = new VfxDocEmitter { Name = name };
         e.Duration = VfxRange.One;
         e.WorldSpace = true;
 
         while (!tk.IsEOF)
         {
             if (tk.ExpectDelimiter('}')) break;
-            else if (tk.ExpectIdentifier("rate")) { if (tk.ExpectLine(out var v)) e.Rate = ParseFloatCurve(v, new VfxFloatCurve { Type = VfxCurveType.Linear, Start = new VfxRange(10, 10), End = new VfxRange(10, 10) }); }
+            else if (tk.ExpectIdentifier("rate")) { if (tk.ExpectLine(out var v)) e.Rate = ParseFloatCurve(v, new VfxDocFloatCurve { Start = new VfxRange(10, 10), End = new VfxRange(10, 10), WindowEnd = 1f }); }
             else if (tk.ExpectIdentifier("burst")) { if (tk.ExpectLine(out var v)) e.Burst = ParseInt(v, VfxIntRange.Zero); }
             else if (tk.ExpectIdentifier("duration")) { if (tk.ExpectLine(out var v)) e.Duration = ParseFloat(v, VfxRange.One); }
             else if (tk.ExpectIdentifier("spread")) { tk.ExpectFloat(out e.Spread); }
@@ -777,20 +881,17 @@ public class VfxDocument : Document
             else if (tk.ExpectIdentifier("spawn")) { e.Spawn = ParseSpawnDef(ref tk); }
             else if (tk.ExpectIdentifier("direction")) { tk.ExpectFloat(out e.Direction); }
             else if (tk.ExpectIdentifier("worldSpace")) { e.WorldSpace = tk.ExpectBool(); }
-            else if (tk.ExpectIdentifier("particle")) { emitter.ParticleRef = tk.ExpectQuotedString() ?? ""; }
+            else if (tk.ExpectIdentifier("particle")) { e.ParticleRef = tk.ExpectQuotedString() ?? ""; }
             else { tk.ExpectToken(out _); break; }
         }
 
-        Emitters.Add(emitter);
+        Emitters.Add(e);
     }
 
     private void ResolveSpriteRefs()
     {
         foreach (var particle in Particles)
-        {
             particle.SpriteRef.Resolve();
-            particle.Def.Sprite = particle.SpriteRef.Value?.Sprite;
-        }
     }
 
     // --- Text file serialization ---
@@ -808,31 +909,29 @@ public class VfxDocument : Document
 
             sw.WriteLine();
             sw.WriteLine($"particle \"{p.Name}\" {{");
-            sw.WriteLine($"  duration {FormatRange(p.Def.Duration)}");
+            sw.WriteLine($"  duration {FormatRange(p.Duration)}");
 
-            if (p.Def.Size != VfxFloatCurve.One)
-                sw.WriteLine($"  size {FormatFloatCurve(p.Def.Size)}");
-            if (p.Def.Speed != VfxFloatCurve.Zero)
-                sw.WriteLine($"  speed {FormatFloatCurve(p.Def.Speed)}");
-            if (p.Def.Color != VfxColorCurve.White)
-                sw.WriteLine($"  color {FormatColorCurve(p.Def.Color)}");
-            if (p.Def.Opacity != VfxFloatCurve.One)
-                sw.WriteLine($"  opacity {FormatFloatCurve(p.Def.Opacity)}");
-            if (p.Def.Gravity != VfxRange.Zero)
-                sw.WriteLine($"  gravity {FormatRange(p.Def.Gravity)}");
-            if (p.Def.Drag != VfxRange.Zero)
-                sw.WriteLine($"  drag {FormatRange(p.Def.Drag)}");
-            if (p.Def.Rotation != VfxRange.Zero)
-                sw.WriteLine($"  rotation {FormatRange(p.Def.Rotation)}");
-            if (p.Def.RotationSpeed != VfxFloatCurve.Zero)
-                sw.WriteLine($"  rotationSpeed {FormatFloatCurve(p.Def.RotationSpeed)}");
-            if (p.Def.AlignToDirection)
+            if (p.Size != VfxDocFloatCurve.One)
+                sw.WriteLine($"  size {FormatFloatCurve(p.Size)}");
+            if (p.Speed != VfxDocFloatCurve.Zero)
+                sw.WriteLine($"  speed {FormatFloatCurve(p.Speed)}");
+            if (p.Color != VfxDocColorCurve.White)
+                sw.WriteLine($"  color {FormatColorCurve(p.Color)}");
+            if (p.Opacity != VfxDocFloatCurve.One)
+                sw.WriteLine($"  opacity {FormatFloatCurve(p.Opacity)}");
+            if (p.Gravity != VfxDocFloatCurve.Zero)
+                sw.WriteLine($"  gravity {FormatFloatCurve(p.Gravity)}");
+            if (p.Rotation != VfxRange.Zero)
+                sw.WriteLine($"  rotation {FormatRange(p.Rotation)}");
+            if (p.RotationSpeed != VfxDocFloatCurve.Zero)
+                sw.WriteLine($"  rotationSpeed {FormatFloatCurve(p.RotationSpeed)}");
+            if (p.AlignToDirection)
                 sw.WriteLine($"  alignToDirection true");
-            if (p.Def.FrameMode != VfxFrameMode.Time)
+            if (p.FrameMode != VfxFrameMode.Time)
                 sw.WriteLine($"  frame random");
             sw.WriteLine($"  sprite \"{p.SpriteRef.Name}\"");
-            if (p.Def.Sort != 0)
-                sw.WriteLine($"  sort {p.Def.Sort}");
+            if (p.Sort != 0)
+                sw.WriteLine($"  sort {p.Sort}");
 
             sw.WriteLine("}");
         }
@@ -842,20 +941,20 @@ public class VfxDocument : Document
         {
             sw.WriteLine();
             sw.WriteLine($"emitter \"{e.Name}\" {{");
-            sw.WriteLine($"  rate {FormatFloatCurve(e.Def.Rate)}");
-            sw.WriteLine($"  burst {FormatIntRange(e.Def.Burst)}");
-            sw.WriteLine($"  duration {FormatRange(e.Def.Duration)}");
+            sw.WriteLine($"  rate {FormatFloatCurve(e.Rate)}");
+            sw.WriteLine($"  burst {FormatIntRange(e.Burst)}");
+            sw.WriteLine($"  duration {FormatRange(e.Duration)}");
             sw.WriteLine($"  particle \"{e.ParticleRef}\"");
 
-            if (e.Def.Spawn.Shape != VfxSpawnShape.Point || e.Def.Spawn.Offset != Vector2.Zero)
-                FormatSpawnDef(sw, e.Def.Spawn);
-            if (e.Def.Direction != 0)
-                sw.WriteLine($"  direction {FormatFloat(e.Def.Direction)}");
-            if (e.Def.Spread != 0)
-                sw.WriteLine($"  spread {FormatFloat(e.Def.Spread)}");
-            if (e.Def.Radial != 0)
-                sw.WriteLine($"  radial {FormatFloat(e.Def.Radial)}");
-            if (!e.Def.WorldSpace)
+            if (e.Spawn.Shape != VfxSpawnShape.Point || e.Spawn.Offset != Vector2.Zero)
+                FormatSpawnDef(sw, e.Spawn);
+            if (e.Direction != 0)
+                sw.WriteLine($"  direction {FormatFloat(e.Direction)}");
+            if (e.Spread != 0)
+                sw.WriteLine($"  spread {FormatFloat(e.Spread)}");
+            if (e.Radial != 0)
+                sw.WriteLine($"  radial {FormatFloat(e.Radial)}");
+            if (!e.WorldSpace)
                 sw.WriteLine("  worldSpace false");
 
             sw.WriteLine("}");
@@ -907,10 +1006,7 @@ public class VfxDocument : Document
             WriteFloatCurve(writer, p.Speed);
             WriteColorCurve(writer, p.Color);
             WriteFloatCurve(writer, p.Opacity);
-            writer.Write(p.Gravity.Min);
-            writer.Write(p.Gravity.Max);
-            writer.Write(p.Drag.Min);
-            writer.Write(p.Drag.Max);
+            WriteFloatCurve(writer, p.Gravity);
             writer.Write(p.Rotation.Min);
             writer.Write(p.Rotation.Max);
             WriteFloatCurve(writer, p.RotationSpeed);
@@ -950,23 +1046,16 @@ public class VfxDocument : Document
 
     private static void WriteFloatCurve(BinaryWriter writer, VfxFloatCurve curve)
     {
-        writer.Write((byte)curve.Type);
         writer.Write(curve.Start.Min);
         writer.Write(curve.Start.Max);
         writer.Write(curve.End.Min);
         writer.Write(curve.End.Max);
-        if (curve.Type == VfxCurveType.CubicBezier)
-        {
-            writer.Write(curve.Bezier.X);
-            writer.Write(curve.Bezier.Y);
-            writer.Write(curve.Bezier.Z);
-            writer.Write(curve.Bezier.W);
-        }
+        for (var i = 0; i < VfxCurveLut.Samples; i++)
+            writer.Write(curve.Lut[i]);
     }
 
     private static void WriteColorCurve(BinaryWriter writer, VfxColorCurve curve)
     {
-        writer.Write((byte)curve.Type);
         writer.Write(curve.Start.Min.R);
         writer.Write(curve.Start.Min.G);
         writer.Write(curve.Start.Min.B);
@@ -983,13 +1072,94 @@ public class VfxDocument : Document
         writer.Write(curve.End.Max.G);
         writer.Write(curve.End.Max.B);
         writer.Write(curve.End.Max.A);
-        if (curve.Type == VfxCurveType.CubicBezier)
+        for (var i = 0; i < VfxCurveLut.Samples; i++)
+            writer.Write(curve.Lut[i]);
+    }
+
+    // --- LUT bake (called at parse time and at export time) ---
+
+    // Computes the authored curve value at normalized lifetime t in [0,1].
+    // No ease set:  identity Linear (so Start==End degenerate curves bake harmlessly).
+    // Single-in:    monotonic 0→1 rise across the window, shaped by easeInType (applied as-is).
+    // Single-out:   monotonic 0→1 rise across the window, shaped by easeOutType with the
+    //               Penner-style decelerating feel (1 - curve(1 - u)).
+    // Dual:         S-curve from 0 to 1 — easeInType shapes the first half [0..0.5 value],
+    //               easeOutType shapes the second half [0.5..1 value]. Linear+Linear = Linear,
+    //               Quadratic+Quadratic = classic ease-in-out quad. To get a pulse (rise+fall),
+    //               use a single-sided ease with End < Start, or use Bell.
+    internal static float SampleAuthored(
+        VfxCurveType easeInType, VfxCurveType easeOutType,
+        float windowBegin, float windowEnd,
+        float t)
+    {
+        var hasEaseIn = easeInType != VfxCurveType.None;
+        var hasEaseOut = easeOutType != VfxCurveType.None;
+
+        if (!hasEaseIn && !hasEaseOut)
+            return t;
+
+        if (t <= windowBegin) return 0f;
+
+        var span = windowEnd - windowBegin;
+        if (span <= 0f) return 0f;
+
+        var u = (t - windowBegin) / span;
+
+        if (hasEaseIn && hasEaseOut)
         {
-            writer.Write(curve.Bezier.X);
-            writer.Write(curve.Bezier.Y);
-            writer.Write(curve.Bezier.Z);
-            writer.Write(curve.Bezier.W);
+            if (t >= windowEnd) return 1f;
+            if (u < 0.5f)
+                return EvaluateAlgebraic(easeInType, u * 2f) * 0.5f;
+            var v = (u - 0.5f) * 2f;
+            return 0.5f + (1f - EvaluateAlgebraic(easeOutType, 1f - v)) * 0.5f;
         }
+
+        if (t >= windowEnd) return 1f;
+        if (hasEaseIn)
+            return EvaluateAlgebraic(easeInType, u);
+        return 1f - EvaluateAlgebraic(easeOutType, 1f - u);
+    }
+
+    private const float BackOvershoot = 1.70158f;
+    private const float ElasticPeriod = 0.3f;
+    private const float ElasticAmplitude = 1f;
+
+    internal static float EvaluateAlgebraic(VfxCurveType type, float t)
+    {
+        t = Math.Clamp(t, 0f, 1f);
+        return type switch
+        {
+            VfxCurveType.Linear => t,
+            VfxCurveType.Quadratic => t * t,
+            VfxCurveType.Cubic => t * t * t,
+            VfxCurveType.Quartic => t * t * t * t,
+            VfxCurveType.Sine => 1f - MathF.Cos(t * MathF.PI * 0.5f),
+            VfxCurveType.SmoothStep => t * t * (3f - 2f * t),
+            VfxCurveType.Back => t * t * ((BackOvershoot + 1f) * t - BackOvershoot),
+            VfxCurveType.Elastic => EvaluateElastic(t),
+            VfxCurveType.Bounce => 1f - EvaluateBounceOut(1f - t),
+            VfxCurveType.Bell => MathF.Sin(t * MathF.PI),
+            _ => t
+        };
+    }
+
+    private static float EvaluateElastic(float t)
+    {
+        if (t <= 0f) return 0f;
+        if (t >= 1f) return 1f;
+        var s = ElasticPeriod / 4f;
+        return -ElasticAmplitude * MathF.Pow(2f, 10f * (t - 1f)) * MathF.Sin((t - 1f - s) * (2f * MathF.PI) / ElasticPeriod);
+    }
+
+    // Bounce-out: t in [0,1], output in [0,1] with multi-bounce decay (classic Penner).
+    private static float EvaluateBounceOut(float t)
+    {
+        const float n = 7.5625f;
+        const float d = 2.75f;
+        if (t < 1f / d) return n * t * t;
+        if (t < 2f / d) { t -= 1.5f / d; return n * t * t + 0.75f; }
+        if (t < 2.5f / d) { t -= 2.25f / d; return n * t * t + 0.9375f; }
+        t -= 2.625f / d; return n * t * t + 0.984375f;
     }
 
     // --- Value parsers ---
@@ -1087,11 +1257,11 @@ public class VfxDocument : Document
         return def;
     }
 
-    private static VfxFloatCurve ParseFloatCurve(string str, VfxFloatCurve defaultValue)
+    private static VfxDocFloatCurve ParseFloatCurve(string str, VfxDocFloatCurve defaultValue)
     {
         if (string.IsNullOrEmpty(str)) return defaultValue;
         var tk = new Tokenizer(str);
-        var curve = new VfxFloatCurve { Type = VfxCurveType.Linear };
+        var curve = new VfxDocFloatCurve { WindowBegin = 0f, WindowEnd = 1f };
 
         if (!ParseFloatValue(ref tk, out curve.Start)) return defaultValue;
 
@@ -1104,20 +1274,65 @@ public class VfxDocument : Document
         if (!tk.ExpectDelimiter('>')) return defaultValue;
         if (!ParseFloatValue(ref tk, out curve.End)) return defaultValue;
 
-        if (tk.ExpectDelimiter(':') && tk.ExpectIdentifier(out string curveType))
-        {
-            if (curveType.Equals("bezier", StringComparison.OrdinalIgnoreCase) && tk.ExpectVec4(out Vector4 bezierPoints))
-            {
-                curve.Type = VfxCurveType.CubicBezier;
-                curve.Bezier = bezierPoints;
-            }
-            else
-            {
-                curve.Type = ParseCurveType(curveType);
-            }
-        }
+        if (tk.ExpectDelimiter(':'))
+            ParseCurveSpec(ref tk, ref curve.EaseInType, ref curve.EaseOutType,
+                ref curve.WindowBegin, ref curve.WindowEnd);
 
         return curve;
+    }
+
+    // Parses the suffix after `:` — supports:
+    //   :type                — ease-in only
+    //   :type@(b,e)          — ease-in only, windowed
+    //   :,type@(b,e)         — ease-out only (optionally windowed)
+    //   :inType,outType@(..) — dual ease (pulse, optionally windowed)
+    // Absent sides remain VfxCurveType.None.
+    private static void ParseCurveSpec(
+        ref Tokenizer tk,
+        ref VfxCurveType easeInType, ref VfxCurveType easeOutType,
+        ref float windowBegin, ref float windowEnd)
+    {
+        // Leading comma → out-only (no in side).
+        if (tk.ExpectDelimiter(','))
+        {
+            if (!TryReadType(ref tk, out var outType))
+                return;
+            easeOutType = outType;
+            TryReadWindow(ref tk, ref windowBegin, ref windowEnd);
+            return;
+        }
+
+        if (!TryReadType(ref tk, out var firstType))
+            return;
+
+        easeInType = firstType;
+
+        if (tk.ExpectDelimiter(','))
+        {
+            // Dual-ease form: easeInType, easeOutType
+            if (!TryReadType(ref tk, out var secondType))
+                return;
+            easeOutType = secondType;
+        }
+
+        TryReadWindow(ref tk, ref windowBegin, ref windowEnd);
+    }
+
+    private static bool TryReadType(ref Tokenizer tk, out VfxCurveType type)
+    {
+        if (!tk.ExpectIdentifier(out string name)) { type = VfxCurveType.Linear; return false; }
+        type = ParseCurveType(name);
+        return true;
+    }
+
+    private static bool TryReadWindow(ref Tokenizer tk, ref float windowBegin, ref float windowEnd)
+    {
+        if (!tk.ExpectDelimiter('@') || !tk.ExpectVec2(out Vector2 window))
+            return false;
+        windowBegin = Math.Clamp(window.X, 0f, 1f);
+        windowEnd = Math.Clamp(window.Y, 0f, 1f);
+        if (windowEnd < windowBegin) (windowBegin, windowEnd) = (windowEnd, windowBegin);
+        return true;
     }
 
     private static bool ParseFloatValue(ref Tokenizer tk, out VfxRange value)
@@ -1142,11 +1357,11 @@ public class VfxDocument : Document
         return false;
     }
 
-    private static VfxColorCurve ParseColorCurve(string str, VfxColorCurve defaultValue)
+    private static VfxDocColorCurve ParseColorCurve(string str, VfxDocColorCurve defaultValue)
     {
         if (string.IsNullOrEmpty(str)) return defaultValue;
         var tk = new Tokenizer(str);
-        var curve = new VfxColorCurve { Type = VfxCurveType.Linear };
+        var curve = new VfxDocColorCurve { WindowBegin = 0f, WindowEnd = 1f };
 
         if (!ParseColorValue(ref tk, out curve.Start)) return defaultValue;
 
@@ -1159,18 +1374,9 @@ public class VfxDocument : Document
         if (!tk.ExpectDelimiter('>')) return defaultValue;
         if (!ParseColorValue(ref tk, out curve.End)) return defaultValue;
 
-        if (tk.ExpectDelimiter(':') && tk.ExpectIdentifier(out string curveType))
-        {
-            if (curveType.Equals("bezier", StringComparison.OrdinalIgnoreCase) && tk.ExpectVec4(out Vector4 bezierPoints))
-            {
-                curve.Type = VfxCurveType.CubicBezier;
-                curve.Bezier = bezierPoints;
-            }
-            else
-            {
-                curve.Type = ParseCurveType(curveType);
-            }
-        }
+        if (tk.ExpectDelimiter(':'))
+            ParseCurveSpec(ref tk, ref curve.EaseInType, ref curve.EaseOutType,
+                ref curve.WindowBegin, ref curve.WindowEnd);
 
         return curve;
     }
@@ -1199,13 +1405,16 @@ public class VfxDocument : Document
 
     private static VfxCurveType ParseCurveType(string name) => name.ToLowerInvariant() switch
     {
+        "none" => VfxCurveType.None,
         "linear" => VfxCurveType.Linear,
-        "easein" => VfxCurveType.EaseIn,
-        "easeout" => VfxCurveType.EaseOut,
-        "easeinout" => VfxCurveType.EaseInOut,
         "quadratic" => VfxCurveType.Quadratic,
         "cubic" => VfxCurveType.Cubic,
+        "quartic" => VfxCurveType.Quartic,
         "sine" => VfxCurveType.Sine,
+        "smoothstep" => VfxCurveType.SmoothStep,
+        "back" => VfxCurveType.Back,
+        "elastic" => VfxCurveType.Elastic,
+        "bounce" => VfxCurveType.Bounce,
         "bell" => VfxCurveType.Bell,
         _ => VfxCurveType.Linear
     };
@@ -1228,7 +1437,7 @@ public class VfxDocument : Document
         return $"[({FormatFloat(r.Min.X)}, {FormatFloat(r.Min.Y)}), ({FormatFloat(r.Max.X)}, {FormatFloat(r.Max.Y)})]";
     }
 
-    internal static string FormatFloatCurve(VfxFloatCurve c)
+    internal static string FormatFloatCurve(VfxDocFloatCurve c)
     {
         var start = FormatRange(c.Start);
         var end = FormatRange(c.End);
@@ -1236,13 +1445,10 @@ public class VfxDocument : Document
         if (c.Start.Min == c.End.Min && c.Start.Max == c.End.Max)
             return start;
 
-        var type = c.Type == VfxCurveType.CubicBezier
-            ? FormatBezier(c.Bezier)
-            : FormatCurveType(c.Type);
-        return $"{start}=>{end}:{type}";
+        return $"{start}=>{end}:{FormatCurveSuffix(c.EaseInType, c.EaseOutType, c.WindowBegin, c.WindowEnd)}";
     }
 
-    internal static string FormatColorCurve(VfxColorCurve c)
+    internal static string FormatColorCurve(VfxDocColorCurve c)
     {
         var start = FormatColorRange(c.Start);
         var end = FormatColorRange(c.End);
@@ -1250,10 +1456,29 @@ public class VfxDocument : Document
         if (c.Start.Min == c.End.Min && c.Start.Max == c.End.Max)
             return start;
 
-        var type = c.Type == VfxCurveType.CubicBezier
-            ? FormatBezier(c.Bezier)
-            : FormatCurveType(c.Type);
-        return $"{start}=>{end}:{type}";
+        return $"{start}=>{end}:{FormatCurveSuffix(c.EaseInType, c.EaseOutType, c.WindowBegin, c.WindowEnd)}";
+    }
+
+    private static string FormatCurveSuffix(
+        VfxCurveType easeInType, VfxCurveType easeOutType,
+        float windowBegin, float windowEnd)
+    {
+        var hasEaseIn = easeInType != VfxCurveType.None;
+        var hasEaseOut = easeOutType != VfxCurveType.None;
+
+        string body;
+        if (hasEaseIn && hasEaseOut)
+            body = $"{FormatCurveType(easeInType)},{FormatCurveType(easeOutType)}";
+        else if (hasEaseIn)
+            body = FormatCurveType(easeInType);
+        else if (hasEaseOut)
+            body = $",{FormatCurveType(easeOutType)}";
+        else
+            body = "linear"; // Start != End but no ease — degenerate; pick a placeholder for round-trip.
+
+        if (windowBegin != 0f || windowEnd != 1f)
+            return $"{body}@({FormatFloat(windowBegin)}, {FormatFloat(windowEnd)})";
+        return body;
     }
 
     private static string FormatColorRange(VfxColorRange r)
@@ -1279,18 +1504,18 @@ public class VfxDocument : Document
         return a == 255 ? $"#{r:X2}{g:X2}{b:X2}" : $"#{r:X2}{g:X2}{b:X2}{a:X2}";
     }
 
-    private static string FormatBezier(Vector4 b) =>
-        $"bezier({FormatFloat(b.X)}, {FormatFloat(b.Y)}, {FormatFloat(b.Z)}, {FormatFloat(b.W)})";
-
     internal static string FormatCurveType(VfxCurveType type) => type switch
     {
+        VfxCurveType.None => "none",
         VfxCurveType.Linear => "linear",
-        VfxCurveType.EaseIn => "easein",
-        VfxCurveType.EaseOut => "easeout",
-        VfxCurveType.EaseInOut => "easeinout",
         VfxCurveType.Quadratic => "quadratic",
         VfxCurveType.Cubic => "cubic",
+        VfxCurveType.Quartic => "quartic",
         VfxCurveType.Sine => "sine",
+        VfxCurveType.SmoothStep => "smoothstep",
+        VfxCurveType.Back => "back",
+        VfxCurveType.Elastic => "elastic",
+        VfxCurveType.Bounce => "bounce",
         VfxCurveType.Bell => "bell",
         _ => "linear"
     };

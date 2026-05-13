@@ -3,6 +3,7 @@
 //
 
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -10,15 +11,35 @@ namespace NoZ;
 
 public enum VfxCurveType : byte
 {
-    Linear = 0,
-    EaseIn,
-    EaseOut,
-    EaseInOut,
-    Quadratic,
-    Cubic,
-    Sine,
-    CubicBezier,
-    Bell
+    None = 0,       // no ease on this side (default — bypasses the window for this side)
+    Linear,         // t
+    Quadratic,      // t²
+    Cubic,          // t³
+    Quartic,        // t⁴
+    Sine,           // 1 - cos(t·π/2)
+    SmoothStep,     // smoothstep S-curve (3t² - 2t³)
+    Back,           // overshoots past 1 before settling
+    Elastic,        // springy oscillation
+    Bounce,         // bouncing decay
+    Bell,           // sin(t·π) — pulse shape (peaks at 0.5, not 0→1)
+}
+
+[InlineArray(Samples)]
+public struct VfxCurveLut
+{
+    public const int Samples = 32;
+    private float _element0;
+
+    public static VfxCurveLut Linear
+    {
+        get
+        {
+            var lut = new VfxCurveLut();
+            for (var i = 0; i < Samples; i++)
+                lut[i] = i / (float)(Samples - 1);
+            return lut;
+        }
+    }
 }
 
 public struct VfxRange
@@ -88,35 +109,21 @@ public struct VfxVec2Range
 
 public struct VfxFloatCurve
 {
-    public VfxCurveType Type;
     public VfxRange Start;
     public VfxRange End;
-    public Vector4 Bezier; // (x1, y1, x2, y2) control points, only used when Type == CubicBezier
+    public VfxCurveLut Lut;
 
-    public static readonly VfxFloatCurve Zero = new() { Type = VfxCurveType.Linear, Start = VfxRange.Zero, End = VfxRange.Zero };
-    public static readonly VfxFloatCurve One = new() { Type = VfxCurveType.Linear, Start = VfxRange.One, End = VfxRange.One };
-
-    public static bool operator ==(VfxFloatCurve a, VfxFloatCurve b) =>
-        a.Type == b.Type && a.Start == b.Start && a.End == b.End && a.Bezier == b.Bezier;
-    public static bool operator !=(VfxFloatCurve a, VfxFloatCurve b) => !(a == b);
-    public override bool Equals(object? obj) => obj is VfxFloatCurve c && this == c;
-    public override int GetHashCode() => HashCode.Combine(Type, Start, End, Bezier);
+    public static readonly VfxFloatCurve Zero = new() { Start = VfxRange.Zero, End = VfxRange.Zero };
+    public static readonly VfxFloatCurve One = new() { Start = VfxRange.One, End = VfxRange.One };
 }
 
 public struct VfxColorCurve
 {
-    public VfxCurveType Type;
     public VfxColorRange Start;
     public VfxColorRange End;
-    public Vector4 Bezier;
+    public VfxCurveLut Lut;
 
-    public static readonly VfxColorCurve White = new() { Type = VfxCurveType.Linear, Start = VfxColorRange.White, End = VfxColorRange.White };
-
-    public static bool operator ==(VfxColorCurve a, VfxColorCurve b) =>
-        a.Type == b.Type && a.Start == b.Start && a.End == b.End && a.Bezier == b.Bezier;
-    public static bool operator !=(VfxColorCurve a, VfxColorCurve b) => !(a == b);
-    public override bool Equals(object? obj) => obj is VfxColorCurve c && this == c;
-    public override int GetHashCode() => HashCode.Combine(Type, Start, End, Bezier);
+    public static readonly VfxColorCurve White = new() { Start = VfxColorRange.White, End = VfxColorRange.White };
 }
 
 public enum VfxSpawnShape : byte
@@ -158,9 +165,8 @@ public struct VfxSpawnDef
 
 public struct VfxParticleDef
 {
-    public VfxRange Gravity;
+    public VfxFloatCurve Gravity;
     public VfxRange Duration;
-    public VfxRange Drag;
     public VfxFloatCurve Size;
     public VfxFloatCurve Speed;
     public VfxColorCurve Color;
@@ -188,7 +194,7 @@ public struct VfxEmitterDef
 
 public class Vfx : Asset
 {
-    internal const ushort Version = 12;
+    internal const ushort Version = 14;
 
     public VfxRange Duration { get; internal set; }
     public VfxEmitterDef[] EmitterDefs { get; internal set; } = [];
@@ -229,8 +235,7 @@ public class Vfx : Asset
             p.Speed = ReadFloatCurve(reader);
             p.Color = ReadColorCurve(reader);
             p.Opacity = ReadFloatCurve(reader);
-            p.Gravity = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
-            p.Drag = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
+            p.Gravity = ReadFloatCurve(reader);
             p.Rotation = new VfxRange(reader.ReadSingle(), reader.ReadSingle());
             p.RotationSpeed = ReadFloatCurve(reader);
             p.AlignToDirection = reader.ReadBoolean();
@@ -279,12 +284,11 @@ public class Vfx : Asset
     {
         var curve = new VfxFloatCurve
         {
-            Type = (VfxCurveType)reader.ReadByte(),
             Start = new VfxRange(reader.ReadSingle(), reader.ReadSingle()),
-            End = new VfxRange(reader.ReadSingle(), reader.ReadSingle())
+            End = new VfxRange(reader.ReadSingle(), reader.ReadSingle()),
         };
-        if (curve.Type == VfxCurveType.CubicBezier)
-            curve.Bezier = new Vector4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        for (var i = 0; i < VfxCurveLut.Samples; i++)
+            curve.Lut[i] = reader.ReadSingle();
         return curve;
     }
 
@@ -292,16 +296,15 @@ public class Vfx : Asset
     {
         var curve = new VfxColorCurve
         {
-            Type = (VfxCurveType)reader.ReadByte(),
             Start = new VfxColorRange(
                 new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
                 new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle())),
             End = new VfxColorRange(
                 new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
-                new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()))
+                new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle())),
         };
-        if (curve.Type == VfxCurveType.CubicBezier)
-            curve.Bezier = new Vector4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        for (var i = 0; i < VfxCurveLut.Samples; i++)
+            curve.Lut[i] = reader.ReadSingle();
         return curve;
     }
 

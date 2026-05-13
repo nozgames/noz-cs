@@ -27,26 +27,23 @@ public static class VfxSystem
     {
         public Vector2 Position;
         public Vector2 Velocity;
-        public VfxCurveType RotationSpeedCurve;
+        public Vector2 Direction;
+        public Vector2 GravityVelocity;
         public float RotationSpeedStart;
         public float RotationSpeedEnd;
-        public VfxCurveType ColorCurve;
         public Color ColorStart;
         public Color ColorEnd;
-        public VfxCurveType SizeCurve;
         public float SizeStart;
         public float SizeEnd;
-        public VfxCurveType OpacityCurve;
         public float OpacityStart;
         public float OpacityEnd;
-        public VfxCurveType SpeedCurve;
         public float SpeedStart;
         public float SpeedEnd;
         public float Lifetime;
         public float Elapsed;
         public float Rotation;
-        public float Gravity;
-        public float Drag;
+        public float GravityStart;
+        public float GravityEnd;
         public ushort EmitterIndex;
         public bool WorldSpace;
         public bool AlignToDirection;
@@ -321,9 +318,9 @@ public static class VfxSystem
                 if (pdef.Sprite == null) continue;
 
                 var t = p.Elapsed / p.Lifetime;
-                var size = MathEx.Mix(p.SizeStart, p.SizeEnd, EvaluateCurve(p.SizeCurve, t, pdef.Size.Bezier));
-                var opacity = MathEx.Mix(p.OpacityStart, p.OpacityEnd, EvaluateCurve(p.OpacityCurve, t, pdef.Opacity.Bezier));
-                var col = Color.Mix(p.ColorStart, p.ColorEnd, EvaluateCurve(p.ColorCurve, t, pdef.Color.Bezier));
+                var size = MathEx.Mix(p.SizeStart, p.SizeEnd, EvaluateCurve(ref pdef.Size.Lut, t));
+                var opacity = MathEx.Mix(p.OpacityStart, p.OpacityEnd, EvaluateCurve(ref pdef.Opacity.Lut, t));
+                var col = Color.Mix(p.ColorStart, p.ColorEnd, EvaluateCurve(ref pdef.Color.Lut, t));
 
                 var drawRotation = p.Rotation;
                 if (p.AlignToDirection)
@@ -395,7 +392,7 @@ public static class VfxSystem
 
             var t = e.Elapsed * e.InvDuration;
             ref var rateDef = ref e.Vfx.EmitterDefs[e.DefIndex].Rate;
-            var timePerParticle = MathEx.Mix(e.RateStart, e.RateEnd, EvaluateCurve(rateDef.Type, t, rateDef.Bezier));
+            var timePerParticle = MathEx.Mix(e.RateStart, e.RateEnd, EvaluateCurve(ref rateDef.Lut, t));
 
             if (timePerParticle > 0.0000001f)
             {
@@ -434,21 +431,19 @@ public static class VfxSystem
             ref var pdef = ref e.Vfx.EmitterDefs[e.DefIndex].Particle;
 
             var t = p.Elapsed / p.Lifetime;
-            var curveT = EvaluateCurve(p.SpeedCurve, t, pdef.Speed.Bezier);
-            var currentSpeed = MathEx.Mix(p.SpeedStart, p.SpeedEnd, curveT);
 
-            var velLen = p.Velocity.Length();
-            var vel = velLen > 0.0001f
-                ? Vector2.Normalize(p.Velocity) * currentSpeed
-                : p.Velocity;
+            var speedCurveT = EvaluateCurve(ref pdef.Speed.Lut, t);
+            var gravityCurveT = EvaluateCurve(ref pdef.Gravity.Lut, t);
+            var speedNow = MathEx.Mix(p.SpeedStart, p.SpeedEnd, speedCurveT);
+            var gravityNow = MathEx.Mix(p.GravityStart, p.GravityEnd, gravityCurveT);
 
-            vel += GravityDirection * p.Gravity * dt;
-            vel *= 1f - p.Drag * dt;
+            p.GravityVelocity += GravityDirection * gravityNow * dt;
+            var totalVel = p.Direction * speedNow + p.GravityVelocity;
 
-            p.Position += vel * dt;
-            p.Velocity = vel;
+            p.Position += totalVel * dt;
+            p.Velocity = totalVel;
 
-            var rotationSpeedT = EvaluateCurve(p.RotationSpeedCurve, t, pdef.RotationSpeed.Bezier);
+            var rotationSpeedT = EvaluateCurve(ref pdef.RotationSpeed.Lut, t);
             var rotationSpeed = MathEx.Mix(p.RotationSpeedStart, p.RotationSpeedEnd, rotationSpeedT);
             p.Rotation += rotationSpeed * dt;
         }
@@ -503,32 +498,29 @@ public static class VfxSystem
 
         p.SizeStart = GetRandom(pdef.Size.Start);
         p.SizeEnd = GetRandom(pdef.Size.End);
-        p.SizeCurve = pdef.Size.Type;
 
         p.OpacityStart = GetRandom(pdef.Opacity.Start);
         p.OpacityEnd = GetRandom(pdef.Opacity.End);
-        p.OpacityCurve = pdef.Opacity.Type;
 
         p.SpeedStart = GetRandom(pdef.Speed.Start);
         p.SpeedEnd = GetRandom(pdef.Speed.End);
-        p.SpeedCurve = pdef.Speed.Type;
 
+        p.Direction = dir;
         p.Velocity = dir * p.SpeedStart;
+        p.GravityVelocity = Vector2.Zero;
 
         p.ColorStart = GetRandom(pdef.Color.Start);
         p.ColorEnd = GetRandom(pdef.Color.End);
-        p.ColorCurve = pdef.Color.Type;
 
         p.Lifetime = GetRandom(pdef.Duration);
         p.Elapsed = 0;
 
-        p.Gravity = GetRandom(pdef.Gravity);
-        p.Drag = GetRandom(pdef.Drag);
+        p.GravityStart = GetRandom(pdef.Gravity.Start);
+        p.GravityEnd = GetRandom(pdef.Gravity.End);
 
         p.Rotation = MathEx.Radians(GetRandom(pdef.Rotation));
         p.RotationSpeedStart = MathEx.Radians(GetRandom(pdef.RotationSpeed.Start));
         p.RotationSpeedEnd = MathEx.Radians(GetRandom(pdef.RotationSpeed.End));
-        p.RotationSpeedCurve = pdef.RotationSpeed.Type;
         p.AlignToDirection = pdef.AlignToDirection;
 
         p.FrameMode = pdef.FrameMode;
@@ -663,36 +655,14 @@ public static class VfxSystem
         emitter.InvDuration = emitter.Duration > 0f ? 1f / emitter.Duration : 0f;
     }
 
-    internal static float EvaluateCurve(VfxCurveType curve, float t)
+    internal static float EvaluateCurve(ref VfxCurveLut lut, float t)
     {
         t = Math.Clamp(t, 0f, 1f);
-
-        return curve switch
-        {
-            VfxCurveType.Linear => t,
-            VfxCurveType.EaseIn => t * t,
-            VfxCurveType.EaseOut => 1f - (1f - t) * (1f - t),
-            VfxCurveType.EaseInOut => t < 0.5f ? 2f * t * t : 1f - 2f * (1f - t) * (1f - t),
-            VfxCurveType.Quadratic => t * t,
-            VfxCurveType.Cubic => t * t * t,
-            VfxCurveType.Sine => MathF.Sin(t * MathF.PI * 0.5f),
-            VfxCurveType.Bell => MathF.Sin(t * MathF.PI),
-            _ => t
-        };
-    }
-
-    internal static float EvaluateCurve(VfxCurveType curve, float t, Vector4 bezier)
-    {
-        if (curve == VfxCurveType.CubicBezier)
-            return EvaluateCubicBezier(t, bezier.X, bezier.Y, bezier.Z, bezier.W);
-        return EvaluateCurve(curve, t);
-    }
-
-    private static float EvaluateCubicBezier(float x, float y0, float y1, float y2, float y3)
-    {
-        x = Math.Clamp(x, 0f, 1f);
-        var omt = 1f - x;
-        return omt * omt * omt * y0 + 3f * omt * omt * x * y1 + 3f * omt * x * x * y2 + x * x * x * y3;
+        var idx = t * (VfxCurveLut.Samples - 1);
+        var i = (int)idx;
+        var j = Math.Min(i + 1, VfxCurveLut.Samples - 1);
+        var frac = idx - i;
+        return lut[i] * (1f - frac) + lut[j] * frac;
     }
 
     private static float GetRandom(VfxRange range)

@@ -75,7 +75,7 @@ internal partial class VfxEditor : DocumentEditor
                     if (emitterIndex >= 0 && emitterIndex < Document.Emitters.Count)
                     {
                         Graphics.SetTransform(rotTransform);
-                        DrawSpawnGizmo(ref Document.Emitters[emitterIndex].Def.Spawn);
+                        DrawSpawnGizmo(ref Document.Emitters[emitterIndex].Spawn);
                     }
                 }
                 Graphics.SetTransform(Document.Transform);
