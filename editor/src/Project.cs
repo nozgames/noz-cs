@@ -43,8 +43,14 @@ public static class Project
     private static readonly Dictionary<AssetType, DocumentDef> _defsByType = new();
     private static readonly Dictionary<string, List<DocumentDef>> _defsByExtension = new();
 
-    public static void Init(string projectPath, EditorConfig config)
+    public static void Init(
+        string projectPath,
+        EditorConfig config,
+        Action? registerDocumentTypes = null)
     {
+        // Project import can run headlessly without EditorApplication.Init().
+        Application.RegisterAssetTypes();
+
         Path = projectPath.Replace('\\', '/');
         _sourcePaths.Clear();
         _sourcePaths.AddRange(config.SourcePaths.Select(p => CombinePath(projectPath, p)));
@@ -70,7 +76,7 @@ public static class Project
         PaletteDocument.RegisterDef();
         SceneDocument.RegisterDef();
 
-        //config.RegisterDocumentTypes?.Invoke();
+        registerDocumentTypes?.Invoke();
 
         InitDocuments();
     }
