@@ -1,9 +1,12 @@
 [editor]
-position = (6.167969,-1.238281)
+position = (0.500000,-3.500000)
 collection = default
+export = true
 
 [sprite]
 show_in_skeleton = false
 show_tiling = false
 show_skeleton_overlay = false
+tile_x = true
+tile_y = true
 

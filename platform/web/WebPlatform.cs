@@ -25,6 +25,12 @@ public class WebPlatform : IPlatform
 
     public bool IsMouseInWindow => _isMouseInWindow;
     public bool IsMouseCaptured => false;
+    public bool IsRelativeMouseMode { get; private set; }
+    public void SetRelativeMouseMode(bool enabled)
+    {
+        if (!enabled) IsRelativeMouseMode = false;
+        _module?.InvokeVoidAsync("setRelativeMouseMode", enabled);
+    }
     Vector2Int IPlatform.WindowSize => new((int)_windowSize.X, (int)_windowSize.Y);
     public Vector2Int WindowPosition => Vector2Int.Zero; // Not applicable for web
     public float DisplayScale => _displayScale;
@@ -224,6 +230,13 @@ public class WebPlatform : IPlatform
     {
         _eventQueue.Enqueue(PlatformEvent.MouseMove(new Vector2(x, y)));
     }
+
+    [JSInvokable]
+    public void OnRelativeMouseMove(float x, float y) =>
+        _eventQueue.Enqueue(PlatformEvent.MouseRelativeMove(new Vector2(x, y)));
+
+    [JSInvokable]
+    public void OnRelativeMouseModeChanged(bool enabled) => IsRelativeMouseMode = enabled;
 
     [JSInvokable]
     public void OnMouseWheel(float deltaX, float deltaY)

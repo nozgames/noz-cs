@@ -90,6 +90,7 @@ public static class Input
 
     public static void BeginFrame()
     {
+        RelativeMouseDelta = Vector2.Zero;
         _scrollX = 0;
         _scrollY = 0;
         _textInput = string.Empty;
@@ -212,6 +213,24 @@ public static class Input
             case PlatformEventType.MouseMove:
                 IsGamePad = false;
                 MousePosition = evt.MousePosition;
+                break;
+
+            case PlatformEventType.MouseRelativeMove:
+                if (IsRelativeMouseMode)
+                    RelativeMouseDelta += evt.MouseDelta;
+                break;
+
+            case PlatformEventType.WindowUnfocus:
+                // Key-up events can be lost after Alt-Tab or browser blur.
+                for (var i = 0; i < Buttons.Length; i++)
+                {
+                    var wasDown = Buttons[i].Physical || Buttons[i].Logical;
+                    Buttons[i] = default;
+                    Buttons[i].Released = wasDown;
+                }
+                Array.Clear(AxisState);
+                SetRelativeMouseMode(false);
+                ReleaseMouseCapture();
                 break;
 
             case PlatformEventType.PenDown:
@@ -397,6 +416,15 @@ public static class Input
     public static string GetTextInput(InputScope scope) => CheckScope(scope) ? _textInput : string.Empty;
 
     public static Vector2 MousePosition { get; private set; }
+
+    /// <summary>Accumulated relative motion this frame, in logical window pixels.</summary>
+    public static Vector2 RelativeMouseDelta { get; private set; }
+    public static bool IsRelativeMouseMode => Application.Platform.IsRelativeMouseMode;
+    public static void SetRelativeMouseMode(bool enabled)
+    {
+        RelativeMouseDelta = Vector2.Zero;
+        Application.Platform.SetRelativeMouseMode(enabled);
+    }
     public static Vector2 PenPosition { get; private set; }
 
     // All pen positions received this frame, in order. Used by stroke tools

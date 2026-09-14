@@ -19,6 +19,7 @@ public struct PlatformEvent
     // Mouse
     public InputCode MouseButton;
     public Vector2 MousePosition;
+    public Vector2 MouseDelta;
     public float ScrollX;
     public float ScrollY;
     public int ClickCount;
@@ -52,6 +53,7 @@ public struct PlatformEvent
     public static PlatformEvent MouseDown(InputCode button, int clickCount = 1) => new() { Type = PlatformEventType.MouseButtonDown, MouseButton = button, ClickCount = clickCount };
     public static PlatformEvent MouseUp(InputCode button) => new() { Type = PlatformEventType.MouseButtonUp, MouseButton = button };
     public static PlatformEvent MouseMove(Vector2 position) => new() { Type = PlatformEventType.MouseMove, MousePosition = position };
+    public static PlatformEvent MouseRelativeMove(Vector2 delta) => new() { Type = PlatformEventType.MouseRelativeMove, MouseDelta = delta };
     public static PlatformEvent MouseScroll(float x, float y) => new() { Type = PlatformEventType.MouseScroll, ScrollX = x, ScrollY = y };
 
     public static PlatformEvent GamepadDown(InputCode button) => new() { Type = PlatformEventType.GamepadButtonDown, GamepadButton = button };

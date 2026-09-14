@@ -5,6 +5,8 @@ let dotNetRef = null;
 let lastClickTime = 0;
 let clickCount = 0;
 let gameLoop = null;
+let relativeMouseRequested = false;
+let lockPending = false;
 
 export async function init(dotNet, width, height) {
     dotNetRef = dotNet;
@@ -56,12 +58,15 @@ export async function init(dotNet, width, height) {
     // Release modifier keys when window loses focus (e.g. Alt+Tab, Ctrl+Tab)
     // Without this, modifier keys get "stuck" because the keyup event never fires
     window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('focus', onWindowFocus);
 
     // Warn the user before leaving the page if there are unsaved changes
     window.addEventListener('beforeunload', onBeforeUnload);
 
     // Notify C# when tab visibility changes (focus gained/lost)
     document.addEventListener('visibilitychange', onVisibilityChange);
+    document.addEventListener('pointerlockchange', onPointerLockChange);
+    document.addEventListener('pointerlockerror', onPointerLockError);
 
     // Prevent default behaviors that interfere with games
     canvas.tabIndex = 1;
@@ -72,10 +77,14 @@ export async function init(dotNet, width, height) {
 }
 
 export function shutdown() {
+    setRelativeMouseMode(false);
+    document.removeEventListener('pointerlockchange', onPointerLockChange);
+    document.removeEventListener('pointerlockerror', onPointerLockError);
     window.removeEventListener('keydown', onKeyDown, true);
     window.removeEventListener('keyup', onKeyUp, true);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('blur', onWindowBlur);
+    window.removeEventListener('focus', onWindowFocus);
     window.removeEventListener('beforeunload', onBeforeUnload);
     document.removeEventListener('visibilitychange', onVisibilityChange);
 
@@ -94,6 +103,43 @@ export function shutdown() {
 
 export function getCanvas() {
     return canvas;
+}
+
+export function setRelativeMouseMode(enabled) {
+    relativeMouseRequested = enabled;
+    if (!enabled) {
+        if (document.pointerLockElement === canvas) document.exitPointerLock();
+    } else if (navigator.userActivation?.isActive) {
+        requestRelativeMouse();
+    }
+    // Otherwise the next canvas click requests lock inside its user gesture.
+}
+
+function requestRelativeMouse() {
+    if (!relativeMouseRequested || lockPending || document.pointerLockElement === canvas) return;
+    if (!canvas?.requestPointerLock) return;
+    lockPending = true;
+    try {
+        const pending = canvas.requestPointerLock();
+        pending?.catch(onPointerLockError);
+    } catch {
+        onPointerLockError();
+    }
+}
+
+function onPointerLockChange() {
+    lockPending = false;
+    const locked = document.pointerLockElement === canvas;
+    if (locked && !relativeMouseRequested) {
+        document.exitPointerLock(); // Request completed after cancellation.
+        return;
+    }
+    dotNetRef?.invokeMethod('OnRelativeMouseModeChanged', locked);
+}
+
+function onPointerLockError() {
+    lockPending = false;
+    dotNetRef?.invokeMethod('OnRelativeMouseModeChanged', false);
 }
 
 export function getDevicePixelRatio() {
@@ -123,11 +169,17 @@ export function disableHighRefreshRate() {
 }
 
 function onWindowBlur() {
+    setRelativeMouseMode(false);
+    dotNetRef?.invokeMethod('OnVisibilityChanged', false);
     // Release all modifier keys when window loses focus
     syncModifier(false, 'Control');
     syncModifier(false, 'Shift');
     syncModifier(false, 'Alt');
     syncModifier(false, 'Meta');
+}
+
+function onWindowFocus() {
+    dotNetRef?.invokeMethod('OnVisibilityChanged', true);
 }
 
 function syncModifiers(e) {
@@ -153,6 +205,7 @@ function syncModifier(pressed, key) {
 let modifierState = { control: false, shift: false, alt: false, meta: false };
 
 function onKeyDown(e) {
+    if (e.key === 'Escape') setRelativeMouseMode(false);
     // Prevent default for game keys (arrows, space, etc.)
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'].includes(e.key)) {
         e.preventDefault();
@@ -186,6 +239,10 @@ function onKeyUp(e) {
 }
 
 function onMouseDown(e) {
+    if (relativeMouseRequested && document.pointerLockElement !== canvas) {
+        requestRelativeMouse();
+        return; // Lock/resume clicks are not gameplay clicks.
+    }
     const now = Date.now();
     if (now - lastClickTime < 300 && e.button === 0) {
         clickCount++;
@@ -203,6 +260,10 @@ function onMouseUp(e) {
 }
 
 function onMouseMove(e) {
+    if (document.pointerLockElement === canvas) {
+        dotNetRef.invokeMethod('OnRelativeMouseMove', e.movementX, e.movementY);
+        return;
+    }
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const x = (e.clientX - rect.left) * dpr;
@@ -212,6 +273,7 @@ function onMouseMove(e) {
 }
 
 function onMouseEnter(e) {
+    if (document.pointerLockElement === canvas) return;
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     dotNetRef.invokeMethod('OnMouseEnter');
@@ -281,6 +343,7 @@ function onBeforeUnload(e) {
 
 function onVisibilityChange() {
     const visible = document.visibilityState === 'visible';
+    if (!visible) setRelativeMouseMode(false);
 
     // Pause/resume the game loop — prevents calling into WebGPU while the tab is hidden
     // and avoids a huge delta time spike on the first frame back

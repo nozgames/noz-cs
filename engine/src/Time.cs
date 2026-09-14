@@ -16,6 +16,8 @@ public static class Time
     public static float DeltaTime { get; set; }
     public static float UnscaledDeltaTime { get; private set; }
     public static float FixedDeltaTime { get; set; } = 1f / 60f;
+    /// <summary>Remaining fraction of a fixed tick, for interpolating rendered state.</summary>
+    public static float FixedAlpha => FixedDeltaTime > 0 ? Math.Clamp(_fixedAccumulator / FixedDeltaTime, 0, 1) : 1;
     public static float TotalTime { get; private set; }
     public static int FrameCount { get; private set; }
 

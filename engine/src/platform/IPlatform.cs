@@ -72,6 +72,11 @@ public interface IPlatform
     bool IsMouseCaptured { get; }
     void SetMouseCapture(bool enabled);
 
+    // Persistent relative motion, independent of drag/button capture. The
+    // actual state may change asynchronously (browser permission / focus loss).
+    bool IsRelativeMouseMode => false;
+    void SetRelativeMouseMode(bool enabled) { }
+
     void SetCursor(SystemCursor cursor);
 
     bool IsFullscreen { get; }

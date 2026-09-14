@@ -41,6 +41,13 @@ public unsafe partial class SDLPlatform : IPlatform
     
     public bool IsMouseInWindow => _isMouseInWindow;
     public bool IsMouseCaptured => _isMouseCaptured;
+    public bool IsRelativeMouseMode => _window != null && SDL_GetWindowRelativeMouseMode(_window);
+
+    public void SetRelativeMouseMode(bool enabled)
+    {
+        if (_window != null && !SDL_SetWindowRelativeMouseMode(_window, enabled))
+            NoZ.Log.Warning($"Could not change relative mouse mode: {SDL_GetError()}");
+    }
 
     public static Action<Action>? SetupDisplayLink { get; set; }
     public static Action<int>? SetDisplayLinkFrameRate { get; set; }
@@ -350,7 +357,9 @@ public unsafe partial class SDLPlatform : IPlatform
                     (ulong)evt.motion.which == (ulong)SDL3.SDL_PEN_MOUSEID)
                     break;           
 
-                OnEvent?.Invoke(PlatformEvent.MouseMove(new Vector2(evt.motion.x * _eventPixelScale, evt.motion.y * _eventPixelScale)));
+                OnEvent?.Invoke(IsRelativeMouseMode
+                    ? PlatformEvent.MouseRelativeMove(new Vector2(evt.motion.xrel, evt.motion.yrel))
+                    : PlatformEvent.MouseMove(new Vector2(evt.motion.x * _eventPixelScale, evt.motion.y * _eventPixelScale)));
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_WHEEL:
@@ -523,6 +532,7 @@ public unsafe partial class SDLPlatform : IPlatform
                 break;
 
             case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST:
+                SetRelativeMouseMode(false);
                 if (_isMouseCaptured)
                     SetMouseCapture(false);
                 OnEvent?.Invoke(PlatformEvent.Unfocus());
