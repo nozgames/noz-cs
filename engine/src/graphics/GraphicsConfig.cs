@@ -15,7 +15,7 @@ public class GraphicsConfig
     public int MaxDrawCommands { get; init; } = 16384;
     public int MaxBatches { get; init; } = 4096;
     /// <summary>
-    /// Maximum number of unique projection/global snapshots that may be
+    /// Maximum number of unique projection/draw-parameter snapshots that may be
     /// submitted in one frame. Buffers are created lazily as they are used.
     /// </summary>
     public int MaxGlobalSnapshots { get; init; } = DefaultMaxGlobalSnapshots;

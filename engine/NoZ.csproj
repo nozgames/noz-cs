@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>NoZ.Engine</AssemblyName>
+    <!-- Extensions are separate opt-in assemblies, not part of the core glob. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);ext\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

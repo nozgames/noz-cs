@@ -11,6 +11,8 @@ public class DocumentDef
     public required string[] Extensions { get; init; }
     public required Func<string?, Document> Factory { get; init; }
     public Func<Document, DocumentEditor>? EditorFactory { get; init; }
+    /// <summary>Optional factory shown in the workspace's New menu; receives the click position.</summary>
+    public Func<System.Numerics.Vector2, Document?>? CreateNew { get; init; }
     public string[]? AuxiliaryExtensions { get; init; }
     public Func<Document, bool>? CanEdit { get; init; }
     public Func<Sprite?>? Icon { get; init; }

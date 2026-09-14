@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>NoZ.Graphics3D</AssemblyName>
+    <RootNamespace>NoZ</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\NoZ.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="assets\**\*.wgsl" />
+  </ItemGroup>
+</Project>

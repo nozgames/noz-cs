@@ -38,6 +38,14 @@ public static class PostProcess
     /// </summary>
     public static nuint SceneColorTextureHandle => _sceneRT?.Handle ?? nuint.Zero;
 
+    /// <summary>
+    /// Borrowed color-texture handle entering the next effect, including all
+    /// previous effects. Capture before BeginBlit when a multi-pass effect needs
+    /// to composite over its input. Valid only during the current scene/frame;
+    /// do not dispose it or retain it across frames. Zero outside a scene.
+    /// </summary>
+    public static nuint CurrentColorTextureHandle => _currentRT?.Handle ?? nuint.Zero;
+
     internal static void ForceReset()
     {
         _sceneRT = null;

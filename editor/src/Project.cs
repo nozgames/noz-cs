@@ -27,6 +27,8 @@ public static class Project
     public static Document GetAt(int index) => _documents[index];
     public static IReadOnlyList<string> SourcePaths => _sourcePaths;
     public static string OutputPath => _outputPath;
+    public static IEnumerable<DocumentDef> DocumentDefs =>
+        _defsByExtension.Values.SelectMany(defs => defs).Distinct();
 
     public static IEnumerable<Document> SelectedDocuments =>
         _documents.Where(d => d.IsSelected);
@@ -63,6 +65,8 @@ public static class Project
 
         Directory.CreateDirectory(_outputPath);
 
+        _defsByType.Clear();
+        _defsByExtension.Clear();
         ShaderDocument.RegisterDef();
         SoundDocument.RegisterDef();
         SpriteDocument.RegisterDef();
@@ -103,6 +107,8 @@ public static class Project
         _initialized = false;
         _documents.Clear();
         _sourcePaths.Clear();
+        _defsByType.Clear();
+        _defsByExtension.Clear();
     }
 
     public static void RegisterDef(DocumentDef def)
@@ -465,7 +471,15 @@ public static class Project
         if (doc.Def == newDef)
             return doc;
 
+        var existing = Find(newDef.Type, doc.Name);
+        if (existing != null && existing != doc)
+        {
+            Log.Warning($"Cannot change '{doc.Name}' to {newDef.Name}: an asset with that type and name already exists");
+            return null;
+        }
+
         var path = doc.Path;
+        var oldTargetPath = GetTargetPath(doc);
         var position = doc.Position;
         var collectionId = doc.CollectionId;
         var shouldExport = doc.ShouldExport;
@@ -479,7 +493,9 @@ public static class Project
 
         // Remove old document
         Workspace.ClearSelection();
+        Undo.RemoveDocument(doc);
         _documents.Remove(doc);
+        DocumentRemoved?.Invoke(doc);
         doc.Dispose();
 
         // Create new document from same path (ResolveDef will read the updated meta)
@@ -496,9 +512,15 @@ public static class Project
         newDoc.PostLoad();
         newDoc.PostLoaded = true;
 
+        var newTargetPath = GetTargetPath(newDoc);
+        if (!string.Equals(oldTargetPath, newTargetPath, StringComparison.OrdinalIgnoreCase))
+            DeleteExportTarget(oldTargetPath);
+
         if (wasSelected)
             Workspace.SetSelected(newDoc, true);
 
+        DocumentAdded?.Invoke(newDoc);
+        QueueExport(newDoc, force: true);
         AssetManifest.IsModified = true;
 
         return newDoc;

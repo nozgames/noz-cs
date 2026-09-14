@@ -319,6 +319,8 @@ public static partial class Workspace
             PopupMenuItem.Item("Sound", () => CreateNewDocument(SoundDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSound),
             PopupMenuItem.Item("Scene", () => CreateNewDocument(SceneDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSprite),
             PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: _popupWorldPosition)), level: 1),
+            ..Project.DocumentDefs.Where(def => def.CreateNew != null).Select(def =>
+                PopupMenuItem.Item(def.Name, () => CreateNewDocument(def.CreateNew!(_popupWorldPosition)), level: 1, icon: def.Icon?.Invoke())),
             PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle),
             PopupMenuItem.Separator(),
             PopupMenuItem.Submenu("Move to Collection", showChecked: true, showIcons: false),
@@ -474,7 +476,7 @@ public static partial class Workspace
         if (!isolation)
             DrawDocuments();
 
-        if (_showGrid)
+        if (_showGrid && (ActiveEditor?.ShowWorkspaceGrid ?? true))
             Grid.Draw(_camera);
 
         if (!isolation && ShowNames)
@@ -1611,7 +1613,7 @@ public static partial class Workspace
                         var targetDef = def;
                         items.Add(PopupMenuItem.Item(
                             def.Name,
-                            () => ConvertDocumentType(selectedDoc, targetDef),
+                            () => Project.ChangeType(selectedDoc, targetDef),
                             level: 1,
                             isChecked: () => selectedDoc.Def == targetDef));
                     }
@@ -1631,59 +1633,6 @@ public static partial class Workspace
         _popupWorldPosition = MouseWorldPosition;
 
         UI.OpenPopupMenu(WidgetIds.ContextMenu, items.ToArray(), EditorStyle.ContextMenu.Style, title: "Asset");
-    }
-
-    private static void ConvertDocumentType(Document doc, DocumentDef newDef)
-    {
-        if (doc.Def == newDef) return;
-
-        var dir = Path.GetDirectoryName(doc.Path) ?? "";
-        var stem = Path.GetFileNameWithoutExtension(doc.Path);
-
-        // Delete old companion file (the type-specific file, not the image)
-        var oldExt = doc.Def.Extensions[0];
-        var oldCompanion = Path.Combine(dir, stem + oldExt);
-        if (File.Exists(oldCompanion))
-            File.Delete(oldCompanion);
-
-        // Find the image file
-        string? imagePath = null;
-        string[] imageExts = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"];
-        foreach (var imgExt in imageExts)
-        {
-            var imgPath = Path.Combine(dir, stem + imgExt);
-            if (File.Exists(imgPath))
-            {
-                imagePath = imgPath;
-                break;
-            }
-        }
-        if (imagePath == null) return;
-
-        // Write document_type to meta on the image file
-        var metaPath = imagePath + ".meta";
-        var meta = PropertySet.LoadFile(metaPath) ?? new PropertySet();
-        meta.SetString("editor", "document_type", newDef.Name);
-        meta.Save(metaPath);
-
-        // Remove old document from list (don't delete files)
-        var position = doc.Position;
-        Undo.RemoveDocument(doc);
-        Project.Remove(doc);
-
-        // Create new document from the image file
-        var newDoc = Project.Create(imagePath);
-        if (newDoc != null)
-        {
-            newDoc.LoadMetadata();
-            newDoc.Loaded = true;
-            newDoc.Load();
-            newDoc.PostLoad();
-            newDoc.PostLoaded = true;
-            newDoc.Position = Grid.SnapToPixelGrid(position);
-            Project.NotifyDocumentAdded(newDoc);
-            AssetManifest.IsModified = true;
-        }
     }
 
     private static void OpenSettings()

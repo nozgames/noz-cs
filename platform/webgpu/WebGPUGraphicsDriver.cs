@@ -101,6 +101,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     // Per-batch globals buffer pool
     private const int GlobalsBufferSize = 80; // mat4 (64) + float (4) + padding (12) = 80 bytes
     private WGPUBuffer*[] _globalsBuffers = [];
+    private int[] _globalsBufferSizes = [];
     private int _globalsBufferCount;
     private int _currentGlobalsIndex = -1;
 
@@ -209,6 +210,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _freeMeshIdCount = 0;
         _nextMeshId = 1;
         _globalsBuffers = new WGPUBuffer*[config.MaxGlobalSnapshots];
+        _globalsBufferSizes = new int[config.MaxGlobalSnapshots];
         _globalsBufferCount = 0;
 
         if (OperatingSystem.IsBrowser())
@@ -551,6 +553,12 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void Shutdown()
     {
+        for (var i = 0; i < _globalsBufferCount; i++)
+            _wgpu.BufferRelease(_globalsBuffers[i]);
+        _globalsBuffers = [];
+        _globalsBufferSizes = [];
+        _globalsBufferCount = 0;
+
         // Release global samplers
         if (_linearSampler != null)
         {

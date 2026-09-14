@@ -56,7 +56,8 @@ public class ImageSpriteDocument : SpriteDocument
         if (!File.Exists(Path))
             return;
 
-        var info = Image.Identify(File.OpenRead(Path));
+        using var stream = File.OpenRead(Path);
+        var info = Image.Identify(stream);
         if (info == null)
             return;
 
@@ -178,7 +179,8 @@ public class ImageSpriteDocument : SpriteDocument
 
         try
         {
-            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(File.OpenRead(Path));
+            using var stream = File.OpenRead(Path);
+            using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(stream);
             _texture = CreateTextureFromImage(srcImage, Name + "_preview");
         }
         catch (Exception ex)
@@ -191,7 +193,8 @@ public class ImageSpriteDocument : SpriteDocument
     {
         if (!File.Exists(Path)) return;
 
-        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(File.OpenRead(Path));
+        using var stream = File.OpenRead(Path);
+        using var srcImage = SixLabors.ImageSharp.Image.Load<Rgba32>(stream);
         var srcW = srcImage.Width;
         var srcH = srcImage.Height;
         var dstW = RasterBounds.Width;

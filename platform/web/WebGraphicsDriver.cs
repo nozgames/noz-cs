@@ -60,11 +60,12 @@ public class WebGraphicsDriver : IGraphicsDriver
     // Globals buffer management
     private const int GlobalsBufferSize = 80; // mat4 (64) + float (4) + padding (12)
     private int[] _globalsBuffers = [];
+    private int[] _globalsBufferSizes = [];
     private int _globalsBufferCount;
     private int _currentGlobalsIndex = -1;
 
     // Pre-allocated buffers to reduce per-frame allocations
-    private readonly byte[] _globalsWriteBuffer = new byte[GlobalsBufferSize];
+    private byte[] _globalsWriteBuffer = new byte[GlobalsBufferSize];
     private readonly StringBuilder _jsonBuilder = new(512);
     private readonly JSObject[] _singleColorAttachment = new JSObject[1]; // Reusable array for render pass
 
@@ -204,6 +205,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         _nextMeshId = 1;
         _freeMeshHandles.Clear();
         _globalsBuffers = new int[config.MaxGlobalSnapshots];
+        _globalsBufferSizes = new int[config.MaxGlobalSnapshots];
         _globalsBufferCount = 0;
         // Actual initialization happens in InitAsync
     }
@@ -874,6 +876,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         {
             var bufferId = WebGPUInterop.CreateBuffer(GlobalsBufferSize, (int)(WebGPUBufferUsage.Uniform | WebGPUBufferUsage.CopyDst), $"globals_{_globalsBufferCount}");
             _globalsBuffers[_globalsBufferCount] = bufferId;
+            _globalsBufferSizes[_globalsBufferCount] = GlobalsBufferSize;
             _globalsBufferCount++;
         }
     }
@@ -882,6 +885,18 @@ public class WebGraphicsDriver : IGraphicsDriver
     {
         if (index < 0 || index >= _globalsBufferCount)
             return;
+
+        if (data.Length > _globalsBufferSizes[index])
+        {
+            var bufferId = WebGPUInterop.CreateBuffer(data.Length,
+                (int)(WebGPUBufferUsage.Uniform | WebGPUBufferUsage.CopyDst), $"globals_{index}");
+            WebGPUInterop.DestroyBuffer(_globalsBuffers[index]);
+            _globalsBuffers[index] = bufferId;
+            _globalsBufferSizes[index] = data.Length;
+            _state.BindGroupDirty = true;
+        }
+        if (_globalsWriteBuffer.Length < data.Length)
+            _globalsWriteBuffer = new byte[data.Length];
 
         // Copy to pre-allocated buffer to avoid allocation
         data.CopyTo(_globalsWriteBuffer);
@@ -1027,6 +1042,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         var hash = new HashCode();
         hash.Add(_state.BoundShader);
         hash.Add(_currentGlobalsIndex);
+        hash.Add(_currentGlobalsIndex >= 0 ? _globalsBufferSizes[_currentGlobalsIndex] : 0);
         for (int i = 0; i < 8; i++)
         {
             hash.Add(_state.BoundTextures[i]);
@@ -1101,7 +1117,7 @@ public class WebGraphicsDriver : IGraphicsDriver
                             return 0;
                         }
                         bufferId = _globalsBuffers[_currentGlobalsIndex];
-                        bufferSize = GlobalsBufferSize;
+                        bufferSize = _globalsBufferSizes[_currentGlobalsIndex];
                     }
                     else
                     {

@@ -31,6 +31,7 @@ public static unsafe partial class Graphics
         public RenderMesh Mesh;
         public float Opacity;
         public Color OverlayColor;
+        public int DrawParameterIndex;
     }
 
     public struct AutoState(bool pop) : IDisposable
@@ -72,7 +73,8 @@ public static unsafe partial class Graphics
                              current.Scissor != prev.Scissor;
         var meshChanged = current.Mesh != prev.Mesh;
 
-        if (shaderChanged || blendChanged || texturesChanged || viewportChanged || scissorChanged || meshChanged)
+        if (shaderChanged || blendChanged || texturesChanged || viewportChanged || scissorChanged || meshChanged ||
+            current.DrawParameterIndex != prev.DrawParameterIndex)
             _batchStateDirty = true;
     }
 
@@ -93,6 +95,7 @@ public static unsafe partial class Graphics
         CurrentState.Color = Color.White;
         CurrentState.Opacity = 1.0f;
         CurrentState.OverlayColor = Color.Transparent;
+        CurrentState.DrawParameterIndex = 0;
         CurrentState.Shader = null;
         CurrentState.BlendMode = default;
         CurrentState.BoneIndex = 0;
@@ -111,7 +114,6 @@ public static unsafe partial class Graphics
         _rtPassIndex = 0;
         _rtPassCount = 0;
         _boneRow = 1;
-        _globalsBaseIndex = 0;
         Camera = null;
 
         // Reset all pass projections to identity to ensure clean state

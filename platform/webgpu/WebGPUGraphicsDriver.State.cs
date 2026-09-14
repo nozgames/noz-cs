@@ -58,6 +58,7 @@ public unsafe partial class WebGPUGraphicsDriver
                 MappedAtCreation = false
             };
             _globalsBuffers[_globalsBufferCount] = _wgpu.DeviceCreateBuffer(_device, &bufferDesc);
+            _globalsBufferSizes[_globalsBufferCount] = GlobalsBufferSize;
             _globalsBufferCount++;
         }
     }
@@ -66,6 +67,22 @@ public unsafe partial class WebGPUGraphicsDriver
     {
         if (index < 0 || index >= _globalsBufferCount)
             return;
+
+        // The fixed prefix is unchanged for 2D shaders. Grow only snapshots
+        // that include optional caller-defined draw parameters.
+        if (data.Length > _globalsBufferSizes[index])
+        {
+            var descriptor = new BufferDescriptor
+            {
+                Size = (ulong)data.Length,
+                Usage = WGPUBufferUsage.Uniform | WGPUBufferUsage.CopyDst,
+            };
+            var buffer = _wgpu.DeviceCreateBuffer(_device, &descriptor);
+            _wgpu.BufferRelease(_globalsBuffers[index]);
+            _globalsBuffers[index] = buffer;
+            _globalsBufferSizes[index] = data.Length;
+            _state.BindGroupDirty = true;
+        }
 
         fixed (byte* dataPtr = data)
         {
@@ -169,6 +186,7 @@ public unsafe partial class WebGPUGraphicsDriver
         var hash = new HashCode();
         hash.Add(_state.BoundShader);
         hash.Add(_currentGlobalsIndex);
+        hash.Add(_currentGlobalsIndex >= 0 ? _globalsBufferSizes[_currentGlobalsIndex] : 0);
         for (int i = 0; i < 8; i++)
         {
             hash.Add(_state.BoundTextures[i]);
@@ -256,7 +274,7 @@ public unsafe partial class WebGPUGraphicsDriver
                             return;
                         }
                         buffer = _globalsBuffers[_currentGlobalsIndex];
-                        bufferSize = GlobalsBufferSize;
+                        bufferSize = (ulong)_globalsBufferSizes[_currentGlobalsIndex];
                     }
                     else
                     {

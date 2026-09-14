@@ -73,6 +73,7 @@ public static unsafe partial class Graphics
     {
         public Matrix4x4 Projection;
         public float Time;
+        public int DrawParameterIndex;
     }
 
     private const int MaxBoneRows = 1024;
@@ -156,6 +157,10 @@ public static unsafe partial class Graphics
         _stateStack = new State[MaxStateStack];
         _stateStackDepth = 0;
 
+        _globalsBaseIndex = 0;
+        _drawParameterCount = 0;
+        _drawParameterSnapshots.Clear();
+
         PixelsPerUnit = graphicsConfig.PixelsPerUnit;
         PixelsPerUnitInv = 1.0f / PixelsPerUnit;
 
@@ -198,6 +203,8 @@ public static unsafe partial class Graphics
 
     public static void Shutdown()
     {
+        _drawParameterSnapshots.Clear();
+        _drawParameterCount = 0;
         _batches.Dispose();
         _vertices.Dispose();
         _commands.Dispose();
@@ -216,6 +223,10 @@ public static unsafe partial class Graphics
 
     internal static bool BeginFrame()
     {
+        // Only recycle snapshots at a frame boundary, never during an internal
+        // blit/flush: earlier draws may still be waiting for GPU submission.
+        _globalsBaseIndex = 0;
+        _drawParameterCount = 0;
         ResetState();
 
         if (WhiteTexture == null)
@@ -346,14 +357,22 @@ public static unsafe partial class Graphics
         // Ensure driver has enough buffers for base + count
         Driver.SetGlobalsCount(_globalsBaseIndex + count);
 
-        var data = stackalloc byte[80];
+        Span<byte> data = stackalloc byte[GlobalsPrefixBytes + MaxDrawParameterBytes];
         for (int i = 0; i < count; i++)
         {
             ref var snapshot = ref _globalsSnapshots[i];
             var transposed = Matrix4x4.Transpose(snapshot.Projection);
-            Buffer.MemoryCopy(&transposed, data, 64, 64);
-            *(float*)(data + 64) = snapshot.Time;
-            Driver.SetGlobals(_globalsBaseIndex + i, new ReadOnlySpan<byte>(data, 80));
+            data.Clear();
+            MemoryMarshal.Write(data, in transposed);
+            MemoryMarshal.Write(data[64..], in snapshot.Time);
+            var size = GlobalsPrefixBytes;
+            if (snapshot.DrawParameterIndex != 0)
+            {
+                var parameters = _drawParameterSnapshots[snapshot.DrawParameterIndex - 1];
+                parameters.CopyTo(data[GlobalsPrefixBytes..]);
+                size += parameters.Length;
+            }
+            Driver.SetGlobals(_globalsBaseIndex + i, data[..size]);
         }
     }
 
@@ -371,9 +390,10 @@ public static unsafe partial class Graphics
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ushort GetOrAddGlobals(in Matrix4x4 projection)
     {
-        // Only compare projection - time is same for all batches in a frame
+        // Time is the same for all batches; caller-defined parameters are not.
         for (int i = 0; i < _globalsSnapshots.Length; i++)
-            if (_globalsSnapshots[i].Projection == projection)
+            if (_globalsSnapshots[i].Projection == projection &&
+                _globalsSnapshots[i].DrawParameterIndex == CurrentState.DrawParameterIndex)
                 return (ushort)(_globalsBaseIndex + i);
 
         var nextIndex = _globalsBaseIndex + _globalsSnapshots.Length;
@@ -381,10 +401,15 @@ public static unsafe partial class Graphics
             throw new InvalidOperationException(
                 $"Graphics global snapshot budget exhausted ({_maxGlobalSnapshots}). " +
                 $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxGlobalSnapshots)} " +
-                "or reduce the number of unique projections submitted in one frame.");
+                "or reduce the number of unique projections/parameters submitted in one frame.");
 
         var index = (ushort)nextIndex;
-        _globalsSnapshots.Add() = new GlobalsSnapshot { Projection = projection, Time = _time };
+        _globalsSnapshots.Add() = new GlobalsSnapshot
+        {
+            Projection = projection,
+            Time = _time,
+            DrawParameterIndex = CurrentState.DrawParameterIndex
+        };
         return index;
     }
 

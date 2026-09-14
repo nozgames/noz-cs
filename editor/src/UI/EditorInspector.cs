@@ -50,6 +50,13 @@ public static class EditorInspector
         return result;
     }
 
+    public static Color ColorField(WidgetId id, Color value, Document? undoDocument = null)
+    {
+        var result = EditorUI.ColorButton(id, value);
+        RecordChangeStart(undoDocument);
+        return result;
+    }
+
     public static float FloatField(
         WidgetId id,
         float value,
@@ -102,4 +109,3 @@ public static class EditorInspector
             Undo.Record(document);
     }
 }
-
