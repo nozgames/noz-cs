@@ -964,15 +964,32 @@ export function createRenderTexture(width, height, format, sampleCount, depth, l
 
     let depthTexture = null;
     let depthView = null;
+    let depthTextureId = 0;
     if (depth) {
+        const depthUsage = GPUTextureUsage.RENDER_ATTACHMENT |
+            (!msaa ? GPUTextureUsage.TEXTURE_BINDING : 0);
         depthTexture = device.createTexture({
             size: { width, height, depthOrArrayLayers: 1 },
             format: 'depth24plus',
             sampleCount: sampleCount,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            usage: depthUsage,
             label: (label || `render_texture_${id}`) + '_depth'
         });
         depthView = depthTexture.createView();
+
+        if (!msaa) {
+            depthTextureId = nextTextureId++;
+            textures.set(depthTextureId, {
+                texture: depthTexture,
+                view: depthView,
+                view2d: depthView,
+                width: width,
+                height: height,
+                format: 'depth24plus',
+                layers: 1,
+                isArray: false
+            });
+        }
     }
 
     renderTextures.set(id, {
@@ -982,6 +999,7 @@ export function createRenderTexture(width, height, format, sampleCount, depth, l
         msaaView: msaaView,
         depthTexture: depthTexture,
         depthView: depthView,
+        depthTextureId: depthTextureId,
         sampleCount: sampleCount,
         width: width,
         height: height,
@@ -1005,6 +1023,11 @@ export function createRenderTexture(width, height, format, sampleCount, depth, l
     return id;
 }
 
+export function getRenderTextureDepthTexture(textureId) {
+    const rt = renderTextures.get(textureId);
+    return rt ? rt.depthTextureId : 0;
+}
+
 export function destroyRenderTexture(textureId) {
     const rt = renderTextures.get(textureId);
     if (rt) {
@@ -1013,6 +1036,9 @@ export function destroyRenderTexture(textureId) {
         }
         if (rt.depthTexture) {
             rt.depthTexture.destroy();
+        }
+        if (rt.depthTextureId) {
+            textures.delete(rt.depthTextureId);
         }
         rt.texture.destroy();
         renderTextures.delete(textureId);
@@ -1223,6 +1249,14 @@ export function createUnfilterableTexture2DLayoutEntry(binding) {
         binding: binding,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         texture: { sampleType: 'unfilterable-float', viewDimension: '2d' }
+    };
+}
+
+export function createDepthTextureLayoutEntry(binding) {
+    return {
+        binding: binding,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: 'depth', viewDimension: '2d' }
     };
 }
 

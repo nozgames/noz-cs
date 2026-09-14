@@ -101,6 +101,10 @@ public class ShaderDocument : Document
             {
                 bindingType = ShaderBindingType.UniformBuffer;
             }
+            else if (type.Contains("texture_depth_2d"))
+            {
+                bindingType = ShaderBindingType.TextureDepth;
+            }
             else if (type.Contains("texture_2d_array"))
             {
                 bindingType = ShaderBindingType.Texture2DArray;

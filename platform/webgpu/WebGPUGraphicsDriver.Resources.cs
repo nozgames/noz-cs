@@ -699,6 +699,7 @@ public unsafe partial class WebGPUGraphicsDriver
         public TextureView* MsaaTextureView;
         public WGPUTexture* DepthTexture;
         public TextureView* DepthTextureView;
+        public nuint DepthTextureHandle;
         public int Width;
         public int Height;
         public int SampleCount;
@@ -780,7 +781,8 @@ public unsafe partial class WebGPUGraphicsDriver
                 SampleCount = (uint)sampleCount,
                 Dimension = TextureDimension.Dimension2D,
                 Format = WGPUTextureFormat.Depth24Plus,
-                Usage = TextureUsage.RenderAttachment,
+                Usage = TextureUsage.RenderAttachment |
+                        (sampleCount == 1 ? TextureUsage.TextureBinding : TextureUsage.None),
             };
             depthTexture = _wgpu.DeviceCreateTexture(_device, &depthDesc);
             depthTextureView = _wgpu.TextureCreateView(depthTexture, null);
@@ -788,22 +790,6 @@ public unsafe partial class WebGPUGraphicsDriver
 
         // Allocate from shared texture handle space so RT can be used with BindTexture
         var handle = (nuint)AllocTextureHandle();
-        var rtSlot = _freeRtSlotCount > 0 ? _freeRtSlots[--_freeRtSlotCount] : _nextRenderTextureSlot++;
-
-        _renderTextures[rtSlot] = new RenderTextureInfo
-        {
-            Texture = texture,
-            TextureView = textureView,
-            MsaaTexture = msaaTexture,
-            MsaaTextureView = msaaTextureView,
-            DepthTexture = depthTexture,
-            DepthTextureView = depthTextureView,
-            Width = width,
-            Height = height,
-            SampleCount = sampleCount,
-            Format = wgpuFormat,
-        };
-
         // Store both D2Array and D2 views for sampling
         _textures[(int)handle] = new TextureInfo
         {
@@ -816,10 +802,51 @@ public unsafe partial class WebGPUGraphicsDriver
             IsArray = true,
         };
 
+        nuint depthTextureHandle = nuint.Zero;
+        if (depthTexture != null && sampleCount == 1)
+        {
+            depthTextureHandle = (nuint)AllocTextureHandle();
+            _textures[(int)depthTextureHandle] = new TextureInfo
+            {
+                Texture = depthTexture,
+                TextureView = depthTextureView,
+                Width = width,
+                Height = height,
+                Layers = 1,
+                Format = WGPUTextureFormat.Depth24Plus,
+                IsArray = false,
+            };
+        }
+
+        var rtSlot = _freeRtSlotCount > 0 ? _freeRtSlots[--_freeRtSlotCount] : _nextRenderTextureSlot++;
+        _renderTextures[rtSlot] = new RenderTextureInfo
+        {
+            Texture = texture,
+            TextureView = textureView,
+            MsaaTexture = msaaTexture,
+            MsaaTextureView = msaaTextureView,
+            DepthTexture = depthTexture,
+            DepthTextureView = depthTextureView,
+            DepthTextureHandle = depthTextureHandle,
+            Width = width,
+            Height = height,
+            SampleCount = sampleCount,
+            Format = wgpuFormat,
+        };
+
         // Map handle → RT slot for render pass operations
         _rtHandleToSlot[(int)handle] = rtSlot;
 
         return handle;
+    }
+
+    public nuint GetRenderTextureDepthTexture(nuint renderTexture)
+    {
+        if (renderTexture == nuint.Zero || renderTexture >= (nuint)_rtHandleToSlot.Length)
+            return nuint.Zero;
+
+        var rtSlot = _rtHandleToSlot[(int)renderTexture];
+        return rtSlot > 0 ? _renderTextures[rtSlot].DepthTextureHandle : nuint.Zero;
     }
 
     public void DestroyRenderTexture(nuint handle)
@@ -845,15 +872,25 @@ public unsafe partial class WebGPUGraphicsDriver
             _wgpu.TextureRelease(rt.MsaaTexture);
             rt.MsaaTexture = null;
         }
-        if (rt.DepthTextureView != null)
+        if (rt.DepthTextureHandle != nuint.Zero)
         {
-            _wgpu.TextureViewRelease(rt.DepthTextureView);
+            DestroyTexture(rt.DepthTextureHandle);
+            rt.DepthTextureHandle = nuint.Zero;
             rt.DepthTextureView = null;
-        }
-        if (rt.DepthTexture != null)
-        {
-            _wgpu.TextureRelease(rt.DepthTexture);
             rt.DepthTexture = null;
+        }
+        else
+        {
+            if (rt.DepthTextureView != null)
+            {
+                _wgpu.TextureViewRelease(rt.DepthTextureView);
+                rt.DepthTextureView = null;
+            }
+            if (rt.DepthTexture != null)
+            {
+                _wgpu.TextureRelease(rt.DepthTexture);
+                rt.DepthTexture = null;
+            }
         }
 
         // Release the D2Array view (sampling)

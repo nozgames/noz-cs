@@ -732,10 +732,12 @@ public class WebGraphicsDriver : IGraphicsDriver
             if (binding.Type == ShaderBindingType.UniformBuffer)
                 uniformBindings[binding.Name] = binding.Binding;
 
-            if (binding.Type == ShaderBindingType.Texture2D || binding.Type == ShaderBindingType.Texture2DArray)
+            if (binding.Type == ShaderBindingType.Texture2D ||
+                binding.Type == ShaderBindingType.Texture2DArray ||
+                binding.Type == ShaderBindingType.TextureDepth)
             {
                 bool hasSampler = i + 1 < bindings.Count && bindings[i + 1].Type == ShaderBindingType.Sampler;
-                bool isUnfilterable = !hasSampler;
+                bool isUnfilterable = binding.Type == ShaderBindingType.TextureDepth || !hasSampler;
 
                 // Update binding type to unfilterable if no sampler follows (browser WebGPU requires this)
                 if (isUnfilterable && binding.Type == ShaderBindingType.Texture2D)
@@ -1126,6 +1128,7 @@ public class WebGraphicsDriver : IGraphicsDriver
                 case ShaderBindingType.Texture2D:
                 case ShaderBindingType.Texture2DArray:
                 case ShaderBindingType.Texture2DUnfilterable:
+                case ShaderBindingType.TextureDepth:
                 {
                     int textureSlot = GetTextureSlotForBinding(binding.Binding, shader);
                     nuint textureHandle = textureSlot >= 0 ? _state.BoundTextures[textureSlot] : 0;
@@ -1336,6 +1339,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public int SampleCount;
         public string Format;
         public bool HasDepth;
+        public nuint DepthTextureHandle;
     }
 
     public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null, bool depth = false)
@@ -1344,19 +1348,12 @@ public class WebGraphicsDriver : IGraphicsDriver
         // JS side allocates from shared nextTextureId and stores in both textures + renderTextures maps
         // When sampleCount > 1, JS creates both MSAA and resolve textures
         var jsTextureId = WebGPUInterop.CreateRenderTexture(width, height, gpuFormat, sampleCount, depth, name);
+        var jsDepthTextureId = depth && sampleCount == 1
+            ? WebGPUInterop.GetRenderTextureDepthTexture(jsTextureId)
+            : 0;
 
         // Use shared handle space so RT handles work with BindTexture/CreateBindGroup
         var handle = (nuint)_nextTextureId++;
-        _renderTextures[handle] = new RenderTextureInfo
-        {
-            JsTextureId = jsTextureId,
-            Width = width,
-            Height = height,
-            SampleCount = sampleCount,
-            Format = gpuFormat,
-            HasDepth = depth
-        };
-
         // Also store in _textures so CreateBindGroup can resolve the texture
         // JS side ensures the textures map points to the resolve texture for sampling
         _textures[handle] = new TextureInfo
@@ -1369,14 +1366,47 @@ public class WebGraphicsDriver : IGraphicsDriver
             IsArray = true  // Sprite shader expects texture_2d_array; JS side creates 2DArray view
         };
 
+        nuint depthTextureHandle = nuint.Zero;
+        if (jsDepthTextureId != 0)
+        {
+            depthTextureHandle = (nuint)_nextTextureId++;
+            _textures[depthTextureHandle] = new TextureInfo
+            {
+                JsTextureId = jsDepthTextureId,
+                Width = width,
+                Height = height,
+                Layers = 1,
+                Format = "depth24plus",
+                IsArray = false,
+            };
+        }
+
+        _renderTextures[handle] = new RenderTextureInfo
+        {
+            JsTextureId = jsTextureId,
+            Width = width,
+            Height = height,
+            SampleCount = sampleCount,
+            Format = gpuFormat,
+            HasDepth = depth,
+            DepthTextureHandle = depthTextureHandle,
+        };
+
         return handle;
     }
+
+    public nuint GetRenderTextureDepthTexture(nuint renderTexture) =>
+        _renderTextures.TryGetValue(renderTexture, out var rt)
+            ? rt.DepthTextureHandle
+            : nuint.Zero;
 
     public void DestroyRenderTexture(nuint handle)
     {
         if (_renderTextures.TryGetValue(handle, out var rt))
         {
             WebGPUInterop.DestroyRenderTexture(rt.JsTextureId);
+            if (rt.DepthTextureHandle != nuint.Zero)
+                _textures.Remove(rt.DepthTextureHandle);
             _renderTextures.Remove(handle);
         }
         _textures.Remove(handle);

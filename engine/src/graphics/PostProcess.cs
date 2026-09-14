@@ -26,6 +26,18 @@ public static class PostProcess
 
     internal static bool IsActive => _active;
 
+    /// <summary>
+    /// Sampleable depth texture for the scene currently being post-processed.
+    /// Zero when the scene has no depth attachment or uses multisampling.
+    /// </summary>
+    public static nuint SceneDepthTextureHandle => _sceneRT?.DepthTextureHandle ?? nuint.Zero;
+
+    /// <summary>
+    /// Borrowed color-texture handle for the scene currently being post-processed.
+    /// This remains the original scene throughout a multi-pass effect.
+    /// </summary>
+    public static nuint SceneColorTextureHandle => _sceneRT?.Handle ?? nuint.Zero;
+
     internal static void ForceReset()
     {
         _sceneRT = null;

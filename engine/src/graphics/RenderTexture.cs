@@ -12,6 +12,11 @@ public class RenderTexture : ITexture, IDisposable
     public int SampleCount { get; private set; }
     public TextureFormat Format { get; private set; }
     public bool HasDepth { get; private set; }
+    /// <summary>
+    /// Borrowed handle for sampling this render target's depth attachment.
+    /// Zero when depth is disabled or multisampled. The render texture owns it.
+    /// </summary>
+    public nuint DepthTextureHandle { get; private set; }
 
     float IImage.ImageWidth => Width;
     float IImage.ImageHeight => Height;
@@ -31,6 +36,9 @@ public class RenderTexture : ITexture, IDisposable
         SampleCount = sampleCount;
         Format = format;
         HasDepth = depth;
+        DepthTextureHandle = depth
+            ? Graphics.Driver.GetRenderTextureDepthTexture(handle)
+            : nuint.Zero;
     }
 
     public static RenderTexture Create(
@@ -51,5 +59,6 @@ public class RenderTexture : ITexture, IDisposable
 
         Graphics.Driver.DestroyRenderTexture(Handle);
         Handle = 0;
+        DepthTextureHandle = 0;
     }
 }

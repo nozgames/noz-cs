@@ -94,6 +94,7 @@ public interface IGraphicsDriver
 
     // Render Texture support (BGRA8 default matches swap chain format for pipeline compatibility)
     nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null, bool depth = false);
+    nuint GetRenderTextureDepthTexture(nuint renderTexture) => nuint.Zero;
     void DestroyRenderTexture(nuint handle);
     void BeginRenderTexturePass(nuint renderTexture, Color clearColor);
     void ResumeRenderTexturePass(nuint renderTexture);

@@ -69,6 +69,15 @@ public unsafe partial class WebGPUGraphicsDriver
                         });
                     }
                 }
+                else if (binding.Type == ShaderBindingType.TextureDepth)
+                {
+                    textureSlots.Add(new TextureSlotInfo
+                    {
+                        TextureBinding = binding.Binding,
+                        SamplerBinding = 0,
+                        IsUnfilterable = true
+                    });
+                }
             }
 
             // Use pre-computed metadata from asset pipeline (with unfilterable fixups)
@@ -133,6 +142,7 @@ public unsafe partial class WebGPUGraphicsDriver
         Texture2D,
         Texture2DArray,
         Texture2DUnfilterable,  // For textures like RGBA32F that use textureLoad
+        TextureDepth,
         Sampler
     }
 
@@ -153,6 +163,7 @@ public unsafe partial class WebGPUGraphicsDriver
                 ShaderBindingType.Texture2D => BindingType.Texture2D,
                 ShaderBindingType.Texture2DArray => BindingType.Texture2DArray,
                 ShaderBindingType.Texture2DUnfilterable => BindingType.Texture2DUnfilterable,
+                ShaderBindingType.TextureDepth => BindingType.TextureDepth,
                 ShaderBindingType.Sampler => BindingType.Sampler,
                 _ => throw new NotSupportedException($"Binding type {binding.Type} not supported")
             };
@@ -290,6 +301,16 @@ public unsafe partial class WebGPUGraphicsDriver
                     ViewDimension = TextureViewDimension.Dimension2D,
                 },
             },
+            BindingType.TextureDepth => new BindGroupLayoutEntry
+            {
+                Binding = binding,
+                Visibility = ShaderStage.Fragment,
+                Texture = new TextureBindingLayout
+                {
+                    SampleType = TextureSampleType.Depth,
+                    ViewDimension = TextureViewDimension.Dimension2D,
+                },
+            },
             BindingType.Sampler => new BindGroupLayoutEntry
             {
                 Binding = binding,
@@ -322,6 +343,8 @@ public unsafe partial class WebGPUGraphicsDriver
         var bindingDeclaration = shaderSource.Substring(searchStart, searchEnd - searchStart);
 
         // Detect binding type from declaration
+        if (bindingDeclaration.Contains("texture_depth_2d"))
+            return BindingType.TextureDepth;
         if (bindingDeclaration.Contains("texture_2d_array"))
             return BindingType.Texture2DArray;
         if (bindingDeclaration.Contains("texture_2d"))

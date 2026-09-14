@@ -25,6 +25,7 @@ internal static class JSObjectHelper
             ShaderBindingType.Texture2D => WebGPUInterop.CreateTexture2DLayoutEntry((int)binding.Binding),
             ShaderBindingType.Texture2DArray => WebGPUInterop.CreateTexture2DArrayLayoutEntry((int)binding.Binding),
             ShaderBindingType.Texture2DUnfilterable => WebGPUInterop.CreateUnfilterableTexture2DLayoutEntry((int)binding.Binding),
+            ShaderBindingType.TextureDepth => WebGPUInterop.CreateDepthTextureLayoutEntry((int)binding.Binding),
             ShaderBindingType.Sampler => WebGPUInterop.CreateSamplerLayoutEntry((int)binding.Binding),
             _ => throw new NotSupportedException($"Binding type {binding.Type} not supported")
         };

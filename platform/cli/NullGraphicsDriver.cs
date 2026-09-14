@@ -63,6 +63,7 @@ public class NullGraphicsDriver : IGraphicsDriver
     public void EndScenePass() { }
 
     public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null, bool depth = false) => _nextHandle++;
+    public nuint GetRenderTextureDepthTexture(nuint renderTexture) => nuint.Zero;
     public void DestroyRenderTexture(nuint handle) { }
     public void BeginRenderTexturePass(nuint renderTexture, Color clearColor) { }
     public void ResumeRenderTexturePass(nuint renderTexture) { }

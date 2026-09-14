@@ -80,5 +80,6 @@ public enum WebGPUBindingType
     Texture2D,
     Texture2DArray,
     Texture2DUnfilterable,
+    TextureDepth,
     Sampler
 }

@@ -177,6 +177,9 @@ public static partial class WebGPUInterop
     [JSImport("createRenderTexture", ModuleName)]
     internal static partial int CreateRenderTexture(int width, int height, string format, int sampleCount, bool depth, string? label);
 
+    [JSImport("getRenderTextureDepthTexture", ModuleName)]
+    internal static partial int GetRenderTextureDepthTexture(int textureId);
+
     [JSImport("destroyRenderTexture", ModuleName)]
     internal static partial void DestroyRenderTexture(int textureId);
 
@@ -218,6 +221,9 @@ public static partial class WebGPUInterop
 
     [JSImport("createUnfilterableTexture2DLayoutEntry", ModuleName)]
     internal static partial JSObject CreateUnfilterableTexture2DLayoutEntry(int binding);
+
+    [JSImport("createDepthTextureLayoutEntry", ModuleName)]
+    internal static partial JSObject CreateDepthTextureLayoutEntry(int binding);
 
     [JSImport("createSamplerLayoutEntry", ModuleName)]
     internal static partial JSObject CreateSamplerLayoutEntry(int binding);
