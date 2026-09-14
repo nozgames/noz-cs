@@ -48,7 +48,7 @@ public class ShaderDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {
-        ImportWgsl(outputPath, GetShaderFlags());
+        ImportWgsl(outputPath, GetShaderFlags(meta));
     }
 
     private void ImportWgsl(string outputPath, ShaderFlags flags)
@@ -176,13 +176,13 @@ public class ShaderDocument : Document
         _ => (1, VertexAttribType.Float),
     };
 
-    private ShaderFlags GetShaderFlags()
+    private ShaderFlags GetShaderFlags(PropertySet meta)
     {
         var flags = ShaderFlags.None;
-        if (Blend) flags |= ShaderFlags.Blend;
-        if (Depth) flags |= ShaderFlags.Depth;
-        if (DepthLess) flags |= ShaderFlags.DepthLess   ;
-        if (PremultipliedAlpha) flags |= ShaderFlags.PremultipliedAlpha;
+        if (meta.GetBool("shader", "blend", Blend)) flags |= ShaderFlags.Blend;
+        if (meta.GetBool("shader", "depth", Depth)) flags |= ShaderFlags.Depth;
+        if (meta.GetBool("shader", "depth_less", DepthLess)) flags |= ShaderFlags.DepthLess;
+        if (meta.GetBool("shader", "premultiplied", PremultipliedAlpha)) flags |= ShaderFlags.PremultipliedAlpha;
         return flags;
     }
 

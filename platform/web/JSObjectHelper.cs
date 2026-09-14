@@ -61,6 +61,9 @@ internal static class JSObjectHelper
         BlendMode blendMode,
         int sampleCount,
         string targetFormat,
+        string depthFormat,
+        bool depthWriteEnabled,
+        string depthCompare,
         string label)
     {
         var vertexBuffersJson = CreateVertexBufferLayoutJson(vertexDescriptor);
@@ -79,6 +82,9 @@ internal static class JSObjectHelper
             "ccw",
             sampleCount,
             targetFormat,
+            depthFormat,
+            depthWriteEnabled,
+            depthCompare,
             label);
     }
 

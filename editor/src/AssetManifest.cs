@@ -13,13 +13,18 @@ public static class AssetManifest
     public static bool IsModified { get; set; }
 
     public static void Generate(bool force=false)
+        => Generate(EditorApplication.Config, force);
+
+    /// <summary>
+    /// Generates manifests for headless project imports where EditorApplication
+    /// has not been initialized.
+    /// </summary>
+    public static void Generate(EditorConfig config, bool force=false)
     {
         if (!force && !IsModified)
             return;
 
         IsModified = false;
-
-        var config = EditorApplication.Config;
 
         if (config.GenerateCs != null)
             GenerateCs(config);

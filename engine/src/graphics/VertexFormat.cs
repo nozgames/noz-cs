@@ -31,10 +31,11 @@ public struct VertexAttribute(int location, int components, VertexAttribType typ
     public readonly bool Normalized = normalized;
 }
 
-public readonly struct RenderMesh(nuint handle, uint vertexHash)
+public readonly struct RenderMesh(nuint handle, uint vertexHash, MeshIndexFormat indexFormat = MeshIndexFormat.UInt16)
 {
     public readonly nuint Handle = handle;
     public readonly uint VertexHash = vertexHash;
+    public readonly MeshIndexFormat IndexFormat = indexFormat;
 
     public static bool operator ==(RenderMesh a, RenderMesh b) => a.Handle == b.Handle;
     public static bool operator !=(RenderMesh a, RenderMesh b) => a.Handle != b.Handle;

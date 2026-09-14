@@ -46,6 +46,7 @@ public class WebGraphicsDriver : IGraphicsDriver
     private int _nextShaderId = 1;
 
     private readonly Dictionary<nuint, MeshInfo> _meshes = new();
+    private readonly Stack<nuint> _freeMeshHandles = new();
     private readonly Dictionary<nuint, BufferInfo> _buffers = new();
     private readonly Dictionary<nuint, TextureInfo> _textures = new();
     private readonly Dictionary<nuint, ShaderInfo> _shaders = new();
@@ -57,9 +58,8 @@ public class WebGraphicsDriver : IGraphicsDriver
     private readonly Dictionary<string, byte[]> _uniformData = new();
 
     // Globals buffer management
-    private const int MaxGlobalsBuffers = 64;
     private const int GlobalsBufferSize = 80; // mat4 (64) + float (4) + padding (12)
-    private readonly int[] _globalsBuffers = new int[MaxGlobalsBuffers];
+    private int[] _globalsBuffers = [];
     private int _globalsBufferCount;
     private int _currentGlobalsIndex = -1;
 
@@ -96,6 +96,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public RectInt Scissor;
         public int CurrentPassSampleCount;
         public string CurrentPassFormat;
+        public string CurrentPassDepthFormat;
         public int CurrentPipelineId;
         public int CurrentBindGroupId;
         public int LastBoundJsMeshId;
@@ -117,6 +118,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             Scissor = default;
             CurrentPassSampleCount = 0;
             CurrentPassFormat = "";
+            CurrentPassDepthFormat = "";
             CurrentPipelineId = 0;
             CurrentBindGroupId = 0;
             LastBoundJsMeshId = 0;
@@ -130,6 +132,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public int Stride;
         public int MaxVertices;
         public int MaxIndices;
+        public MeshIndexFormat IndexFormat;
         public VertexFormatDescriptor Descriptor;
     }
 
@@ -163,6 +166,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public List<TextureSlotInfo> TextureSlots;
         public Dictionary<string, uint> UniformBindings;
         public Dictionary<string, int> UniformBuffers; // Per-shader uniform buffers (name -> JS buffer ID)
+        public ShaderFlags Flags;
     }
 
     private struct TextureSlotInfo
@@ -179,22 +183,28 @@ public class WebGraphicsDriver : IGraphicsDriver
         public int VertexStride;
         public int MsaaSamples;
         public string ColorFormat;
+        public string DepthFormat;
 
         public bool Equals(PsoKey other) =>
             ShaderHandle == other.ShaderHandle &&
             BlendMode == other.BlendMode &&
             VertexStride == other.VertexStride &&
             MsaaSamples == other.MsaaSamples &&
-            ColorFormat == other.ColorFormat;
+            ColorFormat == other.ColorFormat &&
+            DepthFormat == other.DepthFormat;
 
         public override bool Equals(object? obj) => obj is PsoKey other && Equals(other);
 
-        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat);
+        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat, DepthFormat);
     }
 
     public void Init(GraphicsDriverConfig config)
     {
         _config = config;
+        _nextMeshId = 1;
+        _freeMeshHandles.Clear();
+        _globalsBuffers = new int[config.MaxGlobalSnapshots];
+        _globalsBufferCount = 0;
         // Actual initialization happens in InitAsync
     }
 
@@ -343,19 +353,28 @@ public class WebGraphicsDriver : IGraphicsDriver
     // Mesh Management
     // ============================================================================
 
-    public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex
+    public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "", MeshIndexFormat indexFormat = MeshIndexFormat.UInt16) where T : IVertex
     {
+        if (_meshes.Count >= _config.MaxMeshes)
+            throw new InvalidOperationException(
+                $"WebGPU mesh budget exhausted ({_config.MaxMeshes}). " +
+                $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxMeshes)} " +
+                "or release an unused mesh.");
+
         var descriptor = T.GetFormatDescriptor();
 
-        var jsMeshId = WebGPUInterop.CreateMesh(maxVertices, maxIndices, descriptor.Stride, name);
+        var jsMeshId = WebGPUInterop.CreateMesh(maxVertices, maxIndices, descriptor.Stride, indexFormat == MeshIndexFormat.UInt32 ? 4 : 2, name);
 
-        var handle = (nuint)_nextMeshId++;
+        var handle = _freeMeshHandles.Count > 0
+            ? _freeMeshHandles.Pop()
+            : (nuint)_nextMeshId++;
         _meshes[handle] = new MeshInfo
         {
             JsMeshId = jsMeshId,
             Stride = descriptor.Stride,
             MaxVertices = maxVertices,
             MaxIndices = maxIndices,
+            IndexFormat = indexFormat,
             Descriptor = descriptor
         };
 
@@ -368,6 +387,13 @@ public class WebGraphicsDriver : IGraphicsDriver
         {
             WebGPUInterop.DestroyMesh(mesh.JsMeshId);
             _meshes.Remove(handle);
+            _freeMeshHandles.Push(handle);
+
+            if (_state.BoundMesh == handle)
+            {
+                _state.BoundMesh = nuint.Zero;
+                _state.PipelineDirty = true;
+            }
         }
     }
 
@@ -389,6 +415,28 @@ public class WebGraphicsDriver : IGraphicsDriver
         }
 
         // Use ArrayPool to reduce allocations for frequent mesh updates
+        var vertexSegment = ArrayPool<byte>.Shared.RentAndCopy(vertexData, out var rentedVertex);
+        var indexSegment = ArrayPool<byte>.Shared.RentAndCopy(MemoryMarshal.AsBytes(indexData), out var rentedIndex);
+
+        try
+        {
+            WebGPUInterop.UpdateMesh(mesh.JsMeshId, vertexSegment, indexSegment);
+        }
+        finally
+        {
+            if (rentedVertex.Length > 0) ArrayPool<byte>.Shared.Return(rentedVertex);
+            if (rentedIndex.Length > 0) ArrayPool<byte>.Shared.Return(rentedIndex);
+        }
+    }
+
+    public void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<uint> indexData)
+    {
+        if (!_meshes.TryGetValue(handle, out var mesh))
+        {
+            Log.Error($"Mesh {handle} not found");
+            return;
+        }
+
         var vertexSegment = ArrayPool<byte>.Shared.RentAndCopy(vertexData, out var rentedVertex);
         var indexSegment = ArrayPool<byte>.Shared.RentAndCopy(MemoryMarshal.AsBytes(indexData), out var rentedIndex);
 
@@ -668,7 +716,7 @@ public class WebGraphicsDriver : IGraphicsDriver
     // Shader Management
     // ============================================================================
 
-    public nuint CreateShader(string name, string vertexSource, string fragmentSource, List<ShaderBinding> bindings)
+    public nuint CreateShader(string name, string vertexSource, string fragmentSource, List<ShaderBinding> bindings, ShaderFlags flags = ShaderFlags.None)
     {
         var vertexModuleId = WebGPUInterop.CreateShaderModule(vertexSource, $"{name}_vertex");
         var fragmentModuleId = WebGPUInterop.CreateShaderModule(fragmentSource, $"{name}_fragment");
@@ -724,7 +772,8 @@ public class WebGraphicsDriver : IGraphicsDriver
             Bindings = bindings,
             TextureSlots = textureSlots,
             UniformBindings = uniformBindings,
-            UniformBuffers = new Dictionary<string, int>()
+            UniformBuffers = new Dictionary<string, int>(),
+            Flags = flags
         };
 
         return handle;
@@ -814,6 +863,11 @@ public class WebGraphicsDriver : IGraphicsDriver
 
     public void SetGlobalsCount(int count)
     {
+        if (count < 0 || count > _globalsBuffers.Length)
+            throw new InvalidOperationException(
+                $"WebGPU global snapshot budget exhausted ({_globalsBuffers.Length}). " +
+                $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxGlobalSnapshots)}.");
+
         while (_globalsBufferCount < count)
         {
             var bufferId = WebGPUInterop.CreateBuffer(GlobalsBufferSize, (int)(WebGPUBufferUsage.Uniform | WebGPUBufferUsage.CopyDst), $"globals_{_globalsBufferCount}");
@@ -930,7 +984,8 @@ public class WebGraphicsDriver : IGraphicsDriver
             BlendMode = blendMode,
             VertexStride = vertexStride,
             MsaaSamples = _state.CurrentPassSampleCount,
-            ColorFormat = _state.CurrentPassFormat
+            ColorFormat = _state.CurrentPassFormat,
+            DepthFormat = _state.CurrentPassDepthFormat,
         };
 
         if (shader.PsoCache.TryGetValue(key, out var pipelineId))
@@ -946,7 +1001,12 @@ public class WebGraphicsDriver : IGraphicsDriver
             blendMode,
             _state.CurrentPassSampleCount,
             _state.CurrentPassFormat,
-            $"{shader.Name}_{blendMode}_{vertexStride}b_{key.MsaaSamples}x"
+            _state.CurrentPassDepthFormat,
+            shader.Flags.HasFlag(ShaderFlags.Depth),
+            shader.Flags.HasFlag(ShaderFlags.Depth)
+                ? shader.Flags.HasFlag(ShaderFlags.DepthLess) ? "less" : "less-equal"
+                : "always",
+            $"{shader.Name}_{blendMode}_{vertexStride}b_{key.MsaaSamples}x_{key.ColorFormat}_{key.DepthFormat}"
         );
 
         pipelineId = WebGPUInterop.CreateRenderPipeline(descriptor);
@@ -1217,6 +1277,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         _state.Reset();
         _state.CurrentPassSampleCount = 1;
         _state.CurrentPassFormat = _surfaceFormat;
+        _state.CurrentPassDepthFormat = "";
         _currentGlobalsIndex = -1;
 
         _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
@@ -1244,6 +1305,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         _state.Reset();
         _state.CurrentPassSampleCount = 1;
         _state.CurrentPassFormat = _surfaceFormat;
+        _state.CurrentPassDepthFormat = "";
         _currentGlobalsIndex = -1;
 
         _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
@@ -1273,14 +1335,15 @@ public class WebGraphicsDriver : IGraphicsDriver
         public int Height;
         public int SampleCount;
         public string Format;
+        public bool HasDepth;
     }
 
-    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null)
+    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null, bool depth = false)
     {
         var gpuFormat = MapTextureFormat(format);
         // JS side allocates from shared nextTextureId and stores in both textures + renderTextures maps
         // When sampleCount > 1, JS creates both MSAA and resolve textures
-        var jsTextureId = WebGPUInterop.CreateRenderTexture(width, height, gpuFormat, sampleCount, name);
+        var jsTextureId = WebGPUInterop.CreateRenderTexture(width, height, gpuFormat, sampleCount, depth, name);
 
         // Use shared handle space so RT handles work with BindTexture/CreateBindGroup
         var handle = (nuint)_nextTextureId++;
@@ -1290,7 +1353,8 @@ public class WebGraphicsDriver : IGraphicsDriver
             Width = width,
             Height = height,
             SampleCount = sampleCount,
-            Format = gpuFormat
+            Format = gpuFormat,
+            HasDepth = depth
         };
 
         // Also store in _textures so CreateBindGroup can resolve the texture
@@ -1332,9 +1396,10 @@ public class WebGraphicsDriver : IGraphicsDriver
         _state.Reset();
         _state.CurrentPassSampleCount = rt.SampleCount;
         _state.CurrentPassFormat = rt.Format;
+        _state.CurrentPassDepthFormat = rt.HasDepth ? "depth24plus" : "";
         _currentGlobalsIndex = -1;
 
-        WebGPUInterop.BeginRenderTexturePass(rt.JsTextureId, clearColor.R, clearColor.G, clearColor.B, clearColor.A);
+        WebGPUInterop.BeginRenderTexturePass(rt.JsTextureId, clearColor.R, clearColor.G, clearColor.B, clearColor.A, true);
         WebGPUInterop.SetViewport(0, 0, rt.Width, rt.Height, 0, 1);
         WebGPUInterop.SetScissorRect(0, 0, rt.Width, rt.Height);
     }
@@ -1352,17 +1417,10 @@ public class WebGraphicsDriver : IGraphicsDriver
         _state.Reset();
         _state.CurrentPassSampleCount = rt.SampleCount;
         _state.CurrentPassFormat = rt.Format;
+        _state.CurrentPassDepthFormat = rt.HasDepth ? "depth24plus" : "";
         _currentGlobalsIndex = -1;
 
-        _singleColorAttachment[0] = JSObjectHelper.CreateColorAttachment(
-            rt.JsTextureId,
-            0,
-            "load",
-            "store",
-            Color.Transparent
-        );
-
-        WebGPUInterop.BeginRenderPass(_singleColorAttachment, null, "RenderTexturePass (resumed)");
+        WebGPUInterop.BeginRenderTexturePass(rt.JsTextureId, 0, 0, 0, 0, false);
         WebGPUInterop.SetViewport(0, 0, rt.Width, rt.Height, 0, 1);
         WebGPUInterop.SetScissorRect(0, 0, rt.Width, rt.Height);
     }

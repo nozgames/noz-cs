@@ -15,11 +15,12 @@ public unsafe partial class WebGPUGraphicsDriver
 {
     private static readonly ProfilerCounter s_counterEndTexturePass = new("WebGPU.EndRenderTexturePass");
 
-    public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex
+    public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "", MeshIndexFormat indexFormat = MeshIndexFormat.UInt16) where T : IVertex
     {
+        var handle = AllocateMeshHandle();
         var descriptor = T.GetFormatDescriptor();
         var vertexSize = descriptor.Stride * maxVertices;
-        var indexSize = sizeof(ushort) * maxIndices;
+        var indexSize = (indexFormat == MeshIndexFormat.UInt32 ? sizeof(uint) : sizeof(ushort)) * maxIndices;
 
         // Create vertex buffer
         var vertexBufferDesc = new BufferDescriptor
@@ -41,7 +42,6 @@ public unsafe partial class WebGPUGraphicsDriver
         };
         var indexBuffer = _wgpu.DeviceCreateBuffer(_device, &indexBufferDesc);
 
-        var handle = (nuint)_nextMeshId++;
         _meshes[(int)handle] = new MeshInfo
         {
             VertexBuffer = vertexBuffer,
@@ -49,6 +49,7 @@ public unsafe partial class WebGPUGraphicsDriver
             Stride = descriptor.Stride,
             MaxVertices = maxVertices,
             MaxIndices = maxIndices,
+            IndexFormat = indexFormat,
             Descriptor = descriptor,
         };
 
@@ -57,7 +58,12 @@ public unsafe partial class WebGPUGraphicsDriver
 
     public void DestroyMesh(nuint handle)
     {
+        if (handle == nuint.Zero || handle >= (nuint)_meshes.Length)
+            throw new ArgumentOutOfRangeException(nameof(handle), $"Invalid mesh handle {handle}.");
+
         ref var mesh = ref _meshes[(int)handle];
+        if (mesh.VertexBuffer == null && mesh.IndexBuffer == null)
+            return;
 
         if (mesh.VertexBuffer != null)
         {
@@ -70,6 +76,28 @@ public unsafe partial class WebGPUGraphicsDriver
             _wgpu.BufferRelease(mesh.IndexBuffer);
             mesh.IndexBuffer = null;
         }
+
+        mesh = default;
+        _freeMeshIds[_freeMeshIdCount++] = (int)handle;
+        if (_state.BoundMesh == handle)
+        {
+            _state.BoundMesh = nuint.Zero;
+            _state.PipelineDirty = true;
+        }
+    }
+
+    private nuint AllocateMeshHandle()
+    {
+        if (_freeMeshIdCount > 0)
+            return (nuint)_freeMeshIds[--_freeMeshIdCount];
+
+        if (_nextMeshId >= _meshes.Length)
+            throw new InvalidOperationException(
+                $"WebGPU mesh budget exhausted ({_config.MaxMeshes}). " +
+                $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxMeshes)} " +
+                "or release an unused mesh.");
+
+        return (nuint)_nextMeshId++;
     }
 
     public void BindMesh(nuint handle)
@@ -101,6 +129,23 @@ public unsafe partial class WebGPUGraphicsDriver
             {
                 _wgpu.QueueWriteBuffer(_queue, mesh.IndexBuffer, 0, dataPtr, (nuint)(indexData.Length * sizeof(ushort)));
             }
+        }
+    }
+
+    public void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<uint> indexData)
+    {
+        ref var mesh = ref _meshes[(int)handle];
+
+        if (vertexData.Length > 0)
+        {
+            fixed (byte* dataPtr = vertexData)
+                _wgpu.QueueWriteBuffer(_queue, mesh.VertexBuffer, 0, dataPtr, (nuint)vertexData.Length);
+        }
+
+        if (indexData.Length > 0)
+        {
+            fixed (uint* dataPtr = indexData)
+                _wgpu.QueueWriteBuffer(_queue, mesh.IndexBuffer, 0, dataPtr, (nuint)(indexData.Length * sizeof(uint)));
         }
     }
 
@@ -652,13 +697,15 @@ public unsafe partial class WebGPUGraphicsDriver
         public TextureView* TextureView;
         public WGPUTexture* MsaaTexture;
         public TextureView* MsaaTextureView;
+        public WGPUTexture* DepthTexture;
+        public TextureView* DepthTextureView;
         public int Width;
         public int Height;
         public int SampleCount;
         public WGPUTextureFormat Format;
     }
 
-    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null)
+    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null, bool depth = false)
     {
         var wgpuFormat = MapTextureFormat(format);
 
@@ -721,6 +768,24 @@ public unsafe partial class WebGPUGraphicsDriver
             msaaTextureView = _wgpu.TextureCreateView(msaaTexture, &viewDesc);
         }
 
+        WGPUTexture* depthTexture = null;
+        TextureView* depthTextureView = null;
+        if (depth)
+        {
+            var depthDesc = new TextureDescriptor
+            {
+                Label = (byte*)(name != null ? System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi(name + "_depth") : IntPtr.Zero),
+                Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
+                MipLevelCount = 1,
+                SampleCount = (uint)sampleCount,
+                Dimension = TextureDimension.Dimension2D,
+                Format = WGPUTextureFormat.Depth24Plus,
+                Usage = TextureUsage.RenderAttachment,
+            };
+            depthTexture = _wgpu.DeviceCreateTexture(_device, &depthDesc);
+            depthTextureView = _wgpu.TextureCreateView(depthTexture, null);
+        }
+
         // Allocate from shared texture handle space so RT can be used with BindTexture
         var handle = (nuint)AllocTextureHandle();
         var rtSlot = _freeRtSlotCount > 0 ? _freeRtSlots[--_freeRtSlotCount] : _nextRenderTextureSlot++;
@@ -731,6 +796,8 @@ public unsafe partial class WebGPUGraphicsDriver
             TextureView = textureView,
             MsaaTexture = msaaTexture,
             MsaaTextureView = msaaTextureView,
+            DepthTexture = depthTexture,
+            DepthTextureView = depthTextureView,
             Width = width,
             Height = height,
             SampleCount = sampleCount,
@@ -778,6 +845,16 @@ public unsafe partial class WebGPUGraphicsDriver
             _wgpu.TextureRelease(rt.MsaaTexture);
             rt.MsaaTexture = null;
         }
+        if (rt.DepthTextureView != null)
+        {
+            _wgpu.TextureViewRelease(rt.DepthTextureView);
+            rt.DepthTextureView = null;
+        }
+        if (rt.DepthTexture != null)
+        {
+            _wgpu.TextureRelease(rt.DepthTexture);
+            rt.DepthTexture = null;
+        }
 
         // Release the D2Array view (sampling)
         ref var tex = ref _textures[(int)handle];
@@ -812,6 +889,9 @@ public unsafe partial class WebGPUGraphicsDriver
         _state = default;
         _state.CurrentPassSampleCount = rt.SampleCount;
         _state.CurrentPassFormat = rt.Format;
+        _state.CurrentPassDepthFormat = rt.DepthTextureView != null
+            ? WGPUTextureFormat.Depth24Plus
+            : WGPUTextureFormat.Undefined;
         _state.PipelineDirty = true;
         _state.BindGroupDirty = true;
         _currentGlobalsIndex = -1;
@@ -831,11 +911,23 @@ public unsafe partial class WebGPUGraphicsDriver
             }
         };
 
+        var depthAttachment = new RenderPassDepthStencilAttachment
+        {
+            View = rt.DepthTextureView,
+            DepthLoadOp = LoadOp.Clear,
+            DepthStoreOp = StoreOp.Store,
+            DepthClearValue = 1.0f,
+            DepthReadOnly = false,
+            StencilLoadOp = LoadOp.Undefined,
+            StencilStoreOp = StoreOp.Undefined,
+            StencilReadOnly = true,
+        };
+
         var desc = new RenderPassDescriptor
         {
             ColorAttachments = &colorAttachment,
             ColorAttachmentCount = 1,
-            DepthStencilAttachment = null
+            DepthStencilAttachment = rt.DepthTextureView != null ? &depthAttachment : null
         };
 
         _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, in desc);
@@ -856,6 +948,9 @@ public unsafe partial class WebGPUGraphicsDriver
         _state = default;
         _state.CurrentPassSampleCount = rt.SampleCount;
         _state.CurrentPassFormat = rt.Format;
+        _state.CurrentPassDepthFormat = rt.DepthTextureView != null
+            ? WGPUTextureFormat.Depth24Plus
+            : WGPUTextureFormat.Undefined;
         _state.PipelineDirty = true;
         _state.BindGroupDirty = true;
         _currentGlobalsIndex = -1;
@@ -868,11 +963,23 @@ public unsafe partial class WebGPUGraphicsDriver
             StoreOp = rt.SampleCount > 1 ? StoreOp.Discard : StoreOp.Store,
         };
 
+        var depthAttachment = new RenderPassDepthStencilAttachment
+        {
+            View = rt.DepthTextureView,
+            DepthLoadOp = LoadOp.Load,
+            DepthStoreOp = StoreOp.Store,
+            DepthClearValue = 1.0f,
+            DepthReadOnly = false,
+            StencilLoadOp = LoadOp.Undefined,
+            StencilStoreOp = StoreOp.Undefined,
+            StencilReadOnly = true,
+        };
+
         var desc = new RenderPassDescriptor
         {
             ColorAttachments = &colorAttachment,
             ColorAttachmentCount = 1,
-            DepthStencilAttachment = null
+            DepthStencilAttachment = rt.DepthTextureView != null ? &depthAttachment : null
         };
 
         _currentRenderPass = _wgpu.CommandEncoderBeginRenderPass(_commandEncoder, in desc);

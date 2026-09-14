@@ -661,7 +661,7 @@ public static partial class ElementTree
             }
         }
 
-        var rt = RenderTexturePool.Acquire(rtW, rtH, d.SampleCount);
+        var rt = RenderTexturePool.Acquire(rtW, rtH, d.SampleCount, d.Depth);
 
         PostProcess.SetSceneRT(rt);
 

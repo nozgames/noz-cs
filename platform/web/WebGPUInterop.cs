@@ -48,7 +48,7 @@ public static partial class WebGPUInterop
     // ============================================================================
 
     [JSImport("createMesh", ModuleName)]
-    internal static partial int CreateMesh(int maxVertices, int maxIndices, int vertexStride, string? label);
+    internal static partial int CreateMesh(int maxVertices, int maxIndices, int vertexStride, int indexStride, string? label);
 
     [JSImport("updateMesh", ModuleName)]
     internal static partial void UpdateMesh(int meshId, [JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> vertexData, [JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> indexData);
@@ -175,13 +175,13 @@ public static partial class WebGPUInterop
     // ============================================================================
 
     [JSImport("createRenderTexture", ModuleName)]
-    internal static partial int CreateRenderTexture(int width, int height, string format, int sampleCount, string? label);
+    internal static partial int CreateRenderTexture(int width, int height, string format, int sampleCount, bool depth, string? label);
 
     [JSImport("destroyRenderTexture", ModuleName)]
     internal static partial void DestroyRenderTexture(int textureId);
 
     [JSImport("beginRenderTexturePass", ModuleName)]
-    internal static partial void BeginRenderTexturePass(int textureId, float clearR, float clearG, float clearB, float clearA);
+    internal static partial void BeginRenderTexturePass(int textureId, float clearR, float clearG, float clearB, float clearA, bool clear);
 
     [JSImport("endRenderTexturePass", ModuleName)]
     internal static partial void EndRenderTexturePass();
@@ -247,6 +247,9 @@ public static partial class WebGPUInterop
         string frontFace,
         int sampleCount,
         string targetFormat,
+        string depthFormat,
+        bool depthWriteEnabled,
+        string depthCompare,
         string label);
 
     // Color Attachment Creator

@@ -68,7 +68,6 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     private TextureView* _currentSurfaceTextureView;
 
     // Resource tracking
-    private const int MaxMeshes = 32;
     private const int MaxBuffers = 256;
     private const int MaxTextures = 1024;
     private const int MaxShaders = 64;
@@ -78,7 +77,9 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     private int _nextTextureId = 2; // 1 reserved for white texture
     private int _nextShaderId = 1;
 
-    private readonly MeshInfo[] _meshes = new MeshInfo[MaxMeshes];
+    private MeshInfo[] _meshes = [];
+    private int[] _freeMeshIds = [];
+    private int _freeMeshIdCount;
     private readonly BufferInfo[] _buffers = new BufferInfo[MaxBuffers];
     private readonly TextureInfo[] _textures = new TextureInfo[MaxTextures];
     private readonly ShaderInfo[] _shaders = new ShaderInfo[MaxShaders];
@@ -98,9 +99,8 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     private readonly Dictionary<string, byte[]> _uniformData = new();
 
     // Per-batch globals buffer pool
-    private const int MaxGlobalsBuffers = 64;
     private const int GlobalsBufferSize = 80; // mat4 (64) + float (4) + padding (12) = 80 bytes
-    private WGPUBuffer*[] _globalsBuffers = new WGPUBuffer*[MaxGlobalsBuffers];
+    private WGPUBuffer*[] _globalsBuffers = [];
     private int _globalsBufferCount;
     private int _currentGlobalsIndex = -1;
 
@@ -122,6 +122,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public RectInt Scissor;
         public int CurrentPassSampleCount;
         public WGPUTextureFormat CurrentPassFormat;
+        public WGPUTextureFormat CurrentPassDepthFormat;
     }
 
     private struct MeshInfo
@@ -131,6 +132,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public int Stride;
         public int MaxVertices;
         public int MaxIndices;
+        public MeshIndexFormat IndexFormat;
         public VertexFormatDescriptor Descriptor;
     }
 
@@ -174,6 +176,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public List<TextureSlotInfo> TextureSlots; // Derived from bindings: texture+sampler pairs
         public Dictionary<string, uint> UniformBindings; // Uniform name → binding number
         public Dictionary<string, nint> UniformBuffers; // Per-shader uniform buffers by name (nint -> WGPUBuffer*)
+        public ShaderFlags Flags;
     }
 
     private struct PsoKey : IEquatable<PsoKey>
@@ -183,22 +186,30 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public int VertexStride;
         public int MsaaSamples;
         public WGPUTextureFormat ColorFormat;
+        public WGPUTextureFormat DepthFormat;
 
         public bool Equals(PsoKey other) =>
             ShaderHandle == other.ShaderHandle &&
             BlendMode == other.BlendMode &&
             VertexStride == other.VertexStride &&
             MsaaSamples == other.MsaaSamples &&
-            ColorFormat == other.ColorFormat;
+            ColorFormat == other.ColorFormat &&
+            DepthFormat == other.DepthFormat;
 
         public override bool Equals(object? obj) => obj is PsoKey other && Equals(other);
 
-        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat);
+        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat, DepthFormat);
     }
 
     public void Init(GraphicsDriverConfig config)
     {
         _config = config;
+        _meshes = new MeshInfo[config.MaxMeshes + 1]; // Handle zero is invalid.
+        _freeMeshIds = new int[config.MaxMeshes];
+        _freeMeshIdCount = 0;
+        _nextMeshId = 1;
+        _globalsBuffers = new WGPUBuffer*[config.MaxGlobalSnapshots];
+        _globalsBufferCount = 0;
 
         if (OperatingSystem.IsBrowser())
         {

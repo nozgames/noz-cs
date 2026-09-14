@@ -3,6 +3,7 @@
 //
 
 using Silk.NET.WebGPU;
+using WGPUTextureFormat = Silk.NET.WebGPU.TextureFormat;
 
 namespace NoZ.Platform.WebGPU;
 
@@ -25,6 +26,7 @@ public unsafe partial class WebGPUGraphicsDriver
         _state = default;
         _state.CurrentPassSampleCount = 1;
         _state.CurrentPassFormat = _surfaceFormat;
+        _state.CurrentPassDepthFormat = WGPUTextureFormat.Undefined;
         _state.PipelineDirty = true;
         _state.BindGroupDirty = true;
         _currentGlobalsIndex = -1;
@@ -93,6 +95,7 @@ public unsafe partial class WebGPUGraphicsDriver
         _state = default;
         _state.CurrentPassSampleCount = 1;
         _state.CurrentPassFormat = _surfaceFormat;
+        _state.CurrentPassDepthFormat = WGPUTextureFormat.Undefined;
         _state.PipelineDirty = true;
         _state.BindGroupDirty = true;
         _currentGlobalsIndex = -1;

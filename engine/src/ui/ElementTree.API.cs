@@ -374,7 +374,7 @@ public static unsafe partial class ElementTree
         return e.Index;
     }
 
-    public static int Scene(Camera camera, Action draw, Size2 size, Color clearColor, int sampleCount, bool pixelPerfect)
+    public static int Scene(Camera camera, Action draw, Size2 size, Color clearColor, int sampleCount, bool pixelPerfect, bool depth)
     {
         ref var e = ref BeginElement(ElementType.Scene);
         ref var d = ref e.Data.Scene;
@@ -382,6 +382,7 @@ public static unsafe partial class ElementTree
         d.ClearColor = clearColor;
         d.SampleCount = sampleCount;
         d.PixelPerfect = pixelPerfect;
+        d.Depth = depth;
         d.Camera = AddObject(camera);
         d.DrawCallback = AddObject(draw);
         EndElement(ElementType.Scene);

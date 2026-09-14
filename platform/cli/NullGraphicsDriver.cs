@@ -19,10 +19,11 @@ public class NullGraphicsDriver : IGraphicsDriver
     public void SetScissor(in RectInt scissor) { }
     public void ClearScissor() { }
 
-    public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex => _nextHandle++;
+    public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "", MeshIndexFormat indexFormat = MeshIndexFormat.UInt16) where T : IVertex => _nextHandle++;
     public void DestroyMesh(nuint handle) { }
     public void BindMesh(nuint handle) { }
     public void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<ushort> indexData) { }
+    public void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<uint> indexData) { }
 
     public nuint CreateUniformBuffer(int sizeInBytes, BufferUsage usage, string name = "") => _nextHandle++;
     public void DestroyBuffer(nuint handle) { }
@@ -39,7 +40,7 @@ public class NullGraphicsDriver : IGraphicsDriver
     public nuint CreateTextureArray(int width, int height, byte[][] layerData, TextureFormat format, TextureFilter filter, string? name = null) => _nextHandle++;
     public void UpdateTextureLayer(nuint handle, int layer, ReadOnlySpan<byte> data) { }
 
-    public nuint CreateShader(string name, string vertexSource, string fragmentSource, List<ShaderBinding> bindings) => _nextHandle++;
+    public nuint CreateShader(string name, string vertexSource, string fragmentSource, List<ShaderBinding> bindings, ShaderFlags flags = ShaderFlags.None) => _nextHandle++;
     public void DestroyShader(nuint handle) { }
     public void BindShader(nuint handle) { }
 
@@ -61,7 +62,7 @@ public class NullGraphicsDriver : IGraphicsDriver
     public void ResumeScenePass() { }
     public void EndScenePass() { }
 
-    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null) => _nextHandle++;
+    public nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null, bool depth = false) => _nextHandle++;
     public void DestroyRenderTexture(nuint handle) { }
     public void BeginRenderTexturePass(nuint renderTexture, Color clearColor) { }
     public void ResumeRenderTexturePass(nuint renderTexture) { }

@@ -221,9 +221,9 @@ export function destroyBuffer(bufferId) {
 // Mesh Management (Vertex + Index Buffer pairs)
 // ============================================================================
 
-export function createMesh(maxVertices, maxIndices, vertexStride, label) {
+export function createMesh(maxVertices, maxIndices, vertexStride, indexStride, label) {
     const vertexSize = maxVertices * vertexStride;
-    const indexSize = maxIndices * 2; // uint16
+    const indexSize = maxIndices * indexStride;
 
     const vertexBuffer = device.createBuffer({
         size: vertexSize,
@@ -243,6 +243,7 @@ export function createMesh(maxVertices, maxIndices, vertexStride, label) {
         vertexBuffer: vertexBuffer,
         indexBuffer: indexBuffer,
         stride: vertexStride,
+        indexFormat: indexStride === 4 ? 'uint32' : 'uint16',
         maxVertices: maxVertices,
         maxIndices: maxIndices
     });
@@ -497,7 +498,7 @@ export function createRenderPipeline(descriptor) {
         target.blend = blend;
     }
 
-    const pipeline = device.createRenderPipeline({
+    const pipelineDescriptor = {
         layout: pipelineLayout,
         vertex: {
             module: vertexModule,
@@ -518,7 +519,17 @@ export function createRenderPipeline(descriptor) {
             count: descriptor.sampleCount || 1
         },
         label: descriptor.label || `render_pipeline_${id}`
-    });
+    };
+
+    if (descriptor.depthFormat) {
+        pipelineDescriptor.depthStencil = {
+            format: descriptor.depthFormat,
+            depthWriteEnabled: descriptor.depthWriteEnabled,
+            depthCompare: descriptor.depthCompare || 'less-equal'
+        };
+    }
+
+    const pipeline = device.createRenderPipeline(pipelineDescriptor);
 
     renderPipelines.set(id, pipeline);
     return id;
@@ -817,7 +828,7 @@ export function setIndexBuffer(meshId) {
     if (currentRenderPass) {
         const mesh = buffers.get(meshId);
         if (mesh && mesh.type === 'mesh') {
-            currentRenderPass.setIndexBuffer(mesh.indexBuffer, 'uint16');
+            currentRenderPass.setIndexBuffer(mesh.indexBuffer, mesh.indexFormat || 'uint16');
         }
     }
 }
@@ -889,7 +900,7 @@ export function executeCommandBuffer(buffer, count) {
             }
             case CMD_SET_INDEX_BUF: {
                 const mesh = buffers.get(view[i++]);
-                if (mesh && mesh.type === 'mesh') rp.setIndexBuffer(mesh.indexBuffer, 'uint16');
+                if (mesh && mesh.type === 'mesh') rp.setIndexBuffer(mesh.indexBuffer, mesh.indexFormat || 'uint16');
                 break;
             }
             case CMD_SET_SCISSOR:
@@ -920,7 +931,7 @@ const renderTextures = new Map();
 const readbackResults = new Map();
 let currentRenderTexturePass = null;
 
-export function createRenderTexture(width, height, format, sampleCount, label) {
+export function createRenderTexture(width, height, format, sampleCount, depth, label) {
     // Allocate from shared texture ID space so RT can be used with bind groups
     const id = nextTextureId++;
     const gpuFormat = formatMap[format] || 'rgba8unorm';
@@ -951,11 +962,26 @@ export function createRenderTexture(width, height, format, sampleCount, label) {
         msaaView = msaaTexture.createView({ format: gpuFormat, dimension: '2d' });
     }
 
+    let depthTexture = null;
+    let depthView = null;
+    if (depth) {
+        depthTexture = device.createTexture({
+            size: { width, height, depthOrArrayLayers: 1 },
+            format: 'depth24plus',
+            sampleCount: sampleCount,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            label: (label || `render_texture_${id}`) + '_depth'
+        });
+        depthView = depthTexture.createView();
+    }
+
     renderTextures.set(id, {
         texture: texture,
         view: view,
         msaaTexture: msaaTexture,
         msaaView: msaaView,
+        depthTexture: depthTexture,
+        depthView: depthView,
         sampleCount: sampleCount,
         width: width,
         height: height,
@@ -985,13 +1011,16 @@ export function destroyRenderTexture(textureId) {
         if (rt.msaaTexture) {
             rt.msaaTexture.destroy();
         }
+        if (rt.depthTexture) {
+            rt.depthTexture.destroy();
+        }
         rt.texture.destroy();
         renderTextures.delete(textureId);
     }
     textures.delete(textureId);
 }
 
-export function beginRenderTexturePass(textureId, clearR, clearG, clearB, clearA) {
+export function beginRenderTexturePass(textureId, clearR, clearG, clearB, clearA, clear) {
     const rt = renderTextures.get(textureId);
     if (!rt || !currentCommandEncoder) {
         console.error(`beginRenderTexturePass: render texture ${textureId} not found or no command encoder`);
@@ -1001,16 +1030,27 @@ export function beginRenderTexturePass(textureId, clearR, clearG, clearB, clearA
     currentRenderTexturePass = rt;
     const msaa = rt.sampleCount > 1;
 
-    currentRenderPass = currentCommandEncoder.beginRenderPass({
+    const passDescriptor = {
         colorAttachments: [{
             view: msaa ? rt.msaaView : rt.view,
             resolveTarget: msaa ? rt.view : undefined,
-            loadOp: 'clear',
+            loadOp: clear ? 'clear' : 'load',
             storeOp: msaa ? 'discard' : 'store',
             clearValue: { r: clearR, g: clearG, b: clearB, a: clearA }
         }],
         label: 'render_texture_pass'
-    });
+    };
+
+    if (rt.depthView) {
+        passDescriptor.depthStencilAttachment = {
+            view: rt.depthView,
+            depthLoadOp: clear ? 'clear' : 'load',
+            depthStoreOp: 'store',
+            depthClearValue: 1.0
+        };
+    }
+
+    currentRenderPass = currentCommandEncoder.beginRenderPass(passDescriptor);
 }
 
 export function endRenderTexturePass() {
@@ -1232,6 +1272,9 @@ export function createRenderPipelineDescriptor(
     frontFace,
     sampleCount,
     targetFormat,
+    depthFormat,
+    depthWriteEnabled,
+    depthCompare,
     label
 ) {
     // Keep everything as primitive values - don't parse JSON here
@@ -1249,6 +1292,9 @@ export function createRenderPipelineDescriptor(
         frontFace: frontFace,
         sampleCount: sampleCount,
         targetFormat: targetFormat,
+        depthFormat: depthFormat,
+        depthWriteEnabled: depthWriteEnabled,
+        depthCompare: depthCompare,
         label: label
     };
 }

@@ -11,6 +11,7 @@ public class RenderTexture : ITexture, IDisposable
     public int Height { get; private set; }
     public int SampleCount { get; private set; }
     public TextureFormat Format { get; private set; }
+    public bool HasDepth { get; private set; }
 
     float IImage.ImageWidth => Width;
     float IImage.ImageHeight => Height;
@@ -21,13 +22,15 @@ public class RenderTexture : ITexture, IDisposable
         int width,
         int height,
         int sampleCount = 1,
-        TextureFormat format = TextureFormat.BGRA8)
+        TextureFormat format = TextureFormat.BGRA8,
+        bool depth = false)
     {
         Handle = handle;
         Width = width;
         Height = height;
         SampleCount = sampleCount;
         Format = format;
+        HasDepth = depth;
     }
 
     public static RenderTexture Create(
@@ -35,10 +38,11 @@ public class RenderTexture : ITexture, IDisposable
         int height,
         int sampleCount = 1,
         TextureFormat format = TextureFormat.BGRA8,
-        string? name = null)
+        string? name = null,
+        bool depth = false)
     {
-        var handle = Graphics.Driver.CreateRenderTexture(width, height, format: format, sampleCount: sampleCount, name: name);
-        return new RenderTexture(handle, width, height, sampleCount, format);
+        var handle = Graphics.Driver.CreateRenderTexture(width, height, format: format, sampleCount: sampleCount, name: name, depth: depth);
+        return new RenderTexture(handle, width, height, sampleCount, format, depth);
     }
 
     public void Dispose()

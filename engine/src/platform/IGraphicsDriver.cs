@@ -19,10 +19,18 @@ public enum BufferUsage
     Stream      // Data updated every frame
 }
 
+public enum MeshIndexFormat : byte
+{
+    UInt16,
+    UInt32
+}
+
 public class GraphicsDriverConfig
 {
     public required IPlatform Platform { get; set; }
     public bool VSync { get; set; } = true;
+    public int MaxGlobalSnapshots { get; set; } = GraphicsConfig.DefaultMaxGlobalSnapshots;
+    public int MaxMeshes { get; set; } = GraphicsConfig.DefaultMaxMeshes;
 }
 
 public interface IGraphicsDriver
@@ -39,10 +47,11 @@ public interface IGraphicsDriver
     void SetScissor(in RectInt scissor);
     void ClearScissor();
 
-    nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : IVertex;
+    nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "", MeshIndexFormat indexFormat = MeshIndexFormat.UInt16) where T : IVertex;
     void DestroyMesh(nuint handle);
     void BindMesh(nuint handle);
     void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<ushort> indexData);
+    void UpdateMesh(nuint handle, ReadOnlySpan<byte> vertexData, ReadOnlySpan<uint> indexData);
 
     nuint CreateUniformBuffer(int sizeInBytes, BufferUsage usage, string name = "");
     void DestroyBuffer(nuint handle);
@@ -59,7 +68,7 @@ public interface IGraphicsDriver
     nuint CreateTextureArray(int width, int height, byte[][] layerData, TextureFormat format, TextureFilter filter, string? name=null);
     void UpdateTextureLayer(nuint handle, int layer, ReadOnlySpan<byte> data);
 
-    nuint CreateShader(string name, string vertexSource, string fragmentSource, List<ShaderBinding> bindings);
+    nuint CreateShader(string name, string vertexSource, string fragmentSource, List<ShaderBinding> bindings, ShaderFlags flags = ShaderFlags.None);
     void DestroyShader(nuint handle);
     void BindShader(nuint handle);
 
@@ -84,7 +93,7 @@ public interface IGraphicsDriver
     void EndScenePass();
 
     // Render Texture support (BGRA8 default matches swap chain format for pipeline compatibility)
-    nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null);
+    nuint CreateRenderTexture(int width, int height, TextureFormat format = TextureFormat.BGRA8, int sampleCount = 1, string? name = null, bool depth = false);
     void DestroyRenderTexture(nuint handle);
     void BeginRenderTexturePass(nuint renderTexture, Color clearColor);
     void ResumeRenderTexturePass(nuint renderTexture);

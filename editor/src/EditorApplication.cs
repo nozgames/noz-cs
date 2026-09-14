@@ -85,6 +85,8 @@ public static partial class EditorApplication
 
     public static float DefaultUIScale => Application.IsTablet ? 1.6f : 1.2f;
 
+    internal static void SetProjectConfig(EditorConfig config) => Config = config;
+
     public static void LoadUserSettings(PropertySet props)
     {                
         if (Project.IsInitialized)

@@ -68,7 +68,7 @@ public class Shader : Asset
         Source = source;
         Bindings = bindings;
         VertexFormatHash = vertexFormatHash;
-        Native = Graphics.Driver.CreateShader(Name, source, source, bindings);
+        Native = Graphics.Driver.CreateShader(Name, source, source, bindings, flags);
     }
 
     private static Asset? Load(Stream stream, string name)

@@ -5,6 +5,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using NoZ.Platform;
 
 namespace NoZ;
@@ -142,6 +143,22 @@ public static unsafe partial class Graphics
         _passProjections[(int)_currentPass] = projection;
     }
 
+    /// <summary>
+    /// Sets a System.Numerics row-vector view-projection matrix for subsequent
+    /// draw commands. The renderer stores projections in the column-vector form
+    /// expected by its shaders.
+    /// </summary>
+    public static void SetViewProjection(in Matrix4x4 viewProjection)
+    {
+        Camera = null;
+        var projection = Matrix4x4.Transpose(viewProjection);
+        if (_passProjections[(int)_currentPass] == projection)
+            return;
+
+        _passProjections[(int)_currentPass] = projection;
+        _batchStateDirty = true;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void SetMesh(RenderMesh mesh)
     {
@@ -150,11 +167,33 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
-    public static RenderMesh CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "") where T : unmanaged, IVertex
+    public static RenderMesh CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "", MeshIndexFormat indexFormat = MeshIndexFormat.UInt16) where T : unmanaged, IVertex
     {
-        var handle = Driver.CreateMesh<T>(maxVertices, maxIndices, usage, name);
+        var handle = Driver.CreateMesh<T>(maxVertices, maxIndices, usage, name, indexFormat);
         var hash = VertexFormatHash.Compute(T.GetFormatDescriptor().Attributes);
-        return new RenderMesh(handle, hash);
+        return new RenderMesh(handle, hash, indexFormat);
+    }
+
+    public static void UpdateMesh<T>(RenderMesh mesh, ReadOnlySpan<T> vertices, ReadOnlySpan<ushort> indices)
+        where T : unmanaged, IVertex
+    {
+        if (mesh.IndexFormat != MeshIndexFormat.UInt16)
+            throw new InvalidOperationException("Cannot upload 16-bit indices to a 32-bit mesh.");
+        Driver.UpdateMesh(mesh.Handle, MemoryMarshal.AsBytes(vertices), indices);
+    }
+
+    public static void UpdateMesh<T>(RenderMesh mesh, ReadOnlySpan<T> vertices, ReadOnlySpan<uint> indices)
+        where T : unmanaged, IVertex
+    {
+        if (mesh.IndexFormat != MeshIndexFormat.UInt32)
+            throw new InvalidOperationException("Cannot upload 32-bit indices to a 16-bit mesh.");
+        Driver.UpdateMesh(mesh.Handle, MemoryMarshal.AsBytes(vertices), indices);
+    }
+
+    public static void DestroyMesh(RenderMesh mesh)
+    {
+        if (mesh.Handle != nuint.Zero)
+            Driver.DestroyMesh(mesh.Handle);
     }
 
     public static void MultiplyTransform(in Matrix3x2 transform)

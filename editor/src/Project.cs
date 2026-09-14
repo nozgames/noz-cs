@@ -49,6 +49,7 @@ public static class Project
         Action? registerDocumentTypes = null)
     {
         // Project import can run headlessly without EditorApplication.Init().
+        EditorApplication.SetProjectConfig(config);
         Application.RegisterAssetTypes();
 
         Path = projectPath.Replace('\\', '/');

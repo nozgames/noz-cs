@@ -151,4 +151,5 @@ public struct SceneStyle()
     public Color Color = Color.Transparent;
     public int SampleCount = 1;
     public bool PixelPerfect = false;
+    public bool Depth = false;
 }

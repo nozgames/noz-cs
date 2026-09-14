@@ -728,7 +728,8 @@ public static partial class Workspace
             UI.Scene(WidgetIds.Scene, Camera, DrawScene, new SceneStyle
             {
                 Color = EditorStyle.Palette.Canvas,
-                SampleCount = 4
+                SampleCount = 4,
+                Depth = ActiveEditor?.RequiresDepth ?? false
             });
             EditorCursor.End();
         }

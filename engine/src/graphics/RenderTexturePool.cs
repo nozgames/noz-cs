@@ -15,6 +15,7 @@ internal static class RenderTexturePool
         public int Height;
         public int SampleCount;
         public TextureFormat Format;
+        public bool HasDepth;
         public int Frame;
     }
 
@@ -22,13 +23,13 @@ internal static class RenderTexturePool
     private static readonly PooledTexture[] _pool = new PooledTexture[MaxPooledTextures];
     private static int _frame = 1;
 
-    public static RenderTexture Acquire(int width, int height, int sampleCount = 1)
+    public static RenderTexture Acquire(int width, int height, int sampleCount = 1, bool depth = false)
     {
         var format = Graphics.RenderConfig.HDR ? TextureFormat.RGBA16F : TextureFormat.BGRA8;
-        return Acquire(width, height, sampleCount, format);
+        return Acquire(width, height, sampleCount, format, depth);
     }
 
-    public static RenderTexture Acquire(int width, int height, int sampleCount, TextureFormat format)
+    public static RenderTexture Acquire(int width, int height, int sampleCount, TextureFormat format, bool depth = false)
     {
         // Use existing
         for (int i = 0; i < MaxPooledTextures; i++)
@@ -39,10 +40,11 @@ internal static class RenderTexturePool
                 entry.Width == width &&
                 entry.Height == height &&
                 entry.SampleCount == sampleCount &&
-                entry.Format == format)
+                entry.Format == format &&
+                entry.HasDepth == depth)
             {
                 entry.Frame = _frame;
-                return new RenderTexture(entry.Handle, width, height, sampleCount, format);
+                return new RenderTexture(entry.Handle, width, height, sampleCount, format, depth);
             }
         }
 
@@ -56,8 +58,9 @@ internal static class RenderTexturePool
                 entry.Height = height;
                 entry.SampleCount = sampleCount;
                 entry.Format = format;
-                entry.Handle = Graphics.Driver.CreateRenderTexture(width, height, format: format, sampleCount: sampleCount, name: "PooledRT");
-                return new RenderTexture(entry.Handle, width, height, sampleCount, format);
+                entry.HasDepth = depth;
+                entry.Handle = Graphics.Driver.CreateRenderTexture(width, height, format: format, sampleCount: sampleCount, name: "PooledRT", depth: depth);
+                return new RenderTexture(entry.Handle, width, height, sampleCount, format, depth);
             }
         }
 

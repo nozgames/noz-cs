@@ -13,6 +13,7 @@ public abstract class DocumentEditor(Document document) : IDisposable
 
     public virtual bool ShowInspector => false;
     public virtual bool ShowOutliner => false;
+    public virtual bool RequiresDepth => false;
     public virtual bool RunInBackground => false;
     public virtual PowerMode PowerMode => PowerMode.Balanced;
 

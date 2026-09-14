@@ -117,6 +117,7 @@ public static unsafe partial class Graphics
     private static NativeArray<float> _boneData;
     private static int _maxDrawCommands;
     private static int _maxBatches;
+    private static int _maxGlobalSnapshots;
     private static NativeArray<MeshVertex> _vertices;
     private static NativeArray<ushort> _indices;
     private static NativeArray<ushort> _sortedIndices;
@@ -143,6 +144,15 @@ public static unsafe partial class Graphics
 
         _maxDrawCommands = RenderConfig.MaxDrawCommands;
         _maxBatches = RenderConfig.MaxBatches;
+        _maxGlobalSnapshots = RenderConfig.MaxGlobalSnapshots;
+        if (_maxGlobalSnapshots is < 1 or > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(
+                nameof(graphicsConfig.MaxGlobalSnapshots),
+                $"MaxGlobalSnapshots must be between 1 and {ushort.MaxValue}.");
+        if (graphicsConfig.MaxMeshes < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(graphicsConfig.MaxMeshes),
+                "MaxMeshes must be at least 1.");
         _stateStack = new State[MaxStateStack];
         _stateStackDepth = 0;
 
@@ -153,6 +163,8 @@ public static unsafe partial class Graphics
         {
             Platform = config.Platform!,
             VSync = graphicsConfig.Vsync,
+            MaxGlobalSnapshots = graphicsConfig.MaxGlobalSnapshots,
+            MaxMeshes = graphicsConfig.MaxMeshes,
         });
 
         _vertices = new NativeArray<MeshVertex>(MaxVertices);
@@ -161,7 +173,7 @@ public static unsafe partial class Graphics
         _commands = new NativeArray<DrawCommand>(_maxDrawCommands);
         _batches = new NativeArray<Batch>(_maxBatches);
         _batchStates = new NativeArray<BatchState>(_maxBatches);
-        _globalsSnapshots = new NativeArray<GlobalsSnapshot>(64);
+        _globalsSnapshots = new NativeArray<GlobalsSnapshot>(_maxGlobalSnapshots);
 
         _mesh = CreateMesh<MeshVertex>(
             MaxVertices,
@@ -364,7 +376,14 @@ public static unsafe partial class Graphics
             if (_globalsSnapshots[i].Projection == projection)
                 return (ushort)(_globalsBaseIndex + i);
 
-        var index = (ushort)(_globalsBaseIndex + _globalsSnapshots.Length);
+        var nextIndex = _globalsBaseIndex + _globalsSnapshots.Length;
+        if (nextIndex >= _maxGlobalSnapshots)
+            throw new InvalidOperationException(
+                $"Graphics global snapshot budget exhausted ({_maxGlobalSnapshots}). " +
+                $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxGlobalSnapshots)} " +
+                "or reduce the number of unique projections submitted in one frame.");
+
+        var index = (ushort)nextIndex;
         _globalsSnapshots.Add() = new GlobalsSnapshot { Projection = projection, Time = _time };
         return index;
     }
@@ -532,7 +551,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
                 (lastCommand.SortKey & SortKeyMergeMask) == (sortKey & SortKeyMergeMask) &&
                 lastCommand.IndexOffset + lastCommand.IndexCount == indexOffset)
             {
-                lastCommand.IndexCount += (ushort)indexCount;
+                lastCommand.IndexCount += indexCount;
                 return;
             }
         }

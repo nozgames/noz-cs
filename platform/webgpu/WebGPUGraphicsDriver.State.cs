@@ -43,6 +43,11 @@ public unsafe partial class WebGPUGraphicsDriver
 
     public void SetGlobalsCount(int count)
     {
+        if (count < 0 || count > _globalsBuffers.Length)
+            throw new InvalidOperationException(
+                $"WebGPU global snapshot budget exhausted ({_globalsBuffers.Length}). " +
+                $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxGlobalSnapshots)}.");
+
         // Ensure we have enough globals buffers allocated
         while (_globalsBufferCount < count)
         {
@@ -107,7 +112,9 @@ public unsafe partial class WebGPUGraphicsDriver
         // Bind vertex and index buffers
         ref var mesh = ref _meshes[(int)_state.BoundMesh];
         _wgpu.RenderPassEncoderSetVertexBuffer(_currentRenderPass, 0, mesh.VertexBuffer, 0, (ulong)(mesh.MaxVertices * mesh.Stride));
-        _wgpu.RenderPassEncoderSetIndexBuffer(_currentRenderPass, mesh.IndexBuffer, IndexFormat.Uint16, 0, (ulong)(mesh.MaxIndices * sizeof(ushort)));
+        var indexFormat = mesh.IndexFormat == MeshIndexFormat.UInt32 ? IndexFormat.Uint32 : IndexFormat.Uint16;
+        var indexStride = mesh.IndexFormat == MeshIndexFormat.UInt32 ? sizeof(uint) : sizeof(ushort);
+        _wgpu.RenderPassEncoderSetIndexBuffer(_currentRenderPass, mesh.IndexBuffer, indexFormat, 0, (ulong)(mesh.MaxIndices * indexStride));
 
         if (_state.ScissorEnabled)
         {
