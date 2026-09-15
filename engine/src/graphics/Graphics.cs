@@ -42,7 +42,6 @@ public static unsafe partial class Graphics
     private const int OrderShift = 16;  // bits 16-31 (16 bits)
     private const int GroupShift = 32;  // bits 32-47 (16 bits)
     private const int LayerShift = 48;  // bits 48-59 (12 bits, mask to 0xFFF)
-    private const int PassShift = 60;   // bits 60-63 (4 bits)
     private const long SortKeyMergeMask = 0x7FFFFFFFFFFF0000;
 
     private struct BatchState()
@@ -266,6 +265,9 @@ public static unsafe partial class Graphics
         if (_activeRenderTexture != null)
             throw new InvalidOperationException("Cannot nest render texture passes - call EndPass first");
 
+        if (_rtPassCount >= MaxRenderPasses)
+            throw new InvalidOperationException($"Render texture pass budget exhausted ({MaxRenderPasses}).");
+
         PushState();
 
         CurrentState.ClearColor = clearColor;
@@ -378,9 +380,7 @@ public static unsafe partial class Graphics
 
     private static long MakeSortKey(ushort order)
     {
-        byte passSortValue = _currentPass == RenderPass.RenderTexture ? _rtPassIndex : (byte)0x7;
         return
-            (((long)passSortValue) << PassShift) |
             (((long)(CurrentState.SortLayer & 0xFFF)) << LayerShift) |
             (((long)CurrentState.SortGroup) << GroupShift) |
             (((long)order) << OrderShift) |
@@ -510,6 +510,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         var sortKey = MakeSortKey(order);
         ref var cmd = ref _commands.Add();
         cmd.SortKey = sortKey;
+        cmd.PassOrder = _currentPass == RenderPass.RenderTexture ? _rtPassIndex : byte.MaxValue;
         cmd.IndexOffset = _indices.Length;
         cmd.IndexCount = indices.Length;
         cmd.BatchState = _currentBatchState;
@@ -573,6 +574,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
             ref var lastCommand = ref _commands[^1];
 
             if (lastCommand.BatchState == _currentBatchState &&
+                lastCommand.PassOrder == (_currentPass == RenderPass.RenderTexture ? _rtPassIndex : byte.MaxValue) &&
                 (lastCommand.SortKey & SortKeyMergeMask) == (sortKey & SortKeyMergeMask) &&
                 lastCommand.IndexOffset + lastCommand.IndexCount == indexOffset)
             {
@@ -586,6 +588,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
 
         ref var cmd = ref _commands.Add();
         cmd.SortKey = sortKey;
+        cmd.PassOrder = _currentPass == RenderPass.RenderTexture ? _rtPassIndex : byte.MaxValue;
         cmd.IndexOffset = indexOffset;
         cmd.IndexCount = indexCount;
         cmd.BatchState = _currentBatchState;

@@ -1,0 +1,3 @@
+[shader]
+depth = true
+depth_less = true

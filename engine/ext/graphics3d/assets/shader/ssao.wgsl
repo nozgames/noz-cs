@@ -43,7 +43,9 @@ struct VertexOutput {
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.position = globals.projection * vec4<f32>(input.position, 0.0, 1.0);
+    // Fullscreen pass: UVs define clip space independently of the scene's
+    // projection or the resolution of preceding render targets.
+    output.position = vec4<f32>(input.uv * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0), 0.0, 1.0);
     output.uv = input.uv;
     return output;
 }
