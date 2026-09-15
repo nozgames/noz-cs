@@ -257,7 +257,11 @@ public static unsafe partial class ElementTree
                     contentSize = TextRender.MeasureWrapped(d.Text.AsReadOnlySpan(), font, d.FontSize, e.Rect.Width).Y;
                 else
                     contentSize = TextRender.Measure(d.Text.AsReadOnlySpan(), font, d.FontSize)[axis];
-                size = Math.Max(contentSize, available);
+                // Constrained text must keep the width supplied by its parent.
+                // Expanding to the unwrapped width prevents Wrap, Ellipsis and
+                // Scale from ever seeing the overflow they are meant to handle.
+                size = axis == 0 && d.Overflow != TextOverflow.Overflow && available > 0
+                    ? available : Math.Max(contentSize, available);
                 break;
             }
 
