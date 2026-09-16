@@ -50,6 +50,12 @@ public static class Program
     {
         AttachParentConsole();
 
+        // Nothing else on this path sets Log.Path or Log.Sink, so without this
+        // every Log.* line from the importer reaches only an attached debugger.
+        // Mirror it to stdout: a human sees errors, and a tool driving the
+        // importer through a pipe can parse them.
+        Log.Sink = Console.WriteLine;
+
         string projectPath = Environment.CurrentDirectory;
         var clean = false;
         for (var i = 0; i < args.Length; i++)
@@ -185,6 +191,13 @@ public static class Program
         if (!OperatingSystem.IsWindows())
             return;
 
+        // A WinExe launched from a console normally has no console of its own,
+        // which is what the attach below fixes. But when a parent has handed us
+        // a pipe or file for stdout, attaching (or worse, AllocConsole) would
+        // swap that handle for a console the parent cannot see. Keep the pipe.
+        if (HasInheritedStdout())
+            return;
+
         const int ATTACH_PARENT_PROCESS = -1;
         if (!AttachConsole(ATTACH_PARENT_PROCESS))
             AllocConsole();
@@ -207,6 +220,20 @@ public static class Program
     [DllImport("kernel32.dll")]
     [SupportedOSPlatform("windows")]
     private static extern bool AllocConsole();
+
+    [DllImport("kernel32.dll")]
+    [SupportedOSPlatform("windows")]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+
+    // True when stdout is a real, redirected handle (pipe/file). A missing handle
+    // also reports IsOutputRedirected == true, so check validity first.
+    [SupportedOSPlatform("windows")]
+    private static bool HasInheritedStdout()
+    {
+        const int STD_OUTPUT_HANDLE = -11;
+        var h = GetStdHandle(STD_OUTPUT_HANDLE);
+        return h != IntPtr.Zero && h != new IntPtr(-1) && Console.IsOutputRedirected;
+    }
 }
 
 
