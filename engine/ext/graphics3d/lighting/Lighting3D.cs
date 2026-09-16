@@ -22,6 +22,8 @@ public sealed class LightingSettings3D
     public float SunIntensity { get; set; } = .8f;
     public float SkyIntensity { get; set; } = .45f;
     public float InteriorAmbient { get; set; } = .055f;
+    /// <summary>Host shader shadow softness, from hard (0) to broad (1). Does not invalidate shadow maps.</summary>
+    public float ShadowSoftness { get; set; } = .65f;
 }
 
 /// <summary>
@@ -49,7 +51,8 @@ public sealed class Lighting3D : IDisposable
     // RGBA32F texels: 0 direction/intensity, 1 sun RGB/sky strength,
     // 2 ambient floor/light count/face size, 3..6 sun VP, 7 sky min/cell size,
     // 8 sky dimensions, 9..40 alternating point position/range and RGB/strength,
-    // 41..44 inverse-transpose sun VP. Matrices use System.Numerics row layout.
+    // 41..44 inverse-transpose sun VP, 45 sun texel size XY/depth range/softness.
+    // Matrices use System.Numerics row layout.
     private readonly Vector4[] _data = new Vector4[64];
     private readonly List<ShadowCaster3D> _nearby = [];
     private ShadowCaster3D[] _sunCasters = [];
@@ -152,6 +155,10 @@ public sealed class Lighting3D : IDisposable
         MemoryMarshal.Cast<Vector4, Matrix4x4>(_data.AsSpan(3, 4))[0] = _sunMatrix;
         Matrix4x4.Invert(_sunMatrix, out var inverseSun);
         MemoryMarshal.Cast<Vector4, Matrix4x4>(_data.AsSpan(41, 4))[0] = Matrix4x4.Transpose(inverseSun);
+        _data[45] = new(
+            Vector3.TransformNormal(Vector3.UnitX, inverseSun).Length() * 2 / _sun!.Width,
+            Vector3.TransformNormal(Vector3.UnitY, inverseSun).Length() * 2 / _sun.Height,
+            Vector3.TransformNormal(Vector3.UnitZ, inverseSun).Length(), FiniteClamp(settings.ShadowSoftness, 1));
         _data[7] = new(Skylight.Min, Skylight.CellSize);
         _data[8] = new(Skylight.Width, Skylight.Height, Skylight.Depth, 0);
         for (var i = 0; i < selected.Length; i++)
