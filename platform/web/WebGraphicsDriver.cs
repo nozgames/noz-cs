@@ -1364,7 +1364,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         // JS side allocates from shared nextTextureId and stores in both textures + renderTextures maps
         // When sampleCount > 1, JS creates both MSAA and resolve textures
         var jsTextureId = WebGPUInterop.CreateRenderTexture(width, height, gpuFormat, sampleCount, depth, name);
-        var jsDepthTextureId = depth && sampleCount == 1
+        var jsDepthTextureId = depth
             ? WebGPUInterop.GetRenderTextureDepthTexture(jsTextureId)
             : 0;
 

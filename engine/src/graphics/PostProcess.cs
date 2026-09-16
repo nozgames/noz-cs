@@ -28,7 +28,8 @@ public static class PostProcess
 
     /// <summary>
     /// Sampleable depth texture for the scene currently being post-processed.
-    /// Zero when the scene has no depth attachment or uses multisampling.
+    /// MSAA depth is resolved when the scene pass ends, before a blit samples it.
+    /// Zero when the scene has no sampleable depth attachment.
     /// </summary>
     public static nuint SceneDepthTextureHandle => _sceneRT?.DepthTextureHandle ?? nuint.Zero;
 

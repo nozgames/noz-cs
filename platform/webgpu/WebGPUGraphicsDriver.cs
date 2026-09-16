@@ -553,6 +553,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void Shutdown()
     {
+        DestroyDepthResolvePipeline();
         for (var i = 0; i < _globalsBufferCount; i++)
             _wgpu.BufferRelease(_globalsBuffers[i]);
         _globalsBuffers = [];

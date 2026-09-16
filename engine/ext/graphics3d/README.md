@@ -71,7 +71,7 @@ var settings = new SsaoSettings { Radius = 1.25f, Strength = 4.25f };
 PostProcess3D.Ssao(camera, settings);
 ```
 
-Update the camera for the scene's render size first. The current implementation needs single-sample depth (`SceneStyle.Depth = true`, `SampleCount = 1`). It returns false without starting any passes when disabled, outside a scene, without sampleable depth, or with missing shaders. Settings preserve the original algorithm and default tuning, including half-resolution AO and the grayscale debug view.
+Update the camera for the scene's render size first and enable `SceneStyle.Depth`. Both single-sample and 4× MSAA scenes are supported on the native and browser WebGPU backends: when a multisampled scene pass ends, the backend resolves its nearest depth sample into the single-sample depth texture consumed by post-processing. Color resolves separately using normal MSAA coverage. No depth-resolve pass is needed for single-sample or depth-disabled rendering. SSAO returns false without starting any passes when disabled, outside a scene, without sampleable depth, or with missing shaders. Settings preserve the original algorithm and default tuning, including half-resolution AO and the grayscale debug view.
 
 The effect captures `PostProcess.CurrentColorTextureHandle` before its first blit and composites onto that input, preserving earlier effects. Depth still comes from the original scene. Core PostProcess only exposes the generic borrowed color handle; it has no dependency on SSAO or this extension. No separate pipeline, render-target pool or shader cache is introduced.
 

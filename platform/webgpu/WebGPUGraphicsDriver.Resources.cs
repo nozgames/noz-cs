@@ -700,6 +700,7 @@ public unsafe partial class WebGPUGraphicsDriver
         public WGPUTexture* DepthTexture;
         public TextureView* DepthTextureView;
         public nuint DepthTextureHandle;
+        public BindGroup* DepthResolveBinding;
         public int Width;
         public int Height;
         public int SampleCount;
@@ -781,8 +782,7 @@ public unsafe partial class WebGPUGraphicsDriver
                 SampleCount = (uint)sampleCount,
                 Dimension = TextureDimension.Dimension2D,
                 Format = WGPUTextureFormat.Depth24Plus,
-                Usage = TextureUsage.RenderAttachment |
-                        (sampleCount == 1 ? TextureUsage.TextureBinding : TextureUsage.None),
+                Usage = TextureUsage.RenderAttachment | TextureUsage.TextureBinding,
             };
             depthTexture = _wgpu.DeviceCreateTexture(_device, &depthDesc);
             depthTextureView = _wgpu.TextureCreateView(depthTexture, null);
@@ -803,13 +803,31 @@ public unsafe partial class WebGPUGraphicsDriver
         };
 
         nuint depthTextureHandle = nuint.Zero;
-        if (depthTexture != null && sampleCount == 1)
+        BindGroup* depthResolveBinding = null;
+        if (depthTexture != null)
         {
+            var sampledDepth = depthTexture;
+            var sampledDepthView = depthTextureView;
+            if (sampleCount > 1)
+            {
+                var resolvedDesc = new TextureDescriptor
+                {
+                    Size = new Extent3D { Width = (uint)width, Height = (uint)height, DepthOrArrayLayers = 1 },
+                    MipLevelCount = 1,
+                    SampleCount = 1,
+                    Dimension = TextureDimension.Dimension2D,
+                    Format = WGPUTextureFormat.Depth24Plus,
+                    Usage = TextureUsage.RenderAttachment | TextureUsage.TextureBinding,
+                };
+                sampledDepth = _wgpu.DeviceCreateTexture(_device, &resolvedDesc);
+                sampledDepthView = _wgpu.TextureCreateView(sampledDepth, null);
+                depthResolveBinding = CreateDepthResolveBinding(depthTextureView);
+            }
             depthTextureHandle = (nuint)AllocTextureHandle();
             _textures[(int)depthTextureHandle] = new TextureInfo
             {
-                Texture = depthTexture,
-                TextureView = depthTextureView,
+                Texture = sampledDepth,
+                TextureView = sampledDepthView,
                 Width = width,
                 Height = height,
                 Layers = 1,
@@ -828,6 +846,7 @@ public unsafe partial class WebGPUGraphicsDriver
             DepthTexture = depthTexture,
             DepthTextureView = depthTextureView,
             DepthTextureHandle = depthTextureHandle,
+            DepthResolveBinding = depthResolveBinding,
             Width = width,
             Height = height,
             SampleCount = sampleCount,
@@ -871,6 +890,20 @@ public unsafe partial class WebGPUGraphicsDriver
         {
             _wgpu.TextureRelease(rt.MsaaTexture);
             rt.MsaaTexture = null;
+        }
+        if (rt.DepthResolveBinding != null)
+        {
+            _wgpu.BindGroupRelease(rt.DepthResolveBinding);
+            rt.DepthResolveBinding = null;
+        }
+        if (rt.SampleCount > 1)
+        {
+            // The sampled handle owns the separate resolved depth, not this
+            // multisampled attachment. Release each resource exactly once.
+            if (rt.DepthTextureView != null) _wgpu.TextureViewRelease(rt.DepthTextureView);
+            if (rt.DepthTexture != null) _wgpu.TextureRelease(rt.DepthTexture);
+            rt.DepthTextureView = null;
+            rt.DepthTexture = null;
         }
         if (rt.DepthTextureHandle != nuint.Zero)
         {
@@ -938,7 +971,8 @@ public unsafe partial class WebGPUGraphicsDriver
             View = rt.SampleCount > 1 ? rt.MsaaTextureView : rt.TextureView,
             ResolveTarget = rt.SampleCount > 1 ? rt.TextureView : null,
             LoadOp = LoadOp.Clear,
-            StoreOp = rt.SampleCount > 1 ? StoreOp.Discard : StoreOp.Store,
+            // A suspended pass can resume with Load; keep its MSAA samples too.
+            StoreOp = StoreOp.Store,
             ClearValue = new Silk.NET.WebGPU.Color
             {
                 R = clearColor.R,
@@ -997,7 +1031,7 @@ public unsafe partial class WebGPUGraphicsDriver
             View = rt.SampleCount > 1 ? rt.MsaaTextureView : rt.TextureView,
             ResolveTarget = rt.SampleCount > 1 ? rt.TextureView : null,
             LoadOp = LoadOp.Load,
-            StoreOp = rt.SampleCount > 1 ? StoreOp.Discard : StoreOp.Store,
+            StoreOp = StoreOp.Store,
         };
 
         var depthAttachment = new RenderPassDepthStencilAttachment
@@ -1035,6 +1069,7 @@ public unsafe partial class WebGPUGraphicsDriver
         _wgpu.RenderPassEncoderEnd(_currentRenderPass);
         _wgpu.RenderPassEncoderRelease(_currentRenderPass);
         _currentRenderPass = null;
+        ResolveDepth(_renderTextures[_rtHandleToSlot[(int)_activeRenderTexture]]);
         _activeRenderTexture = 0;
 
         _currentBindGroup = null;

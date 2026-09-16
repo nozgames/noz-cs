@@ -115,6 +115,8 @@ export async function init(canvasSelector) {
 }
 
 export function shutdown() {
+    depthResolvePipeline = null;
+    depthResolveLayout = null;
     // Resources are automatically cleaned up when device is lost
     device = null;
     adapter = null;
@@ -930,6 +932,56 @@ export function executeCommandBuffer(buffer, count) {
 const renderTextures = new Map();
 const readbackResults = new Map();
 let currentRenderTexturePass = null;
+let depthResolvePipeline = null;
+let depthResolveLayout = null;
+
+function createDepthResolveBinding(source) {
+    if (!depthResolvePipeline) {
+        depthResolveLayout = device.createBindGroupLayout({ entries: [{
+            binding: 0, visibility: GPUShaderStage.FRAGMENT,
+            texture: { sampleType: 'depth', viewDimension: '2d', multisampled: true }
+        }] });
+        // Same nearest-sample rule as the native backend. Averaging depths at
+        // silhouettes would invent surfaces between foreground and background.
+        const module = device.createShaderModule({ label: 'Depth resolve', code: `
+            @group(0) @binding(0) var source: texture_depth_multisampled_2d;
+            @vertex fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+                let p = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u));
+                return vec4<f32>(p * 2.0 - vec2<f32>(1.0), 0.0, 1.0);
+            }
+            @fragment fn fs_main(@builtin(position) p: vec4<f32>) -> @builtin(frag_depth) f32 {
+                var depth = 1.0;
+                for (var i = 0u; i < textureNumSamples(source); i++) {
+                    depth = min(depth, textureLoad(source, vec2<i32>(p.xy), i32(i)));
+                }
+                return depth;
+            }
+        ` });
+        depthResolvePipeline = device.createRenderPipeline({
+            label: 'Nearest-sample depth resolve',
+            layout: device.createPipelineLayout({ bindGroupLayouts: [depthResolveLayout] }),
+            vertex: { module, entryPoint: 'vs_main' },
+            fragment: { module, entryPoint: 'fs_main', targets: [] },
+            primitive: { topology: 'triangle-list' },
+            depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'always' }
+        });
+    }
+    return device.createBindGroup({ layout: depthResolveLayout, entries: [{ binding: 0, resource: source }] });
+}
+
+function resolveDepth(rt) {
+    if (!rt || !rt.depthResolveBinding) return;
+    const pass = currentCommandEncoder.beginRenderPass({
+        label: 'Depth resolve', colorAttachments: [],
+        depthStencilAttachment: {
+            view: rt.resolvedDepthView, depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1
+        }
+    });
+    pass.setPipeline(depthResolvePipeline);
+    pass.setBindGroup(0, rt.depthResolveBinding);
+    pass.draw(3);
+    pass.end();
+}
 
 export function createRenderTexture(width, height, format, sampleCount, depth, label) {
     // Allocate from shared texture ID space so RT can be used with bind groups
@@ -965,9 +1017,11 @@ export function createRenderTexture(width, height, format, sampleCount, depth, l
     let depthTexture = null;
     let depthView = null;
     let depthTextureId = 0;
+    let resolvedDepthTexture = null;
+    let resolvedDepthView = null;
+    let depthResolveBinding = null;
     if (depth) {
-        const depthUsage = GPUTextureUsage.RENDER_ATTACHMENT |
-            (!msaa ? GPUTextureUsage.TEXTURE_BINDING : 0);
+        const depthUsage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
         depthTexture = device.createTexture({
             size: { width, height, depthOrArrayLayers: 1 },
             format: 'depth24plus',
@@ -977,19 +1031,22 @@ export function createRenderTexture(width, height, format, sampleCount, depth, l
         });
         depthView = depthTexture.createView();
 
-        if (!msaa) {
-            depthTextureId = nextTextureId++;
-            textures.set(depthTextureId, {
-                texture: depthTexture,
-                view: depthView,
-                view2d: depthView,
-                width: width,
-                height: height,
-                format: 'depth24plus',
-                layers: 1,
-                isArray: false
+        if (msaa) {
+            resolvedDepthTexture = device.createTexture({
+                size: { width, height, depthOrArrayLayers: 1 },
+                format: 'depth24plus', usage: depthUsage,
+                label: (label || `render_texture_${id}`) + '_resolved_depth'
             });
+            resolvedDepthView = resolvedDepthTexture.createView();
+            depthResolveBinding = createDepthResolveBinding(depthView);
         }
+        depthTextureId = nextTextureId++;
+        textures.set(depthTextureId, {
+            texture: resolvedDepthTexture || depthTexture,
+            view: resolvedDepthView || depthView,
+            view2d: resolvedDepthView || depthView,
+            width, height, format: 'depth24plus', layers: 1, isArray: false
+        });
     }
 
     renderTextures.set(id, {
@@ -1000,6 +1057,7 @@ export function createRenderTexture(width, height, format, sampleCount, depth, l
         depthTexture: depthTexture,
         depthView: depthView,
         depthTextureId: depthTextureId,
+        resolvedDepthTexture, resolvedDepthView, depthResolveBinding,
         sampleCount: sampleCount,
         width: width,
         height: height,
@@ -1037,6 +1095,10 @@ export function destroyRenderTexture(textureId) {
         if (rt.depthTexture) {
             rt.depthTexture.destroy();
         }
+        if (rt.resolvedDepthTexture) {
+            rt.resolvedDepthTexture.destroy();
+        }
+        rt.depthResolveBinding = null;
         if (rt.depthTextureId) {
             textures.delete(rt.depthTextureId);
         }
@@ -1061,7 +1123,8 @@ export function beginRenderTexturePass(textureId, clearR, clearG, clearB, clearA
             view: msaa ? rt.msaaView : rt.view,
             resolveTarget: msaa ? rt.view : undefined,
             loadOp: clear ? 'clear' : 'load',
-            storeOp: msaa ? 'discard' : 'store',
+            // Resume uses 'load', including the original MSAA samples.
+            storeOp: 'store',
             clearValue: { r: clearR, g: clearG, b: clearB, a: clearA }
         }],
         label: 'render_texture_pass'
@@ -1084,6 +1147,7 @@ export function endRenderTexturePass() {
         currentRenderPass.end();
         currentRenderPass = null;
     }
+    resolveDepth(currentRenderTexturePass);
     currentRenderTexturePass = null;
 
     // Submit the current command encoder so RT draws are executed before any readback,

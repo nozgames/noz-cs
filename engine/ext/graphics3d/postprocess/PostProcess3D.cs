@@ -39,7 +39,7 @@ public static class PostProcess3D
     /// <summary>
     /// Applies SSAO to the current post-process color using the scene's depth.
     /// Update the camera for the scene size first. Returns false without changing
-    /// the pipeline when disabled, no sampleable depth exists (including MSAA),
+    /// the pipeline when disabled, no sampleable depth exists,
     /// or the extension's shaders are unavailable. Call before drawing UI.
     /// The deferred renderer currently shares named uniforms, so use one SSAO
     /// view per frame; different views require per-draw uniform snapshots first.

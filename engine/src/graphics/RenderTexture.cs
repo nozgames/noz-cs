@@ -14,7 +14,8 @@ public class RenderTexture : ITexture, IDisposable
     public bool HasDepth { get; private set; }
     /// <summary>
     /// Borrowed handle for sampling this render target's depth attachment.
-    /// Zero when depth is disabled or multisampled. The render texture owns it.
+    /// MSAA targets expose the nearest-sample depth resolved at pass end.
+    /// Zero when depth is disabled/unsupported. The render texture owns it.
     /// </summary>
     public nuint DepthTextureHandle { get; private set; }
 
