@@ -12,6 +12,19 @@ public static class Log
     public static string? Path { get; set; }
     public static bool Muted { get; set; }
 
+    // An optional mirror so a host application can SEE these lines while it runs.
+    // A desktop build is typically OutputType=WinExe: it has no console,
+    // Debug.WriteLine reaches only an attached debugger, and Path is often unset
+    // - so by default every Log.* call is invisible at runtime, and a subsystem
+    // that logs its whole story tells it to nobody. One callback lets a game
+    // mirror the stream into an on-screen console without touching a call site.
+    //
+    // Called on WHATEVER THREAD logged, which is frequently not the main thread
+    // (asset loads, downloads, socket receive), so an implementation must be
+    // thread-safe and must not touch GPU resources directly. A sink that throws
+    // is swallowed: logging must never be the thing that takes the caller down.
+    public static Action<string>? Sink { get; set; }
+
     private static void EnsureInitialized()
     {
         if (_initialized || Path == null)
@@ -47,6 +60,13 @@ public static class Log
 
         if (Path != null)
             WriteToFile(message);
+
+        // Read once into a local: an unsubscribe on another thread between the
+        // null check and the call would otherwise be a NullReferenceException
+        // inside the logger.
+        var sink = Sink;
+        if (sink == null) return;
+        try { sink(message); } catch { }
     }
 
     public static void Info(string message) => Write($"[INFO] {message}");
