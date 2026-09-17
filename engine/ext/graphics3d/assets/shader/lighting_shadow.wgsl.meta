@@ -1,9 +1,0 @@
-[shader]
-depth = true
-depth_less = true
-
-[editor]
-position = (-6.500000,-3.500000)
-collection = default
-export = true
-

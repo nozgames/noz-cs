@@ -43,6 +43,21 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     return output;
 }
 
+// Threshold each tap before averaging: a small bright insert must not disappear
+// just because it shares a downsample footprint with a dark lantern frame.
+fn bloom_sample(uv: vec2<f32>, threshold: f32) -> vec4<f32> {
+    let sample_color = textureSample(source, source_sampler, uv);
+    if (threshold <= 0.0) { return sample_color; }
+    let color = max(sample_color.rgb, vec3<f32>(0));
+    // Peak channel treats blue/rose emitters like warm ones. Luminance-only
+    // extraction misses saturated blue even when its blue channel is HDR.
+    let brightness = max(color.r, max(color.g, color.b));
+    let knee = max(threshold * .25, .0001);
+    let soft = clamp(brightness - threshold + knee, 0.0, 2.0 * knee);
+    let excess = max(brightness - threshold, soft * soft / (4.0 * knee));
+    return vec4<f32>(color * (excess / max(brightness, .0001)), sample_color.a);
+}
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // color.r = threshold (0 = no threshold), color.g = texel_w, color.b = texel_h
@@ -51,22 +66,22 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
     // 13-tap downsample: 4 corner quads + 4 edge quads + 1 center
     // Each bilinear sample covers a 2x2 texel region
-    let a = textureSample(source, source_sampler, uv + vec2(-1.0, -1.0) * t);
-    let b = textureSample(source, source_sampler, uv + vec2( 1.0, -1.0) * t);
-    let c = textureSample(source, source_sampler, uv + vec2(-1.0,  1.0) * t);
-    let d = textureSample(source, source_sampler, uv + vec2( 1.0,  1.0) * t);
+    let a = bloom_sample(uv + vec2(-1.0, -1.0) * t, input.color.r);
+    let b = bloom_sample(uv + vec2( 1.0, -1.0) * t, input.color.r);
+    let c = bloom_sample(uv + vec2(-1.0,  1.0) * t, input.color.r);
+    let d = bloom_sample(uv + vec2( 1.0,  1.0) * t, input.color.r);
 
-    let e = textureSample(source, source_sampler, uv + vec2(-2.0, -2.0) * t);
-    let f = textureSample(source, source_sampler, uv + vec2( 0.0, -2.0) * t);
-    let g = textureSample(source, source_sampler, uv + vec2( 2.0, -2.0) * t);
+    let e = bloom_sample(uv + vec2(-2.0, -2.0) * t, input.color.r);
+    let f = bloom_sample(uv + vec2( 0.0, -2.0) * t, input.color.r);
+    let g = bloom_sample(uv + vec2( 2.0, -2.0) * t, input.color.r);
 
-    let h = textureSample(source, source_sampler, uv + vec2(-2.0,  0.0) * t);
-    let i = textureSample(source, source_sampler, uv);
-    let j = textureSample(source, source_sampler, uv + vec2( 2.0,  0.0) * t);
+    let h = bloom_sample(uv + vec2(-2.0,  0.0) * t, input.color.r);
+    let i = bloom_sample(uv, input.color.r);
+    let j = bloom_sample(uv + vec2( 2.0,  0.0) * t, input.color.r);
 
-    let k = textureSample(source, source_sampler, uv + vec2(-2.0,  2.0) * t);
-    let l = textureSample(source, source_sampler, uv + vec2( 0.0,  2.0) * t);
-    let m = textureSample(source, source_sampler, uv + vec2( 2.0,  2.0) * t);
+    let k = bloom_sample(uv + vec2(-2.0,  2.0) * t, input.color.r);
+    let l = bloom_sample(uv + vec2( 0.0,  2.0) * t, input.color.r);
+    let m = bloom_sample(uv + vec2( 2.0,  2.0) * t, input.color.r);
 
     // Weighted combination: center-heavy to prevent fireflies
     // Inner 4 quads (a,b,c,d) get 0.5 total, outer 9 (e-m) get 0.5 total
@@ -75,16 +90,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     color += (f + h + j + l) * 0.0625;                            // 4 * 0.0625 = 0.25
     color += i * 0.125;                                            // 0.125
     // Total = 0.5 + 0.125 + 0.25 + 0.125 = 1.0
-
-    // Optional threshold (color.r > 0 means apply threshold)
-    let threshold = input.color.r;
-    if (threshold > 0.0) {
-        let luminance = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
-        let knee = 0.01;
-        let soft = luminance - threshold + knee;
-        let contribution = clamp(soft / (2.0 * knee + 0.0001), 0.0, 1.0);
-        color = vec4(color.rgb * contribution, color.a);
-    }
 
     return color;
 }

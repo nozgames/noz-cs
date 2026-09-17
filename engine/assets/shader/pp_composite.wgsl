@@ -8,15 +8,10 @@ struct Globals {
     time: f32,
 }
 
-struct CompositeParams {
-    intensity: f32,
-}
-
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var bloom_texture: texture_2d<f32>;
 @group(0) @binding(2) var bloom_sampler: sampler;
 @group(0) @binding(3) var bone_texture: texture_2d<f32>;
-@group(0) @binding(4) var<uniform> composite_params: CompositeParams;
 @group(0) @binding(5) var original_texture: texture_2d<f32>;
 @group(0) @binding(6) var original_sampler: sampler;
 
@@ -37,6 +32,7 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
+    @location(1) intensity: f32,
 }
 
 @vertex
@@ -44,6 +40,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
     output.position = globals.projection * vec4<f32>(input.position, 0.0, 1.0);
     output.uv = input.uv;
+    output.intensity = input.color.r;
     return output;
 }
 
@@ -51,5 +48,5 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let original = textureSample(original_texture, original_sampler, input.uv);
     let bloom = textureSample(bloom_texture, bloom_sampler, input.uv);
-    return vec4(original.rgb + bloom.rgb * composite_params.intensity, original.a);
+    return vec4(original.rgb + bloom.rgb * input.intensity, original.a);
 }

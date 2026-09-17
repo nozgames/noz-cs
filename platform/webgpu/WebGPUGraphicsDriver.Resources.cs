@@ -268,6 +268,7 @@ public unsafe partial class WebGPUGraphicsDriver
                 TextureFormat.R8 => 1,
                 TextureFormat.RG8 => 2,
                 TextureFormat.RGBA32F => 16,
+                TextureFormat.RGBA16F => 8,
                 _ => 4,
             };
 
@@ -350,6 +351,7 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba8Unorm => 4,
             WGPUTextureFormat.R8Unorm => 1,
             WGPUTextureFormat.Rgba32float => 16,
+            WGPUTextureFormat.Rgba16float => 8,
             _ => 4,
         };
 
@@ -388,9 +390,9 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba8Unorm => 4,
             WGPUTextureFormat.R8Unorm => 1,
             WGPUTextureFormat.Rgba32float => 16,
+            WGPUTextureFormat.Rgba16float => 8,
             _ => 4,
         };
-        
         var rowWidth = srcWidth < 0 ? region.Width : srcWidth;
 
         fixed (byte* dataPtr = data)
@@ -402,7 +404,7 @@ public unsafe partial class WebGPUGraphicsDriver
                 RowsPerImage = (uint)region.Height,
             };
 
-            var copySize = new Extent3D { 
+            var copySize = new Extent3D {
                 Width = (uint)region.Width,
                 Height = (uint)region.Height,
                 DepthOrArrayLayers = 1 };
@@ -570,6 +572,7 @@ public unsafe partial class WebGPUGraphicsDriver
             TextureFormat.R8 => 1,
             TextureFormat.RG8 => 2,
             TextureFormat.RGBA32F => 16,
+            TextureFormat.RGBA16F => 8,
             _ => 4,
         };
 
@@ -654,6 +657,7 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba8Unorm => 4,
             WGPUTextureFormat.R8Unorm => 1,
             WGPUTextureFormat.Rgba32float => 16,
+            WGPUTextureFormat.Rgba16float => 8,
             _ => 4,
         };
 

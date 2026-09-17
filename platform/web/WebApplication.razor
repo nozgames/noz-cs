@@ -14,6 +14,8 @@
     [Parameter] public string Title { get; set; } = "NoZ Game";
     [Parameter] public IApplication? Vtable { get; set; }
     [Parameter] public UIConfig? UI { get; set; }
+    [Parameter] public int MaxMeshes { get; set; } = GraphicsConfig.DefaultMaxMeshes;
+    [Parameter] public bool HDR { get; set; }
     [Parameter] public Func<Task>? OnInitialize { get; set; }
 
     private int _width;
@@ -60,6 +62,7 @@
         // Initialize graphics driver (needs async for browser WebGPU)
         _driver.Init(new GraphicsDriverConfig
         {
+            MaxMeshes = MaxMeshes,
             Platform = _platform,
             VSync = true
         });
@@ -83,6 +86,8 @@
             UI = UI,
             Graphics = new GraphicsConfig
             {
+                HDR = HDR,
+                MaxMeshes = MaxMeshes,
                 Driver = _driver
             }
         });

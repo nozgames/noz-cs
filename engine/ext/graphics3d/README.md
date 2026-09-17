@@ -9,41 +9,14 @@ Types use the shared `NoZ` namespace but live in the optional `NoZ.Graphics3D` a
 - `Mesh`, `MeshVertex3D`, and `MeshPrimitive` — CPU/GPU mesh data and binary import/export. `MESH` version 1 is unchanged.
 - `Graphics3D.Draw(mesh, model, camera.ViewProjectionMatrix)` — indexed submission using the caller's shader, textures, blend mode and layer, with a per-object inverse-transpose normal matrix. The two-matrix form keeps lighting in world space when objects rotate or scale. `Draw(mesh, viewProjection)` uses an identity model for previews or world-space geometry.
 - `PostProcess3D.Ssao(camera, settings)` and `SsaoSettings` — depth-only ambient occlusion, blur and composition on the existing `NoZ.PostProcess` pipeline.
-- `Lighting3D`, `PointLight3D`, `ShadowCaster3D`, and `SkylightVolume3D` — cached direct shadows and voxel sky visibility; materials and light ownership stay with the host.
 
 The host owns materials, render passes and scene/gameplay organization. Enable depth on the pass and in the mesh shader, and restore the 2D camera before submitting UI. Mesh vertices use positions/normals/tangents/UV0/colors at shader locations 0–4. Dispose mesh assets before graphics shutdown.
 
 Generic GPU facilities (vertex layouts, buffers, depth attachments, matrix submission, texture sampling, and post-process blits) remain in core. They do not require camera, mesh-asset, scene, lighting, or prefab concepts.
 
-## Lighting
-
-Import this extension's `lighting_shadow` and `lighting_shadow_copy` shaders through the normal asset pipeline. Own one disposable `Lighting3D` per view. Call `Prepare` **before** entering the scene pass, supplying visible shadow geometry, point lights, world bounds, a sky-geometry revision, a voxelization callback, and a focus position. Inside the scene, call `Bind` before drawing with the host's lit material. Dispose before graphics shutdown.
-
-`ShadowCaster3D.Transform` is the model-to-world matrix; bounds are world-space. Supply CPU vertices/indices to batch geometry into one draw per shadow face. GPU-only casters work but require individual draws. Increment the caster revision after in-place mesh edits, and the sky revision after any terrain or occluder change. The voxelization callback can call `AddHeightField`, `AddMesh`, or `AddTriangle`; use visible geometry, not broad collision boxes, so openings remain open.
-
-The current binding contract is:
-
-| Slot | Resource |
-| --- | --- |
-| 0 | Reserved for the host material/palette |
-| 1 | Sun depth texture, 2048² |
-| 2 | RGB24 radial-distance point-shadow atlas; six 256² faces per light |
-| 3 | R8 skylight volume packed into a 1024-wide 2D texture; byte 0 is solid, bytes 1..255 encode air visibility 0..1 |
-| 4 | RGBA32F lighting parameters; layout is documented by `Lighting3D.Prepare` and Cozy's `world_lit.wgsl` consumer |
-
-Sun direction points **toward** the sun. Intensity and color changes do not rebuild shadows. A moved occluder rebuilds the sun, affected point shadows, and sky visibility; stationary frames reuse them. The nearest 16 distinct point-light IDs are active, with stable ID ordering. Additional lights are omitted, not drawn unshadowed. Point range is limited to 64 world units. `ActivePointLights`, `OmittedPointLights`, `ShadowUpdatesLastFrame`, and skylight build timing expose this budget.
-
-`LightingSettings3D.ShadowSoftness` is a 0..1 host-shader setting; changing it does not rebuild the cached maps. Parameter texel 45 contains sun world-units-per-texel (XY), its linear depth range (Z), and softness (W). Cozy uses these for bounded, contact-dependent comparison filtering of sun and point shadows. Point samples remap across cube faces and keep receiver-plane bias; the filter does not blur packed depth values. This is an artistic soft-shadow approximation, not full area-light visibility.
-
-Skylight uses conservative 0.5-unit surface voxels (coarsened if necessary to stay under 2,097,152 cells), full visibility from above, and attenuated propagation through openings. It is an artistic indoor/outdoor ambient approximation, **not** colored bounce lighting or full GI. Direct colored light is wall-blocked by shadow maps. Thin walls are preserved by conservative voxelization, but small openings and shadow details are limited by resolution. The current mesh convention excludes triangles with all vertex alphas below 0.5 from shadow/sky occlusion; Cozy uses these for luminous lantern inserts.
-
-When sampling skylight, exclude solid texels and renormalize the trilinear weights over the remaining air texels. Do not interpolate solids as zero light: that creates voxel-height bands on terrain. Encoded byte 1 represents genuinely dark air and must still participate in interpolation. Return zero if no valid air sample is available.
-
-Rebuilds are synchronous. Large edits or activating many lights can spike frame time. Cozy updates shadows and sky occupancy in the same frame as visible terrain edits and door changes; throttling lighting alone leaves stale geometry shadowing freshly lowered ground. Unchanged frames reuse the caches. Core render-target submission now stores pass order separately from material/layer sorting to support these additional passes without reducing the existing 2D layer/group ranges. The generic 64-pass budget remains unchanged.
-
-Cozy integrates this through `WorldLighting`: palette/vertex colors remain the albedo, with diffuse sun, sky ambient, and colored point lights. Its current SSAO multiplies the composed opaque scene (not only ambient); water and the diorama background still use their own shaders and do not receive these lights yet.
-
-Cozy's sun-shadow consumer uses a texel-center-aligned, continuously weighted 4x4 comparison filter with receiver-plane depth correction. Equal-weight nearest-texel PCF produces visible repeated steps on door trim at walking distances. Point shadows use bilinear comparison filtering; neither path interpolates packed depth bytes or disables occlusion to hide aliasing.
+Lighting models, shadow generation, light ownership and their shaders belong to
+the host game, not this extension. Cozy documents its implementation in
+`docs/lighting.md`.
 
 ## Per-object transforms
 

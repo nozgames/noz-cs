@@ -19,7 +19,9 @@ internal static class RenderTexturePool
         public int Frame;
     }
 
-    private const int MaxPooledTextures = 24;
+    // Match the render-pass budget: multiple post-processed scene previews
+    // can legitimately need more than 24 targets. GPU storage is still lazy.
+    private const int MaxPooledTextures = 64;
     private static readonly PooledTexture[] _pool = new PooledTexture[MaxPooledTextures];
     private static int _frame = 1;
 

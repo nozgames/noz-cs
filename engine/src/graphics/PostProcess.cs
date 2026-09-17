@@ -109,7 +109,7 @@ public static class PostProcess
     public static void Bloom(float threshold = 0.8f, float intensity = 1.2f, int mipLevels = 5)
     {
         if (_sceneRT == null || Application.IsResizing) return;
-        if (_currentRT == null) return;    
+        if (_currentRT == null || !float.IsFinite(intensity) || intensity <= 0) return;
 
         _downsampleShader ??= Asset.Load(AssetType.Shader, "pp_downsample") as Shader;
         _upsampleShader ??= Asset.Load(AssetType.Shader, "pp_upsample") as Shader;
@@ -159,8 +159,10 @@ public static class PostProcess
         }
 
         // Composite onto original
-        Graphics.SetUniform("composite_params", intensity);
         BeginBlit(_compositeShader);
+        // Named uniforms are shared by deferred draws. Vertex color snapshots
+        // the intensity per scene, including multiple previews in one frame.
+        Graphics.SetColor(new Color(intensity, 0f, 0f, 1f));
         Graphics.SetTexture(original.Handle, slot: 2);
         Graphics.SetTextureFilter(TextureFilter.Linear, slot: 2);
         EndBlit();
