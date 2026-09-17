@@ -50,9 +50,9 @@ public static class EditorInspector
         return result;
     }
 
-    public static Color ColorField(WidgetId id, Color value, Document? undoDocument = null)
+    public static Color ColorField(WidgetId id, Color value, Document? undoDocument = null, bool showAlpha = true)
     {
-        var result = EditorUI.ColorButton(id, value);
+        var result = EditorUI.ColorButton(id, value, new ColorButtonStyle { ShowAlpha = showAlpha });
         RecordChangeStart(undoDocument);
         return result;
     }

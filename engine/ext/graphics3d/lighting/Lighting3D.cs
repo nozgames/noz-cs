@@ -69,6 +69,15 @@ public sealed class Lighting3D : IDisposable
     public int ActivePointLights { get; private set; }
     public int OmittedPointLights { get; private set; }
 
+    public Lighting3D() { }
+
+    /// <summary>Host-owned shaders let editor previews use their project library without changing the global asset registry.</summary>
+    public Lighting3D(Shader shadowShader, Shader copyShader)
+    {
+        _shadowShader = shadowShader ?? throw new ArgumentNullException(nameof(shadowShader));
+        _copyShader = copyShader ?? throw new ArgumentNullException(nameof(copyShader));
+    }
+
     public void Invalidate()
     {
         _sunValid = _atlasValid = false;

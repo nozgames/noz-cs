@@ -10,6 +10,10 @@ namespace NoZ.Editor.Graphics3D;
 public static class MeshWorkspaceProjection
 {
     public static Matrix4x4 Create(Camera3D camera, in Matrix3x2 workspaceView, Rect worldBounds)
+        => Create(camera, workspaceView, worldBounds, 0);
+
+    /// <summary>A positive height uses an orthographic editing view, retaining workspace pan/zoom.</summary>
+    public static Matrix4x4 Create(Camera3D camera, in Matrix3x2 workspaceView, Rect worldBounds, float orthographicHeight)
     {
         // Match the square thumbnail's perspective. Pan, zoom, and viewport
         // aspect are supplied by the workspace after projecting the model.
@@ -23,7 +27,11 @@ public static class MeshWorkspaceProjection
         // Match Graphics.SetCamera's workspace-to-clip Y flip, preserving Z/W
         // for depth testing. Cursor-anchored zoom now moves every projected point
         // exactly like a 2D asset at the same workspace position.
-        return camera.ViewProjectionMatrix * clipToDocument *
+        var projection = orthographicHeight > 0
+            ? camera.ViewMatrix * Matrix4x4.CreateOrthographic(orthographicHeight, orthographicHeight, camera.NearClip, camera.FarClip) *
+              Matrix4x4.CreateTranslation(camera.ProjectionOffset.X, camera.ProjectionOffset.Y, 0)
+            : camera.ViewProjectionMatrix;
+        return projection * clipToDocument *
                new Matrix4x4(workspaceView) * Matrix4x4.CreateScale(1f, -1f, 1f);
     }
 }
