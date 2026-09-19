@@ -105,10 +105,7 @@ internal sealed class MeshEditor : DocumentEditor
 
     public override void InspectorUI()
     {
-        UI.Text("glTF Mesh Preview");
-        UI.Text($"Vertices: {_mesh?.Vertices.Length ?? Document.VertexCount:N0}");
-        UI.Text($"Triangles: {(_mesh?.Indices.Length ?? Document.IndexCount) / 3:N0}");
-        UI.Text($"Primitives: {_mesh?.Primitives.Length ?? Document.PrimitiveCount:N0}");
+        Document.InspectorUI();
         UI.Text("Drag to orbit");
         UI.Text("Right-drag to pan");
         UI.Text("Scroll to zoom workspace");

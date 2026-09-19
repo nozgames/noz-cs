@@ -47,6 +47,28 @@ public static class PostProcess
     /// </summary>
     public static nuint CurrentColorTextureHandle => _currentRT?.Handle ?? nuint.Zero;
 
+    /// <summary>Render an offscreen scene with post-processing. The returned target
+    /// is borrowed until the end of this frame; copy it before retaining the image.</summary>
+    public static RenderTexture RenderScene(RenderTexture target, Color clear, Action draw)
+    {
+        if (Graphics.IsRenderTexturePassActive)
+            throw new InvalidOperationException("RenderScene must be called outside a render pass.");
+        using var state = Graphics.PushState();
+        SetSceneRT(target);
+        try
+        {
+            Graphics.BeginPass(target, clear);
+            draw();
+            Graphics.EndPass();
+            return TakeResult() ?? target;
+        }
+        finally
+        {
+            if (Graphics.IsRenderTexturePassActive) Graphics.EndPass();
+            ForceReset();
+        }
+    }
+
     internal static void ForceReset()
     {
         _sceneRT = null;

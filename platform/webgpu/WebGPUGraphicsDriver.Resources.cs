@@ -1081,6 +1081,8 @@ public unsafe partial class WebGPUGraphicsDriver
 
     public Task<byte[]> ReadRenderTexturePixelsAsync(nuint renderTexture)
     {
+        if (_devicePoll == null)
+            return Task.FromException<byte[]>(new NotSupportedException("This WebGPU backend cannot service image readback callbacks."));
         var rtSlot = _rtHandleToSlot[(int)renderTexture];
         ref var rt = ref _renderTextures[rtSlot];
 
@@ -1093,7 +1095,7 @@ public unsafe partial class WebGPUGraphicsDriver
         // Create staging buffer with MapRead usage
         var bufferDesc = new BufferDescriptor
         {
-            Label = (byte*)System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi("readback_staging"),
+            Label = null,
             Size = (ulong)bufferSize,
             Usage = WGPUBufferUsage.MapRead | WGPUBufferUsage.CopyDst,
             MappedAtCreation = false,
@@ -1149,6 +1151,7 @@ public unsafe partial class WebGPUGraphicsDriver
         {
             if (status != BufferMapAsyncStatus.Success)
             {
+                wgpu.BufferRelease(stagingBuffer);
                 tcs.SetException(new Exception($"Buffer map failed: {status}"));
                 return;
             }
@@ -1182,6 +1185,8 @@ public unsafe partial class WebGPUGraphicsDriver
         });
 
         _wgpu.BufferMapAsync(stagingBuffer, MapMode.Read, 0, (nuint)bufferSize, callback, null);
+
+        _readbacks.Add((tcs.Task, callback));
 
         return tcs.Task;
     }

@@ -47,6 +47,8 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     private GraphicsDriverConfig _config = null!;
     private Silk.NET.WebGPU.WebGPU _wgpu = null!;
+    private delegate* unmanaged[Cdecl]<Device*, uint, void*, uint> _devicePoll;
+    private readonly List<(Task Task, PfnBufferMapCallback Callback)> _readbacks = [];
 
     // Core WebGPU objects
     private Instance* _instance;
@@ -232,6 +234,8 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             _wgpu = Silk.NET.WebGPU.WebGPU.GetApi();
         }
 
+        if (_wgpu.Context.TryGetProcAddress("wgpuDevicePoll", out var poll))
+            _devicePoll = (delegate* unmanaged[Cdecl]<Device*, uint, void*, uint>)poll;
         InitSync();
     }
 
@@ -553,6 +557,8 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     public void Shutdown()
     {
+        if (_readbacks.Count > 0 && _devicePoll != null && _device != null) _devicePoll(_device, 1, null);
+        _readbacks.Clear();
         DestroyDepthResolvePipeline();
         for (var i = 0; i < _globalsBufferCount; i++)
             _wgpu.BufferRelease(_globalsBuffers[i]);
@@ -612,6 +618,14 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         // Validate device
         if (_device == null)
             return false;
+
+        // Native async buffer maps need the device callback queue serviced.
+        // Poll without waiting so exporting a photo never blocks the frame loop.
+        if (_readbacks.Count > 0 && _devicePoll != null)
+        {
+            _devicePoll(_device, 0, null);
+            _readbacks.RemoveAll(r => r.Task.IsCompleted);
+        }
 
         var windowSize = _config.Platform.WindowSize;
         var newWidth = (int)windowSize.X;

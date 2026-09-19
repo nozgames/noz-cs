@@ -8,7 +8,7 @@ using NoZ.Editor;
 
 namespace NoZ.Editor.Graphics3D;
 
-public sealed class MeshDocument : Document
+public class MeshDocument : Document
 {
     private const int PreviewSize = 256;
 
@@ -48,7 +48,7 @@ public sealed class MeshDocument : Document
 
     public override void Export(string outputPath, PropertySet meta)
     {
-        var imported = GltfImporter.Import(Path);
+        var imported = ImportMesh();
         using var stream = File.Create(outputPath);
         Mesh.Write(
             stream,
@@ -95,17 +95,19 @@ public sealed class MeshDocument : Document
 
     public override void InspectorUI()
     {
-        UI.Text("glTF Mesh");
+        UI.Text(Def.Name);
         UI.Text($"Vertices: {VertexCount:N0}");
         UI.Text($"Triangles: {IndexCount / 3:N0}");
         UI.Text($"Primitives: {PrimitiveCount:N0}");
     }
 
+    protected virtual ImportedMesh ImportMesh() => GltfImporter.Import(Path);
+
     private void TryImport()
     {
         try
         {
-            _imported = GltfImporter.Import(Path);
+            _imported = ImportMesh();
         }
         catch (Exception ex)
         {
