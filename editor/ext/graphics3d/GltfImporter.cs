@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace NoZ.Editor.Graphics3D;
 
-internal sealed class ImportedMesh
+public sealed class ImportedMesh
 {
     public required MeshVertex3D[] Vertices { get; init; }
     public required uint[] Indices { get; init; }
@@ -20,7 +20,7 @@ internal sealed class ImportedMesh
 /// <summary>
 /// Imports uncompressed glTF 2.0 geometry without adding a runtime package dependency.
 /// </summary>
-internal static class GltfImporter
+public static class GltfImporter
 {
     private const uint GlbMagic = 0x46546C67;
     private const uint JsonChunkType = 0x4E4F534A;
@@ -34,7 +34,28 @@ internal static class GltfImporter
     private const int ComponentUnsignedInt = 5125;
     private const int ComponentFloat = 5126;
 
-    public static ImportedMesh Import(string path)
+    /// <summary>Imports mesh-local geometry by unique glTF mesh name. Node transforms
+    /// are not applied; exporters must bake the desired local coordinate system.</summary>
+    public static Dictionary<string, ImportedMesh> ImportNamedMeshes(string path)
+    {
+        var (document, _) = ReadDocument(path);
+        using (document)
+        {
+            var result = new Dictionary<string, ImportedMesh>(StringComparer.Ordinal);
+            foreach (var mesh in document.RootElement.GetProperty("meshes").EnumerateArray())
+            {
+                var name = mesh.GetProperty("name").GetString();
+                if (string.IsNullOrWhiteSpace(name) || result.ContainsKey(name))
+                    throw new InvalidDataException("Named meshes require nonempty, unique names.");
+                result.Add(name, Import(path, name));
+            }
+            return result;
+        }
+    }
+
+    public static ImportedMesh Import(string path) => Import(path, null);
+
+    private static ImportedMesh Import(string path, string? selectedMesh)
     {
         var (document, glbBuffer) = ReadDocument(path);
         using (document)
@@ -55,6 +76,7 @@ internal static class GltfImporter
             foreach (var meshElement in meshesElement.EnumerateArray())
             {
                 var meshName = GetString(meshElement, "name", $"mesh_{meshIndex}");
+                if (selectedMesh != null && meshName != selectedMesh) { meshIndex++; continue; }
                 if (!meshElement.TryGetProperty("primitives", out var primitivesElement) ||
                     primitivesElement.ValueKind != JsonValueKind.Array)
                     throw new InvalidDataException($"Mesh '{meshName}' does not contain primitives.");

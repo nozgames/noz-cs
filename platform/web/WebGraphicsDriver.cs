@@ -579,6 +579,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             "rgba8" => 4,
             "r8" => 1,
             "rgba32f" => 16,
+            WebGPUTextureFormat.RGBA16F => 8,
             _ => 4
         };
 
@@ -606,11 +607,14 @@ public class WebGraphicsDriver : IGraphicsDriver
             "rgba8" => 4,
             "r8" => 1,
             "rgba32f" => 16,
+            WebGPUTextureFormat.RGBA16F => 8,
             _ => 4
         };
 
         var rowWidth = srcWidth < 0 ? region.Width : srcWidth;
-        var segment = ArrayPool<byte>.Shared.RentAndCopy(data, out var rented);
+        var offset = srcWidth < 0 ? 0 : (region.Y * rowWidth + region.X) * bytesPerPixel;
+        var length = region.Height == 0 ? 0 : ((region.Height - 1) * rowWidth + region.Width) * bytesPerPixel;
+        var segment = ArrayPool<byte>.Shared.RentAndCopy(data.Slice(offset, length), out var rented);
         try
         {
             WebGPUInterop.WriteTextureRegion(textureInfo.JsTextureId, segment, region.X, region.Y, region.Width, region.Height, rowWidth * bytesPerPixel);

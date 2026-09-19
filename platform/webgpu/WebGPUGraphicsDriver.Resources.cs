@@ -429,7 +429,7 @@ public unsafe partial class WebGPUGraphicsDriver
             _wgpu.QueueWriteTexture(
                 _queue,
                 &destination,
-                dataPtr + (region.Y * rowWidth + region.X) * bytesPerPixel,
+                dataPtr + (srcWidth < 0 ? 0 : (region.Y * rowWidth + region.X) * bytesPerPixel),
                 (nuint)bytesNeeded,
                 &layout,
                 &copySize);

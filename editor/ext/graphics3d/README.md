@@ -30,6 +30,10 @@ The preview shader and optional texture are exported asset names in `Project.Out
 Included tools:
 
 - `MeshDocument` and its glTF/GLB importer, preserving the existing `Mesh` document identity and `MESH` binary format.
+- Public `GltfImporter.ImportNamedMeshes(path)` for host-owned compound assets.
+  Returns uniquely named mesh-local geometry; it intentionally does not apply
+  scene-node transforms. Exporters must bake the desired local frame before calling it.
+  Blender launch/conversion and construction-role policy remain host-owned.
 - `TextureDocument` for standalone PNG/JPEG/TGA/WebP/BMP texture import, with point/linear filtering in the inspector.
 - `PaletteTextureDocument` and its editor: square textures, 8×8-pixel swatches, continuous multi-stop gradients, and the Palette Texture entry in the New menu. Construction data stays in `.png.meta`; the PNG remains usable in Blender and exports as a regular runtime Texture. The `Palette Texture` metadata identity and binary output are unchanged.
 - `TextureAssetWriter` for shared RGBA8 texture export, also usable by host-owned image importers.
