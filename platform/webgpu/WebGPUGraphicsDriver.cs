@@ -42,6 +42,8 @@ internal class StaticLinkNativeContext : INativeContext
 
 public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 {
+    public bool SupportsInstancing => true;
+
     private static readonly ProfilerCounter s_counterBindGroupRelease = new("WebGPU.BindGroupRelease");    
     private static readonly ProfilerCounter s_counterGlobalBuffers = new("WebGPU.GlobalBuffers");
 
@@ -115,6 +117,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public BlendMode BlendMode;
         public TextureFilter TextureFilter;
         public nuint BoundMesh;
+        public nuint BoundInstanceStream;
         public fixed ulong BoundTextures[8];
         public fixed byte TextureFilters[8];
         public fixed ulong BoundUniformBuffers[4];
@@ -137,6 +140,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public int MaxIndices;
         public MeshIndexFormat IndexFormat;
         public VertexFormatDescriptor Descriptor;
+        public int LayoutHash;
     }
 
     private struct BufferInfo
@@ -186,7 +190,10 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     {
         public nuint ShaderHandle;
         public BlendMode BlendMode;
-        public int VertexStride;
+        public VertexFormatDescriptor VertexLayout;
+        public VertexFormatDescriptor InstanceLayout;
+        public int VertexLayoutHash;
+        public int InstanceLayoutHash;
         public int MsaaSamples;
         public WGPUTextureFormat ColorFormat;
         public WGPUTextureFormat DepthFormat;
@@ -194,14 +201,15 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public bool Equals(PsoKey other) =>
             ShaderHandle == other.ShaderHandle &&
             BlendMode == other.BlendMode &&
-            VertexStride == other.VertexStride &&
+            VertexLayoutHash == other.VertexLayoutHash && InstanceLayoutHash == other.InstanceLayoutHash &&
+            VertexLayout.Equals(other.VertexLayout) && InstanceLayout.Equals(other.InstanceLayout) &&
             MsaaSamples == other.MsaaSamples &&
             ColorFormat == other.ColorFormat &&
             DepthFormat == other.DepthFormat;
 
         public override bool Equals(object? obj) => obj is PsoKey other && Equals(other);
 
-        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat, DepthFormat);
+        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexLayoutHash, MsaaSamples, ColorFormat, DepthFormat, InstanceLayoutHash);
     }
 
     public void Init(GraphicsDriverConfig config)

@@ -65,16 +65,19 @@ internal static class JSObjectHelper
         string depthFormat,
         bool depthWriteEnabled,
         string depthCompare,
-        string label)
+        string label,
+        VertexFormatDescriptor instanceDescriptor = default)
     {
         var vertexBuffersJson = CreateVertexBufferLayoutJson(vertexDescriptor);
+        if (instanceDescriptor.Stride != 0)
+            vertexBuffersJson += "," + CreateVertexBufferLayoutJson(instanceDescriptor, "instance");
         var blendModeStr = GetBlendModeString(blendMode);
 
         return WebGPUInterop.CreateRenderPipelineDescriptor(
             vertexModuleId,
             fragmentModuleId,
             pipelineLayoutId,
-            "vs_main",
+            instanceDescriptor.Stride == 0 ? "vs_main" : "vs_instanced",
             "fs_main",
             $"[{vertexBuffersJson}]",
             blendModeStr,
@@ -89,7 +92,7 @@ internal static class JSObjectHelper
             label);
     }
 
-    private static string CreateVertexBufferLayoutJson(VertexFormatDescriptor descriptor)
+    private static string CreateVertexBufferLayoutJson(VertexFormatDescriptor descriptor, string stepMode = "vertex")
     {
         var attributes = new List<string>();
         foreach (var attr in descriptor.Attributes)
@@ -98,7 +101,7 @@ internal static class JSObjectHelper
             attributes.Add($"{{\"shaderLocation\":{attr.Location},\"offset\":{attr.Offset},\"format\":\"{format}\"}}");
         }
 
-        return $"{{\"arrayStride\":{descriptor.Stride},\"stepMode\":\"vertex\",\"attributes\":[{string.Join(",", attributes)}]}}";
+        return $"{{\"arrayStride\":{descriptor.Stride},\"stepMode\":\"{stepMode}\",\"attributes\":[{string.Join(",", attributes)}]}}";
     }
 
     private static string GetVertexFormatString(VertexAttribute attr)

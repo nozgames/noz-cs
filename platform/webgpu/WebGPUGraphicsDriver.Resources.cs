@@ -17,10 +17,14 @@ public unsafe partial class WebGPUGraphicsDriver
 
     public nuint CreateMesh<T>(int maxVertices, int maxIndices, BufferUsage usage, string name = "", MeshIndexFormat indexFormat = MeshIndexFormat.UInt16) where T : IVertex
     {
-        var handle = AllocateMeshHandle();
         var descriptor = T.GetFormatDescriptor();
-        var vertexSize = descriptor.Stride * maxVertices;
-        var indexSize = (indexFormat == MeshIndexFormat.UInt32 ? sizeof(uint) : sizeof(ushort)) * maxIndices;
+        // Keep pipeline cache keys stable even when a caller reuses/mutates its descriptor array.
+        descriptor.Attributes = descriptor.Attributes.ToArray();
+        if (maxVertices < 1 || maxIndices < 0 || descriptor.Stride < 1)
+            throw new ArgumentOutOfRangeException(nameof(maxVertices));
+        var vertexSize = checked(descriptor.Stride * maxVertices);
+        var indexSize = checked((indexFormat == MeshIndexFormat.UInt32 ? sizeof(uint) : sizeof(ushort)) * maxIndices);
+        var handle = AllocateMeshHandle();
 
         // Create vertex buffer
         var vertexBufferDesc = new BufferDescriptor
@@ -40,7 +44,9 @@ public unsafe partial class WebGPUGraphicsDriver
             Usage = WGPUBufferUsage.Index | WGPUBufferUsage.CopyDst,
             MappedAtCreation = false,
         };
-        var indexBuffer = _wgpu.DeviceCreateBuffer(_device, &indexBufferDesc);
+        var indexBuffer = maxIndices > 0 ? _wgpu.DeviceCreateBuffer(_device, &indexBufferDesc) : null;
+        Marshal.FreeHGlobal((nint)vertexBufferDesc.Label);
+        Marshal.FreeHGlobal((nint)indexBufferDesc.Label);
 
         _meshes[(int)handle] = new MeshInfo
         {
@@ -50,6 +56,7 @@ public unsafe partial class WebGPUGraphicsDriver
             MaxVertices = maxVertices,
             MaxIndices = maxIndices,
             IndexFormat = indexFormat,
+            LayoutHash = descriptor.GetHashCode(),
             Descriptor = descriptor,
         };
 
@@ -79,6 +86,11 @@ public unsafe partial class WebGPUGraphicsDriver
 
         mesh = default;
         _freeMeshIds[_freeMeshIdCount++] = (int)handle;
+        if (_state.BoundInstanceStream == handle)
+        {
+            _state.BoundInstanceStream = 0;
+            _state.PipelineDirty = true;
+        }
         if (_state.BoundMesh == handle)
         {
             _state.BoundMesh = nuint.Zero;
@@ -147,6 +159,15 @@ public unsafe partial class WebGPUGraphicsDriver
             fixed (uint* dataPtr = indexData)
                 _wgpu.QueueWriteBuffer(_queue, mesh.IndexBuffer, 0, dataPtr, (nuint)(indexData.Length * sizeof(uint)));
         }
+    }
+
+    public void UpdateInstanceData(nuint stream, int byteOffset, ReadOnlySpan<byte> data)
+    {
+        ref var mesh = ref _meshes[(int)stream];
+        if (byteOffset < 0 || data.Length > (long)mesh.MaxVertices * mesh.Stride - byteOffset || (byteOffset & 3) != 0 || (data.Length & 3) != 0)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        fixed (byte* ptr = data)
+            _wgpu.QueueWriteBuffer(_queue, mesh.VertexBuffer, (ulong)byteOffset, ptr, (nuint)data.Length);
     }
 
     // Buffer Management

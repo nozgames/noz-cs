@@ -89,7 +89,7 @@ public unsafe partial class WebGPUGraphicsDriver
             bindGroupLayout = CreateBindGroupLayoutForShader(vertexSource + fragmentSource, out bindingCount);
         }
 
-        var pipelineLayout = CreatePipelineLayout(bindGroupLayout);
+        var pipelineLayout = CreatePipelineLayout(bindingCount == 0 ? null : bindGroupLayout);
         var handle = (nuint)_nextShaderId++;
 
         _shaders[(int)handle] = new ShaderInfo
@@ -362,8 +362,8 @@ public unsafe partial class WebGPUGraphicsDriver
     {
         var pipelineLayoutDesc = new PipelineLayoutDescriptor
         {
-            BindGroupLayoutCount = 1,
-            BindGroupLayouts = &bindGroupLayout,
+            BindGroupLayoutCount = bindGroupLayout == null ? 0u : 1u,
+            BindGroupLayouts = bindGroupLayout == null ? null : &bindGroupLayout,
         };
 
         return _wgpu.DeviceCreatePipelineLayout(_device, &pipelineLayoutDesc);
@@ -376,7 +376,10 @@ public unsafe partial class WebGPUGraphicsDriver
         {
             ShaderHandle = shaderHandle,
             BlendMode = blendMode,
-            VertexStride = vertexStride,
+            VertexLayout = _meshes[(int)_state.BoundMesh].Descriptor,
+            VertexLayoutHash = _meshes[(int)_state.BoundMesh].LayoutHash,
+            InstanceLayout = _state.BoundInstanceStream == 0 ? default : _meshes[(int)_state.BoundInstanceStream].Descriptor,
+            InstanceLayoutHash = _state.BoundInstanceStream == 0 ? 0 : _meshes[(int)_state.BoundInstanceStream].LayoutHash,
             MsaaSamples = _state.CurrentPassSampleCount,
             ColorFormat = _state.CurrentPassFormat,
             DepthFormat = _state.CurrentPassDepthFormat,
@@ -398,7 +401,8 @@ public unsafe partial class WebGPUGraphicsDriver
 
         // Create render pipeline
         var pipelineName = $"{shaderInfo.Name}_{blendMode}_{meshInfo.Descriptor.Stride}b_{key.MsaaSamples}x_{key.ColorFormat}_{key.DepthFormat}";
-        var pipeline = CreateRenderPipeline(shaderInfo, blendMode, meshInfo.Descriptor, key.MsaaSamples, key.ColorFormat, key.DepthFormat, pipelineName);
+        var pipeline = CreateRenderPipeline(shaderInfo, blendMode, meshInfo.Descriptor, key.MsaaSamples, key.ColorFormat, key.DepthFormat, pipelineName,
+            _state.BoundInstanceStream == 0 ? default : _meshes[(int)_state.BoundInstanceStream].Descriptor);
 
         if (pipeline == null)
         {
@@ -418,9 +422,10 @@ public unsafe partial class WebGPUGraphicsDriver
         int sampleCount,
         WGPUTextureFormat colorFormat = default,
         WGPUTextureFormat depthFormat = default,
-        string? pipelineName = null)
+        string? pipelineName = null,
+        VertexFormatDescriptor instanceDescriptor = default)
     {
-        using var vsEntryPoint = SilkMarshal.StringToMemory("vs_main");
+        using var vsEntryPoint = SilkMarshal.StringToMemory(instanceDescriptor.Stride == 0 ? "vs_main" : "vs_instanced");
         using var fsEntryPoint = SilkMarshal.StringToMemory("fs_main");
         using var labelMemory = pipelineName != null ? SilkMarshal.StringToMemory(pipelineName) : default;
 
@@ -441,13 +446,24 @@ public unsafe partial class WebGPUGraphicsDriver
             Attributes = attributes,
         };
 
+        var layouts = stackalloc VertexBufferLayout[2];
+        layouts[0] = vertexBufferLayout;
+        var instanceAttributeCount = instanceDescriptor.Attributes?.Length ?? 0;
+        var instanceAttributes = stackalloc WGPUVertexAttribute[instanceAttributeCount];
+        for (var i = 0; i < instanceAttributeCount; i++) instanceAttributes[i] = MapVertexAttribute(instanceDescriptor.Attributes![i]);
+        layouts[1] = new VertexBufferLayout
+        {
+            ArrayStride = (ulong)instanceDescriptor.Stride, StepMode = VertexStepMode.Instance,
+            AttributeCount = (uint)instanceAttributeCount, Attributes = instanceAttributes
+        };
+
         // Vertex state
         var vertexState = new VertexState
         {
             Module = shaderInfo.VertexModule,
             EntryPoint = (byte*)vsEntryPoint,
-            BufferCount = 1,
-            Buffers = &vertexBufferLayout,
+            BufferCount = instanceDescriptor.Stride == 0 ? 1u : 2u,
+            Buffers = layouts,
         };
 
         // Blend state

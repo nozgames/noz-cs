@@ -6,10 +6,38 @@ using System.Numerics;
 
 namespace NoZ.Platform;
 
-public struct VertexFormatDescriptor
+/// <summary>Vertex layout by value. Drivers copy the attributes when creating a mesh.</summary>
+public struct VertexFormatDescriptor : IEquatable<VertexFormatDescriptor>
 {
     public VertexAttribute[] Attributes;
     public int Stride;
+
+    public readonly bool Equals(VertexFormatDescriptor other)
+    {
+        if (Stride != other.Stride) return false;
+        if (ReferenceEquals(Attributes, other.Attributes)) return true;
+        var count = Attributes?.Length ?? 0;
+        if (count != (other.Attributes?.Length ?? 0)) return false;
+        for (var i = 0; i < count; i++)
+        {
+            var a = Attributes![i]; var b = other.Attributes![i];
+            if (a.Location != b.Location || a.Components != b.Components || a.Type != b.Type ||
+                a.Offset != b.Offset || a.Normalized != b.Normalized) return false;
+        }
+        return true;
+    }
+    public override readonly bool Equals(object? obj) => obj is VertexFormatDescriptor other && Equals(other);
+    public override readonly int GetHashCode()
+    {
+        var hash = new HashCode(); hash.Add(Stride);
+        if (Attributes != null)
+            foreach (var a in Attributes)
+            {
+                hash.Add(a.Location); hash.Add(a.Components); hash.Add(a.Type);
+                hash.Add(a.Offset); hash.Add(a.Normalized);
+            }
+        return hash.ToHashCode();
+    }
 }
 
 public enum BufferUsage
@@ -81,6 +109,18 @@ public interface IGraphicsDriver
     void BindGlobals(int index);
 
     void DrawElements(int firstIndex, int indexCount, int baseVertex = 0);
+    /// <summary>Whether this driver supports slot-1 instance streams and indexed instancing.</summary>
+    bool SupportsInstancing => false;
+    /// <summary>Upload a four-byte-aligned range into a vertex-only mesh (zero indices).</summary>
+    void UpdateInstanceData(nuint stream, int byteOffset, ReadOnlySpan<byte> data) =>
+        throw new NotSupportedException("This graphics driver does not support instancing.");
+    /// <summary>Bind slot 1, or disable instancing with zero. Zero remains valid on older drivers.</summary>
+    void BindInstanceStream(nuint stream)
+    {
+        if (stream != 0) throw new NotSupportedException("This graphics driver does not support instancing.");
+    }
+    void DrawElementsInstanced(int firstIndex, int indexCount, int instanceCount, int firstInstance) =>
+        throw new NotSupportedException("This graphics driver does not support instancing.");
 
     void SetVSync(bool vsync) { }
 

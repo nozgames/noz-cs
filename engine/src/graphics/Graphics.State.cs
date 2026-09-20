@@ -29,6 +29,7 @@ public static unsafe partial class Graphics
         public bool ScissorEnabled;
         public RectInt Scissor;
         public RenderMesh Mesh;
+        public nuint InstanceStream;
         public float Opacity;
         public Color OverlayColor;
         public int DrawParameterIndex;
@@ -71,7 +72,7 @@ public static unsafe partial class Graphics
         var viewportChanged = current.Viewport != prev.Viewport;
         var scissorChanged = current.ScissorEnabled != prev.ScissorEnabled ||
                              current.Scissor != prev.Scissor;
-        var meshChanged = current.Mesh != prev.Mesh;
+        var meshChanged = current.Mesh != prev.Mesh || current.InstanceStream != prev.InstanceStream;
 
         if (shaderChanged || blendChanged || texturesChanged || viewportChanged || scissorChanged || meshChanged ||
             current.DrawParameterIndex != prev.DrawParameterIndex)
@@ -88,6 +89,7 @@ public static unsafe partial class Graphics
         }
 
         _stateStackDepth = 0;
+        _batchStateDirty = true;
         _currentBatchState = 0;
         CurrentState.Transform = Matrix3x2.Identity;
         CurrentState.SortGroup = 0;
@@ -109,6 +111,7 @@ public static unsafe partial class Graphics
         CurrentState.Scissor = RectInt.Zero;
         CurrentState.Viewport = RectInt.Zero;
         CurrentState.Mesh = _mesh;
+        CurrentState.InstanceStream = 0;
 
         _currentPass = RenderPass.Scene;
         _rtPassIndex = 0;

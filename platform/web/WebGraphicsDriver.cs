@@ -34,6 +34,8 @@ internal static class ArrayPoolExtensions
 [SupportedOSPlatform("browser")]
 public class WebGraphicsDriver : IGraphicsDriver
 {
+    public bool SupportsInstancing => true;
+
     private GraphicsDriverConfig _config = null!;
     private int _surfaceWidth;
     private int _surfaceHeight;
@@ -88,6 +90,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public BlendMode BlendMode;
         public TextureFilter TextureFilter;
         public nuint BoundMesh;
+        public nuint BoundInstanceStream;
         public nuint[] BoundTextures;
         public TextureFilter[] TextureFilters;
         public bool PipelineDirty;
@@ -110,6 +113,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             BlendMode = BlendMode.None;
             TextureFilter = TextureFilter.Point;
             BoundMesh = 0;
+            BoundInstanceStream = 0;
             Array.Clear(BoundTextures);
             Array.Clear(TextureFilters);
             PipelineDirty = true;
@@ -135,6 +139,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         public int MaxIndices;
         public MeshIndexFormat IndexFormat;
         public VertexFormatDescriptor Descriptor;
+        public int LayoutHash;
     }
 
     private struct BufferInfo
@@ -181,7 +186,10 @@ public class WebGraphicsDriver : IGraphicsDriver
     {
         public nuint ShaderHandle;
         public BlendMode BlendMode;
-        public int VertexStride;
+        public VertexFormatDescriptor VertexLayout;
+        public VertexFormatDescriptor InstanceLayout;
+        public int VertexLayoutHash;
+        public int InstanceLayoutHash;
         public int MsaaSamples;
         public string ColorFormat;
         public string DepthFormat;
@@ -189,14 +197,15 @@ public class WebGraphicsDriver : IGraphicsDriver
         public bool Equals(PsoKey other) =>
             ShaderHandle == other.ShaderHandle &&
             BlendMode == other.BlendMode &&
-            VertexStride == other.VertexStride &&
+            VertexLayoutHash == other.VertexLayoutHash && InstanceLayoutHash == other.InstanceLayoutHash &&
+            VertexLayout.Equals(other.VertexLayout) && InstanceLayout.Equals(other.InstanceLayout) &&
             MsaaSamples == other.MsaaSamples &&
             ColorFormat == other.ColorFormat &&
             DepthFormat == other.DepthFormat;
 
         public override bool Equals(object? obj) => obj is PsoKey other && Equals(other);
 
-        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexStride, MsaaSamples, ColorFormat, DepthFormat);
+        public override int GetHashCode() => HashCode.Combine(ShaderHandle, BlendMode, VertexLayoutHash, MsaaSamples, ColorFormat, DepthFormat, InstanceLayoutHash);
     }
 
     public void Init(GraphicsDriverConfig config)
@@ -364,7 +373,13 @@ public class WebGraphicsDriver : IGraphicsDriver
                 "or release an unused mesh.");
 
         var descriptor = T.GetFormatDescriptor();
+        // Keep pipeline cache keys stable even when a caller reuses/mutates its descriptor array.
+        descriptor.Attributes = descriptor.Attributes.ToArray();
 
+        if (maxVertices < 1 || maxIndices < 0 || descriptor.Stride < 1)
+            throw new ArgumentOutOfRangeException(nameof(maxVertices));
+        _ = checked(descriptor.Stride * maxVertices);
+        _ = checked((indexFormat == MeshIndexFormat.UInt32 ? 4 : 2) * maxIndices);
         var jsMeshId = WebGPUInterop.CreateMesh(maxVertices, maxIndices, descriptor.Stride, indexFormat == MeshIndexFormat.UInt32 ? 4 : 2, name);
 
         var handle = _freeMeshHandles.Count > 0
@@ -377,6 +392,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             MaxVertices = maxVertices,
             MaxIndices = maxIndices,
             IndexFormat = indexFormat,
+            LayoutHash = descriptor.GetHashCode(),
             Descriptor = descriptor
         };
 
@@ -390,6 +406,11 @@ public class WebGraphicsDriver : IGraphicsDriver
             WebGPUInterop.DestroyMesh(mesh.JsMeshId);
             _meshes.Remove(handle);
             _freeMeshHandles.Push(handle);
+            if (_state.BoundInstanceStream == handle)
+            {
+                _state.BoundInstanceStream = 0;
+                _state.PipelineDirty = true;
+            }
 
             if (_state.BoundMesh == handle)
             {
@@ -456,6 +477,16 @@ public class WebGraphicsDriver : IGraphicsDriver
     // ============================================================================
     // Buffer Management
     // ============================================================================
+
+    public void UpdateInstanceData(nuint stream, int byteOffset, ReadOnlySpan<byte> data)
+    {
+        var mesh = _meshes[stream];
+        if (byteOffset < 0 || data.Length > (long)mesh.MaxVertices * mesh.Stride - byteOffset || (byteOffset & 3) != 0 || (data.Length & 3) != 0)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        var segment = ArrayPool<byte>.Shared.RentAndCopy(data, out var rented);
+        try { WebGPUInterop.UpdateInstanceData(mesh.JsMeshId, byteOffset, segment); }
+        finally { if (rented.Length > 0) ArrayPool<byte>.Shared.Return(rented); }
+    }
 
     public nuint CreateUniformBuffer(int sizeInBytes, BufferUsage usage, string name = "")
     {
@@ -765,7 +796,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         var bindGroupLayoutId = WebGPUInterop.CreateBindGroupLayout(layoutEntries, $"{name}_layout");
 
         // Create pipeline layout
-        var pipelineLayoutId = WebGPUInterop.CreatePipelineLayout(new[] { bindGroupLayoutId }, $"{name}_pipeline_layout");
+        var pipelineLayoutId = WebGPUInterop.CreatePipelineLayout(bindings.Count == 0 ? [] : [bindGroupLayoutId], $"{name}_pipeline_layout");
 
         var handle = (nuint)_nextShaderId++;
         _shaders[handle] = new ShaderInfo
@@ -921,6 +952,19 @@ public class WebGraphicsDriver : IGraphicsDriver
     // ============================================================================
 
     public void DrawElements(int firstIndex, int indexCount, int baseVertex = 0)
+        => DrawIndexed(firstIndex, indexCount, baseVertex, 1, 0);
+
+    public void DrawElementsInstanced(int firstIndex, int indexCount, int instanceCount, int firstInstance)
+        => DrawIndexed(firstIndex, indexCount, 0, instanceCount, firstInstance);
+
+    public void BindInstanceStream(nuint stream)
+    {
+        if (_state.BoundInstanceStream == stream) return;
+        _state.BoundInstanceStream = stream;
+        _state.PipelineDirty = true;
+    }
+
+    private void DrawIndexed(int firstIndex, int indexCount, int baseVertex, int instanceCount, int firstInstance)
     {
         // Update pipeline if needed
         if (_state.PipelineDirty)
@@ -955,6 +999,9 @@ public class WebGraphicsDriver : IGraphicsDriver
             _state.LastBoundJsMeshId = mesh.JsMeshId;
         }
 
+        if (_state.BoundInstanceStream != 0)
+            EmitCmd(CMD_SET_VERTEX_BUF, 1, _meshes[_state.BoundInstanceStream].JsMeshId);
+
         // Apply scissor (Y flip needed - WebGPU uses top-down, engine uses bottom-up)
         RectInt scissorRect;
         if (_state.ScissorEnabled)
@@ -988,7 +1035,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         }
 
         // Draw
-        EmitCmd(CMD_DRAW_INDEXED, indexCount, 1, firstIndex, baseVertex, 0);
+        EmitCmd(CMD_DRAW_INDEXED, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
     }
 
     private int GetOrCreatePipeline(nuint shaderHandle, BlendMode blendMode, int vertexStride)
@@ -1003,7 +1050,10 @@ public class WebGraphicsDriver : IGraphicsDriver
         {
             ShaderHandle = shaderHandle,
             BlendMode = blendMode,
-            VertexStride = vertexStride,
+            VertexLayout = _meshes[_state.BoundMesh].Descriptor,
+            VertexLayoutHash = _meshes[_state.BoundMesh].LayoutHash,
+            InstanceLayout = _state.BoundInstanceStream == 0 ? default : _meshes[_state.BoundInstanceStream].Descriptor,
+            InstanceLayoutHash = _state.BoundInstanceStream == 0 ? 0 : _meshes[_state.BoundInstanceStream].LayoutHash,
             MsaaSamples = _state.CurrentPassSampleCount,
             ColorFormat = _state.CurrentPassFormat,
             DepthFormat = _state.CurrentPassDepthFormat,
@@ -1027,7 +1077,8 @@ public class WebGraphicsDriver : IGraphicsDriver
             shader.Flags.HasFlag(ShaderFlags.Depth)
                 ? shader.Flags.HasFlag(ShaderFlags.DepthLess) ? "less" : "less-equal"
                 : "always",
-            $"{shader.Name}_{blendMode}_{vertexStride}b_{key.MsaaSamples}x_{key.ColorFormat}_{key.DepthFormat}"
+            $"{shader.Name}_{blendMode}_{vertexStride}b_{key.MsaaSamples}x_{key.ColorFormat}_{key.DepthFormat}",
+            _state.BoundInstanceStream == 0 ? default : _meshes[_state.BoundInstanceStream].Descriptor
         );
 
         pipelineId = WebGPUInterop.CreateRenderPipeline(descriptor);
@@ -1064,6 +1115,7 @@ public class WebGraphicsDriver : IGraphicsDriver
         }
 
         var bindings = shader.Bindings;
+        if (shader.BindGroupEntryCount == 0) return 0;
         if (bindings == null || bindings.Count == 0)
         {
             Log.Error("Shader has no binding metadata!");

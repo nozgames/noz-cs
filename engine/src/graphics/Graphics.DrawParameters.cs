@@ -11,7 +11,9 @@ public static partial class Graphics
     /// <summary>Maximum size of optional, caller-defined per-draw shader parameters.</summary>
     public const int MaxDrawParameterBytes = 256;
     private const int GlobalsPrefixBytes = 80;
-    private static readonly List<byte[]> _drawParameterSnapshots = [];
+    private static NativeArray<byte> _drawParameterData;
+    private static NativeArray<int> _drawParameterLengths;
+    private static GraphicsSnapshotIndex _drawParameterIndex;
     private static int _drawParameterCount;
 
     /// <summary>
@@ -31,9 +33,10 @@ public static partial class Graphics
             throw new ArgumentException(
                 $"Draw parameters must be a multiple of 16 bytes, at most {MaxDrawParameterBytes} bytes.", nameof(data));
 
-        for (var i = 0; i < _drawParameterCount; i++)
+        var hash = GraphicsSnapshotIndex.Hash(data);
+        for (var i = _drawParameterIndex.First(hash); i >= 0; i = _drawParameterIndex.Next(i))
         {
-            if (!data.SequenceEqual(_drawParameterSnapshots[i])) continue;
+            if (!data.SequenceEqual(GetDrawParameters(i))) continue;
             SetDrawParameterIndex(i + 1);
             return;
         }
@@ -43,14 +46,14 @@ public static partial class Graphics
                 $"Draw parameter snapshot budget exhausted ({_maxGlobalSnapshots}). " +
                 $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxGlobalSnapshots)}.");
 
-        if (_drawParameterCount == _drawParameterSnapshots.Count)
-            _drawParameterSnapshots.Add(new byte[data.Length]);
-        else if (_drawParameterSnapshots[_drawParameterCount].Length != data.Length)
-            _drawParameterSnapshots[_drawParameterCount] = new byte[data.Length];
-
-        data.CopyTo(_drawParameterSnapshots[_drawParameterCount]);
+        data.CopyTo(_drawParameterData.AsSpan(_drawParameterCount * MaxDrawParameterBytes, data.Length));
+        _drawParameterLengths[_drawParameterCount] = data.Length;
+        _drawParameterIndex.Add(hash, _drawParameterCount);
         SetDrawParameterIndex(++_drawParameterCount);
     }
+
+    private static ReadOnlySpan<byte> GetDrawParameters(int index) =>
+        _drawParameterData.AsReadonlySpan(index * MaxDrawParameterBytes, _drawParameterLengths[index]);
 
     public static void SetDrawParameters<T>(in T data) where T : unmanaged =>
         SetDrawParameters(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in data, 1)));

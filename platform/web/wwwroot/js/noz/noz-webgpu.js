@@ -233,11 +233,11 @@ export function createMesh(maxVertices, maxIndices, vertexStride, indexStride, l
         label: `${label || 'mesh'}_vertices`
     });
 
-    const indexBuffer = device.createBuffer({
+    const indexBuffer = maxIndices > 0 ? device.createBuffer({
         size: indexSize,
         usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
         label: `${label || 'mesh'}_indices`
-    });
+    }) : null;
 
     const id = nextBufferId++;
     buffers.set(id, {
@@ -251,6 +251,11 @@ export function createMesh(maxVertices, maxIndices, vertexStride, indexStride, l
     });
 
     return id;
+}
+
+export function updateInstanceData(meshId, byteOffset, data) {
+    const mesh = buffers.get(meshId);
+    queue.writeBuffer(mesh.vertexBuffer, byteOffset, ensureTypedArray(data));
 }
 
 export function updateMesh(meshId, vertexData, indexData) {
@@ -275,7 +280,7 @@ export function destroyMesh(meshId) {
     const mesh = buffers.get(meshId);
     if (mesh && mesh.type === 'mesh') {
         mesh.vertexBuffer.destroy();
-        mesh.indexBuffer.destroy();
+        mesh.indexBuffer?.destroy();
         buffers.delete(meshId);
     }
 }

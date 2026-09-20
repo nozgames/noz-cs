@@ -5,6 +5,8 @@ namespace NoZ;
 
 public class NullGraphicsDriver : IGraphicsDriver
 {
+    public bool SupportsInstancing => true;
+
     private nuint _nextHandle = 1;
 
     public string ShaderExtension => "";
@@ -53,6 +55,9 @@ public class NullGraphicsDriver : IGraphicsDriver
     public void BindGlobals(int index) { }
 
     public void DrawElements(int firstIndex, int indexCount, int baseVertex = 0) { }
+    public void UpdateInstanceData(nuint stream, int byteOffset, ReadOnlySpan<byte> data) { }
+    public void BindInstanceStream(nuint stream) { }
+    public void DrawElementsInstanced(int firstIndex, int indexCount, int instanceCount, int firstInstance) { }
 
     public nuint CreateFence() => _nextHandle++;
     public void WaitFence(nuint fence) { }

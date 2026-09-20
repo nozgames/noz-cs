@@ -53,6 +53,9 @@ public static partial class WebGPUInterop
     [JSImport("updateMesh", ModuleName)]
     internal static partial void UpdateMesh(int meshId, [JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> vertexData, [JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> indexData);
 
+    [JSImport("updateInstanceData", ModuleName)]
+    internal static partial void UpdateInstanceData(int meshId, int byteOffset, [JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> data);
+
     [JSImport("destroyMesh", ModuleName)]
     internal static partial void DestroyMesh(int meshId);
 

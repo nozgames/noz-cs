@@ -53,6 +53,7 @@ public static unsafe partial class Graphics
         public RectInt Viewport;
         public RectInt Scissor;
         public nuint Mesh;
+        public nuint InstanceStream;
         public bool ScissorEnabled;
         public byte Pass;
         public ushort GlobalsIndex;
@@ -62,6 +63,8 @@ public static unsafe partial class Graphics
 
     private struct Batch
     {
+        public int InstanceCount;
+        public int FirstInstance;
         public int IndexOffset;
         public int IndexCount;
         public ushort State;
@@ -125,6 +128,8 @@ public static unsafe partial class Graphics
     private static NativeArray<Batch> _batches;
     private static NativeArray<BatchState> _batchStates;
     private static NativeArray<GlobalsSnapshot> _globalsSnapshots;
+    private static GraphicsSnapshotIndex _globalsIndex;
+    private static GraphicsSnapshotIndex _batchIndex;
     private static int _globalsBaseIndex; // Base offset for globals buffers to prevent RTT overwriting main frame
     private static ushort _currentBatchState;
     
@@ -145,6 +150,12 @@ public static unsafe partial class Graphics
         _maxDrawCommands = RenderConfig.MaxDrawCommands;
         _maxBatches = RenderConfig.MaxBatches;
         _maxGlobalSnapshots = RenderConfig.MaxGlobalSnapshots;
+        if (graphicsConfig.MaxInstancesPerFrame < 1)
+            throw new ArgumentOutOfRangeException(nameof(graphicsConfig.MaxInstancesPerFrame));
+        if (_maxBatches is < 1 or > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(graphicsConfig.MaxBatches));
+        if (_maxDrawCommands is < 1 or > 65536)
+            throw new ArgumentOutOfRangeException(nameof(graphicsConfig.MaxDrawCommands));
         if (_maxGlobalSnapshots is < 1 or > ushort.MaxValue)
             throw new ArgumentOutOfRangeException(
                 nameof(graphicsConfig.MaxGlobalSnapshots),
@@ -158,7 +169,6 @@ public static unsafe partial class Graphics
 
         _globalsBaseIndex = 0;
         _drawParameterCount = 0;
-        _drawParameterSnapshots.Clear();
 
         PixelsPerUnit = graphicsConfig.PixelsPerUnit;
         PixelsPerUnitInv = 1.0f / PixelsPerUnit;
@@ -178,6 +188,11 @@ public static unsafe partial class Graphics
         _batches = new NativeArray<Batch>(_maxBatches);
         _batchStates = new NativeArray<BatchState>(_maxBatches);
         _globalsSnapshots = new NativeArray<GlobalsSnapshot>(_maxGlobalSnapshots);
+        _globalsIndex = new GraphicsSnapshotIndex(_maxGlobalSnapshots);
+        _batchIndex = new GraphicsSnapshotIndex(_maxBatches);
+        _drawParameterIndex = new GraphicsSnapshotIndex(_maxGlobalSnapshots);
+        _drawParameterData = new NativeArray<byte>(_maxGlobalSnapshots * MaxDrawParameterBytes);
+        _drawParameterLengths = new NativeArray<int>(_maxGlobalSnapshots, _maxGlobalSnapshots);
 
         _mesh = CreateMesh<MeshVertex>(
             MaxVertices,
@@ -202,17 +217,27 @@ public static unsafe partial class Graphics
 
     public static void Shutdown()
     {
-        _drawParameterSnapshots.Clear();
+        foreach (var stream in _instanceStreams.Values) stream.Dispose();
+        _instanceStreams.Clear();
+        _drawParameterData.Dispose();
+        _drawParameterLengths.Dispose();
+        _drawParameterIndex.Dispose();
+        _globalsIndex.Dispose();
+        _batchIndex.Dispose();
         _drawParameterCount = 0;
         _batches.Dispose();
         _vertices.Dispose();
         _commands.Dispose();
         _indices.Dispose();
         _globalsSnapshots.Dispose();
+        _batchStates.Dispose();
+        _sortedIndices.Dispose();
+        _boneData.Dispose();
 
         Driver.DestroyMesh(_mesh.Handle);
         Driver.DestroyTexture(_boneTexture);
         WhiteTexture?.Dispose();
+        WhiteTexture = null!;
 
         Driver.Shutdown();
 
@@ -226,6 +251,19 @@ public static unsafe partial class Graphics
         // blit/flush: earlier draws may still be waiting for GPU submission.
         _globalsBaseIndex = 0;
         _drawParameterCount = 0;
+        _drawParameterIndex.Clear();
+        foreach (var stream in _instanceStreams.Values) stream.BeginFrame();
+        // Also discard a partially recorded frame after an exception. No old
+        // command may reference parameter slots that are about to be reused.
+        _commands.Clear();
+        _vertices.Clear();
+        _indices.Clear();
+        _sortedIndices.Clear();
+        _batches.Clear();
+        _batchStates.Clear();
+        _batchIndex.Clear();
+        _globalsSnapshots.Clear();
+        _globalsIndex.Clear();
         ResetState();
 
         if (WhiteTexture == null)
@@ -265,7 +303,7 @@ public static unsafe partial class Graphics
         if (_activeRenderTexture != null)
             throw new InvalidOperationException("Cannot nest render texture passes - call EndPass first");
 
-        if (_rtPassCount >= MaxRenderPasses)
+        if (_rtPassIndex >= MaxRenderPasses)
             throw new InvalidOperationException($"Render texture pass budget exhausted ({MaxRenderPasses}).");
 
         PushState();
@@ -370,7 +408,7 @@ public static unsafe partial class Graphics
             var size = GlobalsPrefixBytes;
             if (snapshot.DrawParameterIndex != 0)
             {
-                var parameters = _drawParameterSnapshots[snapshot.DrawParameterIndex - 1];
+                var parameters = GetDrawParameters(snapshot.DrawParameterIndex - 1);
                 parameters.CopyTo(data[GlobalsPrefixBytes..]);
                 size += parameters.Length;
             }
@@ -391,7 +429,14 @@ public static unsafe partial class Graphics
     private static ushort GetOrAddGlobals(in Matrix4x4 projection)
     {
         // Time is the same for all batches; caller-defined parameters are not.
-        for (int i = 0; i < _globalsSnapshots.Length; i++)
+        // Matrix equality treats positive and negative zero as equal. Float hashes
+        // preserve that contract; raw matrix bytes would miss those matches.
+        Span<int> key = stackalloc int[17];
+        var components = MemoryMarshal.Cast<Matrix4x4, float>(MemoryMarshal.CreateReadOnlySpan(in projection, 1));
+        for (var i = 0; i < 16; i++) key[i] = components[i].GetHashCode();
+        key[16] = CurrentState.DrawParameterIndex;
+        var hash = GraphicsSnapshotIndex.Hash(MemoryMarshal.AsBytes(key));
+        for (var i = _globalsIndex.First(hash); i >= 0; i = _globalsIndex.Next(i))
             if (_globalsSnapshots[i].Projection == projection &&
                 _globalsSnapshots[i].DrawParameterIndex == CurrentState.DrawParameterIndex)
                 return (ushort)(_globalsBaseIndex + i);
@@ -404,6 +449,7 @@ public static unsafe partial class Graphics
                 "or reduce the number of unique projections/parameters submitted in one frame.");
 
         var index = (ushort)nextIndex;
+        _globalsIndex.Add(hash, _globalsSnapshots.Length);
         _globalsSnapshots.Add() = new GlobalsSnapshot
         {
             Projection = projection,
@@ -416,24 +462,23 @@ public static unsafe partial class Graphics
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void AddBatchState()
     {
-        _batchStateDirty = false;
         ValidateBatchState();
 
         var currentProjection = _passProjections[(int)_currentPass];
 
-        var candidate = new BatchState
-        {
-            Pass = (byte)_currentPass,
-            GlobalsIndex = GetOrAddGlobals(currentProjection),
-            Shader = CurrentState.Shader?.Native ?? nuint.Zero,
-            BlendMode = CurrentState.BlendMode,
-            Viewport = CurrentState.Viewport,
-            ScissorEnabled = CurrentState.ScissorEnabled,
-            Scissor = CurrentState.Scissor,
-            Mesh = CurrentState.Mesh.Handle,
-            RenderTextureHandle = _activeRenderTexture?.Handle ?? 0,
-            ClearColor = CurrentState.ClearColor
-        };
+        BatchState candidate;
+        Unsafe.InitBlockUnaligned(&candidate, 0, (uint)sizeof(BatchState));
+        candidate.Pass = (byte)_currentPass;
+        candidate.GlobalsIndex = GetOrAddGlobals(currentProjection);
+        candidate.Shader = CurrentState.Shader?.Native ?? nuint.Zero;
+        candidate.BlendMode = CurrentState.BlendMode;
+        candidate.Viewport = CurrentState.Viewport;
+        candidate.ScissorEnabled = CurrentState.ScissorEnabled;
+        candidate.Scissor = CurrentState.Scissor;
+        candidate.Mesh = CurrentState.Mesh.Handle;
+        candidate.InstanceStream = CurrentState.InstanceStream;
+        candidate.RenderTextureHandle = _activeRenderTexture?.Handle ?? 0;
+        candidate.ClearColor = CurrentState.ClearColor;
 
         for (int t = 0; t < MaxTextures; t++)
         {
@@ -442,18 +487,25 @@ public static unsafe partial class Graphics
         }
 
         var candidateSpan = new ReadOnlySpan<byte>(&candidate, sizeof(BatchState));
-        for (int i = 0; i < _batchStates.Length; i++)
+        var hash = GraphicsSnapshotIndex.Hash(candidateSpan);
+        for (var i = _batchIndex.First(hash); i >= 0; i = _batchIndex.Next(i))
         {
             var existingSpan = new ReadOnlySpan<byte>(Unsafe.AsPointer(ref _batchStates[i]), sizeof(BatchState));
             if (candidateSpan.SequenceEqual(existingSpan))
             {
                 _currentBatchState = (ushort)i;
+                _batchStateDirty = false;
                 return;
             }
         }
 
+        if (!_batchStates.CheckCapacity(1))
+            throw new InvalidOperationException($"Graphics batch state budget exhausted ({_maxBatches}).");
         _currentBatchState = (ushort)_batchStates.Length;
-        _batchStates.Add() = candidate;
+        _batchIndex.Add(hash, _batchStates.Length);
+        ref var added = ref _batchStates.Add();
+        candidateSpan.CopyTo(new Span<byte>(Unsafe.AsPointer(ref added), sizeof(BatchState)));
+        _batchStateDirty = false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -496,6 +548,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
             return;            
 
         SetMesh(_mesh);
+        SetInstanceStream(0);
 
         if (_batchStateDirty)
             AddBatchState();
@@ -514,6 +567,8 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         cmd.IndexOffset = _indices.Length;
         cmd.IndexCount = indices.Length;
         cmd.BatchState = _currentBatchState;
+        cmd.InstanceCount = 1;
+        cmd.FirstInstance = 0;
 
         var baseVertex = _vertices.Length;
         var color = Color;
@@ -564,6 +619,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
 
     public static void DrawElements(int indexCount, int indexOffset = 0, ushort order=0)
     {
+        SetInstanceStream(0);
         if (_batchStateDirty)
             AddBatchState();
 
@@ -592,6 +648,8 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         cmd.IndexOffset = indexOffset;
         cmd.IndexCount = indexCount;
         cmd.BatchState = _currentBatchState;
+        cmd.InstanceCount = 1;
+        cmd.FirstInstance = 0;
     }
 
     private static void CreateBatches()
@@ -609,6 +667,8 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         firstBatch.IndexOffset = firstState.Mesh != _mesh.Handle ? _commands[0].IndexOffset : 0;
         firstBatch.IndexCount = _commands[0].IndexCount;
         firstBatch.State = _commands[0].BatchState;
+        firstBatch.InstanceCount = _commands[0].InstanceCount;
+        firstBatch.FirstInstance = _commands[0].FirstInstance;
 
         if (firstState.Mesh == _mesh.Handle)
             _sortedIndices.AddRange(
@@ -624,17 +684,26 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
             if (cmdState.Mesh != _mesh.Handle)
             {
                 ref var prevBatch = ref _batches[^1];
-                if (cmd.BatchState == prevBatch.State &&
+                if (cmdState.InstanceStream == 0 && cmd.BatchState == prevBatch.State &&
                     cmd.IndexOffset == prevBatch.IndexOffset + prevBatch.IndexCount)
                 {
                     prevBatch.IndexCount += cmd.IndexCount;
                 }
+                else if (cmdState.InstanceStream != 0 && cmd.BatchState == prevBatch.State &&
+                    cmd.IndexOffset == prevBatch.IndexOffset && cmd.IndexCount == prevBatch.IndexCount &&
+                    cmd.FirstInstance == prevBatch.FirstInstance + prevBatch.InstanceCount)
+                {
+                    // Adjacent ranges preserve submission order and can share a draw.
+                    prevBatch.InstanceCount += cmd.InstanceCount;
+                }
                 else
                 {
-                    ref var newBatch = ref _batches.Add();
+                    ref var newBatch = ref AddBatch();
                     newBatch.IndexOffset = cmd.IndexOffset;
                     newBatch.IndexCount = cmd.IndexCount;
                     newBatch.State = cmd.BatchState;
+                    newBatch.InstanceCount = cmd.InstanceCount;
+                    newBatch.FirstInstance = cmd.FirstInstance;
                 }
                 continue;
             }
@@ -642,10 +711,12 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
             ref var currentBatch = ref _batches[^1];
             if (cmd.BatchState != currentBatch.State)
             {
-                ref var newBatch = ref _batches.Add();
+                ref var newBatch = ref AddBatch();
                 newBatch.IndexOffset = _sortedIndices.Length;
                 newBatch.IndexCount = cmd.IndexCount;
                 newBatch.State = cmd.BatchState;
+                newBatch.InstanceCount = 1;
+                newBatch.FirstInstance = 0;
             }
             else
             {
@@ -658,6 +729,13 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         }
     }
     
+    private static ref Batch AddBatch()
+    {
+        if (!_batches.CheckCapacity(1))
+            throw new InvalidOperationException($"Graphics batch budget exhausted ({_maxBatches}).");
+        return ref _batches.Add();
+    }
+
     private static void EndRenderPass(nuint currentRT)
     {
         if (currentRT == 0)
@@ -695,6 +773,14 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
                 Driver.BeginScenePass(ClearColor);
                 Driver.EndScenePass();
             }
+            // Empty render-texture passes still promise a clear, and must be
+            // consumed so a later flush cannot clear them again.
+            for (var r = 0; r < _rtPassCount; r++)
+            {
+                Driver.BeginRenderTexturePass(_rtPasses[r].Handle, _rtPasses[r].ClearColor);
+                Driver.EndRenderTexturePass();
+            }
+            _rtPassCount = 0;
             return;
         }
 
@@ -726,6 +812,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         Driver.BindTexture(_boneTexture, BoneTextureSlot);
 
         // Upload all globals snapshots to driver
+        foreach (var stream in _instanceStreams.Values) stream.Upload();
         using (s_markerUploadGlobals.Begin())
             UploadGlobals();
 
@@ -733,6 +820,7 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         nuint currentRT = nuint.MaxValue;  // Invalid value to force first pass begin
         bool scenePassStarted = false;
         Span<bool> rtVisited = stackalloc bool[_rtPassCount];
+        rtVisited.Clear();
 
         for (int batchIndex = 0, batchCount = _batches.Length; batchIndex < batchCount; batchIndex++)
         {
@@ -799,9 +887,15 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
             }
             Driver.SetBlendMode(batchState.BlendMode);
             Driver.BindMesh(batchState.Mesh);
+            Driver.BindInstanceStream(batchState.InstanceStream);
 
             using (s_markerDrawElements.Begin())
-                Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
+            {
+                if (batchState.InstanceStream != 0)
+                    Driver.DrawElementsInstanced(batch.IndexOffset, batch.IndexCount, batch.InstanceCount, batch.FirstInstance);
+                else
+                    Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
+            }
         }
 
         // Clear scissor before ending the final pass
@@ -821,6 +915,9 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         }
 
         s_counterDrawCalls.Increment(_batches.Length);
+        // These targets have been rendered/cleared. A later flush in the same
+        // frame must not clear them again merely because it has no draws there.
+        _rtPassCount = 0;
         s_counterCommands.Increment(_commands.Length);
         s_counterVertices.Increment(_vertices.Length);
         s_counterIndices.Increment(_indices.Length);
@@ -830,11 +927,13 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         _indices.Clear();
         _batches.Clear();
         _batchStates.Clear();
+        _batchIndex.Clear();
 
         // Advance base index so subsequent ExecuteCommands calls (like RTT) use different buffer slots
         // This prevents RTT from overwriting globals that main frame draw commands still reference
         _globalsBaseIndex += _globalsSnapshots.Length;
         _globalsSnapshots.Clear();
+        _globalsIndex.Clear();
 
         _batchStateDirty = true;
         _currentBatchState = 0;

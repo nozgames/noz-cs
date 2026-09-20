@@ -100,6 +100,19 @@ public unsafe partial class WebGPUGraphicsDriver
     }
 
     public void DrawElements(int firstIndex, int indexCount, int baseVertex = 0)
+        => DrawIndexed(firstIndex, indexCount, baseVertex, 1, 0);
+
+    public void DrawElementsInstanced(int firstIndex, int indexCount, int instanceCount, int firstInstance)
+        => DrawIndexed(firstIndex, indexCount, 0, instanceCount, firstInstance);
+
+    public void BindInstanceStream(nuint stream)
+    {
+        if (_state.BoundInstanceStream == stream) return;
+        _state.BoundInstanceStream = stream;
+        _state.PipelineDirty = true;
+    }
+
+    private void DrawIndexed(int firstIndex, int indexCount, int baseVertex, int instanceCount, int firstInstance)
     {
         if (_currentRenderPass == null)
             throw new InvalidOperationException("DrawElements called outside of render pass");
@@ -129,6 +142,11 @@ public unsafe partial class WebGPUGraphicsDriver
         // Bind vertex and index buffers
         ref var mesh = ref _meshes[(int)_state.BoundMesh];
         _wgpu.RenderPassEncoderSetVertexBuffer(_currentRenderPass, 0, mesh.VertexBuffer, 0, (ulong)(mesh.MaxVertices * mesh.Stride));
+        if (_state.BoundInstanceStream != 0)
+        {
+            ref var stream = ref _meshes[(int)_state.BoundInstanceStream];
+            _wgpu.RenderPassEncoderSetVertexBuffer(_currentRenderPass, 1, stream.VertexBuffer, 0, (ulong)(stream.MaxVertices * stream.Stride));
+        }
         var indexFormat = mesh.IndexFormat == MeshIndexFormat.UInt32 ? IndexFormat.Uint32 : IndexFormat.Uint16;
         var indexStride = mesh.IndexFormat == MeshIndexFormat.UInt32 ? sizeof(uint) : sizeof(ushort);
         _wgpu.RenderPassEncoderSetIndexBuffer(_currentRenderPass, mesh.IndexBuffer, indexFormat, 0, (ulong)(mesh.MaxIndices * indexStride));
@@ -174,10 +192,10 @@ public unsafe partial class WebGPUGraphicsDriver
         _wgpu.RenderPassEncoderDrawIndexed(
             _currentRenderPass,
             (uint)indexCount,
-            1, // instance count
+            (uint)instanceCount,
             (uint)firstIndex,
             baseVertex,
-            0 // first instance
+            (uint)firstInstance
         );
     }
 
@@ -202,6 +220,12 @@ public unsafe partial class WebGPUGraphicsDriver
 
         ref var shader = ref _shaders[(int)_state.BoundShader];
         var bindings = shader.Bindings;
+
+        if (shader.BindGroupEntryCount == 0)
+        {
+            _state.BindGroupDirty = false;
+            return;
+        }
 
         if (bindings == null || bindings.Count == 0)
         {

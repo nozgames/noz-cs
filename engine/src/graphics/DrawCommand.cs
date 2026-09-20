@@ -13,6 +13,8 @@ internal struct DrawCommand : IComparable<DrawCommand>
     public int IndexOffset;
     public int IndexCount;
     public ushort BatchState;
+    public int InstanceCount;
+    public int FirstInstance;
 
     readonly int IComparable<DrawCommand>.CompareTo(DrawCommand x)
     {

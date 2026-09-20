@@ -17,6 +17,8 @@ winget install Microsoft.DotNet.SDK.10
 
 ## Building
 
+Graphics API: [indexed instancing and memory budgets](docs/graphics-instancing.md).
+
 Build and run the editor:
 
 ```
