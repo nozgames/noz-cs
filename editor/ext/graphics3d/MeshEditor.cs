@@ -146,7 +146,7 @@ internal sealed class MeshEditor : DocumentEditor
         if (document == Document)
         {
             ReloadMesh();
-            ResetView();
+            _radius = MathF.Max((_mesh?.BoundsSize ?? Vector3.One).Length() * 0.5f, 0.01f);
         }
     }
 }

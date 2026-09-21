@@ -103,6 +103,12 @@ public static class Project
     public static void Shutdown()
     {
         StopWatching();
+        _watching = false;
+        BackgroundImports.Shutdown();
+        _exportQueue.Clear();
+        _exportDeferred.Clear();
+        _watcherQueue.Clear();
+        _reloadQueue.Clear();
 
         _initialized = false;
         _documents.Clear();
@@ -344,7 +350,7 @@ public static class Project
         _initialized = true;
     }
 
-    private static void OnDocumentExported(Document doc)
+    private static void OnDocumentExported(Document doc, bool imported = false)
     {
         if (!_initialized)
             return;
@@ -354,7 +360,7 @@ public static class Project
             try
             {
                 doc.Loaded = true;
-                doc.Load();
+                if (!imported) doc.Load();
                 doc.LoadMetadata();
                 doc.PostLoad();
                 doc.PostLoaded = true;
@@ -710,7 +716,12 @@ public static class Project
     {
         if (doc == null) return;
         if (!doc.ShouldExport) return;
-        if (doc.IsQueuedForExport) return;
+        if (doc.IsQueuedForExport)
+        {
+            if (force && _watching && doc is IBackgroundImportDocument { BackgroundImportEnabled: true })
+                BackgroundImports.Queue(doc);
+            return;
+        }
 
         if (!File.Exists(doc.Path)) return;
 
@@ -749,6 +760,7 @@ public static class Project
 
     public static void QueueExport(string path)
     {
+        path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Path, path));
         var def = ResolveDef(path);
         if (def == null)
             return;
@@ -761,7 +773,7 @@ public static class Project
             if (doc != null && _watching)
                 DocumentAdded?.Invoke(doc);
         }
-        QueueExport(doc);
+        QueueExport(doc, force: _watching && doc is IBackgroundImportDocument { BackgroundImportEnabled: true });
     }
 
     private static ushort ReadAssetVersion(string path)
@@ -817,7 +829,7 @@ public static class Project
         }
     }
 
-    private static void Export(Document doc)
+    private static void Export(Document doc, Action<string, PropertySet>? prepared = null)
     {
         try
         {
@@ -839,7 +851,8 @@ public static class Project
 
             Directory.CreateDirectory(GetDirectory(targetDir));
 
-            doc.Export(targetDir, meta);
+            if (prepared != null) prepared(targetDir, meta);
+            else doc.Export(targetDir, meta);
 
             Log.Info($"Exported {(Asset.GetDef(doc.Def.Type)?.Name ?? doc.Def.Type.ToString()).ToLowerInvariant()}/{doc.Name}");
             OnExported?.Invoke(doc);
@@ -852,20 +865,25 @@ public static class Project
             {
                 Asset.ReloadByName(doc.Def.Type, doc.Name);
             }
-            OnDocumentExported(doc);
+            OnDocumentExported(doc, prepared != null);
             doc.SilentExport = false;
             AssetManifest.IsModified = true;
             doc.IsQueuedForExport = false;
         }
         catch (Exception ex)
         {
+            if (prepared != null && ex is IOException or UnauthorizedAccessException) throw;
             Log.Error($"Failed to export '{doc.Name}': {ex.Message}");
+            if (doc is IBackgroundImportDocument importer) importer.ReportImportError(ex);
             doc.IsQueuedForExport = false;
         }
     }
 
     private static void HandleFileChange(string path)
     {
+        // Watcher/pull notifications may be project-relative. Resolve metadata
+        // against the project, even when the host was launched from another cwd.
+        path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Path, path));
         if (System.IO.Path.GetExtension(path) == ".meta")
         {
             _watcherQueue.Enqueue(path[..^5]);
@@ -889,6 +907,7 @@ public static class Project
 
     public static void UpdateExports()
     {
+        var failedReloads = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (_reloadQueue.TryDequeue(out var path))
         {
             var def = ResolveDef(path);
@@ -896,13 +915,31 @@ public static class Project
             {
                 var name = MakeCanonicalName(path);
                 var doc = Find(def.Type, name);
-                if (doc is { Loaded: true } && !doc.SilentExport)
-                    doc.Reload();
+                if (doc is { Loaded: true } && !doc.SilentExport &&
+                    doc is not IBackgroundImportDocument { BackgroundImportEnabled: true })
+                {
+                    try { doc.Reload(); }
+                    catch (Exception error)
+                    {
+                        Log.Error($"Failed to reload '{doc.Name}': {error.Message}");
+                        failedReloads.Add(path);
+                    }
+                }
             }
         }
 
-        while (_watcherQueue.TryDequeue(out var path))
+        var changed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (_watcherQueue.TryDequeue(out var path)) changed.Add(path);
+        foreach (var path in changed)
+        {
+            if (failedReloads.Contains(path)) continue;
             QueueExport(path);
+            var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(Path, path));
+            foreach (var document in _documents.ToArray())
+                if (document is IBackgroundImportDocument { BackgroundImportEnabled: true } importer &&
+                    importer.ImportDependencies.Any(source => string.Equals(System.IO.Path.GetFullPath(source), fullPath, StringComparison.OrdinalIgnoreCase)))
+                    QueueExport(document, force: true);
+        }
 
         while (_exportDeferred.Count > 0)
             _exportQueue.Enqueue(_exportDeferred.Dequeue());
@@ -915,8 +952,12 @@ public static class Project
                 doc.IsQueuedForExport = false;
                 continue;
             }
-            Export(doc);
+            if (_watching && doc is IBackgroundImportDocument { BackgroundImportEnabled: true })
+                BackgroundImports.Queue(doc);
+            else Export(doc);
         }
+
+        BackgroundImports.Update((doc, prepared) => Export(doc, prepared));
 
         AtlasManager.ExportIfNeeded();
     }

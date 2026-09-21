@@ -163,6 +163,19 @@ public static unsafe partial class ElementTree
         _cursorOffset = -1;
         _tabNavigationTarget = -1;
         FindHoveredWidget(0);
+        // Popups render above later siblings in their parent tree. Hit-test
+        // them in that same order so a field behind a nested picker cannot
+        // steal its click (or make the picker think the click was outside).
+        for (var i = 0; i < _popupCount; i++)
+        {
+            ref var popup = ref GetElement(_popups[i]);
+            if (!popup.Data.Popup.Interactive) continue;
+            Matrix3x2.Invert(popup.Transform, out var inverse);
+            if (!popup.Rect.Contains(Vector2.Transform(MouseWorldPosition, inverse))) continue;
+            _hoveredWidget = WidgetId.None;
+            _cursorOffset = -1;
+            FindHoveredWidget(popup.Index);
+        }
         HandlePopupAutoClose();
         HandleInputElement(0);
 

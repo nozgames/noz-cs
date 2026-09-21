@@ -32,8 +32,11 @@ public static class AssetManifest
         if (config.GenerateLua != null)
             GenerateLua(config);
 
-        Project.DocumentAdded += doc => { IsModified = true; };
+        Project.DocumentAdded -= OnDocumentAdded;
+        Project.DocumentAdded += OnDocumentAdded;
     }
+
+    private static void OnDocumentAdded(Document document) => IsModified = true;
 
     private static string GetAssetTypeName(AssetType type)
         => Asset.GetDef(type)?.Name ?? type.ToString();

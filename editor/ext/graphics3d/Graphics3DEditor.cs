@@ -11,6 +11,8 @@ namespace NoZ.Editor.Graphics3D;
 /// </summary>
 public sealed record MeshPreviewSettings(string ShaderName)
 {
+    /// <summary>Optional host actions appended to mesh inspectors, including derived mesh documents.</summary>
+    public Action<MeshDocument>? InspectorActions { get; init; }
     public string? TextureName { get; init; }
     public TextureFilter TextureFilter { get; init; } = TextureFilter.Linear;
 }
@@ -21,6 +23,7 @@ public static class Graphics3DEditor
     public static void RegisterDocumentTypes(MeshPreviewSettings previewSettings)
     {
         MeshPreviewRenderer.Configure(previewSettings);
+        MeshDocument.InspectorActions = previewSettings.InspectorActions;
         Graphics3DModule.RegisterAssetTypes();
         MeshDocument.RegisterDef();
         TextureDocument.RegisterDef();

@@ -10,6 +10,7 @@ namespace NoZ.Editor.Graphics3D;
 
 public class MeshDocument : Document
 {
+    internal static Action<MeshDocument>? InspectorActions { get; set; }
     private const int PreviewSize = 256;
 
     private readonly Camera3D _previewCamera = new() { FieldOfView = MathF.PI / 4f };
@@ -99,9 +100,14 @@ public class MeshDocument : Document
         UI.Text($"Vertices: {VertexCount:N0}");
         UI.Text($"Triangles: {IndexCount / 3:N0}");
         UI.Text($"Primitives: {PrimitiveCount:N0}");
+        InspectorActions?.Invoke(this);
     }
 
     protected virtual ImportedMesh ImportMesh() => GltfImporter.Import(Path);
+
+    /// <summary>Returns an owned mesh for thumbnails. Derived documents may supply packed geometry.</summary>
+    protected virtual Mesh? LoadPreviewMesh() => File.Exists(System.IO.Path.Combine(Project.OutputPath, "mesh", Name))
+        ? Asset.Load(Mesh.Type, Name, useRegistry: false, libraryPath: Project.OutputPath) as Mesh : null;
 
     private void TryImport()
     {
@@ -122,13 +128,9 @@ public class MeshDocument : Document
         _previewMeshDirty |= reloadMesh;
     }
 
-    internal bool TryRenderPreview(Shader shader)
+    public bool TryRenderPreview(Shader shader)
     {
         if (!_previewDirty)
-            return false;
-
-        var meshPath = System.IO.Path.Combine(Project.OutputPath, "mesh", Name);
-        if (!File.Exists(meshPath))
             return false;
 
         var passStarted = false;
@@ -136,16 +138,10 @@ public class MeshDocument : Document
         {
             if (_previewMeshDirty || _previewMesh == null)
             {
-                var mesh = Asset.Load(
-                    Mesh.Type,
-                    Name,
-                    useRegistry: false,
-                    libraryPath: Project.OutputPath) as Mesh;
+                var mesh = LoadPreviewMesh();
                 if (mesh == null)
                 {
-                    _previewDirty = false;
-                    _previewMeshDirty = false;
-                    return true;
+                    return false;
                 }
 
                 _previewMesh?.Dispose();

@@ -104,10 +104,12 @@ public sealed class Mesh : Asset
         RegisterDef(new AssetDef(Type, "Mesh", typeof(Mesh), LoadAsset, Version));
     }
 
+    public override void Reload() => Reload(dispose: false);
+
     protected override void Load(BinaryReader reader)
     {
-        BoundsMin = ReadVector3(reader);
-        BoundsMax = ReadVector3(reader);
+        var boundsMin = ReadVector3(reader);
+        var boundsMax = ReadVector3(reader);
 
         var vertexCount = ReadCount(reader, "vertex");
         var vertices = new MeshVertex3D[vertexCount];
@@ -146,6 +148,8 @@ public sealed class Mesh : Asset
             primitives[i] = primitive;
         }
 
+        BoundsMin = boundsMin;
+        BoundsMax = boundsMax;
         Vertices = vertices;
         Indices = indices;
         Primitives = primitives;

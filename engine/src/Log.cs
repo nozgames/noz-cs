@@ -11,6 +11,7 @@ public static class Log
 
     public static string? Path { get; set; }
     public static bool Muted { get; set; }
+    public static bool ConsoleOutput { get; set; }
 
     private static void EnsureInitialized()
     {
@@ -40,7 +41,7 @@ public static class Log
     {
         if (Muted) return;
 
-        if (OperatingSystem.IsBrowser())
+        if (ConsoleOutput || OperatingSystem.IsBrowser())
             Console.WriteLine(message);
 
         System.Diagnostics.Debug.WriteLine(message);

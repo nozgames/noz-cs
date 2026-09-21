@@ -25,6 +25,8 @@ public class Asset : IDisposable {
     private static readonly Dictionary<AssetType, AssetDef> Defs = new();
     private static readonly Dictionary<(AssetType, string), Asset> _registry = new();
     private static readonly List<Asset> _all = new(128) { null! };
+    /// <summary>Changes after a compiled asset is reloaded or becomes available.</summary>
+    public static long ReloadRevision { get; private set; }
 
     protected internal Asset(AssetType type, string name)
     {
@@ -267,17 +269,31 @@ public class Asset : IDisposable {
         return asset;
     }
 
-    public virtual void Reload()
+    public virtual void Reload() => Reload(dispose: true);
+
+    protected void Reload(bool dispose)
     {
         if (string.IsNullOrEmpty(Name)) return;
-        Dispose();
-        Load(Name);
+        // Finish reading before releasing the previous asset or touching GPU state.
+        // Sharing violations and invalid headers leave the working asset intact.
+        using var source = LoadAssetStream(Name, Def.Type)
+            ?? throw new FileNotFoundException($"Asset not found: {Def.Type}/{Name}");
+        using var snapshot = new MemoryStream();
+        source.CopyTo(snapshot);
+        snapshot.Position = 0;
+        if (!ValidateAssetHeader(snapshot, Def.Type))
+            throw new InvalidDataException($"Invalid asset header: {Def.Type}/{Name}");
+        using var reader = new BinaryReader(snapshot);
+        if (dispose) Dispose();
+        Load(reader);
+        Register();
     }
 
     public static void ReloadByName(AssetType type, string name)
     {
         if (_registry.TryGetValue((type, name), out var asset))
             asset.Reload();
+        ReloadRevision++;
     }
 
     public virtual void Dispose()
