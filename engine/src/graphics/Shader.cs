@@ -12,6 +12,8 @@ public enum ShaderFlags : byte
     Depth = 1 << 1,
     DepthLess = 1 << 2,
     PremultipliedAlpha = 1 << 3,
+    /// <summary>Test against scene depth without writing particle/translucent depth.</summary>
+    DepthReadOnly = 1 << 4,
 }
 
 public enum ShaderBindingType : byte

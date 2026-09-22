@@ -7,5 +7,9 @@ namespace NoZ;
 /// <summary>Explicit opt-in; referencing the assembly alone does not register asset types.</summary>
 public static class Graphics3DModule
 {
-    public static void RegisterAssetTypes() => Mesh.RegisterDef();
+    public static void RegisterAssetTypes()
+    {
+        Mesh.RegisterDef();
+        Vfx3D.RegisterDef();
+    }
 }

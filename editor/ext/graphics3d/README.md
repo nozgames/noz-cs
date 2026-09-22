@@ -42,3 +42,27 @@ Included tools:
 - `MeshPreviewRenderer.GetShader()` / `BindTexture()` for host editors that share the preview material. Returned shader ownership remains with the service.
 
 The extension registers Texture and Palette Texture after the core sprite importer, preserving the inspector order Image / Texture / Palette Texture. Ordinary PNGs still default to sprites. Prefabs, snapping and terrain remain host-owned. Palette selection for mesh shading still comes from the host's preview settings. The runtime graphics3d extension also supplies SSAO; include its `assets` directory in the project's source list to import its shaders using the normal Shader importer. glTF import currently supports triangle geometry, vertex channels and material names; it does not automatically import glTF materials/textures or add scene/animation support.
+
+## VFX3D authoring
+
+Registration also adds **Vfx3D** to the New menu. `.vfx3d` files contain versioned
+JSON source and export to `library/vfx3d/<name>` through the normal asset pipeline.
+`Vfx3DSource` provides validated source serialization and baking; JSON uses source
+generation and does not require reflection-based serialization.
+
+The editor has an emitter outliner, 3D spawn and direction controls, texture and
+flipbook settings, and the same lifetime curve popup as 2D VFX. Min/max fields
+set random endpoint ranges. Drag the preview to orbit, scroll to zoom the
+workspace, and press F to frame. Space or the play button pauses playback; the
+toolbar repeat button repeats the preview independently of the saved effect's
+Loop setting. Preview radius controls framing and does not change the effect.
+
+Add/remove and inspector edits support undo/redo. Saving, importing, and opening
+existing files use the same source model. Malformed reloads preserve the last
+valid source. Texture references participate in dependencies and rename updates.
+The preview owns a separate particle system and separately loaded shader and
+textures, releasing its resources when closed. Import `vfx3d` from the runtime extension's
+assets directory to enable preview rendering.
+
+Reusable `EditorInspector.VfxRangeField`, `VfxCurveField`, and
+`VfxColorCurveField` controls are available to custom effect editors.

@@ -1,0 +1,10 @@
+[shader]
+blend = true
+depth = true
+depth_read_only = true
+
+[editor]
+export = true
+position = (-6.500000,-6.500000)
+collection = default
+

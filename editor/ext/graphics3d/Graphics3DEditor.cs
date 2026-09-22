@@ -28,6 +28,7 @@ public static class Graphics3DEditor
         MeshDocument.RegisterDef();
         TextureDocument.RegisterDef();
         PaletteTextureDocument.RegisterDef();
+        Vfx3DDocument.RegisterDef();
     }
 
     /// <summary>Call outside the workspace render pass, e.g. EditorApplicationConfig.Update.</summary>

@@ -657,12 +657,7 @@ public static class VfxSystem
 
     internal static float EvaluateCurve(ref VfxCurveLut lut, float t)
     {
-        t = Math.Clamp(t, 0f, 1f);
-        var idx = t * (VfxCurveLut.Samples - 1);
-        var i = (int)idx;
-        var j = Math.Min(i + 1, VfxCurveLut.Samples - 1);
-        var frac = idx - i;
-        return lut[i] * (1f - frac) + lut[j] * frac;
+        return VfxMath.Evaluate(in lut, t);
     }
 
     private static float GetRandom(VfxRange range)

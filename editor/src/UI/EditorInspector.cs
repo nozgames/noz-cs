@@ -11,7 +11,7 @@ namespace NoZ.Editor;
 /// and control implementations can evolve without becoming part of the custom
 /// editor API surface.
 /// </summary>
-public static class EditorInspector
+public static partial class EditorInspector
 {
     public readonly struct AutoSection : IDisposable
     {

@@ -1073,7 +1073,7 @@ public class WebGraphicsDriver : IGraphicsDriver
             _state.CurrentPassSampleCount,
             _state.CurrentPassFormat,
             _state.CurrentPassDepthFormat,
-            shader.Flags.HasFlag(ShaderFlags.Depth),
+            shader.Flags.HasFlag(ShaderFlags.Depth) && !shader.Flags.HasFlag(ShaderFlags.DepthReadOnly),
             shader.Flags.HasFlag(ShaderFlags.Depth)
                 ? shader.Flags.HasFlag(ShaderFlags.DepthLess) ? "less" : "less-equal"
                 : "always",

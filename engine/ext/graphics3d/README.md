@@ -53,3 +53,65 @@ The effect captures `PostProcess.CurrentColorTextureHandle` before its first bli
 Current renderer limitation: named custom uniforms are not snapshotted per draw. Settings instances are independent, but rendering different SSAO cameras/settings in the same deferred frame is not supported yet; later calls would overwrite the earlier call's uniforms. Use one SSAO view per frame until SSAO's named uniforms are migrated to draw-local parameters. Cozy's existing single world view is unchanged.
 
 Editor integration is provided separately by [NoZ.Editor.Graphics3D](../../../editor/ext/graphics3d/README.md). Referencing this runtime assembly does not register any editor documents or require an editor dependency.
+
+## 3D VFX
+
+`Graphics3DModule.RegisterAssetTypes()` also registers `Vfx3D` (`VFX3`, version 1).
+Include the extension's assets directory in the editor sources to import the
+`vfx3d` shader. The core 2D VFX asset format and API stay compatible; both runtimes
+share ranges, curve LUTs, color curves, and `VfxMath` evaluation.
+
+Create one `VfxSystem3D` per scene, and dispose it before graphics shutdown:
+
+```csharp
+// After registering asset types and loading the host's asset manifest:
+var effects = new VfxSystem3D(maxParticles: 4096, maxInstances: 256);
+var handle = effects.Play(effectAsset, new Vector3(0, 1, 0));
+
+// Once per simulation frame:
+effects.Update(Time.DeltaTime);
+
+// In the scene's depth-enabled pass, after opaque geometry:
+effects.Draw(camera, particleShader); // imported "vfx3d" shader
+
+effects.SetTransform(handle, emitterTransform);
+effects.Stop(handle); // Stop emitting; existing particles finish.
+effects.Kill(handle); // Remove this effect immediately.
+effects.Clear();      // World switch, pause/menu transition, etc.
+effects.Dispose();
+```
+
+Effects support multiple emitters, immediate bursts, continuous rates, looping,
+point/sphere/box spawning, and a direction cone with a 0–180 degree half-angle.
+Sphere shells use uniform volume sampling. Emitter duration controls emission;
+particle lifetime controls the remaining tail. Looping repeats each emitter's
+cycle independently. Rate curves are sampled at each update segment's midpoint;
+births receive the elapsed time since their spawn within that update. Emission
+work and catch-up cycles are bounded, and excess emissions are dropped when
+capacity is exhausted. `Play` returns an invalid handle when no instance slot
+is available. Handles are specific to their owning system and survive slot reuse
+safely. `Update` and `Play` work without a graphics device.
+
+World-space particles inherit the emitter transform at birth; local particles
+follow its current transform. Gravity defaults to negative Y and is applied in
+the particle's simulation space. Billboard sizes are in world units, with roll
+and angular velocity in degrees. Lifetime curves control size, speed, gravity,
+color, opacity, and roll speed. Each particle samples its random endpoints once.
+
+Rendering sorts all particles in the system by camera-space depth, then submits
+consecutive texture/blend groups through the existing instancing stream. Each
+draw copies its instance data, allowing multiple cameras in the same frame.
+The supplied shader tests scene depth without writing it, using the generic
+`[shader] depth_read_only = true` flag supported by native and browser WebGPU.
+The host still owns pass ordering, shaders, lighting, and post-processing.
+
+Particle textures are standalone `Texture` assets. Empty names use a white quad;
+texture filtering follows the asset. `Columns` and `Rows` define a flipbook grid,
+with lifetime animation or a randomly selected fixed frame. Textures are borrowed
+from the asset registry, or from the optional `TextureResolver` used by previews.
+Assets and the shader must remain alive until queued draws execute.
+
+This version renders unlit billboards. Mesh particles, trails, collisions, and
+soft intersections are future extensions. Different VFX systems and other
+transparent scene objects are not jointly depth-sorted; keep related effects
+in the same system and choose their scene submission point accordingly.

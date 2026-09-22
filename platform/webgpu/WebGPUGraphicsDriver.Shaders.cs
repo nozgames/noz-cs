@@ -504,7 +504,7 @@ public unsafe partial class WebGPUGraphicsDriver
         var depthStencilState = new DepthStencilState
         {
             Format = depthFormat,
-            DepthWriteEnabled = depthEnabled,
+            DepthWriteEnabled = depthEnabled && !shaderInfo.Flags.HasFlag(ShaderFlags.DepthReadOnly),
             DepthCompare = depthEnabled
                 ? shaderInfo.Flags.HasFlag(ShaderFlags.DepthLess)
                     ? CompareFunction.Less

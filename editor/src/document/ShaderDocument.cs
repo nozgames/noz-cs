@@ -14,6 +14,7 @@ public class ShaderDocument : Document
     public bool Blend { get; set; }
     public bool Depth { get; set; }
     public bool DepthLess { get; set; }
+    public bool DepthReadOnly { get; set; }
     public bool Postprocess { get; set; }
     public bool PremultipliedAlpha { get; set; }
 
@@ -33,6 +34,7 @@ public class ShaderDocument : Document
         Blend = meta.GetBool("shader", "blend", false);
         Depth = meta.GetBool("shader", "depth", false);
         DepthLess = meta.GetBool("shader", "depth_less", false);
+        DepthReadOnly = meta.GetBool("shader", "depth_read_only", false);
         Postprocess = meta.GetBool("shader", "postproc", false);
         PremultipliedAlpha = meta.GetBool("shader", "premultiplied", false);
     }
@@ -42,6 +44,7 @@ public class ShaderDocument : Document
         if (Blend) meta.SetBool("shader", "blend", true);
         if (Depth) meta.SetBool("shader", "depth", true);
         if (DepthLess) meta.SetBool("shader", "depth_less", true);
+        if (DepthReadOnly) meta.SetBool("shader", "depth_read_only", true);
         if (Postprocess) meta.SetBool("shader", "postproc", true);
         if (PremultipliedAlpha) meta.SetBool("shader", "premultiplied", true);
     }
@@ -186,6 +189,7 @@ public class ShaderDocument : Document
         if (meta.GetBool("shader", "blend", Blend)) flags |= ShaderFlags.Blend;
         if (meta.GetBool("shader", "depth", Depth)) flags |= ShaderFlags.Depth;
         if (meta.GetBool("shader", "depth_less", DepthLess)) flags |= ShaderFlags.DepthLess;
+        if (meta.GetBool("shader", "depth_read_only", DepthReadOnly)) flags |= ShaderFlags.DepthReadOnly;
         if (meta.GetBool("shader", "premultiplied", PremultipliedAlpha)) flags |= ShaderFlags.PremultipliedAlpha;
         return flags;
     }
