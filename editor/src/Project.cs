@@ -204,7 +204,8 @@ public static class Project
             {
                 foreach (var def in defs)
                 {
-                    if (string.Equals(def.Name, docType, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(def.Name, docType, StringComparison.OrdinalIgnoreCase) ||
+                        def.Aliases.Any(alias => string.Equals(alias, docType, StringComparison.OrdinalIgnoreCase)))
                         return def;
                 }
             }

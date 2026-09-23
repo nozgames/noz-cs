@@ -96,10 +96,15 @@ public class MeshDocument : Document
 
     public override void InspectorUI()
     {
-        UI.Text(Def.Name);
-        UI.Text($"Vertices: {VertexCount:N0}");
-        UI.Text($"Triangles: {IndexCount / 3:N0}");
-        UI.Text($"Primitives: {PrimitiveCount:N0}");
+        using (EditorInspector.BeginSection("STATISTICS"))
+        {
+            if (!EditorInspector.IsSectionCollapsed)
+            {
+                var valueStyle = EditorStyle.Text.Primary;
+                using (EditorInspector.BeginProperty("Vertices")) UI.Text($"{VertexCount:N0}", valueStyle);
+                using (EditorInspector.BeginProperty("Triangles")) UI.Text($"{IndexCount / 3:N0}", valueStyle);
+            }
+        }
         InspectorActions?.Invoke(this);
     }
 

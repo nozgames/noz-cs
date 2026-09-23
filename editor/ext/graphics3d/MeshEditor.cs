@@ -103,15 +103,6 @@ internal sealed class MeshEditor : DocumentEditor
         }
     }
 
-    public override void InspectorUI()
-    {
-        Document.InspectorUI();
-        UI.Text("Drag to orbit");
-        UI.Text("Right-drag to pan");
-        UI.Text("Scroll to zoom workspace");
-        UI.Text("F to frame");
-    }
-
     public override void Dispose()
     {
         Project.OnExported -= OnDocumentExported;

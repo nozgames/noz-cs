@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 public static partial class AssetBrowser
 {
-    private const int PageSize = 8;
+    private const int VisibleRows = 8;
 
     private static partial class WidgetIds
     {
@@ -15,8 +15,7 @@ public static partial class AssetBrowser
         public static partial WidgetId Search { get; }
         public static partial WidgetId List { get; }
         public static partial WidgetId Item { get; }
-        public static partial WidgetId Previous { get; }
-        public static partial WidgetId Next { get; }
+        public static partial WidgetId ScrollBar { get; }
     }
 
     private static WidgetId _openId;
@@ -28,13 +27,12 @@ public static partial class AssetBrowser
     private static string[]? _items;
     private static Func<string, bool>? _thumbnail;
     private static Func<string, string>? _displayName;
-    private static int _page;
 
     public static bool IsOpen => _openId != WidgetId.None;
 
     /// <summary>Choose a project asset of one type, displaying its thumbnail.
     /// An empty label enables clearing an optional reference; null means no selection.</summary>
-    public static string? Show(WidgetId id, AssetType type, string current, string? emptyLabel = null)
+    public static string? Show(WidgetId id, AssetType type, string current, string? emptyLabel = null, Sprite? triggerIcon = null)
     {
         var names = Project.Documents.Where(d => d.Def.Type == type).Select(d => d.Name)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
@@ -43,11 +41,11 @@ public static partial class AssetBrowser
         var label = current.Length == 0 ? emptyLabel ?? "Choose asset…" : current + (missing ? " (missing)" : "");
         return Show(id, names, label,
             name => Project.Find(type, name)?.DrawThumbnail() == true,
-            name => name.Length == 0 ? emptyLabel ?? "None" : name);
+            name => name.Length == 0 ? emptyLabel ?? "None" : name, triggerIcon);
     }
 
     public static string? Show(WidgetId id, string[] items, string label = "+ Add Reference",
-        Func<string, bool>? drawThumbnail = null, Func<string, string>? displayName = null)
+        Func<string, bool>? drawThumbnail = null, Func<string, string>? displayName = null, Sprite? triggerIcon = null)
     {
         _selected = null;
         _items = items;
@@ -55,7 +53,12 @@ public static partial class AssetBrowser
         _displayName = displayName;
         var isOpen = _openId == id;
 
-        TriggerUI(id, label, isOpen);
+        if (triggerIcon != null)
+        {
+            if (UI.Button(id, triggerIcon, EditorStyle.Inspector.SectionButton))
+            { if (isOpen) Close(); else Open(id); }
+        }
+        else TriggerUI(id, label, isOpen);
 
         if (_openId == id)
         {
@@ -72,7 +75,7 @@ public static partial class AssetBrowser
         _filterText = "";
         _lastFilterText = "";
         _filteredCount = 0;
-        _page = 0;
+        UI.SetScrollOffset(WidgetIds.List, 0);
         UpdateFilter();
         UI.SetHot(WidgetIds.Search);
     }
@@ -94,19 +97,19 @@ public static partial class AssetBrowser
     private static void TriggerUI(WidgetId id, string label, bool isOpen)
     {
         var s = EditorStyle.DropDown;
-        var flags = WidgetFlags.None;
+        var flags = ElementTree.GetPrevWidgetFlags(id);
         if (isOpen) flags |= WidgetFlags.Checked;
 
         if (s.Resolve != null)
             s = s.Resolve(s, flags);
 
-        using (UI.BeginContainer(id, new ContainerStyle
+        using (UI.BeginRow(id, new ContainerStyle
         {
+            Width = s.Width,
             Height = s.Height,
             Background = s.Color,
             BorderRadius = s.BorderRadius,
-            Padding = EdgeInsets.LeftRight(10),
-            AlignY = Align.Center,
+            Padding = s.Padding,
             Spacing = s.Spacing,
         }))
         {
@@ -121,7 +124,7 @@ public static partial class AssetBrowser
                 UI.Image(s.ArrowIcon, new ImageStyle
                 {
                     Size = s.ArrowSize,
-                    Color = s.ContentColor,
+                    Color = s.IconColor.A > 0 ? s.IconColor : s.ContentColor,
                     Align = Align.Center,
                 });
 
@@ -186,7 +189,7 @@ public static partial class AssetBrowser
 
         if (_filterText != _lastFilterText)
         {
-            _page = 0;
+            UI.SetScrollOffset(WidgetIds.List, 0);
             UpdateFilter();
             _lastFilterText = _filterText;
         }
@@ -195,15 +198,13 @@ public static partial class AssetBrowser
     private static void ListUI()
     {
         var itemHeight = _thumbnail != null ? 42 : EditorStyle.Control.Height;
-        var pageCount = Math.Max(1, (_filteredCount + PageSize - 1) / PageSize);
-        _page = Math.Min(_page, pageCount - 1);
-        var listHeight = Math.Min(PageSize, Math.Max(0, _filteredCount - _page * PageSize)) * itemHeight + 8;
+        var listHeight = Math.Min(VisibleRows, _filteredCount) * itemHeight;
         if (_filteredCount == 0)
             listHeight = EditorStyle.Control.Height;
 
-        using (UI.BeginContainer(new ContainerStyle { Height = listHeight }))
+        using var row = UI.BeginRow(new ContainerStyle { Height = listHeight });
+        using (UI.BeginFlex())
         using (UI.BeginScrollable(WidgetIds.List))
-        using (UI.BeginColumn(new ContainerStyle { Padding = EdgeInsets.Symmetric(4, 0) }))
         {
             if (_filteredCount == 0)
             {
@@ -224,10 +225,12 @@ public static partial class AssetBrowser
                 return;
             }
 
-            for (var i = _page * PageSize; i < Math.Min(_filteredCount, (_page + 1) * PageSize); i++)
+            var layout = new CollectionLayout { Columns = 1, ItemHeight = itemHeight };
+            using var collection = UI.BeginCollection(WidgetIds.List, layout, _filteredCount, out var start, out var end);
+            for (var i = start; i < end; i++)
             {
                 var name = _filtered[i];
-                var itemId = WidgetIds.Item + i % PageSize;
+                var itemId = WidgetIds.Item + i;
                 var hovered = UI.IsHovered(itemId);
 
                 using (UI.BeginRow(itemId, EditorStyle.Popup.Item with
@@ -262,15 +265,7 @@ public static partial class AssetBrowser
                 }
             }
         }
-        if (pageCount > 1)
-        using (UI.BeginRow())
-        {
-            using (UI.BeginEnabled(_page > 0))
-                if (UI.Button(WidgetIds.Previous, "Previous", EditorStyle.Button.Secondary)) _page--;
-            UI.Text($"{_page + 1} / {pageCount}");
-            using (UI.BeginEnabled(_page + 1 < pageCount))
-                if (UI.Button(WidgetIds.Next, "Next", EditorStyle.Button.Secondary)) _page++;
-        }
+        UI.ScrollBar(WidgetIds.ScrollBar, WidgetIds.List, EditorStyle.CommandPalette.ScrollBar);
     }
 
     private static void UpdateFilter()

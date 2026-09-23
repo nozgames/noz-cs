@@ -8,6 +8,8 @@ public class DocumentDef
 {
     public required AssetType Type { get; init; }
     public required string Name { get; init; }
+    /// <summary>Previous names accepted when reading existing document metadata.</summary>
+    public string[] Aliases { get; init; } = [];
     public required string[] Extensions { get; init; }
     public required Func<string?, Document> Factory { get; init; }
     public Func<Document, DocumentEditor>? EditorFactory { get; init; }
