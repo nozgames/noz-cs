@@ -7,7 +7,7 @@ internal static class BackgroundImports
     {
         public long Due = Environment.TickCount64 + 300;
         public CancellationTokenSource Cancellation = new();
-        public Task<Action<string, PropertySet>>? Task;
+        public Task<BackgroundImportResult>? Task;
         public bool Restart;
         public int RetryCount;
     }
@@ -34,31 +34,29 @@ internal static class BackgroundImports
         foreach (var (document, job) in Jobs.ToArray())
         {
             var importer = (IBackgroundImportDocument)document;
-            if (document.IsDisposed) job.Cancellation.Cancel();
+            if (document.IsDisposed || !File.Exists(document.Path))
+            {
+                job.Restart = false;
+                job.Cancellation.Cancel();
+            }
             if (job.Task is { IsCompleted: false }) continue;
             if (job.Task != null)
             {
                 try
                 {
-                    var prepared = job.Task.GetAwaiter().GetResult();
-                    if (!job.Restart && !document.IsDisposed) export(document, prepared);
+                    // Third-party importers may still return a canceled Task.
+                    // Observing ordinary cancellation must not throw on the UI thread.
+                    var prepared = job.Task.IsCanceled ? BackgroundImportResult.Canceled : job.Task.GetAwaiter().GetResult();
+                    if (!job.Restart && !document.IsDisposed && !job.Cancellation.IsCancellationRequested && !prepared.IsCanceled)
+                    {
+                        if (prepared.Error is { } error) ReportFailure(error);
+                        else if (prepared.Export is { } publish) export(document, publish);
+                    }
                 }
                 catch (OperationCanceledException) when (job.Cancellation.IsCancellationRequested) { }
                 catch (Exception error)
                 {
-                    if (!job.Restart && !document.IsDisposed)
-                    {
-                        if (error is IOException or UnauthorizedAccessException && job.RetryCount++ < 8)
-                        {
-                            job.Restart = true;
-                            job.Due = Environment.TickCount64 + 250;
-                        }
-                        else
-                        {
-                            importer.ReportImportError(error);
-                            Log.Error($"Failed to import '{document.Name}': {error.Message}");
-                        }
-                    }
+                    if (!job.Restart && !document.IsDisposed && !job.Cancellation.IsCancellationRequested) ReportFailure(error);
                 }
                 job.Cancellation.Dispose();
                 if (!job.Restart || document.IsDisposed)
@@ -71,7 +69,7 @@ internal static class BackgroundImports
                 job.Cancellation = new();
                 job.Restart = false;
             }
-            if (document.IsDisposed)
+            if (document.IsDisposed || job.Cancellation.IsCancellationRequested)
             {
                 job.Cancellation.Dispose();
                 Jobs.Remove(document);
@@ -80,7 +78,21 @@ internal static class BackgroundImports
             }
             if (Environment.TickCount64 < job.Due) continue;
             try { job.Task = importer.PrepareExportAsync(job.Cancellation.Token); }
-            catch (Exception error) { job.Task = Task.FromException<Action<string, PropertySet>>(error); }
+            catch (Exception error) { job.Task = Task.FromResult(new BackgroundImportResult(null, error)); }
+
+            void ReportFailure(Exception error)
+            {
+                if (error is IOException or UnauthorizedAccessException && job.RetryCount++ < 8)
+                {
+                    job.Restart = true;
+                    job.Due = Environment.TickCount64 + 250;
+                }
+                else
+                {
+                    importer.ReportImportError(error);
+                    Log.Error($"Failed to import '{document.Name}': {error.Message}");
+                }
+            }
         }
     }
 

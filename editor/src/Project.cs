@@ -19,6 +19,7 @@ public static class Project
     private static readonly ConcurrentQueue<string> _watcherQueue = [];
     private static readonly ConcurrentQueue<string> _reloadQueue = [];
     private static bool _watching;
+    private static bool _backgroundStartup;
 
     public static string Path { get; private set; } = "";
     public static bool IsInitialized => _initialized;
@@ -88,6 +89,7 @@ public static class Project
 
     public static void InitExports()
     {
+        if (_backgroundStartup) _watching = true;
         foreach (var doc in _documents)
             QueueExport(doc);
 
@@ -104,6 +106,7 @@ public static class Project
     {
         StopWatching();
         _watching = false;
+        _backgroundStartup = false;
         BackgroundImports.Shutdown();
         _exportQueue.Clear();
         _exportDeferred.Clear();
@@ -277,11 +280,26 @@ public static class Project
         writeContent?.Invoke(ms);
         File.WriteAllBytes(path, ms.ToArray());
 
+        // Several document types can share an extension (notably .blend).
+        // Resolve the newly created file as the type the user actually chose.
+        if (GetDefs(extension) is { Count: > 1 } && GetDef(assetType) is { } selectedDef)
+        {
+            var metadata = new PropertySet();
+            metadata.SetString("editor", "document_type", selectedDef.Name);
+            metadata.Save(path + ".meta");
+        }
         var doc = Create(path);
         if (doc == null) return null;
 
         doc.Loaded = true;
-        doc.Load();
+        var background = _watching && doc is IBackgroundImportDocument { BackgroundImportEnabled: true };
+        if (background)
+        {
+            var importer = (IBackgroundImportDocument)doc;
+            try { importer.TryLoadCached(); }
+            catch (Exception error) { importer.ReportImportError(error); }
+        }
+        else doc.Load();
         doc.LoadMetadata();
 
         if (position.HasValue)
@@ -296,6 +314,7 @@ public static class Project
             doc.PostLoaded = true;
         }
 
+        if (background) QueueExport(doc, force: true);
         DocumentAdded?.Invoke(doc);
 
         AssetManifest.IsModified = true;
@@ -318,14 +337,27 @@ public static class Project
     public static T? Find<T>(string name) where T : Document
         => Find(DocumentDef<T>.Def.Type, name) as T;
 
-    public static void LoadAll()
+    public static void LoadAll(bool backgroundImports = false)
     {
+        _backgroundStartup = backgroundImports;
         foreach (var doc in _documents)
         {
             if (doc.Loaded) continue;
             var sw = System.Diagnostics.Stopwatch.StartNew();
             doc.Loaded = true;
-            doc.Load();
+            if (backgroundImports && doc is IBackgroundImportDocument { BackgroundImportEnabled: true } importer)
+            {
+                try
+                {
+                    if (!importer.TryLoadCached()) QueueExport(doc, force: true);
+                }
+                catch (Exception error)
+                {
+                    importer.ReportImportError(error);
+                    QueueExport(doc, force: true);
+                }
+            }
+            else doc.Load();
             var elapsed = sw.ElapsedMilliseconds;
             if (elapsed > 500)
                 Log.Info($"Loaded {doc.Name} in {elapsed} ms");

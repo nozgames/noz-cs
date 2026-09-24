@@ -177,7 +177,7 @@ public static partial class EditorApplication
         CollectionManager.Init(Config);
         Project.Init(projectPath, Config, AppConfig.RegisterDocumentTypes);
         PaletteManager.Init();
-        Project.LoadAll();
+        Project.LoadAll(backgroundImports: true);
         PaletteManager.DiscoverPalettes();
         AtlasManager.Init();
         Project.InitExports();
