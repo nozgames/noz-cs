@@ -47,6 +47,11 @@ public sealed class Camera3D
     }
 
     public void Update(Vector2Int screenSize)
+        => Update(screenSize, NearClip);
+
+    /// <summary>Use a scene-specific near plane for this render without changing
+    /// the camera's configured close-up clipping distance.</summary>
+    public void Update(Vector2Int screenSize, float sceneNearClip)
     {
         var width = Math.Max(screenSize.X, 1);
         var height = Math.Max(screenSize.Y, 1);
@@ -58,7 +63,7 @@ public sealed class Camera3D
         if (Vector3.Cross(forward, up).LengthSquared() < 0.000001f)
             up = MathF.Abs(forward.Y) < 0.999f ? Vector3.UnitY : Vector3.UnitZ;
 
-        var nearClip = MathF.Max(NearClip, 0.0001f);
+        var nearClip = MathF.Max(MathF.Max(NearClip, sceneNearClip), 0.0001f);
         var farClip = MathF.Max(FarClip, nearClip + 0.0001f);
         var fieldOfView = Math.Clamp(FieldOfView, 0.01f, MathF.PI - 0.01f);
 
