@@ -17,7 +17,9 @@ public static class MeshPreviewRenderer
 
     private static Shader? _shader;
     private static Texture? _texture;
+    private static readonly Dictionary<string, Texture> _additionalTextures = [];
     private static bool _initialized;
+    public static int MaterialRevision { get; private set; }
 
     internal static void Configure(MeshPreviewSettings settings)
     {
@@ -46,6 +48,32 @@ public static class MeshPreviewRenderer
         var texture = _texture ?? Graphics.WhiteTexture;
         Graphics.SetTexture(texture);
         Graphics.SetTextureFilter(_settings?.TextureFilter ?? TextureFilter.Linear);
+    }
+
+    /// <summary>Bind the complete host preview material, including auxiliary maps.</summary>
+    public static void BindMaterialTextures()
+    {
+        BindTexture();
+        var shader = GetShader();
+        if (shader == null) return;
+        var count = shader.Bindings.Count(b => b.Type is ShaderBindingType.Texture2D or
+            ShaderBindingType.Texture2DArray or ShaderBindingType.Texture2DUnfilterable);
+        for (var slot = 1; slot < count; slot++)
+        {
+            Texture? texture = null;
+            if (_settings is { } settings && slot <= settings.AdditionalTextures.Count)
+            {
+                var name = settings.AdditionalTextures[slot - 1];
+                if (!_additionalTextures.TryGetValue(name, out texture) &&
+                    File.Exists(System.IO.Path.Combine(Project.OutputPath, "texture", name)))
+                {
+                    texture = Asset.Load(AssetType.Texture, name, useRegistry: false, libraryPath: Project.OutputPath) as Texture;
+                    if (texture != null) _additionalTextures[name] = texture;
+                }
+            }
+            Graphics.SetTexture(texture ?? Graphics.WhiteTexture, slot);
+            Graphics.SetTextureFilter(TextureFilter.Linear, slot);
+        }
     }
 
     /// <summary>Returns a shared shader owned by this service; callers must not dispose it.</summary>
@@ -100,6 +128,9 @@ public static class MeshPreviewRenderer
         _shader = null;
         _texture?.Dispose();
         _texture = null;
+        foreach (var texture in _additionalTextures.Values) texture.Dispose();
+        _additionalTextures.Clear();
+        MaterialRevision++;
         _settings = null;
     }
 
@@ -127,9 +158,14 @@ public static class MeshPreviewRenderer
             _texture?.Dispose();
             _texture = null;
         }
+        else if (document.Def.Type == AssetType.Texture && _settings?.AdditionalTextures.Contains(document.Name) == true)
+        {
+            if (_additionalTextures.Remove(document.Name, out var texture)) texture.Dispose();
+        }
         else
             return;
 
+        MaterialRevision++;
         foreach (var mesh in Project.Documents.OfType<MeshDocument>())
             mesh.InvalidatePreview(reloadMesh: false);
     }

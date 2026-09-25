@@ -15,6 +15,8 @@ public sealed record MeshPreviewSettings(string ShaderName)
     public Action<MeshDocument>? InspectorActions { get; init; }
     public string? TextureName { get; init; }
     public TextureFilter TextureFilter { get; init; } = TextureFilter.Linear;
+    /// <summary>Host textures for preview slots 1 onward (slot 0 is TextureName).</summary>
+    public IReadOnlyList<string> AdditionalTextures { get; init; } = [];
 }
 
 public static class Graphics3DEditor

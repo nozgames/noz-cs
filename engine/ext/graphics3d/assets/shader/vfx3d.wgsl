@@ -9,6 +9,7 @@ struct VertexInput {
     @location(2) tangent: vec4<f32>,
     @location(3) uv: vec2<f32>,
     @location(4) color: vec4<f32>,
+    @location(15) grunge_uvs: vec4<f32>, // Shared MeshVertex3D layout; unused in this pass.
 }
 struct Billboard {
     @location(5) position: vec3<f32>,

@@ -19,6 +19,7 @@ public class MeshDocument : Document
     private RenderTexture? _previewTexture;
     private bool _previewDirty = true;
     private bool _previewMeshDirty = true;
+    private int _previewMaterialRevision = -1;
 
     public int VertexCount => _imported?.Vertices.Length ?? 0;
     public int IndexCount => _imported?.Indices.Length ?? 0;
@@ -135,6 +136,12 @@ public class MeshDocument : Document
 
     public bool TryRenderPreview(Shader shader)
     {
+        // Generated thumbnails may not be registered as project documents.
+        if (_previewMaterialRevision != MeshPreviewRenderer.MaterialRevision)
+        {
+            _previewMaterialRevision = MeshPreviewRenderer.MaterialRevision;
+            _previewDirty = true;
+        }
         if (!_previewDirty)
             return false;
 
@@ -193,7 +200,7 @@ public class MeshDocument : Document
             passStarted = true;
             Graphics.SetTransform(Matrix3x2.Identity);
             Graphics.SetShader(shader);
-            MeshPreviewRenderer.BindTexture();
+            MeshPreviewRenderer.BindMaterialTextures();
             Graphics.SetBlendMode(BlendMode.None);
             Graphics.SetLayer(EditorLayer.Document);
             global::NoZ.Graphics3D.Draw(_previewMesh, _previewCamera.ViewProjectionMatrix);

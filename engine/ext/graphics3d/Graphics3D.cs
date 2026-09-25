@@ -30,8 +30,9 @@ public static class Graphics3D
 
     /// <summary>
     /// Sets transforms for mesh or raw indexed draws. Shaders append a mat4x4
-    /// normal_to_world after projection/time in globals (byte offset 80).
-    /// The normal matrix is snapshotted, not a shared named uniform.
+    /// normal_to_world after projection/time in globals (byte offset 80), then
+    /// model (byte offset 144) for world-space material sampling. Shaders that
+    /// only use the normal matrix retain the same prefix layout.
     /// </summary>
     public static void SetTransform(in Matrix4x4 model, in Matrix4x4 viewProjection)
     {
@@ -41,7 +42,9 @@ public static class Graphics3D
         // System.Numerics uses row vectors. Raw matrix bytes are read as columns
         // by WGSL, so no additional transpose is needed during upload.
         var normalToWorld = Matrix4x4.Transpose(inverseModel);
-        Graphics.SetDrawParameters(normalToWorld);
+        Graphics.SetDrawParameters(new MeshDraw(normalToWorld, model));
         Graphics.SetViewProjection(model * viewProjection);
     }
+
+    private readonly record struct MeshDraw(Matrix4x4 NormalToWorld, Matrix4x4 Model);
 }

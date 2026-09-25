@@ -92,7 +92,7 @@ internal sealed class MeshEditor : DocumentEditor
         using (Graphics.PushState())
         {
             Graphics.SetShader(shader);
-            MeshPreviewRenderer.BindTexture();
+            MeshPreviewRenderer.BindMaterialTextures();
             Graphics.SetBlendMode(BlendMode.None);
             Graphics.SetLayer(MeshLayer);
             global::NoZ.Graphics3D.Draw(_mesh, viewProjection);

@@ -20,19 +20,25 @@ public readonly struct MeshVertex3D : IVertex
     public readonly Vector4 Tangent;
     public readonly Vector2 TexCoord0;
     public readonly Vector4 Color0;
+    public readonly Vector2 TexCoord1;
+    public readonly Vector2 TexCoord2;
 
     public MeshVertex3D(
         Vector3 position,
         Vector3 normal,
         Vector4 tangent,
         Vector2 texCoord0,
-        Vector4 color0)
+        Vector4 color0,
+        Vector2 texCoord1 = default,
+        Vector2 texCoord2 = default)
     {
         Position = position;
         Normal = normal;
         Tangent = tangent;
         TexCoord0 = texCoord0;
         Color0 = color0;
+        TexCoord1 = texCoord1;
+        TexCoord2 = texCoord2;
     }
 
     public static VertexFormatDescriptor GetFormatDescriptor() => new()
@@ -45,6 +51,9 @@ public readonly struct MeshVertex3D : IVertex
             new VertexAttribute(2, 4, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(Tangent))),
             new VertexAttribute(3, 2, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(TexCoord0))),
             new VertexAttribute(4, 4, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(Color0))),
+            // Locations 5..14 belong to the standard prop instance stream.
+            // Pack UV2/UV3 in one attribute to stay within WebGPU's 16 locations.
+            new VertexAttribute(15, 4, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(TexCoord1))),
         ]
     };
 }
@@ -66,7 +75,7 @@ public readonly record struct MeshPrimitive(
 public sealed class Mesh : Asset
 {
     public static readonly AssetType Type = AssetType.FromString("MESH");
-    public const ushort Version = 1;
+    public const ushort Version = 2;
 
     private const int MaxElementCount = 100_000_000;
     private RenderMesh _renderMesh;
@@ -108,6 +117,12 @@ public sealed class Mesh : Asset
 
     protected override void Load(BinaryReader reader)
     {
+        // Asset dispatch leaves the seekable stream immediately after its header.
+        var payload = reader.BaseStream.Position;
+        reader.BaseStream.Position = payload - 4;
+        var version = reader.ReadUInt16();
+        reader.BaseStream.Position = payload;
+        if (version is not (1 or 2)) throw new InvalidDataException("Unsupported mesh version.");
         var boundsMin = ReadVector3(reader);
         var boundsMax = ReadVector3(reader);
 
@@ -120,7 +135,9 @@ public sealed class Mesh : Asset
                 ReadVector3(reader),
                 ReadVector4(reader),
                 ReadVector2(reader),
-                ReadVector4(reader));
+                ReadVector4(reader),
+                version >= 2 ? ReadVector2(reader) : Vector2.Zero,
+                version >= 2 ? ReadVector2(reader) : Vector2.Zero);
         }
 
         var indexCount = ReadCount(reader, "index");
@@ -217,6 +234,8 @@ public sealed class Mesh : Asset
             Write(writer, vertex.Tangent);
             Write(writer, vertex.TexCoord0);
             Write(writer, vertex.Color0);
+            Write(writer, vertex.TexCoord1);
+            Write(writer, vertex.TexCoord2);
         }
 
         writer.Write(indices.Count);

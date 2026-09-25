@@ -156,6 +156,8 @@ public static class GltfImporter
         var normalAccessor = GetOptionalAccessor(root, buffers, attributes, "NORMAL", positionAccessor.Count, 3);
         var tangentAccessor = GetOptionalAccessor(root, buffers, attributes, "TANGENT", positionAccessor.Count, 4);
         var texCoordAccessor = GetOptionalAccessor(root, buffers, attributes, "TEXCOORD_0", positionAccessor.Count, 2);
+        var texCoord1Accessor = GetOptionalAccessor(root, buffers, attributes, "TEXCOORD_1", positionAccessor.Count, 2);
+        var texCoord2Accessor = GetOptionalAccessor(root, buffers, attributes, "TEXCOORD_2", positionAccessor.Count, 2);
         var colorAccessor = GetOptionalColorAccessor(root, buffers, attributes, positionAccessor.Count);
 
         var vertexOffset = vertices.Count;
@@ -167,14 +169,18 @@ public static class GltfImporter
             var normal = normalAccessor?.ReadVector3(i) ?? Vector3.Zero;
             var tangent = tangentAccessor?.ReadVector4(i) ?? new Vector4(1, 0, 0, 1);
             var texCoord = texCoordAccessor?.ReadVector2(i) ?? Vector2.Zero;
+            var texCoord1 = texCoord1Accessor?.ReadVector2(i) ?? Vector2.Zero;
+            var texCoord2 = texCoord2Accessor?.ReadVector2(i) ?? Vector2.Zero;
             var color = colorAccessor?.ReadColor(i) ?? Vector4.One;
 
             EnsureFinite(normal, "NORMAL", meshName, primitiveIndex);
             EnsureFinite(tangent, "TANGENT", meshName, primitiveIndex);
             EnsureFinite(texCoord, "TEXCOORD_0", meshName, primitiveIndex);
+            EnsureFinite(texCoord1, "TEXCOORD_1", meshName, primitiveIndex);
+            EnsureFinite(texCoord2, "TEXCOORD_2", meshName, primitiveIndex);
             EnsureFinite(color, "COLOR_0", meshName, primitiveIndex);
 
-            vertices.Add(new MeshVertex3D(position, normal, tangent, texCoord, color));
+            vertices.Add(new MeshVertex3D(position, normal, tangent, texCoord, color, texCoord1, texCoord2));
         }
 
         var indexOffset = indices.Count;
@@ -255,7 +261,7 @@ public static class GltfImporter
                 normal,
                 vertex.Tangent,
                 vertex.TexCoord0,
-                vertex.Color0);
+                vertex.Color0, vertex.TexCoord1, vertex.TexCoord2);
         }
     }
 
