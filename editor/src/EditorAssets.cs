@@ -6,7 +6,7 @@ using NoZ;
 
 namespace NoZ.Editor;
 
-public static class EditorAssets
+public static partial class EditorAssets
 {
     public static class Names
     {
@@ -16,6 +16,7 @@ public static class EditorAssets
         public const string AssetIconEvent = "asset_icon_event";
         public const string AssetIconFont = "asset_icon_font";
         public const string AssetIconGenstyle = "asset_icon_genstyle";
+        public const string AssetIconMesh = "asset_icon_mesh";
         public const string AssetIconShader = "asset_icon_shader";
         public const string AssetIconSound = "asset_icon_sound";
         public const string AssetIconSprite = "asset_icon_sprite";
@@ -106,6 +107,7 @@ public static class EditorAssets
         public const string IconUndo = "icon_undo";
         public const string IconUnlock = "icon_unlock";
         public const string IconXray = "icon_xray";
+        public const string LightCircle = "light_circle";
         public const string PpComposite = "pp_composite";
         public const string PpDownsample = "pp_downsample";
         public const string PpUpsample = "pp_upsample";
@@ -211,6 +213,7 @@ public static class EditorAssets
         public static readonly Sprite AssetIconEvent = new();
         public static readonly Sprite AssetIconFont = new();
         public static readonly Sprite AssetIconGenstyle = new();
+        public static readonly Sprite AssetIconMesh = new();
         public static readonly Sprite AssetIconShader = new();
         public static readonly Sprite AssetIconSound = new();
         public static readonly Sprite AssetIconSprite = new();
@@ -301,6 +304,7 @@ public static class EditorAssets
         public static readonly Sprite IconUndo = new();
         public static readonly Sprite IconUnlock = new();
         public static readonly Sprite IconXray = new();
+        public static readonly Sprite LightCircle = new();
         public static readonly Sprite Square = new();
         public static readonly Sprite Star = new();
 
@@ -312,6 +316,7 @@ public static class EditorAssets
             AssetIconEvent.Load(Names.AssetIconEvent, atlas);
             AssetIconFont.Load(Names.AssetIconFont, atlas);
             AssetIconGenstyle.Load(Names.AssetIconGenstyle, atlas);
+            AssetIconMesh.Load(Names.AssetIconMesh, atlas);
             AssetIconShader.Load(Names.AssetIconShader, atlas);
             AssetIconSound.Load(Names.AssetIconSound, atlas);
             AssetIconSprite.Load(Names.AssetIconSprite, atlas);
@@ -402,6 +407,7 @@ public static class EditorAssets
             IconUndo.Load(Names.IconUndo, atlas);
             IconUnlock.Load(Names.IconUnlock, atlas);
             IconXray.Load(Names.IconXray, atlas);
+            LightCircle.Load(Names.LightCircle, atlas);
             Square.Load(Names.Square, atlas);
             Star.Load(Names.Star, atlas);
         }
@@ -414,6 +420,7 @@ public static class EditorAssets
             AssetIconEvent.Reload();
             AssetIconFont.Reload();
             AssetIconGenstyle.Reload();
+            AssetIconMesh.Reload();
             AssetIconShader.Reload();
             AssetIconSound.Reload();
             AssetIconSprite.Reload();
@@ -504,6 +511,7 @@ public static class EditorAssets
             IconUndo.Reload();
             IconUnlock.Reload();
             IconXray.Reload();
+            LightCircle.Reload();
             Square.Reload();
             Star.Reload();
         }
@@ -516,6 +524,7 @@ public static class EditorAssets
             AssetIconEvent.Dispose();
             AssetIconFont.Dispose();
             AssetIconGenstyle.Dispose();
+            AssetIconMesh.Dispose();
             AssetIconShader.Dispose();
             AssetIconSound.Dispose();
             AssetIconSprite.Dispose();
@@ -606,6 +615,7 @@ public static class EditorAssets
             IconUndo.Dispose();
             IconUnlock.Dispose();
             IconXray.Dispose();
+            LightCircle.Dispose();
             Square.Dispose();
             Star.Dispose();
         }

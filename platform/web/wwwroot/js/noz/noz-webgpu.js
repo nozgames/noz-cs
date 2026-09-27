@@ -1308,7 +1308,7 @@ export function createTexture2DLayoutEntry(binding) {
 export function createTexture2DArrayLayoutEntry(binding) {
     return {
         binding: binding,
-        visibility: GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         texture: { sampleType: 'float', viewDimension: '2d-array' }
     };
 }

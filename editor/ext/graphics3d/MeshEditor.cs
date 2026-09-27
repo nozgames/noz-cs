@@ -25,11 +25,12 @@ internal sealed class MeshEditor : DocumentEditor
     private bool _perspective { get => Editor3DViewSettings.Perspective; set => Editor3DViewSettings.Perspective = value; }
     private PopupMenuItem[]? _viewMenuItems;
     private int _previewRevision;
+    private MeshDocument? _viewedDocument;
 
     public new MeshDocument Document => (MeshDocument)base.Document;
     public override bool ShowInspector => true;
     public override bool RequiresDepth => true;
-    public override void InspectorUI() => Document.InspectorUI();
+    public override void InspectorUI() => Document.EditorInspectorUI(_viewedDocument, SelectMesh);
 
     public MeshEditor(MeshDocument document) : base(document)
     {
@@ -99,14 +100,16 @@ internal sealed class MeshEditor : DocumentEditor
 
     public override void Update()
     {
-        Document.UpdatePreview();
-        if (_previewRevision != Document.PreviewRevision)
+        UpdateMesh();
+        if (_mesh == null)
         {
-            ReloadMesh();
-            _radius = MathF.Max((_mesh?.BoundsSize ?? Vector3.One).Length() * .5f, .01f);
+            using var state = Graphics.PushState();
+            Graphics.SetTransform(Document.Transform);
+            Document.Draw();
+            return;
         }
         var shader = MeshPreviewRenderer.GetShader();
-        if (_mesh == null || shader == null || _mesh.RenderMesh.Handle == nuint.Zero)
+        if (shader == null || _mesh.RenderMesh.Handle == nuint.Zero)
             return;
 
         var cosPitch = MathF.Cos(_pitch);
@@ -165,8 +168,34 @@ internal sealed class MeshEditor : DocumentEditor
     private void ReloadMesh()
     {
         _mesh?.Dispose();
-        _mesh = Document.LoadEditorMesh();
-        _previewRevision = Document.PreviewRevision;
+        _viewedDocument = ResolveViewedDocument();
+        _mesh = _viewedDocument?.LoadEditorMesh();
+        _previewRevision = _viewedDocument?.PreviewRevision ?? 0;
+    }
+
+    private MeshDocument? ResolveViewedDocument()
+    {
+        if (!Document.ExportsMultipleAssets) return Document;
+        var meshes = Document.ExportedAssets.OfType<MeshDocument>().ToArray();
+        return meshes.Contains(_viewedDocument) ? _viewedDocument : meshes.FirstOrDefault();
+    }
+
+    private void SelectMesh(MeshDocument mesh)
+    {
+        if (_viewedDocument == mesh) return;
+        _viewedDocument = mesh;
+        // Inspector input may follow queued draws of the current mesh.
+        // Replace its GPU resources at the next scene update.
+        _previewRevision = -1;
+    }
+
+    private void UpdateMesh()
+    {
+        Document.UpdatePreview();
+        var viewedDocument = ResolveViewedDocument();
+        if (_viewedDocument == viewedDocument && _previewRevision == (viewedDocument?.PreviewRevision ?? 0)) return;
+        ReloadMesh();
+        ResetView();
     }
 
     private void OnDocumentExported(Document document)
@@ -174,7 +203,7 @@ internal sealed class MeshEditor : DocumentEditor
         if (document == Document)
         {
             ReloadMesh();
-            _radius = MathF.Max((_mesh?.BoundsSize ?? Vector3.One).Length() * 0.5f, 0.01f);
+            ResetView();
         }
     }
 }

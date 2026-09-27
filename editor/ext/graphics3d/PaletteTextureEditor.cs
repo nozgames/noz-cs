@@ -10,6 +10,8 @@ namespace NoZ.Editor.Graphics3D;
 
 internal partial class PaletteTextureEditor : DocumentEditor
 {
+    private sealed record ColorClipboardData(Color32 Color);
+
     private static partial class WidgetIds
     {
         public static partial WidgetId Size { get; }
@@ -34,6 +36,8 @@ internal partial class PaletteTextureEditor : DocumentEditor
         Commands =
         [
             new Command("Exit Edit Mode", Workspace.EndEdit, [InputCode.KeyTab]),
+            new Command("Copy Color", CopyColor, [new KeyBinding(InputCode.KeyC, ctrl: true)]),
+            new Command("Paste Color", PasteColor, [new KeyBinding(InputCode.KeyV, ctrl: true)]),
             new Command("Fill Gradient", FillGradient, [InputCode.KeyG]),
             new Command("Clear Selected", ClearSelected, [InputCode.KeyDelete])
         ];
@@ -281,6 +285,23 @@ internal partial class PaletteTextureEditor : DocumentEditor
             return;
         Undo.Record(Document);
         Document.FillGradient(_selected);
+    }
+
+    private void CopyColor()
+    {
+        if (_selected.Count == 0)
+            return;
+
+        Clipboard.Copy(new ColorClipboardData(Document.GetPixel(_selected[^1])));
+    }
+
+    private void PasteColor()
+    {
+        if (_selected.Count == 0 || Clipboard.Get<ColorClipboardData>() is not { } copied)
+            return;
+
+        Undo.Record(Document);
+        Document.SetPixels(_selected, copied.Color);
     }
 
     private void ClearSelected()

@@ -24,6 +24,7 @@ public static class Project
     public static string Path { get; private set; } = "";
     public static bool IsInitialized => _initialized;
     public static IReadOnlyList<Document> Documents => _documents;
+    public static IEnumerable<Document> AssetDocuments => _documents.SelectMany(d => d.ExportedAssets);
     public static int Count => _documents.Count;
     public static Document GetAt(int index) => _documents[index];
     public static IReadOnlyList<string> SourcePaths => _sourcePaths;
@@ -350,6 +351,12 @@ public static class Project
             if ((type == default || doc.Def.Type == type) && doc.Name == name)
                 return doc;
         }
+        var separator = name.IndexOf('/');
+        if (separator > 0)
+        {
+            var owner = _documents.FirstOrDefault(d => (type == default || d.Def.Type == type) && d.Name == name[..separator]);
+            return owner?.ExportedAssets.FirstOrDefault(d => d.Name == name);
+        }
         return null;
     }
 
@@ -506,6 +513,7 @@ public static class Project
             File.Move(oldMetaPath, newMetaPath);
 
         var oldName = doc.Name;
+        var oldAssets = doc.ExportsMultipleAssets ? doc.ExportedAssets.Select(a => (Doc: a, Name: a.Name)).ToArray() : [];
         var oldTargetPath = GetTargetPath(doc);
 
         doc.Path = newPath.Replace('\\', '/');
@@ -518,6 +526,8 @@ public static class Project
         {
             if (other == doc || !other.Loaded) continue;
             other.OnRenamed(doc, oldName, canonicalName);
+            foreach (var asset in oldAssets)
+                other.OnRenamed(asset.Doc, asset.Name, canonicalName + asset.Name[oldName.Length..]);
         }
 
         DocumentRenamed?.Invoke(doc, oldName);
@@ -771,6 +781,7 @@ public static class Project
     public static void QueueExport(Document? doc, bool force = false)
     {
         if (doc == null) return;
+        doc = doc.AssetOwner;
         if (!doc.ShouldExport) return;
         force |= doc.NeedsExport;
         if (doc.IsQueuedForExport)
@@ -793,6 +804,7 @@ public static class Project
                 if (doc is SpriteDocument sprite &&
                     sprite.IsMultiSprite != Directory.Exists(targetPath))
                     force = true;
+                if (doc.ExportsMultipleAssets && !Directory.Exists(targetPath)) force = true;
 
                 // Force export if the binary's version doesn't match the engine's expected version
                 var assetDef = Asset.GetDef(doc.Def.Type);
@@ -913,7 +925,12 @@ public static class Project
 
             Log.Info($"Exported {(Asset.GetDef(doc.Def.Type)?.Name ?? doc.Def.Type.ToString()).ToLowerInvariant()}/{doc.Name}");
             OnExported?.Invoke(doc);
-            if (doc is SpriteDocument sprite && sprite.IsMultiSprite)
+            if (doc.ExportsMultipleAssets)
+            {
+                foreach (var asset in doc.ExportedAssets)
+                    Asset.ReloadByName(doc.Def.Type, asset.Name);
+            }
+            else if (doc is SpriteDocument sprite && sprite.IsMultiSprite)
             {
                 foreach (var part in sprite.GetExportParts())
                     Asset.ReloadByName(doc.Def.Type, part.AssetName);

@@ -13,6 +13,18 @@ public abstract class Document : IDisposable, IChangeHandler
     public DocumentDef Def { get; internal set; } = null!;
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
+    private Document? _assetOwner;
+
+    public Document AssetOwner => _assetOwner ?? this;
+    public string AssetDisplayName => Name.Replace('/', '.');
+    public virtual bool ExportsMultipleAssets => false;
+    public virtual IReadOnlyList<Document> ExportedAssets => [this];
+
+    protected void InitializeSubAsset(Document owner, string name)
+    {
+        _assetOwner = owner; Def = owner.Def; Name = name; Path = owner.Path;
+        ShouldExport = owner.ShouldExport; Loaded = true;
+    }
     public string CollectionId { get; set; } = "";
     public virtual bool IsPlaying { get; } = false;
     public virtual bool CanPlay => false;

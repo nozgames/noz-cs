@@ -136,7 +136,7 @@ public static partial class Workspace
     public static Vector2 DragWorldPosition { get; private set; }
     public static WorkspaceState State { get; private set; } = WorkspaceState.Default;
 
-    private static bool IsIsolationActive => State == WorkspaceState.Edit && !_isolation;
+    private static bool IsIsolationActive => State == WorkspaceState.Edit && (ActiveEditor?.ForceIsolation == true || !_isolation);
     public static bool Isolation => _isolation;
     public static int SelectedCount { get; private set; }
 
@@ -479,7 +479,7 @@ public static partial class Workspace
             DrawDocuments();
 
         if (_showGrid && (ActiveEditor?.ShowWorkspaceGrid ?? true))
-            Grid.Draw(_camera);
+            Grid.Draw(_camera, ActiveEditor?.WorkspaceGridLayer ?? EditorLayer.PixelGrid);
 
         if (!isolation && ShowNames)
             DrawNames();
@@ -921,6 +921,7 @@ public static partial class Workspace
 
     public static void ToggleIsolation()
     {
+        if (State == WorkspaceState.Edit && ActiveEditor?.ForceIsolation == true) return;
         _isolation = !_isolation;
 
         if (IsIsolationActive)

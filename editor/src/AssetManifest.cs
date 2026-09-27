@@ -71,6 +71,7 @@ public static class AssetManifest
 
     private static string Pluralize(string typeName)
     {
+        if (typeName == "Mesh") return "Meshes";
         if (typeName.EndsWith("s", StringComparison.Ordinal))
             return typeName + "es";
         return typeName + "s";
@@ -276,7 +277,11 @@ public static class AssetManifest
             foreach (var doc in orderedDocs)
             {
                 var fieldName = ToPascalCase(doc.Name);
-                if (doc is AnimationDocument animation)
+                if (doc.ExportsMultipleAssets)
+                {
+                    WriteCsAssetParts(writer, doc, runtimeType);
+                }
+                else if (doc is AnimationDocument animation)
                 {
                     if (!animation.Loaded)
                         animation.Load();
@@ -304,7 +309,9 @@ public static class AssetManifest
             foreach (var doc in orderedDocs)
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"            {fieldName}.Load(Names.{fieldName});");
+                writer.WriteLine(doc.ExportsMultipleAssets
+                    ? $"            {fieldName}.Load();"
+                    : $"            {fieldName}.Load(Names.{fieldName});");
             }
             writer.WriteLine("        }");
 
@@ -326,7 +333,9 @@ public static class AssetManifest
             foreach (var doc in orderedDocs)
             {
                 var fieldName = ToPascalCase(doc.Name);
-                writer.WriteLine($"            {fieldName}.Dispose();");
+                writer.WriteLine(doc.ExportsMultipleAssets
+                    ? $"            {fieldName}.Unload();"
+                    : $"            {fieldName}.Dispose();");
             }
             writer.WriteLine("        }");
 
@@ -580,6 +589,40 @@ public static class AssetManifest
         writer.WriteLine("    }");
     }
 
+    public static string GetSubAssetMemberName(string sourceName, string rootName)
+    {
+        var className = ToCSharpIdentifier(sourceName);
+        var name = ToCSharpIdentifier(rootName);
+        while (name == className || name is "Load" or "Reload" or "Unload") name += "Asset";
+        return name;
+    }
+
+    private static void WriteCsAssetParts(StreamWriter writer, Document document, string runtimeType)
+    {
+        var className = ToCSharpIdentifier(document.Name);
+        var parts = document.ExportedAssets.OrderBy(a => a.Name, StringComparer.Ordinal).ToArray();
+        var members = new HashSet<string>(StringComparer.Ordinal) { className, "Load", "Reload", "Unload" };
+        string Member(Document asset) => GetSubAssetMemberName(document.Name, asset.Name[(document.Name.Length + 1)..]);
+        foreach (var asset in parts)
+            if (!members.Add(Member(asset)))
+                throw new InvalidDataException($"Asset '{asset.Name}' conflicts with a generated member. Rename its export root.");
+        writer.WriteLine($"        public static class {className}");
+        writer.WriteLine("        {");
+        foreach (var asset in parts)
+            writer.WriteLine($"            public static readonly {runtimeType} {Member(asset)} = new();");
+        foreach (var method in new[] { "Load", "Reload", "Unload" })
+        {
+            writer.WriteLine($"            public static void {method}()");
+            writer.WriteLine("            {");
+            foreach (var asset in parts)
+                writer.WriteLine(method == "Load"
+                    ? $"                {Member(asset)}.Load(\"{asset.Name}\");"
+                    : $"                {Member(asset)}.{(method == "Unload" ? "Dispose" : method)}();");
+            writer.WriteLine("            }");
+        }
+        writer.WriteLine("        }");
+    }
+
     private static void EnsureSpriteLoaded(SpriteDocument sprite)
     {
         if (!sprite.Loaded)
@@ -646,6 +689,14 @@ public static class AssetManifest
 
             foreach (var doc in group.Docs.OrderBy(d => d.Name))
             {
+                if (doc.ExportsMultipleAssets)
+                {
+                    writer.WriteLine($"    {ToCSharpIdentifier(doc.Name)} = {{");
+                    foreach (var asset in doc.ExportedAssets.OrderBy(a => a.Name, StringComparer.Ordinal))
+                        writer.WriteLine($"        {GetSubAssetMemberName(doc.Name, asset.Name[(doc.Name.Length + 1)..])} = \"{asset.Name}\",");
+                    writer.WriteLine("    },");
+                    continue;
+                }
                 if (doc is SpriteDocument sprite)
                 {
                     EnsureSpriteLoaded(sprite);

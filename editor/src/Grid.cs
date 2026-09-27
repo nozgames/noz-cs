@@ -12,7 +12,7 @@ public static class Grid
     public static bool IsPixelGridVisible { get; private set; }
     public static float? PixelsPerUnitOverride { get; set; }
 
-    public static void Draw(Camera camera)
+    public static void Draw(Camera camera, ushort layer = EditorLayer.PixelGrid)
     {
         var dpi = PixelsPerUnitOverride ?? (float)EditorApplication.Config!.PixelsPerUnit;
         var pixelSize = 1.0f / dpi;
@@ -29,7 +29,7 @@ public static class Grid
         IsPixelGridVisible = pixelGridAlpha > float.Epsilon;
         SnapSpacing = IsPixelGridVisible ? pixelSize : world.FineSpacing * 0.25f;
 
-        using (Gizmos.PushState(EditorLayer.PixelGrid))
+        using (Gizmos.PushState(layer))
         {
             Graphics.SetTexture(Graphics.WhiteTexture);
             Graphics.SetShader(EditorAssets.Shaders.Texture);
@@ -43,7 +43,7 @@ public static class Grid
                 DrawHorizontalLines(camera, world.FineSpacing);
                 DrawVerticalLines(camera, world.FineSpacing);
 
-                Graphics.SetLayer(EditorLayer.PixelGrid);
+                Graphics.SetLayer(layer);
                 Gizmos.SetColor(EditorStyle.Palette.Active.WithAlpha(pixelGridAlpha));
                 DrawHorizontalLines(camera, pixelSize);
                 DrawVerticalLines(camera, pixelSize);

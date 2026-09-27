@@ -35,14 +35,14 @@ public static partial class AssetBrowser
     public static string? Show(WidgetId id, AssetType type, string current, string? emptyLabel = null, Sprite? triggerIcon = null,
         Action? drawTrigger = null)
     {
-        var names = Project.Documents.Where(d => d.Def.Type == type).Select(d => d.Name)
+        var names = Project.AssetDocuments.Where(d => d.Def.Type == type).Select(d => d.Name)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
         if (emptyLabel != null) names = ["", .. names];
-        var missing = current.Length > 0 && Project.Find(type, current) == null;
-        var label = current.Length == 0 ? emptyLabel ?? "Choose asset…" : current + (missing ? " (missing)" : "");
+        var missing = current.Length > 0 && Project.Find(type, current) is not { ExportsMultipleAssets: false };
+        var label = current.Length == 0 ? emptyLabel ?? "Choose asset…" : current.Replace('/', '.') + (missing ? " (missing)" : "");
         return Show(id, names, label,
             name => Project.Find(type, name)?.DrawThumbnail() == true,
-            name => name.Length == 0 ? emptyLabel ?? "None" : name, triggerIcon, drawTrigger);
+            name => name.Length == 0 ? emptyLabel ?? "None" : name.Replace('/', '.'), triggerIcon, drawTrigger);
     }
 
     public static string? Show(WidgetId id, string[] items, string label = "+ Add Reference",

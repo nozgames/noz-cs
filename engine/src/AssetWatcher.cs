@@ -24,7 +24,7 @@ internal static class AssetWatcher
         _watcher = new FileSystemWatcher(path)
         {
             IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
             EnableRaisingEvents = true
         };
 
@@ -70,7 +70,20 @@ internal static class AssetWatcher
         var typeName = relative[..sep];
         var assetName = relative[(sep + 1)..];
         // Exporters publish by renaming a temporary file into place.
-        if (assetName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) return;
+        if (assetName.Split('/').Any(part => part.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+            part.EndsWith(".bak", StringComparison.OrdinalIgnoreCase))) return;
+
+        // Multi-asset sources publish an entire directory. A directory rename
+        // does not guarantee file notifications for its children on Windows.
+        if (Directory.Exists(fullPath))
+        {
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(fullPath, "*", SearchOption.AllDirectories)) Enqueue(file);
+            }
+            catch (IOException) { /* Another save may have replaced this directory. */ }
+            return;
+        }
 
         _reloadQueue.Enqueue((typeName, assetName));
     }

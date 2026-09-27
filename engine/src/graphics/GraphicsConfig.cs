@@ -19,6 +19,9 @@ public class GraphicsConfig
     /// Retained capacity per format is less than three times this limit (less than twice
     /// for power-of-two limits). Each page also consumes one MaxMeshes slot.</summary>
     public int MaxInstancesPerFrame { get; init; } = 65536;
+    /// <summary>Frame-wide resident instance draw limit across all views and passes.
+    /// Buffers are owned and budgeted by their callers. Excess draws return false.</summary>
+    public int MaxPersistentInstancesPerFrame { get; init; } = 4194304;
     /// <summary>
     /// Maximum number of unique projection/draw-parameter snapshots that may be
     /// submitted in one frame. CPU snapshot/lookup storage is preallocated;

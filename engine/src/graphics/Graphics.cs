@@ -152,6 +152,8 @@ public static unsafe partial class Graphics
         _maxGlobalSnapshots = RenderConfig.MaxGlobalSnapshots;
         if (graphicsConfig.MaxInstancesPerFrame < 1)
             throw new ArgumentOutOfRangeException(nameof(graphicsConfig.MaxInstancesPerFrame));
+        if (graphicsConfig.MaxPersistentInstancesPerFrame < 1)
+            throw new ArgumentOutOfRangeException(nameof(graphicsConfig.MaxPersistentInstancesPerFrame));
         if (_maxBatches is < 1 or > ushort.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(graphicsConfig.MaxBatches));
         if (_maxDrawCommands is < 1 or > 65536)
@@ -247,6 +249,9 @@ public static unsafe partial class Graphics
 
     internal static bool BeginFrame()
     {
+        FrameRevision++;
+        FrameOpen = true;
+        _persistentInstancesThisFrame = 0;
         // Only recycle snapshots at a frame boundary, never during an internal
         // blit/flush: earlier draws may still be waiting for GPU submission.
         _globalsBaseIndex = 0;
@@ -270,7 +275,10 @@ public static unsafe partial class Graphics
             WhiteTexture = Texture.Create(1, 1, [255, 255, 255, 255], name: "White");
 
         if (!Driver.BeginFrame())
+        {
+            FrameOpen = false;
             return false;
+        }
 
         RenderTexturePool.FlushPendingReleases();
 
@@ -343,6 +351,7 @@ public static unsafe partial class Graphics
 
         using (s_markerEndFrame.Begin())
             Driver.EndFrame();
+        FrameOpen = false;
     }
 
     private static void BlitInternalRT()

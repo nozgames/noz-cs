@@ -16,6 +16,7 @@ public static partial class ConfirmDialog
     private static bool _visible;
     private static string _message = string.Empty;
     private static Action? _onConfirm;
+    private static Action? _pendingConfirm;
     private static string _yesText = "Yes";
     private static string _noText = "No";
 
@@ -30,6 +31,7 @@ public static partial class ConfirmDialog
         _visible = false;
         _message = string.Empty;
         _onConfirm = null;
+        _pendingConfirm = null;
     }
 
     public static void Show(string message, Action onConfirm, string yes="Yes", string no="No")
@@ -52,6 +54,10 @@ public static partial class ConfirmDialog
 
     public static void Update()
     {
+        var pending = _pendingConfirm;
+        _pendingConfirm = null;
+        pending?.Invoke();
+
         if (!_visible)
             return;
 
@@ -109,7 +115,9 @@ public static partial class ConfirmDialog
         {
             Input.ConsumeButton(InputCode.MouseLeft);
             Close();
-            executed();
+            // Earlier UI elements may still reference resources destroyed by this
+            // action. Run it before layout on the next update, after this frame draws.
+            _pendingConfirm = executed;
         }
     }
 }

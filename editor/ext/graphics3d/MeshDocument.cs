@@ -28,6 +28,7 @@ public class MeshDocument : Document
     public int PreviewRevision { get; private set; }
     public virtual void UpdatePreview() { }
     public Mesh? LoadEditorMesh() => LoadPreviewMesh();
+    public virtual void EditorInspectorUI(MeshDocument? viewedMesh, Action<MeshDocument> selectMesh) => InspectorUI();
 
     protected void SetImportedPreview(ImportedMesh? mesh)
     {
@@ -47,7 +48,7 @@ public class MeshDocument : Document
             Extensions = [".gltf", ".glb"],
             Factory = _ => new MeshDocument(),
             EditorFactory = document => new MeshEditor((MeshDocument)document),
-            Icon = () => EditorAssets.Sprites.AssetIconBin,
+            Icon = () => EditorAssets.Sprites.AssetIconMesh,
         });
     }
 
@@ -96,14 +97,17 @@ public class MeshDocument : Document
             Graphics.SetShader(EditorAssets.Shaders.Sprite);
             Graphics.SetLayer(EditorLayer.Document);
             Graphics.SetColor(Color.White);
-            Graphics.Draw(EditorAssets.Sprites.AssetIconBin);
+            Graphics.Draw(EditorAssets.Sprites.AssetIconMesh);
         }
     }
 
     public override bool DrawThumbnail()
     {
         if (_previewTexture is not { Handle: not 0 })
-            return false;
+        {
+            UI.Image(EditorAssets.Sprites.AssetIconMesh, EditorStyle.Control.Icon);
+            return true;
+        }
 
         UI.Image(_previewTexture, ImageStyle.Center);
         return true;

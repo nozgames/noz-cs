@@ -108,7 +108,7 @@ public static class MeshPreviewRenderer
 
         // A preview is cached after rendering, so spreading initial generation
         // across frames avoids a large hitch in projects with many mesh assets.
-        foreach (var document in Project.Documents.OfType<MeshDocument>())
+        foreach (var document in Project.Documents.Concat(Project.AssetDocuments).Distinct().OfType<MeshDocument>())
         {
             document.UpdatePreview();
             if (document.TryRenderPreview(shader))
@@ -124,7 +124,7 @@ public static class MeshPreviewRenderer
             _initialized = false;
         }
 
-        foreach (var document in Project.Documents.OfType<MeshDocument>())
+        foreach (var document in Project.Documents.Concat(Project.AssetDocuments).Distinct().OfType<MeshDocument>())
             document.ReleasePreview();
 
         _shader?.Dispose();
@@ -169,7 +169,7 @@ public static class MeshPreviewRenderer
             return;
 
         MaterialRevision++;
-        foreach (var mesh in Project.Documents.OfType<MeshDocument>())
+        foreach (var mesh in Project.Documents.Concat(Project.AssetDocuments).Distinct().OfType<MeshDocument>())
             mesh.InvalidatePreview(reloadMesh: false);
     }
 }

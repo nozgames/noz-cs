@@ -284,7 +284,7 @@ public unsafe partial class WebGPUGraphicsDriver
             BindingType.Texture2DArray => new BindGroupLayoutEntry
             {
                 Binding = binding,
-                Visibility = ShaderStage.Fragment,
+                Visibility = ShaderStage.Vertex | ShaderStage.Fragment,
                 Texture = new TextureBindingLayout
                 {
                     SampleType = TextureSampleType.Float,
