@@ -12,15 +12,18 @@ internal sealed class MeshEditor : DocumentEditor
 {
     private const float OrbitSpeed = 0.01f;
     private const ushort MeshLayer = EditorLayer.PixelGrid + 1;
+    private static readonly WidgetId ViewMenuId = new(0xC031_0000);
 
     private readonly Camera3D _camera = new() { FieldOfView = MathF.PI / 4f };
     private Mesh? _mesh;
-    private float _yaw;
-    private float _pitch;
+    private float _yaw { get => Editor3DViewSettings.Yaw; set => Editor3DViewSettings.Yaw = value; }
+    private float _pitch { get => Editor3DViewSettings.Pitch; set => Editor3DViewSettings.Pitch = value; }
     private float _distance;
     private float _radius;
     private Vector2 _lastMousePosition;
     private bool _orbiting;
+    private bool _perspective { get => Editor3DViewSettings.Perspective; set => Editor3DViewSettings.Perspective = value; }
+    private PopupMenuItem[]? _viewMenuItems;
     private int _previewRevision;
 
     public new MeshDocument Document => (MeshDocument)base.Document;
@@ -44,7 +47,7 @@ internal sealed class MeshEditor : DocumentEditor
     public override void PreUpdate()
     {
         var mousePosition = Input.MousePosition;
-        var overScene = UI.IsHovered(Workspace.SceneWidgetId);
+        var overScene = UI.IsHovered(Workspace.SceneWidgetId) && !UI.IsPopupMenuOpen(ViewMenuId);
 
         if (overScene && Input.WasButtonPressed(InputCode.MouseLeft))
         {
@@ -66,6 +69,32 @@ internal sealed class MeshEditor : DocumentEditor
                 _lastMousePosition = mousePosition;
             }
         }
+    }
+
+    public override void ToolbarUI()
+    {
+        _viewMenuItems ??=
+        [
+            PopupMenuItem.Item("Perspective", () => { _orbiting = false; _perspective = true; }, isChecked: () => _perspective),
+            PopupMenuItem.Item("Isometric", () => SetView(MathF.PI / 4, MathF.PI * .15f),
+                isChecked: () => IsView(MathF.PI / 4, MathF.PI * .15f)),
+            PopupMenuItem.Item("Front", () => SetView(0, 0), isChecked: () => IsView(0, 0)),
+            PopupMenuItem.Item("Side", () => SetView(MathF.PI / 2, 0), isChecked: () => IsView(MathF.PI / 2, 0)),
+            PopupMenuItem.Item("Top", () => SetView(0, MathF.PI / 2), isChecked: () => IsView(0, MathF.PI / 2)),
+            PopupMenuItem.Item("Frame mesh", FrameView, shortcut: new(InputCode.KeyF)),
+        ];
+        EditorViewMenu.Draw(ViewMenuId, _viewMenuItems);
+    }
+
+    private bool IsView(float yaw, float pitch) => !_perspective &&
+        MathF.Abs(MathF.IEEERemainder(_yaw - yaw, MathF.Tau)) < .0001f && MathF.Abs(_pitch - pitch) < .0001f;
+
+    private void SetView(float yaw, float pitch)
+    {
+        _orbiting = false;
+        _perspective = false;
+        _yaw = yaw;
+        _pitch = pitch;
     }
 
     public override void Update()
@@ -95,7 +124,8 @@ internal sealed class MeshEditor : DocumentEditor
         _camera.NearClip = near;
         _camera.FarClip = far;
         var viewProjection = MeshWorkspaceProjection.Create(
-            _camera, Workspace.Camera.ViewMatrix, Document.Bounds.Translate(Document.Position));
+            _camera, Workspace.Camera.ViewMatrix, Document.Bounds.Translate(Document.Position),
+            _perspective ? 0 : _distance * MathF.Tan(_camera.FieldOfView * .5f) * 2);
 
         using (Graphics.PushState())
         {
@@ -124,8 +154,6 @@ internal sealed class MeshEditor : DocumentEditor
         var size = _mesh?.BoundsSize ?? Vector3.One;
         _radius = MathF.Max(size.Length() * 0.5f, 0.01f);
         _distance = MathF.Max(_radius * 2.75f, 0.1f);
-        _yaw = MathF.PI * 0.25f;
-        _pitch = MathF.PI * 0.15f;
     }
 
     private void FrameView()

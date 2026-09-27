@@ -58,7 +58,11 @@ Editor integration is provided separately by [NoZ.Editor.Graphics3D](../../../ed
 
 `Graphics3DModule.RegisterAssetTypes()` also registers `Vfx3D` (`VFX3`, version 1).
 Include the extension's assets directory in the editor sources to import the
-`vfx3d` shader. The core 2D VFX asset format and API stay compatible; both runtimes
+`vfx3d` and `restore_scene_depth` shaders. After post-processing, VFX restore the
+opaque scene depth alongside the current color before drawing. This preserves
+occlusion after SSAO or water compositing, including resolved MSAA depth; the
+copy is skipped when the current target already has depth or no particles exist.
+The core 2D VFX asset format and API stay compatible; both runtimes
 share ranges, curve LUTs, color curves, and `VfxMath` evaluation.
 
 Create one `VfxSystem3D` per scene, and dispose it before graphics shutdown:

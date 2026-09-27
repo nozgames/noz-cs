@@ -16,6 +16,28 @@ public static class PostProcess3D
     public const string SsaoBlurShaderName = "ssao_blur";
     public const string SsaoCompositeShaderName = "ssao_composite";
 
+    /// <summary>
+    /// Restores opaque scene depth alongside the current post-processed color so
+    /// subsequent geometry can use hardware depth testing. Already depth-enabled
+    /// targets need no copy. The original scene depth remains available to sample.
+    /// </summary>
+    public static bool RestoreSceneDepth()
+    {
+        if (PostProcess.CurrentDepthTextureHandle != 0) return true;
+        var depth = PostProcess.SceneDepthTextureHandle;
+        if (depth == 0 || PostProcess.CurrentColorTextureHandle == 0) return false;
+        var shader = Asset.Load(AssetType.Shader, "restore_scene_depth") as Shader;
+        if (shader == null) return false;
+
+        // Scene-sized geometry needs scene-sized depth, including after MSAA
+        // resolve. BeginBlit ends the source pass before either texture is read.
+        PostProcess.BeginBlit(shader, depth: true);
+        Graphics.SetTexture(depth, slot: 1);
+        Graphics.SetTextureFilter(TextureFilter.Point, slot: 1);
+        PostProcess.EndBlit();
+        return true;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private readonly struct SsaoParams(
         Matrix4x4 inverseProjection,

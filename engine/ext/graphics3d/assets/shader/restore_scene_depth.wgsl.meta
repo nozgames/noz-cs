@@ -1,0 +1,5 @@
+[shader]
+depth = true
+
+[editor]
+export = true

@@ -47,6 +47,9 @@ public static class PostProcess
     /// </summary>
     public static nuint CurrentColorTextureHandle => _currentRT?.Handle ?? nuint.Zero;
 
+    /// <summary>Borrowed depth texture of the current post-process target, or zero for color-only stages.</summary>
+    public static nuint CurrentDepthTextureHandle => _currentRT?.DepthTextureHandle ?? nuint.Zero;
+
     /// <summary>Render an offscreen scene with post-processing. The returned target
     /// is borrowed until the end of this frame; copy it before retaining the image.</summary>
     public static RenderTexture RenderScene(RenderTexture target, Color clear, Action draw)
@@ -98,16 +101,16 @@ public static class PostProcess
     public static void Blit(Shader shader) { BeginBlit(shader, _width, _height); EndBlit(); }
     public static void Blit(Shader shader, int width, int height) { BeginBlit(shader, width, height); EndBlit(); }
 
-    public static void BeginBlit(Shader shader) => BeginBlit(shader, _width, _height);
+    public static void BeginBlit(Shader shader, bool depth = false) => BeginBlit(shader, _width, _height, depth);
 
-    public static void BeginBlit(Shader shader, int width, int height)
+    public static void BeginBlit(Shader shader, int width, int height, bool depth = false)
     {
         if (_sceneRT == null) return;
         if (_currentRT == null) return;
 
         Graphics.EndPass();
 
-        var dest = RenderTexturePool.Acquire(width, height);
+        var dest = RenderTexturePool.Acquire(width, height, depth: depth);
 
         Graphics.BeginPass(dest, Color.Transparent);
         UpdateCamera(width, height);

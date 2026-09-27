@@ -265,11 +265,15 @@ public sealed class VfxSystem3D : IDisposable
 
     public void Draw(Camera3D camera, Shader shader, ushort order = 15) => Draw(camera, camera.ViewProjectionMatrix, shader, order);
 
-    /// <summary>Draw within the host's depth-enabled pass. Shader must use the VFX billboard instance layout.</summary>
+    /// <summary>Draw after opaque geometry, restoring scene depth after post-processing when needed.
+    /// Shader must use the VFX billboard instance layout.</summary>
     public void Draw(Camera3D camera, in Matrix4x4 viewProjection, Shader shader, ushort order = 15)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (ActiveParticleCount == 0) return;
+        // AO and water compositing may have replaced the scene with a color-only
+        // target. Restore its opaque depth before submitting transparent draws.
+        PostProcess3D.RestoreSceneDepth();
         for (var i = 0; i < ActiveParticleCount; i++)
             _sort[i] = new() { Index = i, Depth = Vector3.Dot(GetParticle(i).Position - camera.Position, camera.Forward) };
         Array.Sort(_sort, 0, ActiveParticleCount);

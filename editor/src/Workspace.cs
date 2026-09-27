@@ -340,6 +340,7 @@ public static partial class Workspace
 
     public static void LoadUserSettings(PropertySet props)
     {
+        Editor3DViewSettings.LoadUserSettings(props);
         _showFps = props.GetBool("workspace", "show_fps", false);
         _showGrid = props.GetBool("workspace", "show_grid", true);
         _showNames = props.GetBool("workspace", "show_names", false);
@@ -363,6 +364,7 @@ public static partial class Workspace
 
     public static void SaveUserSettings(PropertySet props)
     {
+        Editor3DViewSettings.SaveUserSettings(props);
         var collection = CollectionManager.VisibleCollection;
         if (collection != null)
         {
