@@ -21,7 +21,7 @@ public sealed partial class NativePaletteDocument
                 writer.WriteLine(FormattableString.Invariant($"    segment from {segment.StartX} {segment.StartY} to {segment.EndX} {segment.EndY} start {Rgba(segment.StartColor)} end {Rgba(segment.EndColor)}"));
         }
     }
-    private static string Escape(string value) => System.Text.Json.JsonEncodedText.Encode(value).ToString();
+    private static string Escape(string value) => AssetTextWriter.Quote(value)[1..^1];
     private static string Rgba(Color32 color) => FormattableString.Invariant($"{color.R} {color.G} {color.B} {color.A}");
 
     private static NativePaletteDocument Parse(string text)
@@ -49,8 +49,8 @@ public sealed partial class NativePaletteDocument
             {
                 Require(ref tk, "color");
                 if (!tk.ExpectQuotedString(out var name)) throw new InvalidDataException("Expected a quoted color name.");
-                using var nameJson = System.Text.Json.JsonDocument.Parse("\"" + name + "\"");
-                name = nameJson.RootElement.GetString()!;
+                var nameReader = new AssetTextReader("\"" + name + "\"");
+                name = nameReader.String();
                 Require(ref tk, "position");
                 var x = Integer(ref tk, 0, columns - 1); var y = Integer(ref tk, 0, rows - 1);
                 var index = y * columns + x;

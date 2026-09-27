@@ -1,11 +1,9 @@
 using System.Numerics;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace NoZ.Editor.Graphics3D;
 
 /// <summary>Editable .vfx3d source; curves use the same authoring model as 2D effects.</summary>
-public sealed class Vfx3DSource
+public sealed partial class Vfx3DSource
 {
     public int Version = 1;
     public bool Loop;
@@ -21,14 +19,7 @@ public sealed class Vfx3DSource
         Vfx3D.Validate(result);
         return result;
     }
-    public string ToJson() => JsonSerializer.Serialize(this, Vfx3DJsonContext.Default.Vfx3DSource);
-    public static Vfx3DSource Parse(string json)
-    {
-        var source = JsonSerializer.Deserialize(json, Vfx3DJsonContext.Default.Vfx3DSource)
-            ?? throw new InvalidDataException("Missing VFX3D source.");
-        source.Bake();
-        return source;
-    }
+
 }
 
 public sealed class Vfx3DEmitterSource
@@ -81,9 +72,3 @@ public sealed class Vfx3DEmitterSource
             begin < 0 || end > 1 || end < begin) throw new InvalidDataException("Invalid VFX lifetime curve.");
     }
 }
-
-[JsonSourceGenerationOptions(IncludeFields = true, IgnoreReadOnlyProperties = true, WriteIndented = true,
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true,
-    UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
-[JsonSerializable(typeof(Vfx3DSource))]
-internal partial class Vfx3DJsonContext : JsonSerializerContext { }

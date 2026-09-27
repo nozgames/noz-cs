@@ -16,7 +16,7 @@ public sealed class Vfx3DDocument : Document
         CreateNew = position => CreateNew(position: position), Icon = () => EditorAssets.Sprites.AssetIconVfx
     });
     public static Document? CreateNew(string? name = null, Vector2? position = null) =>
-        Project.New(Vfx3D.Type, Extension, name, (StreamWriter writer) => writer.Write(new Vfx3DSource().ToJson()), position);
+        Project.New(Vfx3D.Type, Extension, name, (StreamWriter writer) => writer.Write(new Vfx3DSource().ToText()), position);
 
     public override void Load() => ReadSource();
     public override void Reload() => ReadSource();
@@ -25,7 +25,7 @@ public sealed class Vfx3DDocument : Document
         var source = Vfx3DSource.Parse(File.ReadAllText(Path));
         Source = source; PreviewRevision++;
     }
-    public override void Save(StreamWriter sw) { Source.Bake(); sw.Write(Source.ToJson()); }
+    public override void Save(StreamWriter sw) { Source.Bake(); sw.Write(Source.ToText()); }
     public override void Export(string outputPath, PropertySet meta)
     {
         var source = Vfx3DSource.Parse(File.ReadAllText(Path));
@@ -34,7 +34,7 @@ public sealed class Vfx3DDocument : Document
     }
     public override void Clone(Document source)
     {
-        Source = Vfx3DSource.Parse(((Vfx3DDocument)source).Source.ToJson()); PreviewRevision++;
+        Source = Vfx3DSource.Parse(((Vfx3DDocument)source).Source.ToText()); PreviewRevision++;
     }
     public override void OnUndoRedo() => PreviewRevision++;
     public void ApplyChanges() { IncrementVersion(); PreviewRevision++; }
