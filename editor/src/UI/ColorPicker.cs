@@ -57,6 +57,26 @@ internal static partial class ColorPicker
     }
 
     private static WidgetId _popupId;
+    private static IPaletteSource? _fixedPalette;
+    private static int _selectedSlot;
+    private static WidgetId _slotResultId;
+    private static int _slotResult;
+
+    internal static void OpenPalette(WidgetId id, IPaletteSource palette, int selected)
+    {
+        Open(id, palette.GetPaletteColor(selected), new ColorButtonStyle { ShowAlpha = false });
+        _fixedPalette = palette; _selectedSlot = selected; _paletteView = true;
+        _paletteMode = ColorMode.Color;
+        var columns = Math.Min(palette.Columns, 32);
+        var size = EditorStyle.ColorPicker.SwatchCellSize * Math.Min(1f, 16f / columns);
+        UI.SetScrollOffset(ElementId.ColorPickerPaletteScroll, Math.Max(0, selected / columns - 5) * size);
+    }
+    internal static bool TakePaletteResult(WidgetId id, out int selected)
+    {
+        selected = _slotResult;
+        if (_slotResultId != id) return false;
+        _slotResultId = WidgetId.None; return true;
+    }
     private static float _hue;
     private static float _sat;
     private static float _val;
@@ -98,6 +118,7 @@ internal static partial class ColorPicker
     internal static void Close()
     {
         _popupId = WidgetId.None;
+        _fixedPalette = null;
         _eyeDropperActive = false;
         _eyeDropperMouseWasDown = false;
         UI.ClearHot();
@@ -142,6 +163,7 @@ internal static partial class ColorPicker
 
     internal static void Open(WidgetId id, Color color, ColorButtonStyle? style = null)
     {
+        _fixedPalette = null; _slotResultId = WidgetId.None;
         var resolved = style ?? new ColorButtonStyle();
 
         _hdr = resolved.ShowHDR;
@@ -239,11 +261,13 @@ internal static partial class ColorPicker
         if (UI.IsClosed())
             close = true;
 
-        using (UI.BeginColumn(EditorStyle.ColorPicker.Root))
+        var fixedWidth = Math.Min(_fixedPalette?.Columns ?? 8, 16) * EditorStyle.ColorPicker.SwatchCellSize + 10;
+        using (UI.BeginColumn(_fixedPalette == null ? EditorStyle.ColorPicker.Root :
+            EditorStyle.ColorPicker.Root with { Width = fixedWidth, MinWidth = fixedWidth, MaxWidth = fixedWidth }))
         {
             var inColorMode = _paletteMode == ColorMode.Color;
 
-            if (_showAlpha || _showClose || inColorMode)
+            if (_fixedPalette == null && (_showAlpha || _showClose || inColorMode))
             {
                 using (UI.BeginRow(new ContainerStyle { Spacing = EditorStyle.Control.Spacing, Height = EditorStyle.Control.Height }))
                 {
@@ -674,13 +698,16 @@ internal static partial class ColorPicker
     private static void PaletteContent()
     {
         var palettes = PaletteManager.Palettes;
-        if (palettes.Count == 0) return;
+        if (palettes.Count == 0 && _fixedPalette == null) return;
 
         if (_selectedPaletteIndex < 0 || _selectedPaletteIndex >= palettes.Count)
             _selectedPaletteIndex = 0;
 
-        var selectedPalette = palettes[_selectedPaletteIndex];
+        var selectedPalette = _fixedPalette == null ? palettes[_selectedPaletteIndex] : null;
+        var source = _fixedPalette ?? selectedPalette?.Source;
+        if (source == null) return;
 
+        if (_fixedPalette == null)
         UI.DropDown(ElementId.PaletteDropDown, () =>
         {
             var items = new PopupMenuItem[palettes.Count];
@@ -690,27 +717,33 @@ internal static partial class ColorPicker
                 items[i] = PopupMenuItem.Item(palettes[i].Label, () => _selectedPaletteIndex = index);
             }
             return items;
-        }, text: selectedPalette.Label);
+        }, text: selectedPalette!.Label);
 
         var nextPaletteItemId = ElementId.ColorPickerPaletteItem;
+        var columns = _fixedPalette != null ? Math.Min(source.Columns, 32) : EditorStyle.ColorPicker.SwatchColumns;
+        var cellSize = EditorStyle.ColorPicker.SwatchCellSize * Math.Min(1f, 16f / columns);
 
         var swatchLayout = new CollectionLayout
         {
-            ItemHeight = EditorStyle.ColorPicker.SwatchCellSize,
-            ItemWidth = EditorStyle.ColorPicker.SwatchCellSize,
-            Columns = EditorStyle.ColorPicker.SwatchColumns
+            ItemHeight = cellSize,
+            ItemWidth = cellSize,
+            Columns = columns
         };
-        using var grid = UI.BeginCollection(ElementId.SwatchGrid, swatchLayout, selectedPalette.Count, out var swatchStart, out var swatchEnd);
+        var rows = Math.Min(12, (source.ColorCount + swatchLayout.Columns - 1) / swatchLayout.Columns);
+        using var height = UI.BeginContainer(new ContainerStyle { Height = rows * cellSize });
+        using var scroll = UI.BeginScrollable(ElementId.ColorPickerPaletteScroll);
+        using var grid = UI.BeginCollection(ElementId.ColorPickerPaletteScroll, swatchLayout, source.ColorCount, out var swatchStart, out var swatchEnd);
+        swatchEnd = Math.Min(swatchEnd, swatchStart + (rows + 2) * swatchLayout.Columns);
 
-        for (int i = 0; i < selectedPalette.Count; i++)
+        for (int i = swatchStart; i < swatchEnd; i++)
         {
-            var swatchColor = selectedPalette.Colors[i];
-            if (swatchColor.A <= float.Epsilon) continue;
+            var swatchColor = source.GetPaletteColor(i);
 
-            var itemId = nextPaletteItemId++;
+            var itemId = nextPaletteItemId + i;
             var c32 = swatchColor.ToColor32();
-            var isSelected = IsSwatchSelected(c32);
+            var isSelected = _fixedPalette != null ? i == _selectedSlot : IsSwatchSelected(c32);
 
+            using (UI.BeginEnabled(swatchColor.A > 0))
             using (BeginColorContainer(itemId, isSelected))
             {
                 UI.Container(new ContainerStyle
@@ -721,6 +754,12 @@ internal static partial class ColorPicker
 
                 if (UI.WasPressed())
                 {
+                    if (_fixedPalette != null)
+                    {
+                        _slotResult = i; _slotResultId = _popupId;
+                        Close();
+                        return;
+                    }
                     RgbToHsv(c32, out _hue, out _sat, out _val);
                     _alpha = c32.A / 255f;
                     InvalidateSVTexture();

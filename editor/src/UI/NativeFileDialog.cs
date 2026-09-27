@@ -44,6 +44,28 @@ internal static class NativeFileDialog
     [DllImport("comdlg32.dll", CharSet = CharSet.Unicode)]
     private static extern bool GetSaveFileNameW(ref OPENFILENAMEW ofn);
 
+    [DllImport("comdlg32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool GetOpenFileNameW(ref OPENFILENAMEW ofn);
+
+    public static string? ShowOpenPaletteDialog()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        var buffer = new char[32768];
+        var handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+        try
+        {
+            var ofn = new OPENFILENAMEW
+            {
+                lStructSize = Marshal.SizeOf<OPENFILENAMEW>(), hwndOwner = Application.Platform.WindowHandle,
+                lpstrFilter = "Palettes (*.pal;*.gpl)\0*.pal;*.gpl\0\0", lpstrFile = handle.AddrOfPinnedObject(),
+                nMaxFile = buffer.Length, lpstrTitle = "Import palette colors",
+                Flags = OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | 0x00001000,
+            };
+            return GetOpenFileNameW(ref ofn) ? new string(buffer.AsSpan(0, Array.IndexOf(buffer, '\0'))) : null;
+        }
+        finally { handle.Free(); }
+    }
+
     public static string? ShowSaveFileDialog(nint ownerHwnd, string filter, string defaultExt, string? defaultFileName = null)
     {
         var fileBuffer = new char[MAX_PATH];

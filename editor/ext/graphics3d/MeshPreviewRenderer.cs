@@ -109,8 +109,11 @@ public static class MeshPreviewRenderer
         // A preview is cached after rendering, so spreading initial generation
         // across frames avoids a large hitch in projects with many mesh assets.
         foreach (var document in Project.Documents.OfType<MeshDocument>())
+        {
+            document.UpdatePreview();
             if (document.TryRenderPreview(shader))
                 break;
+        }
     }
 
     public static void Shutdown()

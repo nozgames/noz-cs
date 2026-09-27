@@ -16,6 +16,8 @@ public class DocumentDef
     /// <summary>Optional factory shown in the workspace's New menu; receives the click position.</summary>
     public Func<System.Numerics.Vector2, Document?>? CreateNew { get; init; }
     public string[]? AuxiliaryExtensions { get; init; }
+    /// <summary>Same-stem files owned only when a matching primary source exists.</summary>
+    public string[]? CompanionExtensions { get; init; }
     public Func<Document, bool>? CanEdit { get; init; }
     public Func<Sprite?>? Icon { get; init; }
 }

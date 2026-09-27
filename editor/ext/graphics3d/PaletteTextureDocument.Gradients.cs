@@ -14,9 +14,9 @@ public partial class PaletteTextureDocument
     // of a gradient, and makes overlapping fills follow the same last-write rule
     // as solid colors. Records and their segment arrays are never mutated, so
     // they can be shared safely by undo/redo snapshots.
-    private Dictionary<int, GradientCell> _gradientCells = [];
+    protected Dictionary<int, GradientCell> _gradientCells = [];
 
-    private readonly record struct GradientCell(GradientSegment[] Segments)
+    protected readonly record struct GradientCell(GradientSegment[] Segments)
     {
         public Color32 Sample(int pixelX, int pixelY)
         {
@@ -38,7 +38,7 @@ public partial class PaletteTextureDocument
         }
     }
 
-    private readonly record struct GradientSegment(
+    protected readonly record struct GradientSegment(
         int StartX, int StartY, int EndX, int EndY, Color32 StartColor, Color32 EndColor)
     {
         public Color32 Sample(int pixelX, int pixelY, out float distanceSquared)

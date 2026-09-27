@@ -18,7 +18,7 @@ namespace NoZ.Editor.Graphics3D;
 /// Construction data is stored in metadata, and the exported asset is a
 /// regular runtime Texture.
 /// </summary>
-public partial class PaletteTextureDocument : Document
+public partial class PaletteTextureDocument : Document, IPaletteSource
 {
     public const int CellPixelSize = 8;
     public const int DefaultSize = 128;
@@ -32,7 +32,7 @@ public partial class PaletteTextureDocument : Document
         public static partial WidgetId Filter { get; }
     }
 
-    private Color32[] _pixels = [];
+    protected Color32[] _pixels = [];
     private Texture? _previewTexture;
     private bool _previewDirty = true;
 
@@ -40,6 +40,12 @@ public partial class PaletteTextureDocument : Document
     public int Size { get; private set; } = DefaultSize;
     public int GridSize => Size / CellPixelSize;
     public TextureFilter Filter { get; private set; } = TextureFilter.Point;
+    public int ColorCount => GridSize * GridSize;
+    public int Columns => GridSize;
+    public virtual bool ExportColorConstants => false;
+    public virtual bool ExportTexture => true;
+    public Color GetPaletteColor(int index) => GetPixel(index).ToColor();
+    public virtual string? GetPaletteColorName(int index) => $"Row {index / GridSize + 1}, column {index % GridSize + 1}";
 
     public PaletteTextureDocument()
     {
@@ -56,7 +62,6 @@ public partial class PaletteTextureDocument : Document
             Extensions = [".png"],
             Factory = _ => new PaletteTextureDocument(),
             EditorFactory = doc => new PaletteTextureEditor((PaletteTextureDocument)doc),
-            CreateNew = position => CreateNew(position: position),
             Icon = () => EditorAssets.Sprites.AssetIconSprite
         });
     }
@@ -285,7 +290,7 @@ public partial class PaletteTextureDocument : Document
         InvalidatePreview(recreate: true);
     }
 
-    public bool CanResize(int size)
+    public virtual bool CanResize(int size)
     {
         var newSize = NormalizeSize(size) / CellPixelSize;
         if (newSize >= GridSize)
@@ -501,7 +506,7 @@ public partial class PaletteTextureDocument : Document
         return (size + CellPixelSize - 1) / CellPixelSize * CellPixelSize;
     }
 
-    private void ResetPixels(int size, Color32 color)
+    protected void ResetPixels(int size, Color32 color)
     {
         Size = NormalizeSize(size);
         _pixels = new Color32[GridSize * GridSize];
@@ -509,7 +514,7 @@ public partial class PaletteTextureDocument : Document
         Array.Fill(_pixels, color);
     }
 
-    private Color32[] CreateTexturePixels()
+    protected Color32[] CreateTexturePixels()
     {
         var pixels = new Color32[Size * Size];
         for (var y = 0; y < GridSize; y++)
@@ -567,11 +572,12 @@ public partial class PaletteTextureDocument : Document
         }
     }
 
-    private void InvalidatePreview(bool recreate = false)
+    protected void InvalidatePreview(bool recreate = false)
     {
         if (recreate)
             DisposePreview();
         _previewDirty = true;
+        PaletteManager.ReloadPaletteColors();
     }
 
     private void DisposePreview()

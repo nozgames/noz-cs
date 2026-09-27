@@ -13,6 +13,13 @@ namespace NoZ.Editor;
 /// </summary>
 public static partial class EditorInspector
 {
+    public static string? OpenPaletteFile() => NativeFileDialog.ShowOpenPaletteDialog();
+    public static int PaletteField(WidgetId id, IPaletteSource palette, int selected, Document? undoDocument = null)
+    {
+        var result = EditorUI.PaletteButton(id, palette, selected);
+        if (result != selected && undoDocument != null) Undo.Record(undoDocument);
+        return result;
+    }
     public readonly struct AutoSection : IDisposable
     {
         public void Dispose() => Inspector.EndSection();
@@ -24,6 +31,7 @@ public static partial class EditorInspector
     }
 
     public static bool IsSectionCollapsed => Inspector.IsSectionCollapsed;
+    public static bool HasOpenSection => Inspector.HasOpenSection;
 
     public static AutoSection BeginSection(
         string name,
@@ -37,9 +45,9 @@ public static partial class EditorInspector
         return new AutoSection();
     }
 
-    public static AutoProperty BeginProperty(string name)
+    public static AutoProperty BeginProperty(string name, Align labelAlignY = Align.Center)
     {
-        Inspector.BeginProperty(name);
+        Inspector.BeginProperty(name, labelAlignY);
         return new AutoProperty();
     }
 

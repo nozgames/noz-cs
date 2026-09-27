@@ -50,6 +50,12 @@ public unsafe partial class SDLPlatform : IPlatform
     }
 
     public static Action<Action>? SetupDisplayLink { get; set; }
+
+    public void SetMousePosition(Vector2 position)
+    {
+        if (_window != null)
+            SDL_WarpMouseInWindow(_window, position.X / _eventPixelScale, position.Y / _eventPixelScale);
+    }
     public static Action<int>? SetDisplayLinkFrameRate { get; set; }
 
     public Vector2Int WindowSize { get; private set; }

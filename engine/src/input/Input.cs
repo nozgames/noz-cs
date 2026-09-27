@@ -417,6 +417,12 @@ public static class Input
 
     public static Vector2 MousePosition { get; private set; }
 
+    public static void SetMousePosition(Vector2 position)
+    {
+        Application.Platform.SetMousePosition(position);
+        MousePosition = position;
+    }
+
     /// <summary>Accumulated relative motion this frame, in logical window pixels.</summary>
     public static Vector2 RelativeMouseDelta { get; private set; }
     public static bool IsRelativeMouseMode => Application.Platform.IsRelativeMouseMode;

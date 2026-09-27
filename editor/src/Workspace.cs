@@ -318,7 +318,7 @@ public static partial class Workspace
             PopupMenuItem.Item("VFX", () => CreateNewDocument(VfxDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconVfx),
             PopupMenuItem.Item("Sound", () => CreateNewDocument(SoundDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSound),
             PopupMenuItem.Item("Scene", () => CreateNewDocument(SceneDocument.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconSprite),
-            PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: _popupWorldPosition)), level: 1),
+            ..(Project.GetDef(".palette") == null ? new[] { PopupMenuItem.Item("Palette", () => CreateNewDocument(PaletteDocument.CreateNew(position: _popupWorldPosition)), level: 1) } : []),
             ..Project.DocumentDefs.Where(def => def.CreateNew != null).Select(def =>
                 PopupMenuItem.Item(def.Name, () => CreateNewDocument(def.CreateNew!(_popupWorldPosition)), level: 1, icon: def.Icon?.Invoke())),
             PopupMenuItem.Item("Gen Config", () => CreateNewDocument(GenerationConfig.CreateNew(position: _popupWorldPosition)), level: 1, icon: EditorAssets.Sprites.AssetIconGenstyle),

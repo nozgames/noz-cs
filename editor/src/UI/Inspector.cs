@@ -32,6 +32,7 @@ internal static partial class Inspector
     private static bool _sectionOpen;
 
     public static bool IsSectionCollapsed => _sectionCollapsed;
+    public static bool HasOpenSection => _sectionOpen;
     public static bool WasHeaderPressed => _wasHeaderPressed;
 
     public static void UpdateUI()
@@ -81,6 +82,8 @@ internal static partial class Inspector
         bool collapsed = false,
         bool empty = false)
     {
+        if (_sectionOpen)
+            EndSection();
         BeginSectionCore(name, icon, content, isActive, collapsed, empty);
         return new AutoSection();
     }
@@ -185,12 +188,12 @@ internal static partial class Inspector
         _sectionOpen = false;
     }
 
-    public static AutoProperty BeginProperty(string name)
+    public static AutoProperty BeginProperty(string name, Align labelAlignY = Align.Center)
     {
         ElementTree.BeginSize(Size.Default, Size.Fit, 0, float.MaxValue, EditorStyle.Control.Height, float.MaxValue);
         ElementTree.BeginRow();
         ElementTree.BeginFlex(0.4f);
-        UI.Text(name, style: EditorStyle.Text.Secondary);
+        UI.Text(name, style: EditorStyle.Text.Secondary with { AlignY = labelAlignY });
         ElementTree.EndFlex();
         ElementTree.BeginFlex(0.6f);
         ElementTree.BeginSize(Size.Default, Size.Fit, 0, float.MaxValue, EditorStyle.Control.Height, float.MaxValue);

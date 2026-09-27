@@ -32,7 +32,8 @@ public static partial class AssetBrowser
 
     /// <summary>Choose a project asset of one type, displaying its thumbnail.
     /// An empty label enables clearing an optional reference; null means no selection.</summary>
-    public static string? Show(WidgetId id, AssetType type, string current, string? emptyLabel = null, Sprite? triggerIcon = null)
+    public static string? Show(WidgetId id, AssetType type, string current, string? emptyLabel = null, Sprite? triggerIcon = null,
+        Action? drawTrigger = null)
     {
         var names = Project.Documents.Where(d => d.Def.Type == type).Select(d => d.Name)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
@@ -41,11 +42,12 @@ public static partial class AssetBrowser
         var label = current.Length == 0 ? emptyLabel ?? "Choose asset…" : current + (missing ? " (missing)" : "");
         return Show(id, names, label,
             name => Project.Find(type, name)?.DrawThumbnail() == true,
-            name => name.Length == 0 ? emptyLabel ?? "None" : name, triggerIcon);
+            name => name.Length == 0 ? emptyLabel ?? "None" : name, triggerIcon, drawTrigger);
     }
 
     public static string? Show(WidgetId id, string[] items, string label = "+ Add Reference",
-        Func<string, bool>? drawThumbnail = null, Func<string, string>? displayName = null, Sprite? triggerIcon = null)
+        Func<string, bool>? drawThumbnail = null, Func<string, string>? displayName = null, Sprite? triggerIcon = null,
+        Action? drawTrigger = null)
     {
         _selected = null;
         _items = items;
@@ -58,7 +60,7 @@ public static partial class AssetBrowser
             if (UI.Button(id, triggerIcon, EditorStyle.Inspector.SectionButton))
             { if (isOpen) Close(); else Open(id); }
         }
-        else TriggerUI(id, label, isOpen);
+        else TriggerUI(id, label, isOpen, drawTrigger);
 
         if (_openId == id)
         {
@@ -94,7 +96,7 @@ public static partial class AssetBrowser
         UI.ClearHot();
     }
 
-    private static void TriggerUI(WidgetId id, string label, bool isOpen)
+    private static void TriggerUI(WidgetId id, string label, bool isOpen, Action? drawTrigger)
     {
         var s = EditorStyle.DropDown;
         var flags = ElementTree.GetPrevWidgetFlags(id);
@@ -105,28 +107,33 @@ public static partial class AssetBrowser
 
         using (UI.BeginRow(id, new ContainerStyle
         {
-            Width = s.Width,
-            Height = s.Height,
+            Width = drawTrigger != null ? Size.Fit : s.Width,
+            Height = drawTrigger != null ? Size.Fit : s.Height,
             Background = s.Color,
             BorderRadius = s.BorderRadius,
-            Padding = s.Padding,
+            Padding = drawTrigger != null ? EdgeInsets.All(4) : s.Padding,
             Spacing = s.Spacing,
         }))
         {
-            UI.Text(label, new TextStyle
+            if (drawTrigger != null) drawTrigger();
+            else
             {
-                FontSize = s.FontSize,
-                Color = s.ContentColor,
-                AlignY = Align.Center,
-            });
-            UI.Flex();
-            if (s.ArrowIcon != null)
-                UI.Image(s.ArrowIcon, new ImageStyle
+                UI.Text(label, new TextStyle
                 {
-                    Size = s.ArrowSize,
-                    Color = s.IconColor.A > 0 ? s.IconColor : s.ContentColor,
-                    Align = Align.Center,
+                    FontSize = s.FontSize,
+                    Color = s.ContentColor,
+                    AlignY = Align.Center,
                 });
+                UI.Flex();
+                if (s.ArrowIcon != null)
+                    UI.Image(s.ArrowIcon, new ImageStyle
+                    {
+                        Size = s.ArrowSize,
+                        Color = s.IconColor.A > 0 ? s.IconColor : s.ContentColor,
+                        Align = Align.Center,
+                    });
+
+            }
 
             if (UI.WasPressed())
             {
@@ -227,6 +234,11 @@ public static partial class AssetBrowser
 
             var layout = new CollectionLayout { Columns = 1, ItemHeight = itemHeight };
             using var collection = UI.BeginCollection(WidgetIds.List, layout, _filteredCount, out var start, out var end);
+            // A newly opened popup has no previous viewport measurement, so
+            // BeginCollection initially returns the full list. This viewport
+            // is fixed at eight rows; retain its two overscan rows without
+            // building thousands of offscreen labels/thumbnails on that frame.
+            end = Math.Min(end, start + VisibleRows + 2);
             for (var i = start; i < end; i++)
             {
                 var name = _filtered[i];

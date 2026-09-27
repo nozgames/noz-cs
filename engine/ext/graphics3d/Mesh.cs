@@ -22,6 +22,8 @@ public readonly struct MeshVertex3D : IVertex
     public readonly Vector4 Color0;
     public readonly Vector2 TexCoord1;
     public readonly Vector2 TexCoord2;
+    /// <summary>Authored surface emission multiplier; independent of vertex color and scene lights.</summary>
+    public readonly float EmissionStrength;
 
     public MeshVertex3D(
         Vector3 position,
@@ -30,7 +32,8 @@ public readonly struct MeshVertex3D : IVertex
         Vector2 texCoord0,
         Vector4 color0,
         Vector2 texCoord1 = default,
-        Vector2 texCoord2 = default)
+        Vector2 texCoord2 = default,
+        float emissionStrength = 0)
     {
         Position = position;
         Normal = normal;
@@ -39,6 +42,7 @@ public readonly struct MeshVertex3D : IVertex
         Color0 = color0;
         TexCoord1 = texCoord1;
         TexCoord2 = texCoord2;
+        EmissionStrength = emissionStrength;
     }
 
     public static VertexFormatDescriptor GetFormatDescriptor() => new()
@@ -51,7 +55,8 @@ public readonly struct MeshVertex3D : IVertex
             new VertexAttribute(2, 4, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(Tangent))),
             new VertexAttribute(3, 2, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(TexCoord0))),
             new VertexAttribute(4, 4, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(Color0))),
-            // Locations 5..14 belong to the standard prop instance stream.
+            // Locations 5..13 belong to the standard prop instance stream.
+            new VertexAttribute(14, 1, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(EmissionStrength))),
             // Pack UV2/UV3 in one attribute to stay within WebGPU's 16 locations.
             new VertexAttribute(15, 4, VertexAttribType.Float, (int)Marshal.OffsetOf<MeshVertex3D>(nameof(TexCoord1))),
         ]
@@ -75,7 +80,7 @@ public readonly record struct MeshPrimitive(
 public sealed class Mesh : Asset
 {
     public static readonly AssetType Type = AssetType.FromString("MESH");
-    public const ushort Version = 2;
+    public const ushort Version = 4;
 
     private const int MaxElementCount = 100_000_000;
     private RenderMesh _renderMesh;
@@ -83,6 +88,7 @@ public sealed class Mesh : Asset
     public MeshVertex3D[] Vertices { get; private set; } = [];
     public uint[] Indices { get; private set; } = [];
     public MeshPrimitive[] Primitives { get; private set; } = [];
+    public MeshChannels Channels { get; private set; }
     public Vector3 BoundsMin { get; private set; }
     public Vector3 BoundsMax { get; private set; }
     public Vector3 BoundsCenter => (BoundsMin + BoundsMax) * 0.5f;
@@ -122,7 +128,7 @@ public sealed class Mesh : Asset
         reader.BaseStream.Position = payload - 4;
         var version = reader.ReadUInt16();
         reader.BaseStream.Position = payload;
-        if (version is not (1 or 2)) throw new InvalidDataException("Unsupported mesh version.");
+        if (version is not (1 or 2 or 3 or 4)) throw new InvalidDataException("Unsupported mesh version.");
         var boundsMin = ReadVector3(reader);
         var boundsMax = ReadVector3(reader);
 
@@ -137,7 +143,9 @@ public sealed class Mesh : Asset
                 ReadVector2(reader),
                 ReadVector4(reader),
                 version >= 2 ? ReadVector2(reader) : Vector2.Zero,
-                version >= 2 ? ReadVector2(reader) : Vector2.Zero);
+                version >= 2 ? ReadVector2(reader) : Vector2.Zero,
+                version >= 3 ? reader.ReadSingle() : 0);
+            ValidateEmission(vertices[i].EmissionStrength);
         }
 
         var indexCount = ReadCount(reader, "index");
@@ -165,6 +173,7 @@ public sealed class Mesh : Asset
             primitives[i] = primitive;
         }
 
+        Channels = version >= 4 ? (MeshChannels)reader.ReadInt32() : MeshChannels.Unknown;
         BoundsMin = boundsMin;
         BoundsMax = boundsMax;
         Vertices = vertices;
@@ -204,7 +213,8 @@ public sealed class Mesh : Asset
         IReadOnlyList<uint> indices,
         IReadOnlyList<MeshPrimitive> primitives,
         Vector3 boundsMin,
-        Vector3 boundsMax)
+        Vector3 boundsMax,
+        MeshChannels channels = MeshChannels.Unknown)
     {
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(vertices);
@@ -221,6 +231,8 @@ public sealed class Mesh : Asset
         foreach (var primitive in primitives)
             ValidatePrimitive(primitive, vertices.Count, indices.Count);
 
+        foreach (var vertex in vertices) ValidateEmission(vertex.EmissionStrength);
+
         using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
         writer.WriteAssetHeader(Type, Version);
         Write(writer, boundsMin);
@@ -236,6 +248,7 @@ public sealed class Mesh : Asset
             Write(writer, vertex.Color0);
             Write(writer, vertex.TexCoord1);
             Write(writer, vertex.TexCoord2);
+            writer.Write(vertex.EmissionStrength);
         }
 
         writer.Write(indices.Count);
@@ -252,6 +265,13 @@ public sealed class Mesh : Asset
             writer.Write(primitive.IndexOffset);
             writer.Write(primitive.IndexCount);
         }
+        writer.Write((int)channels);
+    }
+
+    private static void ValidateEmission(float strength)
+    {
+        if (!float.IsFinite(strength) || strength < 0)
+            throw new InvalidDataException("Mesh emission strength must be finite and nonnegative.");
     }
 
     private static Asset LoadAsset(Stream stream, string name)

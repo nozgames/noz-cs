@@ -35,7 +35,7 @@ Included tools:
   scene-node transforms. Exporters must bake the desired local frame before calling it.
   Blender launch/conversion and construction-role policy remain host-owned.
 - `TextureDocument` for standalone PNG/JPEG/TGA/WebP/BMP texture import, with point/linear filtering in the inspector.
-- `PaletteTextureDocument` and its editor: square textures, 8×8-pixel swatches, continuous multi-stop gradients, and the Palette Texture entry in the New menu. Construction data stays in `.png.meta`; the PNG remains usable in Blender and exports as a regular runtime Texture. The `Palette Texture` metadata identity and binary output are unchanged.
+- `NativePaletteDocument` (`.palette`) and the **Palette** entry in the New menu: fixed 8×8-pixel cells, names, alpha, continuous multi-stop gradients, and undoable PAL/GPL import. Token-based sources own optional generated PNG companions and export runtime textures and/or color constants. `IPaletteSource` connects these documents to the normal color picker; `EditorInspector.PaletteField` selects a stable cell from a specific source. Legacy `PaletteTextureDocument` PNG/metadata sources remain readable.
 - `TextureAssetWriter` for shared RGBA8 texture export, also usable by host-owned image importers.
 - Mesh orbit editing and cached fixed-angle thumbnails, rendered outside the workspace pass.
 - `MeshWorkspaceProjection` for custom 3D document editors: pan/zoom follow the 2D workspace, with depth preserved.

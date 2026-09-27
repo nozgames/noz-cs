@@ -25,6 +25,7 @@ public static class AssetManifest
             return;
 
         IsModified = true;
+        PaletteManager.DiscoverPalettes();
 
         if (config.GenerateCs != null)
             GenerateCs(config);
@@ -123,6 +124,7 @@ public static class AssetManifest
         foreach (var doc in Project.Documents)
         {
             if (!doc.ShouldExport) continue;
+            if (doc is IPaletteSource { ExportTexture: false }) continue;
 
             // Skip assets owned by a bundle
             if (bundleOwned.Contains((doc.Def.Type, doc.Name)))
@@ -392,7 +394,7 @@ public static class AssetManifest
         }
 
         // Palettes class with expanded colors
-        var exportedPalettes = PaletteManager.Palettes.Where(p => p.SourceDocument?.ShouldExport != false).ToList();
+        var exportedPalettes = PaletteManager.Palettes.Where(p => p.Source?.ExportColorConstants == true && p.SourceDocument?.ShouldExport != false).ToList();
         if (exportedPalettes.Count > 0)
         {
             writer.WriteLine();

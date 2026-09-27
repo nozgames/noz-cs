@@ -21,10 +21,12 @@ internal sealed class MeshEditor : DocumentEditor
     private float _radius;
     private Vector2 _lastMousePosition;
     private bool _orbiting;
+    private int _previewRevision;
 
     public new MeshDocument Document => (MeshDocument)base.Document;
     public override bool ShowInspector => true;
     public override bool RequiresDepth => true;
+    public override void InspectorUI() => Document.InspectorUI();
 
     public MeshEditor(MeshDocument document) : base(document)
     {
@@ -68,6 +70,12 @@ internal sealed class MeshEditor : DocumentEditor
 
     public override void Update()
     {
+        Document.UpdatePreview();
+        if (_previewRevision != Document.PreviewRevision)
+        {
+            ReloadMesh();
+            _radius = MathF.Max((_mesh?.BoundsSize ?? Vector3.One).Length() * .5f, .01f);
+        }
         var shader = MeshPreviewRenderer.GetShader();
         if (_mesh == null || shader == null || _mesh.RenderMesh.Handle == nuint.Zero)
             return;
@@ -129,7 +137,8 @@ internal sealed class MeshEditor : DocumentEditor
     private void ReloadMesh()
     {
         _mesh?.Dispose();
-        _mesh = Asset.Load(Mesh.Type, Document.Name, useRegistry: false, libraryPath: Project.OutputPath) as Mesh;
+        _mesh = Document.LoadEditorMesh();
+        _previewRevision = Document.PreviewRevision;
     }
 
     private void OnDocumentExported(Document document)

@@ -4,7 +4,7 @@
 
 namespace NoZ.Editor;
 
-public class PaletteDocument : Document
+public class PaletteDocument : Document, IPaletteSource
 {
     public const string Extension = ".pal";
 
@@ -16,6 +16,10 @@ public class PaletteDocument : Document
     public Color[] Colors { get; private set; } = new Color[MaxColors];
     public string?[] ColorNames { get; private set; } = new string?[MaxColors];
     public int ColorCount { get; set; }
+    public int Columns => 8;
+    public bool ExportColorConstants => true;
+    public Color GetPaletteColor(int index) => (uint)index < ColorCount ? Colors[index] : Color.Transparent;
+    public string? GetPaletteColorName(int index) => (uint)index < ColorCount ? ColorNames[index] : null;
 
     public static void RegisterDef()
     {

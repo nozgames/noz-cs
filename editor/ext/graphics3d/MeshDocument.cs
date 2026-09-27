@@ -24,6 +24,19 @@ public class MeshDocument : Document
     public int VertexCount => _imported?.Vertices.Length ?? 0;
     public int IndexCount => _imported?.Indices.Length ?? 0;
     public int PrimitiveCount => _imported?.Primitives.Length ?? 0;
+    public MeshChannels Channels => _imported?.Channels ?? MeshChannels.Unknown;
+    public int PreviewRevision { get; private set; }
+    public virtual void UpdatePreview() { }
+    public Mesh? LoadEditorMesh() => LoadPreviewMesh();
+
+    protected void SetImportedPreview(ImportedMesh? mesh)
+    {
+        _imported = mesh;
+        // Inspector edits happen after preview draw commands have been queued.
+        // Replace GPU resources in the next preview pass, not during UI layout.
+        InvalidatePreview();
+        PreviewRevision++;
+    }
 
     public static void RegisterDef()
     {
@@ -58,7 +71,8 @@ public class MeshDocument : Document
             imported.Indices,
             imported.Primitives,
             imported.BoundsMin,
-            imported.BoundsMax);
+            imported.BoundsMax,
+            imported.Channels);
         _imported = imported;
     }
 
@@ -104,6 +118,7 @@ public class MeshDocument : Document
                 var valueStyle = EditorStyle.Text.Primary;
                 using (EditorInspector.BeginProperty("Vertices")) UI.Text($"{VertexCount:N0}", valueStyle);
                 using (EditorInspector.BeginProperty("Triangles")) UI.Text($"{IndexCount / 3:N0}", valueStyle);
+                MeshStatisticsInspector.DrawChannels(Channels, _imported == null ? "None" : null);
             }
         }
         InspectorActions?.Invoke(this);
@@ -153,6 +168,8 @@ public class MeshDocument : Document
                 var mesh = LoadPreviewMesh();
                 if (mesh == null)
                 {
+                    ReleasePreview();
+                    _previewDirty = false;
                     return false;
                 }
 

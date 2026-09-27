@@ -117,6 +117,19 @@ internal static partial class EditorUI
         return color;
     }
 
+    public static int PaletteButton(WidgetId id, IPaletteSource palette, int selected)
+    {
+        ElementTree.BeginTree();
+        ElementTree.BeginWidget<ColorButtonState>(id);
+        var flags = ElementTree.GetWidgetFlags();
+        ElementTree.BeginSize(EditorStyle.Control.Height);
+        DrawColorButtonContent(palette.GetPaletteColor(selected), true);
+        ElementTree.EndTree();
+        if (flags.HasFlag(WidgetFlags.Pressed)) ColorPicker.OpenPalette(id, palette, selected);
+        ElementTree.SetLastWidget(id);
+        return ColorPicker.TakePaletteResult(id, out var result) ? result : selected;
+    }
+
     public static void PanelSeparator()
     {
         if (UI.IsRow())

@@ -38,6 +38,7 @@ public abstract class Document : IDisposable, IChangeHandler
     public bool ShouldExport { get; set; } = true;
     public bool SilentExport { get; set; }
     public virtual bool CanExport => true;
+    public virtual bool NeedsExport => false;
 
     internal UndoStack UndoHistory => _undoHistory ??= new UndoStack(64);
 

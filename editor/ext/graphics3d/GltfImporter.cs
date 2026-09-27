@@ -10,6 +10,7 @@ namespace NoZ.Editor.Graphics3D;
 
 public sealed class ImportedMesh
 {
+    public MeshChannels Channels { get; init; }
     public required MeshVertex3D[] Vertices { get; init; }
     public required uint[] Indices { get; init; }
     public required MeshPrimitive[] Primitives { get; init; }
@@ -67,6 +68,7 @@ public static class GltfImporter
             var vertices = new List<MeshVertex3D>();
             var indices = new List<uint>();
             var primitives = new List<MeshPrimitive>();
+            var channels = MeshChannels.Unknown;
 
             if (!root.TryGetProperty("meshes", out var meshesElement) ||
                 meshesElement.ValueKind != JsonValueKind.Array)
@@ -85,7 +87,7 @@ public static class GltfImporter
                 var primitiveIndex = 0;
                 foreach (var primitiveElement in primitivesElement.EnumerateArray())
                 {
-                    ImportPrimitive(
+                    channels |= ImportPrimitive(
                         root,
                         buffers,
                         primitiveElement,
@@ -114,6 +116,7 @@ public static class GltfImporter
 
             return new ImportedMesh
             {
+                Channels = channels,
                 Vertices = [.. vertices],
                 Indices = [.. indices],
                 Primitives = [.. primitives],
@@ -123,7 +126,7 @@ public static class GltfImporter
         }
     }
 
-    private static void ImportPrimitive(
+    private static MeshChannels ImportPrimitive(
         JsonElement root,
         byte[][] buffers,
         JsonElement primitiveElement,
@@ -223,6 +226,13 @@ public static class GltfImporter
             positionAccessor.Count,
             indexOffset,
             indexCount));
+        return positionAccessor.Count == 0 ? MeshChannels.Unknown : MeshChannels.Position |
+            (normalAccessor != null ? MeshChannels.Normal : 0) |
+            (tangentAccessor != null ? MeshChannels.Tangent : 0) |
+            (texCoordAccessor != null ? MeshChannels.UV1 : 0) |
+            (texCoord1Accessor != null ? MeshChannels.UV2 : 0) |
+            (texCoord2Accessor != null ? MeshChannels.UV3 : 0) |
+            (colorAccessor != null ? MeshChannels.Color : 0);
     }
 
     private static void GenerateNormals(
@@ -261,7 +271,7 @@ public static class GltfImporter
                 normal,
                 vertex.Tangent,
                 vertex.TexCoord0,
-                vertex.Color0, vertex.TexCoord1, vertex.TexCoord2);
+                vertex.Color0, vertex.TexCoord1, vertex.TexCoord2, vertex.EmissionStrength);
         }
     }
 

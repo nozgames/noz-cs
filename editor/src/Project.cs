@@ -154,6 +154,7 @@ public static class Project
 
     private static bool IsAuxiliaryFile(string path)
     {
+        if (GetCompanionParentPath(path) != null) return true;
         var filename = System.IO.Path.GetFileName(path);
         foreach (var def in _defsByType.Values)
         {
@@ -169,6 +170,7 @@ public static class Project
 
     private static string? GetAuxiliaryParentPath(string path)
     {
+        if (GetCompanionParentPath(path) is { } parent) return parent;
         var dir = GetDirectory(path);
         var filename = System.IO.Path.GetFileName(path);
         foreach (var def in _defsByType.Values)
@@ -184,6 +186,21 @@ public static class Project
                     if (File.Exists(candidate))
                         return candidate;
                 }
+            }
+        }
+        return null;
+    }
+
+    private static string? GetCompanionParentPath(string path)
+    {
+        var ext = System.IO.Path.GetExtension(path);
+        foreach (var def in _defsByExtension.Values.SelectMany(defs => defs).Distinct())
+        {
+            if (def.CompanionExtensions?.Contains(ext, StringComparer.OrdinalIgnoreCase) != true) continue;
+            foreach (var primary in def.Extensions)
+            {
+                var candidate = System.IO.Path.ChangeExtension(path, primary);
+                if (File.Exists(candidate)) return candidate;
             }
         }
         return null;
@@ -270,6 +287,8 @@ public static class Project
             return null;
         var path = CombinePath(CombinePath(_sourcePaths[0], typeName), canonicalName + extension);
         if (File.Exists(path))
+            return null;
+        if (GetDef(extension)?.CompanionExtensions?.Any(ext => File.Exists(System.IO.Path.ChangeExtension(path, ext))) == true)
             return null;
 
         var directory = GetDirectory(path);
@@ -435,7 +454,7 @@ public static class Project
     {
         var directory = GetDirectory(doc.Path);
         var stem = System.IO.Path.GetFileNameWithoutExtension(doc.Path);
-        foreach (var ext in doc.Def.Extensions)
+        foreach (var ext in doc.Def.Extensions.Concat(doc.Def.CompanionExtensions ?? []))
         {
             var path = CombinePath(directory, stem + ext);
             if (File.Exists(path) && !string.Equals(path, doc.Path, StringComparison.OrdinalIgnoreCase))
@@ -466,6 +485,8 @@ public static class Project
         var currentExt = System.IO.Path.GetExtension(doc.Path);
         var newPath = CombinePath(directory, canonicalName + currentExt);
         if (File.Exists(newPath))
+            return false;
+        if (doc.Def.CompanionExtensions?.Any(ext => File.Exists(System.IO.Path.ChangeExtension(newPath, ext))) == true)
             return false;
 
         // Rename companion files (e.g., .png alongside .sprite)
@@ -675,6 +696,8 @@ public static class Project
 
             if (File.Exists(candidate))
                 continue;
+            if (def.CompanionExtensions?.Any(ext => File.Exists(System.IO.Path.ChangeExtension(candidate, ext))) == true)
+                continue;
 
             var canonicalName = MakeCanonicalName(candidate);
             if (Find(def.Type, canonicalName) != null)
@@ -749,6 +772,7 @@ public static class Project
     {
         if (doc == null) return;
         if (!doc.ShouldExport) return;
+        force |= doc.NeedsExport;
         if (doc.IsQueuedForExport)
         {
             if (force && _watching && doc is IBackgroundImportDocument { BackgroundImportEnabled: true })

@@ -77,6 +77,10 @@ public interface IPlatform
     bool IsRelativeMouseMode => false;
     void SetRelativeMouseMode(bool enabled) { }
 
+    // Position uses the same pixel coordinates as MouseMove events. Browsers
+    // restore the cursor when pointer lock ends and do not support warping.
+    void SetMousePosition(Vector2 position) { }
+
     void SetCursor(SystemCursor cursor);
 
     bool IsFullscreen { get; }

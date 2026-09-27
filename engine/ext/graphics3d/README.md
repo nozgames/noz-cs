@@ -6,11 +6,11 @@ Types use the shared `NoZ` namespace but live in the optional `NoZ.Graphics3D` a
 
 - `Graphics3DModule.RegisterAssetTypes()` — call before loading mesh assets.
 - `Camera3D` and `Ray3D` — perspective projection and screen picking using `System.Numerics` row-vector matrices, with depth in the 0–1 clip range.
-- `Mesh`, `MeshVertex3D`, and `MeshPrimitive` — CPU/GPU mesh data and binary import/export. `MESH` version 1 is unchanged.
+- `Mesh`, `MeshVertex3D`, and `MeshPrimitive` — CPU/GPU mesh data and binary import/export. `MESH` v4 preserves source channel metadata for editor statistics; v1/v2/v3 remain readable with unknown channels. v3 adds a nonnegative emission strength scalar; v1/v2 load with emission off.
 - `Graphics3D.Draw(mesh, model, camera.ViewProjectionMatrix)` — indexed submission using the caller's shader, textures, blend mode and layer, with a per-object inverse-transpose normal matrix. The two-matrix form keeps lighting in world space when objects rotate or scale. `Draw(mesh, viewProjection)` uses an identity model for previews or world-space geometry.
 - `PostProcess3D.Ssao(camera, settings)` and `SsaoSettings` — depth-only ambient occlusion, blur and composition on the existing `NoZ.PostProcess` pipeline.
 
-The host owns materials, render passes and scene/gameplay organization. Enable depth on the pass and in the mesh shader, and restore the 2D camera before submitting UI. Mesh vertices use positions/normals/tangents/UV0/colors at shader locations 0–4. Dispose mesh assets before graphics shutdown.
+The host owns materials, render passes and scene/gameplay organization. Enable depth on the pass and in the mesh shader, and restore the 2D camera before submitting UI. Mesh vertices use positions/normals/tangents/UV0/colors at shader locations 0–4, emission strength at 14, and packed UV1/UV2 at 15. Locations 5–13 remain available for instance data. The host importer supplies emission; the generic glTF geometry importer leaves it at zero. Dispose mesh assets before graphics shutdown.
 
 Generic GPU facilities (vertex layouts, buffers, depth attachments, matrix submission, texture sampling, and post-process blits) remain in core. They do not require camera, mesh-asset, scene, lighting, or prefab concepts.
 

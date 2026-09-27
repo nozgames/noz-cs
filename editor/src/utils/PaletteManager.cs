@@ -11,11 +11,12 @@ public class PaletteDef
     public string Id { get; }
     public string? DisplayName { get; }
     public string Label { get; }
-    public Color[] Colors { get; } = new Color[MaxColorCount];
-    public string?[] ColorNames { get; } = new string?[MaxColorCount];
+    public Color[] Colors { get; private set; } = new Color[MaxColorCount];
+    public string?[] ColorNames { get; private set; } = new string?[MaxColorCount];
     public int Count { get; internal set; }
 
-    internal PaletteDocument? SourceDocument { get; set; }
+    internal Document? SourceDocument { get; set; }
+    public IPaletteSource? Source => SourceDocument as IPaletteSource;
 
     public PaletteDef(string id, string? displayName)
     {
@@ -26,13 +27,13 @@ public class PaletteDef
 
     internal void SyncFromDocument()
     {
-        if (SourceDocument == null) return;
-
-        Count = SourceDocument.ColorCount;
+        if (Source is not { } source) return;
+        Count = source.ColorCount;
+        if (Colors.Length != Count) { Colors = new Color[Count]; ColorNames = new string?[Count]; }
         for (int i = 0; i < Count; i++)
         {
-            Colors[i] = SourceDocument.Colors[i];
-            ColorNames[i] = SourceDocument.ColorNames[i];
+            Colors[i] = source.GetPaletteColor(i);
+            ColorNames[i] = source.GetPaletteColorName(i);
         }
     }
 }
@@ -46,6 +47,9 @@ public static class PaletteManager
 
     public static void Init()
     {
+        Project.DocumentAdded -= PaletteChanged; Project.DocumentAdded += PaletteChanged;
+        Project.DocumentRemoved -= PaletteChanged; Project.DocumentRemoved += PaletteChanged;
+        Project.DocumentRenamed -= PaletteRenamed; Project.DocumentRenamed += PaletteRenamed;
         _palettes.Clear();
         _paletteIdMap.Clear();
     }
@@ -57,11 +61,11 @@ public static class PaletteManager
 
         foreach (var doc in Project.Documents)
         {
-            if (doc is not PaletteDocument palDoc) continue;
+            if (doc is not IPaletteSource) continue;
 
-            var id = palDoc.Name;
+            var id = doc.Name;
             var def = new PaletteDef(id, null);
-            def.SourceDocument = palDoc;
+            def.SourceDocument = doc;
             def.SyncFromDocument();
 
             _paletteIdMap[id.ToLower()] = _palettes.Count;
@@ -74,9 +78,16 @@ public static class PaletteManager
 
     public static void Shutdown()
     {
+        Project.DocumentAdded -= PaletteChanged;
+        Project.DocumentRemoved -= PaletteChanged;
+        Project.DocumentRenamed -= PaletteRenamed;
         _palettes.Clear();
         _paletteIdMap.Clear();
     }
+
+    private static void PaletteChanged(Document document)
+    { if (document is IPaletteSource) { DiscoverPalettes(); AssetManifest.IsModified = true; } }
+    private static void PaletteRenamed(Document document, string oldName) => PaletteChanged(document);
 
     public static PaletteDef? GetPalette(int index)
     {
@@ -102,7 +113,7 @@ public static class PaletteManager
     public static Color GetColor(int paletteIndex, int colorId)
     {
         var palette = GetPalette(paletteIndex);
-        if (palette == null || colorId < 0 || colorId >= PaletteDef.MaxColorCount)
+        if (palette == null || colorId < 0 || colorId >= palette.Count)
             return Color.White;
         return palette.Colors[colorId];
     }
@@ -110,7 +121,7 @@ public static class PaletteManager
     public static Color GetColor(string paletteName, int colorId)
     {
         var palette = GetPalette(paletteName);
-        if (palette == null || colorId < 0 || colorId >= PaletteDef.MaxColorCount)
+        if (palette == null || colorId < 0 || colorId >= palette.Count)
             return Color.White;
         return palette.Colors[colorId];
     }
@@ -119,7 +130,7 @@ public static class PaletteManager
     {
         var palette = GetPalette(paletteIndex);
         if (palette == null) return 0;
-        for (int i = 0; i < palette.Count; i++)
+        for (int i = 0; i < Math.Min(palette.Count, 256); i++)
         {
             var pc = palette.Colors[i].ToColor32();
             if (pc.R == color.R && pc.G == color.G && pc.B == color.B)

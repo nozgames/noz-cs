@@ -17,6 +17,7 @@ internal partial class PaletteTextureEditor : DocumentEditor
         public static partial WidgetId Color { get; }
         public static partial WidgetId FillGradient { get; }
         public static partial WidgetId Clear { get; }
+        public static partial WidgetId Name { get; }
     }
 
     private readonly List<int> _selected = [];
@@ -57,7 +58,7 @@ internal partial class PaletteTextureEditor : DocumentEditor
 
     public override void InspectorUI()
     {
-        using (EditorInspector.BeginSection("PALETTE TEXTURE"))
+        using (EditorInspector.BeginSection(Document is NativePaletteDocument ? "PALETTE" : "PALETTE TEXTURE"))
         {
             if (!EditorInspector.IsSectionCollapsed)
             {
@@ -72,6 +73,7 @@ internal partial class PaletteTextureEditor : DocumentEditor
 
                 using (EditorInspector.BeginProperty("Filter"))
                     Document.DrawFilterDropDown(WidgetIds.Filter, SetFilter);
+                if (Document is NativePaletteDocument palette) palette.DrawImportSettings();
             }
         }
 
@@ -89,6 +91,12 @@ internal partial class PaletteTextureEditor : DocumentEditor
             var active = _selected[^1];
             var x = active % Document.GridSize;
             var y = active / Document.GridSize;
+            if (Document is NativePaletteDocument native)
+            {
+                using var property = EditorInspector.BeginProperty("Name");
+                var name = EditorInspector.TextField(WidgetIds.Name, native.GetColorName(active), native);
+                if (name != native.GetColorName(active)) native.SetColorName(active, name);
+            }
 
             using (EditorInspector.BeginProperty(_selected.Count == 1 ? "Cell" : "Cells"))
                 UI.Text(_selected.Count == 1 ? $"{x}, {y}" : _selected.Count.ToString());

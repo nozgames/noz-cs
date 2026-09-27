@@ -30,6 +30,7 @@ public static class Graphics3DEditor
         MeshDocument.RegisterDef();
         TextureDocument.RegisterDef();
         PaletteTextureDocument.RegisterDef();
+        NativePaletteDocument.RegisterDef();
         Vfx3DDocument.RegisterDef();
     }
 
