@@ -11,6 +11,8 @@ namespace NoZ.Editor.Graphics3D;
 public sealed class ImportedMesh
 {
     public MeshChannels Channels { get; init; }
+    /// <summary>Texture the mesh samples; hosts fill this in from their own sources.</summary>
+    public string Texture { get; set; } = "";
     public required MeshVertex3D[] Vertices { get; init; }
     public required uint[] Indices { get; init; }
     public required MeshPrimitive[] Primitives { get; init; }

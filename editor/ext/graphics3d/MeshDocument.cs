@@ -73,7 +73,8 @@ public class MeshDocument : Document
             imported.Primitives,
             imported.BoundsMin,
             imported.BoundsMax,
-            imported.Channels);
+            imported.Channels,
+            imported.Texture);
         _imported = imported;
     }
 
@@ -221,7 +222,7 @@ public class MeshDocument : Document
             passStarted = true;
             Graphics.SetTransform(Matrix3x2.Identity);
             Graphics.SetShader(shader);
-            MeshPreviewRenderer.BindMaterialTextures();
+            MeshPreviewRenderer.BindMaterialTextures(_previewMesh.Texture);
             Graphics.SetBlendMode(BlendMode.None);
             Graphics.SetLayer(EditorLayer.Document);
             global::NoZ.Graphics3D.Draw(_previewMesh, _previewCamera.ViewProjectionMatrix);

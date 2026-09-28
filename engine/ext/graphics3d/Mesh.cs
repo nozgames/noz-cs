@@ -80,7 +80,7 @@ public readonly record struct MeshPrimitive(
 public sealed class Mesh : Asset
 {
     public static readonly AssetType Type = AssetType.FromString("MESH");
-    public const ushort Version = 4;
+    public const ushort Version = 5;
 
     private const int MaxElementCount = 100_000_000;
     private RenderMesh _renderMesh;
@@ -89,6 +89,8 @@ public sealed class Mesh : Asset
     public uint[] Indices { get; private set; } = [];
     public MeshPrimitive[] Primitives { get; private set; } = [];
     public MeshChannels Channels { get; private set; }
+    /// <summary>Name of the texture the mesh's UVs sample (a palette). Empty uses the host default.</summary>
+    public string Texture { get; private set; } = "";
     public Vector3 BoundsMin { get; private set; }
     public Vector3 BoundsMax { get; private set; }
     public Vector3 BoundsCenter => (BoundsMin + BoundsMax) * 0.5f;
@@ -128,7 +130,7 @@ public sealed class Mesh : Asset
         reader.BaseStream.Position = payload - 4;
         var version = reader.ReadUInt16();
         reader.BaseStream.Position = payload;
-        if (version is not (1 or 2 or 3 or 4)) throw new InvalidDataException("Unsupported mesh version.");
+        if (version is not (1 or 2 or 3 or 4 or 5)) throw new InvalidDataException("Unsupported mesh version.");
         var boundsMin = ReadVector3(reader);
         var boundsMax = ReadVector3(reader);
 
@@ -174,6 +176,7 @@ public sealed class Mesh : Asset
         }
 
         Channels = version >= 4 ? (MeshChannels)reader.ReadInt32() : MeshChannels.Unknown;
+        Texture = version >= 5 ? reader.ReadString() : "";
         BoundsMin = boundsMin;
         BoundsMax = boundsMax;
         Vertices = vertices;
@@ -214,7 +217,8 @@ public sealed class Mesh : Asset
         IReadOnlyList<MeshPrimitive> primitives,
         Vector3 boundsMin,
         Vector3 boundsMax,
-        MeshChannels channels = MeshChannels.Unknown)
+        MeshChannels channels = MeshChannels.Unknown,
+        string? texture = null)
     {
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(vertices);
@@ -266,6 +270,7 @@ public sealed class Mesh : Asset
             writer.Write(primitive.IndexCount);
         }
         writer.Write((int)channels);
+        writer.Write(texture ?? string.Empty);
     }
 
     private static void ValidateEmission(float strength)

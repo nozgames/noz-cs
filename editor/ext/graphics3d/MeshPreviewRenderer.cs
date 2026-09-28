@@ -17,6 +17,7 @@ public static class MeshPreviewRenderer
 
     private static Shader? _shader;
     private static Texture? _texture;
+    private static readonly Dictionary<string, Texture> _meshTextures = [];
     private static readonly Dictionary<string, Texture> _additionalTextures = [];
     private static bool _initialized;
     public static int MaterialRevision { get; private set; }
@@ -29,8 +30,9 @@ public static class MeshPreviewRenderer
         _settings = settings;
     }
 
-    /// <summary>Bind the host-selected preview texture, or white when none is available.</summary>
-    public static void BindTexture()
+    /// <summary>Bind a mesh's own texture when it names one (see <see cref="Mesh.Texture"/>),
+    /// otherwise the host-selected preview texture, or white when none is available.</summary>
+    public static void BindTexture(string? meshTexture = null)
     {
         EnsureInitialized();
         var textureName = _settings?.TextureName;
@@ -45,15 +47,22 @@ public static class MeshPreviewRenderer
                     libraryPath: Project.OutputPath) as Texture;
         }
 
-        var texture = _texture ?? Graphics.WhiteTexture;
+        Texture? own = null;
+        if (!string.IsNullOrEmpty(meshTexture) && meshTexture != textureName && !_meshTextures.TryGetValue(meshTexture, out own) &&
+            File.Exists(System.IO.Path.Combine(Project.OutputPath, "texture", meshTexture)))
+        {
+            own = Asset.Load(AssetType.Texture, meshTexture, useRegistry: false, libraryPath: Project.OutputPath) as Texture;
+            if (own != null) _meshTextures[meshTexture] = own;
+        }
+        var texture = own ?? _texture ?? Graphics.WhiteTexture;
         Graphics.SetTexture(texture);
         Graphics.SetTextureFilter(_settings?.TextureFilter ?? TextureFilter.Linear);
     }
 
     /// <summary>Bind the complete host preview material, including auxiliary maps.</summary>
-    public static void BindMaterialTextures()
+    public static void BindMaterialTextures(string? meshTexture = null)
     {
-        BindTexture();
+        BindTexture(meshTexture);
         var shader = GetShader();
         if (shader == null) return;
         var count = shader.Bindings.Count(b => b.Type is ShaderBindingType.Texture2D or
@@ -131,6 +140,8 @@ public static class MeshPreviewRenderer
         _shader = null;
         _texture?.Dispose();
         _texture = null;
+        foreach (var texture in _meshTextures.Values) texture.Dispose();
+        _meshTextures.Clear();
         foreach (var texture in _additionalTextures.Values) texture.Dispose();
         _additionalTextures.Clear();
         MaterialRevision++;
@@ -161,6 +172,8 @@ public static class MeshPreviewRenderer
             _texture?.Dispose();
             _texture = null;
         }
+        else if (document.Def.Type == AssetType.Texture && _meshTextures.Remove(document.Name, out var meshTexture))
+            meshTexture.Dispose();
         else if (document.Def.Type == AssetType.Texture && _settings?.AdditionalTextures.Contains(document.Name) == true)
         {
             if (_additionalTextures.Remove(document.Name, out var texture)) texture.Dispose();
