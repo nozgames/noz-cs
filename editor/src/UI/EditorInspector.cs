@@ -39,9 +39,10 @@ public static partial class EditorInspector
         Action? content = null,
         bool isActive = false,
         bool collapsed = false,
-        bool empty = false)
+        bool empty = false,
+        bool defaultCollapsed = false)
     {
-        Inspector.BeginSection(name, icon, content, isActive, collapsed, empty);
+        Inspector.BeginSection(name, icon, content, isActive, collapsed, empty, defaultCollapsed);
         return new AutoSection();
     }
 

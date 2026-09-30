@@ -11,6 +11,7 @@ internal static partial class Inspector
 
     private struct SectionState
     {
+        // Toggled away from the section's default (open, or collapsed with defaultCollapsed).
         public byte Collapsed;
     }
 
@@ -65,12 +66,13 @@ internal static partial class Inspector
         Action? content = null,
         bool isActive = false,
         bool collapsed = false,
-        bool empty = false)
+        bool empty = false,
+        bool defaultCollapsed = false)
     {
         if (_sectionOpen)
             EndSection();
 
-        BeginSectionCore(name, icon, content, isActive, collapsed, empty);
+        BeginSectionCore(name, icon, content, isActive, collapsed, empty, defaultCollapsed);
         _sectionOpen = true;
     }
 
@@ -80,11 +82,12 @@ internal static partial class Inspector
         Action? content = null,
         bool isActive = false,
         bool collapsed = false,
-        bool empty = false)
+        bool empty = false,
+        bool defaultCollapsed = false)
     {
         if (_sectionOpen)
             EndSection();
-        BeginSectionCore(name, icon, content, isActive, collapsed, empty);
+        BeginSectionCore(name, icon, content, isActive, collapsed, empty, defaultCollapsed);
         return new AutoSection();
     }
 
@@ -94,7 +97,8 @@ internal static partial class Inspector
         Action? content,
         bool isActive,
         bool collapsed,
-        bool empty)
+        bool empty,
+        bool defaultCollapsed)
     {
         var sectionId = _nextSectionId++;
         _sectionActive = isActive;
@@ -108,7 +112,7 @@ internal static partial class Inspector
         var hovered = flags.HasFlag(WidgetFlags.Hovered);
 
         _wasHeaderPressed = flags.HasFlag(WidgetFlags.Pressed);
-        _sectionCollapsed = empty || state.Collapsed != 0 || collapsed;
+        _sectionCollapsed = empty || (state.Collapsed != 0) != defaultCollapsed || collapsed;
 
         if (_wasHeaderPressed)
             state.Collapsed = (byte)(state.Collapsed != 0 ? 0 : 1);

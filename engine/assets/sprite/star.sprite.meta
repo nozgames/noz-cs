@@ -1,9 +1,12 @@
 [editor]
-position = (5.167969,-1.238281)
-collection = default
+position = (2.500000,-9.500000)
+collection = tools
+export = true
 
 [sprite]
 show_in_skeleton = false
 show_tiling = false
 show_skeleton_overlay = false
+tile_x = true
+tile_y = true
 
