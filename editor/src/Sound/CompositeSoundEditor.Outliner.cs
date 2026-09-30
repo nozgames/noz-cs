@@ -8,7 +8,7 @@ internal partial class CompositeSoundEditor
 {
     public override void OutlinerUI()
     {
-        using (UI.BeginColumn(ElementId.OutlinerPanel, EditorStyle.Inspector.Root))
+        using (UI.BeginColumn(WidgetIds.OutlinerPanel, EditorStyle.Inspector.Root))
         {
             LayerListUI();
         }
@@ -19,7 +19,7 @@ internal partial class CompositeSoundEditor
         void AddButton()
         {
             ElementTree.BeginAlign(Align.Min, Align.Center);
-            if (UI.Button(ElementId.AddLayerButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+            if (UI.Button(WidgetIds.AddLayerButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
             {
                 AssetPalette.Open(
                     AssetType.Sound,
@@ -48,7 +48,7 @@ internal partial class CompositeSoundEditor
             {
                 var layer = Document.Layers[i];
                 var isSelected = SelectedLayerIndex == i;
-                var rowId = ElementId.LayerRow + i;
+                var rowId = WidgetIds.LayerRow + i;
 
                 var style = EditorStyle.Inspector.ListItem;
                 if (isSelected)

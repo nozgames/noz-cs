@@ -12,7 +12,7 @@ internal partial class SkeletonEditor : DocumentEditor
     private const int SortGroupBones = 1;
     private const int SortGroupSelectedBones = 2;
 
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId PreviewButton { get; }
@@ -152,7 +152,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
             using (Inspector.BeginProperty("Color"))
             {
-                var color = EditorUI.ColorButton(ElementId.BoneColor, bone.Color);
+                var color = EditorUI.ColorButton(WidgetIds.BoneColor, bone.Color);
                 if (UI.WasChangeStarted()) Undo.Record(Document);
                 if (UI.WasChanged()) bone.Color = color;
                 if (UI.WasChangeCancelled()) Undo.Cancel();
@@ -174,7 +174,7 @@ internal partial class SkeletonEditor : DocumentEditor
     private void StatesAddButton()
     {
         ElementTree.BeginAlign(Align.Min, Align.Center);
-        if (UI.Button(ElementId.StatesAdd, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+        if (UI.Button(WidgetIds.StatesAdd, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
             AddState();
         ElementTree.EndAlign();
     }
@@ -182,7 +182,7 @@ internal partial class SkeletonEditor : DocumentEditor
     private void DrawStateRow(int i)
     {
         var state = Document.States[i];
-        var rowId = ElementId.StateRow + i;
+        var rowId = WidgetIds.StateRow + i;
 
         using (UI.BeginRow(rowId, EditorStyle.Inspector.Row))
         {
@@ -190,7 +190,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
             using (UI.BeginFlex(0.5f))
             {
-                var newName = UI.TextInput(ElementId.StateName + i, state.Name, EditorStyle.Inspector.TextBox);
+                var newName = UI.TextInput(WidgetIds.StateName + i, state.Name, EditorStyle.Inspector.TextBox);
                 if (UI.WasChangeStarted()) Undo.Record(Document);
                 if (UI.WasChanged() && newName != state.Name)
                 {
@@ -205,7 +205,7 @@ internal partial class SkeletonEditor : DocumentEditor
             using (UI.BeginFlex(0.5f))
             {
                 var valText = state.InitialValue.ToString();
-                var newText = UI.TextInput(ElementId.StateValue + i, valText, EditorStyle.Inspector.TextBox, "0");
+                var newText = UI.TextInput(WidgetIds.StateValue + i, valText, EditorStyle.Inspector.TextBox, "0");
                 if (UI.WasChangeStarted()) Undo.Record(Document);
                 if (UI.WasChanged() && newText != valText && int.TryParse(newText, out var parsed))
                 {
@@ -217,7 +217,7 @@ internal partial class SkeletonEditor : DocumentEditor
 
             if (hovered)
             {
-                if (UI.Button(ElementId.StateDelete + i, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
+                if (UI.Button(WidgetIds.StateDelete + i, EditorAssets.Sprites.IconDelete, EditorStyle.Inspector.SectionButton))
                     RemoveState(i);
             }
             else
@@ -254,12 +254,12 @@ internal partial class SkeletonEditor : DocumentEditor
     {
         using (FloatingToolbar.Begin())
         {
-            if (FloatingToolbar.Button(ElementId.ConnectedButton, EditorAssets.Sprites.IconConnected, isSelected: Document.CurrentConnected))
+            if (FloatingToolbar.Button(WidgetIds.ConnectedButton, EditorAssets.Sprites.IconConnected, isSelected: Document.CurrentConnected))
                 ToggleConnected();
 
             FloatingToolbar.Divider();
 
-            if (FloatingToolbar.Button(ElementId.PreviewButton, EditorAssets.Sprites.IconPreview, isSelected: _showPreview))
+            if (FloatingToolbar.Button(WidgetIds.PreviewButton, EditorAssets.Sprites.IconPreview, isSelected: _showPreview))
                 _showPreview = !_showPreview;
         }
 

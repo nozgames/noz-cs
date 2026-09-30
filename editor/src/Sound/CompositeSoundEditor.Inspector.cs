@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 internal partial class CompositeSoundEditor
 {
-    private static partial class FieldId
+    private static partial class WidgetIds
     {
         public static partial WidgetId VolumeMin { get; }
         public static partial WidgetId VolumeMax { get; }
@@ -114,7 +114,7 @@ internal partial class CompositeSoundEditor
     private void VolumeUI()
     {
         RangePropertyUI("VOLUME",
-            FieldId.VolumeState, FieldId.VolumeMin, FieldId.VolumeMax, FieldId.VolumeRandom,
+            WidgetIds.VolumeState, WidgetIds.VolumeMin, WidgetIds.VolumeMax, WidgetIds.VolumeRandom,
             "Volume",
             () => Document.VolumeMin, v => Document.VolumeMin = v,
             () => Document.VolumeMax, v => Document.VolumeMax = v);
@@ -123,7 +123,7 @@ internal partial class CompositeSoundEditor
     private void PitchUI()
     {
         RangePropertyUI("PITCH",
-            FieldId.PitchState, FieldId.PitchMin, FieldId.PitchMax, FieldId.PitchRandom,
+            WidgetIds.PitchState, WidgetIds.PitchMin, WidgetIds.PitchMax, WidgetIds.PitchRandom,
             "Pitch",
             () => Document.PitchMin, v => Document.PitchMin = v,
             () => Document.PitchMax, v => Document.PitchMax = v);
@@ -154,13 +154,13 @@ internal partial class CompositeSoundEditor
 
             using (Inspector.BeginProperty("Start"))
             {
-                var v = FloatInput(FieldId.LayerTrimStart, layer.TrimStart);
+                var v = FloatInput(WidgetIds.LayerTrimStart, layer.TrimStart);
                 if (v != layer.TrimStart) { layer.TrimStart = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
 
             using (Inspector.BeginProperty("End"))
             {
-                var v = FloatInput(FieldId.LayerTrimEnd, layer.TrimEnd);
+                var v = FloatInput(WidgetIds.LayerTrimEnd, layer.TrimEnd);
                 if (v != layer.TrimEnd) { layer.TrimEnd = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
         }
@@ -171,13 +171,13 @@ internal partial class CompositeSoundEditor
 
             using (Inspector.BeginProperty("Fade In"))
             {
-                var v = FloatInput(FieldId.LayerFadeIn, layer.FadeIn);
+                var v = FloatInput(WidgetIds.LayerFadeIn, layer.FadeIn);
                 if (v != layer.FadeIn) { layer.FadeIn = Math.Clamp(v, 0f, 1f); Document.ApplyChanges(); }
             }
 
             using (Inspector.BeginProperty("Fade Out"))
             {
-                var v = FloatInput(FieldId.LayerFadeOut, layer.FadeOut);
+                var v = FloatInput(WidgetIds.LayerFadeOut, layer.FadeOut);
                 if (v != layer.FadeOut) { layer.FadeOut = Math.Clamp(v, 0f, 1f); Document.ApplyChanges(); }
             }
         }
@@ -188,13 +188,13 @@ internal partial class CompositeSoundEditor
 
             using (Inspector.BeginProperty("Offset"))
             {
-                var v = FloatInput(FieldId.LayerOffset, layer.Offset);
+                var v = FloatInput(WidgetIds.LayerOffset, layer.Offset);
                 if (v != layer.Offset) { layer.Offset = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
 
             using (Inspector.BeginProperty("Volume"))
             {
-                var v = FloatInput(FieldId.LayerVolume, layer.Volume);
+                var v = FloatInput(WidgetIds.LayerVolume, layer.Volume);
                 if (v != layer.Volume) { layer.Volume = MathF.Max(0f, v); Document.ApplyChanges(); }
             }
         }

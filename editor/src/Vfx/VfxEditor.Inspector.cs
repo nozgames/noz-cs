@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 internal partial class VfxEditor
 {
-    private static partial class FieldId
+    private static partial class WidgetIds
     {
         public static partial WidgetId VfxDuration { get; }
         public static partial WidgetId VfxLoop { get; }
@@ -133,7 +133,7 @@ internal partial class VfxEditor
             if (Inspector.IsSectionCollapsed) return;
 
             var duration = Document.Duration;
-            if (RangeField(FieldId.VfxDuration, "Duration", ref duration))
+            if (RangeField(WidgetIds.VfxDuration, "Duration", ref duration))
             {
                 Document.Duration = duration;
                 Document.ApplyChanges();
@@ -142,7 +142,7 @@ internal partial class VfxEditor
             var loop = Document.Loop;
             using (Inspector.BeginProperty("Loop"))
             {
-                if (UI.Toggle(FieldId.VfxLoop, loop, EditorStyle.Inspector.Toggle))
+                if (UI.Toggle(WidgetIds.VfxLoop, loop, EditorStyle.Inspector.Toggle))
                 {
                     Undo.Record(Document);
                     Document.Loop = !loop;
@@ -164,13 +164,13 @@ internal partial class VfxEditor
             var duration = emitter.Duration;
             var worldSpace = emitter.WorldSpace;
 
-            if (FloatCurveField(FieldId.EmitterRate, "Rate", ref rate)) changed = true;
-            if (IntRangeField(FieldId.EmitterBurst, "Burst", ref burst)) changed = true;
-            if (RangeField(FieldId.EmitterDuration, "Duration", ref duration)) changed = true;
+            if (FloatCurveField(WidgetIds.EmitterRate, "Rate", ref rate)) changed = true;
+            if (IntRangeField(WidgetIds.EmitterBurst, "Burst", ref burst)) changed = true;
+            if (RangeField(WidgetIds.EmitterDuration, "Duration", ref duration)) changed = true;
 
             using (Inspector.BeginProperty("WorldSpace"))
             {
-                worldSpace = UI.Toggle(FieldId.EmitterWorldSpace, worldSpace, EditorStyle.Inspector.Toggle);
+                worldSpace = UI.Toggle(WidgetIds.EmitterWorldSpace, worldSpace, EditorStyle.Inspector.Toggle);
                 changed = changed || UI.WasChanged();
             }
 
@@ -178,7 +178,7 @@ internal partial class VfxEditor
             using (Inspector.BeginProperty("Particle"))
             {
                 var currentName = emitter.ParticleRef;
-                UI.DropDown(FieldId.EmitterParticle, () =>
+                UI.DropDown(WidgetIds.EmitterParticle, () =>
                 {
                     var items = new List<PopupMenuItem>();
                     foreach (var p in Document.Particles)
@@ -220,11 +220,11 @@ internal partial class VfxEditor
                 var radial = emitter.Radial;
 
                 using (Inspector.BeginProperty("Direction"))
-                    direction = FloatInput(FieldId.EmitterDirection + index * 4, direction);
+                    direction = FloatInput(WidgetIds.EmitterDirection + index * 4, direction);
                 using (Inspector.BeginProperty("Spread"))
-                    spread = FloatInput(FieldId.EmitterSpread + index * 4, spread);
+                    spread = FloatInput(WidgetIds.EmitterSpread + index * 4, spread);
                 using (Inspector.BeginProperty("Radial"))
-                    radial = FloatInput(FieldId.EmitterRadial + index * 4, radial);
+                    radial = FloatInput(WidgetIds.EmitterRadial + index * 4, radial);
                 if (direction != emitter.Direction || spread != emitter.Spread || radial != emitter.Radial)
                 {
                     emitter.Direction = direction;
@@ -258,7 +258,7 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty("Shape"))
         {
             var currentName = spawn.Shape.ToString();
-            if (_spawnShapeChanged && _spawnShapeChangedId == FieldId.EmitterSpawnShape)
+            if (_spawnShapeChanged && _spawnShapeChangedId == WidgetIds.EmitterSpawnShape)
             {
                 _spawnShapeChanged = false;
                 spawn = new VfxSpawnDef { Shape = _spawnShapeNewValue };
@@ -269,7 +269,7 @@ internal partial class VfxEditor
                 changed = true;
             }
 
-            UI.DropDown(FieldId.EmitterSpawnShape, () =>
+            UI.DropDown(WidgetIds.EmitterSpawnShape, () =>
             {
                 var items = new PopupMenuItem[SpawnShapeOptions.Length];
                 for (var i = 0; i < SpawnShapeOptions.Length; i++)
@@ -278,7 +278,7 @@ internal partial class VfxEditor
                     items[i] = PopupMenuItem.Item(opt.Name, () =>
                     {
                         _spawnShapeChanged = true;
-                        _spawnShapeChangedId = FieldId.EmitterSpawnShape;
+                        _spawnShapeChangedId = WidgetIds.EmitterSpawnShape;
                         _spawnShapeNewValue = opt.Shape;
                     });
                 }
@@ -290,8 +290,8 @@ internal partial class VfxEditor
         using (Inspector.BeginProperty("Offset"))
         using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
         {
-            spawn.Offset.X = FloatInput(FieldId.EmitterSpawnOffset + index * 4, spawn.Offset.X);
-            spawn.Offset.Y = FloatInput(FieldId.EmitterSpawnOffset + 2 + index * 4, spawn.Offset.Y);
+            spawn.Offset.X = FloatInput(WidgetIds.EmitterSpawnOffset + index * 4, spawn.Offset.X);
+            spawn.Offset.Y = FloatInput(WidgetIds.EmitterSpawnOffset + 2 + index * 4, spawn.Offset.Y);
         }
 
         // Shape-specific fields
@@ -299,26 +299,26 @@ internal partial class VfxEditor
         {
             case VfxSpawnShape.Circle:
                 using (Inspector.BeginProperty("Radius"))
-                    spawn.Circle.Radius = FloatInput(FieldId.EmitterSpawnRadius + index * 4, spawn.Circle.Radius);
+                    spawn.Circle.Radius = FloatInput(WidgetIds.EmitterSpawnRadius + index * 4, spawn.Circle.Radius);
                 using (Inspector.BeginProperty("Inner Radius"))
-                    spawn.Circle.InnerRadius = FloatInput(FieldId.EmitterSpawnInnerRadius + index * 4, spawn.Circle.InnerRadius);
+                    spawn.Circle.InnerRadius = FloatInput(WidgetIds.EmitterSpawnInnerRadius + index * 4, spawn.Circle.InnerRadius);
                 break;
 
             case VfxSpawnShape.Box:
                 using (Inspector.BeginProperty("Size"))
                 using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
                 {
-                    spawn.Box.Size.X = FloatInput(FieldId.EmitterSpawnSize + index * 4, spawn.Box.Size.X);
-                    spawn.Box.Size.Y = FloatInput(FieldId.EmitterSpawnSize + 2 + index * 4, spawn.Box.Size.Y);
+                    spawn.Box.Size.X = FloatInput(WidgetIds.EmitterSpawnSize + index * 4, spawn.Box.Size.X);
+                    spawn.Box.Size.Y = FloatInput(WidgetIds.EmitterSpawnSize + 2 + index * 4, spawn.Box.Size.Y);
                 }
                 using (Inspector.BeginProperty("Inner Size"))
                 using (UI.BeginRow(new ContainerStyle { Spacing = 4 }))
                 {
-                    spawn.Box.InnerSize.X = FloatInput(FieldId.EmitterSpawnInnerSize + index * 4, spawn.Box.InnerSize.X);
-                    spawn.Box.InnerSize.Y = FloatInput(FieldId.EmitterSpawnInnerSize + 2 + index * 4, spawn.Box.InnerSize.Y);
+                    spawn.Box.InnerSize.X = FloatInput(WidgetIds.EmitterSpawnInnerSize + index * 4, spawn.Box.InnerSize.X);
+                    spawn.Box.InnerSize.Y = FloatInput(WidgetIds.EmitterSpawnInnerSize + 2 + index * 4, spawn.Box.InnerSize.Y);
                 }
                 using (Inspector.BeginProperty("Rotation"))
-                    spawn.Box.Rotation = FloatInput(FieldId.EmitterSpawnRotation + index * 4, spawn.Box.Rotation);
+                    spawn.Box.Rotation = FloatInput(WidgetIds.EmitterSpawnRotation + index * 4, spawn.Box.Rotation);
                 break;
         }
 
@@ -354,7 +354,7 @@ internal partial class VfxEditor
             if (!Inspector.IsSectionCollapsed)
             {
                 var duration = particle.Duration;
-                if (RangeField(FieldId.ParticleDuration, "Duration", ref duration))
+                if (RangeField(WidgetIds.ParticleDuration, "Duration", ref duration))
                 {
                     particle.Duration = duration;
                     Document.ApplyChanges();
@@ -362,7 +362,7 @@ internal partial class VfxEditor
 
                 using (Inspector.BeginProperty("Sprite"))
                 {
-                    var newRef = EditorUI.SpriteField(FieldId.SpriteDropDown, particle.SpriteRef);
+                    var newRef = EditorUI.SpriteField(WidgetIds.SpriteDropDown, particle.SpriteRef);
                     if (newRef.Value != particle.SpriteRef.Value)
                     {
                         Undo.Record(Document);
@@ -381,7 +381,7 @@ internal partial class VfxEditor
                         Document.ApplyChanges();
                     }
 
-                    UI.DropDown(FieldId.ParticleFrameMode, () =>
+                    UI.DropDown(WidgetIds.ParticleFrameMode, () =>
                     {
                         var items = new PopupMenuItem[FrameModeOptions.Length];
                         for (var i = 0; i < FrameModeOptions.Length; i++)
@@ -400,7 +400,7 @@ internal partial class VfxEditor
                 using (Inspector.BeginProperty("Sort"))
                 {
                     var sortVal = (int)particle.Sort;
-                    if (IntInput(FieldId.ParticleSort, ref sortVal))
+                    if (IntInput(WidgetIds.ParticleSort, ref sortVal))
                     {
                         Undo.Record(Document);
                         particle.Sort = (ushort)Math.Clamp(sortVal, 0, ushort.MaxValue);
@@ -411,12 +411,12 @@ internal partial class VfxEditor
         }
 
         // Addable particle groups
-        if (AddableSection("SIZE", particle.Size != VfxDocFloatCurve.One, FieldId.SectionSize, FieldId.AddSize, FieldId.RemoveSize,
+        if (AddableSection("SIZE", particle.Size != VfxDocFloatCurve.One, WidgetIds.SectionSize, WidgetIds.AddSize, WidgetIds.RemoveSize,
             () => { particle.Size = new VfxDocFloatCurve { Start = new VfxRange(0.5f, 0.5f), End = new VfxRange(0f, 0.1f), CurveType = VfxCurveType.Quadratic, EaseType = VfxEaseType.Out, WindowEnd = 1f }; },
             () => { particle.Size = VfxDocFloatCurve.One; }))
         {
             var size = particle.Size;
-            if (FloatCurveField(FieldId.ParticleSize, "Size", ref size))
+            if (FloatCurveField(WidgetIds.ParticleSize, "Size", ref size))
             {
                 particle.Size = size;
                 Document.ApplyChanges();
@@ -424,12 +424,12 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("SPEED", particle.Speed != VfxDocFloatCurve.Zero, FieldId.SectionSpeed, FieldId.AddSpeed, FieldId.RemoveSpeed,
+        if (AddableSection("SPEED", particle.Speed != VfxDocFloatCurve.Zero, WidgetIds.SectionSpeed, WidgetIds.AddSpeed, WidgetIds.RemoveSpeed,
             () => { particle.Speed = new VfxDocFloatCurve { Start = new VfxRange(10, 20), End = new VfxRange(0, 5), CurveType = VfxCurveType.Linear, EaseType = VfxEaseType.In, WindowEnd = 1f }; },
             () => { particle.Speed = VfxDocFloatCurve.Zero; }))
         {
             var speed = particle.Speed;
-            if (FloatCurveField(FieldId.ParticleSpeed, "Speed", ref speed))
+            if (FloatCurveField(WidgetIds.ParticleSpeed, "Speed", ref speed))
             {
                 particle.Speed = speed;
                 Document.ApplyChanges();
@@ -437,12 +437,12 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("COLOR", particle.Color != VfxDocColorCurve.White, FieldId.SectionColor, FieldId.AddColor, FieldId.RemoveColor,
+        if (AddableSection("COLOR", particle.Color != VfxDocColorCurve.White, WidgetIds.SectionColor, WidgetIds.AddColor, WidgetIds.RemoveColor,
             () => { particle.Color = new VfxDocColorCurve { Start = new VfxColorRange(Color.White, Color.White), End = new VfxColorRange(Color.Yellow, Color.Yellow), CurveType = VfxCurveType.Linear, EaseType = VfxEaseType.In, WindowEnd = 1f }; },
             () => { particle.Color = VfxDocColorCurve.White; }))
         {
             var color = particle.Color;
-            if (ColorCurveField(FieldId.ParticleColor, "Color", ref color))
+            if (ColorCurveField(WidgetIds.ParticleColor, "Color", ref color))
             {
                 Undo.Record(Document);
                 particle.Color = color;
@@ -451,12 +451,12 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("OPACITY", particle.Opacity != VfxDocFloatCurve.One, FieldId.SectionOpacity, FieldId.AddOpacity, FieldId.RemoveOpacity,
+        if (AddableSection("OPACITY", particle.Opacity != VfxDocFloatCurve.One, WidgetIds.SectionOpacity, WidgetIds.AddOpacity, WidgetIds.RemoveOpacity,
             () => { particle.Opacity = new VfxDocFloatCurve { Start = VfxRange.One, End = VfxRange.Zero, CurveType = VfxCurveType.Quadratic, EaseType = VfxEaseType.Out, WindowEnd = 1f }; },
             () => { particle.Opacity = VfxDocFloatCurve.One; }))
         {
             var opacity = particle.Opacity;
-            if (FloatCurveField(FieldId.ParticleOpacity, "Opacity", ref opacity))
+            if (FloatCurveField(WidgetIds.ParticleOpacity, "Opacity", ref opacity))
             {
                 particle.Opacity = opacity;
                 Document.ApplyChanges();
@@ -464,12 +464,12 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("GRAVITY", particle.Gravity != VfxDocFloatCurve.Zero, FieldId.SectionGravity, FieldId.AddGravity, FieldId.RemoveGravity,
+        if (AddableSection("GRAVITY", particle.Gravity != VfxDocFloatCurve.Zero, WidgetIds.SectionGravity, WidgetIds.AddGravity, WidgetIds.RemoveGravity,
             () => { particle.Gravity = new VfxDocFloatCurve { Start = new VfxRange(10, 10), End = new VfxRange(10, 10), WindowEnd = 1f }; },
             () => { particle.Gravity = VfxDocFloatCurve.Zero; }))
         {
             var gravity = particle.Gravity;
-            if (FloatCurveField(FieldId.ParticleGravity, "Gravity", ref gravity))
+            if (FloatCurveField(WidgetIds.ParticleGravity, "Gravity", ref gravity))
             {
                 particle.Gravity = gravity;
                 Document.ApplyChanges();
@@ -478,12 +478,12 @@ internal partial class VfxEditor
         }
 
 
-        if (AddableSection("ROTATION", particle.Rotation != VfxRange.Zero, FieldId.SectionRotation, FieldId.AddRotation, FieldId.RemoveRotation,
+        if (AddableSection("ROTATION", particle.Rotation != VfxRange.Zero, WidgetIds.SectionRotation, WidgetIds.AddRotation, WidgetIds.RemoveRotation,
             () => { particle.Rotation = new VfxRange(0, 360); },
             () => { particle.Rotation = VfxRange.Zero; }))
         {
             var rotation = particle.Rotation;
-            if (RangeField(FieldId.ParticleRotation, "Rotation", ref rotation))
+            if (RangeField(WidgetIds.ParticleRotation, "Rotation", ref rotation))
             {
                 particle.Rotation = rotation;
                 Document.ApplyChanges();
@@ -491,7 +491,7 @@ internal partial class VfxEditor
 
             using (Inspector.BeginProperty("Align to Direction"))
             {
-                var alignToDirection = UI.Toggle(FieldId.ParticleAlignToDirection, particle.AlignToDirection, EditorStyle.Inspector.Toggle);
+                var alignToDirection = UI.Toggle(WidgetIds.ParticleAlignToDirection, particle.AlignToDirection, EditorStyle.Inspector.Toggle);
                 if (alignToDirection != particle.AlignToDirection)
                 {
                     particle.AlignToDirection = alignToDirection;
@@ -501,12 +501,12 @@ internal partial class VfxEditor
             EndAddableSection();
         }
 
-        if (AddableSection("ROTATION SPEED", particle.RotationSpeed != VfxDocFloatCurve.Zero, FieldId.SectionRotationSpeed, FieldId.AddRotationSpeed, FieldId.RemoveRotationSpeed,
+        if (AddableSection("ROTATION SPEED", particle.RotationSpeed != VfxDocFloatCurve.Zero, WidgetIds.SectionRotationSpeed, WidgetIds.AddRotationSpeed, WidgetIds.RemoveRotationSpeed,
             () => { particle.RotationSpeed = new VfxDocFloatCurve { Start = new VfxRange(-180, 180), End = new VfxRange(-180, 180), WindowEnd = 1f }; },
             () => { particle.RotationSpeed = VfxDocFloatCurve.Zero; }))
         {
             var rotSpeed = particle.RotationSpeed;
-            if (FloatCurveField(FieldId.ParticleRotationSpeed, "Speed", ref rotSpeed))
+            if (FloatCurveField(WidgetIds.ParticleRotationSpeed, "Speed", ref rotSpeed))
             {
                 particle.RotationSpeed = rotSpeed;
                 Document.ApplyChanges();

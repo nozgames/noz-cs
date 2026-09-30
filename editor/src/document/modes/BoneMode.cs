@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 internal partial class BoneMode : EditorMode<SkeletonEditor>
 {
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId RenameTextBox { get; }
     }
@@ -229,7 +229,7 @@ internal partial class BoneMode : EditorMode<SkeletonEditor>
         _renameBoneIndex = boneIndex;
         _renameOriginalName = name;
         _renameCurrentText = name;
-        UI.SetHot(ElementId.RenameTextBox);
+        UI.SetHot(WidgetIds.RenameTextBox);
     }
 
     private void EndRename(bool commit)
@@ -289,10 +289,10 @@ internal partial class BoneMode : EditorMode<SkeletonEditor>
 
         using (UI.BeginContainer(EditorStyle.RenameTool.Content with { AlignX = Align.Min, AlignY = Align.Min, Margin = EdgeInsets.TopLeft(uiPos.Y, uiPos.X) }))
         {
-            _renameCurrentText = UI.TextInput(ElementId.RenameTextBox, _renameCurrentText, textStyle);
+            _renameCurrentText = UI.TextInput(WidgetIds.RenameTextBox, _renameCurrentText, textStyle);
 
             if (UI.HotEnter())
-                UI.SetWidgetText(ElementId.RenameTextBox, _renameOriginalName, selectAll: true);
+                UI.SetWidgetText(WidgetIds.RenameTextBox, _renameOriginalName, selectAll: true);
 
             if (UI.HotExit())
                 EndRename(commit: true);

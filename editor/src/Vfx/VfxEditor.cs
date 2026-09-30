@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 internal partial class VfxEditor : DocumentEditor
 {
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId ToolbarRoot { get; }
@@ -99,10 +99,10 @@ internal partial class VfxEditor : DocumentEditor
     {
         using (FloatingToolbar.Begin())
         {
-            if (FloatingToolbar.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, isSelected: Document.IsPlaying))
+            if (FloatingToolbar.Button(WidgetIds.PlayButton, EditorAssets.Sprites.IconPlay, isSelected: Document.IsPlaying))
                 TogglePlayback();
 
-            if (FloatingToolbar.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, isSelected: Document.EditorLoop))
+            if (FloatingToolbar.Button(WidgetIds.LoopButton, EditorAssets.Sprites.IconLoop, isSelected: Document.EditorLoop))
                 Document.EditorLoop = !Document.EditorLoop;
         }
     }

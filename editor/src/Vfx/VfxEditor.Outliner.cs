@@ -41,7 +41,7 @@ internal partial class VfxEditor
             BeginRename(Document.SingleSelectedType, Document.SingleSelectedIndex, name);
         }
 
-        using (UI.BeginColumn(ElementId.OutlinerPanel, EditorStyle.Inspector.Root))
+        using (UI.BeginColumn(WidgetIds.OutlinerPanel, EditorStyle.Inspector.Root))
         {
             VfxRootUI();
             EmitterListUI();
@@ -56,14 +56,14 @@ internal partial class VfxEditor
         if (isSelected)
             style = style with { Background = EditorStyle.Palette.Active };
 
-        using (UI.BeginRow(ElementId.VfxRoot, style))
+        using (UI.BeginRow(WidgetIds.VfxRoot, style))
         {
             UI.Image(EditorAssets.Sprites.AssetIconVfx, EditorStyle.Control.IconSecondary);
             using (UI.BeginFlex())
                 UI.Text(Document.Name, EditorStyle.Text.Primary);
         }
 
-        if (UI.WasPressed(ElementId.VfxRoot))
+        if (UI.WasPressed(WidgetIds.VfxRoot))
         {
             if (IsRenaming) CommitRename();
             UI.ClearHot();
@@ -76,7 +76,7 @@ internal partial class VfxEditor
         void AddButton()
         {
             ElementTree.BeginAlign(Align.Min, Align.Center);
-            if (UI.Button(ElementId.AddEmitterButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+            if (UI.Button(WidgetIds.AddEmitterButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
             {
                 Undo.Record(Document);
                 Document.AddEmitter($"emitter{Document.Emitters.Count}");
@@ -92,7 +92,7 @@ internal partial class VfxEditor
             {
                 var isSelected = Document.SelectedEmitters.Contains(i);
                 var isRenaming = _renameType == VfxSelectionType.Emitter && _renameIndex == i;
-                OutlinerRowUI(ElementId.EmitterRow + i, Document.Emitters[i].Name, isSelected, isRenaming, VfxSelectionType.Emitter, i);
+                OutlinerRowUI(WidgetIds.EmitterRow + i, Document.Emitters[i].Name, isSelected, isRenaming, VfxSelectionType.Emitter, i);
             }
         }
     }
@@ -102,7 +102,7 @@ internal partial class VfxEditor
         void AddButton()
         {
             ElementTree.BeginAlign(Align.Min, Align.Center);
-            if (UI.Button(ElementId.AddParticleButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
+            if (UI.Button(WidgetIds.AddParticleButton, EditorAssets.Sprites.IconAdd, EditorStyle.Inspector.SectionButton))
             {
                 Undo.Record(Document);
                 Document.AddParticle($"particle{Document.Particles.Count}");
@@ -118,7 +118,7 @@ internal partial class VfxEditor
             {
                 var isSelected = Document.SelectedParticles.Contains(i);
                 var isRenaming = _renameType == VfxSelectionType.Particle && _renameIndex == i;
-                OutlinerRowUI(ElementId.ParticleRow + i, Document.Particles[i].Name, isSelected, isRenaming, VfxSelectionType.Particle, i);
+                OutlinerRowUI(WidgetIds.ParticleRow + i, Document.Particles[i].Name, isSelected, isRenaming, VfxSelectionType.Particle, i);
             }
         }
     }
@@ -135,7 +135,7 @@ internal partial class VfxEditor
             if (isRenaming)
             {
                 ElementTree.BeginMargin(EdgeInsets.TopLeft(2, -2));
-                _renameText = UI.TextInput(ElementId.RenameInput, _renameText ?? name, EditorStyle.SpriteEditor.OutlinerRename);
+                _renameText = UI.TextInput(WidgetIds.RenameInput, _renameText ?? name, EditorStyle.SpriteEditor.OutlinerRename);
                 ElementTree.EndMargin();
 
                 if (UI.HotExit())
@@ -177,7 +177,7 @@ internal partial class VfxEditor
         _renameType = type;
         _renameIndex = index;
         _renameText = currentName;
-        UI.SetHot(ElementId.RenameInput);
+        UI.SetHot(WidgetIds.RenameInput);
     }
 
     private void CommitRename()

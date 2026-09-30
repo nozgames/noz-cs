@@ -8,7 +8,7 @@ namespace NoZ.Editor;
 
 internal partial class SoundEditor : DocumentEditor
 {
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId PlayButton { get; }
         public static partial WidgetId LoopButton { get; }
@@ -93,10 +93,10 @@ internal partial class SoundEditor : DocumentEditor
     {
         using (FloatingToolbar.Begin())
         {
-            if (FloatingToolbar.Button(ElementId.PlayButton, EditorAssets.Sprites.IconPlay, isSelected: _playing))
+            if (FloatingToolbar.Button(WidgetIds.PlayButton, EditorAssets.Sprites.IconPlay, isSelected: _playing))
                 TogglePlayback();
 
-            if (FloatingToolbar.Button(ElementId.LoopButton, EditorAssets.Sprites.IconLoop, isSelected: _loop))
+            if (FloatingToolbar.Button(WidgetIds.LoopButton, EditorAssets.Sprites.IconLoop, isSelected: _loop))
                 _loop = !_loop;
         }
     }

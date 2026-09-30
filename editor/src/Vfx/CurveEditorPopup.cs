@@ -56,7 +56,7 @@ internal struct CurveShape
 
 internal static partial class CurveEditorPopup
 {
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId Popup { get; }
         public static partial WidgetId Preview { get; }
@@ -136,7 +136,7 @@ internal static partial class CurveEditorPopup
         }
 
         using var cursor = UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow));
-        using var popup = UI.BeginPopup(ElementId.Popup, _popupStyle);
+        using var popup = UI.BeginPopup(WidgetIds.Popup, _popupStyle);
         if (UI.IsClosed())
         {
             Close();
@@ -243,7 +243,7 @@ internal static partial class CurveEditorPopup
     private static void DrawPreview()
     {
         ElementTree.BeginTree();
-        ElementTree.BeginWidget(ElementId.Preview);
+        ElementTree.BeginWidget(WidgetIds.Preview);
         var flags = ElementTree.GetWidgetFlags();
         ElementTree.BeginSize(PreviewWidth, PreviewHeight);
         ElementTree.BeginFill(EditorStyle.Palette.Canvas, EditorStyle.Control.BorderRadius);
@@ -296,7 +296,7 @@ internal static partial class CurveEditorPopup
     {
         if (!_shape.HasEase) { _activeDrag = DragHandle.None; return; }
 
-        var rect = UI.GetElementWorldRect(ElementId.Preview);
+        var rect = UI.GetElementWorldRect(WidgetIds.Preview);
         if (rect.Width <= 0f) return;
 
         var mouse = UI.MouseWorldPosition;
@@ -313,10 +313,10 @@ internal static partial class CurveEditorPopup
             _activeDrag = nearBegin && (!nearEnd || MathF.Abs(worldX - _shape.WindowBegin) <= MathF.Abs(worldX - _shape.WindowEnd))
                 ? DragHandle.WindowBegin
                 : DragHandle.WindowEnd;
-            UI.SetCapture(ElementId.Preview);
+            UI.SetCapture(WidgetIds.Preview);
         }
 
-        var capturing = UI.HasCapture(ElementId.Preview);
+        var capturing = UI.HasCapture(WidgetIds.Preview);
         var stillDown = capturing && Input.IsButtonDownRaw(InputCode.MouseLeft);
         if (stillDown && _activeDrag != DragHandle.None)
         {
@@ -347,7 +347,7 @@ internal static partial class CurveEditorPopup
         using (UI.BeginRow(new ContainerStyle { Spacing = 4, Height = Size.Fit, MinHeight = EditorStyle.Control.Height }))
         {
             var current = Enum.GetName(_shape.CurveType) ?? "Linear";
-            UI.DropDown(ElementId.CurveType, () =>
+            UI.DropDown(WidgetIds.CurveType, () =>
             {
                 var items = new PopupMenuItem[CurveTypeOptions.Length];
                 for (var i = 0; i < CurveTypeOptions.Length; i++)
@@ -376,7 +376,7 @@ internal static partial class CurveEditorPopup
         using (UI.BeginRow(new ContainerStyle { Spacing = 4, Height = Size.Fit, MinHeight = EditorStyle.Control.Height }))
         {
             var current = Enum.GetName(_shape.EaseType) ?? "None";
-            UI.DropDown(ElementId.EaseType, () =>
+            UI.DropDown(WidgetIds.EaseType, () =>
             {
                 var items = new PopupMenuItem[EaseTypeOptions.Length];
                 for (var i = 0; i < EaseTypeOptions.Length; i++)
@@ -400,9 +400,9 @@ internal static partial class CurveEditorPopup
         {
             float wb, we;
             using (UI.BeginFlex())
-                wb = EditorUI.FloatInput(ElementId.WindowBegin, _shape.WindowBegin, EditorStyle.Inspector.TextBox, step: 0.1f, fineStep: 0.01f);
+                wb = EditorUI.FloatInput(WidgetIds.WindowBegin, _shape.WindowBegin, EditorStyle.Inspector.TextBox, step: 0.1f, fineStep: 0.01f);
             using (UI.BeginFlex())
-                we = EditorUI.FloatInput(ElementId.WindowEnd, _shape.WindowEnd, EditorStyle.Inspector.TextBox, step: 0.1f, fineStep: 0.01f);
+                we = EditorUI.FloatInput(WidgetIds.WindowEnd, _shape.WindowEnd, EditorStyle.Inspector.TextBox, step: 0.1f, fineStep: 0.01f);
 
             wb = Math.Clamp(wb, 0f, 1f);
             we = Math.Clamp(we, 0f, 1f);

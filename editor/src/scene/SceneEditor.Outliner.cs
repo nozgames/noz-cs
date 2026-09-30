@@ -20,7 +20,7 @@ public partial class SceneEditor
 
     private enum DropZone { Before, After, FirstChild, LastChild }
 
-    private static partial class OutlinerWidgetIds
+    private static partial class WidgetIds
     {
         public static partial WidgetId OutlinerLayer { get; }
         public static partial WidgetId OutlinerVisibility { get; }
@@ -164,7 +164,7 @@ public partial class SceneEditor
     private void OutlinerNodeUI(SceneNode node, int depth)
     {
         var index = _outlinerIndex++;
-        var rowId = OutlinerWidgetIds.OutlinerLayer + index;
+        var rowId = WidgetIds.OutlinerLayer + index;
         var isExpandable = node.IsExpandable;
         var isDragTarget = _outlinerDragging && _dropTargetIndex == index;
         var isDragSource = _outlinerDragging && _dragNodes.Contains(node);
@@ -209,7 +209,7 @@ public partial class SceneEditor
         if (isExpandable && node.Children.Count > 0)
         {
             ElementTree.BeginTree();
-            ElementTree.BeginWidget(OutlinerWidgetIds.OutlinerExpand + index);
+            ElementTree.BeginWidget(WidgetIds.OutlinerExpand + index);
             ElementTree.BeginSize(EditorStyle.Icon.SmallSize, Size.Default);
             ElementTree.Image(
                 image: node.Expanded
@@ -256,7 +256,7 @@ public partial class SceneEditor
         if (node == _renameNode)
         {
             ElementTree.BeginMargin(EdgeInsets.TopLeft(2, -2));
-            _renameText = UI.TextInput(OutlinerWidgetIds.OutlinerRename, _renameText, EditorStyle.SpriteEditor.OutlinerRename);
+            _renameText = UI.TextInput(WidgetIds.OutlinerRename, _renameText, EditorStyle.SpriteEditor.OutlinerRename);
             ElementTree.EndMargin();
 
             if (UI.HotExit())
@@ -280,7 +280,7 @@ public partial class SceneEditor
         {
             var visIcon = node.Visible ? EditorAssets.Sprites.IconPreview : EditorAssets.Sprites.IconHidden;
             var visStyle = node.Visible ? OutlinerIconDimButtonStyle : OutlinerIconButtonStyle;
-            if (UI.Button(OutlinerWidgetIds.OutlinerVisibility + index, visIcon, visStyle))
+            if (UI.Button(WidgetIds.OutlinerVisibility + index, visIcon, visStyle))
             {
                 Undo.Record(Document);
                 node.Visible = !node.Visible;
@@ -292,7 +292,7 @@ public partial class SceneEditor
         {
             var lockIcon = node.Locked ? EditorAssets.Sprites.IconLock : EditorAssets.Sprites.IconUnlock;
             var lockStyle = node.Locked ? OutlinerIconButtonStyle : OutlinerIconDimButtonStyle;
-            if (UI.Button(OutlinerWidgetIds.OutlinerLock + index, lockIcon, lockStyle))
+            if (UI.Button(WidgetIds.OutlinerLock + index, lockIcon, lockStyle))
             {
                 Undo.Record(Document);
                 node.Locked = !node.Locked;
@@ -376,7 +376,7 @@ public partial class SceneEditor
     {
         _renameNode = node;
         _renameText = node.Name ?? "";
-        UI.SetHot(OutlinerWidgetIds.OutlinerRename);
+        UI.SetHot(WidgetIds.OutlinerRename);
     }
 
     private void CommitRename()
@@ -466,7 +466,7 @@ public partial class SceneEditor
         for (var i = 0; i < _outlinerRows.Count; i++)
         {
             var row = _outlinerRows[i];
-            var rect = UI.GetElementWorldRect(OutlinerWidgetIds.OutlinerLayer + row.Index);
+            var rect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + row.Index);
             if (rect.Width <= 0) continue;
 
             if (_dragNodes.Contains(row.Node))
@@ -506,7 +506,7 @@ public partial class SceneEditor
         }
 
         if (firstIdx < 0) return;
-        var firstRect = UI.GetElementWorldRect(OutlinerWidgetIds.OutlinerLayer + _outlinerRows[firstIdx].Index);
+        var firstRect = UI.GetElementWorldRect(WidgetIds.OutlinerLayer + _outlinerRows[firstIdx].Index);
         if (mouseWorld.Y < firstRect.Y)
         {
             var row = _outlinerRows[firstIdx];

@@ -13,7 +13,7 @@ internal static partial class Outliner
         public byte Collapsed;
     }
 
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId Scroll { get; }
@@ -31,14 +31,14 @@ internal static partial class Outliner
 
     public static void UpdateUI()
     {
-        _nextSectionId = ElementId.Section;
+        _nextSectionId = WidgetIds.Section;
         _sectionOpen = false;
 
-        using var row = UI.BeginRow(ElementId.Root, EditorStyle.Inspector.Root);
+        using var row = UI.BeginRow(WidgetIds.Root, EditorStyle.Inspector.Root);
 
         using (UI.BeginFlex())
         using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))            
-        using (UI.BeginScrollable(ElementId.Scroll))
+        using (UI.BeginScrollable(WidgetIds.Scroll))
         using (UI.BeginColumn(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
         {
             if (Workspace.ActiveEditor?.ShowOutliner ?? false)
@@ -49,7 +49,7 @@ internal static partial class Outliner
             Finish();
         }
 
-        UI.ScrollBar(ElementId.ScrollBar, ElementId.Scroll, EditorStyle.Inspector.ScrollBar);
+        UI.ScrollBar(WidgetIds.ScrollBar, WidgetIds.Scroll, EditorStyle.Inspector.ScrollBar);
     }
 
     public static AutoSection BeginSection(

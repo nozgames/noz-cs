@@ -8,11 +8,14 @@ using NoZ.Editor;
 
 namespace NoZ.Editor.Graphics3D;
 
-internal sealed class MeshEditor : DocumentEditor
+internal sealed partial class MeshEditor : DocumentEditor
 {
     private const float OrbitSpeed = 0.01f;
     private const ushort MeshLayer = EditorLayer.PixelGrid + 1;
-    private static readonly WidgetId ViewMenuId = new(0xC031_0000);
+    private static partial class WidgetIds
+    {
+        public static partial WidgetId ViewMenu { get; }
+    }
 
     private readonly Camera3D _camera = new() { FieldOfView = MathF.PI / 4f };
     private Mesh? _mesh;
@@ -48,7 +51,7 @@ internal sealed class MeshEditor : DocumentEditor
     public override void PreUpdate()
     {
         var mousePosition = Input.MousePosition;
-        var overScene = UI.IsHovered(Workspace.SceneWidgetId) && !UI.IsPopupMenuOpen(ViewMenuId);
+        var overScene = UI.IsHovered(Workspace.SceneWidgetId) && !UI.IsPopupMenuOpen(WidgetIds.ViewMenu);
 
         if (overScene && Input.WasButtonPressed(InputCode.MouseLeft))
         {
@@ -84,7 +87,7 @@ internal sealed class MeshEditor : DocumentEditor
             PopupMenuItem.Item("Top", () => SetView(0, MathF.PI / 2), isChecked: () => IsView(0, MathF.PI / 2)),
             PopupMenuItem.Item("Frame mesh", FrameView, shortcut: new(InputCode.KeyF)),
         ];
-        EditorViewMenu.Draw(ViewMenuId, _viewMenuItems);
+        EditorViewMenu.Draw(WidgetIds.ViewMenu, _viewMenuItems);
     }
 
     private bool IsView(float yaw, float pitch) => !_perspective &&

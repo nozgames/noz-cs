@@ -4,7 +4,13 @@ namespace NoZ.Editor.Graphics3D;
 
 public sealed partial class NativePaletteDocument
 {
-    private static readonly WidgetId ImportId = new(0xC0850000);
+    private static partial class WidgetIds
+    {
+        public static partial WidgetId GenerateTexture { get; }
+        public static partial WidgetId GenerateColors { get; }
+        public static partial WidgetId ImportMode { get; }
+        public static partial WidgetId Import { get; }
+    }
     private string? _importError;
     private bool _replaceImport;
 
@@ -17,20 +23,20 @@ public sealed partial class NativePaletteDocument
     {
         using (EditorInspector.BeginProperty("Generate texture"))
         {
-            var enabled = UI.Toggle(ImportId, GenerateTexture, EditorStyle.Inspector.Toggle);
+            var enabled = UI.Toggle(WidgetIds.GenerateTexture, GenerateTexture, EditorStyle.Inspector.Toggle);
             if (enabled != GenerateTexture) { Undo.Record(this); SetOutputs(enabled, GenerateColors); }
         }
         using (EditorInspector.BeginProperty("Export colors"))
         {
-            var enabled = UI.Toggle(ImportId + 1, GenerateColors, EditorStyle.Inspector.Toggle);
+            var enabled = UI.Toggle(WidgetIds.GenerateColors, GenerateColors, EditorStyle.Inspector.Toggle);
             if (enabled != GenerateColors) { Undo.Record(this); SetOutputs(GenerateTexture, enabled); }
         }
         using (EditorInspector.BeginProperty("Import mode"))
         {
-            var chosen = AssetBrowser.Show(ImportId + 2, ["Append", "Replace"], _replaceImport ? "Replace" : "Append");
+            var chosen = AssetBrowser.Show(WidgetIds.ImportMode, ["Append", "Replace"], _replaceImport ? "Replace" : "Append");
             if (chosen != null) _replaceImport = chosen == "Replace";
         }
-        if (UI.Button(ImportId + 3, "Import PAL / GPL…", EditorStyle.Button.Secondary))
+        if (UI.Button(WidgetIds.Import, "Import PAL / GPL…", EditorStyle.Button.Secondary))
         {
             var path = EditorInspector.OpenPaletteFile();
             if (path != null)

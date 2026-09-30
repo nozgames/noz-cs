@@ -6,7 +6,7 @@ namespace NoZ.Editor;
 
 internal partial class SoundEditor
 {
-    private static partial class FieldId
+    private static partial class WidgetIds
     {
         public static partial WidgetId VolumeMin { get; }
         public static partial WidgetId VolumeMax { get; }
@@ -117,7 +117,7 @@ internal partial class SoundEditor
     private void VolumeUI()
     {
         RangePropertyUI("VOLUME",
-            FieldId.VolumeState, FieldId.VolumeMin, FieldId.VolumeMax, FieldId.VolumeRandom,
+            WidgetIds.VolumeState, WidgetIds.VolumeMin, WidgetIds.VolumeMax, WidgetIds.VolumeRandom,
             "Volume",
             () => Document.VolumeMin, v => Document.VolumeMin = v,
             () => Document.VolumeMax, v => Document.VolumeMax = v);
@@ -126,7 +126,7 @@ internal partial class SoundEditor
     private void PitchUI()
     {
         RangePropertyUI("PITCH",
-            FieldId.PitchState, FieldId.PitchMin, FieldId.PitchMax, FieldId.PitchRandom,
+            WidgetIds.PitchState, WidgetIds.PitchMin, WidgetIds.PitchMax, WidgetIds.PitchRandom,
             "Pitch",
             () => Document.PitchMin, v => Document.PitchMin = v,
             () => Document.PitchMax, v => Document.PitchMax = v);
@@ -140,7 +140,7 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("Fade In"))
             {
-                var fadeIn = FloatInput(FieldId.FadeIn, Document.FadeIn);
+                var fadeIn = FloatInput(WidgetIds.FadeIn, Document.FadeIn);
                 if (fadeIn != Document.FadeIn)
                 {
                     Document.FadeIn = Math.Clamp(fadeIn, 0f, 1f);
@@ -150,7 +150,7 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("Fade Out"))
             {
-                var fadeOut = FloatInput(FieldId.FadeOut, Document.FadeOut);
+                var fadeOut = FloatInput(WidgetIds.FadeOut, Document.FadeOut);
                 if (fadeOut != Document.FadeOut)
                 {
                     Document.FadeOut = Math.Clamp(fadeOut, 0f, 1f);
@@ -168,7 +168,7 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("Start"))
             {
-                var trimStart = FloatInput(FieldId.TrimStart, Document.TrimStart);
+                var trimStart = FloatInput(WidgetIds.TrimStart, Document.TrimStart);
                 if (trimStart != Document.TrimStart)
                 {
                     Document.TrimStart = MathF.Max(0f, trimStart);
@@ -178,7 +178,7 @@ internal partial class SoundEditor
 
             using (Inspector.BeginProperty("End"))
             {
-                var trimEnd = FloatInput(FieldId.TrimEnd, Document.TrimEnd);
+                var trimEnd = FloatInput(WidgetIds.TrimEnd, Document.TrimEnd);
                 if (trimEnd != Document.TrimEnd)
                 {
                     Document.TrimEnd = MathF.Max(0f, trimEnd);
@@ -197,7 +197,7 @@ internal partial class SoundEditor
             using (Inspector.BeginProperty("Enable"))
             {
                 var normalize = Document.NormalizeTarget > 0f;
-                normalize = UI.Toggle(FieldId.NormalizeToggle, normalize, EditorStyle.Inspector.Toggle);
+                normalize = UI.Toggle(WidgetIds.NormalizeToggle, normalize, EditorStyle.Inspector.Toggle);
                 if (UI.WasChanged())
                 {
                     Undo.Record(Document);
@@ -210,7 +210,7 @@ internal partial class SoundEditor
             {
                 using (Inspector.BeginProperty("Target"))
                 {
-                    var normTarget = FloatInput(FieldId.NormalizeTarget, Document.NormalizeTarget);
+                    var normTarget = FloatInput(WidgetIds.NormalizeTarget, Document.NormalizeTarget);
                     if (normTarget != Document.NormalizeTarget)
                     {
                         Document.NormalizeTarget = Math.Clamp(normTarget, 0.01f, 1f);

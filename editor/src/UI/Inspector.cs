@@ -14,7 +14,7 @@ internal static partial class Inspector
         public byte Collapsed;
     }
 
-    private static partial class ElementId
+    private static partial class WidgetIds
     {
         public static partial WidgetId Root { get; }
         public static partial WidgetId Scroll { get; }
@@ -37,13 +37,13 @@ internal static partial class Inspector
 
     public static void UpdateUI()
     {
-        _nextSectionId = ElementId.Section;
+        _nextSectionId = WidgetIds.Section;
         _sectionOpen = false;
 
-        using (UI.BeginRow(ElementId.Root, EditorStyle.Inspector.Root))
+        using (UI.BeginRow(WidgetIds.Root, EditorStyle.Inspector.Root))
         {
             using (UI.BeginFlex())
-            using (UI.BeginScrollable(ElementId.Scroll))
+            using (UI.BeginScrollable(WidgetIds.Scroll))
             using (UI.BeginCursor(new SpriteCursor(EditorAssets.Sprites.CursorArrow)))
             using (UI.BeginColumn(new ContainerStyle { Spacing = EditorStyle.Control.Spacing }))
             {
@@ -55,7 +55,7 @@ internal static partial class Inspector
                 Finish();
             }
 
-            UI.ScrollBar(ElementId.ScrollBar, ElementId.Scroll, EditorStyle.Inspector.ScrollBar);
+            UI.ScrollBar(WidgetIds.ScrollBar, WidgetIds.Scroll, EditorStyle.Inspector.ScrollBar);
         }
     }
 
@@ -219,7 +219,7 @@ internal static partial class Inspector
             {
                 using (BeginProperty("Type"))
                 {
-                    UI.DropDown(ElementId.DocumentType, () =>
+                    UI.DropDown(WidgetIds.DocumentType, () =>
                         defs.Select(d => new PopupMenuItem
                         {
                             Label = d.Name,
@@ -231,7 +231,7 @@ internal static partial class Inspector
 
             using (BeginProperty("Name"))
             {
-                var newName = UI.TextInput(ElementId.DocumentName, doc.Name, EditorStyle.TextInput);
+                var newName = UI.TextInput(WidgetIds.DocumentName, doc.Name, EditorStyle.TextInput);
                 if (newName != doc.Name)
                     Project.Rename(doc, newName);
             }
@@ -240,7 +240,7 @@ internal static partial class Inspector
             {
                 using (BeginProperty("Export"))
                 {
-                    var shouldExport = UI.Toggle(ElementId.DocumentExport, doc.ShouldExport, EditorStyle.Inspector.Toggle);
+                    var shouldExport = UI.Toggle(WidgetIds.DocumentExport, doc.ShouldExport, EditorStyle.Inspector.Toggle);
                     if (UI.WasChanged())
                     {
                         Undo.Record(doc);

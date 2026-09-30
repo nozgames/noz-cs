@@ -4,7 +4,7 @@ namespace NoZ.Editor.Graphics3D;
 
 internal sealed partial class Vfx3DEditor : DocumentEditor
 {
-    private static partial class Id
+    private static partial class WidgetIds
     {
         public static partial WidgetId Fields { get; }
         public static partial WidgetId Emitters { get; }
@@ -90,24 +90,24 @@ internal sealed partial class Vfx3DEditor : DocumentEditor
     public override void UpdateOverlayUI()
     {
         using var toolbar = FloatingToolbar.Begin();
-        if (FloatingToolbar.Button(Id.Play, EditorAssets.Sprites.IconPlay, isSelected: _playing))
+        if (FloatingToolbar.Button(WidgetIds.Play, EditorAssets.Sprites.IconPlay, isSelected: _playing))
         {
             _playing = !_playing;
             if (_playing && !_system.IsPlaying(_handle)) Restart();
         }
-        if (FloatingToolbar.Button(Id.Repeat, EditorAssets.Sprites.IconLoop, isSelected: _repeat)) _repeat = !_repeat;
+        if (FloatingToolbar.Button(WidgetIds.Repeat, EditorAssets.Sprites.IconLoop, isSelected: _repeat)) _repeat = !_repeat;
     }
     public override void OutlinerUI()
     {
         for (var i = 0; i < Document.Source.Emitters.Count; i++)
-            if (UI.Button(Id.Emitters + i, (_selected == i ? "• " : "") + Document.Source.Emitters[i].Name,
+            if (UI.Button(WidgetIds.Emitters + i, (_selected == i ? "• " : "") + Document.Source.Emitters[i].Name,
                 EditorStyle.Button.Secondary)) _selected = i;
-        if (Document.Source.Emitters.Count < Vfx3D.MaxEmitters && UI.Button(Id.Add, "Add emitter", EditorStyle.Button.Secondary))
+        if (Document.Source.Emitters.Count < Vfx3D.MaxEmitters && UI.Button(WidgetIds.Add, "Add emitter", EditorStyle.Button.Secondary))
         {
             Undo.Record(Document); Document.Source.Emitters.Add(new() { Name = $"Emitter {Document.Source.Emitters.Count + 1}" });
             _selected = Document.Source.Emitters.Count - 1; Document.ApplyChanges();
         }
-        if (Document.Source.Emitters.Count > 0 && UI.Button(Id.Remove, "Remove emitter", EditorStyle.Button.Secondary))
+        if (Document.Source.Emitters.Count > 0 && UI.Button(WidgetIds.Remove, "Remove emitter", EditorStyle.Button.Secondary))
         {
             Undo.Record(Document); Document.Source.Emitters.RemoveAt(Math.Clamp(_selected, 0, Document.Source.Emitters.Count - 1));
             _selected = Math.Max(0, _selected - 1); Document.ApplyChanges();
@@ -176,7 +176,7 @@ internal sealed partial class Vfx3DEditor : DocumentEditor
         if (_changed) Document.ApplyChanges();
         if (UI.WasChangeCancelled()) Undo.Cancel();
     }
-    private WidgetId Next() => Id.Fields + _field++ * 32;
+    private WidgetId Next() => WidgetIds.Fields + _field++ * 32;
     private void Set<T>(ref T field, T value)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return;
