@@ -3,19 +3,9 @@
 //
 
 using System.Numerics;
-using NoZ;
 
 namespace NoZ;
 
-/// <summary>
-/// A world-space ray with a normalized direction.
-/// </summary>
-public readonly record struct Ray3D(Vector3 Origin, Vector3 Direction);
-
-/// <summary>
-/// An optional perspective camera. NoZ's core only receives the
-/// resulting view-projection matrix through its generic graphics API.
-/// </summary>
 public sealed class Camera3D
 {
     private Vector2Int _screenSize;
@@ -24,10 +14,10 @@ public sealed class Camera3D
     public Vector3 Target { get; set; } = Vector3.Zero;
     public Vector3 Up { get; set; } = Vector3.UnitY;
     public float FieldOfView { get; set; } = MathF.PI / 4f;
-    // Keep this range reasonably tight to preserve depth precision.
     public float NearClip { get; set; } = 0.1f;
     public float FarClip { get; set; } = 256f;
     public Vector2 ProjectionOffset { get; set; }
+    public Plane? ClipPlane { get; set; }
 
     public Vector2Int ScreenSize => _screenSize;
     public float AspectRatio { get; private set; } = 1f;
@@ -73,6 +63,8 @@ public sealed class Camera3D
             AspectRatio,
             nearClip,
             farClip);
+        if (ClipPlane is { } clip)
+            ProjectionMatrix = ObliqueNearPlane(ProjectionMatrix, Plane.Transform(Plane.Normalize(clip), ViewMatrix));
         ViewProjectionMatrix = ViewMatrix * ProjectionMatrix *
                                Matrix4x4.CreateTranslation(ProjectionOffset.X, ProjectionOffset.Y, 0f);
     }
@@ -101,6 +93,22 @@ public sealed class Camera3D
             direction = Vector3.Normalize(direction);
 
         return new Ray3D(Position, direction);
+    }
+
+    // Lengyel's oblique near plane for depth in 0..1: depth becomes the distance from the
+    // view-space plane, scaled so the far plane still passes through the frustum corner
+    // furthest along the plane.
+    private static Matrix4x4 ObliqueNearPlane(Matrix4x4 projection, Plane plane)
+    {
+        var c = new Vector4(plane.Normal, plane.D);
+        if (!Matrix4x4.Invert(projection, out var inverse)) return projection;
+        var corner = Vector4.Transform(new Vector4(MathF.Sign(c.X), MathF.Sign(c.Y), 1f, 1f), inverse);
+        var w = new Vector4(projection.M14, projection.M24, projection.M34, projection.M44);
+        var along = Vector4.Dot(c, corner);
+        if (MathF.Abs(along) < 0.000001f) return projection;
+        var depth = c * (Vector4.Dot(w, corner) / along);
+        projection.M13 = depth.X; projection.M23 = depth.Y; projection.M33 = depth.Z; projection.M43 = depth.W;
+        return projection;
     }
 
     private static Vector3 Unproject(Vector4 point, Matrix4x4 inverse)

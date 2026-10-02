@@ -9,7 +9,7 @@ namespace NoZ;
 public static partial class Graphics
 {
     /// <summary>Maximum size of optional, caller-defined per-draw shader parameters.</summary>
-    public const int MaxDrawParameterBytes = 256;
+    public const int MaxDrawParameterBytes = 512;
     private const int GlobalsPrefixBytes = 80;
     private static NativeArray<byte> _drawParameterData;
     private static NativeArray<int> _drawParameterLengths;

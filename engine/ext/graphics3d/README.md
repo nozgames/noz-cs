@@ -32,7 +32,7 @@ struct Globals {
 // output.normal = (globals.normal_to_world * vec4<f32>(input.normal, 0.0)).xyz;
 ```
 
-The extension computes the normal matrix, including nonuniform scale. Core only copies opaque bytes via `Graphics.SetDrawParameters`, appending them to the existing 80-byte globals prefix. Parameters are snapshotted with each projection, deduplicated, and preserved through sorting and internal flushes. PushState/PopState also saves/restores them. Call `Graphics.ClearDrawParameters()` to stop supplying them. Blocks must be 16-byte aligned in size and at most 256 bytes; callers own the matching shader layout. `MaxGlobalSnapshots` bounds the snapshot count. Ordinary 2D shaders keep their existing layout and 80-byte uploads; driver buffers grow lazily only when extended data is used.
+The extension computes the normal matrix, including nonuniform scale. Core only copies opaque bytes via `Graphics.SetDrawParameters`, appending them to the existing 80-byte globals prefix. Parameters are snapshotted with each projection, deduplicated, and preserved through sorting and internal flushes. PushState/PopState also saves/restores them. Call `Graphics.ClearDrawParameters()` to stop supplying them. Blocks must be 16-byte aligned in size and at most 512 bytes; callers own the matching shader layout. `MaxGlobalSnapshots` bounds the snapshot count. Ordinary 2D shaders keep their existing layout and 80-byte uploads; driver buffers grow lazily only when extended data is used.
 
 ## SSAO
 
