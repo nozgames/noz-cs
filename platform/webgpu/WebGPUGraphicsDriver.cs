@@ -40,9 +40,25 @@ internal class StaticLinkNativeContext : INativeContext
     public void Dispose() { }
 }
 
+// The backends of the graphics library an application can ask the driver to keep to.
+public enum WebGPUBackend
+{
+    Any,
+    Vulkan,
+    OpenGL,
+    Metal,
+    Direct3D12
+}
+
 public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 {
     public bool SupportsInstancing => true;
+
+    // The one backend the graphics library is started with, where the application names
+    // one. Left at Any the library starts every backend it has and looks for an adapter
+    // in each, which is most of what making the device costs as an application starts.
+    // Where the named backend has no adapter the driver starts over with all of them.
+    public WebGPUBackend Backend { get; init; } = WebGPUBackend.Any;
 
     private static readonly ProfilerCounter s_counterBindGroupRelease = new("WebGPU.BindGroupRelease");    
     private static readonly ProfilerCounter s_counterGlobalBuffers = new("WebGPU.GlobalBuffers");
@@ -300,15 +316,20 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     private void InitSync()
     {
-        // Create instance
-        var instanceDesc = new InstanceDescriptor();
-        _instance = _wgpu.CreateInstance(&instanceDesc);
-
-        if (_instance == null)
-            throw new Exception("Failed to create WebGPU instance");
-
+        CreateInstance(Backend);
         _surface = CreateSurface();
-        RequestAdapter();
+
+        // The backend the application named has no adapter here: every backend, then.
+        if (!RequestAdapter(required: Backend == WebGPUBackend.Any))
+        {
+            Log.Warning($"WebGPU: no {Backend} adapter; looking in every backend");
+            _wgpu.SurfaceRelease(_surface);
+            _wgpu.InstanceRelease(_instance);
+            CreateInstance(WebGPUBackend.Any);
+            _surface = CreateSurface();
+            RequestAdapter(required: true);
+        }
+
         RequestDevice();
 
         _queue = _wgpu.DeviceGetQueue(_device);
@@ -318,6 +339,34 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
         CreateSwapChain();
         CreateGlobalSamplers();
+    }
+
+    // wgpu-native's own addition to an instance's description (wgpu.h, WGPUInstanceExtras):
+    // a chained struct of this type whose first field is the backends to start, a bit
+    // each. The fields after it are left at nothing, which is the library's own choice
+    // for each; the struct is given more room than it has today, all of it zero, so that
+    // a later version's longer one reads nothing that was not put there.
+    private const uint InstanceExtrasType = 0x00030006;
+    private const int InstanceExtrasRoom = 128;
+
+    private void CreateInstance(WebGPUBackend backend)
+    {
+        var instanceDesc = new InstanceDescriptor();
+
+        var extras = stackalloc byte[InstanceExtrasRoom];
+        new Span<byte>(extras, InstanceExtrasRoom).Clear();
+        if (backend != WebGPUBackend.Any && !OperatingSystem.IsBrowser())
+        {
+            var chain = (ChainedStruct*)extras;
+            chain->SType = (SType)InstanceExtrasType;
+            *(uint*)(extras + sizeof(ChainedStruct)) = 1u << ((int)backend - 1);
+            instanceDesc.NextInChain = chain;
+        }
+
+        _instance = _wgpu.CreateInstance(&instanceDesc);
+
+        if (_instance == null)
+            throw new Exception("Failed to create WebGPU instance");
     }
 
     private void CreateGlobalSamplers()
@@ -369,7 +418,8 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         tcs.SetResult(status == RequestAdapterStatus.Success ? (nint)adapter : 0);
     }
 
-    private void RequestAdapter()
+    // False where there is no adapter and none was required.
+    private bool RequestAdapter(bool required)
     {
         var tcs = new TaskCompletionSource<nint>();
         var options = new RequestAdapterOptions
@@ -384,7 +434,10 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             (void*)GCHandle.ToIntPtr(handle));
 
         if (!tcs.Task.Wait(TimeSpan.FromSeconds(5)) || tcs.Task.Result == 0)
+        {
+            if (!required) return false;
             throw new Exception("Failed to find a compatible WebGPU adapter");
+        }
 
         _adapter = (Adapter*)tcs.Task.Result;
 
@@ -392,7 +445,12 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _wgpu.AdapterGetProperties(_adapter, &props);
         var adapterName = Marshal.PtrToStringAnsi((nint)props.Name) ?? "Unknown";
         Log.Info($"WebGPU adapter: {adapterName} (backend: {props.BackendType})");
+        AdapterDescription = $"{adapterName} ({props.BackendType})";
+        return true;
     }
+
+    // The adapter the driver draws with and the backend it is of, once it has one.
+    public string AdapterDescription { get; private set; } = "";
 
     [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
     private static void OnDeviceRequested(RequestDeviceStatus status, Device* device, byte* message, void* userdata)

@@ -96,6 +96,7 @@ public static class Application
             Y = config.Y,
             VSync = config.VSync,
             Resizable = config.Resizable,
+            Gamepads = config.Gamepads,
             IconPath = config.IconPath,
             WantsToQuit = _instance.WantsToQuit,
             BeforeQuit = _instance.BeforeQuit,

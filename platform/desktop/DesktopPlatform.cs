@@ -101,7 +101,11 @@ public unsafe partial class SDLPlatform : IPlatform
 
     public void Init(PlatformConfig config)
     {
-        if (!SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO | SDL_InitFlags.SDL_INIT_GAMEPAD))
+        // Without gamepads the subsystem is left out, and no gamepad is ever found below.
+        var subsystems = SDL_InitFlags.SDL_INIT_VIDEO;
+        if (config.Gamepads) subsystems |= SDL_InitFlags.SDL_INIT_GAMEPAD;
+
+        if (!SDL_Init(subsystems))
         {
             throw new Exception($"Failed to initialize SDL: {SDL_GetError()}");
         }

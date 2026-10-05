@@ -35,6 +35,11 @@ public class ApplicationConfig
     public int Y { get; set; } = PlatformConfig.WindowPositionCentered;
     public bool VSync { get; init; } = true;
     public bool Resizable { get; init; } = true;
+
+    // Whether the platform listens for gamepads. Finding them is the slowest part of the
+    // platform's start on Windows (about 0.4 s), so an application that has no use for
+    // one says so.
+    public bool Gamepads { get; init; } = true;
     public string? IconPath { get; init; }
     public GraphicsConfig? Graphics { get; init; }
     public UIConfig? UI { get; init; }

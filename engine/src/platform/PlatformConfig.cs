@@ -17,6 +17,7 @@ public class PlatformConfig
     public int Y { get; init; } = WindowPositionCentered;
     public bool VSync { get; init; } = true;
     public bool Resizable { get; init; } = true;
+    public bool Gamepads { get; init; } = true;
     public string? IconPath { get; init; }
     public int MsaaSamples { get; init; } = 4;
 
