@@ -31,6 +31,16 @@ public static unsafe partial class Graphics
     private static readonly ProfilerCounter s_counterVertices = new("Graphics.Vertices");
     private static readonly ProfilerCounter s_counterIndices = new("Graphics.Indices");
     private static readonly ProfilerCounter s_counterCommands = new("Graphics.Commands");
+    private static readonly ProfilerCounter s_counterTargetBatches = new("Graphics.Batches.RenderTexture");
+    private static readonly ProfilerCounter s_counterScreenBatches = new("Graphics.Batches.Screen");
+    private static readonly ProfilerCounter[] s_counterScreenBreaks = BatchBreakCounters("Graphics.Batches.Screen.");
+    private static readonly ProfilerCounter[] s_counterTargetBreaks = BatchBreakCounters("Graphics.Batches.RenderTexture.");
+
+    private static ProfilerCounter[] BatchBreakCounters(string prefix) =>
+    [
+        new(prefix + "Shader"), new(prefix + "Texture"), new(prefix + "Scissor"), new(prefix + "Globals"),
+        new(prefix + "Blend"), new(prefix + "Mesh"), new(prefix + "Other")
+    ];
 
     private const int MaxRenderPasses = 64;
     private const int MaxSortGroups = 1526;
@@ -738,6 +748,42 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         }
     }
     
+    // For a profiler that is listening: how many batches went to render textures and how
+    // many to the screen, and for each batch that follows another to the same target, the
+    // first thing that kept it out of that batch. A different shader usually brings a
+    // different texture with it, so the shader is looked at first.
+    private static void CountBatchBreaks()
+    {
+        for (int i = 0, count = _batches.Length; i < count; i++)
+        {
+            ref var state = ref _batchStates[_batches[i].State];
+            if (state.RenderTextureHandle != 0) s_counterTargetBatches.Increment();
+            else s_counterScreenBatches.Increment();
+
+            if (i == 0)
+                continue;
+
+            ref var before = ref _batchStates[_batches[i - 1].State];
+            if (before.RenderTextureHandle != state.RenderTextureHandle || before.Pass != state.Pass)
+                continue;
+
+            var textures = false;
+            for (var t = 0; t < MaxTextures; t++)
+                textures |= before.Textures[t] != state.Textures[t] || before.TextureFilters[t] != state.TextureFilters[t];
+
+            var reason =
+                before.Shader != state.Shader ? 0 :
+                textures ? 1 :
+                before.ScissorEnabled != state.ScissorEnabled || before.Scissor != state.Scissor ? 2 :
+                before.GlobalsIndex != state.GlobalsIndex ? 3 :
+                before.BlendMode != state.BlendMode ? 4 :
+                before.Mesh != state.Mesh || before.InstanceStream != state.InstanceStream ? 5 :
+                6;
+
+            (state.RenderTextureHandle != 0 ? s_counterTargetBreaks : s_counterScreenBreaks)[reason].Increment();
+        }
+    }
+
     private static ref Batch AddBatch()
     {
         if (!_batches.CheckCapacity(1))
@@ -804,6 +850,9 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
 
         using (s_markerCreateBatches.Begin())
             CreateBatches();
+
+        if (Profiler.Enabled)
+            CountBatchBreaks();
 
         if (_vertices.Length > 0 || _indices.Length > 0)
         {

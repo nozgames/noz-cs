@@ -463,6 +463,7 @@ public unsafe partial class WebGPUGraphicsDriver
     public void DestroyTexture(nuint handle)
     {
         ref var texture = ref _textures[(int)handle];
+        ForgetBindGroups(0, handle);
 
         if (texture.Sampler != null)
         {
@@ -897,6 +898,7 @@ public unsafe partial class WebGPUGraphicsDriver
     {
         var rtSlot = _rtHandleToSlot[(int)handle];
         ref var rt = ref _renderTextures[rtSlot];
+        ForgetBindGroups(0, handle);
 
         // Release the D2 view (render pass attachment / resolve target)
         if (rt.TextureView != null)

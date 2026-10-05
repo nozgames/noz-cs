@@ -11,7 +11,8 @@ namespace NoZ.Platform.WebGPU;
 
 public unsafe partial class WebGPUGraphicsDriver
 {
-    private static readonly ProfilerCounter s_counterBindGroupCreations = new("WebGPU.BindGroupCreations");            
+    private static readonly ProfilerCounter s_counterBindGroupCreations = new("WebGPU.BindGroupCreations");
+    private const string GlobalsBindingName = "globals";
 
     public void SetBlendMode(BlendMode mode)
     {
@@ -35,7 +36,12 @@ public unsafe partial class WebGPUGraphicsDriver
     {
         // Store uniform data by name - will be written to per-shader buffers when bind groups are created
         if (!_uniformData.TryGetValue(name, out var existing) || existing.Length != data.Length)
+        {
             _uniformData[name] = new byte[data.Length];
+
+            // A bind group made for the old size binds the wrong range.
+            if (existing != null) ForgetAllBindGroups();
+        }
 
         data.CopyTo(_uniformData[name]);
         _state.BindGroupDirty = true;
@@ -43,51 +49,75 @@ public unsafe partial class WebGPUGraphicsDriver
 
     public void SetGlobalsCount(int count)
     {
-        if (count < 0 || count > _globalsBuffers.Length)
+        if (count < 0 || count > _maxGlobals)
             throw new InvalidOperationException(
-                $"WebGPU global snapshot budget exhausted ({_globalsBuffers.Length}). " +
+                $"WebGPU global snapshot budget exhausted ({_maxGlobals}). " +
                 $"Increase {nameof(GraphicsConfig)}.{nameof(GraphicsConfig.MaxGlobalSnapshots)}.");
 
-        // Ensure we have enough globals buffers allocated
-        while (_globalsBufferCount < count)
+        if (count > _globalsCount) _globalsCount = count;
+        if (count <= _globalsCapacity) return;
+
+        var capacity = Math.Max(_globalsCapacity, MinGlobalsCapacity);
+        while (capacity < count) capacity *= 2;
+        capacity = Math.Min(capacity, _maxGlobals);
+
+        var descriptor = new BufferDescriptor
         {
-            var bufferDesc = new BufferDescriptor
+            Size = (ulong)capacity * GlobalsSlotSize,
+            Usage = WGPUBufferUsage.Uniform | WGPUBufferUsage.CopyDst,
+            MappedAtCreation = false
+        };
+        var buffer = _wgpu.DeviceCreateBuffer(_device, &descriptor);
+
+        // Draws already recorded keep the old buffer and what was written to it. The
+        // slots staged so far this frame go to the new one as well.
+        if (_globalsBuffer != null)
+        {
+            FlushGlobals();
+            _wgpu.BufferRelease(_globalsBuffer);
+            if (_globalsCapacity > 0)
             {
-                Size = GlobalsBufferSize,
-                Usage = WGPUBufferUsage.Uniform | WGPUBufferUsage.CopyDst,
-                MappedAtCreation = false
-            };
-            _globalsBuffers[_globalsBufferCount] = _wgpu.DeviceCreateBuffer(_device, &bufferDesc);
-            _globalsBufferSizes[_globalsBufferCount] = GlobalsBufferSize;
-            _globalsBufferCount++;
+                _globalsDirtyFrom = 0;
+                _globalsDirtyTo = _globalsCapacity - 1;
+            }
         }
+
+        Array.Resize(ref _globalsStaging, capacity * GlobalsSlotSize);
+        _globalsBuffer = buffer;
+        _globalsCapacity = capacity;
+        _globalsGeneration++;
+        ForgetAllBindGroups();
     }
 
     public void SetGlobals(int index, ReadOnlySpan<byte> data)
     {
-        if (index < 0 || index >= _globalsBufferCount)
+        if (index < 0 || index >= _globalsCapacity)
             return;
 
-        // The fixed prefix is unchanged for 2D shaders. Grow only snapshots
-        // that include optional caller-defined draw parameters.
-        if (data.Length > _globalsBufferSizes[index])
+        if (data.Length > GlobalsSlotSize)
+            throw new ArgumentException($"A globals snapshot is at most {GlobalsSlotSize} bytes.", nameof(data));
+
+        data.CopyTo(_globalsStaging.AsSpan(index * GlobalsSlotSize, GlobalsSlotSize));
+        if (index < _globalsDirtyFrom) _globalsDirtyFrom = index;
+        if (index > _globalsDirtyTo) _globalsDirtyTo = index;
+    }
+
+    // The slots set since the last flush go to the buffer in one write, before a draw
+    // reads them.
+    private void FlushGlobals()
+    {
+        if (_globalsDirtyTo < _globalsDirtyFrom || _globalsBuffer == null)
+            return;
+
+        var offset = _globalsDirtyFrom * GlobalsSlotSize;
+        var size = (_globalsDirtyTo - _globalsDirtyFrom + 1) * GlobalsSlotSize;
+        fixed (byte* staged = _globalsStaging)
         {
-            var descriptor = new BufferDescriptor
-            {
-                Size = (ulong)data.Length,
-                Usage = WGPUBufferUsage.Uniform | WGPUBufferUsage.CopyDst,
-            };
-            var buffer = _wgpu.DeviceCreateBuffer(_device, &descriptor);
-            _wgpu.BufferRelease(_globalsBuffers[index]);
-            _globalsBuffers[index] = buffer;
-            _globalsBufferSizes[index] = data.Length;
-            _state.BindGroupDirty = true;
+            _wgpu.QueueWriteBuffer(_queue, _globalsBuffer, (ulong)offset, staged + offset, (nuint)size);
         }
 
-        fixed (byte* dataPtr = data)
-        {
-            _wgpu.QueueWriteBuffer(_queue, _globalsBuffers[index], 0, dataPtr, (nuint)data.Length);
-        }
+        _globalsDirtyFrom = int.MaxValue;
+        _globalsDirtyTo = -1;
     }
 
     public void BindGlobals(int index)
@@ -96,6 +126,43 @@ public unsafe partial class WebGPUGraphicsDriver
             return;
 
         _currentGlobalsIndex = index;
+        _state.GlobalsDirty = true;
+    }
+
+    private void ForgetAllBindGroups()
+    {
+        s_counterBindGroupRelease.Increment(_bindGroupCache.Count);
+        foreach (var group in _bindGroupCache.Values)
+            _wgpu.BindGroupRelease((BindGroup*)group);
+        _bindGroupCache.Clear();
+        _currentBindGroup = null;
+        _state.BindGroupDirty = true;
+    }
+
+    // A texture or shader that is going away takes the bind groups made with it along: its
+    // handle will be handed out again.
+    private void ForgetBindGroups(nuint shader, nuint texture)
+    {
+        if (_bindGroupCache.Count == 0)
+            return;
+
+        _bindGroupsToForget.Clear();
+        foreach (var key in _bindGroupCache.Keys)
+            if ((shader != 0 && key.Shader == shader) || (texture != 0 && key.Uses(texture)))
+                _bindGroupsToForget.Add(key);
+
+        if (_bindGroupsToForget.Count == 0)
+            return;
+
+        s_counterBindGroupRelease.Increment(_bindGroupsToForget.Count);
+        foreach (var key in _bindGroupsToForget)
+        {
+            _wgpu.BindGroupRelease((BindGroup*)_bindGroupCache[key]);
+            _bindGroupCache.Remove(key);
+        }
+
+        _bindGroupsToForget.Clear();
+        _currentBindGroup = null;
         _state.BindGroupDirty = true;
     }
 
@@ -135,6 +202,9 @@ public unsafe partial class WebGPUGraphicsDriver
             _wgpu.RenderPassEncoderSetPipeline(_currentRenderPass, pipeline);
             _state.PipelineDirty = false;
         }
+
+        if (_globalsDirtyTo >= _globalsDirtyFrom)
+            FlushGlobals();
 
         // Update bind group if textures/buffers changed
         UpdateBindGroupIfNeeded();
@@ -199,39 +269,82 @@ public unsafe partial class WebGPUGraphicsDriver
         );
     }
 
-    private int ComputeBindGroupCacheKey()
+    // What a bind group for the bound shader is made from: the shader, the globals buffer
+    // and the textures and filters in the slots the shader reads. Other slots may hold
+    // what an earlier draw left there.
+    private BindGroupKey MakeBindGroupKey(ref ShaderInfo shader)
     {
-        var hash = new HashCode();
-        hash.Add(_state.BoundShader);
-        hash.Add(_currentGlobalsIndex);
-        hash.Add(_currentGlobalsIndex >= 0 ? _globalsBufferSizes[_currentGlobalsIndex] : 0);
-        for (int i = 0; i < 8; i++)
+        var key = new BindGroupKey
         {
-            hash.Add(_state.BoundTextures[i]);
-            hash.Add(_state.TextureFilters[i]);
+            Shader = _state.BoundShader,
+            GlobalsGeneration = shader.HasGlobals ? _globalsGeneration : 0,
+        };
+
+        var slots = Math.Min(shader.TextureSlots?.Count ?? 0, 8);
+        for (var i = 0; i < slots; i++)
+        {
+            key.Textures[i] = _state.BoundTextures[i];
+            key.Filters |= (ulong)_state.TextureFilters[i] << (i * 8);
         }
-        return hash.ToHashCode();
+
+        return key;
     }
 
     private void UpdateBindGroupIfNeeded()
     {
-        if (!_state.BindGroupDirty)
+        if (!_state.BindGroupDirty && !_state.GlobalsDirty)
             return;
 
         ref var shader = ref _shaders[(int)_state.BoundShader];
-        var bindings = shader.Bindings;
 
         if (shader.BindGroupEntryCount == 0)
         {
             _state.BindGroupDirty = false;
+            _state.GlobalsDirty = false;
             return;
         }
+
+        if (_state.BindGroupDirty && !FindOrCreateBindGroup(ref shader))
+        {
+            _state.BindGroupDirty = false;
+            _state.GlobalsDirty = false;
+            return;
+        }
+
+        _state.BindGroupDirty = false;
+        _state.GlobalsDirty = false;
+
+        if (_currentRenderPass == null || _currentBindGroup == null)
+            return;
+
+        // The same bind group serves every draw of the shader with these textures: only
+        // where its globals start changes from draw to draw.
+        if (shader.HasGlobals)
+        {
+            if (_currentGlobalsIndex < 0 || _currentGlobalsIndex >= _globalsCapacity)
+            {
+                Log.Error($"Globals index {_currentGlobalsIndex} out of range!");
+                return;
+            }
+
+            var offset = (uint)(_currentGlobalsIndex * GlobalsSlotSize);
+            _wgpu.RenderPassEncoderSetBindGroup(_currentRenderPass, 0, _currentBindGroup, 1, &offset);
+        }
+        else
+        {
+            _wgpu.RenderPassEncoderSetBindGroup(_currentRenderPass, 0, _currentBindGroup, 0, null);
+        }
+    }
+
+    private bool FindOrCreateBindGroup(ref ShaderInfo shader)
+    {
+        var bindings = shader.Bindings;
+        _currentBindGroup = null;
 
         if (bindings == null || bindings.Count == 0)
         {
             Log.Error("Shader has no binding metadata!");
-            _state.BindGroupDirty = false;
-            return;
+            return false;
         }
 
         // Write uniform data before cache check — data changes don't affect cache key
@@ -264,14 +377,11 @@ public unsafe partial class WebGPUGraphicsDriver
         }
 
         // Cache check — keyed on resource references, not buffer contents
-        var cacheKey = ComputeBindGroupCacheKey();
+        var cacheKey = MakeBindGroupKey(ref shader);
         if (_bindGroupCache.TryGetValue(cacheKey, out var cached))
         {
             _currentBindGroup = (BindGroup*)cached;
-            if (_currentRenderPass != null)
-                _wgpu.RenderPassEncoderSetBindGroup(_currentRenderPass, 0, _currentBindGroup, 0, null);
-            _state.BindGroupDirty = false;
-            return;
+            return true;
         }
 
         // Cache miss — create bind group
@@ -291,22 +401,22 @@ public unsafe partial class WebGPUGraphicsDriver
 
                     if (binding.Name == "globals")
                     {
-                        if (_currentGlobalsIndex < 0 || _currentGlobalsIndex >= _globalsBufferCount)
+                        if (_globalsBuffer == null)
                         {
-                            Log.Error($"Globals index {_currentGlobalsIndex} out of range!");
-                            _state.BindGroupDirty = false;
-                            return;
+                            Log.Error("No globals have been set!");
+                            return false;
                         }
-                        buffer = _globalsBuffers[_currentGlobalsIndex];
-                        bufferSize = (ulong)_globalsBufferSizes[_currentGlobalsIndex];
+
+                        // One slot's worth, from wherever a draw's dynamic offset puts it.
+                        buffer = _globalsBuffer;
+                        bufferSize = GlobalsSlotSize;
                     }
                     else
                     {
                         if (!shader.UniformBuffers.TryGetValue(binding.Name, out var bufferPtr) || bufferPtr == 0)
                         {
                             Log.Error($"Uniform buffer for '{binding.Name}' not created!");
-                            _state.BindGroupDirty = false;
-                            return;
+                            return false;
                         }
                         buffer = (WGPUBuffer*)bufferPtr;
                         bufferSize = (ulong)_uniformData[binding.Name].Length;
@@ -333,8 +443,7 @@ public unsafe partial class WebGPUGraphicsDriver
                     if (textureHandle == 0)
                     {
                         Log.Error($"Texture slot {textureSlot} (binding {binding.Binding}) not bound!");
-                        _state.BindGroupDirty = false;
-                        return;
+                        return false;
                     }
 
                     ref var tex = ref _textures[(int)textureHandle];
@@ -369,22 +478,24 @@ public unsafe partial class WebGPUGraphicsDriver
             EntryCount = (uint)validEntryCount,
             Entries = entries,
         };
-        _currentBindGroup = _wgpu.DeviceCreateBindGroup(_device, &desc);
+        var created = _wgpu.DeviceCreateBindGroup(_device, &desc);
 
         s_counterBindGroupCreations.Increment(1);
 
-        if (_currentBindGroup == null)
+        if (created == null)
         {
             Log.Error("Failed to create bind group!");
-            return;
+            return false;
         }
 
-        _bindGroupCache[cacheKey] = (nint)_currentBindGroup;
+        // What is bound changes without end in some programs (a texture a frame, say):
+        // start over rather than grow for good.
+        if (_bindGroupCache.Count >= MaxCachedBindGroups)
+            ForgetAllBindGroups();
 
-        if (_currentRenderPass != null)
-            _wgpu.RenderPassEncoderSetBindGroup(_currentRenderPass, 0, _currentBindGroup, 0, null);
-
-        _state.BindGroupDirty = false;
+        _bindGroupCache[cacheKey] = (nint)created;
+        _currentBindGroup = created;
+        return true;
     }
 
     private int GetTextureSlotForBinding(uint bindingNumber, ref ShaderInfo shader)

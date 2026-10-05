@@ -46,6 +46,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
 
     private static readonly ProfilerCounter s_counterBindGroupRelease = new("WebGPU.BindGroupRelease");    
     private static readonly ProfilerCounter s_counterGlobalBuffers = new("WebGPU.GlobalBuffers");
+    private static readonly ProfilerCounter s_counterBindGroups = new("WebGPU.BindGroups");
 
     private GraphicsDriverConfig _config = null!;
     private Silk.NET.WebGPU.WebGPU _wgpu = null!;
@@ -91,9 +92,13 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     // Cached state
     private CachedState _state;
 
-    // Bind group management
+    // Bind group management. A bind group lives from frame to frame for as long as what it
+    // binds does. Its key is everything it is made from except which globals a draw uses:
+    // every draw reaches its own at an offset into one shared buffer.
     private BindGroup* _currentBindGroup;
-    private readonly Dictionary<int, nint> _bindGroupCache = new();
+    private readonly Dictionary<BindGroupKey, nint> _bindGroupCache = new();
+    private readonly List<BindGroupKey> _bindGroupsToForget = new();
+    private const int MaxCachedBindGroups = 8192;
 
     // Global samplers for per-draw-call filtering
     private Sampler* _linearSampler;
@@ -102,11 +107,19 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
     // Per-name uniform data storage - written to per-shader buffers when bind groups are created
     private readonly Dictionary<string, byte[]> _uniformData = new();
 
-    // Per-batch globals buffer pool
-    private const int GlobalsBufferSize = 80; // mat4 (64) + float (4) + padding (12) = 80 bytes
-    private WGPUBuffer*[] _globalsBuffers = [];
-    private int[] _globalsBufferSizes = [];
-    private int _globalsBufferCount;
+    // Globals: mat4 (64) + float (4) + padding (12) = 80 bytes, then a caller's draw
+    // parameters. Each snapshot has a slot of one size in a single uniform buffer, on the
+    // boundary a dynamic offset needs; the frame's slots are staged here and written once.
+    private const int GlobalsSlotSize = 768;
+    private const int MinGlobalsCapacity = 64;
+    private WGPUBuffer* _globalsBuffer;
+    private byte[] _globalsStaging = [];
+    private int _globalsCapacity;
+    private int _globalsCount;
+    private int _globalsGeneration;
+    private int _globalsDirtyFrom = int.MaxValue;
+    private int _globalsDirtyTo = -1;
+    private int _maxGlobals;
     private int _currentGlobalsIndex = -1;
 
     public string ShaderExtension => "";
@@ -123,6 +136,7 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public fixed ulong BoundUniformBuffers[4];
         public bool PipelineDirty;
         public bool BindGroupDirty;
+        public bool GlobalsDirty;
         public RectInt Viewport;
         public bool ScissorEnabled;
         public RectInt Scissor;
@@ -184,6 +198,44 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         public Dictionary<string, uint> UniformBindings; // Uniform name → binding number
         public Dictionary<string, nint> UniformBuffers; // Per-shader uniform buffers by name (nint -> WGPUBuffer*)
         public ShaderFlags Flags;
+        public bool HasGlobals; // Binds the globals buffer, at a dynamic offset
+    }
+
+    private struct BindGroupKey : IEquatable<BindGroupKey>
+    {
+        public nuint Shader;
+        public int GlobalsGeneration;
+        public ulong Filters;
+        public fixed ulong Textures[8];
+
+        public bool Uses(ulong texture)
+        {
+            for (var i = 0; i < 8; i++)
+                if (Textures[i] == texture) return true;
+            return false;
+        }
+
+        public bool Equals(BindGroupKey other)
+        {
+            if (Shader != other.Shader || GlobalsGeneration != other.GlobalsGeneration || Filters != other.Filters)
+                return false;
+            for (var i = 0; i < 8; i++)
+                if (Textures[i] != other.Textures[i]) return false;
+            return true;
+        }
+
+        public override bool Equals(object? obj) => obj is BindGroupKey other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+            hash.Add(Shader);
+            hash.Add(GlobalsGeneration);
+            hash.Add(Filters);
+            for (var i = 0; i < 8; i++)
+                hash.Add(Textures[i]);
+            return hash.ToHashCode();
+        }
     }
 
     private struct PsoKey : IEquatable<PsoKey>
@@ -219,9 +271,8 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _freeMeshIds = new int[config.MaxMeshes];
         _freeMeshIdCount = 0;
         _nextMeshId = 1;
-        _globalsBuffers = new WGPUBuffer*[config.MaxGlobalSnapshots];
-        _globalsBufferSizes = new int[config.MaxGlobalSnapshots];
-        _globalsBufferCount = 0;
+        _maxGlobals = config.MaxGlobalSnapshots;
+        _globalsCount = 0;
 
         if (OperatingSystem.IsBrowser())
         {
@@ -568,11 +619,15 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         if (_readbacks.Count > 0 && _devicePoll != null && _device != null) _devicePoll(_device, 1, null);
         _readbacks.Clear();
         DestroyDepthResolvePipeline();
-        for (var i = 0; i < _globalsBufferCount; i++)
-            _wgpu.BufferRelease(_globalsBuffers[i]);
-        _globalsBuffers = [];
-        _globalsBufferSizes = [];
-        _globalsBufferCount = 0;
+        ForgetAllBindGroups();
+        if (_globalsBuffer != null)
+        {
+            _wgpu.BufferRelease(_globalsBuffer);
+            _globalsBuffer = null;
+        }
+        _globalsStaging = [];
+        _globalsCapacity = 0;
+        _globalsCount = 0;
 
         // Release global samplers
         if (_linearSampler != null)
@@ -691,18 +746,16 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
             return false;
 
         _state = default;
-
-        if (_currentBindGroup != null)
-        {
-            _wgpu.BindGroupRelease(_currentBindGroup);
-            _currentBindGroup = null;
-        }
+        _currentBindGroup = null;
+        _globalsCount = 0;
 
         return true;
     }
 
     public void EndFrame()
     {
+        FlushGlobals();
+
         var commandBufferDesc = new CommandBufferDescriptor();
         var commandBuffer = _wgpu.CommandEncoderFinish(_commandEncoder, &commandBufferDesc);
 
@@ -713,12 +766,9 @@ public unsafe partial class WebGPUGraphicsDriver : IGraphicsDriver
         _wgpu.CommandEncoderRelease(_commandEncoder);
         _commandEncoder = null;
 
-        s_counterBindGroupRelease.Increment(_bindGroupCache.Count);
-        s_counterGlobalBuffers.Increment(_globalsBufferCount);
+        s_counterGlobalBuffers.Increment(_globalsCount);
+        s_counterBindGroups.Increment(_bindGroupCache.Count);
 
-        foreach (var bg in _bindGroupCache.Values)
-            _wgpu.BindGroupRelease((BindGroup*)bg);
-        _bindGroupCache.Clear();
         _currentBindGroup = null;
 
         if (_currentSurfaceTextureView != null)

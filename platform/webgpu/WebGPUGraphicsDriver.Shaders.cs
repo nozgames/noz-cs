@@ -21,9 +21,13 @@ public unsafe partial class WebGPUGraphicsDriver
         int bindingCount;
         var textureSlots = new List<TextureSlotInfo>();
         var uniformBindings = new Dictionary<string, uint>();
+        var hasGlobals = false;
 
         if (bindings.Count > 0)
         {
+            foreach (var binding in bindings)
+                hasGlobals |= binding.Type == ShaderBindingType.UniformBuffer && binding.Name == GlobalsBindingName;
+
             // Derive texture slots and uniform bindings from metadata
             // Also detect unfilterable textures (textures not followed by a sampler)
             var processedBindings = new List<ShaderBinding>(bindings);
@@ -105,7 +109,8 @@ public unsafe partial class WebGPUGraphicsDriver
             TextureSlots = textureSlots,
             UniformBindings = uniformBindings,
             UniformBuffers = new Dictionary<string, nint>(),
-            Flags = flags
+            Flags = flags,
+            HasGlobals = hasGlobals
         };
 
         return handle;
@@ -168,7 +173,9 @@ public unsafe partial class WebGPUGraphicsDriver
                 _ => throw new NotSupportedException($"Binding type {binding.Type} not supported")
             };
 
-            entries[i] = CreateBindGroupLayoutEntry(binding.Binding, bindingType);
+            // Every draw has its globals at an offset of its own in one buffer.
+            var dynamicOffset = binding.Type == ShaderBindingType.UniformBuffer && binding.Name == GlobalsBindingName;
+            entries[i] = CreateBindGroupLayoutEntry(binding.Binding, bindingType, dynamicOffset);
         }
 
         var bindGroupLayoutDesc = new BindGroupLayoutDescriptor
@@ -257,7 +264,7 @@ public unsafe partial class WebGPUGraphicsDriver
         return _wgpu.DeviceCreateBindGroupLayout(_device, &bindGroupLayoutDesc);
     }
 
-    private BindGroupLayoutEntry CreateBindGroupLayoutEntry(uint binding, BindingType type)
+    private BindGroupLayoutEntry CreateBindGroupLayoutEntry(uint binding, BindingType type, bool dynamicOffset = false)
     {
         return type switch
         {
@@ -268,6 +275,7 @@ public unsafe partial class WebGPUGraphicsDriver
                 Buffer = new BufferBindingLayout
                 {
                     Type = BufferBindingType.Uniform,
+                    HasDynamicOffset = dynamicOffset,
                     MinBindingSize = 0,
                 },
             },
@@ -672,6 +680,7 @@ public unsafe partial class WebGPUGraphicsDriver
     public void DestroyShader(nuint handle)
     {
         ref var shaderInfo = ref _shaders[(int)handle];
+        ForgetBindGroups(handle, 0);
 
         // Release all cached pipelines
         foreach (var pipeline in shaderInfo.PsoCache.Values)
