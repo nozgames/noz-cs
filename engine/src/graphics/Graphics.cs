@@ -102,7 +102,17 @@ public static unsafe partial class Graphics
     
     public static ApplicationConfig Config { get; private set; } = null!;
     public static GraphicsConfig RenderConfig => Config.Graphics!;
-    public static IGraphicsDriver Driver { get; private set; } = null!;
+    // While the render thread has a frame on its way, the driver is its alone: whatever
+    // asks for it on another thread waits until the frame is handed over.
+    public static IGraphicsDriver Driver
+    {
+        get
+        {
+            if (_renderBusy && !OnRenderThread) WaitForRender();
+            return _driver;
+        }
+        private set => _driver = value;
+    }
     public static Camera? Camera { get; private set; }
     public static Texture WhiteTexture { get; private set; } = null!;
     public static ref readonly Matrix3x2 Transform => ref CurrentState.Transform;
@@ -224,11 +234,17 @@ public static unsafe partial class Graphics
             TextureFilter.Point,
             name: "Bones");
 
+        _mainThreadId = Environment.CurrentManagedThreadId;
+        _driverFrameBegun = false;
+        _driverFrameFailed = false;
+        if (graphicsConfig.RenderThread) StartRenderThread();
+
         ResetState();
     }
 
     public static void Shutdown()
     {
+        StopRenderThread();
         foreach (var stream in _instanceStreams.Values) stream.Dispose();
         _instanceStreams.Clear();
         _drawParameterData.Dispose();
@@ -284,10 +300,18 @@ public static unsafe partial class Graphics
         if (WhiteTexture == null)
             WhiteTexture = Texture.Create(1, 1, [255, 255, 255, 255], name: "White");
 
-        if (!Driver.BeginFrame())
+        // With a render thread the driver's frame begins when this one is handed over
+        // (EndFrame), so that the frame before can be on its way meanwhile. After a frame
+        // the driver would not begin (no surface: the window is minimized) it is asked
+        // here, as without the thread, and frames are passed over until it will.
+        if (!HasRenderThread || _driverFrameFailed)
         {
-            FrameOpen = false;
-            return false;
+            WaitForRender();
+            if (!BeginDriverFrame())
+            {
+                FrameOpen = false;
+                return false;
+            }
         }
 
         RenderTexturePool.FlushPendingReleases();
@@ -348,20 +372,74 @@ public static unsafe partial class Graphics
         _batchStateDirty = true;
     }
 
+    private static bool BeginDriverFrame()
+    {
+        if (_driverFrameBegun) return true;
+
+        _driverFrameBegun = _driver.BeginFrame();
+        _driverFrameFailed = !_driverFrameBegun;
+        return _driverFrameBegun;
+    }
+
     internal static void EndFrame()
     {
+        // One frame is on its way at a time: the one before is waited for, and then the
+        // driver is this thread's until this frame is handed over.
+        WaitForRender();
+        RenderWaitMilliseconds = (float)Stopwatch.GetElapsedTime(0, _renderWaitTicks).TotalMilliseconds;
+        _renderWaitTicks = 0;
+
+        if (!BeginDriverFrame())
+        {
+            DiscardFrame();
+            AfterEndFrame?.Invoke();
+            AfterEndFrame = null;
+            FrameOpen = false;
+            return;
+        }
+
+        // A frame drawn at another scale is drawn twice over, and instance streams are
+        // filled as a frame is recorded: those frames are drawn here, as without the thread.
+        var handOver = HasRenderThread && _internalRT == null && _instanceStreams.Count == 0;
+
         using (s_markerExecuteCommands.Begin())
-            ExecuteCommands();
+            ExecuteCommands(handOver);
 
         if (_internalRT != null)
             BlitInternalRT();
 
-        AfterEndFrame?.Invoke();
+        var after = AfterEndFrame;
         AfterEndFrame = null;
+        _driverFrameBegun = false;
 
-        using (s_markerEndFrame.Begin())
-            Driver.EndFrame();
+        if (handOver)
+        {
+            HandOverFrame(after);
+        }
+        else
+        {
+            after?.Invoke();
+            using (s_markerEndFrame.Begin())
+                _driver.EndFrame();
+        }
+
         FrameOpen = false;
+    }
+
+    // A frame that cannot be drawn leaves nothing behind for the next.
+    private static void DiscardFrame()
+    {
+        _rtPassCount = 0;
+        _commands.Clear();
+        _vertices.Clear();
+        _indices.Clear();
+        _batches.Clear();
+        _batchStates.Clear();
+        _batchIndex.Clear();
+        _globalsSnapshots.Clear();
+        _globalsIndex.Clear();
+        _batchStateDirty = true;
+        _currentBatchState = 0;
     }
 
     private static void BlitInternalRT()
@@ -791,51 +869,46 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         return ref _batches.Add();
     }
 
-    private static void EndRenderPass(nuint currentRT)
+    private static void EndRenderPass(IGraphicsDriver driver, nuint currentRT, nuint internalRT)
     {
         if (currentRT == 0)
         {
-            if (_internalRT != null)
+            if (internalRT != 0)
             {
                 using (s_markerEndRenderTexturePass.Begin())
-                    Driver.EndRenderTexturePass();
+                    driver.EndRenderTexturePass();
             }
             else
             {
                 using (s_markerEndPass.Begin())
-                    Driver.EndScenePass();
+                    driver.EndScenePass();
             }
         }
         else if (currentRT != nuint.MaxValue)
         {
             using (s_markerEndRenderTexturePass.Begin())
-                Driver.EndRenderTexturePass();
+                driver.EndRenderTexturePass();
         }
     }
 
-    private static void ExecuteCommands()
+    // Turns what was recorded into batches and gives the driver the frame's vertices and
+    // globals. The batches are then handed to the driver here, or, when the frame is to be
+    // handed over to the render thread, left as they are for it (EndFrame).
+    private static void ExecuteCommands(bool handOver = false)
     {
+        var internalRT = _internalRT != null ? _internalRT.Handle : 0;
+
         // If no commands, just clear the target and return early
         if (_commands.Length == 0)
         {
-            if (_internalRT != null)
+            _batches.Clear();
+            _batchStates.Clear();
+            if (!handOver)
             {
-                Driver.BeginRenderTexturePass(_internalRT.Handle, ClearColor);
-                Driver.EndRenderTexturePass();
+                Replay(_batches.AsSpan(), _batchStates.AsSpan(), _rtPasses, _rtPassCount, ClearColor, internalRT);
+                _rtPassCount = 0;
             }
-            else
-            {
-                Driver.BeginScenePass(ClearColor);
-                Driver.EndScenePass();
-            }
-            // Empty render-texture passes still promise a clear, and must be
-            // consumed so a later flush cannot clear them again.
-            for (var r = 0; r < _rtPassCount; r++)
-            {
-                Driver.BeginRenderTexturePass(_rtPasses[r].Handle, _rtPasses[r].ClearColor);
-                Driver.EndRenderTexturePass();
-            }
-            _rtPassCount = 0;
+
             return;
         }
 
@@ -867,124 +940,32 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
         using (s_markerUploadBones.Begin())
             UploadBones();
 
-        Driver.BindTexture(_boneTexture, BoneTextureSlot);
-
         // Upload all globals snapshots to driver
         foreach (var stream in _instanceStreams.Values) stream.Upload();
         using (s_markerUploadGlobals.Begin())
             UploadGlobals();
 
-        // Track current render target for pass switching (0 = scene pass, non-zero = RT pass)
-        nuint currentRT = nuint.MaxValue;  // Invalid value to force first pass begin
-        bool scenePassStarted = false;
-        Span<bool> rtVisited = stackalloc bool[_rtPassCount];
-        rtVisited.Clear();
-
-        for (int batchIndex = 0, batchCount = _batches.Length; batchIndex < batchCount; batchIndex++)
-        {
-            ref var batch = ref _batches[batchIndex];
-            ref var batchState = ref _batchStates[batch.State];
-
-            // Handle pass switching based on render target
-            if (currentRT != batchState.RenderTextureHandle)
-            {
-                EndRenderPass(currentRT);
-                currentRT = batchState.RenderTextureHandle;
-
-                // Begin new pass
-                if (currentRT == 0)
-                {
-                    if (!scenePassStarted)
-                    {
-                        if (_internalRT != null)
-                            Driver.BeginRenderTexturePass(_internalRT.Handle, ClearColor);
-                        else
-                            Driver.BeginScenePass(ClearColor);
-                        scenePassStarted = true;
-                    }
-                    else
-                    {
-                        if (_internalRT != null)
-                            Driver.ResumeRenderTexturePass(_internalRT.Handle);
-                        else
-                            Driver.ResumeScenePass();
-                    }
-                }
-                else
-                {
-                    // RT pass - get clear color from batch state
-                    Driver.BeginRenderTexturePass(currentRT, batchState.ClearColor);
-
-                    // Mark this RT as visited
-                    for (int r = 0; r < _rtPassCount; r++)
-                    {
-                        if (_rtPasses[r].Handle == currentRT)
-                        {
-                            rtVisited[r] = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Re-bind bone texture — driver state was reset by BeginPass
-                Driver.BindTexture(_boneTexture, BoneTextureSlot);
-            }
-
-            // Apply all state unconditionally — driver early-exits handle optimization
-            Driver.SetViewport(batchState.Viewport);
-            if (batchState.ScissorEnabled)
-                Driver.SetScissor(batchState.Scissor);
-            else
-                Driver.ClearScissor();
-            Driver.BindShader(batchState.Shader);
-            Driver.BindGlobals(batchState.GlobalsIndex);
-            for (int t = 0; t < MaxTextures; t++)
-            {
-                if (batchState.Textures[t] != 0)
-                    Driver.BindTexture((nuint)batchState.Textures[t], t, (TextureFilter)batchState.TextureFilters[t]);
-            }
-            Driver.SetBlendMode(batchState.BlendMode);
-            Driver.BindMesh(batchState.Mesh);
-            Driver.BindInstanceStream(batchState.InstanceStream);
-
-            using (s_markerDrawElements.Begin())
-            {
-                if (batchState.InstanceStream != 0)
-                    Driver.DrawElementsInstanced(batch.IndexOffset, batch.IndexCount, batch.InstanceCount, batch.FirstInstance);
-                else
-                    Driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
-            }
-        }
-
-        // Clear scissor before ending the final pass
-        Driver.ClearScissor();
-
-        // End the final pass
-        EndRenderPass(currentRT);
-
-        // Clear any RT passes that had no draw commands (e.g. empty workspace with grid hidden)
-        for (int r = 0; r < _rtPassCount; r++)
-        {
-            if (!rtVisited[r])
-            {
-                Driver.BeginRenderTexturePass(_rtPasses[r].Handle, _rtPasses[r].ClearColor);
-                Driver.EndRenderTexturePass();
-            }
-        }
-
         s_counterDrawCalls.Increment(_batches.Length);
-        // These targets have been rendered/cleared. A later flush in the same
-        // frame must not clear them again merely because it has no draws there.
-        _rtPassCount = 0;
         s_counterCommands.Increment(_commands.Length);
         s_counterVertices.Increment(_vertices.Length);
         s_counterIndices.Increment(_indices.Length);
 
+        // The render thread takes the batches, their states and the passes as they are
+        // (HandOverFrame); otherwise they go to the driver here.
+        if (!handOver)
+        {
+            Replay(_batches.AsSpan(), _batchStates.AsSpan(), _rtPasses, _rtPassCount, ClearColor, internalRT);
+
+            // These targets have been rendered/cleared. A later flush in the same
+            // frame must not clear them again merely because it has no draws there.
+            _rtPassCount = 0;
+            _batches.Clear();
+            _batchStates.Clear();
+        }
+
         _commands.Clear();
         _vertices.Clear();
         _indices.Clear();
-        _batches.Clear();
-        _batchStates.Clear();
         _batchIndex.Clear();
 
         // Advance base index so subsequent ExecuteCommands calls (like RTT) use different buffer slots
@@ -995,6 +976,143 @@ private static readonly ProfilerMarker s_markerTemp = new("temp");
 
         _batchStateDirty = true;
         _currentBatchState = 0;
+    }
+
+    // Hands batches to the driver: each render texture's pass, then the scene's. It reads
+    // nothing of the frame being recorded, so the render thread can run it on what was put
+    // aside for it while the next frame is recorded.
+    private static void Replay(
+        ReadOnlySpan<Batch> batches,
+        ReadOnlySpan<BatchState> batchStates,
+        (nuint Handle, Color ClearColor)[] rtPasses,
+        int rtPassCount,
+        Color clearColor,
+        nuint internalRT)
+    {
+        var driver = _driver;
+
+        // With nothing to draw the targets are still cleared, as they were promised.
+        if (batches.Length == 0)
+        {
+            if (internalRT != 0)
+            {
+                driver.BeginRenderTexturePass(internalRT, clearColor);
+                driver.EndRenderTexturePass();
+            }
+            else
+            {
+                driver.BeginScenePass(clearColor);
+                driver.EndScenePass();
+            }
+
+            for (var r = 0; r < rtPassCount; r++)
+            {
+                driver.BeginRenderTexturePass(rtPasses[r].Handle, rtPasses[r].ClearColor);
+                driver.EndRenderTexturePass();
+            }
+
+            return;
+        }
+
+        driver.BindTexture(_boneTexture, BoneTextureSlot);
+
+        // Track current render target for pass switching (0 = scene pass, non-zero = RT pass)
+        nuint currentRT = nuint.MaxValue;  // Invalid value to force first pass begin
+        bool scenePassStarted = false;
+        Span<bool> rtVisited = stackalloc bool[rtPassCount];
+        rtVisited.Clear();
+
+        for (int batchIndex = 0, batchCount = batches.Length; batchIndex < batchCount; batchIndex++)
+        {
+            ref readonly var batch = ref batches[batchIndex];
+            ref readonly var batchState = ref batchStates[batch.State];
+
+            // Handle pass switching based on render target
+            if (currentRT != batchState.RenderTextureHandle)
+            {
+                EndRenderPass(driver, currentRT, internalRT);
+                currentRT = batchState.RenderTextureHandle;
+
+                // Begin new pass
+                if (currentRT == 0)
+                {
+                    if (!scenePassStarted)
+                    {
+                        if (internalRT != 0)
+                            driver.BeginRenderTexturePass(internalRT, clearColor);
+                        else
+                            driver.BeginScenePass(clearColor);
+                        scenePassStarted = true;
+                    }
+                    else
+                    {
+                        if (internalRT != 0)
+                            driver.ResumeRenderTexturePass(internalRT);
+                        else
+                            driver.ResumeScenePass();
+                    }
+                }
+                else
+                {
+                    // RT pass - get clear color from batch state
+                    driver.BeginRenderTexturePass(currentRT, batchState.ClearColor);
+
+                    // Mark this RT as visited
+                    for (int r = 0; r < rtPassCount; r++)
+                    {
+                        if (rtPasses[r].Handle == currentRT)
+                        {
+                            rtVisited[r] = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Re-bind bone texture — driver state was reset by BeginPass
+                driver.BindTexture(_boneTexture, BoneTextureSlot);
+            }
+
+            // Apply all state unconditionally — driver early-exits handle optimization
+            driver.SetViewport(batchState.Viewport);
+            if (batchState.ScissorEnabled)
+                driver.SetScissor(batchState.Scissor);
+            else
+                driver.ClearScissor();
+            driver.BindShader(batchState.Shader);
+            driver.BindGlobals(batchState.GlobalsIndex);
+            for (int t = 0; t < MaxTextures; t++)
+            {
+                if (batchState.Textures[t] != 0)
+                    driver.BindTexture((nuint)batchState.Textures[t], t, (TextureFilter)batchState.TextureFilters[t]);
+            }
+            driver.SetBlendMode(batchState.BlendMode);
+            driver.BindMesh(batchState.Mesh);
+            driver.BindInstanceStream(batchState.InstanceStream);
+
+            using (s_markerDrawElements.Begin())
+            {
+                if (batchState.InstanceStream != 0)
+                    driver.DrawElementsInstanced(batch.IndexOffset, batch.IndexCount, batch.InstanceCount, batch.FirstInstance);
+                else
+                    driver.DrawElements(batch.IndexOffset, batch.IndexCount, 0);
+            }
+        }
+
+        // Clear scissor before ending the final pass
+        driver.ClearScissor();
+
+        // End the final pass
+        EndRenderPass(driver, currentRT, internalRT);
+
+        // Clear any RT passes that had no draw commands (e.g. empty workspace with grid hidden)
+        for (int r = 0; r < rtPassCount; r++)
+        {
+            if (!rtVisited[r])
+            {
+                driver.BeginRenderTexturePass(rtPasses[r].Handle, rtPasses[r].ClearColor);
+                driver.EndRenderTexturePass();
+            }
+        }
     }
 
     [Conditional("DEBUG")]

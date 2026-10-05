@@ -78,6 +78,8 @@ public static class Profiler
     {
         if (!Enabled) return;
 
+        _threadId = Environment.CurrentManagedThreadId;
+
         _depthStackSize = 0;
         _markerOrderCount = 0;
 
@@ -127,9 +129,14 @@ public static class Profiler
         }
     }
 
+    // Markers nest on one stack, which is the thread's that the frames begin on: one
+    // begun on another thread (the render thread) is not timed here.
+    private static int _threadId = Environment.CurrentManagedThreadId;
+
     internal static void BeginMarker(ushort id)
     {
         if (!Enabled || Application.IsResizing) return;
+        if (Environment.CurrentManagedThreadId != _threadId) return;
         if (_depthStackSize >= MaxDepthStack) return;
 
         ref var m = ref _markers[id];
@@ -154,6 +161,7 @@ public static class Profiler
     internal static void EndMarker(ushort id)
     {
         if (!Enabled || Application.IsResizing) return;
+        if (Environment.CurrentManagedThreadId != _threadId) return;
         if (_depthStackSize <= 0) return;
 
         _depthStackSize--;

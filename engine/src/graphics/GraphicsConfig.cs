@@ -12,6 +12,10 @@ public class GraphicsConfig
     public const int DefaultMaxMeshes = 256;
 
     public bool Vsync { get; init; } = true;
+    /// <summary>Hands each frame's draws to the driver and presents it on a thread of its
+    /// own, while the main thread goes on to the next frame (Graphics.RenderThread.cs).
+    /// Whatever uses the driver from the main thread meanwhile waits for it.</summary>
+    public bool RenderThread { get; init; } = false;
     public int MaxDrawCommands { get; init; } = 16384;
     public int MaxBatches { get; init; } = 4096;
     // Glyphs the text renderer can draw in one frame (at most 16383, the 16-bit
