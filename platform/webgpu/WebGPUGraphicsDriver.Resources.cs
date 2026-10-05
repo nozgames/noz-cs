@@ -241,6 +241,7 @@ public unsafe partial class WebGPUGraphicsDriver
             TextureFormat.RGBA32F => WGPUTextureFormat.Rgba32float,
             TextureFormat.BGRA8 => WGPUTextureFormat.Bgra8Unorm,
             TextureFormat.RGBA16F => WGPUTextureFormat.Rgba16float,
+            TextureFormat.RG32F => WGPUTextureFormat.RG32float,
             _ => WGPUTextureFormat.Rgba8Unorm,
         };
     }
@@ -290,6 +291,7 @@ public unsafe partial class WebGPUGraphicsDriver
                 TextureFormat.RG8 => 2,
                 TextureFormat.RGBA32F => 16,
                 TextureFormat.RGBA16F => 8,
+                TextureFormat.RG32F => 8,
                 _ => 4,
             };
 
@@ -372,6 +374,7 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba8Unorm => 4,
             WGPUTextureFormat.R8Unorm => 1,
             WGPUTextureFormat.Rgba32float => 16,
+            WGPUTextureFormat.RG32float => 8,
             WGPUTextureFormat.Rgba16float => 8,
             _ => 4,
         };
@@ -411,6 +414,7 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba8Unorm => 4,
             WGPUTextureFormat.R8Unorm => 1,
             WGPUTextureFormat.Rgba32float => 16,
+            WGPUTextureFormat.RG32float => 8,
             WGPUTextureFormat.Rgba16float => 8,
             _ => 4,
         };
@@ -595,6 +599,7 @@ public unsafe partial class WebGPUGraphicsDriver
             TextureFormat.RG8 => 2,
             TextureFormat.RGBA32F => 16,
             TextureFormat.RGBA16F => 8,
+            TextureFormat.RG32F => 8,
             _ => 4,
         };
 
@@ -679,6 +684,7 @@ public unsafe partial class WebGPUGraphicsDriver
             WGPUTextureFormat.Rgba8Unorm => 4,
             WGPUTextureFormat.R8Unorm => 1,
             WGPUTextureFormat.Rgba32float => 16,
+            WGPUTextureFormat.RG32float => 8,
             WGPUTextureFormat.Rgba16float => 8,
             _ => 4,
         };

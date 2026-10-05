@@ -13,6 +13,8 @@ public enum TextureFormat : byte
     RGBA32F = 4,
     BGRA8 = 5,
     RGBA16F = 6,
+    // Two floats a texel: numbers a shader reads with textureLoad, not colours.
+    RG32F = 7,
 }
 
 public enum TextureFilter : byte

@@ -215,6 +215,7 @@ public class Texture : Asset, ITexture
     {
         TextureFormat.RGBA32F => 16,
         TextureFormat.RGBA16F => 8,
+        TextureFormat.RG32F => 8,
         TextureFormat.RGBA8 => 4,
         TextureFormat.RGB8 => 3,
         TextureFormat.RG8 => 2,
