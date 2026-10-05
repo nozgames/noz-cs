@@ -391,4 +391,39 @@ public static partial class Graphics
 
     public static Vector2 MeasureText(ReadOnlySpan<char> text, Font font, float fontSize) =>
         TextRender.Measure(text, font, fontSize);
+
+    public static Vector2 MeasureText(ReadOnlySpan<char> text, Font font, float fontSize, float maxWidth) =>
+        TextRender.MeasureWrapped(text, font, fontSize, maxWidth);
+
+    // Text drawn at the current transform's origin and wrapped at maxWidth, each line placed by alignX (0..1) in containerWidth
+    public static void DrawTextWrapped(in ReadOnlySpan<char> text, Font font, float fontSize, float maxWidth, float containerWidth, float alignX, float maxHeight = 0, int order = 0) =>
+        TextRender.DrawWrapped(text, font, fontSize, maxWidth, containerWidth, alignX, maxHeight, order);
+
+    // One line of text cut short with an ellipsis where it is longer than maxWidth
+    public static void DrawTextEllipsized(in ReadOnlySpan<char> text, Font font, float fontSize, float maxWidth, int order = 0) =>
+        TextRender.DrawEllipsized(text, font, fontSize, maxWidth, order);
+
+    // The outline of the text drawn from here on, until it is cleared
+    public static void SetTextOutline(Color color, float width, float softness = 0f) =>
+        TextRender.SetOutline(color, width, softness);
+
+    public static void ClearTextOutline() => TextRender.ClearOutline();
+
+    public struct TextLine
+    {
+        public int Start;
+        public int End;
+        public float Width;
+    }
+
+    // The lines text is wrapped into at maxWidth, as DrawTextWrapped draws them: where each starts and ends in the text
+    // (the spaces at its end left out) and how wide it is. A line break in the text ends a line and is in neither.
+    public static int GetTextLines(ReadOnlySpan<char> text, Font font, float fontSize, float maxWidth, Span<TextLine> lines)
+    {
+        Span<TextRender.CachedLine> wrapped = stackalloc TextRender.CachedLine[Math.Min(lines.Length, TextRender.MaxWrappedLines)];
+        var count = TextRender.GetWrapLines(text, font, fontSize, maxWidth, 0, wrapped);
+        for (var i = 0; i < count; i++)
+            lines[i] = new TextLine { Start = wrapped[i].Start, End = wrapped[i].End, Width = wrapped[i].Width };
+        return count;
+    }
 }

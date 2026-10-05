@@ -52,6 +52,16 @@ public class NullPlatform : IPlatform
 
     public nint GetGraphicsProcAddress(string name) => 0;
 
+    // Reads from the library folder when it is there, as the desktop does, so a build that
+    // does not embed its assets still finds them.
+    public Stream? OpenAssetStream(AssetType type, string name, string extension, string? libraryPath = null)
+    {
+        var typeName = Asset.GetDef(type)?.Name.ToLowerInvariant() ?? type.ToString().ToLowerInvariant();
+        var fileName = string.IsNullOrEmpty(extension) ? name : name + extension;
+        var fullPath = Path.Combine(libraryPath ?? Application.AssetPath, typeName, fileName);
+        return File.Exists(fullPath) ? File.OpenRead(fullPath) : null;
+    }
+
     public Stream? LoadPersistentData(string name, string? appName = null) => null;
     public void SavePersistentData(string name, Stream data, string? appName = null) { }
 
