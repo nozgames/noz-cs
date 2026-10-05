@@ -10,13 +10,17 @@ namespace NoZ;
 
 internal static class TextRender
 {
-    private const int MaxVertices = 8192 * 2;
-    private const int MaxIndices = 8192 / 4 * 6 * 2;
+    // 16-bit indices: four vertices a glyph
+    private const int MaxGlyphsLimit = ushort.MaxValue / 4;
+
+    private static readonly ProfilerCounter s_counterGlyphs = new("Text.Glyphs");
 
     private static Shader? _textShader;
     private static RenderMesh _mesh;
-    private static NativeArray<TextVertex> _vertices = new NativeArray<TextVertex>(MaxVertices);
-    private static NativeArray<ushort> _indices = new NativeArray<ushort>(MaxIndices);
+    private static NativeArray<TextVertex> _vertices;
+    private static NativeArray<ushort> _indices;
+    private static int _maxGlyphs;
+    private static bool _fullLogged;
 
     public static Color32 OutlineColor { get; private set; } = Color32.Transparent;
     public static float OutlineWidth { get; private set; }
@@ -41,10 +45,18 @@ internal static class TextRender
         _textShader = Asset.Get<Shader>(AssetType.Shader, config.TextShader);
         if (_textShader == null) throw new Exception($"Failed to load text shader '{config.TextShader}'");
 
-        _vertices = new NativeArray<TextVertex>(MaxVertices);
+        _maxGlyphs = config.Graphics?.MaxTextGlyphs ?? 0;
+        if (_maxGlyphs is < 1 or > MaxGlyphsLimit)
+            throw new ArgumentOutOfRangeException(nameof(GraphicsConfig.MaxTextGlyphs));
+
+        _vertices.Dispose();
+        _indices.Dispose();
+        _vertices = new NativeArray<TextVertex>(_maxGlyphs * 4);
+        _indices = new NativeArray<ushort>(_maxGlyphs * 6);
+        _fullLogged = false;
         _mesh = Graphics.CreateMesh<TextVertex>(
-            MaxVertices,
-            MaxIndices,
+            _maxGlyphs * 4,
+            _maxGlyphs * 6,
             BufferUsage.Dynamic,
             "TextRender"
         );
@@ -54,15 +66,33 @@ internal static class TextRender
     {
         _wrapCache.Clear();
         _vertices.Dispose();
+        _indices.Dispose();
         Graphics.Driver.DestroyMesh(_mesh.Handle);
         _mesh = default;
         _textShader = null;
     }
-    
+
+    // Glyphs past the frame's budget are dropped rather than written past the buffers.
+    private static bool HasRoomForGlyph()
+    {
+        if (_vertices.IsCreated && _vertices.CheckCapacity(4) && _indices.CheckCapacity(6))
+            return true;
+
+        if (!_fullLogged)
+        {
+            _fullLogged = true;
+            Log.Warning($"Text glyph budget exhausted ({_maxGlyphs} per frame); the rest is not drawn. Raise GraphicsConfig.MaxTextGlyphs.");
+        }
+
+        return false;
+    }
+
     public static void Flush()
     {
         if (_vertices.Length == 0 && _indices.Length == 0)
             return;
+
+        s_counterGlyphs.Increment(_vertices.Length / 4);
 
         Graphics.Driver.BindMesh(_mesh.Handle);
         Graphics.Driver.UpdateMesh(_mesh.Handle, _vertices.AsByteSpan(), _indices.AsSpan());
@@ -118,6 +148,9 @@ internal static class TextRender
 
         var atlasTexture = font.AtlasTexture;
         if (atlasTexture == null)
+            return;
+
+        if (!HasRoomForGlyph())
             return;
 
         using var _ = Graphics.PushState();
@@ -412,6 +445,9 @@ internal static class TextRender
         Color32 color, Color32 outlineColor, float outlineWidth, float outlineSoftness,
         ref int baseIndex, ushort order)
     {
+        if (!HasRoomForGlyph())
+            return;
+
         var baseVertex = _vertices.Length;
 
         _vertices.Add(new TextVertex
@@ -667,6 +703,9 @@ internal static class TextRender
                 var x1 = x0 + glyph.Size.X * fontSize;
                 var y0 = baselineY + glyph.Bearing.Y * fontSize - glyph.Size.Y * fontSize;
                 var y1 = y0 + glyph.Size.Y * fontSize;
+
+                if (!HasRoomForGlyph())
+                    return;
 
                 var baseVertex = _vertices.Length;
 

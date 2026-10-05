@@ -14,6 +14,9 @@ public class GraphicsConfig
     public bool Vsync { get; init; } = true;
     public int MaxDrawCommands { get; init; } = 16384;
     public int MaxBatches { get; init; } = 4096;
+    // Glyphs the text renderer can draw in one frame (at most 16383, the 16-bit
+    // index limit). Glyphs past the limit are dropped with a warning.
+    public int MaxTextGlyphs { get; init; } = 4096;
     /// <summary>Frame-wide instance capacity per vertex format, shared by all views and flushes.
     /// Native CPU and GPU pages grow geometrically on demand and are retained until shutdown.
     /// Retained capacity per format is less than three times this limit (less than twice
