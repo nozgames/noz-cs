@@ -63,6 +63,10 @@ public static class PaletteManager
         {
             if (doc is not IPaletteSource) continue;
 
+            // Headless imports never load documents up front.
+            if (!doc.Loaded)
+                doc.Load();
+
             var id = doc.Name;
             var def = new PaletteDef(id, null);
             def.SourceDocument = doc;

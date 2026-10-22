@@ -88,6 +88,31 @@ public static class Project
         InitDocuments();
     }
 
+    // Headless counterpart of EditorApplication.LoadProject: loads every document,
+    // exports it, packs the atlas and writes the manifests, then shuts down.
+    public static void ImportAll(string projectPath, EditorConfig config)
+    {
+        CollectionManager.Init(config);
+        Init(projectPath, config);
+        PaletteManager.Init();
+        LoadAll();
+        PaletteManager.DiscoverPalettes();
+        AtlasManager.Init();
+        PostLoad();
+
+        foreach (var doc in _documents)
+            QueueExport(doc);
+        UpdateExports();
+
+        AtlasManager.Update();
+        AtlasManager.ExportIfNeeded();
+        AssetManifest.Generate(config, force: true);
+
+        AtlasManager.Shutdown();
+        PaletteManager.Shutdown();
+        Shutdown();
+    }
+
     public static void InitExports()
     {
         if (_backgroundStartup) _watching = true;

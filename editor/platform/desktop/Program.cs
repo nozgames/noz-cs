@@ -86,9 +86,8 @@ public static class Program
             }
         }
 
-        Project.Init(projectPath, config);
-        Project.InitExports();
-        Project.Shutdown();
+        Log.ConsoleOutput = true;
+        Project.ImportAll(projectPath, config);
     }
 
 
