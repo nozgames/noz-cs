@@ -330,16 +330,22 @@ public static class MathEx
         return Vector2.Distance(point, projection) - radius;
     }
 
+    private static Random _random = Random.Shared;
+
+    // Makes RandomRange and friends reproducible (main thread only); null restores the shared generator.
+    public static void SetRandomSeed(int? seed) =>
+        _random = seed is { } value ? new Random(value) : Random.Shared;
+
     public static int RandomRange(int count) =>
-        Random.Shared.Next(count);
+        _random.Next(count);
 
     public static int RandomRange(int min, int max) =>
-        min + Random.Shared.Next(max - min + 1);
+        min + _random.Next(max - min + 1);
 
     public static float RandomRange(float min, float max) =>
-        ((float)Random.Shared.NextDouble()) * (max - min) + min;
+        ((float)_random.NextDouble()) * (max - min) + min;
 
-    public static float Random01() => (float)Random.Shared.NextDouble();
+    public static float Random01() => (float)_random.NextDouble();
     public static float RandomSNorm() => RandomRange(-1f, 1f);
     public static float RandomSign() => ((int)(Random01() + 0.5f)) * 2 - 1;
     public static float RandomSNormRange(float min, float max) => RandomRange(min, max) * RandomSign();

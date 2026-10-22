@@ -131,7 +131,7 @@ public unsafe partial class SDLPlatform : IPlatform
         // A window that is given a position is made hidden and shown once it is there, so it
         // does not appear in the middle of the screen first.
         var placed = config.X != PlatformConfig.WindowPositionCentered || config.Y != PlatformConfig.WindowPositionCentered;
-        if (placed)
+        if (placed || config.Hidden)
             windowFlags |= SDL_WindowFlags.SDL_WINDOW_HIDDEN;
 
         _window = SDL_CreateWindow(config.Title, config.Width, config.Height, windowFlags);
@@ -145,7 +145,8 @@ public unsafe partial class SDLPlatform : IPlatform
             var x = config.X == PlatformConfig.WindowPositionCentered ? (int)SDL_WINDOWPOS_CENTERED : config.X;
             var y = config.Y == PlatformConfig.WindowPositionCentered ? (int)SDL_WINDOWPOS_CENTERED : config.Y;
             SDL_SetWindowPosition(_window, x, y);
-            SDL_ShowWindow(_window);
+            if (!config.Hidden)
+                SDL_ShowWindow(_window);
         }
 
         if (config.MinWidth > 0 && config.MinHeight > 0)

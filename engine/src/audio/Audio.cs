@@ -27,8 +27,8 @@ public static class Audio
         if (sound == null || volume <= 0f || sound.PlatformHandle == 0)
             return default;
 
-        volume *= MathEx.RandomRange(sound.VolumeMin, sound.VolumeMax);
-        pitch *= MathEx.RandomRange(sound.PitchMin, sound.PitchMax);
+        volume *= RandomRange(sound.VolumeMin, sound.VolumeMax);
+        pitch *= RandomRange(sound.PitchMin, sound.PitchMax);
 
         return new(Driver.Play(sound.PlatformHandle, volume, pitch, loop));
     }
@@ -40,9 +40,12 @@ public static class Audio
         return Play(sound, volume, pitch, loop);
     }
 
+    // Sound variation draws from its own generator so it never disturbs a seeded gameplay stream (MathEx.SetRandomSeed).
+    private static float RandomRange(float min, float max) => min + (max - min) * Random.Shared.NextSingle();
+
     public static SoundHandle PlayRandomPitch(Sound sound, float volume, float minPitch, float maxPitch, bool loop = false)
     {
-        var pitch = MathEx.RandomRange(minPitch, maxPitch);
+        var pitch = RandomRange(minPitch, maxPitch);
         return Play(sound, volume, pitch, loop);
     }
 

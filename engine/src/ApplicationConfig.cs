@@ -36,6 +36,9 @@ public class ApplicationConfig
     public bool VSync { get; init; } = true;
     public bool Resizable { get; init; } = true;
 
+    // Creates the window without ever showing it (headless runs such as automated play-tests).
+    public bool Hidden { get; set; }
+
     // Whether the platform listens for gamepads. Finding them is the slowest part of the
     // platform's start on Windows (about 0.4 s), so an application that has no use for
     // one says so.
