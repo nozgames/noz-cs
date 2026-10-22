@@ -99,6 +99,7 @@ public static unsafe partial class Graphics
     private static RenderTexture? _internalRT;
     private static readonly Camera _blitCamera = new();
     private static Shader? _blitShader;
+    private static RenderMesh _blitMesh;
     
     public static ApplicationConfig Config { get; private set; } = null!;
     public static GraphicsConfig RenderConfig => Config.Graphics!;
@@ -270,6 +271,7 @@ public static unsafe partial class Graphics
         Driver.Shutdown();
 
         _mesh = default;
+        _blitMesh = default;
         _boneTexture = 0;
     }
 
@@ -323,11 +325,12 @@ public static unsafe partial class Graphics
             RenderSize = new Vector2Int(
                 Math.Max(1, (int)MathF.Round(win.X * RenderScale)),
                 Math.Max(1, (int)MathF.Round(win.Y * RenderScale)));
-            _internalRT = RenderTexturePool.Acquire(RenderSize.X, RenderSize.Y);
+            _internalRT = BeginCapture(RenderSize.X, RenderSize.Y) ?? RenderTexturePool.Acquire(RenderSize.X, RenderSize.Y);
         }
         else
         {
             RenderSize = Application.WindowSize;
+            _internalRT = BeginCapture(RenderSize.X, RenderSize.Y);
         }
 
         _time += Time.DeltaTime;
@@ -391,6 +394,7 @@ public static unsafe partial class Graphics
 
         if (!BeginDriverFrame())
         {
+            CancelCapture();
             DiscardFrame();
             AfterEndFrame?.Invoke();
             AfterEndFrame = null;
@@ -421,6 +425,7 @@ public static unsafe partial class Graphics
             after?.Invoke();
             using (s_markerEndFrame.Begin())
                 _driver.EndFrame();
+            EndCapture();
         }
 
         FrameOpen = false;
@@ -463,7 +468,24 @@ public static unsafe partial class Graphics
         SetTextureFilter(TextureFilter.Point);
         SetTexture(savedRT.Handle);
         SetBlendMode(BlendMode.None);
-        Draw(0, 0, winSize.X, winSize.Y);
+
+        // The frame's draws are submitted together with this blit, but buffer writes go
+        // to the queue ahead of the frame's command buffer. Drawing the blit through the
+        // shared frame mesh would overwrite the vertices and indices that the frame's
+        // first draws read, so the blit has a mesh of its own.
+        if (_blitMesh.Handle == nuint.Zero)
+            _blitMesh = CreateMesh<MeshVertex>(4, 6, BufferUsage.Dynamic, "BlitMesh");
+        ReadOnlySpan<MeshVertex> blitVertices =
+        [
+            new MeshVertex(0, 0, 0, 0, Color.White),
+            new MeshVertex(winSize.X, 0, 1, 0, Color.White),
+            new MeshVertex(winSize.X, winSize.Y, 1, 1, Color.White),
+            new MeshVertex(0, winSize.Y, 0, 1, Color.White),
+        ];
+        ReadOnlySpan<ushort> blitIndices = [0, 1, 2, 2, 3, 0];
+        UpdateMesh(_blitMesh, blitVertices, blitIndices);
+        SetMesh(_blitMesh);
+        DrawElements(6, 0);
 
         using (s_markerExecuteCommands.Begin())
             ExecuteCommands();
